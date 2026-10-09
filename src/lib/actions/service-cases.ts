@@ -406,6 +406,22 @@ export async function updateServiceCase(
         }
         if (payload.closed_at === undefined) payload.closed_at = new Date().toISOString()
       }
+    } else if (payload.status) {
+      // Sags-review 2026-10-09 (#10): genåbnet sag beholdt closed_at → talte stadig som lukket i rapporter/filtre
+      payload.closed_at = null
+    }
+
+    // Sags-review 2026-10-09 (#4): skiftes sagens kunde, flyttes de parter der pegede på den GAMLE kunde med (bestiller/
+    // slutkunde/betaler/anlæg). Før blev de stående → underskrifts-/besigtigelsesmails og kopier gik til den forkerte kunde.
+    if (typeof payload.customer_id === 'string') {
+      const { data: before } = await supabase.from('service_cases')
+        .select('customer_id, orderer_customer_id, end_customer_id, payer_customer_id, site_customer_id').eq('id', id).maybeSingle()
+      const b = before as Record<string, string | null> | null
+      if (b && b.customer_id && b.customer_id !== payload.customer_id) {
+        for (const f of ['orderer_customer_id', 'end_customer_id', 'payer_customer_id', 'site_customer_id']) {
+          if (payload[f] === undefined && b[f] === b.customer_id) payload[f] = payload.customer_id
+        }
+      }
     }
 
     const { data, error } = await supabase
@@ -1511,7 +1527,12 @@ async function unbilledCloseBlock(
   caseId: string
 ): Promise<string | null> {
   const { unbilledCloseMessage } = await import('@/lib/invoices/unbilled')
-  return unbilledCloseMessage((await loadCaseWork(supabase, caseId)).unbilled)
+  const work = await loadCaseWork(supabase, caseId)
+  const msg = unbilledCloseMessage(work.unbilled)
+  // Sags-review 2026-10-09 (#6): åbne arbejdsordrer (planlagt/i gang) — montøren så stadig jobbet efter lukning
+  const open = work.workOrderStatuses.filter((st) => st === 'planned' || st === 'in_progress').length
+  const openMsg = open ? `${open} arbejdsordre${open === 1 ? '' : 'r'} er stadig planlagt eller i gang.` : ''
+  return [msg, openMsg].filter(Boolean).join(' ') || null
 }
 
 /** Sagens job-statusser + ufaktureret optælling (samme regler som fakturakladden). */
@@ -1525,7 +1546,7 @@ async function loadCaseWork(
   const [tl, mat, oth] = await Promise.all([
     woIds.length
       ? // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
-        fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data }))
+        fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).neq('approval_status', 'rejected').order('id').range(f, t)).then((data) => ({ data })) /* sags-review 2026-10-09 (#5): afviste timer blokerer ikke lukning */
       : Promise.resolve({ data: [] }),
     supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
     supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
@@ -1625,6 +1646,8 @@ export async function setServiceCaseStatus(
       }
       closedDespite = block
       update.closed_at = new Date().toISOString()
+    } else if (status !== 'closed') {
+      update.closed_at = null // genåbnet (sags-review 2026-10-09 #10)
     }
 
     const { data, error } = await supabase

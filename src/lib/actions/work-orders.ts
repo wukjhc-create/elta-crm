@@ -174,12 +174,14 @@ export async function createWorkOrderForCase(
     // the caller having to pass it.
     const { data: caseRow, error: caseErr } = await supabase
       .from('service_cases')
-      .select('id, customer_id, case_number')
+      .select('id, customer_id, case_number, status')
       .eq('id', input.case_id)
       .maybeSingle()
     if (caseErr || !caseRow) {
       return { success: false, error: 'Sag ikke fundet' }
     }
+    // Sags-review 2026-10-09 (#6): intet nyt arbejde på en lukket sag (det blev aldrig faktureret og gav ingen advarsel)
+    if ((caseRow as { status?: string }).status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
 
     const { data, error } = await supabase
       .from('work_orders')

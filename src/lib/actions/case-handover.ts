@@ -101,14 +101,21 @@ export async function startCaseHandoverAction(caseId: string): Promise<ActionRes
 
 async function setItem(caseId: string, key: string, completed: boolean, attachmentId?: string | null) {
   const db = await admin()
-  const { data: sc } = await db.from('service_cases').select('checklist').eq('id', caseId).maybeSingle()
-  const list = (Array.isArray(sc?.checklist) ? sc!.checklist : []) as ChecklistItem[]
-  const idx = list.findIndex((i) => i.key === key)
-  if (idx < 0) return { ok: false as const, error: 'Ukendt tjeklistepunkt' }
-  const next = list.map((i, n) => (n === idx ? { ...i, completed, completed_at: completed ? new Date().toISOString() : null, ...(attachmentId !== undefined ? { attachment_id: attachmentId } : {}) } : i))
-  const { error } = await db.from('service_cases').update({ checklist: next }).eq('id', caseId)
-  if (error) return { ok: false as const, error: 'Kunne ikke gemme tjeklisten' }
-  return { ok: true as const, checklist: next }
+  // Sags-review 2026-10-09 (#9): læs-ændr-skriv af hele JSON'en — to hurtige klik (eller foto-upload + klik) overskrev
+  // hinanden. Nu optimistisk: kun hvis updated_at er uændret siden læsningen; ellers læs igen (op til 3 forsøg).
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: sc } = await db.from('service_cases').select('checklist, updated_at').eq('id', caseId).maybeSingle()
+    const list = (Array.isArray(sc?.checklist) ? sc!.checklist : []) as ChecklistItem[]
+    const idx = list.findIndex((i) => i.key === key)
+    if (idx < 0) return { ok: false as const, error: 'Ukendt tjeklistepunkt' }
+    const next = list.map((i, n) => (n === idx ? { ...i, completed, completed_at: completed ? new Date().toISOString() : null, ...(attachmentId !== undefined ? { attachment_id: attachmentId } : {}) } : i))
+    const prevUpdated = (sc as { updated_at?: string | null } | null)?.updated_at ?? null
+    const q = db.from('service_cases').update({ checklist: next, updated_at: new Date().toISOString() }).eq('id', caseId)
+    const { data: done, error } = await (prevUpdated ? q.eq('updated_at', prevUpdated) : q.is('updated_at', null)).select('id')
+    if (error) return { ok: false as const, error: 'Kunne ikke gemme tjeklisten' }
+    if ((done ?? []).length === 1) return { ok: true as const, checklist: next }
+  }
+  return { ok: false as const, error: 'Tjeklisten blev ændret samtidig — prøv igen' }
 }
 
 export async function toggleHandoverItemAction(caseId: string, key: string, completed: boolean): Promise<ActionResult<ChecklistItem[]>> {
@@ -202,10 +209,25 @@ export async function signCaseHandoverAction(caseId: string, signature: string, 
       return { success: false, error: 'Ugyldig underskrift' }
     }
     const db = await admin()
-    const { data, error } = await db.from('service_cases').update({
+    // Sags-review 2026-10-09 (#7): kundens underskrift kunne overskrives når som helst (også efter lukning/fakturering)
+    // uden spor. Nu: kun første underskrift — en eksisterende kan kun erstattes af cases.edit, aldrig på en lukket sag,
+    // og en erstatning audit-logges.
+    const { data: cur } = await db.from('service_cases').select('status, signed_at').eq('id', caseId).maybeSingle()
+    const c = cur as { status: string; signed_at: string | null } | null
+    if (!c) return { success: false, error: 'Sag ikke fundet' }
+    if (c.status === 'closed') return { success: false, error: 'Sagen er lukket — underskriften kan ikke ændres' }
+    if (c.signed_at && !ctx.hasPermission('cases.edit')) return { success: false, error: 'Kunden har allerede underskrevet' }
+    const q = db.from('service_cases').update({
       customer_signature: signature, customer_signature_name: name, signed_at: new Date().toISOString(),
-    }).eq('id', caseId).select('id')
-    if (error || !(data ?? []).length) return { success: false, error: 'Kunne ikke gemme underskrift' }
+    }).eq('id', caseId)
+    const { data, error } = await (c.signed_at ? q.eq('signed_at', c.signed_at) : q.is('signed_at', null)).select('id')
+    if (error || !(data ?? []).length) return { success: false, error: 'Kunne ikke gemme underskrift (ændret samtidig?)' }
+    if (c.signed_at) {
+      await db.from('audit_logs').insert({
+        user_id: ctx.userId, entity_type: 'service_case', entity_id: caseId, action: 'handover_signature_replaced',
+        action_description: 'Kundens overleveringsunderskrift erstattet', metadata: { previous_signed_at: c.signed_at },
+      })
+    }
     revalidateCase(caseId)
     return { success: true }
   } catch (err) {
