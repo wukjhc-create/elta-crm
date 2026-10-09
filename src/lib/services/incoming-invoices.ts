@@ -23,6 +23,8 @@ import { logger } from '@/lib/utils/logger'
 import {
   parseSupplierInvoiceText,
 } from '@/lib/services/incoming-invoice-parser'
+import { oioublLineRows, parseOioubl } from '@/lib/invoice-control/oioubl'
+import { resolveLineProducts } from '@/lib/invoice-control/line-matcher'
 import {
   matchSupplierInvoice,
 } from '@/lib/services/incoming-invoice-matcher'
@@ -497,7 +499,8 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
   }
 
   const text = row.raw_text || ''
-  const parsed = parseSupplierInvoiceText(text)
+  const oioubl = parseOioubl(text)
+  const parsed = oioubl?.fields ?? parseSupplierInvoiceText(text)
 
   // IC5: en eksisterende (struktureret, fx API) vaerdi vinder ALTID over regex-parse — og en tom parse maa
   // aldrig overskrive en kendt vaerdi. For mail-fakturaer er felterne tomme ved foerste parse (uaendret adfaerd).
@@ -568,7 +571,7 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
     invoice_number: pick(row.invoice_number, parsed.invoiceNumber),
     invoice_date: pick(row.invoice_date, parsed.invoiceDate),
     due_date: pick(row.due_date, parsed.dueDate),
-    currency: pick(row.currency, parsed.currency),
+    currency: oioubl?.fields.currency ?? pick(row.currency, parsed.currency),
     amount_excl_vat: pick(row.amount_excl_vat, parsed.amountExclVat),
     vat_amount: pick(row.vat_amount, parsed.vatAmount),
     amount_incl_vat: pick(row.amount_incl_vat, parsed.amountInclVat),
@@ -609,6 +612,29 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
     }
     await auditLog({ incomingInvoiceId: invoiceId, action: 'error', ok: false, message: updErr.message })
     return { parsed: false, matched: false, duplicate: false, message: updErr.message }
+  }
+
+  if (oioubl && oioubl.lines.length > 0) {
+    const { count } = await supabase
+      .from('incoming_invoice_lines')
+      .select('id', { count: 'exact', head: true })
+      .eq('incoming_invoice_id', invoiceId)
+    if (count === 0) {
+      const supplierId = pick(row.supplier_id, match.supplierId)
+      const matches = await resolveLineProducts(supabase, supplierId, oioubl.lines.map((l) => ({
+        lineNumber: l.lineNumber, description: l.description, supplierProductCode: l.supplierProductCode,
+      })))
+      const rows = oioublLineRows(invoiceId, oioubl.lines).map((line, i) => ({
+        ...line,
+        supplier_product_id: matches[i]?.supplierProductId ?? null,
+        raw_line: JSON.stringify({
+          supplier_product_code: oioubl.lines[i]?.supplierProductCode ?? null,
+          match_method: matches[i]?.method ?? null,
+        }),
+      }))
+      const { error: lineErr } = await supabase.from('incoming_invoice_lines').insert(rows)
+      if (lineErr) logger.warn('parseAndMatch: OIOUBL-linjer blev ikke gemt', { entityId: invoiceId, error: lineErr })
+    }
   }
 
   await auditLog({
