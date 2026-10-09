@@ -938,14 +938,6 @@ export async function createCustomerContact(
       return { success: false, error: errors }
     }
 
-    // If this contact is primary, unset any existing primary contact
-    if (validated.data.is_primary) {
-      await supabase
-        .from('customer_contacts')
-        .update({ is_primary: false })
-        .eq('customer_id', validated.data.customer_id)
-    }
-
     const { data, error } = await supabase
       .from('customer_contacts')
       .insert(validated.data)
@@ -958,6 +950,16 @@ export async function createCustomerContact(
       }
       logger.error('Database error creating customer contact', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    // Kunde-review 2026-10-08 (#6): de andre kontakter mister "primær" først EFTER en vellykket oprettelse (før: nulstil
+    // først → fejlede indsættelsen, havde kunden ingen primær kontakt)
+    if (validated.data.is_primary) {
+      await supabase
+        .from('customer_contacts')
+        .update({ is_primary: false })
+        .eq('customer_id', validated.data.customer_id)
+        .neq('id', (data as { id: string }).id)
     }
 
     revalidatePath(`/customers/${validated.data.customer_id}`)
@@ -1009,12 +1011,15 @@ export async function updateCustomerContact(
       return { success: false, error: errors }
     }
 
-    // If this contact is primary, unset any existing primary contact
-    if (validated.data.is_primary && customerId) {
+    // Kunde-review 2026-10-08 (#6): kundens id læses fra kontakten selv (før klientens customer_id — manglede den,
+    // blev nulstillingen sprunget over → to primære kontakter)
+    const { data: own } = await supabase.from('customer_contacts').select('customer_id').eq('id', id).maybeSingle()
+    const ownCustomerId = (own as { customer_id: string } | null)?.customer_id ?? null
+    if (validated.data.is_primary && ownCustomerId) {
       await supabase
         .from('customer_contacts')
         .update({ is_primary: false })
-        .eq('customer_id', customerId)
+        .eq('customer_id', ownCustomerId)
         .neq('id', id)
     }
 

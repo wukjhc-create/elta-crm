@@ -1,6 +1,7 @@
 'use client'
 
 import { LeadCustomerCandidates } from './lead-customer-candidates'
+import { getLeadAttachmentUrlAction } from '@/lib/actions/leads'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -287,9 +288,17 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                       return (
                         <a
                           key={`att-${i}`}
-                          href={att.leadUrl || att.sourceUrl || '#'}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href="#"
+                          onClick={async (e) => {
+                            // Storage-review 2026-10-09: frisk, kortlivet link hentes ved klik (intet gemt 1-årigt link)
+                            e.preventDefault()
+                            const path = att.leadStoragePath || att.sourcePath
+                            if (!path) return
+                            const win = window.open('about:blank', '_blank')
+                            const r = await getLeadAttachmentUrlAction(lead.id, path)
+                            if (r.success && r.data) { if (win) win.location.href = r.data.url; else window.location.href = r.data.url }
+                            else { win?.close(); alert(r.error ?? 'Kunne ikke hente filen') }
+                          }}
                           className="group flex items-center gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors"
                         >
                           <Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0" />

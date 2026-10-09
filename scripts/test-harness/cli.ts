@@ -437,6 +437,16 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'web-inquiry-backlog') {
+    // Read-only (staging): antal åbne webhenvendelser (FormSubmit, ingen kunde, 90 dage) som bulk-knappen behandler
+    const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
+    const { count } = await admin.from('incoming_emails').select('id', { count: 'exact', head: true })
+      .ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null).eq('is_archived', false).gte('received_at', since)
+    const { count: harness } = await admin.from('incoming_emails').select('id', { count: 'exact', head: true })
+      .ilike('sender_email', '%@formsubmit.co').ilike('subject', '%[HARNESS]%').is('customer_id', null).eq('is_archived', false)
+    log(`åbne webhenvendelser: ${count} (heraf harness-efterladte: ${harness})`)
+    return
+  }
   if (SUB === 'fresh-signed-url-check') {
     // 00210: dokument med blankt file_url men rigtig fil → portalen (og kundekortets service) giver et friskt, virkende link
     const { getPortalDocuments } = await import('../../src/lib/actions/portal')

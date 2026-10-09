@@ -731,3 +731,24 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
     return { success: false, error: formatError(err, 'Kunne ikke oprette kunde fra lead') }
   }
 }
+
+/**
+ * Storage-review 2026-10-09: et frisk, kortlivet download-link til en fil fra leadets kildemail. Før stod et 1-årigt
+ * signeret link i leads.custom_fields (læsbart for alle indloggede). Kun stier der står på DETTE lead, kun leads.view.
+ */
+export async function getLeadAttachmentUrlAction(leadId: string, storagePath: string): Promise<ActionResult<{ url: string }>> {
+  try {
+    validateUUID(leadId, 'lead ID')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.view')) return { success: false, error: 'Manglende tilladelse: leads.view' }
+    const { data: lead } = await supabase.from('leads').select('custom_fields').eq('id', leadId).maybeSingle()
+    const atts = (((lead as { custom_fields?: Record<string, unknown> } | null)?.custom_fields?.attachments ?? []) as Array<{ leadStoragePath?: string; sourcePath?: string }>)
+    const allowed = atts.some((a) => a.leadStoragePath === storagePath || a.sourcePath === storagePath)
+    if (!allowed || !storagePath || storagePath.includes('..')) return { success: false, error: 'Filen hører ikke til leadet' }
+    const { getStorageSignedUrlOrNull, SIGNED_URL_TTL } = await import('@/lib/storage/signed-url')
+    const url = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.SHORT)
+    return url ? { success: true, data: { url } } : { success: false, error: 'Filen findes ikke længere' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente filen') }
+  }
+}

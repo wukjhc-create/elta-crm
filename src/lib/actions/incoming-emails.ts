@@ -778,8 +778,8 @@ async function copyAttachmentsToLead(
         // Phase β.2.2: signed URL (1 år) i stedet for manuelt konstrueret
         // /object/public/ URL. Sidstnaevnte virker IKKE efter bucket-
         // privatisering. storagePath bevares saa consumer kan refreshe.
-        const signedUrl = await getStorageSignedUrlOrNull('attachments', destPath, SIGNED_URL_TTL.YEAR) ?? ''
-        results.push({ filename: att.filename, url: signedUrl, storagePath: destPath })
+        // Storage-review 2026-10-09: intet 1-årigt link i leadets JSON — leadsiden signerer ved klik (getLeadAttachmentUrlAction)
+        results.push({ filename: att.filename, url: '', storagePath: destPath })
 
         logger.info('Attachment copied to lead folder', {
           entity: 'leads',
@@ -908,7 +908,7 @@ export async function createCustomerFromEmail(
       filename: a.filename,
       contentType: a.contentType || 'application/octet-stream',
       size: a.size || 0,
-      sourceUrl: a.url,
+      // sourceUrl gemmes ikke (langlivet link) — leadsiden signerer friskt fra sourcePath
       sourcePath: a.storagePath,
     }))
 

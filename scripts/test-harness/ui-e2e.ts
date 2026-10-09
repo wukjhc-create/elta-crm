@@ -1819,10 +1819,11 @@ ${m.text()}`) })
         const offStatus = String(((await c.admin.from('offers').select('status').eq('id', u57OfferId ?? '').maybeSingle()).data as { status?: string } | null)?.status ?? '')
         r.tilbud_accepteret = offStatus === 'accepted'
         r.lead_via_lead_id_vundet = st(leadA) === 'won'
-        r.konverteret_lead_vundet = st(leadB) === 'won'
+        // Leads-review 2026-10-08 (#1): kun tilbuddets EGET lead vindes — kundens andet åbne lead (fx en anden forespørgsel) røres ikke
+        r.andet_lead_uaendret = st(leadB) === 'negotiation'
         r.tabt_lead_uaendret = st(leadC) === 'lost'
         const acts = ((await c.admin.from('lead_activities').select('lead_id, description').in('lead_id', [leadA, leadB].filter(Boolean) as string[])).data ?? []) as Array<{ lead_id: string; description: string }>
-        r.aktivitet_logget = acts.filter((x) => x.description.includes('Vundet')).length === 2
+        r.aktivitet_logget = acts.filter((x) => x.description.includes('Vundet')).length === 1
         out.push({ id: 'U57 accepteret tilbud → lead vundet', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · leads=${JSON.stringify(leads.map((l) => l.status))}` })
       }
 
@@ -3931,7 +3932,10 @@ ${m.text()}`) })
         }
         const viaCard = await mk('kort')
         const viaBulk = await mk('bulk')
-        r.seed = !!custId && !!viaCard && !!viaBulk
+        // knappen vises kun ved > 1 åben henvendelse — efter kort-koblingen skal der stadig være 2 (før afhang testen af
+        // efterladte henvendelser på staging)
+        const viaBulk2 = await mk('bulk2')
+        r.seed = !!custId && !!viaCard && !!viaBulk && !!viaBulk2
         const mailCustomer = async (id: string | null) => ((await c.admin.from('incoming_emails').select('customer_id').eq('id', id ?? '').maybeSingle()).data as { customer_id: string | null } | null)?.customer_id ?? null
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
         const row = a.page.getByTestId('cockpit-web-inquiries').locator('li', { hasText: `Eksisterende kort ${stamp}` }).first()
