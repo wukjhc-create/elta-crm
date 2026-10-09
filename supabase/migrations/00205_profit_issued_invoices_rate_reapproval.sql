@@ -4,7 +4,7 @@
 -- 1. calculate_work_order_profit: omsætning tog den SENESTE faktura på arbejdsordren uanset status (også kladde og
 --    annulleret/krediteret). Nu kun status sent/paid, ikke annulleret, ikke kreditnota; ellers planlagt omsætning som før.
 --    Definitionen er 00202's, KUN udvidet med WHERE-betingelsen.
--- 2. time_logs_approval_guard: employee_rate_id manglede blandt felterne der nulstiller godkendelsen. Appen afviser
+-- 2. (UDGÅET — dækket af 00208) time_logs_approval_guard: employee_rate_id manglede blandt felterne der nulstiller godkendelsen. Appen afviser
 --    allerede satsskift på godkendte timer uden godkenderret (time-logs.ts); triggeren lukker også direkte REST-skrivning.
 --    Definitionen er 00185's, KUN udvidet med én betingelse.
 --
@@ -133,46 +133,9 @@ $function$
 -- manglede den efter 00192's REVOKE … FROM PUBLIC. Idempotent — ændrer intet i prod.
 GRANT EXECUTE ON FUNCTION public.calculate_work_order_profit(uuid) TO service_role;
 
-CREATE OR REPLACE FUNCTION public.time_logs_approval_guard()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = public, pg_temp
-AS $$
-BEGIN
-  -- Service-role (server-action efter tilladelsestjek, cron): ingen begrænsning.
-  IF auth.uid() IS NULL THEN
-    RETURN NEW;
-  END IF;
-  IF TG_OP = 'INSERT' THEN
-    NEW.approval_status := 'pending';
-    NEW.approved_by := NULL;
-    NEW.approved_at := NULL;
-    NEW.rejection_reason := NULL;
-    RETURN NEW;
-  END IF;
-  -- UPDATE fra bruger-session: godkendelsesfelterne er skrivebeskyttede
-  IF NEW.approval_status IS DISTINCT FROM OLD.approval_status
-     OR NEW.approved_by IS DISTINCT FROM OLD.approved_by
-     OR NEW.approved_at IS DISTINCT FROM OLD.approved_at
-     OR NEW.rejection_reason IS DISTINCT FROM OLD.rejection_reason THEN
-    RAISE EXCEPTION 'Godkendelse af timer kan kun ændres via godkendelsesflowet' USING ERRCODE = '42501';
-  END IF;
-  -- Ændret registrering på en godkendt/afvist række → skal godkendes igen
-  IF OLD.approval_status <> 'pending' AND (
-       NEW.start_time IS DISTINCT FROM OLD.start_time OR NEW.end_time IS DISTINCT FROM OLD.end_time
-       OR NEW.work_order_id IS DISTINCT FROM OLD.work_order_id OR NEW.employee_id IS DISTINCT FROM OLD.employee_id
-       OR NEW.description IS DISTINCT FROM OLD.description OR NEW.billable IS DISTINCT FROM OLD.billable
-       OR NEW.pay_rate_type IS DISTINCT FROM OLD.pay_rate_type
-       -- 00205: satsskift ændrer kost/salg (00142-triggeren) → kræver ny godkendelse
-       OR NEW.employee_rate_id IS DISTINCT FROM OLD.employee_rate_id) THEN
-    NEW.approval_status := 'pending';
-    NEW.approved_by := NULL;
-    NEW.approved_at := NULL;
-    NEW.rejection_reason := NULL;
-  END IF;
-  RETURN NEW;
-END;
-$$;
+-- (Guard-delen er FJERNET 2026-10-09: 00208 — kørt i prod — indeholder en udvidet guard (satsskift nulstiller
+-- godkendelse + sats-ejerskab). Denne migration må ikke overskrive den.)
+
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;
