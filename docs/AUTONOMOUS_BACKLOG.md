@@ -13,6 +13,25 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Long-run 2026-10-09 — AI-mailautomatik + crons/alarmer (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| M #1 (S2) mails indsat af en kørsel der døde blev aldrig linket/analyseret (DUPLICATE SKIP) — passer med ~59 'pending' i prod | DONE — backfill af 'pending' + processed_at NULL (14 d), AI-budget 60 mails/kørsel, email-sync maxDuration 300 | `cli.ts mail-backfill-probe` (staging 55 ubehandlede) |
+| M #2 sendte mails tabt efter mislykket kørsel (last_sync_at flyttet ved fejl) / >25 pr. kørsel | DONE — cursor = kørslens start og kun ved succes; nextLink-paginering (10×50) | tsc/gates |
+| M #3 AI-dagsloft tabte optællinger (læs-så-skriv, fire-and-forget) | DONE — compare-and-set med backoff, awaited alle steder. Atomisk RPC = senere (migration) | `cli.ts ai-budget-concurrency-check` 20 → +20 |
+| M #4 én afsender kunne fylde kundelisten/brænde AI-budget | DONE — 25 auto-oprettede kunder/døgn + 60 mails/kørsel | tsc/gates |
+| M #6 vedhæftninger med samme navn overskrev hinanden; afsenderens content-type (html/svg) stolet på; ingen størrelsesgrænse | DONE (begge uploadstier) — index-præfiks, aktive typer → octet-stream, 25 MB | tsc/gates |
+| M #7/#8 mailagent: genkørsel lavede tomme runs; case-følsomt e-mail-match; HTML-mails gav 200 tegns udkast | DONE | tsc/gates |
+| M (fund) incoming_emails.attachment_urls gemmer 1-års signerede links (samme klasse som 00210) | TODO NEXT — sign-on-click i mail-detail/ordre-mails (som leads) og derefter blanking (kræver Henrik-OK som 00210) | — |
+| C #1 (S2) bank-match læste de 500 ældste 'unmatched' (udbetalinger/umatchbare) → nye betalinger aldrig matchet → rykkere på betalte fakturaer | DONE — kun indbetalinger, nyeste først. `last_match_attempt_at` = senere (migration) | tsc/gates |
+| C #2 (S2) admin-alarmer scannede 1 t, men kører dagligt → natlige cron-fejl aldrig mailet | DONE — 24 t | tsc/gates |
+| C #3 cron med HTTP 200 + `status:'failed'`/`success:false`/`errors[]` logget 'ok' | DONE — bodyStatus → error/warning | `scripts/cron-paused-test.ts` 14/14 |
+| C #4 én bell-advarsel pr. ændret vare (≤1.000 rækker) | DONE — én pr. leverandør/regeltype/dag, alle rækker (fetchAllRows) | `cli.ts system-alerts-check` ✅ |
+| C #5 faktura-ingest 24 t-vindue mistede fakturaer synket sent | DONE — 72 t, nyeste først (idempotent) | tsc/gates |
+| C #6 pauset cron loggede uautoriserede kald | DONE — 401 uden secret | cron-paused-test |
+| C #7 system_health_log læsbar for alle indloggede (postkasser, bank-id'er, modtagere) | DONE app (dashboard-stats kun drift-roller). **BLOCKED_APPROVAL** 00212 på branch `health-log-00212` | — |
+| C #8 notifikationsindstillinger gemmes men læses aldrig | FORRETNINGSVALG — implementér i afsendere eller skjul siden | — |
+
 ## Long-run 2026-10-08 — partner-/offentlige links + leads-tragt (review-fund)
 | Fund | Status | Bevis |
 |---|---|---|
