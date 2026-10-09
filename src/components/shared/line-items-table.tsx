@@ -4,7 +4,6 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { Trash2, Plus, GripVertical, Search, Loader2, Package, Wifi, Database, Check, Truck } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/format'
 import {
-  computeOfferDB,
   getLineItemMargin,
   calculateSalePrice,
   calculateLineTotal,
@@ -15,6 +14,7 @@ import {
   type LineItemForDB,
   type DBThresholds,
 } from '@/lib/logic/pricing'
+import { shadowOfferDb } from '@/lib/profit/offer-shadow'
 
 // =====================================================
 // Universal Line Items Table (Inline Editable)
@@ -49,6 +49,8 @@ interface LineItemsTableProps {
   currency?: string
   showCostData?: boolean
   showDBSummary?: boolean
+  /** Tilbuddets samlede rabat (%). Linjefoden viser DB efter rabatten. */
+  offerDiscountPercentage?: number
   thresholds?: DBThresholds
   /** Enable inline editing */
   editable?: boolean
@@ -378,14 +380,15 @@ export function LineItemsTable({
   currency = 'DKK',
   showCostData = true,
   showDBSummary = true,
+  offerDiscountPercentage = 0,
   thresholds,
   editable = false,
   onSaveItem,
   onDeleteItem,
   renderActions,
 }: LineItemsTableProps) {
-  // For editable mode: compute DB from live values
-  const db = computeOfferDB(items)
+  const shadow = shadowOfferDb(items, offerDiscountPercentage)
+  const db = offerDiscountPercentage > 0 ? shadow.after : shadow.before
 
   return (
     <div>
@@ -478,7 +481,13 @@ export function LineItemsTable({
             </div>
           </div>
 
-          {/* Red warning when below send threshold */}
+          {shadow.differs && (
+            <p className="mt-2 text-xs text-gray-600" data-testid="offer-db-shadow">
+              Før rabat: {shadow.before.dbPercentage} %. Reel DB efter {offerDiscountPercentage} % rabat: {shadow.after.dbPercentage} % (kost uændret).
+            </p>
+          )}
+
+          {/* Advarsel bruger samme DB som send-gaten (efter rabat). */}
           {isDBBelowSendThreshold(db.dbPercentage, thresholds) && (
             <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shrink-0" />

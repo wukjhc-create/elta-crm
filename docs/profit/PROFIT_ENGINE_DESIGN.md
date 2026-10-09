@@ -72,7 +72,7 @@ ALTER TABLE public.supplier_products ADD COLUMN supplier_discount_pct numeric(5,
 
 ## 5. Indfasning (hver er en gate)
 1. ✅ Ren motor + tests. Fejl E2/E3 rettet.
-2. **Skygge:** beregn tilbud med motoren parallelt, og vis "reel DB" ved siden af den nuværende i tilbudsvisningen (kun visning). Mål afvigelser read-only i prod.
+2. **Skygge:** DONE på grok-next 2026-10-09 (kun visning). Linjefoden viste DB uden tilbudsrabat. `shadowOfferDb` viser tallet før rabat ved siden af DB efter rabat. Motoren regner samme salg med fuld kost. Kost og salgspriser ændres ikke. Send-gaten er uændret. Manglende kost bliver ikke 0 i motoren. Prod-måling er ikke kørt. `offer-db-shadow-test`.
 3. **Datamodel:** migration (SQL ovenfor) efter godkendelse. Aftaler og politikker indtastes af admin.
 4. **Udskift:** `pricing.ts`-kaldere, `price-engine.ts` og DB-prisfunktionerne erstattes af motoren (én kilde), og der gemmes `profit_snapshots` ved afsendelse.
 5. **Efterkalkulation:** faktiske timer (`time_logs`) og faktiske leverandørfakturaer mod snapshot. Det bliver input til #19 fakturakontrol.

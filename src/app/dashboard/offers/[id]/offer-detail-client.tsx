@@ -992,6 +992,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 currency={currency}
                 showCostData={showCostDetails}
                 showDBSummary={showCostDetails}
+                offerDiscountPercentage={Number(offer.discount_percentage ?? 0)}
                 thresholds={thresholds}
                 editable={offer.status === 'draft'}
                 onSaveItem={handleInlineSave}

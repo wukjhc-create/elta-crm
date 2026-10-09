@@ -677,6 +677,7 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-10-09: Profit Engine trin 2 DONE på grok-next. Tilbuddets linjefod viser reel DB efter tilbudsrabat ved siden af tallet før rabat (`offer-db-shadow-test`). Priser og send-gate er uændrede. IC7 (konverteret linje til 0 kr og fakturerbar) er BLOCKED_APPROVAL: Henrik skal godkende salgsprisen eller at linjen ikke faktureres før prisen er sat.
 - 2026-10-09: N29 DONE på grok-next. Mine forfaldne og dagens opgaver på dashboardet og opgavesiden (`my-day-test`). Fakturakontrol trin 2 (varenummer/EAN → supplier_product_id, IC5, OIOUBL) var allerede i koden og er markeret DONE i designet.
 - 2026-10-09: Efter F3c er der ingen NOW/NEXT-række, der kan bygges på grok-next uden prod-godkendelse, live afsendelse, migration eller Claudes spor. Opfølgning trin 2–4, fakturakontrol trin 4 og 6, og IC8-push forbliver BLOCKED_APPROVAL. N29 står som NÆSTEN DÆKKET (før fakturakontrol; opgavelisten har allerede filter og tæller).
 - 2026-10-01: P-009 læse-side A4 (00179) på staging; pilot-roles-probe gjort uafhængig af skjulte kolonner.
