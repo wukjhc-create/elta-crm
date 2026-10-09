@@ -1,0 +1,6 @@
+ENV_LOCAL False
+ENV False
+PORT3000 CLOSED
+next blev ikke startet
+ingen browser
+ingen prod-skrivning, ingen mail, ingen SMS, ingen Telegram, ingen bogføring

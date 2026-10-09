@@ -38,7 +38,7 @@ Efterkalkulation v1 er på `grok-next` (`2274215`): tilbudt/faktisk/afvigelse i 
 AGENT: GROK
 BRANCH: grok-next
 
-Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. Arbejdet fortsætter på de sikre punkter, der stadig er åbne.
+Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. De sikre kodehuller, der stadig var åbne i fakturakontrollen, er lukket. Resten kræver Henriks godkendelse, er LATER fra en tidligere beslutning, eller er Claudes spor.
 
 Features leveret:
 - Sagsrentabilitet på `/dashboard/reports` behandler manglende kost som ukendt, ikke 0 (`9defa9b`).
@@ -47,7 +47,7 @@ Features leveret:
 - Leverandørfakturaens panel viser om linjesummen stemmer med beløb ekskl. moms. En linje uden beløb gør forskellen ukendt (`header-totals-test`). Godkendelse og e-conomic er urørt.
 - OIOUBL-faktura og kreditnota giver hovedfelter og linjer (`oioubl-test`). `parseAndMatch` gemmer linjerne kun når der ingen er. Låste fakturaer genåbnes ikke.
 
-Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, plus denne status-commit. Ingen merge til main. Ingen ny fil under `supabase/migrations`.
+Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, `aa76883`, `5591172`, `a60eebf`, plus denne status-commit. Ingen merge til main. Ingen ny fil under `supabase/migrations`.
 
 Tests: `aftercalc-test`, `offer-vs-actual-test`, `profitability-figures-test`, `price-at-date-test`, `followup-shadow-test`, `header-totals-test`, `oioubl-test` med exit 0. `npm run type-check`, `check:rbac` og `check:rls-matrix` med exit 0 efter OIOUBL. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000.
 
@@ -58,6 +58,9 @@ Blockers (mangler godkendelse, ikke påbegyndt):
 - X4c: Henrik vælger afrunding før kundeaftale-RPC rettes.
 - X4d / opfølgning trin 2: kundemail-cron. Et skift af agenten nu fjerner interne forslag, mens cronen ikke sender.
 - Fakturakontrol trin 4: afvigelses-bekræftelse sidder i `approveInvoice`, som pusher til e-conomic.
+- IC8 e-conomic-svar: en bogføringsfejl må ikke blive `ok: true`. Det sidder i samme push.
+- N3: automatisk AO-sync mangler AO API/FTP-adgang.
+- N12: live e-conomic-bogføring mangler nøgler og godkendelse.
 - T13: Relatel-token og live SMS.
 - N24 (b): 59 gamle pending-mails er prod-data.
 - Q11 B1–B3, R-OFR-B, R-PRT-B, R-MAIL-B og de øvrige eksisterende BLOCKED_APPROVAL-rækker er uændrede.
