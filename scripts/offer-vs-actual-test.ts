@@ -41,5 +41,22 @@ ok(none.rows.length === 0 && none.totals.deviation === 0, 'tom sag → ingen ræ
 const unplanned = compareOfferToActual([{ id: 'X', description: 'Kabel', quantity: 1, unit: 'm', cost_price: 0 }], [], { hours: 3, cost: null })
 ok(unplanned.rows[0].status === 'not_offered' && unplanned.rows[0].actual_qty === 3 && unplanned.rows[1].offered_cost === null, 'timer uden tilbudte timer; linje uden kost')
 
+const missingCost = compareOfferToActual(
+  [{ id: 'A', description: 'Kabel', quantity: 1, unit: 'm', cost_price: 100 }],
+  [{ id: 'B', description: 'Kabel', quantity: 1, unit: 'm', total_cost: null }],
+  { hours: 0, cost: null },
+)
+const missA = missingCost.rows.find((r) => r.key === 'A')!
+ok(missA.match === 'description' && missA.actual_cost == null && missA.cost_deviation == null, 'brugt linje uden kost er ikke en besparelse på 0 kr', JSON.stringify(missA))
+
+const strict = compareOfferToActual(
+  [{ id: 'A', description: 'Kabel', quantity: 1, unit: 'm', cost_price: 100 }],
+  [{ id: 'B', description: 'Kabel', quantity: 1, unit: 'm', total_cost: 80 }],
+  { hours: 0, cost: null },
+  { confidentOnly: true },
+)
+ok(strict.rows.find((r) => r.key === 'A')?.status === 'not_used' && strict.rows.find((r) => r.key === 'B')?.status === 'not_offered', 'confidentOnly matcher ikke ens tekst')
+ok(strict.rows.find((r) => r.key === 'B')?.actual_cost === 80, 'ekstra linje beholder sin kost')
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle tilbudt-vs-faktisk-tests bestået')
 process.exitCode = bad ? 1 : 0

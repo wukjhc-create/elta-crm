@@ -72,7 +72,26 @@ function statusFor(offeredQty: number, actualQty: number, offeredCost: number | 
   return Math.abs(actualQty - offeredQty) < 0.005 ? 'as_offered' : actualQty > offeredQty ? 'over' : 'under'
 }
 
-export function compareOfferToActual(offerLines: OfferLineInput[], materials: ActualMaterialInput[], labour: ActualLabourInput): OfferVsActualResult {
+export interface CompareOptions {
+  /**
+   * Efterkalkulation V1: ens beskrivelse er ikke et sikkert match.
+   * Kun eksplicit source_offer_line_id og samme leverandørvare kobles.
+   */
+  confidentOnly?: boolean
+}
+
+function costOrNull(v: number | string | null | undefined): number | null {
+  if (v == null || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+export function compareOfferToActual(
+  offerLines: OfferLineInput[],
+  materials: ActualMaterialInput[],
+  labour: ActualLabourInput,
+  options?: CompareOptions,
+): OfferVsActualResult {
   const rows: OfferVsActualRow[] = []
   const used = new Set<string>()
 
@@ -106,18 +125,27 @@ export function compareOfferToActual(offerLines: OfferLineInput[], materials: Ac
       hits = free.filter((m) => m.supplier_product_id && m.supplier_product_id === line.supplier_product_id && !m.source_offer_line_id)
       if (hits.length) match = 'supplier_product'
     }
-    if (!hits.length) {
+    if (!hits.length && !options?.confidentOnly) {
       hits = free.filter((m) => !m.source_offer_line_id && norm(m.description) === norm(line.description))
       if (hits.length) match = 'description'
     }
     for (const h of hits) used.add(h.id)
     const actualQty = hits.length ? r2(hits.reduce((s, m) => s + num(m.quantity), 0)) : 0
-    const actualCost = hits.length ? r2(hits.reduce((s, m) => s + num(m.total_cost), 0)) : null
+    const hitCosts = hits.map((m) => costOrNull(m.total_cost))
+    const knownCosts = hitCosts.filter((c): c is number => c != null)
+    const actualCost = !hits.length || knownCosts.length !== hitCosts.length
+      ? null
+      : r2(knownCosts.reduce((s, c) => s + c, 0))
     rows.push({
       key: line.id, kind: 'material', description: line.description, unit: line.unit,
       offered_qty: offeredQty, actual_qty: hits.length ? actualQty : null,
       offered_cost: offeredCost, actual_cost: actualCost,
-      cost_deviation: offeredCost != null && actualCost != null ? r2(actualCost - offeredCost) : actualCost == null && offeredCost != null ? r2(-offeredCost) : null,
+      // Ikke-brugt linje: besparelsen er den tilbudte kost. Brugt linje uden kost: null — ikke 0.
+      cost_deviation: offeredCost != null && actualCost != null
+        ? r2(actualCost - offeredCost)
+        : !hits.length && offeredCost != null
+          ? r2(-offeredCost)
+          : null,
       status: hits.length ? statusFor(offeredQty, actualQty, offeredCost, actualCost) : 'not_used',
       match,
     })
@@ -125,7 +153,7 @@ export function compareOfferToActual(offerLines: OfferLineInput[], materials: Ac
 
   for (const m of materials) {
     if (used.has(m.id)) continue
-    const actualCost = r2(num(m.total_cost))
+    const actualCost = costOrNull(m.total_cost)
     rows.push({
       key: m.id, kind: 'material', description: m.description, unit: m.unit,
       offered_qty: null, actual_qty: r2(num(m.quantity)), offered_cost: null, actual_cost: actualCost,
