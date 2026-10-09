@@ -55,6 +55,7 @@ const APPROVED: Record<string, string> = {
   '00203': '2026-10-08', // tilbudsrevisioner (skema; flag OFFER_REVISIONS_ENABLED forbliver OFF), godkendt af Henrik i chat 2026-10-08 ("00203 GODKENDT TIL PROD I TO TRIN")
   '00209': '2026-10-09', // storage-lockdown (fjerner brede authenticated-politikker på storage.objects), godkendt af Henrik i chat 2026-10-09 ("00209 STORAGE LOCKDOWN GODKENDT TIL PROD")
   '00210': '2026-10-09', // blank gemte signerede download-links i customer_documents.file_url (kun hvor storage_path findes), godkendt af Henrik i chat 2026-10-09 ("STORED DOWNLOAD URLS GODKENDT")
+  '00208': '2026-10-09', // time_logs kolonne-skriveret + sats-ejerskab i guard (S1), godkendt af Henrik i chat 2026-10-09 ("00208 GODKENDT TIL PROD")
 }
 
 async function main() {
