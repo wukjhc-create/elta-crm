@@ -230,7 +230,7 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | L-SMS | SMS | Ingen kode sender SMS via GatewayAPI (tabeller + indstillinger findes); skabeloner + hændelser | kodeanalyse | LATER — live SMS kræver godkendelse |
 | L-Lager | Lager/indkøb | Ingen lager-/indkøbsordre-tabeller; kun læse-overblik over leverandørfakturaer | kodeanalyse | LATER (L) — kræver produktbeslutning |
 | N28 | Timer (efter N2-merge) | Serviceleder: tæller "timer afventer godkendelse" på dashboard + påmindelse | N2 | DONE — i main efter 00185 (cockpit-tæller, time_logs.approve, count-query); U72 grøn |
-| N29 | Opgaver | 26 åbne kundeopgaver i prod: "Mine forfaldne opgaver" + dagens liste på landingssiden | prod read-only; opgavelisten har allerede ansvarlig-filter + forfalden-tæller | NÆSTEN DÆKKET — lav prioritet |
+| N29 | Opgaver | 26 åbne kundeopgaver i prod: "Mine forfaldne opgaver" + dagens liste på landingssiden | prod read-only; opgavelisten har allerede ansvarlig-filter + forfalden-tæller | DONE på grok-next — `splitMyDayTasks` (dansk kalenderdag) + listerne på dashboardet og opgavesiden. Kun opgaver tildelt den indloggede bruger. Kundeopgaver, ikke den gamle projekttabel. `my-day-test` |
 
 ## NEXT-3 (genereret 2026-10-04 — high-speed long-run; prod read-only: 107 kunder (13/30d), 813 mails (72/30d), 57 leverandørfakturaer (9/30d, kun 3 med linjer), 15 tilbud (0/30d), 8 sager, 5 fakturaer)
 | # | Område | Opgave (vertikalt flow) | Kilde/fund | Status |
@@ -677,6 +677,7 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-10-09: N29 DONE på grok-next. Mine forfaldne og dagens opgaver på dashboardet og opgavesiden (`my-day-test`). Fakturakontrol trin 2 (varenummer/EAN → supplier_product_id, IC5, OIOUBL) var allerede i koden og er markeret DONE i designet.
 - 2026-10-09: Efter F3c er der ingen NOW/NEXT-række, der kan bygges på grok-next uden prod-godkendelse, live afsendelse, migration eller Claudes spor. Opfølgning trin 2–4, fakturakontrol trin 4 og 6, og IC8-push forbliver BLOCKED_APPROVAL. N29 står som NÆSTEN DÆKKET (før fakturakontrol; opgavelisten har allerede filter og tæller).
 - 2026-10-01: P-009 læse-side A4 (00179) på staging; pilot-roles-probe gjort uafhængig af skjulte kolonner.
 - 2026-10-01: P-009 læse-side A1–A3 (00175–00177) + runde 4 (00178) på staging; prod afventer gate.

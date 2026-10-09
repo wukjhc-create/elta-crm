@@ -20,7 +20,7 @@ Benchmark: KlarPris' fakturakontrol ([Installatør](https://www.installator.dk/m
    - Mail-cron (PDF → `pdf-parse`) og leverandør-API-cron (AO/LM) bruger begge admin-klienten.
    - Manuel upload er ikke koblet til UI'et.
    - XML accepteres kun som filnavn; der er ingen OIOUBL-parsing.
-2. **Parsing:** regex giver kun **hoveddata** (nr., datoer, beløb, CVR). Mail/PDF giver **ingen linjer**. Kun API-stien skriver linjer, og den **smider leverandørens varenummer væk** (`supplier_product_id` udfyldes aldrig).
+2. **Parsing (tilstand 2026-09-28):** regex giver kun **hoveddata** (nr., datoer, beløb, CVR). Mail/PDF giver **ingen linjer**. Kun API-stien skriver linjer, og den **smider leverandørens varenummer væk** (`supplier_product_id` udfyldes aldrig). Opdatering 2026-10-09: det er lukket i trin 2.
 3. **Match:** leverandør via CVR/navn; sag/arbejdsordre via ordre-ref., sagsnr., titel og adresse. Intet match til indkøbsordre.
 4. **Godkendelse:** kræver `incoming_invoices.approve` (admin, bogholderi) og **pusher straks til e-conomic**.
 5. **Konvertering:** linjer → `case_materials`/`case_other_costs` med `unit_sales_price: 0`.
@@ -55,11 +55,11 @@ Benchmark: KlarPris' fakturakontrol ([Installatør](https://www.installator.dk/m
 
 ## 6. Målbillede (trin; hver er en gate)
 1. ✅ Kontrolmotor + fejlrettelser IC1–IC4.
-2. **Linjedata:**
-   - behold leverandørens varenummer/EAN fra API-stien og slå op til `supplier_product_id`,
-   - ret IC5,
-   - tilføj OIOUBL-parsing (e-faktura giver strukturerede linjer uden OCR).
-3. **Skygge-kontrol:** kør motoren på alle fakturaer med linjer, og vis dækning og afvigelser i Pilot Health og på fakturaen. Kun visning, ingen blokering.
+2. **Linjedata:** DONE.
+   - API-stien `ingestFromSupplierAPI` bevarer varenummer i `raw_line` og sætter `supplier_product_id` via `resolveLineProducts` (varenr. → EAN → varenr. i teksten, samme leverandør).
+   - IC5 er rettet: en eksisterende værdi vinder over regex.
+   - OIOUBL er leveret på grok-next og bruger samme opslag, kun når fakturaen ingen linjer har.
+3. **Skygge-kontrol:** DONE. Motoren kører på fakturaer med linjer. Dækning og afvigelser vises i Pilot Health og på fakturaen. Kun visning, ingen blokering. Prisen er kostprisen på fakturadatoen.
 4. **Kontrol i godkendelsen:** afvigelse > tolerance kræver eksplicit bekræftelse (som `requires_manual_review`). Godkendelse og bogføring forbliver menneskelige handlinger (finance er hard-blocked for agenter). BLOCKED_APPROVAL: den bekræftelse skal sidde i `approveInvoice`, som pusher til e-conomic. Funktionen er ikke ændret. `requires_manual_review` har allerede `acknowledgeReview`. Mangler: Henrik godkender at røre bogføringsstien.
 5. **Efterkalkulation:** faktiske indkøb mod tilbuddets `profit_snapshots` (#18) pr. sag.
 6. **Adskil godkendelse og bogføring:** e-conomic-push som særskilt, idempotent trin med synlig fejlstatus (IC8).

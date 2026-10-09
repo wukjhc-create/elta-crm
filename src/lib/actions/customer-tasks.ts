@@ -15,6 +15,8 @@ import { generateBesigtigelseICS } from '@/lib/utils/ics'
 import { APP_URL } from '@/lib/constants'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { splitMyDayTasks, type MyDayTask } from '@/lib/tasks/my-day'
 
 /**
  * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
@@ -220,6 +222,57 @@ export async function getAllTasks(options?: {
   }
 
   return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
+}
+
+/**
+ * N29: mine forfaldne opgaver og dagens liste. Kun opgaver tildelt den indloggede bruger.
+ * Klassificeringen er den danske kalenderdag (splitMyDayTasks).
+ */
+export async function getMyDayTasks(): Promise<{ overdue: MyDayTask[]; today: MyDayTask[] }> {
+  let userId: string
+  let supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    userId = ctx.userId
+    supabase = ctx.supabase
+  } catch {
+    return { overdue: [], today: [] }
+  }
+
+  try {
+    const rows = await fetchAllRows<{
+      id: string
+      title: string
+      assigned_to: string | null
+      due_date: string | null
+      status: string
+      customer: { company_name: string } | { company_name: string }[] | null
+    }>((from, to) =>
+      supabase
+        .from('customer_tasks')
+        .select('id, title, assigned_to, due_date, status, customer:customers(company_name)')
+        .eq('assigned_to', userId)
+        .neq('status', 'done')
+        .not('due_date', 'is', null)
+        .order('id')
+        .range(from, to),
+    )
+    const mapped: MyDayTask[] = rows.map((r) => {
+      const customer = Array.isArray(r.customer) ? r.customer[0] : r.customer
+      return {
+        id: r.id,
+        title: r.title,
+        assigned_to: r.assigned_to,
+        due_date: r.due_date,
+        status: r.status,
+        customer_name: customer?.company_name ?? '',
+      }
+    })
+    return splitMyDayTasks(mapped, userId)
+  } catch (error) {
+    logger.error('Failed to fetch my day tasks', { error })
+    return { overdue: [], today: [] }
+  }
 }
 
 /**

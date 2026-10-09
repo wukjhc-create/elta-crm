@@ -308,44 +308,6 @@ export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_
   return activities.slice(0, limit)
 }
 
-export async function getUpcomingTasks(limit: number = DASHBOARD_LIMITS.UPCOMING_TASKS): Promise<
-  {
-    id: string
-    title: string
-    project_name: string
-    project_id: string
-    due_date: string | null
-    priority: string
-    status: string
-  }[]
-> {
-  const { supabase } = await getAuthenticatedClient()
-
-  // N36: kundeopgaver (før: gamle project_tasks → prod 1 række, link til /dashboard/projects/…)
-  const { data } = await supabase
-    .from('customer_tasks')
-    .select('id, title, due_date, priority, status, customer:customers(id, company_name)')
-    .neq('status', 'done')
-    .not('due_date', 'is', null)
-    .order('due_date', { ascending: true })
-    .limit(limit)
-
-  if (!data) return []
-
-  return data.map((task) => {
-    const c = (Array.isArray(task.customer) ? task.customer[0] : task.customer) as { id: string; company_name: string } | null
-    return {
-      id: task.id as string,
-      title: task.title as string,
-      project_name: c?.company_name || '',
-      project_id: c?.id || '',
-      due_date: task.due_date as string | null,
-      priority: task.priority as string,
-      status: task.status as string,
-    }
-  })
-}
-
 export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_OFFERS): Promise<
   {
     id: string

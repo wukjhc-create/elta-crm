@@ -16,9 +16,9 @@ import {
 import {
   getDashboardStats,
   getRecentActivity,
-  getUpcomingTasks,
   getPendingOffers,
 } from '@/lib/actions/dashboard'
+import { getMyDayTasks } from '@/lib/actions/customer-tasks'
 import { getDashboardOverview } from '@/lib/actions/dashboard-overview'
 import { getRejectionStats, getRecentRejections } from '@/lib/actions/reports'
 import { getDocumentCompanySettings } from '@/lib/actions/company-public'
@@ -30,8 +30,8 @@ import {
   StatCard,
   RecentActivity,
   LeadsPipeline,
-  UpcomingTasks,
   PendingOffers,
+  MyDayTasks,
   QuickActions,
   SystemAlertsWidget,
   PriceAlertsWidget,
@@ -85,7 +85,7 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     getDashboardStats(),
     getRecentActivity(8),
-    getUpcomingTasks(5),
+    getMyDayTasks(),
     getPendingOffers(5),
     getDocumentCompanySettings(),
     getDashboardOverview(),
@@ -318,8 +318,8 @@ export default async function DashboardPage() {
         {/* Right Column - Tasks & Offers */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white p-6 rounded-lg border">
-            <h2 className="text-lg font-semibold mb-4">Kommende opgaver</h2>
-            <UpcomingTasks tasks={tasks} />
+            <h2 className="text-lg font-semibold mb-4">Mine opgaver</h2>
+            <MyDayTasks overdue={tasks.overdue} today={tasks.today} />
           </div>
 
           <div className="bg-white p-6 rounded-lg border">
