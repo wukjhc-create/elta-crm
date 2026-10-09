@@ -925,7 +925,11 @@ export async function getPortalMessages(
       .from('portal_messages')
       .select('id, customer_id, offer_id, sender_type, sender_name, message, attachments, read_at, created_at')
       .eq('customer_id', customerId)
-      .order('created_at', { ascending: true })
+      // Kommunikations-review 2026-10-09 (#6): de NYESTE 500 (før stigende uden grænse → over 1.000 beskeder blev de
+      // nyeste skåret af PostgREST og forsvandt), vendt til kronologisk orden nedenfor
+      .order('created_at', { ascending: false })
+      .limit(CHAT_HISTORY_LIMIT)
+    if (data) data.reverse()
 
     if (error) {
       logger.error('Error fetching portal messages', { error: error })
@@ -1406,6 +1410,9 @@ export async function getUnreadPortalMessageCount(
   }
 }
 
+/** Højst så mange (nyeste) chatbeskeder hentes pr. visning. */
+const CHAT_HISTORY_LIMIT = 500
+
 // Get messages for a customer (employee view)
 export async function getCustomerPortalMessages(
   customerId: string,
@@ -1423,7 +1430,9 @@ export async function getCustomerPortalMessages(
       .from('portal_messages')
       .select('*')
       .eq('customer_id', customerId)
-      .order('created_at', { ascending: true })
+      // Kommunikations-review 2026-10-09 (#6): nyeste først med grænse, vendes efter hentning
+      .order('created_at', { ascending: false })
+      .limit(CHAT_HISTORY_LIMIT)
 
     // Sprint 12C hotfix — match getUnreadPortalMessageCount: when offerId
     // is set, include messages for this offer OR with no offer link
@@ -1440,7 +1449,8 @@ export async function getCustomerPortalMessages(
     }
 
     const { withFreshChatAttachmentUrls } = await import('@/lib/portal/chat-attachment-links')
-    return { success: true, data: (await withFreshChatAttachmentUrls(data || [], customerId)) as PortalMessageWithRelations[] }
+    const chronological = (data || []).slice().reverse()
+    return { success: true, data: (await withFreshChatAttachmentUrls(chronological, customerId)) as PortalMessageWithRelations[] }
   } catch (error) {
     logger.error('Error in getCustomerPortalMessages', { error })
     return { success: false, error: 'Kunne ikke hente beskeder' }

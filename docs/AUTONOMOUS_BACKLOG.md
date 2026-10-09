@@ -23,6 +23,17 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
   montør+økonomi 54/55 (U73: kendt timing-flake i montør-tidsdata-delen), kalkulation 21/21, kunde-subset 10/10.
 - Prod-version tjekkes via /api/public/version.
 
+## Long-run 2026-10-10 — kommunikation (interne beskeder, portalchat) (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| KOM #3 (S2, PROD-REGRESSION) medarbejderes chat-upload brugte bruger-sessionen mod portal-attachments → fejlede efter 00209 | DONE (deployet) — service-klienten bag customers.edit. Sweep: ingen andre bruger-session-storagekald | U22/U23/U25/U92/U98 |
+| KOM #1 (S2) chat-vedhæftninger: gemt 1-times link → døde links dagen efter | DONE — signeres friskt ved læsning (kun kundens mappe) | samme |
+| KOM #5/#7/#8 skriv til kunde kun customers.edit + længdeloft; portal-afsendernavn fra token; medarbejder-læsning gated + UUID | DONE | samme |
+| KOM #6 over 1.000 beskeder forsvandt de nyeste | DONE — nyeste 500, kronologisk | samme |
+| KOM #4 interne beskeder: falsk afsendernavn; modtager kunne omskrive beskeden | **BLOCKED_APPROVAL** 00217 på branch `messages-integrity-00217` | `cli.ts messages-integrity-check` pre 2 huller → post 3/3; U2/U11/U21 med 00217 |
+| KOM #2 portal-ratelimit/notifikation ikke atomisk (parallelle kald) | LATER — DB-lås/RPC (migration) | — |
+| SMS: ingen GatewayAPI-kode i src (kun Relatel-stub) — CLAUDE.md's "SMS-notifikationer (GatewayAPI) ✅" er forældet | INFO til Henrik | — |
+
 ## Long-run 2026-10-10 — kalkulationsmotor (review-fund)
 | Fund | Status | Bevis |
 |---|---|---|

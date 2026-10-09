@@ -506,6 +506,38 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'messages-integrity-check') {
+    // 00217: montør (persona) kan ikke sende interne beskeder med falsk afsendernavn; modtageren (salg) kan kun ændre
+    // status/read_at/archived_at. Midlertidige beskeder ryddes.
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const montor = personas.get('montør' as never)!
+    const salg = personas.get('salg' as never)!
+    const montorId = (await montor.auth.getUser()).data.user!.id
+    const salgId = (await salg.auth.getUser()).data.user!.id
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const ids: string[] = []
+    try {
+      const { data: ins, error: insErr } = await montor.from('messages').insert({ subject: '[HARNESS] fra "chefen"', body: 'x', from_user_id: montorId, from_name: 'Henrik (admin)', from_email: 'henrik@falsk.invalid', to_user_id: salgId }).select('id').single()
+      if (insErr || !ins) throw new Error(`insert: ${insErr?.message}`)
+      ids.push((ins as { id: string }).id)
+      const { data: row } = await admin.from('messages').select('from_name, from_email').eq('id', ids[0]).single()
+      const { data: prof } = await admin.from('profiles').select('full_name, email').eq('id', montorId).single()
+      const r = row as { from_name: string | null; from_email: string | null }
+      const p = prof as { full_name: string | null; email: string }
+      check('afsendernavn/-mail kommer fra profilen (ikke klienten)', r.from_name === p.full_name && r.from_email === p.email, `navn=${r.from_name === 'Henrik (admin)' ? 'FALSK' : 'profil'}`)
+      const u1 = await salg.from('messages').update({ body: 'omskrevet' }).eq('id', ids[0]).select('id')
+      check('modtager kan ikke ændre brødtekst', !!u1.error || (u1.data ?? []).length === 0, u1.error?.code ?? `rækker=${(u1.data ?? []).length}`)
+      const u2 = await salg.from('messages').update({ status: 'read', read_at: new Date().toISOString() }).eq('id', ids[0]).select('id')
+      check('modtager kan markere læst', !u2.error && (u2.data ?? []).length === 1, u2.error?.message ?? '')
+    } finally {
+      if (ids.length) await admin.from('messages').delete().in('id', ids)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ beskedintegritet ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'offers-lock-check') {
     // 00215: salg (rigtig persona-session) kan via REST ikke ændre linjer/priser på et sendt tilbud, ikke slette det og
     // ikke gøre det til forslag; noter og kladder virker. 00216: 100,04 med 12,5 % rabat → total 109,41 (trinvis).
