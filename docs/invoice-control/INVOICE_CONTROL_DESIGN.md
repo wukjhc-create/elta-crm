@@ -52,6 +52,7 @@ Benchmark: KlarPris' fakturakontrol ([Installatør](https://www.installator.dk/m
 - Tolerance: afvigelsen skal overstige **både** 2 % og 0,50 kr pr. enhed (afrunding giver ikke falske alarmer).
 - En faktura uden kontrollerbare linjer bliver **aldrig** `ok`. Manglende data vises ærligt som manglende dækning.
 - Forventet pris på fakturaen og i Pilot Health er `supplier_products.cost_price` rullet tilbage til fakturadatoen via `price_history` (første ændring efter datoen). Uden dato bruges dagens pris. En ændring uden kendt gammel pris gør linjen ukontrollerbar. Grossistaftaler (`supplier_agreements`, Profit Engine #18) er ikke koblet på.
+- Panelet og dækningen henter `price_history` side for side (`fetchAllRows`, `.order('id').range`). Ét kald giver højst 1.000 rækker. Uden paging tabes den tidligste tilbagerulning, når der er flere ændringer efter fakturadatoen, og linjen sammenlignes med en senere gammel pris eller dagens pris. `price-at-date-test` kalder `loadInvoiceControl` med 1.001 senere ændringer og kræver den første gamle pris.
 
 ## 6. Målbillede (trin; hver er en gate)
 1. ✅ Kontrolmotor + fejlrettelser IC1–IC4.

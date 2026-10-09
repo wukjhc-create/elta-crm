@@ -5,6 +5,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { measureCoverage, type CoverageInvoice, type CoverageLine } from '../src/lib/invoice-control/coverage'
+import { loadInvoiceControl } from '../src/lib/invoice-control/invoice-control-loader'
 import { asPriceChange, costPriceAtDate, expectedCostOnInvoiceDate, priceHistoryAfterIso, type PriceChange } from '../src/lib/invoice-control/price-at-date'
 import type { ProductRef } from '../src/lib/invoice-control/line-matcher'
 
@@ -92,10 +93,78 @@ const history = new Map<string, PriceChange[]>([['p1', later]])
   eq('dækningen giver historikken til målingen', loader.includes('measureCoverage(invoices, productsBySupplier, new Map(stored.map((p) => [p.id, p])), changesByProduct)'), true)
   const panel = readFileSync(join(process.cwd(), 'src/lib/invoice-control/invoice-control-loader.ts'), 'utf8')
   eq('fakturapanelet bruger samme tilbagerulning', panel.includes('expectedCostOnInvoiceDate') && panel.includes('priceHistoryAfterIso'), true)
+  eq('fakturapanelet paginerer prishistorik', panel.includes('fetchAllRows') && panel.includes(".order('id')") && panel.includes('.range(from, to)'), true)
   const prod = readFileSync(join(process.cwd(), 'scripts/prod-invoice-coverage.ts'), 'utf8')
   eq('prod-scriptet læser fakturadato og prishistorik', prod.includes('invoice_date::text AS invoice_date') && prod.includes('FROM price_history') && prod.includes('asPriceChange'), true)
   eq('prod-scriptet skriver ikke', !/\b(INSERT|UPDATE|DELETE|ALTER|DROP)\b/.test(prod), true)
 }
 
-console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle pris-på-dato-tests bestået')
-process.exitCode = bad ? 1 : 0
+// PostgREST giver højst 1000 rækker. Den tidligste tilbagerulning ligger på SIDSTE side (højeste id),
+// så ét kald — også med .range(0, 5000) — rammer dagens eller en senere gammel pris.
+void (async () => {
+  try {
+    const total = 1001
+    const cutoffMs = Date.parse('2026-10-04T22:00:00.000Z')
+    const historyRows = Array.from({ length: total }, (_, i) => {
+      const earliest = i === total - 1
+      return {
+        id: String(i).padStart(5, '0'),
+        supplier_product_id: 'p1',
+        old_cost_price: earliest ? 100 : 115,
+        created_at: new Date(cutoffMs + (earliest ? 0 : (i + 1) * 60_000)).toISOString(),
+      }
+    })
+    let pages = 0
+    const from = (table: string) => {
+      const state = { ranged: false, from: 0, to: 999 }
+      const api: {
+        select: () => typeof api
+        eq: () => typeof api
+        in: () => typeof api
+        gte: () => typeof api
+        order: () => typeof api
+        range: (from: number, to: number) => typeof api
+        maybeSingle: () => typeof api
+        then: (resolve: (v: { data: unknown; error: null }) => unknown) => unknown
+      } = {
+        select: () => api,
+        eq: () => api,
+        in: () => api,
+        gte: () => api,
+        order: () => api,
+        range: (start, end) => { state.ranged = true; state.from = start; state.to = end; pages++; return api },
+        maybeSingle: () => api,
+        then: (resolve) => {
+          if (table === 'incoming_invoices') {
+            return resolve({ data: { id: 'inv-old', supplier_id: null, invoice_date: '2026-10-04', amount_excl_vat: 100, vat_amount: 25, amount_incl_vat: 125 }, error: null })
+          }
+          if (table === 'incoming_invoice_lines') {
+            return resolve({ data: [{ line_number: 1, description: 'kabel', quantity: 1, unit_price: 100, total_price: 100, supplier_product_id: 'p1', raw_line: null }], error: null })
+          }
+          if (table === 'supplier_products') {
+            return resolve({ data: [{ id: 'p1', supplier_sku: 'SKU1', ean: null, cost_price: 120 }], error: null })
+          }
+          if (table === 'price_history') {
+            // Uden range: max 1000, og den tidligste række (sidste id) er ikke med.
+            // Med range: højst 1000 fra from, samme loft som PostgREST.
+            const data = state.ranged
+              ? historyRows.slice(state.from, Math.min(state.to + 1, state.from + 1000))
+              : historyRows.slice(0, 1000)
+            return resolve({ data, error: null })
+          }
+          return resolve({ data: [], error: null })
+        },
+      }
+      return api
+    }
+    const client = { from }
+    const loaded = await loadInvoiceControl(client, 'inv-old', client)
+    eq('over 1000 senere ændringer: første gamle pris, ikke dagens', loaded?.matches[0]?.expectedUnitPrice, 100)
+    eq('loader henter historikken over mere end én side', pages >= 2, true)
+  } catch (err) {
+    bad++
+    console.log(`FAIL  loadInvoiceControl  ${err instanceof Error ? err.message : String(err)}`)
+  }
+  console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle pris-på-dato-tests bestået')
+  process.exitCode = bad ? 1 : 0
+})()
