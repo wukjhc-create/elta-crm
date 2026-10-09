@@ -90,6 +90,9 @@ ok(buildCaseAftercalc(cancelled).actual.revenue === 20000, '5 annulleret faktura
 const voidStatus = base()
 voidStatus.invoices.push({ total_amount: 8000, status: 'void', invoice_type: 'standard', voided_at: null })
 ok(buildCaseAftercalc(voidStatus).actual.revenue === 20000, '5 status void tæller ikke')
+const voidedOnly = base()
+voidedOnly.invoices = [{ total_amount: 20000, status: 'sent', invoice_type: 'standard', voided_at: '2026-10-02T00:00:00Z' }]
+ok(buildCaseAftercalc(voidedOnly).actual.revenue === 20000, '5 udstedt faktura med voided_at uden kreditnota tælles med')
 
 // 6. Afviste timer
 const rejIn = base()
@@ -110,6 +113,21 @@ missMat.materials[0].total_cost = null
 const missMatRes = buildCaseAftercalc(missMat)
 const matMiss = missMatRes.lines.find((r) => r.key === 'L2')!
 ok(missMatRes.actual.material_cost == null && missMatRes.actual.contribution_margin == null && matMiss.status === 'missing_cost' && matMiss.cost_deviation == null, '7 manglende materialekost er ikke 0')
+const zeroUnit = base()
+zeroUnit.materials[0].unit_cost = 0
+zeroUnit.materials[0].total_cost = 0
+const zeroUnitRes = buildCaseAftercalc(zeroUnit)
+const zeroUnitLine = zeroUnitRes.lines.find((r) => r.key === 'L2')!
+ok(zeroUnitRes.actual.material_cost == null && zeroUnitLine.status === 'missing_cost' && zeroUnitLine.cost_deviation == null && !zeroUnitRes.best.some((h) => h.key === 'L2'), '7 materialekost 0 er ukendt, ikke en besparelse')
+const storedZero = base()
+storedZero.timeLogs[0].cost_amount = 0
+const storedZeroRes = buildCaseAftercalc(storedZero)
+ok(storedZeroRes.actual.labour_cost === 0 && storedZeroRes.actual.contribution_margin != null && !has(storedZeroRes, 'missing_frozen_labour_cost'), '7 gemt lønkost 0 er 0, ikke et hul')
+const unusedMiss = base()
+unusedMiss.offerLines.push({ id: 'L9', description: 'Ikke brugt uden kost', quantity: 2, unit: 'stk', total: 100, cost_price: null })
+const unusedMissRes = buildCaseAftercalc(unusedMiss)
+const unusedMissLine = unusedMissRes.lines.find((r) => r.key === 'L9')!
+ok(unusedMissLine.status === 'missing_cost' && unusedMissLine.cost_deviation == null && !unusedMissRes.unused_offer_lines.some((h) => h.key === 'L9') && !unusedMissRes.best.some((h) => h.key === 'L9'), '7 ubrugt linje uden kost er ikke en besparelse')
 
 // 8. Delvis faktura
 const partIn = base()

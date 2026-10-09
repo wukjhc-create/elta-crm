@@ -13,7 +13,7 @@ CRM er source of truth. Motoren gætter ikke en manglende kostpris. Beløb er ek
 | Tilbuddets DB med estimeret timekost | `src/lib/profit/offer-analysis.ts` | Estimatet bruges ikke i efterkalkulationen. Manglende frossen kost bliver `null` + advarsel, ikke firmaets timesats. |
 | Tilbudt timer/budget ved sag-oprettelse | `src/lib/cases/offer-budget.ts` | Samme time-enheder (`t`/`time`/`timer`) via `isLabourUnit`. |
 | Linje-match | `src/lib/cases/offer-vs-actual.ts` | Genbruges. Nyt flag `confidentOnly`: kun `source_offer_line_id` og samme `supplier_product_id`. Ens tekst matches ikke. Den gamle Økonomi-liste og sagsrentabiliteten (N26c/N26d) beholder tekstmatch, så U81 ikke skifter betydning. |
-| Faktureret netto | `summarizeCaseInvoices` | Kladder tæller ikke. Kreditnotaer trækkes fra uanset fortegn. Fuldt krediteret original udlignes af kreditnotaen. Annulleret (`voided_at`) original tælles med og udlignes — samme regel som resten af CRM. |
+| Faktureret netto | `summarizeCaseInvoices` | Kladder, status `cancelled` og status `void` tæller ikke. Kreditnotaer trækkes fra uanset fortegn. En udstedt faktura (`sent`/`paid`) med `voided_at` tælles med, og kreditnotaen udligner den. At springe originalen over og samtidig trække kreditnotaen fra ville trække beløbet fra to gange. |
 | Realiseret DB | `computeRealizedDb` | Samme netto og samme "DB = netto − kost". V1 splitter kost i materiale, løn og øvrigt og lader DB være `null`, når kostgrundlaget er ufuldstændigt. |
 | Afviste timer | `.neq('approval_status','rejected')` | Tælles som advarsel og holdes ude af timer og kost. |
 | Ikke-fakturerbare timer | Økonomi-fanen: kost ja, salg nej | Samme. De indgår i faktisk lønkost. Omsætning kommer kun fra udstedte fakturaer. |
