@@ -31,6 +31,7 @@ import {
 } from '@/lib/actions/service-case-economy'
 import { formatCurrency } from '@/lib/utils/format'
 import { CaseOfferVsActualPanel } from './case-offer-vs-actual-panel'
+import { CaseAftercalcPanel } from './case-aftercalc-panel'
 import { useCostReveal } from '@/components/shared/sensitive-amounts'
 
 type SwitchTabFn = (tab: 'planlaegning' | 'materialer' | 'oevrige' | 'fakturakladde') => void
@@ -361,6 +362,9 @@ function OrderEconomyTabContent({
 
       {/* Supplier invoices (Sprint 5E-4) */}
       <SupplierInvoicesPanel data={data} />
+
+      {/* Efterkalkulation V1 — tilbudt mod faktisk (foldet sammen, hentes ved åbning) */}
+      <CaseAftercalcPanel caseId={caseId} />
 
       {/* N26c — tilbudt vs. faktisk pr. linje (foldet sammen, hentes ved åbning) */}
       <CaseOfferVsActualPanel caseId={caseId} />
