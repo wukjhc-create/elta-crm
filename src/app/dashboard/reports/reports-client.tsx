@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { SalesFunnelTable } from './sales-funnel-table'
 import type { SalesFunnel } from '@/lib/reports/sales-funnel'
 import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
@@ -493,9 +494,14 @@ export default function ReportsClient() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Rapporter</h1>
-        <p className="text-gray-500">Omsætning, projekt-rentabilitet og team-produktivitet</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Rapporter</h1>
+          <p className="text-gray-500">Omsætning, projekt-rentabilitet og team-produktivitet</p>
+        </div>
+        <Link href="/dashboard/reports/aftercalc" className="text-sm font-medium text-blue-700 hover:underline shrink-0">
+          Efterkalkulation
+        </Link>
       </div>
 
       {/* KPI Cards */}
