@@ -23,6 +23,7 @@ export interface AttachmentState {
 /** Skal vedhaeftninger hentes foer parsing? Ren funktion. */
 export function shouldFetchAttachments(email: AttachmentState, enabled: boolean): boolean {
   if (!enabled || !email.has_attachments || !email.graph_message_id) return false
-  const urls = Array.isArray(email.attachment_urls) ? (email.attachment_urls as Array<{ url?: string }>) : []
-  return !urls.some((u) => typeof u?.url === 'string' && u.url.length > 0)
+  // Hentet = storagePath (gemte links blankes); ældre rækker kan kun have url
+  const urls = Array.isArray(email.attachment_urls) ? (email.attachment_urls as Array<{ url?: string; storagePath?: string }>) : []
+  return !urls.some((u) => (typeof u?.storagePath === 'string' && u.storagePath.length > 0) || (typeof u?.url === 'string' && u.url.length > 0))
 }

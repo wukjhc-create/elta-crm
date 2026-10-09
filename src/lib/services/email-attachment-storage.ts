@@ -13,7 +13,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { fetchAttachmentContent } from '@/lib/services/microsoft-graph'
 import { logger } from '@/lib/utils/logger'
-import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 
 // =====================================================
 // Service role client for storage operations
@@ -106,7 +105,8 @@ export async function downloadAndStoreAttachment(
     // 5. Phase β.2.2: signed URL (1 år) i stedet for public URL.
     //    Mail-vedhaeftninger gemmes i incoming_emails.attachment_urls
     //    og bruges af UI; storagePath bevares saa consumer kan refreshe.
-    const publicUrl = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.YEAR) ?? ''
+    // Storage-review 2026-10-09: intet 1-års link gemmes — læsere signerer friskt fra storagePath (lib/mail/attachment-links)
+    const publicUrl = ''
 
     logger.info('Attachment stored', {
       entity: 'incoming_emails',
@@ -200,7 +200,8 @@ export async function processEmailAttachments(
       }
 
       // Phase β.2.2: signed URL (1 år) i stedet for public.
-      const signedUrl = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.YEAR) ?? ''
+      // Storage-review 2026-10-09: intet 1-års link gemmes — læsere signerer friskt fra storagePath
+      const signedUrl = ''
 
       stored.push({
         filename: att.name,
@@ -344,7 +345,7 @@ async function archiveAttachmentsToCustomerDocuments(
           title: `${att.filename} — ${subjectLabel}`,
           description,
           document_type: 'other',
-          file_url: att.url,
+          file_url: '', // 00210: læsere signerer friskt fra storage_path
           storage_path: att.storagePath,
           file_name: att.filename,
           mime_type: att.contentType || 'application/octet-stream',

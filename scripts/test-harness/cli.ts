@@ -578,6 +578,39 @@ async function main() {
     process.exitCode = delta === 20 ? 0 : 1
     return
   }
+  if (SUB === 'mail-attachment-links-check') {
+    // Storage-review 2026-10-09: mailvedhæftninger får friske 1-times links fra storagePath; fremmede stier signeres
+    // ikke; listen bærer ingen links. Midlertidig mail + fil ryddes op.
+    const { withFreshAttachmentLinks, withoutAttachmentLinks } = await import('../../src/lib/mail/attachment-links')
+    const stamp = Date.now()
+    const { data: em, error: emErr } = await admin.from('incoming_emails').insert({
+      graph_message_id: `harness-att-${stamp}`, subject: '[HARNESS] vedhæftningslinks', sender_email: `att-${stamp}@harness.test`,
+      to_email: 'kontakt@harness.test', received_at: new Date().toISOString(), link_status: 'ignored', has_attachments: true,
+    }).select('id').single()
+    if (emErr || !em) { log(`❌ kunne ikke oprette mail: ${emErr?.message}`); process.exitCode = 1; return }
+    const id = (em as { id: string }).id
+    const path = `email-attachments/${id}/0-test.txt`
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    try {
+      await admin.storage.from('attachments').upload(path, new Blob(['hej'], { type: 'text/plain' }), { upsert: false })
+      const raw = [
+        { filename: 'test.txt', storagePath: path, url: 'https://gammelt-link.invalid/1aar' },
+        { filename: 'fremmed.txt', storagePath: 'customer-documents/x/y.pdf', url: '' },
+      ]
+      const fresh = await withFreshAttachmentLinks(id, raw)
+      const r = fresh[0].url ? await fetch(fresh[0].url) : null
+      check('egen fil får frisk link der kan hentes', !!r?.ok && fresh[0].url !== raw[0].url, `status=${r?.status}`)
+      check('fremmed sti signeres ikke', fresh[1].url === '')
+      check('listen bærer ingen links', withoutAttachmentLinks(raw).every((a) => a.url === ''))
+    } finally {
+      await admin.storage.from('attachments').remove([path])
+      await admin.from('incoming_emails').delete().eq('id', id)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ mail-vedhæftningslinks ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'mail-backfill-probe') {
     // Mail-review 2026-10-09 (#1): orchestratorens backfill-forespørgsel (kolonner/filtre) virker mod det rigtige skema
     const since = new Date(Date.now() - 14 * 86_400_000).toISOString()

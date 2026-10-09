@@ -13,6 +13,20 @@ async function requireGate(permission: Permission) {
   ctx.requirePermission(permission)
   return ctx
 }
+
+/**
+ * Planlægnings-review 2026-10-09 (#7): læse-actions (sager, sagens parter, modtagere) kræver service.view og — for
+ * roller uden cases.view.all — at sagen er i brugerens scope. Returnerer fejltekst ved afvisning (null = tilladt).
+ */
+async function caseReadDenied(caseId: string | null | undefined): Promise<string | null> {
+  const ctx = await getAuthenticatedClientWithRole()
+  if (!ctx.hasPermission('service.view')) return 'Manglende tilladelse: service.view'
+  // userCanViewCase giver selv adgang til alle sager ved cases.view.all
+  if (caseId && !(await userCanViewCase(caseId, ctx))) {
+    return 'Du har ikke adgang til denne sag'
+  }
+  return null
+}
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
 import type { ActionResult } from '@/types/common.types'
@@ -25,6 +39,8 @@ import { escapeHtml } from '@/lib/utils/html-escape'
 import { internalRequestHeaders } from '@/lib/security/internal-request'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCaseScope, userCanViewCase } from '@/lib/auth/case-scope'
+import { isBookedCustomerBesigtigelse, isPortalBesigtigelseRequest } from '@/lib/tasks/besigtigelse-task'
 
 /**
  * Storage-review 2026-10-08 (S1): fil-adgang går via service-klienten bag action-gaten — så bucket-politikkerne kan
@@ -116,7 +132,7 @@ export async function saveBesigtigelsesnotat(
   })
 
   try {
-    const { supabase, userId } = await requireGate('service.edit')
+    const { supabase, userId, role } = await requireGate('service.edit')
 
     // Fase 2a — sag-kobling er obligatorisk. Kræv en sag og verificér (via
     // den fælles resolver) at den hører til denne kunde, samt resolv
@@ -125,6 +141,10 @@ export async function saveBesigtigelsesnotat(
       return { success: false, error: 'Vælg en sag, før du gemmer besigtigelsen' }
     }
     validateUUID(input.serviceCaseId, 'serviceCaseId')
+    // Planlægnings-review 2026-10-09 (#3): kun sager brugeren må se (montør: egne) — RLS er åben på sager/kunder
+    if (!(await userCanViewCase(input.serviceCaseId, { supabase, userId, role }))) {
+      return { success: false, error: 'Du har ikke adgang til denne sag' }
+    }
 
     // Fetch customer data for PDF
     const { data: customer, error: custErr } = await supabase
@@ -398,18 +418,25 @@ export async function saveBesigtigelsesnotat(
 
     // Auto-complete besigtigelse task for this customer
     try {
+      // Planlægnings-review 2026-10-09 (#3): kun kundevendte besigtigelser (booket / portal-anmodning) på DENNE sag
+      // (eller uden sag) — før lukkede "%esigtigelse%" også andre sagers bookinger og den interne
+      // "Planlæg besigtigelse eller montage"-opgave, og completed_at blev ikke sat
       const { data: tasks } = await supabase
         .from('customer_tasks')
-        .select('id, title')
+        .select('id, title, auto_rule, service_case_id')
         .eq('customer_id', input.customerId)
         .neq('status', 'done')
         .ilike('title', '%esigtigelse%')
 
-      if (tasks && tasks.length > 0) {
+      const toClose = ((tasks ?? []) as Array<{ id: string; title: string | null; auto_rule: string | null; service_case_id: string | null }>)
+        .filter((t) => isBookedCustomerBesigtigelse(t) || isPortalBesigtigelseRequest(t))
+        .filter((t) => !t.service_case_id || t.service_case_id === input.serviceCaseId)
+      if (toClose.length > 0) {
+        const now = new Date().toISOString()
         await supabase
           .from('customer_tasks')
-          .update({ status: 'done', updated_at: new Date().toISOString() })
-          .in('id', tasks.map((t) => t.id))
+          .update({ status: 'done', completed_at: now, updated_at: now })
+          .in('id', toClose.map((t) => t.id))
       }
     } catch {
       // Non-critical — don't fail the whole operation
@@ -443,17 +470,31 @@ export async function sendBesigtigelsePdf(
   const __denied = await permissionDenied('service.edit')
   if (__denied) return { success: false, error: __denied }
   try {
+    validateUUID(documentId, 'documentId')
+    validateUUID(customerId, 'customerId')
     const { supabase } = await getAuthenticatedClient()
 
-    // Get document
+    // Planlægnings-review 2026-10-09 (#1, S1): dokumentet SKAL tilhøre kunden og være en besigtigelsesrapport — før
+    // blev ethvert dokument (fx arkiveret intern mailvedhæftning, tilbud, faktura) hentet på id alene og mailet til en
+    // vilkårlig kunde som "Besigtigelsesrapport"
     const { data: doc, error: docErr } = await supabase
       .from('customer_documents')
       .select('*')
       .eq('id', documentId)
-      .single()
+      .eq('customer_id', customerId)
+      .maybeSingle()
 
     if (docErr || !doc) {
       return { success: false, error: 'Dokument ikke fundet' }
+    }
+    if (!isBesigtigelseDocument(doc.document_type, doc.title) || doc.source_email_id || !doc.storage_path) {
+      return { success: false, error: 'Dokumentet er ikke en besigtigelsesrapport' }
+    }
+    if (doc.service_case_id) {
+      const ctx = await getAuthenticatedClientWithRole()
+      if (!(await userCanViewCase(doc.service_case_id, ctx))) {
+        return { success: false, error: 'Du har ikke adgang til denne sag' }
+      }
     }
 
     // Get customer
@@ -642,7 +683,10 @@ export async function listCustomerServiceCasesForBesigtigelse(
 ): Promise<ActionResult<{ id: string; case_number: string | null; title: string | null; status: string | null }[]>> {
   try {
     validateUUID(customerId, 'customerId')
-    const { supabase } = await getAuthenticatedClient()
+    const denied = await caseReadDenied(null)
+    if (denied) return { success: false, error: denied }
+    const ctx = await getAuthenticatedClientWithRole()
+    const { supabase } = ctx
     const { data, error } = await supabase
       .from('service_cases')
       .select('id, case_number, title, status')
@@ -653,7 +697,10 @@ export async function listCustomerServiceCasesForBesigtigelse(
       logger.error('listCustomerServiceCasesForBesigtigelse failed', { error, entityId: customerId })
       return { success: false, error: 'Kunne ikke hente sager' }
     }
-    return { success: true, data: (data || []) as { id: string; case_number: string | null; title: string | null; status: string | null }[] }
+    let rows = (data || []) as { id: string; case_number: string | null; title: string | null; status: string | null }[]
+    const scope = await getCaseScope(ctx) // 'all' ved cases.view.all
+    if (scope.type !== 'all') rows = rows.filter((r) => scope.caseIds.includes(r.id))
+    return { success: true, data: rows }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente sager') }
   }
@@ -678,6 +725,8 @@ export async function getCaseSignerSummary(serviceCaseId: string): Promise<
 > {
   try {
     validateUUID(serviceCaseId, 'serviceCaseId')
+    const denied = await caseReadDenied(serviceCaseId)
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     const { resolveCaseParties } = await import('@/lib/services/case-parties')
     const p = await resolveCaseParties(supabase, serviceCaseId)
@@ -723,6 +772,10 @@ export async function getBesigtigelseRecipientOptions(
     }
     if (!isBesigtigelseDocument(doc.document_type, doc.title)) {
       return { success: false, error: 'Dokumentet er ikke en besigtigelsesrapport' }
+    }
+    {
+      const denied = (await caseReadDenied(doc.service_case_id)) ?? (serviceCaseIdOverride ? await caseReadDenied(serviceCaseIdOverride) : null)
+      if (denied) return { success: false, error: denied }
     }
 
     const { data: customer } = await supabase

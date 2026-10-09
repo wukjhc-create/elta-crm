@@ -987,7 +987,11 @@ export async function getCaseEmailDetail(
       return null
     }
 
-    return data as CaseEmailDetail
+    const detail = data as CaseEmailDetail
+    // Friske 1-times links fra storagePath i stedet for gemte 1-års links
+    const { withFreshAttachmentLinks } = await import('@/lib/mail/attachment-links')
+    detail.attachment_urls = (await withFreshAttachmentLinks(detail.id, detail.attachment_urls, detail.customer_id)) as CaseEmailDetail['attachment_urls']
+    return detail
   } catch {
     return null
   }
@@ -1043,7 +1047,7 @@ export async function archiveEmailAttachmentsToCase(
     }>
 
     // Filtrér til attachments der faktisk har storage URL (downloadet)
-    const ready = attachments.filter((a) => a.url && a.storagePath)
+    const ready = attachments.filter((a) => !!a.storagePath)
 
     if (attachments.length === 0) {
       return { success: true, archivedCount: 0, skippedCount: 0 }
@@ -1088,7 +1092,8 @@ export async function archiveEmailAttachmentsToCase(
           title: att.filename,
           description,
           document_type: 'other',
-          file_url: att.url!,
+          // Intet gemt link (00210): læsere signerer friskt fra storage_path
+          file_url: '',
           storage_path: att.storagePath!,
           file_name: att.filename,
           mime_type: att.contentType || 'application/octet-stream',
@@ -1395,17 +1400,24 @@ export async function listOpenServiceCasesForPicker(): Promise<
     if (!hasPermission('cases.view.all')) {
       return { success: false, error: 'Manglende tilladelse: cases.view.all' }
     }
-    const { data, error } = await supabase
-      .from('service_cases')
-      .select(`
-        id, case_number, title, status,
-        customer:customers!service_cases_customer_id_fkey(company_name)
-      `)
-      .in('status', ['new', 'in_progress', 'pending'])
-      .order('case_number', { ascending: false })
-      .limit(200)
-
-    if (error) {
+    // Planlægnings-review 2026-10-09 (#4): ALLE åbne sager (før kun de 200 højeste sagsnumre — "Mangler planlægning"
+    // viser de ældste først, som så ikke kunne findes i dialogen) og ikke forslag-sager
+    let data: unknown[]
+    try {
+      data = await fetchAllRows((f, t) =>
+        supabase
+          .from('service_cases')
+          .select(`
+            id, case_number, title, status,
+            customer:customers!service_cases_customer_id_fkey(company_name)
+          `)
+          .in('status', ['new', 'in_progress', 'pending'])
+          .eq('is_proposal', false)
+          .order('case_number', { ascending: false })
+          .order('id')
+          .range(f, t)
+      )
+    } catch (error) {
       logger.error('listOpenServiceCasesForPicker failed', { error })
       return { success: false, error: 'Kunne ikke hente sager' }
     }

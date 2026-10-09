@@ -43,5 +43,4 @@ Kør altid pre → `npm run prod:apply-migration -- <nr> --approved-by-henrik` (
 - Fire-øjne på timer: den der indtaster timer for en anden (serviceleder) kan selv godkende dem — kræver `time_logs.created_by` (migration) for at håndhæve
 - Portalbeskeder: må montør/bogholderi sende kundebeskeder? (i dag: alle med customers.view; offer-id valideres nu)
 - Notifikationsindstillinger (Indstillinger → Notifikationer) gemmes, men ingen afsender læser dem: implementér eller skjul?
-- Blanking af 1-års signerede links i `incoming_emails.attachment_urls` (som 00210) — når mail-UI'et signerer ved klik
 - Rykker-cron: højst 3 rykkermails pr. kørsel (dagligt) — hæves hvis mange forfaldne fakturaer

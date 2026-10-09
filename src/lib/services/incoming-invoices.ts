@@ -81,6 +81,8 @@ function isLikelyInvoiceAttachment(att: { name?: string; mime?: string; url?: st
 
 interface EmailAttachment {
   url?: string
+  /** Sti i 'attachments'-bucket (email-attachment-storage). Gemte links blankes → filen hentes herfra. */
+  storagePath?: string
   name?: string
   mime?: string
   size?: number
@@ -223,7 +225,7 @@ async function insertEmailInvoice(
     .insert({
       source: 'email',
       source_email_id: emailId,
-      file_url: att.url ?? null,
+      file_url: attachmentFileRef(att),
       file_name: att.name ?? null,
       file_size_bytes: att.size ?? null,
       mime_type: att.mime ?? null,
@@ -280,7 +282,7 @@ async function upgradeBodyInvoice(
       ...reset,
       raw_text: text,
       file_hash: fileHash,
-      file_url: att.url ?? null,
+      file_url: attachmentFileRef(att),
       file_name: att.name ?? null,
       mime_type: att.mime ?? 'application/pdf',
       file_size_bytes: att.size ?? null,
@@ -319,7 +321,8 @@ function parseAttachments(raw: unknown): EmailAttachment[] {
       if (typeof r === 'string') return { url: r, name: r.split('/').pop() ?? r }
       const o = r as Record<string, unknown>
       return {
-        url: typeof o.url === 'string' ? o.url : undefined,
+        url: typeof o.url === 'string' && o.url.length > 0 ? o.url : undefined,
+        storagePath: typeof o.storagePath === 'string' && o.storagePath.length > 0 ? o.storagePath : undefined,
         // email-attachment-storage gemmer {filename, contentType, url, storagePath}
         name: typeof o.name === 'string' ? o.name : (typeof o.filename === 'string' ? o.filename : undefined),
         mime: typeof o.mime === 'string' ? o.mime : (typeof o.contentType === 'string' ? o.contentType : undefined),
@@ -338,9 +341,9 @@ async function extractAttachmentText(att: EmailAttachment): Promise<string | nul
   const looksLikePdf =
     (att.mime || '').toLowerCase().includes('pdf') ||
     /\.pdf(\?|$)/i.test(att.url || att.name || '')
-  if (!looksLikePdf || !att.url) return null
+  if (!looksLikePdf || (!att.url && !att.storagePath)) return null
   try {
-    const buf = await downloadAttachmentBytes(att.url)
+    const buf = att.storagePath ? await downloadStoredBytes(att.storagePath) : await downloadAttachmentBytes(att.url!)
     if (!buf || buf.length === 0) return null
     const { extractPdfText } = await import('@/lib/invoice-control/pdf-text')
     const text = await extractPdfText(buf)
@@ -349,6 +352,22 @@ async function extractAttachmentText(att: EmailAttachment): Promise<string | nul
     logger.warn('PDF text extraction failed', { metadata: { file: att.name }, error: err })
   }
   return null
+}
+
+/** Bilagsreference til incoming_invoices.file_url: 'attachments/<sti>' (signeres ved visning) frem for et gemt link. */
+function attachmentFileRef(att: EmailAttachment): string | null {
+  if (att.storagePath) return `attachments/${att.storagePath}`
+  return att.url ?? null
+}
+
+async function downloadStoredBytes(path: string): Promise<Buffer | null> {
+  try {
+    const { data, error } = await createAdminClient().storage.from('attachments').download(path)
+    if (error || !data) return null
+    return Buffer.from(await data.arrayBuffer())
+  } catch {
+    return null
+  }
 }
 
 async function downloadAttachmentBytes(url: string): Promise<Buffer | null> {

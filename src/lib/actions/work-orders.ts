@@ -1,4 +1,5 @@
 'use server'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 import { revalidatePath } from 'next/cache'
 import {
@@ -174,7 +175,7 @@ export async function createWorkOrderForCase(
     // the caller having to pass it.
     const { data: caseRow, error: caseErr } = await supabase
       .from('service_cases')
-      .select('id, customer_id, case_number, status')
+      .select('id, customer_id, case_number, status, is_proposal')
       .eq('id', input.case_id)
       .maybeSingle()
     if (caseErr || !caseRow) {
@@ -182,6 +183,21 @@ export async function createWorkOrderForCase(
     }
     // Sags-review 2026-10-09 (#6): intet nyt arbejde på en lukket sag (det blev aldrig faktureret og gav ingen advarsel)
     if ((caseRow as { status?: string }).status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+    // Planlægnings-review 2026-10-09 (#5): ikke på forslag-sager, og kun aktive (ikke fratrådte) medarbejdere — som ved
+    // omplanlægning
+    if ((caseRow as { is_proposal?: boolean }).is_proposal) return { success: false, error: 'Sagen er et forslag — godkend den først' }
+    if (input.assigned_employee_id) {
+      const { data: emp } = await supabase
+        .from('employees')
+        .select('id, active, termination_date')
+        .eq('id', input.assigned_employee_id)
+        .maybeSingle()
+      if (!emp) return { success: false, error: 'Medarbejder findes ikke' }
+      const e = emp as { active: boolean; termination_date: string | null }
+      if (!e.active || (e.termination_date && e.termination_date < copenhagenParts(new Date()).date)) {
+        return { success: false, error: 'Medarbejder er inaktiv' }
+      }
+    }
 
     const { data, error } = await supabase
       .from('work_orders')
@@ -192,7 +208,9 @@ export async function createWorkOrderForCase(
         description: input.description?.trim() || null,
         scheduled_date: input.scheduled_date || null,
         assigned_employee_id: input.assigned_employee_id || null,
-        status: input.status || 'planned',
+        // Planlægnings-review 2026-10-09 (#5): altid 'planned' — status ændres via changeWorkOrderStatus (overgange,
+        // completed_at, done-snapshot, åben-timer-tjek); før kunne et kald indsætte 'done' direkte
+        status: 'planned',
       })
       .select('*')
       .single()
@@ -441,10 +459,14 @@ export async function deletePlannedWorkOrder(
       }
     }
 
-    const { error } = await supabase.from('work_orders').delete().eq('id', workOrderId)
+    // Planlægnings-review 2026-10-09 (#9): compare-and-set — en samtidig planned→done må ikke slettes
+    const { data: deleted, error } = await supabase.from('work_orders').delete().eq('id', workOrderId).eq('status', 'planned').select('id')
     if (error) {
       logger.error('deletePlannedWorkOrder failed', { error })
       return { success: false, error: 'Kunne ikke slette arbejdsordre' }
+    }
+    if (!deleted || deleted.length === 0) {
+      return { success: false, error: 'Arbejdsordren er ændret i mellemtiden — opdatér siden' }
     }
 
     if (wo.case_id) {

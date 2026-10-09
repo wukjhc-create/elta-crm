@@ -1861,7 +1861,7 @@ export async function portalBookBesigtigelse(
 
     // N31: offentligt endpoint (kun token) — valider input og begræns åbne bookinger
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
-    const maxDate = new Date(Date.now() + 180 * 86_400_000).toISOString().slice(0, 10)
+    const maxDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() + 180 * 86_400_000))
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today || date > maxDate) {
       return { success: false, error: 'Vælg en dato fra i dag og op til et halvt år frem' }
     }
@@ -2055,6 +2055,9 @@ export async function getPortalBesigtigelser(
       .from('customer_tasks')
       .select('id, customer_id, title, description, due_date, status, created_at, auto_rule')
       .eq('customer_id', customerId)
+      // Planlægnings-review 2026-10-09 (#8): filtrér til besigtigelser FØR grænsen — kunder med mange opgaver
+      // (auto-oprettede mailkunder) så ellers ikke deres nyeste booking. Endelig klassifikation sker nedenfor.
+      .ilike('title', '%esigtigelse%')
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(50)
 

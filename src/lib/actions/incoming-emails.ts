@@ -37,6 +37,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
+import { attachmentList, hasStoredFile, withFreshAttachmentLinks, withoutAttachmentLinks } from '@/lib/mail/attachment-links'
 import { pageWithinIds } from '@/lib/supabase/in-chunks'
 import { selectInChunks } from '@/lib/supabase/in-chunks'
 import type {
@@ -170,6 +171,8 @@ export async function getIncomingEmails(options?: {
   }
 
   const rows = (data || []) as unknown as IncomingEmailWithCustomer[] // body_html/body_text er undefined (hentes ved åbning)
+  // Gemte (1-års) vedhæftningslinks sendes ikke med listen — detaljen signerer friskt (getIncomingEmail)
+  for (const r of rows) r.attachment_urls = withoutAttachmentLinks(r.attachment_urls) as typeof r.attachment_urls
   // N96: webhenvendelser har alle afsender "FormSubmit" og samme emne → listen viser navn · postnr. fra formularen.
   // Kun disse rækker (højst en side) hentes med brødtekst og parses her; listen sender stadig ingen brødtekst.
   try {
@@ -218,8 +221,12 @@ export async function getIncomingEmail(
     logger.error('Failed to fetch incoming email', { entityId: id, error })
     return null
   }
+  if (!data) return null
 
-  return data as unknown as IncomingEmailWithCustomer
+  const email = data as unknown as IncomingEmailWithCustomer
+  // Friske 1-times links fra storagePath i stedet for de gemte 1-års links (RLS har allerede afgjort adgangen til mailen)
+  email.attachment_urls = (await withFreshAttachmentLinks(email.id, email.attachment_urls, email.customer_id)) as typeof email.attachment_urls
+  return email
 }
 
 export async function getIncomingEmailStats(): Promise<{
@@ -903,7 +910,7 @@ export async function createCustomerFromEmail(
     filename: string; contentType?: string; size?: number; url?: string; storagePath?: string
   }>
   const attachmentRefs = emailAttachments
-    .filter((a) => a.url && a.url.length > 0)
+    .filter(hasStoredFile)
     .map((a) => ({
       filename: a.filename,
       contentType: a.contentType || 'application/octet-stream',
@@ -1046,9 +1053,9 @@ export async function backfillEmailAttachments(
     return { success: true, count: 0 }
   }
 
-  // Check if already has real URLs
-  const urls = email.attachment_urls as Array<{ url?: string }> | null
-  if (urls && urls.length > 0 && urls.some((u) => u.url && u.url.length > 0)) {
+  // Allerede hentet til storage? (storagePath; ældre rækker kun url)
+  const urls = attachmentList(email.attachment_urls)
+  if (urls.length > 0 && urls.some(hasStoredFile)) {
     return { success: true, count: urls.length }
   }
 
