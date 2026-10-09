@@ -2887,7 +2887,8 @@ ${m.text()}`) })
         await card.waitFor({ timeout: 60_000 }).catch(() => {})
         await card.getByText(caseTitle).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.sag_i_rapport = (await card.getByText(caseTitle).count()) > 0
-        r.foldet = (await card.getByText('Tilbudt kost').count()) === 0 && (await card.getByText('Budget').count()) === 0
+        // kolonneoverskrifterne (ikke fritekst — en efterladt '[HARNESS] budget …'-sag matchede getByText('Budget'))
+        r.foldet = (await card.getByRole('columnheader', { name: 'Tilbudt kost', exact: true }).count()) === 0 && (await card.getByRole('columnheader', { name: 'Budget', exact: true }).count()) === 0
         await card.getByTestId('cost-reveal-toggle').click({ timeout: 30_000 }).catch(() => {})
         await a.page.waitForTimeout(800)
         const row = card.locator('tr', { hasText: caseTitle }).first()

@@ -82,6 +82,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Settings #1–#5 (webhook sammenlignede med ciphertext → korrekte kald fik altid 401; nøgler i integration_logs; hemmeligheder til browser; whitelist på firmaindstillinger; e-conomic-notifikation gemtes ikke) | DONE (app); integration_logs-RLS LATENT | `integration-webhook-check` 5/5 m. krypteret nøgle |
 | Sager #1 (faktura til betaler), #4–#10 | DONE | `case-payer-invoice-check` 2/2, planning-flow, invoice-pipeline |
 | Sager #2/#3 (montør/salg skriver direkte via REST) | **BLOCKED_APPROVAL** 00211 på branch `case-write-rows-00211` | `prod-table-write-policies.ts` |
+| Fuld UI-regression 2026-10-09 (efter 00208/00209/00210 på staging + dagens fixes) | smoke/crawl 21/21 · salg 29/29 · montør/økonomi 52/53 · portal/mail 33/33 → 135/136. Eneste afvigelse U73 = kendt flaky positiv kontrol (privatlivstjekket grønt, U44 bekræfter montørens timer). U88 fejlede pga. efterladt harness-sag fra afbrudt kørsel → test gjort robust (kolonneoverskrifter), sag ryddet | harness:ui-batches |
 | T11 talebeskeder (fundament) | DONE staging — flag ASSISTANT_VOICE_ENABLED (OFF), ingen live | `assistant-voice-check` 7/7 |
 | T12 ubesvaret opkald → tilbageringning | DONE (fundament) — `lib/integrations/relatel/missed-calls.ts`: kun ved præcis én kunde, idempotent pr. opkald, telefonsvarer i beskrivelsen, kalender 📞; Relatel-klienten er fortsat 'disabled' (ingen cron, intet live) | `missed-call-check` 8/8 |
 

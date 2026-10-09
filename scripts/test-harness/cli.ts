@@ -437,6 +437,34 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'cleanup-harness-case') {
+    // Staging: slet ÉN efterladt harness-sag (titel skal starte med '[HARNESS]') — fx efter en afbrudt UI-kørsel
+    const no = process.argv[3]
+    const { data: sc } = await admin.from('service_cases').select('id, title').eq('case_number', no).maybeSingle()
+    const row = sc as { id: string; title: string } | null
+    if (!row || !row.title.startsWith('[HARNESS]')) { log('ikke en harness-sag — intet slettet'); return }
+    const { error } = await admin.from('service_cases').delete().eq('id', row.id)
+    log(error ? `fejl: ${error.message}` : `slettet ${no}`)
+    return
+  }
+  if (SUB === 'case-title-probe') {
+    // Read-only (staging): sager/kunder hvis navn indeholder et ord (UI-test-diagnose)
+    const w = process.argv[3]
+    const { data: sc } = await admin.from('service_cases').select('case_number, title, status').ilike('title', `%${w}%`).limit(10)
+    const { data: cu } = await admin.from('customers').select('customer_number, company_name').ilike('company_name', `%${w}%`).limit(10)
+    log(JSON.stringify({ sager: sc, kunder: cu }, null, 1))
+    return
+  }
+  if (SUB === 'case-timelogs-diag') {
+    // Read-only diagnose (staging): arbejdsordrer + timer på en sag
+    const caseId = process.argv[3]
+    const { data: sc } = await admin.from('service_cases').select('status, closed_at').eq('id', caseId).maybeSingle()
+    const { data: wos } = await admin.from('work_orders').select('id, status, assigned_employee_id').eq('case_id', caseId)
+    const ids = ((wos ?? []) as Array<{ id: string }>).map((w) => w.id)
+    const { data: tls } = ids.length ? await admin.from('time_logs').select('id, work_order_id, hours, approval_status, end_time').in('work_order_id', ids) : { data: [] }
+    log(JSON.stringify({ sag: sc, arbejdsordrer: wos, timer: tls }, null, 1))
+    return
+  }
   if (SUB === 'web-inquiry-backlog') {
     // Read-only (staging): antal åbne webhenvendelser (FormSubmit, ingen kunde, 90 dage) som bulk-knappen behandler
     const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
