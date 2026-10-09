@@ -13,6 +13,16 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## CHECKPOINT 2026-10-10 ~01:00 (long-run)
+- Reviews afsluttet og rettet siden 2026-10-09 eftermiddag: AI-mail, crons/alarmer, planlægning, rapporter/KPI, tilbudsforløb,
+  kundemodul, IDOR-sweep, kalkulation (tabeller nedenfor). Fire læk-rettelser deployet direkte (besigtigelses-send, kundeskift på
+  tilbud, fuldmagts-CPR i dokumentlister, rumberegner-kost).
+- Nye BLOCKED_APPROVAL-udkast (alle staging-verificeret): 00212 health-log, 00213 arbejdsordre-guard, 00214 betalingsoversigt,
+  00215 tilbuds-lås i DB, 00216 tilbudsafrunding — se docs/runbooks/HENRIK-DECISIONS-2026-10-08.md.
+- UI-regression i dag (gruppevis): portal-mail 34/34, montør 23/23 (+guard), økonomi+smoke 38/38, sales+portal 71/71 (+00215/00216),
+  montør+økonomi 54/55 (U73: kendt timing-flake i montør-tidsdata-delen), kalkulation 21/21, kunde-subset 10/10.
+- Prod-version tjekkes via /api/public/version.
+
 ## Long-run 2026-10-10 — kalkulationsmotor (review-fund)
 | Fund | Status | Bevis |
 |---|---|---|
