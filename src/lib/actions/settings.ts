@@ -77,6 +77,19 @@ export async function getCompanySettings(): Promise<ActionResult<CompanySettings
   }
 }
 
+/** Felter updateCompanySettings må skrive (= UpdateCompanySettingsInput) */
+const COMPANY_SETTINGS_UPDATABLE = new Set([
+  'company_name', 'company_address', 'company_city', 'company_postal_code', 'company_country', 'company_phone',
+  'company_email', 'company_vat_number', 'company_logo_url', 'company_website', 'smtp_host', 'smtp_port', 'smtp_user',
+  'smtp_password', 'smtp_from_email', 'smtp_from_name', 'default_tax_percentage', 'default_currency',
+  'default_offer_validity_days', 'default_payment_terms_days', 'default_terms_and_conditions', 'time_cost_basis', 'time_cost_rate',
+])
+
+/** Kun logo-filer må slettes via logo-handlingerne (settings-review 2026-10-09 #5) */
+function isLogoPath(p: string | null | undefined): p is string {
+  return typeof p === 'string' && p.startsWith('logos/') && !p.includes('..')
+}
+
 // Update company settings
 export async function updateCompanySettings(
   input: UpdateCompanySettingsInput
@@ -97,9 +110,12 @@ export async function updateCompanySettings(
       return { success: false, error: 'Kunne ikke finde virksomhedsindstillinger' }
     }
 
+    // Settings-review 2026-10-09 (#5): kun kendte felter skrives (før hele klientobjektet → fx company_logo_storage_path,
+    // som logo-sletningen siden fjernede fra storage)
+    const patch = Object.fromEntries(Object.entries(input ?? {}).filter(([k]) => COMPANY_SETTINGS_UPDATABLE.has(k)))
     const { data, error } = await supabase
       .from('company_settings')
-      .update(input)
+      .update(patch)
       .eq('id', existing.id)
       .select(COMPANY_SETTINGS_PUBLIC_COLUMNS)
       .single()
@@ -609,7 +625,8 @@ export async function getSmtpSettings(): Promise<ActionResult<{
         host: data.smtp_host,
         port: data.smtp_port,
         user: data.smtp_user,
-        password: data.smtp_password,
+        // Settings-review 2026-10-09: passwordet sendes aldrig til browseren (server-side brug: services/smtp-settings)
+        password: data.smtp_password ? '••••••••' : null,
         fromEmail: data.smtp_from_email,
         fromName: data.smtp_from_name,
       },
@@ -868,7 +885,7 @@ export async function uploadCompanyLogo(
       existing.company_logo_storage_path ||
       existing.company_logo_url?.split('/attachments/')[1] ||
       null
-    if (oldLogoPath && oldLogoPath !== filePath) {
+    if (isLogoPath(oldLogoPath) && oldLogoPath !== filePath) {
       await storageClient().storage.from('attachments').remove([oldLogoPath])
     }
 
@@ -909,7 +926,7 @@ export async function deleteCompanyLogo(): Promise<ActionResult<void>> {
       existing.company_logo_storage_path ||
       existing.company_logo_url?.split('/attachments/')[1] ||
       null
-    if (filePath) {
+    if (isLogoPath(filePath)) {
       await storageClient().storage.from('attachments').remove([filePath])
     }
 
@@ -1377,10 +1394,16 @@ export async function updateExportErrorNotificationConfig(input: {
       last_notified_count: prev.last_notified_count,
     }
 
-    const { error } = await supabase
+    // Settings-review 2026-10-09 (#3): bogholderi (settings.economic) har ingen UPDATE-politik på company_settings → 0 rækker
+    // uden fejl, men UI og audit sagde "gemt". Skriv med service-klienten efter gaten og kræv præcis én række.
+    const { data: saved, error } = await createAdminClient()
       .from('company_settings')
       .update({ export_error_notification_config: merged })
       .eq('id', existing.id)
+      .select('id')
+    if (!error && (saved ?? []).length !== 1) {
+      return { success: false, error: 'Notifikationsindstillingerne blev ikke gemt' }
+    }
     if (error) {
       logger.error('updateExportErrorNotificationConfig failed', { error })
       return { success: false, error: 'Kunne ikke gemme notifikationsindstillinger' }

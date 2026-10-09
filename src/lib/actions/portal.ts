@@ -22,7 +22,7 @@ import { convertOfferToCase } from '@/lib/services/offer-to-case'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { sendEmail } from '@/lib/email/email-service'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
-import { getSmtpSettings } from '@/lib/actions/settings'
+import { readSmtpSettingsServerOnly } from '@/lib/services/smtp-settings'
 import { isInternalEmail } from '@/lib/services/mail-routing'
 import { MAX_FILE_SIZE, APP_URL } from '@/lib/constants'
 import type {
@@ -1222,15 +1222,15 @@ export async function sendEmployeeMessage(
             mailOk = sendResult.success
             mailError = sendResult.error
           } else {
-            const smtpResult = await getSmtpSettings()
-            const smtpConfig = smtpResult.success && smtpResult.data
+            const smtp = await readSmtpSettingsServerOnly()
+            const smtpConfig = smtp
               ? {
-                  host: smtpResult.data.host || undefined,
-                  port: smtpResult.data.port || undefined,
-                  user: smtpResult.data.user || undefined,
-                  password: smtpResult.data.password || undefined,
-                  fromEmail: smtpResult.data.fromEmail || undefined,
-                  fromName: smtpResult.data.fromName || undefined,
+                  host: smtp.host || undefined,
+                  port: smtp.port || undefined,
+                  user: smtp.user || undefined,
+                  password: smtp.password || undefined,
+                  fromEmail: smtp.fromEmail || undefined,
+                  fromName: smtp.fromName || undefined,
                 }
               : undefined
             const sendResult = await sendEmail(

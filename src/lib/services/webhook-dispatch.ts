@@ -8,7 +8,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { secretColumnReader } from '@/lib/portal/token-reader'
-import { decryptIntegrationSecrets } from '@/lib/services/integration-secrets'
+import { decryptIntegrationSecrets, redactSecretHeaders } from '@/lib/services/integration-secrets'
 import type { Integration, WebhookEventType, WebhookPayload, WebhookOfferData, WebhookProjectData } from '@/types/integrations.types'
 
 type SupabaseLike = { from: (t: string) => any }
@@ -97,7 +97,7 @@ export async function dispatchWebhooks(
         project_id: (payload.data as WebhookProjectData).type === 'project' ? (payload.data as WebhookProjectData).id : null,
         request_url: webhook.url,
         request_method: webhook.http_method || 'POST',
-        request_headers: headers,
+        request_headers: redactSecretHeaders(headers), // settings-review 2026-10-09: ingen nøgler i loggen
         request_body: requestBody as Record<string, unknown>,
         response_status: response.status,
         response_body: tryParseJson(responseBody),

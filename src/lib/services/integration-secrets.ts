@@ -110,3 +110,18 @@ export function maskIntegrationSecrets(row: Integration): Integration {
   }
   return out
 }
+
+/**
+ * Settings-review 2026-10-09: headers der logges i integration_logs må ikke indeholde hemmeligheder (Authorization,
+ * API-nøgler, tokens, cookies) — tabellen er læsbar for flere roller. Værdien erstattes med '[REDACTED]'.
+ */
+export function redactSecretHeaders(headers: Record<string, string> | null | undefined, extraSecretNames: string[] = []): Record<string, string> {
+  const extra = new Set(extraSecretNames.map((n) => n.toLowerCase()))
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(headers ?? {})) {
+    const n = k.toLowerCase()
+    const secret = extra.has(n) || /authorization|api[-_]?key|apikey|token|secret|password|passwd|cookie|signature|x-auth/.test(n)
+    out[k] = secret ? '[REDACTED]' : v
+  }
+  return out
+}

@@ -967,7 +967,11 @@ async function main() {
     const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
     const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
     const key = `hk-${stamp}-${Math.random().toString(36).slice(2)}`
-    const { data: integ, error: iErr } = await admin.from('integrations').insert({ name: `[HARNESS] webhook ${stamp}`, is_active: true, api_key: key }).select('id').single()
+    // nøglen lagres krypteret som i UI'et (createIntegration → encryptIntegrationSecrets) — settings-review 2026-10-09
+    // test-nøgle kun i denne proces (krypter + dekrypter sker her) — rører ingen rigtig ENCRYPTION_KEY
+    if (!process.env.ENCRYPTION_KEY) process.env.ENCRYPTION_KEY = (await import('crypto')).randomBytes(32).toString('base64')
+    const { encryptSecret } = await import('../../src/lib/services/integration-secrets')
+    const { data: integ, error: iErr } = await admin.from('integrations').insert({ name: `[HARNESS] webhook ${stamp}`, is_active: true, api_key: await encryptSecret(key) }).select('id').single()
     if (iErr) throw new Error(`integration: ${iErr.message}`)
     const integId = (integ as { id: string }).id
     const { data: cu } = await admin.from('customers').insert({ customer_number: `WH-${stamp}`, company_name: `[HARNESS] wh ${stamp}`, contact_person: 'X', email: `wh-${stamp}@harness.test`, created_by: owner }).select('id').single()

@@ -46,6 +46,7 @@ import {
   decryptIntegrationSecrets,
   maskIntegrationSecrets,
   INTEGRATION_SECRET_FIELDS,
+  redactSecretHeaders,
 } from '@/lib/services/integration-secrets'
 
 // =====================================================
@@ -242,7 +243,8 @@ export async function toggleIntegration(
     }
 
     revalidatePath('/dashboard/settings/integrations')
-    return { success: true, data: data as Integration }
+    // Settings-review 2026-10-09 (#4): aldrig nøgler/tokens (heller ikke ciphertext) til browseren
+    return { success: true, data: maskIntegrationSecrets(data) as Integration }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke ændre integration status') }
   }
@@ -673,7 +675,7 @@ export async function exportOfferToIntegration(
       offer_id: offerId,
       request_url: url,
       request_method: endpoint.http_method || 'POST',
-      request_headers: headers,
+      request_headers: redactSecretHeaders(headers), // settings-review 2026-10-09: ingen nøgler i loggen
       request_body: requestBody as Record<string, unknown>,
       response_status: response.status,
       response_body: responseBody,
