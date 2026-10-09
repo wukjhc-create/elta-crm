@@ -506,6 +506,34 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'payment-summary-check') {
+    // 00214: v_customer_payment_summary.outstanding_total pr. kunde = appens åbne beløb (lib/invoices/open-amount.ts)
+    // for sendte, ikke-annullerede, ikke-kreditnota-fakturaer. Kun læsning.
+    const { fetchAllRows } = await import('../../src/lib/supabase/fetch-all')
+    const invs = await fetchAllRows<{ id: string; customer_id: string | null; status: string; invoice_type: string | null; voided_at: string | null; final_amount: number | null; amount_paid: number | null; credit_of_invoice_id: string | null }>((f, t) =>
+      admin.from('invoices').select('id, customer_id, status, invoice_type, voided_at, final_amount, amount_paid, credit_of_invoice_id').order('id').range(f, t) as never)
+    const credited = new Map<string, number>()
+    for (const c of invs) if (c.invoice_type === 'credit' && c.credit_of_invoice_id && ['sent', 'paid'].includes(c.status) && !c.voided_at) {
+      credited.set(c.credit_of_invoice_id, (credited.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.final_amount ?? 0)))
+    }
+    const expected = new Map<string, number>()
+    for (const i of invs) {
+      if (!i.customer_id || i.status !== 'sent' || i.voided_at || (i.invoice_type ?? 'standard') === 'credit') continue
+      const open = Math.max(0, Number(i.final_amount ?? 0) - Number(i.amount_paid ?? 0) - (credited.get(i.id) ?? 0))
+      expected.set(i.customer_id, (expected.get(i.customer_id) ?? 0) + open)
+    }
+    const view = await fetchAllRows<{ customer_id: string; outstanding_total: number }>((f, t) =>
+      admin.from('v_customer_payment_summary').select('customer_id, outstanding_total').order('customer_id').range(f, t) as never)
+    let diff = 0
+    for (const v of view) {
+      const e = Math.round((expected.get(v.customer_id) ?? 0) * 100) / 100
+      if (Math.abs(Number(v.outstanding_total) - e) > 0.01) diff++
+    }
+    const partial = invs.filter((i) => i.status === 'sent' && Number(i.amount_paid ?? 0) > 0).length + credited.size
+    log(`${diff === 0 ? '✅' : '❌'} ${view.length} kunder i viewet, ${diff} afviger fra appens åbne beløb (delbetalte/krediterede fakturaer i data: ${partial})`)
+    process.exitCode = diff === 0 ? 0 : 1
+    return
+  }
   if (SUB === 'work-orders-guard-check') {
     // 00213: montør (rigtig persona-session) på EGEN arbejdsordre: kun status (planned→in_progress→done) virker;
     // case_id/dato/titel afvises; en annulleret ordre kan ikke gøres 'done'. Admin uændret. Midlertidige rækker ryddes.
