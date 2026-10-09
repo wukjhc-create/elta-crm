@@ -18,6 +18,9 @@ import { copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { buildCaseAftercalc, type AftercalcInput, type CaseAftercalcView } from '@/lib/cases/aftercalc'
 import {
   selectOverviewPage,
+  takeCaseWindow,
+  AFTERCALC_CASE_WINDOW,
+  AFTERCALC_PAGE_SIZE,
   AFTERCALC_SORTS,
   AFTERCALC_VARIANCE_FILTERS,
   type AftercalcOverviewFilters,
@@ -29,7 +32,6 @@ import {
 import { SERVICE_CASE_STATUSES } from '@/types/service-cases.types'
 import type { ActionResult } from '@/types/common.types'
 
-const WINDOW = 200
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function nextCalendarDate(isoDate: string): string {
@@ -340,7 +342,7 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
       .from('service_cases')
       .select('id, case_number, title, status, created_at, assigned_to, source_offer_id, customer:customers!service_cases_customer_id_fkey(company_name), assignee:profiles!service_cases_assigned_to_fkey(id, full_name)')
       .order('created_at', { ascending: false })
-      .limit(WINDOW + 1)
+      .limit(AFTERCALC_CASE_WINDOW + 1)
     if (status) caseQuery = caseQuery.eq('status', status)
     else caseQuery = caseQuery.neq('status', 'converted')
     if (assigneeId) caseQuery = caseQuery.eq('assigned_to', assigneeId)
@@ -382,8 +384,8 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
       assignee: { id: string; full_name: string | null } | Array<{ id: string; full_name: string | null }> | null
     }
     const fetched = (caseRes.data ?? []) as CaseRow[]
-    const truncated = fetched.length > WINDOW
-    const cases = truncated ? fetched.slice(0, WINDOW) : fetched
+    const windowed = takeCaseWindow(fetched)
+    const cases = windowed.rows
     if (cases.length === 0) {
       return {
         success: true,
@@ -391,7 +393,7 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
           rows: [],
           total: 0,
           page: 1,
-          pageSize: 25,
+          pageSize: AFTERCALC_PAGE_SIZE,
           truncated: false,
           cases_considered: 0,
           query_ms: Math.round(performance.now() - started),
@@ -495,7 +497,7 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
       success: true,
       data: {
         ...selected,
-        truncated,
+        truncated: windowed.truncated,
         cases_considered: cases.length,
         query_ms: Math.round(performance.now() - started),
         assignees: [...assignees.entries()].map(([id, full_name]) => ({ id, full_name })).sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '', 'da')),

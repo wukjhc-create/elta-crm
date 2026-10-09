@@ -3,7 +3,7 @@
  *   npx tsx scripts/aftercalc-test.ts
  */
 import { buildCaseAftercalc, toOre, type AftercalcInput, type CaseAftercalc } from '../src/lib/cases/aftercalc'
-import { selectOverviewPage, type AftercalcOverviewItem } from '../src/lib/cases/aftercalc-overview'
+import { selectOverviewPage, takeCaseWindow, type AftercalcOverviewItem } from '../src/lib/cases/aftercalc-overview'
 
 let bad = 0
 const ok = (c: boolean, label: string, extra = '') => {
@@ -70,7 +70,7 @@ ok(ore(under.actual.contribution_margin) === 1000000 && ore(under.variance.contr
 const extraIn = base()
 extraIn.materials.push({ id: 'M2', description: 'Ekstra beslag', quantity: 1, unit: 'stk', total_cost: 500, unit_cost: 500, billable: true, invoice_line_id: 'IL3' })
 const extra = buildCaseAftercalc(extraIn)
-ok(extra.lines.find((r) => r.key === 'M2')?.status === 'not_offered' && extra.extra_not_offered.some((h) => h.description === 'Ekstra beslag'), '4 ekstra linje er ikke tilbudt')
+ok(extra.lines.find((r) => r.key === 'M2')?.status === 'not_offered' && extra.extra_not_offered.some((h) => h.description === 'Ekstra beslag') && has(extra, 'unlinked_materials'), '4 ekstra linje er ikke tilbudt')
 ok(ore(extra.variance.material_cost.amount) === 50000 && extra.worst[0]?.description === 'Ekstra beslag', '4 merkost 500 kr er største negative afvigelse', JSON.stringify(extra.worst))
 
 // 5. Kreditnota
@@ -265,6 +265,10 @@ const many = Array.from({ length: 30 }, (_, i) => item(`A${String(i).padStart(2,
 const page2 = selectOverviewPage(many, { sort: 'newest', page: 2 })
 ok(page2.total === 30 && page2.page === 2 && page2.rows.length === 5, 'oversigt side 2 har resten')
 ok(selectOverviewPage(many, { page: 99 }).page === 2, 'oversigt side klemmes til sidste')
+const wide = Array.from({ length: 201 }, (_, i) => i)
+const windowed = takeCaseWindow(wide)
+ok(windowed.truncated && windowed.rows.length === 200 && windowed.rows[0] === 0 && windowed.rows[199] === 199, 'oversigt beregner højst de 200 første i listen')
+ok(takeCaseWindow(wide.slice(0, 200)).truncated === false && takeCaseWindow(wide.slice(0, 200)).rows.length === 200, 'præcis 200 sager er ikke afskåret')
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle efterkalkulationstests bestået')
 process.exitCode = bad ? 1 : 0

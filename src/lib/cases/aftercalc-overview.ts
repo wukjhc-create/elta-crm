@@ -7,6 +7,16 @@ import type { DataQualityCode } from '@/lib/cases/aftercalc'
 
 export const AFTERCALC_PAGE_SIZE = 25
 
+/** Nyeste sager i filtret. Én række mere end dette fortæller, at ældre sager ikke er beregnet. */
+export const AFTERCALC_CASE_WINDOW = 200
+
+export function takeCaseWindow<T>(rows: readonly T[]): { rows: T[]; truncated: boolean } {
+  if (rows.length > AFTERCALC_CASE_WINDOW) {
+    return { rows: rows.slice(0, AFTERCALC_CASE_WINDOW), truncated: true }
+  }
+  return { rows: rows.slice(), truncated: false }
+}
+
 export const AFTERCALC_SORTS = ['worst_db', 'biggest_loss', 'biggest_gain', 'missing_data', 'newest'] as const
 export type AftercalcSort = (typeof AFTERCALC_SORTS)[number]
 
