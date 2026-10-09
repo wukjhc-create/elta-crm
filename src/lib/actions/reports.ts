@@ -8,6 +8,7 @@
  */
 
 import { compareOfferToActual, type ActualMaterialInput, type OfferLineInput } from '@/lib/cases/offer-vs-actual'
+import { profitabilityFigures, sumLabourCost } from '@/lib/cases/profitability-figures'
 import { computeRealizedDb, type RealizedInvoiceInput } from '@/lib/cases/realized-db'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
@@ -416,14 +417,16 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
 
     const actual = new Map<string, number>()
     const billable = new Map<string, number>()
-    const labourCost = new Map<string, number>()
+    const labourAmounts = new Map<string, Array<number | string | null>>()
     for (const l of (logs ?? []) as unknown as Array<{ hours: number | string | null; billable: boolean | null; cost_amount: number | string | null; work_order: { case_id: string } | Array<{ case_id: string }> }>) {
       const wo = Array.isArray(l.work_order) ? l.work_order[0] : l.work_order
       if (!wo) continue
       const h = Number(l.hours ?? 0) || 0
       actual.set(wo.case_id, (actual.get(wo.case_id) ?? 0) + h)
       if (l.billable !== false) billable.set(wo.case_id, (billable.get(wo.case_id) ?? 0) + h)
-      if (l.cost_amount != null) labourCost.set(wo.case_id, (labourCost.get(wo.case_id) ?? 0) + (Number(l.cost_amount) || 0))
+      const amounts = labourAmounts.get(wo.case_id) ?? []
+      amounts.push(l.cost_amount)
+      labourAmounts.set(wo.case_id, amounts)
     }
 
     // N26d: tilbudt vs. faktisk kost pr. sag (samme matching som Økonomi-fanens linjevisning; timekost aggregeret, D50)
@@ -438,13 +441,17 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
             .then((data) => ({ data: data.sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0)) }))
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
       fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds).order('id').range(from, to)).then((data) => ({ data })),
-      supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at').in('case_id', caseIds),
-      supabase.from('case_other_costs').select('case_id, total_cost').in('case_id', caseIds),
+      fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('invoices').select('id, case_id, total_amount, status, invoice_type, voided_at').in('case_id', caseIds).order('id').range(from, to)).then((data) => ({ data })),
+      fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_other_costs').select('id, case_id, total_cost').in('case_id', caseIds).order('id').range(from, to)).then((data) => ({ data })),
     ])
     const invByCase = new Map<string, RealizedInvoiceInput[]>()
-    for (const i of (invRes.data ?? []) as Array<RealizedInvoiceInput & { case_id: string }>) invByCase.set(i.case_id, [...(invByCase.get(i.case_id) ?? []), i])
-    const otherCost = new Map<string, number>()
-    for (const o of (otherRes.data ?? []) as Array<{ case_id: string; total_cost: number | string | null }>) otherCost.set(o.case_id, (otherCost.get(o.case_id) ?? 0) + (Number(o.total_cost ?? 0) || 0))
+    for (const i of (invRes.data ?? []) as unknown as Array<RealizedInvoiceInput & { case_id: string }>) invByCase.set(i.case_id, [...(invByCase.get(i.case_id) ?? []), i])
+    const otherByCase = new Map<string, Array<number | string | null>>()
+    for (const o of (otherRes.data ?? []) as unknown as Array<{ case_id: string; total_cost: number | string | null }>) {
+      const list = otherByCase.get(o.case_id) ?? []
+      list.push(o.total_cost)
+      otherByCase.set(o.case_id, list)
+    }
     const linesByOffer = new Map<string, OfferLineInput[]>()
     for (const l of (linesRes.data ?? []) as unknown as Array<OfferLineInput & { offer_id: string }>) {
       linesByOffer.set(l.offer_id, [...(linesByOffer.get(l.offer_id) ?? []), l])
@@ -471,18 +478,19 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
           const id = c.id as string
           const lines = c.source_offer_id ? linesByOffer.get(c.source_offer_id as string) ?? [] : []
           const mats = matsByCase.get(id) ?? []
-          const cmp = compareOfferToActual(lines, mats, { hours: actual.get(id) ?? 0, cost: labourCost.has(id) ? labourCost.get(id)! : null })
-          const hasOffered = cmp.rows.some((r) => r.offered_cost != null)
-          const hasActual = cmp.rows.some((r) => r.actual_cost != null)
+          const amounts = labourAmounts.get(id)
+          const cmp = compareOfferToActual(lines, mats, { hours: actual.get(id) ?? 0, cost: amounts ? sumLabourCost(amounts) : null })
+          const figures = profitabilityFigures(cmp.rows, otherByCase.get(id) ?? [])
           const invs = invByCase.get(id) ?? []
-          const realized = computeRealizedDb(invs, (hasActual ? cmp.totals.actual_cost : 0) + (otherCost.get(id) ?? 0), false)
+          const realized = computeRealizedDb(invs, figures.db_cost ?? 0, false)
+          const dbKnown = figures.db_cost != null && realized.issued_invoice_count > 0
           return {
-            offered_cost: hasOffered ? cmp.totals.offered_cost : null,
-            actual_cost: hasActual ? cmp.totals.actual_cost : null,
-            cost_deviation: hasOffered && hasActual ? cmp.totals.deviation : null,
+            offered_cost: figures.offered_cost,
+            actual_cost: figures.actual_cost,
+            cost_deviation: figures.cost_deviation,
             net_invoiced: realized.net_invoiced_ex_vat,
-            realized_db: realized.issued_invoice_count > 0 ? realized.realized_db : null,
-            realized_db_pct: realized.issued_invoice_count > 0 ? realized.realized_db_pct : null,
+            realized_db: dbKnown ? realized.realized_db : null,
+            realized_db_pct: dbKnown ? realized.realized_db_pct : null,
           }
         })(),
       }

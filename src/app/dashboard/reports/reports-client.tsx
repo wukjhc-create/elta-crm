@@ -20,6 +20,7 @@ import {
   TrendingDown,
 } from 'lucide-react'
 import { ExportButton } from '@/components/shared/export-button'
+import { compareByAbsDeviation } from '@/lib/cases/profitability-figures'
 import {
   getReportsSummary,
   getRevenueByPeriod,
@@ -171,7 +172,7 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
   const [costOpen, toggleCost] = useCostReveal()
   const [byDeviation, setByDeviation] = useState(false)
   const rows = byDeviation
-    ? [...data].sort((a, b) => Math.abs(b.cost_deviation ?? 0) - Math.abs(a.cost_deviation ?? 0))
+    ? [...data].sort((a, b) => compareByAbsDeviation(a.cost_deviation, b.cost_deviation))
     : data
   return (
     <div className="bg-white rounded-lg border p-6" data-testid="report-case-profitability">
