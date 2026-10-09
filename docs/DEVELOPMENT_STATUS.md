@@ -38,7 +38,7 @@ Efterkalkulation v1 er på `grok-next` (`2274215`): tilbudt/faktisk/afvigelse i 
 AGENT: GROK
 BRANCH: grok-next
 
-Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. De sikre kodehuller i fakturakontrollen er lukket. En tidligere genlæsning sagde, at køen var tom. Den næste genlæsning fandt Profit Engine trin 2 (skygge-DB) og leverede den. IC7 er parkeret. Køen er ikke lukket af den tidligere tomme konklusion.
+Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. En tidligere tom konklusion blev forkastet, fordi N29 ikke var bygget. N29 og Profit Engine trin 2 er leveret bagefter. Ny genlæsning af backloggen og design-dokumenterne: der er ingen yderligere NOW/NEXT-række, som kan bygges på grok-next uden prod-godkendelse, live afsendelse, migration eller Claudes spor.
 
 Features leveret:
 - Sagsrentabilitet på `/dashboard/reports` behandler manglende kost som ukendt, ikke 0 (`9defa9b`).
@@ -47,8 +47,9 @@ Features leveret:
 - Leverandørfakturaens panel viser om linjesummen stemmer med beløb ekskl. moms. En linje uden beløb gør forskellen ukendt (`header-totals-test`). Godkendelse og e-conomic er urørt.
 - OIOUBL-faktura og kreditnota giver hovedfelter og linjer (`oioubl-test`). `parseAndMatch` gemmer linjerne kun når der ingen er. Låste fakturaer genåbnes ikke.
 - Mine forfaldne opgaver og dagens liste på dashboardet og opgavesiden (`my-day-test`). Kun egne kundeopgaver. Dagen er den danske kalenderdag.
+- Tilbuddets linjefod viser DB efter tilbudsrabat ved siden af tallet før rabat (`1e8c198`, `offer-db-shadow-test`). Kost og salgspriser er uændrede. Send-gaten er uændret.
 
-Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, `aa76883`, `5591172`, `a60eebf`, `e70787f`, plus denne status-commit. Ingen merge til main. Ingen ny fil under `supabase/migrations`. Gren `grok-next`, upstream `origin/grok-next`.
+Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, `aa76883`, `5591172`, `a60eebf`, `e70787f`, `7da4464`, `992cbd2`, `1e8c198`, plus denne status-commit. Ingen merge til main. Ingen ny fil under `supabase/migrations`. Gren `grok-next`, upstream `origin/grok-next`.
 
 Køen efter fakturakontrol (punkt 11–16):
 - Opfølgning: trin 1 er leveret. Trin 2 er BLOCKED_APPROVAL (samme godkendelse som X4d). Trin 3 er live afsendelse. Trin 4 kræver migration.
@@ -59,7 +60,7 @@ Køen efter fakturakontrol (punkt 11–16):
 - Pilot: G13 er DONE. G11 og G12 er drift hos Henrik.
 - Fakturakontrol trin 4 og 6 samt IC8-fejlsvaret forbliver BLOCKED_APPROVAL, fordi de sidder i `approveInvoice` og e-conomic-push. Trin 5 (`profit_snapshots`) er et eksisterende DDL-forslag og er ikke bygget.
 - N29 er leveret: mine forfaldne og dagens liste. Fakturakontrol trin 2 og 3 var allerede i koden og er markeret DONE.
-- Profit Engine trin 2 er leveret: reel DB efter tilbudsrabat i linjefoden. IC7 er parkeret (salgspris på konverterede linjer).
+- Profit Engine trin 2 er leveret: reel DB efter tilbudsrabat i linjefoden. Trin 3–5 er BLOCKED_APPROVAL (migration og ændrede salgspriser). IC7 er parkeret: Henrik skal godkende salgsprisen på konverterede linjer, eller at de ikke faktureres før prisen er sat. IC10 var allerede i prod (00167).
 
 Tests efter genlæsningen, alle exit 0: `aftercalc-test` (tilbudt omsætning 18.000, DB 6.000, ens tekst er ikke matchet, manglende kost er ikke en besparelse), `offer-vs-actual-test`, `profitability-figures-test`, `price-at-date-test`, `followup-shadow-test`, `header-totals-test`, `oioubl-test`, `my-day-test`, `offer-db-shadow-test`. `npm run type-check`, `check:rbac` (479 skrivende, 419 gatet, 60 undtaget, 0 fejl) og `check:rls-matrix` med exit 0. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000. Chrome findes. Next blev ikke startet.
 
@@ -76,6 +77,8 @@ Blockers (mangler godkendelse, ikke påbegyndt):
 - T13: Relatel-token og live SMS.
 - N24 (b): 59 gamle pending-mails er prod-data.
 - Q11 B1–B3, R-OFR-B, R-PRT-B, R-MAIL-B og de øvrige eksisterende BLOCKED_APPROVAL-rækker er uændrede.
+- IC7: salgspris eller fakturerbarhed på linjer, der konverteres fra en leverandørfaktura.
+- Profit Engine trin 3–4: migration til aftaler/snapshots, og udskiftning af prisalgoritmerne.
 
 Findings til Claude:
 - `getServiceCaseEconomy` læser stadig `employees.hourly_rate`. Efterkalkulationen bruger den ikke.
