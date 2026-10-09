@@ -87,6 +87,9 @@ ok(buildCaseAftercalc(creditNeg).actual.revenue === 0, '5 fuldt krediteret origi
 const cancelled = base()
 cancelled.invoices.push({ total_amount: 50000, status: 'cancelled', invoice_type: 'standard', voided_at: null })
 ok(buildCaseAftercalc(cancelled).actual.revenue === 20000, '5 annulleret faktura tæller ikke')
+const voidStatus = base()
+voidStatus.invoices.push({ total_amount: 8000, status: 'void', invoice_type: 'standard', voided_at: null })
+ok(buildCaseAftercalc(voidStatus).actual.revenue === 20000, '5 status void tæller ikke')
 
 // 6. Afviste timer
 const rejIn = base()
@@ -99,12 +102,14 @@ const missIn = base()
 missIn.timeLogs[0].cost_amount = null
 const miss = buildCaseAftercalc(missIn)
 ok(miss.actual.labour_cost == null && miss.actual.contribution_margin == null && miss.variance.labour_cost.amount == null, '7 manglende lønkost gør DB ukendt')
-ok(has(miss, 'missing_frozen_labour_cost') && miss.lines.find((r) => r.kind === 'labour')?.status === 'missing_cost' && miss.data_quality === 'warning', '7 advarsel og linjestatus')
+const labourMiss = miss.lines.find((r) => r.kind === 'labour')!
+ok(has(miss, 'missing_frozen_labour_cost') && labourMiss.status === 'missing_cost' && labourMiss.actual_cost == null && labourMiss.cost_deviation == null && miss.data_quality === 'warning', '7 manglende faktisk lønkost er ikke en besparelse')
 const missMat = base()
 missMat.materials[0].unit_cost = null
 missMat.materials[0].total_cost = null
 const missMatRes = buildCaseAftercalc(missMat)
-ok(missMatRes.actual.material_cost == null && missMatRes.actual.contribution_margin == null && missMatRes.lines.find((r) => r.key === 'L2')?.status === 'missing_cost', '7 manglende materialekost er ikke 0')
+const matMiss = missMatRes.lines.find((r) => r.key === 'L2')!
+ok(missMatRes.actual.material_cost == null && missMatRes.actual.contribution_margin == null && matMiss.status === 'missing_cost' && matMiss.cost_deviation == null, '7 manglende materialekost er ikke 0')
 
 // 8. Delvis faktura
 const partIn = base()

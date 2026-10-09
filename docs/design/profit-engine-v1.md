@@ -41,7 +41,7 @@ Leverandørfakturaer indgår ikke direkte. Godkendte linjer ligger allerede i `c
 
 - Tilbudslinjer har ingen "øvrig"-type. Alt der ikke er timer, er materiale i den tilbudte kost.
 - Tekstlig ens beskrivelse er bevidst ikke et match i V1. De linjer står som "ikke matchet". Den ældre liste under samme fane grupperer dem stadig.
-- Oversigten beregner højst de 200 nyeste sager i filtret i hukommelsen og paginerer bagefter. Prod har i skrivende stund få sager. Et DB-view bliver først relevant, når vinduet ikke slår til.
+- Oversigten henter højst 201 sag-rækker og lader `takeCaseWindow` beholde de 200 nyeste. Ældre sager i filtret beregnes ikke. Sortering og side sker bagefter i hukommelsen. Prod har i skrivende stund få sager. Et DB-view bliver først relevant, når vinduet ikke slår til.
 - `profit_snapshots` fra `docs/profit/PROFIT_ENGINE_DESIGN.md` er stadig kun et SQL-forslag og bruges ikke.
 
 ## Advarsler
