@@ -711,8 +711,11 @@ export async function convertCalculationToOffer(
         .insert(lineItems)
 
       if (liError) {
-        logger.error('Error creating line items', { error: liError })
-        // Don't fail - offer is created, just missing line items
+        // Tilbuds-review 2026-10-09 (#10): ingen kladde med total uden linjer — rul tilbuddet tilbage (som
+        // duplicateOfferAction/kalkia-calculations)
+        logger.error('Error creating line items — rolling back offer', { error: liError })
+        await supabase.from('offers').delete().eq('id', offer.id).eq('status', 'draft')
+        return { success: false, error: 'Kunne ikke oprette tilbudslinjerne — tilbuddet blev ikke oprettet' }
       }
     }
 

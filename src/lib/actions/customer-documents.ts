@@ -253,7 +253,9 @@ export async function uploadCustomerDocument(
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { supabase, userId } = await requireGate('customers.view')
+    // Kunde-review 2026-10-09 (#2): upload på kundens dokumentfane kræver kunderelationen (customers.edit) — dokumenter
+    // her vises i kundeportalen; montør/bogholderi (customers.view) kunne uploade til enhver kunde
+    const { supabase, userId } = await requireGate('customers.edit')
 
     const file = formData.get('file') as File
     if (!file || file.size === 0) {

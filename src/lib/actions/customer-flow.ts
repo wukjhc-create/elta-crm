@@ -8,7 +8,8 @@
  */
 
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { retroLinkable } from '@/lib/mail/retro-link'
 import { logger } from '@/lib/utils/logger'
 
 export type StepStatus = 'not_started' | 'awaiting' | 'done' | 'reminder_sent'
@@ -32,9 +33,18 @@ export async function getCustomerFlow(
   customerId: string,
   customerEmail: string
 ): Promise<CustomerFlowData> {
-  const supabase = await createClient()
+  // Kunde-review 2026-10-09 (#1): gate (før ingen) + kundens egen adresse fra databasen (klientens ignoreres); egne/
+  // pladsholder-/formular-adresser matches ikke på leads/mails
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('customers.view') || !/^[0-9a-f-]{36}$/i.test(customerId)) return { steps: [] }
 
   try {
+    void customerEmail
+    const { data: cust } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+    const storedEmail = ((cust as { email: string | null } | null)?.email ?? '').trim()
+    const matchable = !!storedEmail && storedEmail.includes('@') && retroLinkable(storedEmail)
+    // ikke-matchbar adresse → et filter der intet rammer (UUID-lignende umulig adresse)
+    customerEmail = matchable ? storedEmail : 'ingen-adresse@invalid.invalid'
     // Fetch all data in parallel
     const emailLower = customerEmail.toLowerCase()
     const [leadsRes, tasksRes, docsRes, offersRes, projectsRes, emailsRes] = await Promise.all([

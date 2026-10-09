@@ -59,12 +59,24 @@ export async function upsertCustomerSupplierPrice(
     const { supabase, userId } = await requireGate('tools.pricing')
     validateUUID(data.customer_id, 'kunde ID')
     validateUUID(data.supplier_id, 'leverandør ID')
+    // Kunde-review 2026-10-09 (#3): eksplicit række — tomme felter gemmes som NULL (før blev udeladte nøgler ikke
+    // nulstillet ved opdatering: en ryddet avance/udløbsdato blev ved med at gælde), og værdier valideres
+    const invalid = priceAgreementInvalid(data.discount_percentage, data.custom_margin_percentage, data.valid_from, data.valid_to)
+    if (invalid) return { success: false, error: invalid }
 
     const { data: result, error } = await supabase
       .from('customer_supplier_prices')
       .upsert(
         {
-          ...data,
+          customer_id: data.customer_id,
+          supplier_id: data.supplier_id,
+          discount_percentage: data.discount_percentage ?? 0,
+          custom_margin_percentage: data.custom_margin_percentage ?? null,
+          price_list_code: data.price_list_code || null,
+          notes: data.notes || null,
+          valid_from: data.valid_from || null,
+          valid_to: data.valid_to || null,
+          is_active: data.is_active ?? true,
           created_by: userId,
         },
         { onConflict: 'customer_id,supplier_id' }
@@ -163,6 +175,11 @@ export async function upsertCustomerProductPrice(
     const { supabase, userId } = await requireGate('tools.pricing')
     validateUUID(customerId, 'kunde ID')
     validateUUID(supplierProductId, 'leverandørprodukt ID')
+    // Kunde-review 2026-10-09 (#3): eksplicit række (ingen spredning af klientdata — kunne overskrive customer_id) og
+    // validering; tomme felter → NULL
+    const invalid = priceAgreementInvalid(data.custom_discount_percentage, undefined, data.valid_from, data.valid_to)
+      ?? ([data.custom_cost_price, data.custom_list_price].some((v) => v !== undefined && v !== null && (!Number.isFinite(Number(v)) || Number(v) < 0)) ? 'Priser kan ikke være negative' : null)
+    if (invalid) return { success: false, error: invalid }
 
     const { data: result, error } = await supabase
       .from('customer_product_prices')
@@ -170,7 +187,13 @@ export async function upsertCustomerProductPrice(
         {
           customer_id: customerId,
           supplier_product_id: supplierProductId,
-          ...data,
+          custom_cost_price: data.custom_cost_price ?? null,
+          custom_list_price: data.custom_list_price ?? null,
+          custom_discount_percentage: data.custom_discount_percentage ?? null,
+          notes: data.notes || null,
+          valid_from: data.valid_from || null,
+          valid_to: data.valid_to || null,
+          source: data.source ?? 'manual',
           is_active: true,
           created_by: userId,
         },
@@ -262,4 +285,21 @@ export async function getBestPriceForCustomer(
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke finde bedste pris') }
   }
+}
+
+/** Rabat 0–100 %, avance −100–1000 %, gyldig fra ≤ til. Returnerer fejltekst eller null. */
+function priceAgreementInvalid(
+  discount: number | null | undefined,
+  margin: number | null | undefined,
+  validFrom: string | null | undefined,
+  validTo: string | null | undefined
+): string | null {
+  if (discount !== undefined && discount !== null && (!Number.isFinite(Number(discount)) || Number(discount) < 0 || Number(discount) > 100)) {
+    return 'Rabat skal være mellem 0 og 100 %'
+  }
+  if (margin !== undefined && margin !== null && (!Number.isFinite(Number(margin)) || Number(margin) < -100 || Number(margin) > 999)) {
+    return 'Avance skal være mellem −100 og 999 %'
+  }
+  if (validFrom && validTo && validFrom > validTo) return '"Gyldig fra" skal være før "Gyldig til"'
+  return null
 }

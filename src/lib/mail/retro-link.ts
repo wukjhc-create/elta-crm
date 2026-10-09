@@ -17,7 +17,7 @@ type Client = { from: (t: string) => any }
  * Kunde-review 2026-10-08 (#3): egne adresser (kontakt@ o.l. — ofte indtastet når kunden ingen e-mail har), pladsholdere
  * og system-afsendere (formularer) må aldrig retro-kobles — ellers hænger alle firmaets/formularens mails på én kunde.
  */
-function retroLinkable(email: string): boolean {
+export function retroLinkable(email: string): boolean {
   const e = email.trim().toLowerCase()
   if (isInternalEmail(e)) return false
   if (e.endsWith('@elta-crm.local')) return false

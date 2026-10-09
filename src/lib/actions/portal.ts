@@ -502,10 +502,22 @@ export async function acceptOffer(
     const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
+    // Tilbuds-review 2026-10-09 (#6): server-side validering af underskriften (et direkte kald kunne acceptere uden
+    // underskrift eller med vilkårligt store data)
+    const signerName = String(data.signer_name ?? '').trim()
+    const signerEmail = String(data.signer_email ?? '').trim()
+    const signature = String(data.signature_data ?? '')
+    if (!signerName || signerName.length > 200) return { success: false, error: 'Angiv dit navn' }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signerEmail) || signerEmail.length > 254) return { success: false, error: 'Angiv en gyldig e-mail' }
+    if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signature) || signature.length < 200 || signature.length > 400_000) {
+      return { success: false, error: 'Underskriften mangler — tegn venligst igen' }
+    }
+    data = { ...data, signer_name: signerName, signer_email: signerEmail }
+
     // Verify offer belongs to customer and get details for project creation
     const { data: offer, error: offerError } = await admin
       .from('offers')
-      .select('id, status, customer_id, title, final_amount, created_by, valid_until')
+      .select('id, status, customer_id, title, final_amount, created_by, valid_until, sent_at')
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
       .maybeSingle()
@@ -533,6 +545,15 @@ export async function acceptOffer(
       return { success: false, error: 'Tilbuddet er erstattet af en nyere version — genindlæs siden' }
     }
     const snapshotId = await latestSnapshotId(data.offer_id)
+
+    // Tilbuds-review 2026-10-09 (#3): accepten bindes til det beløb/den udsendelse kunden så — er tilbuddet ændret og
+    // gensendt imens (kladde → ny pris → sendt), afvises den forældede side
+    const seenChanged =
+      (data.seen_final_amount !== undefined && Math.abs(Number(offer.final_amount ?? 0) - Number(data.seen_final_amount)) > 0.005) ||
+      (data.seen_sent_at !== undefined && (data.seen_sent_at ?? null) !== ((offer as { sent_at?: string | null }).sent_at ?? null))
+    if (seenChanged) {
+      return { success: false, error: 'Tilbuddet er ændret siden du åbnede det — genindlæs siden og gennemse det igen' }
+    }
 
     // Get client IP
     const headersList = await headers()
@@ -570,6 +591,8 @@ export async function acceptOffer(
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
       .in('status', ['sent', 'viewed'])
+      // compare-and-set også på beløbet kunden underskrev (tilbuds-review 2026-10-09 #3)
+      .eq('final_amount', offer.final_amount as number)
       .select('id')
       .maybeSingle()
 

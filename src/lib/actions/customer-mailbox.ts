@@ -37,6 +37,7 @@ async function gateDenied(permission: Permission): Promise<string | null> {
 }
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
+import { retroLinkable } from '@/lib/mail/retro-link'
 
 // =====================================================
 // Record outgoing email in incoming_emails table
@@ -107,7 +108,7 @@ async function recordOutgoingEmail(
       })
 
     if (error) {
-      logger.error('Failed to record outgoing email', { error, metadata: { to: data.to_email } })
+      logger.error('Failed to record outgoing email', { error, metadata: { toDomain: data.to_email.split('@')[1] ?? null } })
     }
   } catch (err) {
     // Non-critical: don't break the send flow
@@ -164,9 +165,17 @@ export async function getCustomerMailbox(
   // ser også adresse-matchede mails og kan svare; bogholderi ser kun mails der er KOBLET til kunden (least-privilege).
   const access = await mailAccess()
   if (!access.view) return { emails: [], unreadCount: 0, conversations: [], canReply: false }
+  if (!/^[0-9a-f-]{36}$/i.test(customerId)) return { emails: [], unreadCount: 0, conversations: [], canReply: false }
   const supabase = await createClient()
 
-  const emailLower = customerEmail.toLowerCase()
+  // Kunde-review 2026-10-09 (#1): adressen læses fra kunden selv (klientens værdi ignoreres — et direkte kald kunne
+  // læse vilkårlige postkasser), og firmaets egne/pladsholder-/formular-adresser matches aldrig (kunder gemt med
+  // kontakt@ viste ellers hele kontakt@-postkassen, inkl. leverandørbekræftelser med kostpriser)
+  void customerEmail
+  const { data: cust } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+  const storedEmail = ((cust as { email: string | null } | null)?.email ?? '').trim()
+  const emailLower = storedEmail.toLowerCase()
+  const matchByAddress = access.edit && !!emailLower && emailLower.includes('@') && retroLinkable(emailLower)
 
   // Fetch all non-archived emails involving this customer:
   // 1. By email address match (sender, original sender, or to)
@@ -182,7 +191,7 @@ export async function getCustomerMailbox(
       service_case:service_cases!incoming_emails_service_case_id_fkey (id, case_number, title, status)
     `)
     .eq('is_archived', false)
-    .or(access.edit
+    .or(matchByAddress
       ? `sender_email.ilike.${pgQuote(escapeLike(emailLower))},original_sender_email.ilike.${pgQuote(escapeLike(emailLower))},to_email.ilike.${pgQuote(escapeLike(emailLower))},customer_id.eq.${customerId}`
       : `customer_id.eq.${customerId}`)
     .order('received_at', { ascending: false })
@@ -328,7 +337,9 @@ export async function markCustomerEmailRead(emailId: string): Promise<void> {
 export async function sendEmailToCustomer(
   customerEmail: string,
   subject: string,
-  message: string
+  message: string,
+  /** Kunde-review 2026-10-09 (#5): kortets kunde — før valgtes en vilkårlig kunde med samme adresse */
+  customerId?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   const __denied = await permissionDenied('customers.edit')
   if (__denied) return { success: false, error: __denied }
@@ -402,11 +413,14 @@ export async function sendEmailToCustomer(
         sender_email: getMailbox(),
         sender_name: senderName || BRAND_COMPANY_NAME,
         graph_message_id: result.messageId || null,
+        customer_id: customerId && /^[0-9a-f-]{36}$/i.test(customerId) ? customerId : null,
       })
 
+      // Kunde-review 2026-10-09 (#7): ingen adresse/emne i logs
       logger.info('Email sent to customer', {
         entity: 'customer_mailbox',
-        metadata: { to: customerEmail, subject, userId },
+        entityId: customerId ?? undefined,
+        metadata: { toDomain: customerEmail.split('@')[1] ?? null, userId },
       })
     }
 
@@ -524,7 +538,7 @@ export async function replyToCustomerEmail(
       logger.info('Reply sent to customer', {
         entity: 'customer_mailbox',
         entityId: emailId,
-        metadata: { to: replyTo, subject, userId },
+        metadata: { toDomain: replyTo.split('@')[1] ?? null, userId },
       })
       await logMailRoute(route, 'sent', { messageId: result.messageId })
     }

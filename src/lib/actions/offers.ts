@@ -42,6 +42,7 @@ import {
 import { logger } from '@/lib/utils/logger'
 import type { Permission } from '@/lib/auth/permissions'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { isOfferExpired } from '@/lib/offers/validity'
 
 // Get all offers with optional filtering and pagination
 export async function getOffers(filters?: {
@@ -177,6 +178,8 @@ export async function getOffers(filters?: {
 
 /** D43/D44: synlighed af kost/avance (navngivet: check:rls-matrix læser literal-strenge i skrivefunktioner som skrive-gates). */
 const OFFER_COST_VISIBILITY_PERMISSION = 'offers.view.cost_prices' as const
+/** Tilbud der må slettes (tilbuds-review 2026-10-09 #5) — øvrige arkiveres/afvises i stedet. */
+const DELETABLE_OFFER_STATUSES: string[] = ['draft', 'rejected']
 
 /**
  * D43 (privacy/RBAC): kost/leverandørkost/avance på en tilbudslinje kun for offers.view.cost_prices.
@@ -546,6 +549,22 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       }
     }
 
+    // Tilbuds-review 2026-10-09 (#1, S1): kundeskift på kladden flytter parti-roller med, der stod på den gamle kunde
+    // (formularen sender dem ikke) — ellers gik tilbud, portal-link og senere sag/faktura til den tidligere kunde
+    if (customerId) {
+      const { data: cur } = await supabase
+        .from('offers')
+        .select('customer_id, orderer_customer_id, end_customer_id, payer_customer_id')
+        .eq('id', offerId!)
+        .maybeSingle()
+      const prev = cur as { customer_id: string | null; orderer_customer_id: string | null; end_customer_id: string | null; payer_customer_id: string | null } | null
+      if (prev && prev.customer_id !== customerId) {
+        for (const k of ['orderer_customer_id', 'end_customer_id', 'payer_customer_id'] as const) {
+          if (updateData[k] === undefined && (!prev[k] || prev[k] === prev.customer_id)) updateData[k] = customerId
+        }
+      }
+    }
+
     const { data, error } = await supabase
       .from('offers')
       .update(updateData)
@@ -648,11 +667,23 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
     // Get offer before deleting for audit log
     const { data: offer } = await supabase
       .from('offers')
-      .select('title, offer_number')
+      .select('title, offer_number, status')
       .eq('id', id)
       .maybeSingle()
+    if (!offer) return { success: false, error: 'Tilbuddet blev ikke fundet' }
 
-    const { error } = await supabase.from('offers').delete().eq('id', id)
+    // Tilbuds-review 2026-10-09 (#5): kun kladder og afviste tilbud kan slettes — et sendt/accepteret tilbud har
+    // kundens underskrift (offer_signatures slettes kaskade) og sporbarhed fra sag/faktura (source_offer_id/offer_id)
+    if (!DELETABLE_OFFER_STATUSES.includes((offer as { status: string }).status)) {
+      return { success: false, error: 'Kun kladder og afviste tilbud kan slettes' }
+    }
+
+    // compare-and-set: status kan være ændret (fx sendt) siden læsningen
+    const { data: deleted, error } = await supabase.from('offers').delete().eq('id', id)
+      .in('status', DELETABLE_OFFER_STATUSES).select('id')
+    if (!error && (!deleted || deleted.length === 0)) {
+      return { success: false, error: 'Tilbuddet er ændret i mellemtiden — opdatér siden' }
+    }
 
     if (error) {
       if (error.code === '23503') {
@@ -690,7 +721,7 @@ export async function updateOfferStatus(
     // Fetch current status for transition validation
     const { data: current, error: fetchError } = await supabase
       .from('offers')
-      .select('status')
+      .select('status, valid_until, converted_case_id')
       .eq('id', id)
       .maybeSingle()
 
@@ -703,6 +734,16 @@ export async function updateOfferStatus(
         success: false,
         error: `Kan ikke ændre status fra "${OFFER_STATUS_LABELS[current.status as OfferStatus]}" til "${OFFER_STATUS_LABELS[status]}"`,
       }
+    }
+
+    // Tilbuds-review 2026-10-09 (#2): et tilbud der allerede er blevet til en sag kan ikke sendes tilbage til kladde
+    // (og omprisses) — sagen beholdt ellers den gamle kontraktsum, og en senere accept returnerede den gamle sag
+    if (status === 'draft' && (current as { converted_case_id?: string | null }).converted_case_id) {
+      return { success: false, error: 'Tilbuddet er allerede oprettet som sag — lav et nyt tilbud (kopiér) i stedet' }
+    }
+    // Tilbuds-review 2026-10-09 (#7): et udløbet tilbud kan ikke sendes (portalen afviser accept) — forlæng gyldigheden
+    if (status === 'sent' && isOfferExpired((current as { valid_until?: string | null }).valid_until)) {
+      return { success: false, error: 'Tilbuddets gyldighed er udløbet — ret "Gyldig til" før afsendelse' }
     }
 
     // N8a (Henrik 2026-10-02): lav DB er en ADVARSEL, ikke en blokering — 'sent' med DB under minimum kræver bekræftelse
@@ -731,6 +772,13 @@ export async function updateOfferStatus(
         break
       case 'rejected':
         updateData.rejected_at = now
+        break
+      case 'draft':
+        // Tilbuds-review 2026-10-09 (#7): afvist → kladde nulstiller afvisningen (portal-tidslinje/rapporter talte den)
+        if (current.status === 'rejected') {
+          updateData.rejected_at = null
+          updateData.rejection_reason = null
+        }
         break
     }
 
@@ -906,9 +954,12 @@ export async function createLineItem(
     // Extract supplier tracking fields if present.
     // cost_price er NOT NULL DEFAULT 0 i offer_line_items — manuelle linjer
     // uden leverandoer-data skal default til 0 (ikke NULL) for at undgaa 23502.
-    const costPrice = formData.get('cost_price') ? Number(formData.get('cost_price')) : 0
-    const supplierMargin = formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
-    const supplierCostAtCreation = formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
+    // Tilbuds-review 2026-10-09 (#8): som updateLineItem (D43) — uden kost-ret (salg) ignoreres kost-/avancefelter fra
+    // klienten (før kunne salg sætte cost_price=0 på vilkårlige linjer → kunstigt høj DB uden lav-DB-kvittering)
+    const mayTouchCost = hasPermission(OFFER_COST_VISIBILITY_PERMISSION)
+    const costPrice = mayTouchCost && formData.get('cost_price') ? Number(formData.get('cost_price')) : 0
+    const supplierMargin = mayTouchCost && formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
+    const supplierCostAtCreation = mayTouchCost && formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
     const supplierNameAtCreation = formData.get('supplier_name_at_creation') as string || null
     const imageUrl = formData.get('image_url') as string || null
 

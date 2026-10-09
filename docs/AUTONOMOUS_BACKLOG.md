@@ -13,6 +13,32 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Long-run 2026-10-09 — kundemodul (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| K #1 (S2) kundekortets postkasse/forløb brugte klientens e-mail (direkte kald: læs vilkårlig postkasse; kunder gemt med kontakt@ viste hele postkassen inkl. leverandørkost); getCustomerFlow uden gate | DONE — adressen læses fra kunden, egne/pladsholder-/formular-adresser matches ikke, UUID-validering, gate | kunde-UI |
+| K #2 (S2) manuelt uploadede kundedokumenter vises straks i portalen; montør/bogholderi kunne uploade til enhver kunde | DONE app: upload kræver customers.edit. **FORRETNINGSVALG + migration**: `visible_in_portal`-flag (default skjult for manuelle uploads) | — |
+| K #3 (S2) prisaftaler kunne ikke rydde felter (avance/udløb blev ved at gælde); rabat uvalideret; klientdata spredt i rækken | DONE — eksplicit række (NULL), validering (rabat 0–100, avance, datoer) | tsc/gates |
+| K #4 deleteCustomer: fejl talte som 0 (sletning kaskadede); manglende avanceregler | DONE — fail-closed (HEAD-fejl gentages for fejlkode), avanceregler + faktura-roller med | `cli.ts customer-delete-refs-probe`, U135 |
+| K #5 mail fra kundekort koblet til vilkårlig kunde med samme adresse | DONE — kortets kunde-id sendes med | tsc/gates |
+| K #6 opgaver: læsning uden gate; montør/bogholderi kunne slette/ændre enhver opgave | DONE — customers.edit eller egne opgaver; læsning gated | kunde-UI |
+| K #7/#8 adresser/emner i logs; ?page=-1/sortBy fra URL | DONE | tsc/gates |
+| K (gap) ingen GDPR-eksport/anonymisering eller kundefletning | FORRETNINGSVALG — design ved behov | — |
+
+## Long-run 2026-10-09 — tilbudsforløb (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| T #1 (S1) kundeskift på kladde flyttede ikke parti-roller → tilbud + portal-token for kunde B mailet til kunde A (og sag/faktura til A) | DONE (deployet direkte — lukker læk) — parti-roller på den gamle kunde følger med; mail-routing "samme som kunden" bruger tilbuddets kunde. Prod: 0 berørte tilbud (`prod-offer-party-mismatch.ts`) | tsc/gates; sales/portal-UI |
+| T #2 (S2) tilbud konverteret til sag kunne sættes tilbage til kladde og omprisses (sagen beholdt gammel kontraktsum) | DONE — kladde blokeret når converted_case_id er sat | sales-UI |
+| T #3 (S2) portal-accept ikke bundet til det beløb kunden så | DONE — siden sender beløb + sent_at; accept afvises hvis ændret; compare-and-set på final_amount | portal-UI |
+| T #4 (S2) kladde-lås og sletteregel kun i appen (salg via REST: ændre linjer på accepteret tilbud, slette underskrevet tilbud via is_proposal) | **BLOCKED_APPROVAL** 00215 på branch `offers-lock-00215` (triggere, ikke politikker) | `cli.ts offers-lock-check` pre: alle huller bekræftet |
+| T #5 admin kunne slette accepteret/underskrevet tilbud | DONE — kun kladde/afvist (compare-and-set) | tsc/gates |
+| T #6 portal-accept uden server-validering af underskrift | DONE — navn/e-mail/PNG-data med grænser | portal-UI |
+| T #7 udløbet tilbud kunne sendes; afvist→kladde beholdt afvisningen | DONE | tsc/gates |
+| T #8 createLineItem tog kostfelter fra salg | DONE — som updateLineItem (D43) | tsc/gates |
+| T #9 1-øres afrundingsforskel trigger vs. app | **BLOCKED_APPROVAL** 00216 på branch `offer-rounding-00216` | offers-lock-check: 109,42 (gammel) vs 109,41 |
+| T #10 kalkulation→tilbud: fejlet linje-insert efterlod tilbud uden linjer | DONE — rulles tilbage | tsc/gates |
+
 ## Long-run 2026-10-09 — rapporter/dashboard/KPI (review-fund)
 | Fund | Status | Bevis |
 |---|---|---|

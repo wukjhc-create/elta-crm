@@ -160,6 +160,9 @@ export interface AcceptOfferData {
   signer_name: string
   signer_email: string
   signature_data: string
+  /** Tilbuds-review 2026-10-09 (#3): beløb + afsendelsestid kunden SÅ — accepten afvises hvis tilbuddet er ændret */
+  seen_final_amount?: number
+  seen_sent_at?: string | null
 }
 
 export interface RejectOfferData {

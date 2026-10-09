@@ -506,6 +506,55 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'offers-lock-check') {
+    // 00215: salg (rigtig persona-session) kan via REST ikke ændre linjer/priser på et sendt tilbud, ikke slette det og
+    // ikke gøre det til forslag; noter og kladder virker. 00216: 100,04 med 12,5 % rabat → total 109,41 (trinvis).
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const salg = personas.get('salg' as never)!
+    const salgId = (await salg.auth.getUser()).data.user!.id
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const cust = ((await admin.from('customers').insert({ customer_number: `OL-${stamp}`, company_name: `[HARNESS] ol ${stamp}`, contact_person: 'X', email: `ol-${stamp}@harness.test`, created_by: salgId }).select('id').single()).data as { id: string }).id
+    const mkOffer = async (n: number, status: string) => ((await admin.from('offers').insert({ offer_number: `OL-${stamp}-${n}`, title: '[HARNESS] ol', customer_id: cust, status, discount_percentage: 12.5, tax_percentage: 25, created_by: salgId }).select('id').single()).data as { id: string }).id
+    const draft = await mkOffer(1, 'draft')
+    const sent = await mkOffer(2, 'draft')
+    const ids = [draft, sent]
+    const blocked = (r: { error: { code?: string } | null; data: unknown[] | null }) => !!r.error || (r.data ?? []).length === 0
+    try {
+      for (const id of ids) await admin.from('offer_line_items').insert({ offer_id: id, position: 1, description: 'x', quantity: 1, unit: 'stk', unit_price: 100.04, total: 100.04 })
+      const { data: totals } = await admin.from('offers').select('final_amount, discount_amount, tax_amount').eq('id', draft).single()
+      log(`  (00216) linjer 100,04 · rabat 12,5 % → total ${(totals as { final_amount: number }).final_amount} (trinvis = 109.41, gammel trigger = 109.42)`)
+      check('00216 totaler afrundes trinvis (109,41)', Number((totals as { final_amount: number }).final_amount) === 109.41)
+      await admin.from('offers').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', sent)
+      const lineId = ((await admin.from('offer_line_items').select('id').eq('offer_id', sent).single()).data as { id: string }).id
+      const r1 = await salg.from('offer_line_items').update({ unit_price: 1, total: 1 }).eq('id', lineId).select('id')
+      check('salg kan ikke ændre linje på sendt tilbud', blocked(r1), r1.error?.code ?? `rækker=${(r1.data ?? []).length}`)
+      const r2 = await salg.from('offer_line_items').insert({ offer_id: sent, position: 2, description: 'y', quantity: 1, unit: 'stk', unit_price: 5, total: 5 }).select('id')
+      check('salg kan ikke tilføje linje på sendt tilbud', blocked(r2), r2.error?.code ?? `rækker=${(r2.data ?? []).length}`)
+      const r3 = await salg.from('offers').update({ discount_percentage: 90 }).eq('id', sent).select('id')
+      check('salg kan ikke ændre rabat på sendt tilbud', blocked(r3), r3.error?.code ?? `rækker=${(r3.data ?? []).length}`)
+      const r4 = await salg.from('offers').update({ is_proposal: true }).eq('id', sent).select('id')
+      check('salg kan ikke gøre tilbud til forslag', blocked(r4), r4.error?.code ?? `rækker=${(r4.data ?? []).length}`)
+      const r5 = await salg.from('offers').delete().eq('id', sent).select('id')
+      check('salg kan ikke slette sendt tilbud', blocked(r5), r5.error?.code ?? `rækker=${(r5.data ?? []).length}`)
+      const r6 = await salg.from('offers').update({ notes: 'intern note' }).eq('id', sent).select('id')
+      check('salg kan stadig skrive interne noter på sendt tilbud', !r6.error && (r6.data ?? []).length === 1, r6.error?.message ?? '')
+      const r7 = await salg.from('offer_line_items').update({ unit_price: 200, total: 200 }).eq('offer_id', draft).select('id')
+      check('salg kan stadig ændre linjer på kladde', !r7.error && (r7.data ?? []).length === 1, r7.error?.message ?? '')
+      const { data: after } = await admin.from('offers').select('final_amount').eq('id', sent).maybeSingle()
+      check('sendt tilbud findes stadig med uændret total', !!after && [109.41, 109.42].includes(Number((after as { final_amount: number }).final_amount)), after ? String((after as { final_amount: number }).final_amount) : 'SLETTET')
+    } finally {
+      await admin.from('offer_line_items').delete().in('offer_id', ids)
+      await admin.from('offer_activities').delete().in('offer_id', ids)
+      await admin.from('offers').delete().in('id', ids)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ tilbuds-lås ok (salg-persona)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'payment-summary-check') {
     // 00214: v_customer_payment_summary.outstanding_total pr. kunde = appens åbne beløb (lib/invoices/open-amount.ts)
     // for sendte, ikke-annullerede, ikke-kreditnota-fakturaer. Kun læsning.
@@ -2888,6 +2937,22 @@ async function main() {
     }
     log(fails ? `❌ ${fails} fejl` : '✅ telegram-webhook-rute ok (intet live)')
     process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'customer-delete-refs-probe') {
+    // deleteCustomer-forhåndstjekket: findes alle tabeller/kolonner, og hvilke fejlkoder giver de? Kun læsning.
+    const id = '00000000-0000-0000-0000-000000000000'
+    const refs: Array<[string, string]> = [
+      ['service_cases', 'site_customer_id'], ['service_cases', 'orderer_customer_id'], ['service_cases', 'end_customer_id'], ['service_cases', 'payer_customer_id'], ['service_cases', 'purchased_from_customer_id'],
+      ['offers', 'orderer_customer_id'], ['offers', 'end_customer_id'], ['offers', 'payer_customer_id'],
+      ['customer_notes', 'customer_id'], ['roof_drawings', 'customer_id'], ['email_threads', 'customer_id'], ['partner_access_tokens', 'partner_customer_id'],
+      ['customer_supplier_prices', 'customer_id'], ['customer_product_prices', 'customer_id'], ['supplier_margin_rules', 'customer_id'],
+      ['invoices', 'orderer_customer_id'], ['invoices', 'end_customer_id'], ['invoices', 'payer_customer_id'],
+    ]
+    for (const [t, c] of refs) {
+      const { error } = await admin.from(t).select('id').eq(c, id).limit(1)
+      log(`  ${error ? '⚠' : '✓'} ${t}.${c}${error ? ` — ${error.code ?? '?'} ${(error.message ?? '').slice(0, 60)}` : ''}`)
+    }
     return
   }
   if (SUB === 'leads-json-in-probe') {

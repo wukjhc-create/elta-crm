@@ -701,6 +701,13 @@ export async function sendOfferEmail(
     if (!offer.customer?.email) {
       return { success: false, error: 'Kunde har ingen e-mail adresse' }
     }
+    // Tilbuds-review 2026-10-09 (#7): udløbet tilbud sendes ikke (kunden ville få "klik for at acceptere" og blive afvist)
+    {
+      const { isOfferExpired } = await import('@/lib/offers/validity')
+      if (isOfferExpired(offer.valid_until as string | null)) {
+        return { success: false, error: 'Tilbuddets gyldighed er udløbet — ret "Gyldig til" før afsendelse' }
+      }
+    }
 
     // N8a: lav DB er en advarsel — et kladde-tilbud under minimum-DB sendes kun med aktiv bekræftelse
     const lowDb = offer.status === 'draft' ? await getOfferLowDbStatus(input.offer_id) : null

@@ -138,7 +138,7 @@ export async function getCustomers(filters?: {
     }
 
     // Apply sorting
-    const sortBy = filters?.sortBy || 'created_at'
+    const sortBy = safeCustomerSort(filters?.sortBy)
     const sortOrder = filters?.sortOrder || 'desc'
     dataQuery = dataQuery.order(sortBy, { ascending: sortOrder === 'asc' })
 
@@ -272,7 +272,7 @@ export async function getCustomersWithPaymentState(
     else if (paysort === 'latest_invoice_desc')
       dataQuery = dataQuery.order('latest_invoice_at', { ascending: false, nullsFirst: false })
     else if (paysort === 'payment_health') dataQuery = dataQuery.order('health_rank', { ascending: false })
-    else dataQuery = dataQuery.order(input?.sortBy || 'created_at', { ascending: (input?.sortOrder || 'desc') === 'asc' })
+    else dataQuery = dataQuery.order(safeCustomerSort(input?.sortBy), { ascending: (input?.sortOrder || 'desc') === 'asc' })
     dataQuery = dataQuery.order('id', { ascending: true }) // stabil paginering
     dataQuery = dataQuery.range(offset, offset + pageSize - 1)
 
@@ -780,17 +780,27 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
     // Kunde-review 2026-10-08 (#2): også data der ellers forsvandt/blev tømt stille — kundens rolle på ANDRES sager/tilbud
     // (bestiller/slutkunde/betaler/købt-fra/anlægsadresse), noter, tagtegninger, mailtråde, partneradgang og prisaftaler.
     // Tabeller der ikke findes i miljøet (fx customer_notes før 00196) tæller som 0.
+    // Kunde-review 2026-10-09 (#4): KUN "tabel/kolonne findes ikke" tæller som 0 — andre fejl (timeout o.l.) afviser
+    // sletningen (før blev enhver fejl til 0, og sletningen kaskadede noter/tegninger/prisaftaler væk)
     const optionalCount = async (table: string, column = 'customer_id') => {
       const { count, error } = await admin.from(table).select('id', { count: 'exact', head: true }).eq(column, id)
-      return error ? 0 : count ?? 0
+      if (!error) return count ?? 0
+      // HEAD-svar har ingen fejlkode → gentag som almindelig forespørgsel for at se, om tabellen/kolonnen mangler
+      const probe = await admin.from(table).select('id').eq(column, id).limit(1)
+      if (!probe.error) return (probe.data ?? []).length
+      if (['42P01', 'PGRST205', '42703', 'PGRST204'].includes(String(probe.error.code ?? ''))) return 0
+      throw new Error('Kunne ikke kontrollere kundens tilknytninger — prøv igen')
     }
     const roleRefs = await Promise.all([
       ...['site_customer_id', 'orderer_customer_id', 'end_customer_id', 'payer_customer_id', 'purchased_from_customer_id'].map((c) => optionalCount('service_cases', c)),
       ...['orderer_customer_id', 'end_customer_id', 'payer_customer_id'].map((c) => optionalCount('offers', c)),
     ])
-    const [notesN, roofN, threadsN, partnerN, cspN, cppN] = await Promise.all([
+    const [notesN, roofN, threadsN, partnerN, cspN, cppN, marginN, invRoleN] = await Promise.all([
       optionalCount('customer_notes'), optionalCount('roof_drawings'), optionalCount('email_threads'),
       optionalCount('partner_access_tokens', 'partner_customer_id'), optionalCount('customer_supplier_prices'), optionalCount('customer_product_prices'),
+      // kunde-review 2026-10-09 (#4): kundens avanceregler (ON DELETE CASCADE) og parti-roller på fakturaer (SET NULL)
+      optionalCount('supplier_margin_rules'),
+      Promise.all(['orderer_customer_id', 'end_customer_id', 'payer_customer_id'].map((c) => optionalCount('invoices', c))).then((a) => a.reduce((x, y) => x + y, 0)),
     ])
     const roleN = roleRefs.reduce((a, b) => a + b, 0)
     linked.push(...[
@@ -799,7 +809,8 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
       roofN ? `${roofN} tagtegning${roofN === 1 ? '' : 'er'}` : '',
       threadsN ? `${threadsN} mailtråd${threadsN === 1 ? '' : 'e'}` : '',
       partnerN ? 'partneradgang' : '',
-      cspN || cppN ? 'prisaftaler' : '',
+      cspN || cppN || marginN ? 'prisaftaler' : '',
+      invRoleN ? `en rolle på ${invRoleN} faktura(er)` : '',
     ].filter(Boolean))
     if (linked.length) {
       return { success: false, error: `Kunden har ${linked.join(', ')} og kan ikke slettes — deaktivér kunden i stedet` }
@@ -1113,4 +1124,10 @@ export async function getCustomerPickerItemAction(id: string): Promise<ActionRes
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente kunde') }
   }
+}
+
+/** Kunde-review 2026-10-09 (#8): kun kendte sorteringskolonner fra URL'en (ellers fejl/vilkårlig kolonne). */
+function safeCustomerSort(sortBy: string | undefined): string {
+  const allowed = ['created_at', 'updated_at', 'company_name', 'contact_person', 'customer_number', 'email', 'billing_city', 'is_active']
+  return sortBy && allowed.includes(sortBy) ? sortBy : 'created_at'
 }

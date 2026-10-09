@@ -28,6 +28,26 @@ async function gateDenied(permission: Permission): Promise<string | null> {
     return 'Ikke logget ind'
   }
 }
+
+/**
+ * Kunde-review 2026-10-09 (#6): ændring/sletning af en opgave kræver kunderelationen (customers.edit) — ellers kun
+ * egne opgaver (tildelt eller oprettet af brugeren). Før kunne montør/bogholderi (customers.view) slette enhver opgave
+ * på enhver kunde, inkl. bookede besigtigelser.
+ */
+async function taskWriteDenied(taskId: string): Promise<string | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(taskId)) return 'Ugyldigt opgave-id'
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('customers.view')) return 'Manglende tilladelse: customers.view'
+    if (ctx.hasPermission('customers.edit')) return null
+    const { data } = await ctx.supabase.from('customer_tasks').select('assigned_to, created_by').eq('id', taskId).maybeSingle()
+    const t = data as { assigned_to: string | null; created_by: string | null } | null
+    if (!t) return 'Opgaven blev ikke fundet'
+    return t.assigned_to === ctx.userId || t.created_by === ctx.userId ? null : 'Du kan kun ændre dine egne opgaver'
+  } catch {
+    return 'Ikke logget ind'
+  }
+}
 import type {
   CustomerTaskWithRelations,
   CreateCustomerTaskInput,
@@ -92,6 +112,9 @@ async function enrichWithProfiles(
 export async function getCustomerTasks(
   customerId: string
 ): Promise<CustomerTaskWithRelations[]> {
+  // Kunde-review 2026-10-09 (#6): gate (før ingen) — enrichWithProfiles henter kollegers profiler med admin-klienten
+  if (await gateDenied('customers.view')) return []
+  if (!/^[0-9a-f-]{36}$/i.test(customerId)) return []
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -370,6 +393,7 @@ export async function createCustomerTask(
 ): Promise<{ success: boolean; error?: string }> {
   const denied = await gateDenied('customers.view')
   if (denied) return { success: false, error: denied }
+  if (!/^[0-9a-f-]{36}$/i.test(String(input.customer_id ?? ''))) return { success: false, error: 'Ugyldig kunde' }
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -401,7 +425,7 @@ export async function createCustomerTask(
 export async function updateCustomerTask(
   input: UpdateCustomerTaskInput
 ): Promise<{ success: boolean; error?: string }> {
-  const denied = await gateDenied('customers.view')
+  const denied = (await gateDenied('customers.view')) ?? (await taskWriteDenied(input.id))
   if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
@@ -434,7 +458,7 @@ export async function updateCustomerTask(
 export async function completeCustomerTask(
   taskId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const denied = await gateDenied('customers.view')
+  const denied = (await gateDenied('customers.view')) ?? (await taskWriteDenied(taskId))
   if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
@@ -460,7 +484,7 @@ export async function completeCustomerTask(
 export async function deleteCustomerTask(
   taskId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const denied = await gateDenied('customers.view')
+  const denied = (await gateDenied('customers.view')) ?? (await taskWriteDenied(taskId))
   if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
@@ -483,7 +507,7 @@ export async function snoozeTask(
   taskId: string,
   until: string
 ): Promise<{ success: boolean; error?: string }> {
-  const denied = await gateDenied('customers.view')
+  const denied = (await gateDenied('customers.view')) ?? (await taskWriteDenied(taskId))
   if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
