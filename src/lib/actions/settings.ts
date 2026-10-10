@@ -1287,11 +1287,13 @@ export async function saveNotificationPreferences(
 ): Promise<ActionResult<void>> {
   try {
     const { supabase, userId } = await getAuthenticatedClient()
+    // Henrik 2026-10-10: kun kendte hændelser og kanaler der findes (push/daglig opsummering = ikke tilgængelig)
+    const { sanitizeNotifyPreferences } = await import('@/lib/notifications/events')
 
     const { error } = await supabase
       .from('profiles')
       .update({
-        notification_preferences: preferences,
+        notification_preferences: sanitizeNotifyPreferences(preferences),
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId)

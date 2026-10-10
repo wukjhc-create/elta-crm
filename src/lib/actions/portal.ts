@@ -409,7 +409,7 @@ export async function getPortalOffer(
     // Mark as viewed if first time. Eksplicit customer_id-scope paa UPDATE
     // for defense-in-depth — selv om offer.customer_id er verificeret ovenfor.
     if (!offer.viewed_at && offer.status === 'sent') {
-      await admin
+      const { data: viewedRows } = await admin
         .from('offers')
         .update({
           viewed_at: new Date().toISOString(),
@@ -420,6 +420,20 @@ export async function getPortalOffer(
         // tilbuds-review 2026-10-07: kun fra 'sent' — en samtidig accept/kladde (telefon/medarbejder) blev overskrevet
         .eq('status', 'sent')
         .is('viewed_at', null)
+        .select('id')
+
+      // Henrik 2026-10-10: personlig notifikation til tilbuddets opretter (kun hvis brugeren har slået den til)
+      if ((viewedRows ?? []).length > 0) {
+        const { notifyUser } = await import('@/lib/notifications/user-notify')
+        const title = escapeHtml(String(offer.title ?? ''))
+        const link = `${APP_URL}/dashboard/offers/${offerId}`
+        await notifyUser(offer.created_by as string | null, 'offer_viewed', {
+          subject: `Tilbud set af kunden: ${offer.offer_number ?? ''}`.trim(),
+          html: `<p>Kunden har åbnet tilbuddet <strong>${title}</strong> i kundeportalen.</p><p><a href="${link}">Åbn tilbuddet</a></p>`,
+          text: `Kunden har åbnet tilbuddet "${offer.title ?? ''}" i kundeportalen.
+${link}`,
+        })
+      }
 
       // Log view activity (anon-INSERT droppet i 00124)
       await admin.from('offer_activities').insert({
@@ -657,6 +671,18 @@ export async function acceptOffer(
     // Salgspipeline: tilknyttede leads → vundet (kaster aldrig)
     const { markLeadsWonForAcceptedOffer } = await import('@/lib/services/lead-won')
     await markLeadsWonForAcceptedOffer(admin, data.offer_id, null)
+
+    // Henrik 2026-10-10: personlig notifikation til tilbuddets opretter (kun hvis brugeren har slået den til)
+    {
+      const { notifyUser } = await import('@/lib/notifications/user-notify')
+      const link = `${APP_URL}/dashboard/offers/${data.offer_id}`
+      await notifyUser(offer.created_by as string | null, 'offer_signed', {
+        subject: `Tilbud underskrevet: ${offer.title}`,
+        html: `<p>Kunden har accepteret og underskrevet tilbuddet <strong>${escapeHtml(offer.title)}</strong> (${escapeHtml(data.signer_name)}).</p><p><a href="${link}">Åbn tilbuddet</a></p>`,
+        text: `Kunden har accepteret og underskrevet tilbuddet "${offer.title}" (${data.signer_name}).
+${link}`,
+      })
+    }
 
     // Send automatic email confirmation to CRM mailbox
     try {

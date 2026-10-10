@@ -212,6 +212,20 @@ export async function sendMessage(
       return { success: false, error: 'Kunne ikke sende besked' }
     }
 
+    // Henrik 2026-10-10: personlig notifikation til modtageren (kun hvis modtageren har slået den til)
+    if (validated.data.to_user_id && validated.data.to_user_id !== userId) {
+      const { notifyUser } = await import('@/lib/notifications/user-notify')
+      const { escapeHtml } = await import('@/lib/utils/html-escape')
+      const { APP_URL } = await import('@/lib/constants')
+      const sender = profile?.full_name || 'En kollega'
+      await notifyUser(validated.data.to_user_id, 'new_message', {
+        subject: `Ny besked fra ${sender}: ${validated.data.subject}`,
+        html: `<p><strong>${escapeHtml(sender)}</strong> har sendt dig en besked i ELTA Drift: <em>${escapeHtml(validated.data.subject)}</em></p><p><a href="${APP_URL}/dashboard/inbox">Åbn beskeder</a></p>`,
+        text: `${sender} har sendt dig en besked i ELTA Drift: ${validated.data.subject}
+${APP_URL}/dashboard/inbox`,
+      })
+    }
+
     revalidatePath('/inbox')
     return { success: true, data: data as Message }
   } catch (error) {

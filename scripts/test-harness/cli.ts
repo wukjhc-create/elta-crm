@@ -823,6 +823,42 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'notify-prefs-check') {
+    // 00220 + lib/notifications/user-notify: sender KUN når brugeren har slået hændelsens e-mail til (standard fra);
+    // push/daglig opsummering findes ikke → sendes aldrig. Test-transport (ingen live-mail). Brugerens egne indstillinger
+    // gemmes via egen session (kolonne-grant). Indstillingerne nulstilles bagefter.
+    const { notifyUser, setUserNotifyTransport } = await import('../../src/lib/notifications/user-notify')
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const salg = personas.get('salg' as never)!
+    const uid = (await salg.auth.getUser()).data.user!.id
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const sent: string[] = []
+    setUserNotifyTransport(async (m) => { sent.push(m.subject); return { delivered: true } })
+    const content = { subject: 'T', html: '<p>t</p>', text: 't' }
+    try {
+      await admin.from('profiles').update({ notification_preferences: {} }).eq('id', uid)
+      check('standard (intet valgt) → sendes ikke', (await notifyUser(uid, 'offer_signed', content)) === 'skipped')
+      const own = await salg.from('profiles').update({ notification_preferences: { offer_signed: { email: true, push: true }, daily_summary: { email: true, push: false } } }).eq('id', uid).select('id')
+      check('brugeren kan gemme egne indstillinger (kolonne-grant)', !own.error && (own.data ?? []).length === 1, own.error?.message ?? '')
+      const dbg = (await admin.from('profiles').select('email, is_active, notification_preferences').eq('id', uid).single()).data as { email: string | null; is_active: boolean | null; notification_preferences: unknown }
+      const outcome = await notifyUser(uid, 'offer_signed', content)
+      check('slået til → sendes', outcome === 'sent', `${outcome} (email=${dbg?.email ? 'ja' : 'nej'} aktiv=${dbg?.is_active} prefs=${JSON.stringify(dbg?.notification_preferences)})`)
+      check('anden hændelse (ikke valgt) → sendes ikke', (await notifyUser(uid, 'new_message', content)) === 'skipped')
+      check('daglig opsummering (ikke tilgængelig) → sendes ikke', (await notifyUser(uid, 'daily_summary', content)) === 'skipped')
+      const other = ((await admin.from('profiles').select('id').neq('id', uid).eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0]?.id
+      const foreign = other ? await salg.from('profiles').update({ notification_preferences: { new_lead: { email: true } } }).eq('id', other).select('id') : { data: [], error: null }
+      check('brugeren kan ikke ændre andres indstillinger', !!foreign.error || (foreign.data ?? []).length === 0, foreign.error?.code ?? `rækker=${(foreign.data ?? []).length}`)
+      check('præcis én mail via test-transport', sent.length === 1, `${sent.length}`)
+    } finally {
+      setUserNotifyTransport(null)
+      await admin.from('profiles').update({ notification_preferences: {} }).eq('id', uid)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ notifikationsindstillinger respekteres')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'calc-offer-mode-check') {
     // 00219: kalkulationens total tæller 'visible' + 'hidden_included', ikke 'excluded'; dækningsbidrag efter avance/rabat.
     // Midlertidig kalkulation ryddes.
