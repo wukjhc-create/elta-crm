@@ -13,6 +13,15 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Prod-kørsel 2026-10-10 — 00212–00217 (Henrik: "GODKENDT TIL PROD")
+| Trin | Resultat |
+|---|---|
+| Pre (rollback, rigtige personaer; salg simuleret inde i transaktionen) | `prod-flow-check-00212-00217.ts pre`: alle huller åbne som forventet (00214: 0 afvigende kunder i dag — forebyggende) |
+| Migration + post pr. nummer | 00212 montør 1589→0 rækker (admin uændret) · 00213 case-flyt/annulleret→done 42501, afslut egen ordre OK · 00214 0 afvigelser · 00215 linje/rabat/forslag 42501, noter + kladde OK · 00216 109,42→109,41 · 00217 profilnavn, omskriv 42501, markér læst OK |
+| Samlet post + tidligere flows | 15/15; 00208 10/10; 00198–00202 4/4 |
+| DB-audit | HØJ=0 · MIDDEL=0 · LAV=0 |
+| UI (staging, alle seks aktive) | smoke 8/8; tidligere: sales+portal 71/71, montør 23/23, beskeder U2/U11/U21 |
+
 ## CHECKPOINT 2026-10-10 ~01:00 (long-run)
 - Reviews afsluttet og rettet siden 2026-10-09 eftermiddag: AI-mail, crons/alarmer, planlægning, rapporter/KPI, tilbudsforløb,
   kundemodul, IDOR-sweep, kalkulation (tabeller nedenfor). Fire læk-rettelser deployet direkte (besigtigelses-send, kundeskift på
