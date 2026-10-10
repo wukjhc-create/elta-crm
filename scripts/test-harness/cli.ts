@@ -823,6 +823,44 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'customer-docs-share-check') {
+    // 00218 (Henrik 2026-10-10): kundedokumenter er interne som standard — vises kun i portalen når de er delt;
+    // mail-arkiv vises aldrig. Midlertidig kunde/token/dokumenter ryddes.
+    const { getPortalDocuments } = await import('../../src/lib/actions/portal')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `DS-${stamp}`, company_name: `[HARNESS] ds ${stamp}`, contact_person: 'X', email: `ds-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const tok = randomBytes(32).toString('hex')
+    try {
+      await admin.from('portal_access_tokens').insert({ customer_id: cust, token: tok, email: `ds-${stamp}@harness.test`, is_active: true, created_by: owner })
+      const mk = async (title: string, extra: Record<string, unknown>) => ((await admin.from('customer_documents').insert({ customer_id: cust, title, document_type: 'other', file_url: '', file_name: `${title}.pdf`, storage_path: `customer-documents/${cust}/${title}.pdf`, ...extra }).select('id').single()).data as { id: string }).id
+      const internal = await mk('intern', {})
+      const shared = await mk('delt', { visible_in_portal: true })
+      const { data: em } = await admin.from('incoming_emails').insert({ graph_message_id: `ds-${stamp}`, subject: '[HARNESS]', sender_email: `ds-${stamp}@harness.test`, to_email: 'k@harness.test', received_at: new Date().toISOString(), link_status: 'ignored' }).select('id').single()
+      const mailDoc = await mk('mail', { visible_in_portal: true, source_email_id: (em as { id: string }).id })
+      const titles = async () => (((await getPortalDocuments(tok)).data ?? []) as Array<{ title: string }>).map((d) => d.title)
+      const t1 = await titles()
+      check('internt dokument (standard) vises ikke i portalen', !t1.includes('intern'), t1.join(','))
+      check('delt dokument vises i portalen', t1.includes('delt'))
+      check('mail-arkiv vises aldrig (selv med flag)', !t1.includes('mail'))
+      await admin.from('customer_documents').update({ visible_in_portal: true }).eq('id', internal)
+      check('efter "Del med kunde" vises det', (await titles()).includes('intern'))
+      await admin.from('customer_documents').update({ visible_in_portal: false }).eq('id', shared)
+      check('efter "gør internt" forsvinder det', !(await titles()).includes('delt'))
+      await admin.from('customer_documents').delete().in('id', [internal, shared, mailDoc])
+      await admin.from('incoming_emails').delete().eq('id', (em as { id: string }).id)
+    } finally {
+      await admin.from('customer_documents').delete().eq('customer_id', cust)
+      await admin.from('portal_access_tokens').delete().eq('customer_id', cust)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ kundedokumenter interne som standard')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'portal-token-rules-check') {
     // Kunde-review #1 + storage-review #7: deaktiveret kunde → link afvist (genaktiveret → virker); nye links har udløb;
     // portalen signerer kun stier i kundens egne mapper. Ingen mail.
