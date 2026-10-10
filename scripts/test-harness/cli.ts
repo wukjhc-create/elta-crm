@@ -823,6 +823,39 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'calc-offer-mode-check') {
+    // 00219: kalkulationens total tæller 'visible' + 'hidden_included', ikke 'excluded'; dækningsbidrag efter avance/rabat.
+    // Midlertidig kalkulation ryddes.
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: calc, error: cErr } = await admin.from('calculations').insert({ name: `[HARNESS] offer_mode ${stamp}`, created_by: owner, margin_percentage: 20, discount_percentage: 10, tax_percentage: 25 }).select('id').single()
+    if (cErr || !calc) { log(`❌ kalkulation: ${cErr?.message}`); process.exitCode = 1; return }
+    const id = (calc as { id: string }).id
+    try {
+      const row = (description: string, total: number, cost: number, offer_mode: string) =>
+        ({ calculation_id: id, row_type: 'manual', position: 0, description, quantity: 1, unit: 'stk', cost_price: cost, sale_price: total, total, offer_mode, show_on_offer: offer_mode === 'visible' })
+      const { error: rErr } = await admin.from('calculation_rows').insert([
+        row('synlig', 10000, 6000, 'visible'), row('skjult medregnet', 2000, 1200, 'hidden_included'), row('udeladt', 500, 300, 'excluded'),
+      ])
+      if (rErr) throw new Error(`rækker: ${rErr.message}`)
+      const { data: c } = await admin.from('calculations').select('subtotal, final_amount, gross_profit, gross_profit_margin').eq('id', id).single()
+      const v = c as { subtotal: number; final_amount: number; gross_profit: number; gross_profit_margin: number }
+      // netto = 12.000 × 1,2 × 0,9 = 12.960; kost = 7.200 → DB 5.760 (44,44 %); total inkl. moms 16.200
+      check('subtotal = synlig + skjult medregnet (udeladt tæller ikke)', Number(v.subtotal) === 12000, `${v.subtotal}`)
+      check('total inkl. moms = 12.000 × 1,2 × 0,9 × 1,25', Number(v.final_amount) === 16200, `${v.final_amount}`)
+      check('dækningsbidrag efter avance og rabat', Number(v.gross_profit) === 5760, `${v.gross_profit} (${v.gross_profit_margin} %)`)
+      const { error: badErr } = await admin.from('calculation_rows').insert(row('ugyldig', 1, 0, 'skjult'))
+      check('ugyldig tilstand afvises', !!badErr, badErr?.code ?? 'TILLADT')
+    } finally {
+      await admin.from('calculation_rows').delete().eq('calculation_id', id)
+      await admin.from('calculations').delete().eq('id', id)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ kalkulationsrækkers tilbudstilstand ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'customer-docs-share-check') {
     // 00218 (Henrik 2026-10-10): kundedokumenter er interne som standard — vises kun i portalen når de er delt;
     // mail-arkiv vises aldrig. Midlertidig kunde/token/dokumenter ryddes.
