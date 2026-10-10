@@ -492,9 +492,10 @@ export async function getOfferTextTemplates(
 export async function simulateProfit(
   input: ProfitSimulationInput
 ): Promise<ActionResult<ProfitSimulationResult>> {
+  // Resultatet er kost/DB — samme gate som calculateProject (før kun login)
+  const __denied = await permissionDenied('tools.calculations')
+  if (__denied) return { success: false, error: __denied }
   try {
-    await requireAuth()
-
     const result = CalculationIntelligenceEngine.simulateProfit(input)
     return { success: true, data: result }
   } catch (err) {
