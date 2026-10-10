@@ -230,6 +230,8 @@ export interface CalculationRow {
   discount_percentage: number
   total: number
   show_on_offer: boolean
+  /** 00219: visible = tilbudslinje · hidden_included = med i pris uden egen linje · excluded = hverken total eller pris */
+  offer_mode?: CalculationRowOfferMode
   created_at: string
   updated_at: string
 
@@ -259,6 +261,7 @@ export interface CreateCalculationRowInput {
   sale_price: number
   discount_percentage?: number
   show_on_offer?: boolean
+  offer_mode?: CalculationRowOfferMode
 
   // Enhanced calculation row fields
   cost_category?: CostCategory
@@ -283,4 +286,19 @@ export interface CalculationFilters {
   sortOrder?: 'asc' | 'desc'
   page?: number
   pageSize?: number
+}
+
+/** 00219 (Henrik 2026-10-10): eksplicit tilbudstilstand for en kalkulationsrække. */
+export type CalculationRowOfferMode = 'visible' | 'hidden_included' | 'excluded'
+
+export const CALCULATION_ROW_OFFER_MODES: Array<{ value: CalculationRowOfferMode; label: string; hint: string }> = [
+  { value: 'visible', label: 'Vises på tilbud', hint: 'Egen tilbudslinje' },
+  { value: 'hidden_included', label: 'Skjult, men med i prisen', hint: 'Ingen egen linje — indgår i kundens total (samlet linje)' },
+  { value: 'excluded', label: 'Udeladt', hint: 'Indgår hverken i kalkulationens total eller tilbudsprisen' },
+]
+
+/** offer_mode fra rækken — ældre rækker uden kolonnen udledes af show_on_offer. */
+export function rowOfferMode(row: { offer_mode?: string | null; show_on_offer?: boolean | null }): CalculationRowOfferMode {
+  if (row.offer_mode === 'visible' || row.offer_mode === 'hidden_included' || row.offer_mode === 'excluded') return row.offer_mode
+  return row.show_on_offer === false ? 'hidden_included' : 'visible'
 }

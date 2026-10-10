@@ -18,7 +18,9 @@ import type {
   CalculationRowWithRelations,
   CalculationFilters,
   EnhancedROIData,
+  CalculationRowOfferMode,
 } from '@/types/calculations.types'
+import { rowOfferMode } from '@/types/calculations.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
@@ -426,6 +428,7 @@ export async function duplicateCalculation(
         sale_price: row.sale_price,
         discount_percentage: row.discount_percentage,
         show_on_offer: row.show_on_offer,
+        offer_mode: rowOfferMode(row),
         // Enhanced fields
         cost_category: row.cost_category || 'variable',
         hours: row.hours,
@@ -537,7 +540,8 @@ export async function createCalculationRow(
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,
-      show_on_offer: formData.get('show_on_offer') !== 'false',
+      // 00219: eksplicit tilbudstilstand (show_on_offer afledes for bagudkompatibilitet)
+      ...offerModeFields(formData),
       // Enhanced fields
       cost_category: formData.get('cost_category') as string || 'variable',
       hours: formData.get('hours') ? Number(formData.get('hours')) : null,
@@ -625,7 +629,8 @@ export async function updateCalculationRow(
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,
-      show_on_offer: formData.get('show_on_offer') !== 'false',
+      // 00219: eksplicit tilbudstilstand (show_on_offer afledes for bagudkompatibilitet)
+      ...offerModeFields(formData),
       // Enhanced fields
       cost_category: formData.get('cost_category') as string || 'variable',
       hours: formData.get('hours') ? Number(formData.get('hours')) : null,
@@ -1037,4 +1042,13 @@ export async function createQuickCalculation(
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette kalkulation') }
   }
+}
+
+/** 00219: offer_mode fra formularen (ældre klienter sender kun show_on_offer). */
+function offerModeFields(formData: FormData): { offer_mode: CalculationRowOfferMode; show_on_offer: boolean } {
+  const raw = formData.get('offer_mode') as string | null
+  const mode: CalculationRowOfferMode = raw === 'visible' || raw === 'hidden_included' || raw === 'excluded'
+    ? raw
+    : formData.get('show_on_offer') === 'false' ? 'hidden_included' : 'visible'
+  return { offer_mode: mode, show_on_offer: mode === 'visible' }
 }
