@@ -56,6 +56,12 @@ const APPROVED: Record<string, string> = {
   '00209': '2026-10-09', // storage-lockdown (fjerner brede authenticated-politikker på storage.objects), godkendt af Henrik i chat 2026-10-09 ("00209 STORAGE LOCKDOWN GODKENDT TIL PROD")
   '00210': '2026-10-09', // blank gemte signerede download-links i customer_documents.file_url (kun hvor storage_path findes), godkendt af Henrik i chat 2026-10-09 ("STORED DOWNLOAD URLS GODKENDT")
   '00208': '2026-10-09', // time_logs kolonne-skriveret + sats-ejerskab i guard (S1), godkendt af Henrik i chat 2026-10-09 ("00208 GODKENDT TIL PROD")
+  '00212': '2026-10-10', // system_health_log kun for drift-roller, godkendt af Henrik i chat 2026-10-10 ("00212–00217 GODKENDT TIL PROD")
+  '00213': '2026-10-10', // montør må kun ændre status på egne arbejdsordrer (guard-trigger), godkendt af Henrik i chat 2026-10-10 ("00212–00217 GODKENDT TIL PROD")
+  '00214': '2026-10-10', // betalingsoversigt med åbent beløb + dansk dato (view), godkendt af Henrik i chat 2026-10-10 ("00212–00217 GODKENDT TIL PROD")
+  '00215': '2026-10-10', // kladde-lås og sletteregel for tilbud i DB (triggere), godkendt af Henrik i chat 2026-10-10 ("00212–00217 GODKENDT TIL PROD")
+  '00216': '2026-10-10', // trinvis afrunding i tilbudstotal-triggeren, godkendt af Henrik i chat 2026-10-10 ("00212–00217 GODKENDT TIL PROD")
+  '00217': '2026-10-10', // interne beskeder: afsender fra profilen, modtager kun status, godkendt af Henrik i chat 2026-10-10 ("00212–00217 GODKENDT TIL PROD")
 }
 
 async function main() {
