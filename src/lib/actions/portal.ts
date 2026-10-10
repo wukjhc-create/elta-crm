@@ -1832,6 +1832,8 @@ export async function getPortalDocuments(
       // Kommunikations-review (S1): mail-vedhæftninger arkiveres automatisk på kunden ("Download" i mailen) — også fra
       // leverandørmails (ordrebekræftelser, kostpriser), der er koblet til kunden. De er INTERNE og vises ikke i portalen.
       .is('source_email_id', null)
+      // Henrik 2026-10-10 (00218): kun dokumenter der aktivt er delt med kunden ("Del med kunde")
+      .eq('visible_in_portal', true)
       .order('created_at', { ascending: false })
 
     if (error) {

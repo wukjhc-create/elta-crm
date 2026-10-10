@@ -136,6 +136,8 @@ export async function createFuldmagt(
       .insert({
         customer_id: customerId,
         service_case_id: serviceCaseId,
+        // 00218: fuldmagter vises via portalens fuldmagt-sektion (underskriver-tjek); flaget holdes konsistent
+        visible_in_portal: true,
         title: `Fuldmagt — ${customer.company_name}`,
         description: JSON.stringify({
           type: 'fuldmagt',
