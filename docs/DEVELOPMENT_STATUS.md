@@ -38,9 +38,9 @@ Efterkalkulation v1 er på `grok-next` (`2274215`): tilbudt/faktisk/afvigelse i 
 AGENT: GROK
 BRANCH: grok-next
 
-Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. To tomme konklusioner er forkastet: først fordi N29 ikke var bygget, derefter fordi fakturapanelet hentede `price_history` i ét kald (højst 1.000 rækker) og dermed kunne bruge en senere gammel pris. N29, Profit Engine trin 2 og pagineringen er leveret. Genlæsning af backloggen og design-dokumenterne efter rettelsen: der er ingen yderligere NOW/NEXT-række, som kan bygges på grok-next uden prod-godkendelse, live afsendelse, migration eller Claudes spor.
+time spent: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. To tomme konklusioner er forkastet: først fordi N29 ikke var bygget, derefter fordi fakturapanelet hentede `price_history` i ét kald (højst 1.000 rækker) og dermed kunne bruge en senere gammel pris. N29, Profit Engine trin 2 og pagineringen er leveret. Ny scan af alle backlog-rækker, der ikke er DONE, LATER eller BLOCKED_APPROVAL: de resterende er drift hos Henrik (G11, G12, P1), analyse (N56, N70, N72, Q8) eller en beslutning (N8-7, HR #2, X1c). Ingen af dem kan bygges på grok-next uden prod-data, en migration, et Vercel-flag eller en opdigtet forretningsregel.
 
-Features leveret:
+features delivered:
 - Sagsrentabilitet på `/dashboard/reports` behandler manglende kost som ukendt, ikke 0 (`9defa9b`).
 - Fakturakontrol-dækning og det read-only prod-script bruger kostprisen på fakturadatoen (`cf620e3`). Scriptet er ikke kørt.
 - Pilot Health viser opfølgningens skygge som antal. Der sendes ingen mail (`c3a9f25`).
@@ -50,7 +50,7 @@ Features leveret:
 - Tilbuddets linjefod viser DB efter tilbudsrabat ved siden af tallet før rabat (`1e8c198`, `offer-db-shadow-test`). Kost og salgspriser er uændrede. Send-gaten er uændret.
 - Fakturapanelet henter hele `price_history` side for side og giver den til `expectedCostOnInvoiceDate`. En faktura med 1.001 senere ændringer får den første gamle pris, ikke dagens pris (`price-at-date-test`). Godkendelse og e-conomic er urørt.
 
-Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, `aa76883`, `5591172`, `a60eebf`, `e70787f`, `7da4464`, `992cbd2`, `1e8c198`, `faa3928`, `c8d1f00` (paginering af `price_history` i fakturapanelet). Ingen merge til main. Ingen ny fil under `supabase/migrations`. Gren `grok-next`, upstream `origin/grok-next`.
+commits: `9defa9b`, `cf620e3`, `c3a9f25`, `aa76883`, `5591172`, `a60eebf`, `e70787f`, `7da4464`, `992cbd2`, `1e8c198`, `faa3928`, `c8d1f00` (paginering af `price_history` i fakturapanelet), `a36aeec`. Ingen merge til main. Ingen ny fil under `supabase/migrations`. Gren `grok-next`, upstream `origin/grok-next`.
 
 Køen efter fakturakontrol (punkt 11–16):
 - Opfølgning: trin 1 er leveret. Trin 2 er BLOCKED_APPROVAL (samme godkendelse som X4d). Trin 3 er live afsendelse. Trin 4 kræver migration.
@@ -63,11 +63,11 @@ Køen efter fakturakontrol (punkt 11–16):
 - N29 er leveret: mine forfaldne og dagens liste. Fakturakontrol trin 2 og 3 var allerede i koden og er markeret DONE.
 - Profit Engine trin 2 er leveret: reel DB efter tilbudsrabat i linjefoden. Trin 3–5 er BLOCKED_APPROVAL (migration og ændrede salgspriser). IC7 er parkeret: Henrik skal godkende salgsprisen på konverterede linjer, eller at de ikke faktureres før prisen er sat. IC10 var allerede i prod (00167).
 
-Tests efter `c8d1f00`, alle exit 0: `aftercalc-test` (tilbudt omsætning 18.000, DB 6.000, ens tekst er ikke matchet, manglende kost er ikke en besparelse), `offer-vs-actual-test`, `price-at-date-test` (1.001 senere ændringer → første gamle pris 100, ikke dagens 120; loader henter mere end én side). Samme kørsel tidligere, urørt af pagineringen: `profitability-figures-test`, `followup-shadow-test`, `header-totals-test`, `oioubl-test`, `my-day-test`, `offer-db-shadow-test`. `npm run type-check`, `check:rbac` (479 skrivende, 419 gatet, 60 undtaget, 0 fejl) og `check:rls-matrix` med exit 0. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000. Chrome findes. Next blev ikke startet.
+tests: efter `c8d1f00`, alle exit 0: `aftercalc-test` (tilbudt omsætning 18.000, DB 6.000, ens tekst er ikke matchet, manglende kost er ikke en besparelse), `offer-vs-actual-test`, `price-at-date-test` (1.001 senere ændringer → første gamle pris 100, ikke dagens 120; loader henter mere end én side). Samme kørsel tidligere, urørt af pagineringen: `profitability-figures-test`, `followup-shadow-test`, `header-totals-test`, `oioubl-test`, `my-day-test`, `offer-db-shadow-test`. `npm run type-check`, `check:rbac` (479 skrivende, 419 gatet, 60 undtaget, 0 fejl) og `check:rls-matrix` med exit 0. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000. Chrome findes. Next blev ikke startet.
 
-Performance: ingen ny måling. Fakturapanelet henter `price_history` side for side (`fetchAllRows`, 1.000 rækker), samme loft som dækningen. Uden det tabes den tidligste tilbagerulning.
+performance: ingen ny måling. Fakturapanelet henter `price_history` side for side (`fetchAllRows`, 1.000 rækker), samme loft som dækningen. Uden det tabes den tidligste tilbagerulning.
 
-Blockers (mangler godkendelse, ikke påbegyndt):
+blockers (mangler godkendelse, ikke påbegyndt):
 - D27: prod-migration for `price_alert_rules` (00046 er ikke i prod).
 - X4c: Henrik vælger afrunding før kundeaftale-RPC rettes.
 - X4d / opfølgning trin 2: kundemail-cron. Et skift af agenten nu fjerner interne forslag, mens cronen ikke sender.
@@ -81,13 +81,13 @@ Blockers (mangler godkendelse, ikke påbegyndt):
 - IC7: salgspris eller fakturerbarhed på linjer, der konverteres fra en leverandørfaktura.
 - Profit Engine trin 3–4: migration til aftaler/snapshots, og udskiftning af prisalgoritmerne.
 
-Findings til Claude:
+findings for Claude:
 - `getServiceCaseEconomy` læser stadig `employees.hourly_rate`. Efterkalkulationen bruger den ikke.
 - Tilbuds-RLS skjuler stadig hovedet for serviceleder og bogholderi. Efterkalkulationen læser hovedet med admin-klienten efter sagstjek.
 - `approveInvoice` pusher stadig til e-conomic. Den sti er ikke rørt.
 - Claude ejer fortsat storage, auth, RLS og prod-gates. Intet af det er lukket her.
 
-Næste anbefaling: Henriks godkendelsesbunke, med X4d (kundemail) og Q11 B1–B3 først, fordi de låser opfølgning trin 2 og rykkerbeløb. Dernæst D27 hvis prisadvarsler skal tændes. Claude fortsætter storage/auth/RLS.
+next recommendation: Henriks godkendelsesbunke, med X4d (kundemail) og Q11 B1–B3 først, fordi de låser opfølgning trin 2 og rykkerbeløb. Dernæst D27 hvis prisadvarsler skal tændes. Claude fortsætter storage/auth/RLS.
 
 ## Nu
 P0–P3 DONE · **RBAC app-lag DONE** (P-006 lukket: 317 gatet, 46 bevist undtaget, `check:rbac` blokerende i CI) · **fakturapipeline F-a–F-d DONE** (F-d prod-gate).
