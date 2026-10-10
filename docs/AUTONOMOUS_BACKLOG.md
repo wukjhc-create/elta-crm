@@ -13,6 +13,18 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Henriks beslutninger 2026-10-10 — status
+| # | Beslutning | Status |
+|---|---|---|
+| 1 | 00212–00217 til prod | DONE (se prod-kørsel nedenfor) |
+| 2 | Kundedokumenter interne som standard ("Del med kunde") | Bygget + staging-testet på branch `customer-docs-share-00218` → **BLOCKED_APPROVAL** (migration 00218) |
+| 3 | GDPR eksport/anonymisering | NEXT efter pilot (ikke go-live-blocker) |
+| 4 | Kalkulationsrækker: skjult-men-medregnet vs. udeladt | Bygget + staging-testet på branch `calc-offer-mode-00219` → **BLOCKED_APPROVAL** (migration 00219) |
+| 5 | Rumberegner: timepris = salgspris | DONE i prod (5496e2d; profit-simulatoren samme model; kostsats FALLBACK_COST_RATE 400). NB: hurtigkalkulationens arbejdskost er 295 kr/t (lærlingesats) — afviger fra 400; afklares ved lejlighed |
+| 6 | Notifikationsindstillinger implementeres | Afsendere på main (DONE, springer over uden kolonne); side + kolonne på branch `notify-prefs-00220` → **BLOCKED_APPROVAL** (migration 00220) |
+| 7 | CLAUDE.md: GatewayAPI/SMS ikke implementeret | DONE |
+| 8 | U73 | DONE — adgangskontrollerne var korrekte (data fandtes; montør-scope ok); testen ventede på et netværkssvar der ikke altid blev opfanget → nu deterministisk via DOM (`case-time-totals`); 3/3 grønne |
+
 ## Prod-kørsel 2026-10-10 — 00212–00217 (Henrik: "GODKENDT TIL PROD")
 | Trin | Resultat |
 |---|---|

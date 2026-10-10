@@ -4701,10 +4701,16 @@ ${m.text()}`) })
           await secondTry
         }
         await m.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {})
+        // Henrik 2026-10-10 (U73 deterministisk): tidsdata bevises via DOM'en — sagstotalen vises først når
+        // listTimeLogsForCase har svaret med montørens timer. Netværkssnifning af server-action-svar var upålidelig
+        // (svaret blev ikke altid opfanget: m_timer=0 trods data). Opfangede svar bruges stadig til læk-tjekket.
+        const totals = m.page.getByTestId('case-time-totals')
+        const totalsShown = await totals.waitFor({ state: 'visible', timeout: 60_000 }).then(() => true).catch(() => false)
+        const totalsText = totalsShown ? ((await totals.innerText().catch(() => '')) ?? '') : ''
         m.page.off('response', onRespM)
         try { writeFileSync(join(shots, 'u73-montoer-net.txt'), netM.map((t) => `${t.slice(0, 1500)}\n…\n${t.slice(-2500)}`).join('\n----\n')) } catch { /* diagnose */ }
         const mAll = (await m.page.content().catch(() => '')) + netM.join('\n')
-        const sawTimeLogs = netM.some((t) => t.includes('"hours"'))
+        const sawTimeLogs = totalsShown && totalsText.includes('timeregistrering') && /\d/.test(totalsText)
         r.montoer_tidsdata_hentet = sawTimeLogs
         const leak = /"cost_amount":\s*[1-9]/.test(mAll) || /"cost_rate_snapshot":\s*[1-9]/.test(mAll) || /"hourly_rate":\s*650/.test(mAll) || mAll.includes('543.21')
         r.montoer_ingen_kost_eller_sats = !leak
