@@ -394,6 +394,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u119WorkOrderId: string | null = null
   let u91SeedErr = ''
   let u92InvoiceId: string | null = null
+  let u149InvoiceId: string | null = null
   const u120InvoiceIds: string[] = []
   const u120EmailIds: string[] = []
   let u120SupplierId: string | null = null
@@ -898,6 +899,37 @@ ${m.text()}`) })
         const opts = await a.page.locator('select').first().locator('option').allInnerTexts()
         r.statustaellere = opts.some((o) => /^Alle \(\d+\)$/.test(o.trim())) && opts.some((o) => /\(\d+\)$/.test(o.trim()) && !o.startsWith('Alle'))
         out.push({ id: 'U20 sagsliste: type, prioritet, tællere', ok: listCaseIds.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U149 L-7 (leverandørfaktura-review 2026-10-14): ret fakturahovedet — Momsgrundlag-fejlen (ekskl./moms byttet)
+      // rettes, gemmes og auditeres; inkonsistente beløb afvises med besked; knappen findes ikke på godkendte fakturaer
+      if (want('U149')) {
+        const r: Record<string, boolean> = {}
+        const ii = await c.admin.from('incoming_invoices').insert([{ source: 'upload', status: 'received', parse_status: 'parsed',
+          file_name: `u149-${stamp}.txt`, mime_type: 'text/plain', raw_text: 'HARNESS U149', file_hash: `u149-${stamp}`,
+          supplier_name_extracted: `[HARNESS] U149 ${stamp}`, invoice_number: `HV149-${stamp}`, currency: 'DKK',
+          amount_excl_vat: 250, vat_amount: 1000, amount_incl_vat: 1250, requires_manual_review: true }]).select('id')
+        u149InvoiceId = (ii.data?.[0] as { id?: string } | undefined)?.id ?? null
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${u149InvoiceId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('header-edit-open').click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('header-amount-excl').fill('800,00').catch(() => {})
+        await a.page.getByTestId('header-edit-save').click({ timeout: 15_000 }).catch(() => {})
+        await a.page.getByTestId('header-edit-error').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.inkonsistent_afvist = (await a.page.getByTestId('header-edit-error').count()) > 0
+        await a.page.getByTestId('header-amount-excl').fill('1.000,00').catch(() => {})
+        await a.page.getByTestId('header-vat').fill('250,00').catch(() => {})
+        await a.page.getByTestId('header-edit-save').click({ timeout: 15_000 }).catch(() => {})
+        await a.page.getByTestId('invoice-header-edit').waitFor({ state: 'detached', timeout: 30_000 }).catch(() => {})
+        type HR = { amount_excl_vat: number | null; vat_amount: number | null; amount_incl_vat: number | null }
+        const row = (await c.admin.from('incoming_invoices').select('amount_excl_vat, vat_amount, amount_incl_vat').eq('id', u149InvoiceId ?? '').maybeSingle()).data as HR | null
+        r.gemt = Number(row?.amount_excl_vat) === 1000 && Number(row?.vat_amount) === 250 && Number(row?.amount_incl_vat) === 1250
+        const aud = ((await c.admin.from('incoming_invoice_audit_log').select('action, previous_value').eq('incoming_invoice_id', u149InvoiceId ?? '')).data ?? []) as Array<{ action: string; previous_value: Record<string, unknown> | null }>
+        r.audit = aud.some((x) => x.action === 'header_edited' && Number(x.previous_value?.amount_excl_vat) === 250)
+        await c.admin.from('incoming_invoices').update({ status: 'approved' }).eq('id', u149InvoiceId ?? '')
+        await a.page.reload({ waitUntil: 'networkidle' }).catch(() => {})
+        await a.page.getByText('Parsede felter').first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.laast_efter_godkendelse = (await a.page.getByTestId('header-edit-open').count()) === 0
+        out.push({ id: 'U149 ret leverandørfakturahoved (L-7)', ok: !!u149InvoiceId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${row?.amount_excl_vat ?? '-'}/${row?.vat_amount ?? '-'}/${row?.amount_incl_vat ?? '-'}` })
       }
 
       // U148 (00220, Henrik 2026-10-10): notifikationsindstillinger — standard fra; push + daglig opsummering "ikke
@@ -5166,6 +5198,7 @@ ${m.text()}`) })
     if (u120SupplierId) await c.admin.from('suppliers').delete().eq('id', u120SupplierId)
     for (const id of u120SupplierIds) await c.admin.from('suppliers').delete().eq('id', id)
     if (u92InvoiceId) { await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', u92InvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u92InvoiceId) }
+    if (u149InvoiceId) { await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', u149InvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u149InvoiceId) }
     if (u116InvoiceId) await c.admin.from('invoices').delete().eq('id', u116InvoiceId)
     if (u117WorkOrderId) await c.admin.from('work_orders').delete().eq('id', u117WorkOrderId)
     if (u119WorkOrderId) { await c.admin.from('time_logs').delete().eq('work_order_id', u119WorkOrderId); await c.admin.from('work_orders').delete().eq('id', u119WorkOrderId) }

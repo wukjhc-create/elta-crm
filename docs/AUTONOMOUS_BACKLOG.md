@@ -24,15 +24,15 @@ Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kon
 | G-3 | G11 montør #2 uden koblet medarbejder (målt 2026-10-14: 2 logins / 1 koblet) | [H] manuel | BLOCKED (`prod-montor-linkage.ts`) |
 | G-4 | G12 bankoplysninger på fakturaer (Vercel `INVOICE_BANK_*` eller Indstillinger → Firma) | [H] manuel | BLOCKED |
 | G-5 | Admin-alarmer når ingen: `ADMIN_ALERT_EMAIL` i Vercel eller branch `admin-alert-recipients-auth-email` / 00188 | [H] env/godkendelse | BLOCKED |
-| G-6 | "Kør rykker-tjek nu" på go-live-siden sender rigtige rykkere uden bekræftelse/loft | dev | TODO (næste) |
+| G-6 | "Kør rykker-tjek nu" på go-live-siden sender rigtige rykkere uden bekræftelse/loft | dev | DONE eb94707c — bekræftelse + fælles loft `MAX_REMINDER_MAILS_PER_RUN` (3) |
 
 ### Pilot-uge-risici
 | # | Opgave | Ejer | Status |
 |---|---|---|---|
-| P-1 | Mobil hamburger-menu ignorerer rettigheder (Mail/Tilbud for montør/salg/bogholderi → "ingen adgang") | dev | TODO |
-| P-2 | Interne beskeder (/dashboard/inbox) har intet menupunkt | dev | TODO |
-| P-3 | Tilbudsmail sendes uden PDF uden at brugeren får besked (`email.ts` "Continue without PDF") | dev | TODO |
-| P-4 | Go-live-tjeklisten: selvregistrerings-tjek, P-009-incident forældet (Pilot Health altid rød), menulink + admin-guard, `is_active` i montør-tjek | dev | TODO |
+| P-1 | Mobil hamburger-menu ignorerer rettigheder (Mail/Tilbud for montør/salg/bogholderi → "ingen adgang") | dev | DONE eb94707c |
+| P-2 | Interne beskeder (/dashboard/inbox) har intet menupunkt | dev | DONE eb94707c ("Beskeder") |
+| P-3 | Tilbudsmail sendes uden PDF uden at brugeren får besked (`email.ts` "Continue without PDF") | dev | DONE eb94707c — klar fejl, mailen sendes ikke |
+| P-4 | Go-live-tjeklisten: selvregistrerings-tjek, P-009-incident forældet (Pilot Health altid rød), menulink + admin-guard, `is_active` i montør-tjek | dev | DONE eb94707c |
 | P-5 | 00186 bogholderi-mail-scope / 00211 / 00207 / 00204 sikkerhedspakke | [H] godkendelse | BLOCKED_APPROVAL |
 | P-6 | Vercel-flag `INVOICE_ATTACHMENT_FETCH_ENABLED` (godkendt 09-29, ikke sat) og `MONTOR_START_JOB_ENABLED` | [H] Vercel | BLOCKED |
 | P-7 | Kunde-mail-crons under pilot (rykkere/tilbudspåmindelser sender i dag intet), N74b auto-kunder, N69 "kræver svar", e-conomic (N12) | [H] beslutninger | BLOCKED |
@@ -47,7 +47,7 @@ Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kon
 | L-4 (S2) | Genlæsning slettede en manuel sagskobling | DONE — eksisterende kobling bevares |
 | L-5 (S2) | Konvertér+godkend tjekkede ikke statusskiftet | DONE — rækketjek + tilbagerulning af kørslens konverteringer |
 | L-6 (S2) | Afvisning af godkendt faktura efterlod kost på sagen; afvisning under e-conomic-bogføring blev overskrevet | DONE — afvisning blokeres ved konverterede linjer / aktivt bogføringskrav; "bogført" kun med eget krav |
-| L-7 (S2) | Fakturahoved (nr., dato, beløb, valuta) kan ikke rettes i UI'et | TODO — redigér-hoved-action (incoming_invoices.edit, audit, genberegn kontrol) |
+| L-7 (S2) | Fakturahoved (nr., dato, beløb, valuta) kan ikke rettes i UI'et | DONE — "Ret fakturahoved" på detaljesiden (`editIncomingInvoiceHeaderAction`, `incoming_invoices.edit`, kun ikke-afsluttede, audit `header_edited`, samme beløbsregel som parseren; `invoice-header-edit-test` 15/15, UI U149) |
 | L-8 (S3) | Priskontrol overså merbetaling på lave enhedspriser | DONE — linje-tolerance (25 kr) ud over enhedstolerance (`invoice-control-test`) |
 | L-9 (S3) | price_history uden paginering (forkert "gammel" pris) | DONE — fetchAllRows sorteret |
 | L-10 (S3) | Gensendt rettet faktura (samme nr. som en afvist) annulleres som dublet (unik-indeks inkl. afviste) | TODO — migration: delvist unikt indeks uden afviste + dublet-af-afvist → manuel kontrol [H godkendelse] |

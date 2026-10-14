@@ -29,5 +29,6 @@ export default async function IncomingInvoiceDetailPage({
   } catch {
     economicReady = false
   }
-  return <IncomingInvoiceDetailClient initial={detail} canPost={canPost} economicReady={economicReady} />
+  const canEditHeader = await pageHasPermission('incoming_invoices.edit')
+  return <IncomingInvoiceDetailClient initial={detail} canPost={canPost} canEditHeader={canEditHeader} economicReady={economicReady} />
 }
