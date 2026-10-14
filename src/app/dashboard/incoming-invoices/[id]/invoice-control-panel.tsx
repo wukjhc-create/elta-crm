@@ -63,7 +63,24 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
             </div>
             <div><div className="text-gray-500">Leverandør</div><div className="font-medium">{res.hasSupplier ? 'Kendt' : 'Ukendt — kan ikke matche katalog'}</div></div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="md:hidden divide-y rounded ring-1 ring-gray-200" data-testid="invoice-control-lines-mobile">
+            {res.control.lines.map((l) => {
+              const m = res.matches.find((x) => x.lineNumber === l.lineNumber)
+              const bad = l.verdict === 'overcharge'
+              return (
+                <div key={l.lineNumber} className={`p-3 ${bad ? 'bg-red-50' : ''}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-gray-900"><span className="text-gray-400">{l.lineNumber}.</span> {l.description}</p>
+                    <span className={bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : 'text-gray-600'}>{LINE[l.verdict] ?? l.verdict}</span>
+                  </div>
+                  <p className="mt-1 text-gray-600">{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : (l.reason ?? 'ingen')}</p>
+                  <p>Forventet {m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</p>
+                  <p>Afvigelse {l.varianceAmount != null && l.verdict !== 'not_controllable' ? `${kr(l.varianceAmount)}${l.variancePct != null ? ` (${l.variancePct} %)` : ''}` : '—'}</p>
+                </div>
+              )
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead><tr className="text-left text-gray-500"><th className="py-1">#</th><th>Beskrivelse</th><th>Match</th><th className="text-right">Forventet</th><th className="text-right">Afvigelse</th><th className="pl-4">Status</th></tr></thead>
               <tbody>

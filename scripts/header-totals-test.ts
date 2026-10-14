@@ -160,6 +160,8 @@ eq('loader kalder headerLineCheck', src.includes('headerLineCheck('), true)
 const panel = readFileSync(join(process.cwd(), 'src/app/dashboard/incoming-invoices/[id]/invoice-control-panel.tsx'), 'utf8')
 eq('panelet viser sætningen', panel.includes('headerLineSummary(res.header)'), true)
 eq('ukendt kontrol vises ikke som 0 kr', panel.includes('controlledLines > 0') && panel.includes('Det tælles ikke som 0 kr.'), true)
+const linesMobile = panel.slice(panel.indexOf('invoice-control-lines-mobile'), panel.indexOf('hidden md:block'))
+eq('kontrollinjer har kort paa mobil', linesMobile.includes('expectedUnitPrice') && linesMobile.includes('not_controllable') && !linesMobile.includes('invoice-control-overcharge'), true)
 const action = readFileSync(join(process.cwd(), 'src/lib/actions/invoice-control.ts'), 'utf8')
 eq('godkendelse og e-conomic røres ikke af kontrollen', action.includes('approveInvoice') || action.includes('economic'), false)
 
