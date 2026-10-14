@@ -11,7 +11,7 @@ import { getCaseOfferVsActual, type CaseOfferVsActual } from '@/lib/actions/case
 import { profitabilityFigures } from '@/lib/cases/profitability-figures'
 import { useCostReveal } from '@/components/shared/sensitive-amounts'
 import { formatCurrency } from '@/lib/utils/format'
-import type { OfferVsActualStatus } from '@/lib/cases/offer-vs-actual'
+import { usedLineMissingCost, type OfferVsActualStatus } from '@/lib/cases/offer-vs-actual'
 
 const STATUS: Record<OfferVsActualStatus, { label: string; cls: string }> = {
   as_offered: { label: 'Som tilbudt', cls: 'bg-emerald-100 text-emerald-800' },
@@ -23,6 +23,12 @@ const STATUS: Record<OfferVsActualStatus, { label: string; cls: string }> = {
 
 const kr = (n: number | null) => (n == null ? '—' : formatCurrency(n, 'DKK', 0))
 const qty = (n: number | null) => (n == null ? '—' : n.toLocaleString('da-DK', { maximumFractionDigits: 2 }))
+
+/** Synlig tekst. data-status bliver ved antal-reglen, så U81 stadig læser over/not_used/not_offered. */
+function visibleStatus(r: { status: OfferVsActualStatus; offered_qty: number | null; actual_qty: number | null; offered_cost: number | null; actual_cost: number | null }) {
+  if (usedLineMissingCost(r)) return { label: 'Kost ukendt', cls: 'bg-orange-100 text-orange-900' }
+  return STATUS[r.status]
+}
 
 export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
   const [open, toggle] = useCostReveal()
@@ -106,7 +112,7 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                             {r.cost_deviation == null ? '—' : `${r.cost_deviation > 0 ? '+' : ''}${kr(r.cost_deviation)}`}
                           </td>
                           <td className="px-2 py-1.5 text-center">
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${visibleStatus(r).cls}`}>{visibleStatus(r).label}</span>
                           </td>
                         </tr>
                       ))}

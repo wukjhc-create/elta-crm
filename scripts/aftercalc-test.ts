@@ -339,5 +339,10 @@ for (const name of ['getCaseAftercalc', 'getAftercalcOverview']) {
 }
 ok((actionRaw.match(/admin\.from\(\s*'offers'\)/g) || []).length >= 2, 'begge tilbudshoveder læses med admin-klienten')
 
+const afterPanel = readFileSync(join(process.cwd(), 'src/app/dashboard/orders/[id]/case-aftercalc-panel.tsx'), 'utf8')
+ok(afterPanel.includes('Tilbudt antal') && afterPanel.includes('Tilbudt kost') && afterPanel.includes('kr(r.offered_cost)') && afterPanel.includes('kr(r.actual_cost)'), 'linjelisten viser antal og kost hver for sig')
+ok(!afterPanel.includes('grupperer stadig ens tekst'), 'linjelisten påstår ikke at ens tekst slås sammen')
+ok(afterPanel.includes('slår ikke antal eller kost sammen'), 'teksten siger at ens tekst ikke slås sammen')
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle efterkalkulationstests bestået')
 process.exitCode = bad ? 1 : 0

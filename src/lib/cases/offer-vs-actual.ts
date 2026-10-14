@@ -65,6 +65,11 @@ const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim()
 /** Tolerance: ±2 % eller 1 kr regnes som "som tilbudt" (afrunding, småpriser). */
 const sameAmount = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, Math.abs(a) * 0.02)
 
+/** Brugt linje uden kost. Kun til visning. status-feltet følger stadig antal, så U81 læser samme data-status. */
+export function usedLineMissingCost(r: { offered_qty: number | null; actual_qty: number | null; offered_cost: number | null; actual_cost: number | null }): boolean {
+  return (r.offered_qty ?? 0) > 0 && (r.actual_qty ?? 0) > 0 && (r.offered_cost == null || r.actual_cost == null)
+}
+
 function statusFor(offeredQty: number, actualQty: number, offeredCost: number | null, actualCost: number | null): OfferVsActualStatus {
   if (offeredCost != null && actualCost != null && offeredCost > 0) {
     return sameAmount(offeredCost, actualCost) ? 'as_offered' : actualCost > offeredCost ? 'over' : 'under'

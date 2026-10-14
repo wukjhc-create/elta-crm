@@ -172,7 +172,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Linjer</h4>
                 <p className="text-xs text-gray-500 mb-2">
-                  En linje kobles kun, når materialet peger på tilbudslinjen eller på samme leverandørvare. Ens tekst alene står som ikke matchet. Listen længere nede grupperer stadig ens tekst.
+                  En linje kobles kun, når materialet peger på tilbudslinjen eller på samme leverandørvare. Ens tekst alene står som ikke matchet. Linjelisten slår ikke antal eller kost sammen, heller ikke når teksten er ens.
                 </p>
                 {data.lines.length === 0 ? (
                   <p className="text-sm text-gray-500">Ingen linjer eller forbrug endnu.</p>
@@ -182,8 +182,10 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                       <thead className="bg-gray-50 text-xs text-gray-600">
                         <tr>
                           <th className="px-2 py-1.5 text-left">Linje</th>
-                          <th className="px-2 py-1.5 text-right">Tilbudt</th>
-                          <th className="px-2 py-1.5 text-right">Faktisk</th>
+                          <th className="px-2 py-1.5 text-right">Tilbudt antal</th>
+                          <th className="px-2 py-1.5 text-right">Faktisk antal</th>
+                          <th className="px-2 py-1.5 text-right">Tilbudt kost</th>
+                          <th className="px-2 py-1.5 text-right">Faktisk kost</th>
                           <th className="px-2 py-1.5 text-right">Afvigelse</th>
                           <th className="px-2 py-1.5 text-center">Status</th>
                         </tr>
@@ -197,6 +199,8 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                             </td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{qty(r.offered_qty)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{qty(r.actual_qty)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.offered_cost)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.actual_cost)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{r.cost_deviation == null ? '—' : moneyDev(r.cost_deviation, false)}</td>
                             <td className="px-2 py-1.5 text-center">
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>

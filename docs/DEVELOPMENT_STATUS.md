@@ -48,6 +48,8 @@ Lead-kanban på små skærme viser én fase ad gangen. Knapperne tilbyder kun de
 
 Leverandørfaktura-listen viser kort på små skærme. Tabellen er der fra `md`. Kortet viser leverandør, fakturanummer, beløb inkl. moms, dato, forfald, status, konfidens og et Åbn-link ved siden af leverandør-linket. `npx tsx scripts/incoming-invoices-mobile-test.ts`.
 
+Efterkalkulationens linjeliste viser tilbudt og faktisk antal ved siden af tilbudt og faktisk kost. Manglende kost er en streg. Teksten siger, at ens tekst ikke slås sammen. På "Tilbudt vs. faktisk" står der "Kost ukendt", når en brugt linje mangler kost. `data-status` er uændret, så U81 stadig læser over, ikke brugt og ikke tilbudt. `npx tsx scripts/aftercalc-test.ts` og `npx tsx scripts/offer-vs-actual-test.ts`.
+
 ## Slutrapport 2026-10-14
 AGENT: GROK
 BRANCH: grok-next
@@ -61,7 +63,8 @@ features delivered:
 - Kalenderens dag og uge er en liste på mobil, og "I dag" er dansk dato (`1c57f9c5`, `calendar-mobile-test`).
 - Lead-kanban på mobil viser én fase og kun lovlige flyt (`49911355`, `leads-kanban-mobile-test`).
 - Tilbudt vs. faktisk: "I alt" tæller ikke manglende kost som 0 (`5caed7ac`, `profitability-figures-test`).
-- Leverandørfaktura-listen har kort på små skærme (`incoming-invoices-mobile-test`). Godkendelse og e-conomic er uændret.
+- Leverandørfaktura-listen har kort på små skærme (`51d5be6e`, `incoming-invoices-mobile-test`). Godkendelse og e-conomic er uændret.
+- Efterkalkulationens linjeliste viser antal og kost hver for sig, og en brugt linje uden kost står som kost ukendt (`aftercalc-test`, `offer-vs-actual-test`).
 
 tests: de nævnte scripts og `npx tsc --noEmit` exit 0. Ingen browser: der er ingen `.env` / `.env.local`, og port 3000 lytter ikke.
 

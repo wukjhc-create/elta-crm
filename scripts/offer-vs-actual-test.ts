@@ -2,7 +2,8 @@
  * Unit-tests for N26c (src/lib/cases/offer-vs-actual.ts). Ingen DB.
  *   npx tsx scripts/offer-vs-actual-test.ts
  */
-import { compareOfferToActual } from '../src/lib/cases/offer-vs-actual'
+import { readFileSync } from 'node:fs'
+import { compareOfferToActual, usedLineMissingCost } from '../src/lib/cases/offer-vs-actual'
 
 let bad = 0
 const ok = (c: boolean, label: string, extra = '') => { if (!c) bad++; console.log(`${c ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`) }
@@ -57,6 +58,12 @@ const strict = compareOfferToActual(
 )
 ok(strict.rows.find((r) => r.key === 'A')?.status === 'not_used' && strict.rows.find((r) => r.key === 'B')?.status === 'not_offered', 'confidentOnly matcher ikke ens tekst')
 ok(strict.rows.find((r) => r.key === 'B')?.actual_cost === 80, 'ekstra linje beholder sin kost')
+ok(usedLineMissingCost(missA) && missA.status !== 'not_used', 'brugt linje uden kost markeres til visning uden at status-feltet ændres')
+ok(!usedLineMissingCost({ offered_qty: 1, actual_qty: null, offered_cost: null, actual_cost: null }), 'ubrugt linje er ikke kost-ukendt')
+ok(!usedLineMissingCost({ offered_qty: null, actual_qty: 2, offered_cost: null, actual_cost: 40 }), 'ekstra linje er ikke kost-ukendt')
+ok(!usedLineMissingCost({ offered_qty: 1, actual_qty: 1, offered_cost: 10, actual_cost: 12 }), 'kendt kost er ikke kost-ukendt')
+const panel = readFileSync('src/app/dashboard/orders/[id]/case-offer-vs-actual-panel.tsx', 'utf8')
+ok(panel.includes('usedLineMissingCost(r)') && panel.includes('Kost ukendt') && panel.includes('data-status={r.status}'), 'linjelisten siger kost ukendt og beholder data-status')
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle tilbudt-vs-faktisk-tests bestået')
 process.exitCode = bad ? 1 : 0
