@@ -40,6 +40,8 @@ Dashboardet og opgavesiden viser de samme egne påmindelser i "Mine forfaldne" o
 
 Lead-, tilbuds- og sagslisten viser kort på små skærme. Tabellen er der fra `md` og op. Kortene bruger de samme beløb som tabellen. Fakturering på sagskortet følger `canSeeBilling`. Dækningsbidrag står ikke på listen. Status på kortet er kun et mærke. `npx tsx scripts/mobile-lists-test.ts`.
 
+Kalenderens dag- og ugevisning er en liste på små skærme. Tabellen er der fra `md`. Knappen "I dag" og markeringen af dagen bruger `copenhagenParts`, så UTC-serveren ikke viser gårsdagen mellem kl. 00 og 02. `npx tsx scripts/calendar-mobile-test.ts`.
+
 ## Slutrapport 2026-10-14
 AGENT: GROK
 BRANCH: grok-next

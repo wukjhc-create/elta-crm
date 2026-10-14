@@ -30,6 +30,7 @@ import { PlanWorkOrderDialog } from './plan-work-order-dialog'
 import { EditWorkOrderDialog } from './edit-work-order-dialog'
 import { CalendarAgenda } from './calendar-agenda'
 import type { AgendaDay } from '@/lib/calendar/agenda'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 // Local context: chip click handler shared across all rows
 const ChipClickContext = createContext<(wo: WorkOrderForCalendar) => void>(() => {})
@@ -57,8 +58,9 @@ function dateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** Dansk kalenderdag. Samme på Vercel (UTC) og i browseren, også kl. 00–02. */
 function todayKey(): string {
-  return dateKey(new Date())
+  return copenhagenParts(new Date()).date
 }
 
 function fmtDate(s: string): string {
@@ -433,7 +435,34 @@ function DayView({
   }
 
   return (
-    <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
+    <>
+    <div className="md:hidden space-y-2" data-testid="calendar-day-mobile">
+      {employees.map((emp) => {
+        const wos = empMap.get(emp.id) ?? []
+        if (wos.length === 0) return null
+        return (
+          <section key={emp.id} className="bg-white rounded-lg ring-1 ring-gray-200 p-3">
+            <p className="text-sm font-medium text-gray-900">{emp.name || '—'}</p>
+            <div className="mt-2 space-y-1">
+              {wos.map((wo) => (
+                <WorkOrderChip key={wo.id} wo={wo} />
+              ))}
+            </div>
+          </section>
+        )
+      })}
+      {hasUnassigned && (empMap.get('__unassigned__')?.length ?? 0) > 0 && (
+        <section className="bg-amber-50 rounded-lg ring-1 ring-amber-200 p-3">
+          <p className="text-sm font-medium text-amber-900">Ikke tildelt</p>
+          <div className="mt-2 space-y-1">
+            {empMap.get('__unassigned__')!.map((wo) => (
+              <WorkOrderChip key={wo.id} wo={wo} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+    <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 text-xs text-gray-600">
           <tr>
@@ -452,6 +481,7 @@ function DayView({
         </tbody>
       </table>
     </div>
+    </>
   )
 }
 
@@ -526,7 +556,55 @@ function WeekView({
 }) {
   const today = todayKey()
   return (
-    <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
+    <>
+    <div className="md:hidden space-y-3" data-testid="calendar-week-mobile">
+      {weekDates.map((d, i) => {
+        const named = employees.flatMap((emp) => {
+          const wos = byDateThenEmployee.get(d)?.get(emp.id) ?? []
+          return wos.length > 0 ? [{ id: emp.id, name: emp.name || '—', wos }] : []
+        })
+        const loose = byDateThenEmployee.get(d)?.get('__unassigned__') ?? []
+        const current = d === today
+        return (
+          <section
+            key={d}
+            data-testid="calendar-week-day"
+            className={`bg-white rounded-lg ring-1 p-3 ${current ? 'ring-emerald-300' : 'ring-gray-200'}`}
+          >
+            <h3 className={`text-sm font-semibold ${current ? 'text-emerald-900' : 'text-gray-900'}`}>
+              {WEEKDAY_NAMES[i]} {fmtShortDate(d)}
+            </h3>
+            {named.length === 0 && loose.length === 0 ? (
+              <p className="text-xs text-gray-400 mt-1">Ingen job</p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {named.map((group) => (
+                  <div key={group.id}>
+                    <p className="text-xs text-gray-500 mb-1">{group.name}</p>
+                    <div className="space-y-1">
+                      {group.wos.map((wo) => (
+                        <WorkOrderChip key={wo.id} wo={wo} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {loose.length > 0 && (
+                  <div>
+                    <p className="text-xs text-amber-800 mb-1">Ikke tildelt</p>
+                    <div className="space-y-1">
+                      {loose.map((wo) => (
+                        <WorkOrderChip key={wo.id} wo={wo} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )
+      })}
+    </div>
+    <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
       <table className="w-full text-sm border-collapse">
         <thead className="bg-gray-50 text-xs text-gray-600 sticky top-0">
           <tr>
@@ -567,6 +645,7 @@ function WeekView({
         </tbody>
       </table>
     </div>
+    </>
   )
 }
 
