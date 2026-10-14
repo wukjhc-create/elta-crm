@@ -13,6 +13,14 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Prod-kørsel 2026-10-14 — 00218–00220 (Henrik: "GODKENDT TIL PROD")
+| Nr. | Pre | Post | UI/tests |
+|---|---|---|---|
+| 00218 Del med kunde | 18 dokumenter, 15 portal-synlige, 3 mail-arkiv | kolonne findes; 15/15 eksisterende stadig delt; mail-arkiv 0 delt; ny manuel række intern; "Del med kunde" → i portalens forespørgsel; tjeksum uændret (16f2c95d); fuldmagter filtreres fortsat | customer-docs-share-check 5/5; portal-mail-UI 34/34; U61/U64/U65/U69/U22/U23/U25 |
+| 00219 Kalkulationsrækker | 9 rækker (0 skjulte) | backfill ok; visible+hidden_included tæller, excluded ikke (12.000); total 16.200; DB efter avance/rabat 5.760; kalkulations- og ikke-kladde-tilbudstjeksummer UÆNDREDE (a0d8617b / f1d883ec) | calc-offer-mode-check 4/4; ren funktion `lib/offers/calc-import-lines` + unit-test 12/12 ("Øvrige materialer og ydelser" med kost); kalkulations-UI 9/9 |
+| 00220 Notifikationer | kolonne mangler | kolonne + kolonne-grant (kun 4 eksisterende + notification_preferences); 0/5 profiler har noget slået til (alt FRA); egne kan gemmes, andres ikke; rolle kan ikke ændres | notify-prefs-check 7/7 (test-transport — ingen live-mail); U148 |
+| DB-audit | — | HØJ=0 · MIDDEL=0 · LAV=0 | prod-version e9d010c |
+
 ## Henriks beslutninger 2026-10-10 — status
 | # | Beslutning | Status |
 |---|---|---|
