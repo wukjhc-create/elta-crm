@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import {
   listWorkOrdersForCase,
   createWorkOrderForCase,
@@ -60,6 +62,9 @@ export function OrderPlanningTab({
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  // PL-3 (planlægnings-review 2026-10-14): planlægning kræver work_orders.plan — montøren fik knapper der altid fejlede
+  const { role } = useUserRole()
+  const canPlan = !!role && hasPermission(role, 'work_orders.plan')
 
   const [workOrders, setWorkOrders] = useState<WorkOrderWithEmployee[] | null>(null)
   const [caps, setCaps] = useState<WorkOrderCaps>(NO_CAPS)
@@ -204,7 +209,7 @@ export function OrderPlanningTab({
               : `${workOrders.length} arbejdsordr${workOrders.length === 1 ? 'e' : 'er'} på sagen`}
           </p>
         </div>
-        {!showForm && (
+        {!showForm && canPlan && (
           <button
             type="button"
             onClick={() => {
@@ -304,7 +309,7 @@ export function OrderPlanningTab({
 
       {/* List or empty state */}
       {workOrders.length === 0 && !showForm ? (
-        <EmptyState onPlan={() => setShowForm(true)} />
+        <EmptyState onPlan={canPlan ? () => setShowForm(true) : null} />
       ) : (
         <>
           {/* Sag-level totals (sum across all work_orders) */}
@@ -401,14 +406,16 @@ export function OrderPlanningTab({
   )
 }
 
-function EmptyState({ onPlan }: { onPlan: () => void }) {
+function EmptyState({ onPlan }: { onPlan: (() => void) | null }) {
   return (
     <div className="text-center py-12 bg-gray-50 rounded-lg ring-1 ring-gray-200">
       <h3 className="text-base font-medium text-gray-700">Ingen planlagte opgaver endnu</h3>
       <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-        Når du planlægger en medarbejder på en bestemt dag, oprettes der en
-        arbejdsordre du kan følge igennem fra "Planlagt" til "Afsluttet".
+        {onPlan
+          ? 'Når du planlægger en medarbejder på en bestemt dag, oprettes der en arbejdsordre du kan følge igennem fra "Planlagt" til "Afsluttet".'
+          : 'Kontoret planlægger opgaverne — de vises her, når du er sat på.'}
       </p>
+      {onPlan && (
       <button
         type="button"
         onClick={onPlan}
@@ -416,6 +423,7 @@ function EmptyState({ onPlan }: { onPlan: () => void }) {
       >
         + Planlæg medarbejder
       </button>
+      )}
     </div>
   )
 }

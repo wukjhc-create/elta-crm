@@ -27,8 +27,11 @@ import {
 import {
   updateWorkOrderPlanning,
   changeWorkOrderStatus,
+  getWorkOrderCapabilitiesAction,
   type WorkOrderForCalendar,
 } from '@/lib/actions/work-orders'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import type { EmployeeRow } from '@/types/employees.types'
 import type { WorkOrderStatus } from '@/types/workforce.types'
 
@@ -72,6 +75,11 @@ export function EditWorkOrderDialog({
   const [date, setDate] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [currentStatus, setCurrentStatus] = useState<WorkOrderStatus>('planned')
+  // PL-3: rettigheder til statusovergange og planlægningsfelter (hooks før enhver tidlig return)
+  const [caps, setCaps] = useState<{ canStart: boolean; canComplete: boolean; canCancel: boolean; canDelete: boolean } | null>(null)
+  useEffect(() => { getWorkOrderCapabilitiesAction().then(setCaps).catch(() => setCaps(null)) }, [])
+  const { role } = useUserRole()
+  const canPlan = !!role && hasPermission(role, 'work_orders.plan')
 
   const [savingPatch, setSavingPatch] = useState(false)
   const [statusBusy, setStatusBusy] = useState<WorkOrderStatus | null>(null)
@@ -165,7 +173,10 @@ export function EditWorkOrderDialog({
     startTransition(() => router.refresh())
   }
 
-  const allowedNext = ALLOWED_TRANSITIONS[currentStatus] ?? []
+  // PL-3 (planlægnings-review 2026-10-14): kun de overgange og felter brugeren har rettighed til (montøren fik knapper
+  // og felter der altid fejlede med "Manglende tilladelse")
+  const allowedNext = (ALLOWED_TRANSITIONS[currentStatus] ?? []).filter((n) =>
+    n === 'in_progress' ? !!caps?.canStart : n === 'done' ? !!caps?.canComplete : n === 'cancelled' ? !!caps?.canCancel : false)
 
   const caseHref = workOrder.case?.case_number
     ? `/dashboard/orders/${workOrder.case.case_number}`
@@ -277,7 +288,7 @@ export function EditWorkOrderDialog({
           )}
 
           {/* Editable fields — disabled if terminal */}
-          <fieldset disabled={isTerminal} className="space-y-3 disabled:opacity-60">
+          <fieldset disabled={isTerminal || !canPlan} className="space-y-3 disabled:opacity-60">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Titel <span className="text-red-500">*</span>
@@ -356,6 +367,7 @@ export function EditWorkOrderDialog({
           >
             Luk
           </button>
+          {canPlan && (
           <button
             type="button"
             onClick={handleSavePatch}
@@ -365,6 +377,7 @@ export function EditWorkOrderDialog({
             {savingPatch && <Loader2 className="w-3 h-3 animate-spin" />}
             Gem ændringer
           </button>
+          )}
         </div>
       </div>
     </div>
