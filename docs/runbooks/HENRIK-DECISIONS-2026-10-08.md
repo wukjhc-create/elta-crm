@@ -58,4 +58,10 @@ Kør altid pre → `npm run prod:apply-migration -- <nr> --approved-by-henrik` (
 - ~~Kalkulation → tilbud~~ BESLUTTET 2026-10-10: eksplicit model (00219) — med "Vis på tilbud" fra stadig indgå i tilbudsprisen (som én samlelinje)? I dag falder de ud (kalkulation 14.400 → tilbud 12.000)
 - ~~Rumberegneren~~ BESLUTTET 2026-10-10: salgspris (DONE i prod) — kostpris (≈400 kr) eller salgspris (495 kr)? I dag lægges avance/overhead oven i (≈712 kr/t)
 - Rykker-cron: højst 3 rykkermails pr. kørsel (dagligt) — hæves hvis mange forfaldne fakturaer
+- **Skal salg kende avancen?** (GP-1, 2026-10-14) Salg kan regne nettoindkøbsprisen baglæns: produktsøgningen viser estimeret salgspris = kost × (1 + global avance), og den globale avance kan læses af alle (Indstillinger/`calculation_settings`, RLS `USING (true)`). Lukning = gate avancerne + RLS-migration på `calculation_settings`
+- **Avance-forrang** (GP-4): skal en kundes forhandlede avance slå en leverandør-standardregel? (i dag: regel vinder ved linjeoprettelse, aftale vinder i søgning). Fallback 20 % vs. 25 % vs. indstillingen — én værdi?
+- **Krediteret slutfaktura låser sagen** (F-4): "én slutfaktura pr. sag" tæller også annullerede → en fejlagtig, krediteret slutfaktura kan aldrig erstattes. Kræver migration + "kreditér og genfakturér"-flow
+- **Bankimport-dublet** (F-5): to ægte betalinger med samme dato/beløb/reference registreres som én (dedup-nøgle). Kræver migration (dedup på bankens id/rækkehash)
+- **Slutfaktura på kontraktsager** (F-3): i dag fakturerer slutfakturaen timer/materialer; skal der være en "rest af kontraktsum"-tilstand?
+- **Montør og kontraktsum** (PL-10): montøren ser sagens kontraktsum i Økonomi-panelet (salg, ikke kost) — skjules efter D42?
 - **Lav DB — én grænse eller to?** (PE-7, 2026-10-14) Tilbuddets profitkort advarer under *Minimum DB* (20 % i prod), men afsendelse kræver først bekræftelse under *Trafiklys rød* (10 %, kodestandard — ikke sat i prod). Sagens DB-farve/"lav DB"-flag og AI-risiko bruger nu samme indstillinger (`lib/profit/db-thresholds.ts`, uændrede tal). Skal afsendelsesværnet bruge 20 %? Arbejdsordre-triggeren (SQL, 15 %) samles med PE-1-migrationen
