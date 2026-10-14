@@ -50,7 +50,7 @@ Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kon
 | L-7 (S2) | Fakturahoved (nr., dato, beløb, valuta) kan ikke rettes i UI'et | DONE — "Ret fakturahoved" på detaljesiden (`editIncomingInvoiceHeaderAction`, `incoming_invoices.edit`, kun ikke-afsluttede, audit `header_edited`, samme beløbsregel som parseren; `invoice-header-edit-test` 15/15, UI U149) |
 | L-8 (S3) | Priskontrol overså merbetaling på lave enhedspriser | DONE — linje-tolerance (25 kr) ud over enhedstolerance (`invoice-control-test`) |
 | L-9 (S3) | price_history uden paginering (forkert "gammel" pris) | DONE — fetchAllRows sorteret |
-| L-10 (S3) | Gensendt rettet faktura (samme nr. som en afvist) annulleres som dublet (unik-indeks inkl. afviste) | TODO — migration: delvist unikt indeks uden afviste + dublet-af-afvist → manuel kontrol [H godkendelse] |
+| L-10 (S3) | Gensendt rettet faktura (samme nr. som en afvist) annulleres som dublet (unik-indeks inkl. afviste) | BLOCKED_APPROVAL — udkast 00221 på branch `l10-rejected-dup-00221` (indeks uden rejected/cancelled + matcher: samme nr. som afvist → manuel kontrol). Staging `cli.ts rejected-dup` 5/5 (negativ kontrol ok). Prod read-only `prod-check-00221.ts`: latent (0 tilfælde) |
 | L-11 | Konvertér+godkend kræver både `incoming_invoices.approve` og `materials.add_to_case` → kun admin; bogholderi kan ikke | [H] beslutning (rettighedsmodel) |
 | L-12 | RLS lader admin/bogholderi ændre status/external_invoice_id direkte via REST (ingen overgangs-trigger); backfill-kandidater upagineret | LATER |
 
