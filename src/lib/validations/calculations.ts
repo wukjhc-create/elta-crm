@@ -122,6 +122,7 @@ export const createCalculationRowSchema = z.object({
     z.number().min(0).max(100).default(0)
   ),
   show_on_offer: z.boolean().default(true),
+  offer_mode: z.enum(['visible', 'hidden_included', 'excluded']).optional(),
 
   // Enhanced calculation row fields
   cost_category: z.enum(COST_CATEGORIES).default('variable'),

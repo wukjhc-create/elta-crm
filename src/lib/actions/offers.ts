@@ -26,6 +26,7 @@ import { offerEditLockReason, offerIdForLine } from '@/lib/offers/edit-lock'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { isValidOfferTransition, OFFER_STATUS_LABELS } from '@/types/offers.types'
+import { rowOfferMode } from '@/types/calculations.types'
 import type {
   Offer,
   OfferWithRelations,
@@ -1379,15 +1380,17 @@ export async function importCalculationToOffer(
     // standard (før null → DB/avance ~100 % på importerede linjer)
     const includeCostPrices = options?.includeCostPrices ?? true
 
-    // Filter rows that should be shown on offer (unless includeHiddenRows is true)
-    let rowsToImport = calculation.rows || []
-    if (!includeHiddenRows) {
-      rowsToImport = rowsToImport.filter(
-        (row: { show_on_offer: boolean }) => row.show_on_offer
-      )
-    }
+    // 00219 (Henrik 2026-10-10): eksplicit tilbudstilstand pr. række —
+    //   visible → egen linje · hidden_included → ingen egen linje, men med i prisen (én samlet linje med kost)
+    //   excluded → hverken linje eller pris (tæller heller ikke i kalkulationens total)
+    // Før faldt skjulte rækker stille ud af tilbuddet (kalkulation 14.400 → tilbud 12.000).
+    const allRows = calculation.rows || []
+    type ModeRow = { show_on_offer?: boolean; offer_mode?: string | null }
+    let rowsToImport = allRows.filter((r: ModeRow) => rowOfferMode(r) === 'visible' || (includeHiddenRows && rowOfferMode(r) === 'hidden_included'))
+    const hiddenIncluded: Array<{ total?: number | null; cost_price?: number | null; quantity?: number | null }> =
+      includeHiddenRows ? [] : allRows.filter((r: ModeRow) => rowOfferMode(r) === 'hidden_included')
 
-    if (rowsToImport.length === 0) {
+    if (rowsToImport.length === 0 && hiddenIncluded.length === 0) {
       return { success: false, error: 'Ingen linjer at importere' }
     }
 
@@ -1459,6 +1462,18 @@ export async function importCalculationToOffer(
         cost_price: includeCostPrices ? row.cost_price : null,
         discount_percentage: row.discount_percentage,
         total: row.total,
+      })
+    }
+
+    // 00219: skjulte-men-medregnede rækker → én samlet linje (pris = rækkernes total, kost = deres kost) — kunden ser ikke
+    // detaljerne, men prisen og DB er de samme som i kalkulationen
+    if (hiddenIncluded.length > 0) {
+      const amount = Math.round(hiddenIncluded.reduce((sum, r) => sum + Number(r.total ?? 0), 0) * 100) / 100
+      const cost = Math.round(hiddenIncluded.reduce((sum, r) => sum + Number(r.cost_price ?? 0) * Number(r.quantity ?? 1), 0) * 100) / 100
+      lineItems.push({
+        offer_id: offerId, line_type: 'calculation', product_id: null, calculation_id: calculationId, section: null,
+        position: positionCounter++, description: 'Øvrige materialer og ydelser', quantity: 1, unit: 'stk',
+        unit_price: amount, sale_price: amount, cost_price: includeCostPrices ? cost : null, discount_percentage: 0, total: amount,
       })
     }
 

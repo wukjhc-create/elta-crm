@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
 import {
   createCalculationRow,
@@ -28,6 +27,9 @@ import {
   type CalculationRow,
   type CalculationRowType,
   type CostCategory,
+  type CalculationRowOfferMode,
+  CALCULATION_ROW_OFFER_MODES,
+  rowOfferMode,
 } from '@/types/calculations.types'
 import { formatCurrency } from '@/lib/utils/format'
 import { calculateLineTotal } from '@/lib/logic/pricing'
@@ -54,7 +56,8 @@ export default function CalculationRowForm({
 }: CalculationRowFormProps) {
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
-  const [showOnOffer, setShowOnOffer] = useState(row?.show_on_offer ?? true)
+  // 00219: eksplicit tilbudstilstand i stedet for "Vis på tilbud" (skjult ≠ udeladt)
+  const [offerMode, setOfferMode] = useState<CalculationRowOfferMode>(row ? rowOfferMode(row) : 'visible')
   const [quantity, setQuantity] = useState(row?.quantity?.toString() || '1')
   const [salePrice, setSalePrice] = useState(row?.sale_price?.toString() || '')
   const [discountPercentage, setDiscountPercentage] = useState(
@@ -93,7 +96,8 @@ export default function CalculationRowForm({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    formData.set('show_on_offer', showOnOffer.toString())
+    formData.set('offer_mode', offerMode)
+    formData.set('show_on_offer', (offerMode === 'visible').toString())
     formData.set('calculation_id', calculationId)
     formData.set('cost_category', costCategory)
     formData.set('section', selectedSection)
@@ -301,13 +305,19 @@ export default function CalculationRowForm({
         </div>
       </div>
 
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="show_on_offer"
-          checked={showOnOffer}
-          onCheckedChange={setShowOnOffer}
-        />
-        <Label htmlFor="show_on_offer">Vis på tilbud</Label>
+      <div className="space-y-1.5">
+        <Label htmlFor="offer_mode">På tilbuddet</Label>
+        <select
+          id="offer_mode"
+          value={offerMode}
+          onChange={(e) => setOfferMode(e.target.value as CalculationRowOfferMode)}
+          className="w-full h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+        >
+          {CALCULATION_ROW_OFFER_MODES.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+        <p className="text-xs text-gray-500">{CALCULATION_ROW_OFFER_MODES.find((m) => m.value === offerMode)?.hint}</p>
       </div>
 
       <div className="flex justify-end gap-2 pt-4 border-t">
