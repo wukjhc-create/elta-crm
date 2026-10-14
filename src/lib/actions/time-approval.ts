@@ -34,6 +34,9 @@ export interface ApprovalTimeLog {
   case_number: string | null
   case_title: string | null
   work_order_title: string | null
+  /** PL-2: satstype (overtid m.m.) og evt. særlig sats — godkenderen skal se dem */
+  pay_rate_type: string
+  employee_rate_id: string | null
   /** Egne timer kan ikke godkendes af en selv. */
   is_own: boolean
 }
@@ -48,7 +51,7 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
     const st = STATUSES.includes(status) ? status : 'pending'
     const { data, error } = await supabase
       .from('time_logs')
-      .select(`id, employee_id, start_time, end_time, hours, description, billable, approval_status, approved_at, rejection_reason,
+      .select(`id, employee_id, start_time, end_time, hours, description, billable, approval_status, approved_at, rejection_reason, pay_rate_type, employee_rate_id,
         employee:employees(name, profile_id), approver:profiles!time_logs_approved_by_fkey(full_name),
         work_order:work_orders(title, case:service_cases(id, case_number, title))`)
       .eq('approval_status', st)
@@ -62,6 +65,7 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
       id: string; employee_id: string; start_time: string; end_time: string | null; hours: number | string | null
       description: string | null; billable: boolean | null; approval_status: TimeApprovalStatus; approved_at: string | null
       rejection_reason: string | null
+      pay_rate_type: string | null; employee_rate_id: string | null
       employee: { name: string | null; profile_id: string | null } | Array<{ name: string | null; profile_id: string | null }> | null
       approver: { full_name: string | null } | Array<{ full_name: string | null }> | null
       work_order: { title: string | null; case: unknown } | Array<{ title: string | null; case: unknown }> | null
@@ -75,7 +79,8 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
         hours: r.hours === null ? null : Number(r.hours), description: r.description, billable: r.billable !== false,
         approval_status: r.approval_status, approved_at: r.approved_at, approved_by_name: one(r.approver)?.full_name ?? null,
         rejection_reason: r.rejection_reason, case_id: cs?.id ?? null, case_number: cs?.case_number ?? null,
-        case_title: cs?.title ?? null, work_order_title: wo?.title ?? null, is_own: !!emp?.profile_id && emp.profile_id === userId,
+        case_title: cs?.title ?? null, work_order_title: wo?.title ?? null,
+        pay_rate_type: r.pay_rate_type ?? 'normal', employee_rate_id: r.employee_rate_id ?? null, is_own: !!emp?.profile_id && emp.profile_id === userId,
       }
     })
     return { success: true, data: rows }
@@ -90,7 +95,7 @@ function sameInstant(a: string | null | undefined, b: string | null | undefined)
 }
 
 /** Det godkenderen så pr. id (start/slut) — godkendes kun hvis registreringen ikke er ændret siden */
-export type SeenTimes = Record<string, { start_time: string; end_time: string | null }>
+export type SeenTimes = Record<string, { start_time: string; end_time: string | null; pay_rate_type?: string; employee_rate_id?: string | null }>
 
 async function decide(ids: string[], decision: 'approved' | 'rejected', reason: string | null, seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number }>> {
   const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
@@ -102,16 +107,19 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   // Læs med brugerens session (RLS-scope) — kun rækker brugeren må se, kan besluttes
   const { data: visible, error: readErr } = await supabase
     .from('time_logs')
-    .select('id, start_time, end_time, approval_status, invoice_line_id, employee:employees(profile_id)')
+    .select('id, start_time, end_time, approval_status, invoice_line_id, pay_rate_type, employee_rate_id, employee:employees(profile_id)')
     .in('id', unique)
   if (readErr) return { success: false, error: 'Kunne ikke hente timer' }
-  type V = { id: string; start_time: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }
+  type V = { id: string; start_time: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; pay_rate_type: string | null; employee_rate_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }
   const eligible = ((visible ?? []) as unknown as V[]).filter((v) =>
     v.end_time !== null && v.approval_status !== decision && one(v.employee)?.profile_id !== userId
     // HR-review 2026-10-08 (#4): fakturerede timer kan ikke afvises (de forsvandt fra kost/avance, men stod på fakturaen)
     && !(decision === 'rejected' && v.invoice_line_id)
     // HR-review 2026-10-08 (#3): ændret efter godkenderen så den (fx 8 → 12 t) → springes over (godkendes ikke ubeset)
-    && (!seen || !seen[v.id] || (sameInstant(seen[v.id].start_time, v.start_time) && sameInstant(seen[v.id].end_time, v.end_time))))
+    && (!seen || !seen[v.id] || (sameInstant(seen[v.id].start_time, v.start_time) && sameInstant(seen[v.id].end_time, v.end_time)
+      // PL-2: satstype/sats ændret efter godkenderen så den (fx normal → overtid 100 %) → springes over
+      && (seen[v.id].pay_rate_type === undefined || seen[v.id].pay_rate_type === (v.pay_rate_type ?? 'normal'))
+      && (seen[v.id].employee_rate_id === undefined || (seen[v.id].employee_rate_id ?? null) === (v.employee_rate_id ?? null)))))
   const skipped = unique.length - eligible.length
   if (eligible.length === 0) {
     return { success: false, error: 'Ingen af de valgte registreringer kan behandles (egne timer, igangværende timer eller allerede behandlet)' }

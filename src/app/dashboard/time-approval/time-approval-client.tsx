@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { PAY_RATE_TYPE_OPTIONS } from '@/types/workforce.types'
 import { Check, X, Loader2, AlertCircle, Clock } from 'lucide-react'
 import {
   listTimeLogsForApprovalAction,
@@ -65,7 +66,7 @@ export function TimeApprovalClient() {
   const approve = async (ids: string[], key: string) => {
     setBusy(key); setMsg(null); setError(null)
     // HR-review 2026-10-08 (#3): send det viste tidsrum med — ændrede registreringer godkendes ikke ubeset
-    const seen = Object.fromEntries((rows ?? []).filter((l) => ids.includes(l.id)).map((l) => [l.id, { start_time: l.start_time, end_time: l.end_time }]))
+    const seen = Object.fromEntries((rows ?? []).filter((l) => ids.includes(l.id)).map((l) => [l.id, { start_time: l.start_time, end_time: l.end_time, pay_rate_type: l.pay_rate_type, employee_rate_id: l.employee_rate_id }]))
     const r = await approveTimeLogsAction(ids, seen)
     setBusy(null)
     if (!r.success) { setError(r.error ?? 'Kunne ikke godkende'); return }
@@ -152,6 +153,12 @@ export function TimeApprovalClient() {
                     <div className="text-gray-900">
                       {when(l)} · <span className="font-medium tabular-nums">{fmtHours(l.hours)} t</span>
                       {!l.billable && <span className="ml-2 text-[10px] uppercase bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Ikke fakturerbar</span>}
+                      {(l.pay_rate_type !== 'normal' || l.employee_rate_id) && (
+                        // PL-2: overtid/særlig sats skal ses før godkendelse (højere løn og salgspris)
+                        <span className="ml-2 text-[10px] uppercase bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded" data-testid="time-approval-rate">
+                          {PAY_RATE_TYPE_OPTIONS.find((o) => o.value === l.pay_rate_type)?.label ?? l.pay_rate_type}{l.employee_rate_id ? ' · særlig sats' : ''}
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 truncate">
                       {l.case_id ? (

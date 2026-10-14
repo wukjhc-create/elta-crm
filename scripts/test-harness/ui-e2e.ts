@@ -2586,6 +2586,8 @@ ${m.text()}`) })
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.montoer_ser_afvist = (await m.page.getByTestId('my-hours-rejected').count()) > 0
+        // PL-5: begrundelsen står synligt (ikke kun hover) — læsbar på mobil
+        r.montoer_ser_begrundelse = ((await m.page.getByTestId('my-hours-rejection-reason').first().textContent().catch(() => '')) ?? '').includes('Forkert sag')
         await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         // admin: godkend fra fanen Afvist
         await gotoSafe(a.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })

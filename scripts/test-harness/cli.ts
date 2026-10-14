@@ -2036,6 +2036,35 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'time-overlap-rejected-check') {
+    // PL-1 (planlægnings-review 2026-10-14): en afvist registrering blokerer ikke genindtastning; en afventende gør
+    const { findOverlappingTimeLog } = await import('../../src/lib/time-logs/guards')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const emp = ((await admin.from('employees').insert({ name: '[HARNESS] overlap', email: `ov-${stamp}@harness.test`, role: 'montør', active: true }).select('id').single()).data as { id: string }).id
+    const cust = ((await admin.from('customers').insert({ customer_number: `OV-${stamp}`, company_name: `[HARNESS] overlap ${stamp}`, contact_person: 'X', email: `ov-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const caseId = ((await admin.from('service_cases').insert({ case_number: `SVC-7${String(stamp).slice(-6)}`, customer_id: cust, title: '[HARNESS] overlap', status: 'in_progress', created_by: owner }).select('id').single()).data as { id: string }).id
+    const wo = ((await admin.from('work_orders').insert({ case_id: caseId, customer_id: cust, title: '[HARNESS] overlap', status: 'in_progress', scheduled_date: '2026-10-01', assigned_employee_id: emp }).select('id').single()).data as { id: string }).id
+    const tl = ((await admin.from('time_logs').insert({ work_order_id: wo, employee_id: emp, start_time: '2026-10-01T06:00:00Z', end_time: '2026-10-01T14:00:00Z', billable: true }).select('id').single()).data as { id: string }).id
+    try {
+      const pending = await findOverlappingTimeLog(admin, emp, '2026-10-01T06:00:00Z', '2026-10-01T14:00:00Z')
+      check('afventende registrering blokerer overlap', pending?.id === tl)
+      await admin.from('time_logs').update({ approval_status: 'rejected', approved_by: owner, approved_at: new Date().toISOString(), rejection_reason: 'harness' }).eq('id', tl)
+      const rejected = await findOverlappingTimeLog(admin, emp, '2026-10-01T06:00:00Z', '2026-10-01T14:00:00Z')
+      check('afvist registrering blokerer IKKE genindtastning', rejected === null, rejected ? 'blokeret' : 'fri')
+    } finally {
+      await admin.from('time_logs').delete().eq('id', tl)
+      await admin.from('work_orders').delete().eq('id', wo)
+      await admin.from('service_cases').delete().eq('id', caseId)
+      await admin.from('customers').delete().eq('id', cust)
+      await admin.from('employees').delete().eq('id', emp)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ overlap ignorerer afviste')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'supplier-vat') {
     const { runSupplierVat, formatSupplierVat } = await import('./supplier-vat')
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
