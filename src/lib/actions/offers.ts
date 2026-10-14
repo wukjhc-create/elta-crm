@@ -26,7 +26,7 @@ import { offerEditLockReason, offerIdForLine } from '@/lib/offers/edit-lock'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { isValidOfferTransition, OFFER_STATUS_LABELS } from '@/types/offers.types'
-import { rowOfferMode } from '@/types/calculations.types'
+import { buildCalculationImportLines } from '@/lib/offers/calc-import-lines'
 import type {
   Offer,
   OfferWithRelations,
@@ -1380,30 +1380,6 @@ export async function importCalculationToOffer(
     // standard (før null → DB/avance ~100 % på importerede linjer)
     const includeCostPrices = options?.includeCostPrices ?? true
 
-    // 00219 (Henrik 2026-10-10): eksplicit tilbudstilstand pr. række —
-    //   visible → egen linje · hidden_included → ingen egen linje, men med i prisen (én samlet linje med kost)
-    //   excluded → hverken linje eller pris (tæller heller ikke i kalkulationens total)
-    // Før faldt skjulte rækker stille ud af tilbuddet (kalkulation 14.400 → tilbud 12.000).
-    const allRows = calculation.rows || []
-    type ModeRow = { show_on_offer?: boolean; offer_mode?: string | null }
-    let rowsToImport = allRows.filter((r: ModeRow) => rowOfferMode(r) === 'visible' || (includeHiddenRows && rowOfferMode(r) === 'hidden_included'))
-    const hiddenIncluded: Array<{ total?: number | null; cost_price?: number | null; quantity?: number | null }> =
-      includeHiddenRows ? [] : allRows.filter((r: ModeRow) => rowOfferMode(r) === 'hidden_included')
-
-    if (rowsToImport.length === 0 && hiddenIncluded.length === 0) {
-      return { success: false, error: 'Ingen linjer at importere' }
-    }
-
-    // Sort rows by section if grouping is enabled
-    if (groupBySection) {
-      rowsToImport = [...rowsToImport].sort((a: { section: string | null }, b: { section: string | null }) => {
-        if (!a.section && !b.section) return 0
-        if (!a.section) return 1
-        if (!b.section) return -1
-        return a.section.localeCompare(b.section)
-      })
-    }
-
     // Get current max position if not specified
     let nextPosition = startingPosition
     if (nextPosition === undefined) {
@@ -1417,81 +1393,20 @@ export async function importCalculationToOffer(
       nextPosition = items && items.length > 0 ? items[0].position + 1 : 0
     }
 
-    // Create line items from calculation rows
-    // If grouping by section, add section headers
-    const lineItems: Array<{
-      offer_id: string
-      line_type: string
-      product_id: string | null
-      calculation_id: string
-      section: string | null
-      position: number
-      description: string
-      quantity: number
-      unit: string
-      unit_price: number
-      sale_price: number
-      cost_price: number | null
-      discount_percentage: number
-      total: number
-    }> = []
-
-    let currentSection: string | null = null
-    let positionCounter = nextPosition ?? 0
-
-    for (const row of rowsToImport) {
-      // Add section header if section changed and grouping is enabled
-      if (groupBySection && row.section && row.section !== currentSection) {
-        currentSection = row.section
-        // Note: Section headers could be added here if the offer_line_items table supports them
-        // For now, we just track the section in each row
-      }
-
-      lineItems.push({
-        offer_id: offerId,
-        line_type: row.product_id ? 'product' : 'calculation',
-        product_id: row.product_id,
-        calculation_id: calculationId,
-        section: row.section,
-        position: positionCounter++,
-        description: row.description,
-        quantity: row.hours || row.quantity, // Use hours if labor row
-        unit: row.hours ? 'timer' : row.unit,
-        unit_price: row.hourly_rate || row.sale_price, // Use hourly_rate if labor row
-        sale_price: row.hourly_rate || row.sale_price, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
-        cost_price: includeCostPrices ? row.cost_price : null,
-        discount_percentage: row.discount_percentage,
-        total: row.total,
-      })
-    }
-
-    // 00219: skjulte-men-medregnede rækker → én samlet linje (pris = rækkernes total, kost = deres kost) — kunden ser ikke
-    // detaljerne, men prisen og DB er de samme som i kalkulationen
-    if (hiddenIncluded.length > 0) {
-      const amount = Math.round(hiddenIncluded.reduce((sum, r) => sum + Number(r.total ?? 0), 0) * 100) / 100
-      const cost = Math.round(hiddenIncluded.reduce((sum, r) => sum + Number(r.cost_price ?? 0) * Number(r.quantity ?? 1), 0) * 100) / 100
-      lineItems.push({
-        offer_id: offerId, line_type: 'calculation', product_id: null, calculation_id: calculationId, section: null,
-        position: positionCounter++, description: 'Øvrige materialer og ydelser', quantity: 1, unit: 'stk',
-        unit_price: amount, sale_price: amount, cost_price: includeCostPrices ? cost : null, discount_percentage: 0, total: amount,
-      })
-    }
-
-    // Kalkule-review 2026-10-08 (#2): kalkulationens Avance % og Rabat % (update_calculation_totals: avance på subtotal,
-    // rabat efter avance) blev tabt — tilbuddet blev subtotalen uden avance. Nu som eksplicitte linjer på de importerede rækker.
-    {
-      const importedSubtotal = Math.round(lineItems.reduce((sum, l) => sum + Number(l.total || 0), 0) * 100) / 100
-      const marginPct = Number((calculation as { margin_percentage?: number | null }).margin_percentage ?? 0)
-      const discountPct = Number((calculation as { discount_percentage?: number | null }).discount_percentage ?? 0)
-      const marginAmt = Math.round(importedSubtotal * marginPct) / 100
-      const discountAmt = Math.round((importedSubtotal + marginAmt) * discountPct) / 100
-      const extra = (description: string, amount: number) => lineItems.push({
-        offer_id: offerId, line_type: 'calculation', product_id: null, calculation_id: calculationId, section: null,
-        position: positionCounter++, description, quantity: 1, unit: 'stk', unit_price: amount, sale_price: amount,
-        cost_price: includeCostPrices ? 0 : null, discount_percentage: 0, total: amount,
-      })
-      if (marginAmt >= 0.01) extra(`Avance ${marginPct.toLocaleString('da-DK')} % iht. kalkulation`, marginAmt)
-      if (discountAmt >= 0.01) extra(`Rabat ${discountPct.toLocaleString('da-DK')} % iht. kalkulation`, -discountAmt)
+    // 00219: linjerne bygges af den rene funktion (vises / skjult-men-medregnet som samlelinje / udeladt + avance/rabat)
+    const lineItems = buildCalculationImportLines({
+      rows: calculation.rows || [],
+      offerId,
+      calculationId,
+      startPosition: nextPosition ?? 0,
+      marginPercentage: (calculation as { margin_percentage?: number | null }).margin_percentage,
+      discountPercentage: (calculation as { discount_percentage?: number | null }).discount_percentage,
+      includeHiddenRows,
+      includeCostPrices,
+      groupBySection,
+    })
+    if (lineItems.length === 0) {
+      return { success: false, error: 'Ingen linjer at importere' }
     }
 
     const { error: insertError } = await supabase
