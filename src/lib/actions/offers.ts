@@ -2051,7 +2051,8 @@ export async function searchSupplierProductsLive(
           stock_quantity: p.stockQuantity,
           delivery_days: p.leadTimeDays,
           image_url: p.imageUrl || null,
-          source: 'live' as const,
+          // GP-7: LM Classic læser vores egne rækker (prisfil) — ikke live-priser
+          source: client.readsLocalCatalog ? ('cache' as const) : ('live' as const),
         }))
       } catch (err) {
         logger.error(`Live search failed for ${supplier.name}`, { error: err })
