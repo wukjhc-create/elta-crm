@@ -130,7 +130,7 @@ export function IncomingInvoicesListClient({
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-semibold">Indgående fakturaer</h1>
@@ -209,7 +209,47 @@ export function IncomingInvoicesListClient({
         {due && <span className="text-[11px] text-gray-400">Viser godkendte fakturaer (afventer bogføring/betaling)</span>}
       </div>
 
-      <div className="border rounded overflow-hidden bg-white">
+      <div className="md:hidden border rounded overflow-hidden bg-white divide-y" data-testid="incoming-invoices-mobile-list">
+        {busy && (
+          <p className="px-3 py-6 text-center text-gray-400 text-xs">Henter…</p>
+        )}
+        {!busy && displayRows.length === 0 && (
+          <p className="px-3 py-6 text-center text-gray-400 text-xs">Ingen fakturaer i denne kategori.</p>
+        )}
+        {!busy && displayRows.map((r) => {
+          const isTest = isTestRow(r)
+          return (
+            <div key={r.id} className={`p-4 ${isTest ? 'bg-amber-50/40' : ''}`}>
+              <div className="flex items-start justify-between gap-2">
+                <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline">
+                  {r.supplier_name || '—'}
+                </Link>
+                <StatusBadge row={r} />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                {r.probably_not_invoice && <NotInvoiceBadge />}
+                {isTest && <TestBadge />}
+                <span className="font-mono text-xs text-gray-700">{r.invoice_number ?? '—'}</span>
+              </div>
+              <p className="font-medium text-gray-900 mt-2">{fmtAmount(r.amount_incl_vat, r.currency)}</p>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                <span>Faktura {fmtDate(r.invoice_date)}</span>
+                <DueMarks dueDate={r.due_date} todayIso={todayIso} withLabel />
+              </div>
+              <p className="mt-2 text-xs">
+                <Confidence row={r} />
+              </p>
+              <div className="mt-3">
+                <Link href={`/dashboard/incoming-invoices/${r.id}`}>
+                  <Button size="sm" variant="outline">Åbn</Button>
+                </Link>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="hidden md:block border rounded overflow-hidden bg-white">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-600">
             <tr>
@@ -239,41 +279,19 @@ export function IncomingInvoicesListClient({
                     <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline">
                       {r.supplier_name || '—'}
                     </Link>
-                    {r.probably_not_invoice && (
-                      <span className="inline-block text-[10px] bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded" data-testid="invoice-not-invoice-badge"
-                        title="Privat afsender (fx gmail/hotmail), ingen leverandør og intet beløb — sandsynligvis en kundemail, ikke en leverandørfaktura">
-                        Ikke en faktura?
-                      </span>
-                    )}
-                    {isTest && (
-                      <span className="inline-block text-[10px] uppercase tracking-wide bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
-                        TEST
-                      </span>
-                    )}
+                    {r.probably_not_invoice && <NotInvoiceBadge />}
+                    {isTest && <TestBadge />}
                   </div>
                 </td>
                 <td className="px-3 py-2 font-mono text-xs">{r.invoice_number ?? '—'}</td>
                 <td className="px-3 py-2 text-right font-medium">{fmtAmount(r.amount_incl_vat, r.currency)}</td>
                 <td className="px-3 py-2 text-xs">{fmtDate(r.invoice_date)}</td>
                 <td className="px-3 py-2 text-xs">
-                  {(() => {
-                    const b = incomingDueBadge(r.due_date, todayIso)
-                    const cfg = INCOMING_DUE_BADGE_CONFIG[b]
-                    return (
-                      <span className="inline-flex flex-col gap-0.5">
-                        <span>{fmtDate(r.due_date)}</span>
-                        {b !== 'ok' && (
-                          <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ${cfg.cls}`}>{cfg.label}</span>
-                        )}
-                      </span>
-                    )
-                  })()}
+                  <DueMarks dueDate={r.due_date} todayIso={todayIso} />
                 </td>
                 <td className="px-3 py-2"><StatusBadge row={r} /></td>
                 <td className="px-3 py-2 text-right text-xs">
-                  <span className="text-gray-500">parse</span> {fmtPct(r.parse_confidence)}
-                  <span className="text-gray-400 mx-1">·</span>
-                  <span className="text-gray-500">match</span> {fmtPct(r.match_confidence)}
+                  <Confidence row={r} />
                 </td>
                 <td className="px-3 py-2 text-right">
                   <Link href={`/dashboard/incoming-invoices/${r.id}`}>
@@ -293,6 +311,46 @@ export function IncomingInvoicesListClient({
 function countFor(c: CountMap, k: FilterKey): number | null {
   if (k === 'all' || k === 'not_invoice') return null // N68: tælles ikke på forhånd (kræver afsender-opslag)
   return c[k] ?? 0
+}
+
+function NotInvoiceBadge() {
+  return (
+    <span className="inline-block text-[10px] bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded" data-testid="invoice-not-invoice-badge"
+      title="Privat afsender (fx gmail/hotmail), ingen leverandør og intet beløb — sandsynligvis en kundemail, ikke en leverandørfaktura">
+      Ikke en faktura?
+    </span>
+  )
+}
+
+function TestBadge() {
+  return (
+    <span className="inline-block text-[10px] uppercase tracking-wide bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+      TEST
+    </span>
+  )
+}
+
+function DueMarks({ dueDate, todayIso, withLabel = false }: { dueDate: string | null; todayIso: string; withLabel?: boolean }) {
+  const b = incomingDueBadge(dueDate, todayIso)
+  const cfg = INCOMING_DUE_BADGE_CONFIG[b]
+  return (
+    <span className="inline-flex flex-col gap-0.5">
+      <span>{withLabel ? `Forfald ${fmtDate(dueDate)}` : fmtDate(dueDate)}</span>
+      {b !== 'ok' && (
+        <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ${cfg.cls}`}>{cfg.label}</span>
+      )}
+    </span>
+  )
+}
+
+function Confidence({ row }: { row: IncomingInvoiceListItem }) {
+  return (
+    <>
+      <span className="text-gray-500">parse</span> {fmtPct(row.parse_confidence)}
+      <span className="text-gray-400 mx-1">·</span>
+      <span className="text-gray-500">match</span> {fmtPct(row.match_confidence)}
+    </>
+  )
 }
 
 function StatusBadge({ row }: { row: IncomingInvoiceListItem }) {

@@ -46,6 +46,8 @@ Lead-kanban på små skærme viser én fase ad gangen. Knapperne tilbyder kun de
 
 "Tilbudt vs. faktisk pr. linje" viser "I alt" med `profitabilityFigures`. En brugt linje uden kost gør totalen ukendt i stedet for 0 kr. Rækkernes match og status er uændret. U81-sagen med fuld kost viser stadig afvigelsen 4.340 kr. `npx tsx scripts/profitability-figures-test.ts`.
 
+Leverandørfaktura-listen viser kort på små skærme. Tabellen er der fra `md`. Kortet viser leverandør, fakturanummer, beløb inkl. moms, dato, forfald, status, konfidens og et Åbn-link ved siden af leverandør-linket. `npx tsx scripts/incoming-invoices-mobile-test.ts`.
+
 ## Slutrapport 2026-10-14
 AGENT: GROK
 BRANCH: grok-next
@@ -59,6 +61,7 @@ features delivered:
 - Kalenderens dag og uge er en liste på mobil, og "I dag" er dansk dato (`1c57f9c5`, `calendar-mobile-test`).
 - Lead-kanban på mobil viser én fase og kun lovlige flyt (`49911355`, `leads-kanban-mobile-test`).
 - Tilbudt vs. faktisk: "I alt" tæller ikke manglende kost som 0 (`5caed7ac`, `profitability-figures-test`).
+- Leverandørfaktura-listen har kort på små skærme (`incoming-invoices-mobile-test`). Godkendelse og e-conomic er uændret.
 
 tests: de nævnte scripts og `npx tsc --noEmit` exit 0. Ingen browser: der er ingen `.env` / `.env.local`, og port 3000 lytter ikke.
 

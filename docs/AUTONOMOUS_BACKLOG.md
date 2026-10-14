@@ -24,6 +24,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Kalenderens dag og uge er en liste under `md`. "I dag" er den danske dato, også på UTC-serveren. Arbejdsordrer og filtre er uændret. | DONE — `calendar-mobile-test` |
 | Lead-kanban på mobil viser én fase. Flyt bruger de samme statusovergange som træk på skrivebordet. | DONE — `leads-kanban-mobile-test` |
 | Tilbudt vs. faktisk: "I alt" bruger samme regel som sagsrentabiliteten. Manglende kost bliver ikke 0 kr. Rækker og match er uændret. | DONE — `profitability-figures-test` |
+| Leverandørfaktura-listen viser kort under `md`. Samme beløb, forfald, status og mærker. Godkendelse og e-conomic er uændret. | DONE — `incoming-invoices-mobile-test` |
 
 ## Henriks beslutninger 2026-10-10 — status
 | # | Beslutning | Status |
