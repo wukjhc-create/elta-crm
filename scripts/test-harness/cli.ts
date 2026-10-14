@@ -2100,6 +2100,36 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'package-pricing-check') {
+    // 00224 (GP-6): pakkelinjer gemmer rå leverandørkost og den faktiske avance (ikke 0 uden regel)
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const sup = ((await admin.from('suppliers').insert({ name: `HARNESS-PKG ${stamp}`, code: `HPK${stamp}` }).select('id').single()).data as { id: string }).id
+    const prod = ((await admin.from('supplier_products').insert({ supplier_id: sup, supplier_sku: `PK-${stamp}`, supplier_name: 'Harness pakkevare', cost_price: 100 }).select('id').single()).data as { id: string }).id
+    const pkg = ((await admin.from('offer_packages').insert({ slug: `harness-${stamp}`, name: '[HARNESS] pakke', job_type: 'other', is_active: true }).select('id').single()).data as { id: string } | null)?.id ?? null
+    const off = ((await admin.from('offers').insert({ offer_number: `H-PK-${stamp}`, title: '[HARNESS] pakke', created_by: owner }).select('id').single()).data as { id: string }).id
+    try {
+      const { data, error } = await admin.rpc('apply_package_to_offer', { p_offer_id: off, p_package_id: pkg, p_customer_id: null,
+        p_lines: [{ supplier_id: sup, supplier_product_id: prod, supplier_name: 'HARNESS-PKG', description: 'Pakkevare', unit: 'stk', quantity: 2, cost_price: 90, raw_cost_price: 100, notes: 'Package: harness' }] })
+      check('rpc ok', !error && Number(data) === 1, error?.message ?? String(data))
+      const { data: li } = await admin.from('offer_line_items').select('cost_price, unit_price, supplier_cost_price_at_creation, supplier_margin_applied, margin_percentage').eq('offer_id', off).limit(1).maybeSingle()
+      const l = li as { cost_price: number; unit_price: number; supplier_cost_price_at_creation: number; supplier_margin_applied: number; margin_percentage: number } | null
+      check('rå leverandørkost i supplier_cost_price_at_creation (ingen falsk "pris ændret")', Number(l?.supplier_cost_price_at_creation) === 100 && Number(l?.cost_price) === 90, JSON.stringify(l))
+      const expected = l && Number(l.cost_price) > 0 ? Math.round(((Number(l.unit_price) / Number(l.cost_price)) - 1) * 10000) / 100 : NaN
+      check('faktisk avance gemt (ikke 0 uden regel)', !!l && Number(l.margin_percentage) > 0 && Math.abs(Number(l.margin_percentage) - expected) < 0.02 && Number(l.supplier_margin_applied) === Number(l.margin_percentage), `${l?.margin_percentage} vs ${expected}`)
+    } finally {
+      await admin.from('offer_line_items').delete().eq('offer_id', off)
+      await admin.from('offers').delete().eq('id', off)
+      if (pkg) await admin.from('offer_packages').delete().eq('id', pkg)
+      await admin.from('supplier_products').delete().eq('id', prod)
+      await admin.from('suppliers').delete().eq('id', sup)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ pakkepriser ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'supplier-vat') {
     const { runSupplierVat, formatSupplierVat } = await import('./supplier-vat')
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
