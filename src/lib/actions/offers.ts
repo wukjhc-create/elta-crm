@@ -17,6 +17,7 @@ import { lowDbAckMessage, type OfferLowDbStatus } from '@/lib/offers/low-db-warn
 import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
 import { mergeOfferLineCost, fetchOfferLineCostById } from '@/lib/offers/line-cost'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { supplierLinePricing } from '@/lib/offers/supplier-line-pricing'
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
@@ -2841,53 +2842,3 @@ export async function getOfferRevisionHistoryAction(offerId: string): Promise<Ac
   }
 }
 
-/**
- * Kalkulations-review 2026-10-09 (#1/#2): ÉN prisberegning for leverandørlinjer (oprettelse og opdatering).
- *   kost (effektiv) = leverandørens kostpris × (1 − kundens leverandørrabat)
- *   avance = egen avance (kost-roller) → avanceregel (inkl. fast tillæg/afrunding) → kundens aftale-avance → produktets
- *   avance → standard. Kost/aftaler læses med admin-klienten bag kaldernes gate (00192/00201).
- */
-async function supplierLinePricing(input: {
-  supplierId: string
-  supplierProductId: string
-  customerId: string | null
-  costPrice: number
-  productMargin: number | null | undefined
-  customMargin?: number
-}): Promise<{ unitPrice: number; marginPercentage: number; effectiveCost: number }> {
-  const admin = createAdminClient()
-  const [{ data: marginData }, customerRes] = await Promise.all([
-    admin.rpc('get_effective_margin', {
-      p_supplier_id: input.supplierId,
-      p_supplier_product_id: input.supplierProductId,
-      p_category: null,
-      p_sub_category: null,
-      p_customer_id: input.customerId,
-    }),
-    input.customerId
-      ? admin.from('customer_supplier_prices').select('discount_percentage, custom_margin_percentage')
-          .eq('customer_id', input.customerId).eq('supplier_id', input.supplierId).eq('is_active', true).maybeSingle()
-      : Promise.resolve({ data: null }),
-  ])
-  const agreement = customerRes.data as { discount_percentage: number | null; custom_margin_percentage: number | null } | null
-  const discountPct = Number(agreement?.discount_percentage ?? 0)
-  const effectiveCost = discountPct > 0 ? input.costPrice * (1 - discountPct / 100) : input.costPrice
-
-  const rule = (marginData as Array<{ margin_percentage: number; fixed_markup: number | null; round_to: number | null }> | null)?.[0]
-  let marginPercentage: number
-  let fixedMarkup = 0
-  let roundTo: number | undefined
-  if (input.customMargin !== undefined && input.customMargin !== null) {
-    marginPercentage = input.customMargin
-  } else if (rule) {
-    marginPercentage = Number(rule.margin_percentage)
-    fixedMarkup = Number(rule.fixed_markup ?? 0)
-    roundTo = rule.round_to ?? undefined
-  } else if (agreement?.custom_margin_percentage !== null && agreement?.custom_margin_percentage !== undefined) {
-    marginPercentage = Number(agreement.custom_margin_percentage)
-  } else {
-    marginPercentage = input.productMargin ?? CALC_DEFAULTS.MARGINS.PRODUCTS
-  }
-  const unitPrice = Math.round(calculateSalePrice(effectiveCost, marginPercentage, { fixedMarkup, roundTo }) * 100) / 100
-  return { unitPrice, marginPercentage, effectiveCost }
-}

@@ -24,7 +24,7 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | F-3 (S2) | Slutfaktura kan oprettes med negativ total (typen final, ikke kreditnota); ingen "rest af kontraktsum" på kontraktsager | DONE negativ total afvises (før nummertildeling) · [H] rest-af-kontrakt-tilstand |
 | F-4 (S2) | Krediteret slutfaktura låser sagen for altid (uq_invoices_one_final_per_case tæller annullerede; kilde-låse frigives ikke) | [H] migration + kreditér-og-genfakturér-flow |
 | F-5 (S2) | Bankimport dropper en ægte 2. betaling med samme dato/beløb/reference (dedup-nøgle) | [H] migration (dedup på bank-id/rækkehash) |
-| F-6 (S2) | Auto-faktura ved tilbudsaccept sætter ikke case_id (kun hvis reglen går ud af dry-run) | TODO verificér prod-regel read-only |
+| F-6 (S2) | Auto-faktura ved tilbudsaccept sætter ikke case_id (kun hvis reglen går ud af dry-run) | LATENT — prod: reglen er active + dry_run (prod-automation-rules 2026-10-14); [H] case_id skal sættes før dry_run slås fra |
 | F-7 (S3) | Overbetaling/dobbeltbetaling markeres ikke | TODO |
 | F-8 (S3) | "Markér som sendt" kunne vinde over kladde-sletning | DONE f67e46b4 |
 | F-9 (S3) | Kreditnota på momsfri faktura viste 25 % moms i PDF | DONE f67e46b4 |
@@ -50,16 +50,16 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | # | Fund | Status |
 |---|---|---|
 | GP-1 (S1→S2) | Salg kan regne nettoindkøbspris baglæns: estimeret salgspris = kost × (1 + global avance), og avancen er læsbar for alle (calculation_settings RLS USING(true), ugated action) | [H] beslutning — skal salg kende avancen? (fix: gate margins + RLS-migration) |
-| GP-2 (S2) | Produktspecifikke kundepriser og aftalers gyldighedsdatoer ignoreres ved linjeoprettelse/-opdatering | TODO |
-| GP-3 (S2) | Kategori-/underkategori-avanceregler bruges aldrig på manuelle linjer (p_category null) | TODO |
+| GP-2 (S2) | Produktspecifikke kundepriser og aftalers gyldighedsdatoer ignoreres ved linjeoprettelse/-opdatering | DELVIS — gyldighedsdatoer håndhæves ved linjeoprettelse/-opdatering (`supplier-line-pricing-check`); produktspecifikke kundepriser + søgning/optimering/Kalkia: TODO |
+| GP-3 (S2) | Kategori-/underkategori-avanceregler bruges aldrig på manuelle linjer (p_category null) | DONE — kategori/underkategori sendes med (`supplier-line-pricing-check`) |
 | GP-4 (S2) | Avance-fallback og forrang forskellig på hver sti (20/25 %/indstilling; regel slår kundeaftale) | [H] forrang + én resolver |
 | GP-5 (S2) | optimizeOfferPrices: egen matematik, skriver bruttokost, navne-match på tværs af enheder, ukontrollerede fejl | TODO |
 | GP-6 (S2) | Pakke-/auto-tilbud: rabatteret kost gemt som leverandørkost (falsk "pris ændret"), avance gemt som 0, ROUND vs ceil | TODO (migration for 00079-funktionen) |
 | GP-7 (S2) | LM "API-sync" læser egne rækker og stempler last_synced_at → gamle priser ser friske ud | TODO |
 | GP-8 (S2) | Kalkia-materialesync skriver vejl. udsalgspris som salgspris, 0-kost, upagineret/uchunket | TODO |
-| GP-9 (S3) | import: supplier_settings.upsert uden onConflict → last_import_at opdateres aldrig efter 1. import | TODO |
+| GP-9 (S3) | import: supplier_settings.upsert uden onConflict → last_import_at opdateres aldrig efter 1. import | DONE (onConflict) |
 | GP-10 (S3) | 1.000-rækkers-afkortning i prisændringer fra import og kategoriliste | TODO |
-| GP-11 (S3) | getAffectedOffers tager højeste nye kost i vinduet, ikke seneste | TODO |
+| GP-11 (S3) | getAffectedOffers tager højeste nye kost i vinduet, ikke seneste | DONE — første gamle → seneste nye |
 | GP-12 (S3) | Manuel kostændring skriver ingen price_history | TODO |
 | GP-13 (S3) | parseDanishNumber("1.234") = 1,234; FTP-insert kost 0; søgning sorterer 0-kr øverst | TODO |
 | GP-14 (S4) | Død line-item-form.tsx, ubrugt forespørgsel, maybeSingle i setDefaultSupplierMargin | TODO |

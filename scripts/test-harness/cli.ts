@@ -2065,6 +2065,41 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'supplier-line-pricing-check') {
+    // Grossist-review 2026-10-14: GP-3 kategoriregel gælder for tilbudslinjer; GP-2 udløbet kundeaftale giver ikke rabat
+    const { supplierLinePricing } = await import('../../src/lib/offers/supplier-line-pricing')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const sup = ((await admin.from('suppliers').insert({ name: `HARNESS-GP ${stamp}`, code: `HGP${stamp}` }).select('id').single()).data as { id: string }).id
+    const cat = `HARNESS-KAT-${stamp}`
+    const prod = ((await admin.from('supplier_products').insert({ supplier_id: sup, supplier_sku: `GP-${stamp}`, supplier_name: 'Harness kabel', cost_price: 100, category: cat, margin_percentage: 20 }).select('id').single()).data as { id: string }).id
+    const cust = ((await admin.from('customers').insert({ customer_number: `GP-${stamp}`, company_name: `[HARNESS] gp ${stamp}`, contact_person: 'X', email: `gp-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const rule = await admin.from('supplier_margin_rules').insert({ supplier_id: sup, rule_type: 'category', category: cat, margin_percentage: 40, priority: 50, is_active: true, created_by: owner }).select('id').single()
+    const ruleId = (rule.data as { id: string } | null)?.id ?? null
+    const yesterday = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10)
+    const agr = await admin.from('customer_supplier_prices').insert({ customer_id: cust, supplier_id: sup, discount_percentage: 10, is_active: true, valid_to: yesterday, created_by: owner }).select('id').single()
+    const agrId = (agr.data as { id: string } | null)?.id ?? null
+    try {
+      check('seed', !!ruleId && !!agrId, `${rule.error?.message ?? ''} ${agr.error?.message ?? ''}`.trim())
+      const p1 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
+      check('kategoriregel (40 %) bruges på tilbudslinjen', p1.marginPercentage === 40, `avance ${p1.marginPercentage}`)
+      check('udløbet kundeaftale giver ingen rabat', p1.effectiveCost === 100, `kost ${p1.effectiveCost}`)
+      if (agrId) await admin.from('customer_supplier_prices').update({ valid_to: null }).eq('id', agrId)
+      const p2 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
+      check('gyldig kundeaftale giver 10 % rabat på kosten', p2.effectiveCost === 90, `kost ${p2.effectiveCost}`)
+    } finally {
+      if (agrId) await admin.from('customer_supplier_prices').delete().eq('id', agrId)
+      if (ruleId) await admin.from('supplier_margin_rules').delete().eq('id', ruleId)
+      await admin.from('supplier_products').delete().eq('id', prod)
+      await admin.from('customers').delete().eq('id', cust)
+      await admin.from('suppliers').delete().eq('id', sup)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ leverandørlinje-pris ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'supplier-vat') {
     const { runSupplierVat, formatSupplierVat } = await import('./supplier-vat')
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })

@@ -444,7 +444,7 @@ export async function executeImport(
         .upsert({
           supplier_id: supplierId,
           last_import_at: new Date().toISOString(),
-        })
+        }, { onConflict: 'supplier_id' }) // GP-9: før fejlede upsert stille på UNIQUE(supplier_id) efter 1. import
 
       const result: ImportResult = {
         batch_id: batch.id,

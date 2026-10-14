@@ -235,12 +235,12 @@ export async function getAffectedOffers(
       throw new Error('DATABASE_ERROR')
     }
     const productIds = [...new Set(allLines.map((l) => l.supplier_product_id as string))]
-    const priceChanges: Array<{ supplier_product_id: string; old_cost_price: number | null; new_cost_price: number }> = []
+    const priceChanges: Array<{ supplier_product_id: string; old_cost_price: number | null; new_cost_price: number; created_at: string }> = []
     for (let k = 0; k < productIds.length; k += IN_CHUNK_SIZE) {
       const chunk = productIds.slice(k, k + IN_CHUNK_SIZE)
-      priceChanges.push(...await fetchAllRows<{ id: string; supplier_product_id: string; old_cost_price: number | null; new_cost_price: number }>((from, to) => supabase
+      priceChanges.push(...await fetchAllRows<{ id: string; supplier_product_id: string; old_cost_price: number | null; new_cost_price: number; created_at: string }>((from, to) => supabase
         .from('price_history')
-        .select('id, supplier_product_id, old_cost_price, new_cost_price')
+        .select('id, supplier_product_id, old_cost_price, new_cost_price, created_at')
         .in('supplier_product_id', chunk)
         .gte('created_at', cutoffDate.toISOString())
         .order('id')
@@ -254,15 +254,15 @@ export async function getAffectedOffers(
     const lineItems = allLines.filter((l) => changedProducts.has(l.supplier_product_id as string))
 
     // Build price change map
+    // Grossist-review 2026-10-14 (GP-11): ændringen i vinduet = første gamle pris → SENESTE nye pris (før: den højeste
+    // nye pris — en pris der steg og faldt igen viste stadig et "tab")
     const priceChangeMap = new Map<string, { old: number; new: number }>()
-    for (const pc of priceChanges) {
+    for (const pc of [...priceChanges].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
       const existing = priceChangeMap.get(pc.supplier_product_id)
-      if (!existing || pc.new_cost_price > existing.new) {
-        priceChangeMap.set(pc.supplier_product_id, {
-          old: pc.old_cost_price || 0,
-          new: pc.new_cost_price,
-        })
-      }
+      priceChangeMap.set(pc.supplier_product_id, {
+        old: existing ? existing.old : pc.old_cost_price || 0,
+        new: pc.new_cost_price,
+      })
     }
 
     // Group by offer
