@@ -47,7 +47,7 @@ Første brugbare værdi vinder (0/negativ/ikke-tal = mangler):
 
 ## 4. Trinplan (hvert trin testes; prod-adfærd ændres først i trin 3, med godkendelse)
 1. ✅ Model + unit-test (denne commit). Ingen kaldere.
-2. **TS-kaldere bag modellen, adfærdsneutralt hvor værdien allerede er 400** (rumberegner, profitability.ts) +
+2. ✅ (2026-10-14) **TS-kaldere bag modellen, adfærdsneutralt hvor værdien allerede er 400** (rumberegner, profitability.ts) +
    `getStandardCostRate()` i rates.ts (læser `company_settings.time_cost_rate`; ikke sat → 400). Ingen talændring i prod.
 3. **Adfærdsændringer (kræver Henriks OK, listes enkeltvis):**
    - Hurtigkalkulation: kost = standard-timekost (i dag 400) i stedet for 295; nyt felt "Arbejdskost" med valg

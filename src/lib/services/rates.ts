@@ -21,6 +21,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { resolveLabourCostRate } from '@/lib/labour/labour-cost'
 
 /** Nød-fallback for medarbejder-kostpris/time når cost-data mangler. */
 export const FALLBACK_COST_RATE = 400
@@ -96,12 +97,29 @@ export async function getStandardSaleRate(role: EmployeeRole = 'electrician'): P
 }
 
 /**
+ * Firmaets standard-timekost (arbejdskost-modellen trin 2, docs/design/labour-cost-model.md):
+ * `company_settings.time_cost_rate` → ellers FALLBACK_COST_RATE (400). Den ENE centrale fallback for estimater uden
+ * medarbejder/snapshot. Prod 2026-10-14: ikke sat → 400 (uændret adfærd).
+ */
+export async function getStandardCostRate(): Promise<number> {
+  try {
+    const { data, error } = await createAdminClient().from('company_settings').select('time_cost_rate').limit(1).maybeSingle()
+    if (error) return resolveLabourCostRate({}).rate
+    const v = data?.time_cost_rate
+    return resolveLabourCostRate({ companyStandardRate: v === null || v === undefined ? null : Number(v) }).rate
+  } catch (err) {
+    logger.warn('getStandardCostRate: uventet fejl — bruger fallback', { error: err })
+    return resolveLabourCostRate({}).rate
+  }
+}
+
+/**
  * Medarbejderens kostpris/time (master = `employees.cost_rate`, der er
- * trigger-mirror af `employee_compensation`). Fallback = FALLBACK_COST_RATE
+ * trigger-mirror af `employee_compensation`). Fallback = firmaets standard-timekost (getStandardCostRate)
  * når medarbejder/cost-data mangler.
  */
 export async function getEmployeeCostRate(employeeId: string): Promise<number> {
-  if (!employeeId) return FALLBACK_COST_RATE
+  if (!employeeId) return getStandardCostRate()
 
   try {
     const admin = createAdminClient()
@@ -111,11 +129,11 @@ export async function getEmployeeCostRate(employeeId: string): Promise<number> {
       .eq('id', employeeId)
       .maybeSingle()
 
-    if (error || !data) return FALLBACK_COST_RATE
+    if (error || !data) return getStandardCostRate()
     const cost = Number(data.cost_rate)
-    return Number.isFinite(cost) && cost > 0 ? cost : FALLBACK_COST_RATE
+    return Number.isFinite(cost) && cost > 0 ? cost : getStandardCostRate()
   } catch (err) {
     logger.warn('getEmployeeCostRate: uventet fejl — bruger fallback', { error: err, metadata: { employeeId } })
-    return FALLBACK_COST_RATE
+    return getStandardCostRate()
   }
 }
