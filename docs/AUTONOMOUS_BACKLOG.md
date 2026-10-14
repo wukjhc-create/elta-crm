@@ -57,8 +57,8 @@ Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kon
 ### Profit Engine (review 2026-10-14)
 | # | Fund | Status |
 |---|---|---|
-| PE-1 (S1) | `calculate_work_order_profit` tæller kun timer (materialer kun via work_orders.source_offer_id, som aldrig sættes) og prissætter timer med live sats i stedet for sale_amount → forkert low_profit / AI-indsigter | TODO — migration: samme kilder som sags-økonomien [H godkendelse] |
-| PE-2 (S2) | Profit-snapshots forældes (kreditnotaer når dem aldrig; timer/materialer efter "udført" opdaterer ikke) | TODO — sammen med PE-1 (eller live beregning) |
+| PE-1 (S1) | `calculate_work_order_profit` tæller kun timer (materialer kun via work_orders.source_offer_id, som aldrig sættes) og prissætter timer med live sats i stedet for sale_amount → forkert low_profit / AI-indsigter | BLOCKED_APPROVAL — udkast 00222 på branch `profit-engine-00222` (erstatter 00205): kost = timer + materialer/øvrige på ordren, omsætning = netto faktureret (kreditnotaer via original; kladder aldrig) ellers frossen timesalg + fakturerbare linjer. Staging `cli.ts wo-profit` 7/7 (negativ kontrol: 6 fejl før). Prod: latent (3 arbejdsordrer, 0 snapshots) |
+| PE-2 (S2) | Profit-snapshots forældes (kreditnotaer når dem aldrig; timer/materialer efter "udført" opdaterer ikke) | BLOCKED_APPROVAL — i 00222: snapshot ved kreditnota/statusskift og ved kost-linjer på udført ordre; uændrede tal giver intet nyt snapshot |
 | PE-3 (S2) | Tilbudt-vs-faktisk: arbejdslinjer uden kost tæller 0 på tilbudssiden men fuldt på faktisk-siden | TODO — afhænger af arbejdskost-modellen (P-8) |
 | PE-4 (S2) | Lav-DB-afsendelsesværn tæller manglende arbejdskost som 0 og bruger anden tærskel end profitkortet | TODO — afhænger af P-8 + én tærskel |
 | PE-5 (S2) | Medarbejderøkonomi talte salg på ikke-fakturerbare timer | DONE |
