@@ -2081,6 +2081,7 @@ async function main() {
     const yesterday = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10)
     const agr = await admin.from('customer_supplier_prices').insert({ customer_id: cust, supplier_id: sup, discount_percentage: 10, is_active: true, valid_to: yesterday, created_by: owner }).select('id').single()
     const agrId = (agr.data as { id: string } | null)?.id ?? null
+    let cppId: string | null = null
     try {
       check('seed', !!ruleId && !!agrId, `${rule.error?.message ?? ''} ${agr.error?.message ?? ''}`.trim())
       const p1 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
@@ -2089,7 +2090,13 @@ async function main() {
       if (agrId) await admin.from('customer_supplier_prices').update({ valid_to: null }).eq('id', agrId)
       const p2 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
       check('gyldig kundeaftale giver 10 % rabat på kosten', p2.effectiveCost === 90, `kost ${p2.effectiveCost}`)
+      // GP-2: produktspecifik kundepris går foran leverandøraftalen
+      const cpp = await admin.from('customer_product_prices').insert({ customer_id: cust, supplier_product_id: prod, custom_cost_price: 70, is_active: true, created_by: owner }).select('id').single()
+      cppId = (cpp.data as { id: string } | null)?.id ?? null
+      const p3 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
+      check('produktspecifik kundepris (70) går foran leverandøraftalens rabat', p3.effectiveCost === 70, `kost ${p3.effectiveCost}${cpp.error ? ` · ${cpp.error.message}` : ''}`)
     } finally {
+      if (cppId) await admin.from('customer_product_prices').delete().eq('id', cppId)
       if (agrId) await admin.from('customer_supplier_prices').delete().eq('id', agrId)
       if (ruleId) await admin.from('supplier_margin_rules').delete().eq('id', ruleId)
       await admin.from('supplier_products').delete().eq('id', prod)

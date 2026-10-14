@@ -30,7 +30,7 @@ export async function supplierLinePricing(input: {
   const { data: prodCat } = await admin.from('supplier_products').select('category, sub_category').eq('id', input.supplierProductId).maybeSingle()
   const cat = prodCat as { category: string | null; sub_category: string | null } | null
   // GP-2: en udløbet/ikke-startet kundeaftale må ikke give rabat (onlyValidAgreements)
-  const [{ data: marginData }, customerRes] = await Promise.all([
+  const [{ data: marginData }, customerRes, productPriceRes] = await Promise.all([
     admin.rpc('get_effective_margin', {
       p_supplier_id: input.supplierId,
       p_supplier_product_id: input.supplierProductId,
@@ -43,10 +43,21 @@ export async function supplierLinePricing(input: {
           .eq('customer_id', input.customerId).eq('supplier_id', input.supplierId).eq('is_active', true))
           .limit(1).maybeSingle()
       : Promise.resolve({ data: null }),
+    // GP-2: produktspecifik kundepris (customer_product_prices) går FORAN leverandøraftalen — samme forrang som
+    // DB-funktionen get_customer_product_price (pakkestien); før blev den ignoreret ved manuelle linjer
+    input.customerId
+      ? onlyValidAgreements(admin.from('customer_product_prices').select('custom_cost_price, custom_discount_percentage')
+          .eq('customer_id', input.customerId).eq('supplier_product_id', input.supplierProductId).eq('is_active', true))
+          .limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
-  const agreement = customerRes.data as { discount_percentage: number | null; custom_margin_percentage: number | null } | null
-  const discountPct = Number(agreement?.discount_percentage ?? 0)
-  const effectiveCost = discountPct > 0 ? input.costPrice * (1 - discountPct / 100) : input.costPrice
+  const productPrice = productPriceRes.data as { custom_cost_price: number | null; custom_discount_percentage: number | null } | null
+  const agreement = productPrice
+    ? null // produktprisen erstatter leverandøraftalen helt (rabat og aftale-avance)
+    : (customerRes.data as { discount_percentage: number | null; custom_margin_percentage: number | null } | null)
+  const baseCost = productPrice?.custom_cost_price != null && Number(productPrice.custom_cost_price) > 0 ? Number(productPrice.custom_cost_price) : input.costPrice
+  const discountPct = Number(productPrice ? productPrice.custom_discount_percentage ?? 0 : agreement?.discount_percentage ?? 0)
+  const effectiveCost = discountPct > 0 ? baseCost * (1 - discountPct / 100) : baseCost
 
   const rule = (marginData as Array<{ margin_percentage: number; fixed_markup: number | null; round_to: number | null }> | null)?.[0]
   let marginPercentage: number
