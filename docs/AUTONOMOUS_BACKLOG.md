@@ -23,6 +23,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Lead-, tilbuds- og sagslisten viser kort under `md`. Samme tal og filtre. Status skiftes ikke ved et tryk på kortet. DB vises ikke på sagskortet. | DONE — `mobile-lists-test` |
 | Kalenderens dag og uge er en liste under `md`. "I dag" er den danske dato, også på UTC-serveren. Arbejdsordrer og filtre er uændret. | DONE — `calendar-mobile-test` |
 | Lead-kanban på mobil viser én fase. Flyt bruger de samme statusovergange som træk på skrivebordet. | DONE — `leads-kanban-mobile-test` |
+| Tilbudt vs. faktisk: "I alt" bruger samme regel som sagsrentabiliteten. Manglende kost bliver ikke 0 kr. Rækker og match er uændret. | DONE — `profitability-figures-test` |
 
 ## Henriks beslutninger 2026-10-10 — status
 | # | Beslutning | Status |

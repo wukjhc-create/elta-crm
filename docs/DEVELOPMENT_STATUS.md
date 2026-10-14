@@ -44,6 +44,8 @@ Kalenderens dag- og ugevisning er en liste på små skærme. Tabellen er der fra
 
 Lead-kanban på små skærme viser én fase ad gangen. Knapperne tilbyder kun de statusovergange, træk-og-slip allerede tillader, og kalder samme `updateLeadStatus`. `npx tsx scripts/leads-kanban-mobile-test.ts`.
 
+"Tilbudt vs. faktisk pr. linje" viser "I alt" med `profitabilityFigures`. En brugt linje uden kost gør totalen ukendt i stedet for 0 kr. Rækkernes match og status er uændret. U81-sagen med fuld kost viser stadig afvigelsen 4.340 kr. `npx tsx scripts/profitability-figures-test.ts`.
+
 ## Slutrapport 2026-10-14
 AGENT: GROK
 BRANCH: grok-next

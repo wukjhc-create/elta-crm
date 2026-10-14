@@ -91,5 +91,10 @@ ok(body.includes("supabase.from('invoices').select('id, case_id, total_amount, s
 ok(body.includes("supabase.from('case_other_costs').select('id, case_id, total_cost').in('case_id', caseIds).order('id').range(from, to)"), 'øvrige hentes side for side')
 ok(body.indexOf("hasPermission('economy.view')") >= 0 && body.indexOf('createAdminClient()') > body.indexOf("hasPermission('economy.view')"), 'kost læses efter economy.view')
 
+const panel = readFileSync(join(process.cwd(), 'src/app/dashboard/orders/[id]/case-offer-vs-actual-panel.tsx'), 'utf8')
+ok(panel.includes('profitabilityFigures(data.rows, [])'), 'linjelistens total bruger samme kostregel som rapporten')
+ok(!panel.includes('data.totals.'), 'linjelisten viser ikke totalen der sætter manglende kost til 0')
+ok(panel.includes('offer-vs-actual-total-unknown'), 'manglende kost siges højt i stedet for at blive 0 kr')
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle sagsrentabilitetstests bestået')
 process.exitCode = bad ? 1 : 0

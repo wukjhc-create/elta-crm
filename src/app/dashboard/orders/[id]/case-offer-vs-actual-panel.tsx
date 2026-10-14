@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, ListChecks, Loader2 } from 'lucide-react'
 import { getCaseOfferVsActual, type CaseOfferVsActual } from '@/lib/actions/case-offer-vs-actual'
+import { profitabilityFigures } from '@/lib/cases/profitability-figures'
 import { useCostReveal } from '@/components/shared/sensitive-amounts'
 import { formatCurrency } from '@/lib/utils/format'
 import type { OfferVsActualStatus } from '@/lib/cases/offer-vs-actual'
@@ -59,13 +60,21 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
           {!error && !data && (
             <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Henter…</p>
           )}
-          {data && (
+          {data && (() => {
+            const figures = profitabilityFigures(data.rows, [])
+            const totalUnknown = figures.offered_cost == null || figures.actual_cost == null
+            return (
             <>
               <p className="text-xs text-gray-500 mb-2">
                 {data.offer
                   ? `Tilbud ${data.offer.offer_number ?? ''} mod sagens registrerede materialer og timer. Timekost er samlet for sagen.`
                   : 'Sagen er ikke oprettet fra et tilbud — viser kun faktisk forbrug.'}
               </p>
+              {data.rows.length > 0 && totalUnknown && (
+                <p className="text-xs text-amber-800 mb-2" data-testid="offer-vs-actual-total-unknown">
+                  I alt er ukendt, fordi en brugt linje mangler kost. Den tælles ikke som 0 kr.
+                </p>
+              )}
               {data.rows.length === 0 ? (
                 <p className="text-sm text-gray-500">Ingen linjer eller forbrug endnu.</p>
               ) : (
@@ -105,10 +114,10 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                     <tfoot className="bg-gray-50 font-semibold">
                       <tr>
                         <td className="px-2 py-1.5 text-right text-xs uppercase tracking-wide text-gray-600" colSpan={3}>I alt</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{kr(data.totals.offered_cost)}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{kr(data.totals.actual_cost)}</td>
-                        <td className={`px-2 py-1.5 text-right tabular-nums ${data.totals.deviation > 0 ? 'text-red-700' : 'text-emerald-700'}`} data-testid="offer-vs-actual-deviation">
-                          {`${data.totals.deviation > 0 ? '+' : ''}${kr(data.totals.deviation)}`}
+                        <td className="px-2 py-1.5 text-right tabular-nums">{kr(figures.offered_cost)}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{kr(figures.actual_cost)}</td>
+                        <td className={`px-2 py-1.5 text-right tabular-nums ${figures.cost_deviation == null ? 'text-gray-500' : figures.cost_deviation > 0 ? 'text-red-700' : 'text-emerald-700'}`} data-testid="offer-vs-actual-deviation">
+                          {figures.cost_deviation == null ? '—' : `${figures.cost_deviation > 0 ? '+' : ''}${kr(figures.cost_deviation)}`}
                         </td>
                         <td />
                       </tr>
@@ -117,7 +126,8 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                 </div>
               )}
             </>
-          )}
+            )
+          })()}
         </div>
       )}
     </div>
