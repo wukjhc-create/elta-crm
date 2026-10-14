@@ -151,7 +151,37 @@ export function EmployeesListClient({
         <EmptyState hasFilters={!!(filters.q || filters.role)} />
       ) : (
         <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="md:hidden divide-y" data-testid="employees-mobile-list">
+            {employees.map((e) => (
+              <div key={e.id} className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <Link href={`/dashboard/employees/${e.id}`} className="font-medium text-gray-900 hover:text-emerald-700 hover:underline">
+                      {e.name || '—'}
+                    </Link>
+                    {e.employee_number && (
+                      <span className="ml-2 text-xs text-gray-400 font-mono">{e.employee_number}</span>
+                    )}
+                    <p className="text-sm text-gray-700">{roleLabel(e.role)}</p>
+                  </div>
+                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${e.active ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
+                    {e.active ? 'Aktiv' : 'Inaktiv'}
+                  </span>
+                </div>
+                <div className="mt-2 text-sm">
+                  {e.email ? <a href={`mailto:${e.email}`} className="text-emerald-700 hover:underline">{e.email}</a> : <span className="text-gray-400">—</span>}
+                </div>
+                <div className="text-sm">
+                  {e.phone ? <a href={`tel:${e.phone}`} className="text-emerald-700 hover:underline">{e.phone}</a> : <span className="text-gray-400">—</span>}
+                </div>
+                <p className="mt-2 text-xs text-gray-600">Ansat {fmtDate(e.hire_date)}</p>
+                {canSeePayroll && (
+                  <p className="text-xs text-gray-700">Intern kost {fmtAmount(e.cost_rate)} · salgspris {fmtAmount(e.hourly_rate)}</p>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs text-gray-600">
                 <tr>
