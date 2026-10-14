@@ -177,7 +177,24 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                 {data.lines.length === 0 ? (
                   <p className="text-sm text-gray-500">Ingen linjer eller forbrug endnu.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                  <div className="md:hidden divide-y rounded ring-1 ring-gray-200" data-testid="aftercalc-lines-mobile">
+                    {data.lines.map((r) => (
+                      <div key={r.key} className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-gray-900">{r.description}</p>
+                            {r.unit && <p className="text-[11px] text-gray-500">{r.unit}</p>}
+                          </div>
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
+                        </div>
+                        <p className="mt-2 text-xs text-gray-600">Tilbudt antal {qty(r.offered_qty)} · faktisk antal {qty(r.actual_qty)}</p>
+                        <p className="text-xs text-gray-700">Tilbudt kost {kr(r.offered_cost)} · faktisk kost {kr(r.actual_cost)}</p>
+                        <p className="text-xs">Afvigelse {r.cost_deviation == null ? '—' : moneyDev(r.cost_deviation, false)}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-xs text-gray-600">
                         <tr>
@@ -210,6 +227,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                       </tbody>
                     </table>
                   </div>
+                  </>
                 )}
               </div>
             </>
