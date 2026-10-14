@@ -217,7 +217,7 @@ function OrderEconomyTabContent({
           label="Samlet kost"
           icon={<TrendingDown className="w-4 h-4" />}
           value={fmtKr(data.totals.cost)}
-          sub={`Salg ${fmtKr(data.totals.sales_price)}`}
+          sub={`Registreret salg ${fmtKr(data.totals.registered_sales_price)}`}
         />
         <div
           className={`rounded-lg ring-1 ${palette.border} ${palette.bg} px-4 py-3`}
@@ -244,7 +244,13 @@ function OrderEconomyTabContent({
             <span className={`px-1.5 py-0.5 rounded ${palette.pill}`}>
               {fmtPct(data.totals.margin_percentage)}
             </span>
-            <span className="text-gray-500 ml-1.5">af salgspris</span>
+            <span className="text-gray-500 ml-1.5" data-testid="case-db-basis">
+              {data.totals.revenue_basis === 'contract'
+                ? `af kontraktsum ${fmtKr(data.totals.sales_price)}`
+                : data.totals.revenue_basis === 'invoiced'
+                ? `af faktureret ${fmtKr(data.totals.sales_price)}`
+                : 'af registreret salg'}
+            </span>
           </div>
         </div>
       </div>

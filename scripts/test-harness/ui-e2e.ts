@@ -3106,6 +3106,30 @@ ${m.text()}`) })
         out.push({ id: 'U90 D50b medarbejderøkonomi: kost pr. medarbejder kun med løn-adgang', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U150 PE-6: kontraktsag — foreløbig DB regnes mod kontraktsummen (2.000 ekskl. moms), ikke registreret salg (1.000):
+      // kost 600 → DB 1.400 (70 %) "af kontraktsum"
+      if (want('U150') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] kontrakt-DB ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, contract_sum: 2000 }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) {
+          listCaseIds.push(caseId)
+          await c.admin.from('case_materials').insert([{ case_id: caseId, description: `KDB kabel ${stamp}`, quantity: 1, unit: 'stk', unit_cost: 600, unit_sales_price: 1000, billable: true, source: 'manual', created_by: adminUser.id }])
+        }
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=oekonomi`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('economy-reveal').click({ timeout: 30_000 }).catch(() => {})
+        const basis = a.page.getByTestId('case-db-basis')
+        await basis.waitFor({ timeout: 60_000 }).catch(() => {})
+        const btxt = (await basis.textContent().catch(() => '')) ?? ''
+        r.af_kontraktsum = /kontraktsum/.test(btxt) && /2\.000/.test(btxt)
+        const body = (await a.page.locator('main').innerText().catch(() => '')) ?? ''
+        r.db_1400 = /1\.400\s?kr/.test(body)
+        r.pct_70 = /70,0\s?%/.test(body)
+        r.registreret_salg_vist = /Registreret salg\s+1\.000/.test(body)
+        out.push({ id: 'U150 kontraktsag: DB mod kontraktsum (PE-6)', ok: !!caseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${btxt.slice(0, 60)}` })
+      }
+
       // U91 realiseret DB: netto faktureret ekskl. moms (udstedt − kreditnota; kladde/annulleret tæller ikke) mod faktisk
       // kost — materialer 600, faktura 1.000 + kreditnota 200 + kladde 5.000 → netto 800, realiseret DB 200 (25 %)
       if (want('U91') && profitCustomerId) {
