@@ -68,6 +68,7 @@ async function requireSupplierWrite() {
   return ctx
 }
 import { logger } from '@/lib/utils/logger'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 // =====================================================
 // Supplier CRUD
 // =====================================================
@@ -508,6 +509,12 @@ export async function updateSupplierProduct(
     const { supabase } = await requireSupplierWrite()
     validateUUID(id, 'produkt ID')
 
+    // GP-12: manuel kostændring skal i prishistorikken (før kun import/sync) — læs den gamle pris først
+    const admin = createAdminClient()
+    const before = data.cost_price !== undefined
+      ? ((await admin.from('supplier_products').select('cost_price, list_price').eq('id', id).maybeSingle()).data as { cost_price: number | null; list_price: number | null } | null)
+      : null
+
     // 00192: return=representation kun med id (kostkolonner er ikke læsbare for authenticated);
     // hele rækken læses derefter med admin-klienten bag settings.suppliers
     const { data: updated, error } = await supabase
@@ -516,6 +523,19 @@ export async function updateSupplierProduct(
       .eq('id', id)
       .select('id')
       .single()
+    if (updated && before && data.cost_price != null && Number(before.cost_price) !== Number(data.cost_price)) {
+      const oldCost = before.cost_price == null ? null : Number(before.cost_price)
+      const { error: phErr } = await admin.from('price_history').insert({
+        supplier_product_id: id,
+        old_cost_price: oldCost,
+        new_cost_price: Number(data.cost_price),
+        old_list_price: before.list_price,
+        new_list_price: data.list_price !== undefined ? data.list_price : before.list_price,
+        change_percentage: oldCost && oldCost > 0 ? Math.round(((Number(data.cost_price) - oldCost) / oldCost) * 10000) / 100 : 0,
+        change_source: 'manual',
+      })
+      if (phErr) logger.warn('price_history (manuel) kunne ikke skrives', { entityId: id, error: phErr })
+    }
     const product = updated
       ? (await createAdminClient().from('supplier_products').select('*').eq('id', updated.id).single()).data
       : null
@@ -644,19 +664,16 @@ export async function getSupplierProductCategories(
   try {
     const { supabase } = await getAuthenticatedClient()
 
-    let query = supabase
-      .from('supplier_products')
-      .select('category')
-      .not('category', 'is', null)
-
-    if (supplierId) {
-      validateUUID(supplierId, 'leverandør ID')
-      query = query.eq('supplier_id', supplierId)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
+    if (supplierId) validateUUID(supplierId, 'leverandør ID')
+    // GP-10: store kataloger har > 1.000 varer (PostgREST max_rows) — før manglede kategorier i filteret
+    let data: Array<{ category: string | null }> = []
+    try {
+      data = await fetchAllRows<{ id: string; category: string | null }>((from, to) => {
+        let q = supabase.from('supplier_products').select('id, category').not('category', 'is', null)
+        if (supplierId) q = q.eq('supplier_id', supplierId)
+        return q.order('id').range(from, to)
+      })
+    } catch (error) {
       logger.error('Database error fetching categories', { error: error })
       throw new Error('DATABASE_ERROR')
     }

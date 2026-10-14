@@ -1666,6 +1666,8 @@ export async function searchSupplierProductsForOffer(
       `)
       .eq('suppliers.is_active', true)
       .or(`supplier_sku.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},supplier_name.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},ean.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)}`)
+      // GP-13: varer uden kostpris (0 = ingen prisaftale) fyldte toppen og fejlede ved "tilføj" ("ingen kostpris")
+      .gt('cost_price', 0)
       .order('cost_price', { ascending: true })
       .limit(searchLimit)
 

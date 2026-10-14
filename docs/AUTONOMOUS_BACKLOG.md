@@ -58,10 +58,10 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | GP-7 (S2) | LM "API-sync" læser egne rækker og stempler last_synced_at → gamle priser ser friske ud | DONE — `readsLocalCatalog`: cron/manuel API-sync springer LM Classic over (ingen last_synced_at-stempel); live-søgning mærker LM-rækker "cache" (`supplier-client-catalog-test`) |
 | GP-8 (S2) | Kalkia-materialesync skriver vejl. udsalgspris som salgspris, 0-kost, upagineret/uchunket | TODO |
 | GP-9 (S3) | import: supplier_settings.upsert uden onConflict → last_import_at opdateres aldrig efter 1. import | DONE (onConflict) |
-| GP-10 (S3) | 1.000-rækkers-afkortning i prisændringer fra import og kategoriliste | TODO |
+| GP-10 (S3) | 1.000-rækkers-afkortning i prisændringer fra import og kategoriliste | DONE (fetchAllRows) |
 | GP-11 (S3) | getAffectedOffers tager højeste nye kost i vinduet, ikke seneste | DONE — første gamle → seneste nye |
-| GP-12 (S3) | Manuel kostændring skriver ingen price_history | TODO |
-| GP-13 (S3) | parseDanishNumber("1.234") = 1,234; FTP-insert kost 0; søgning sorterer 0-kr øverst | TODO |
+| GP-12 (S3) | Manuel kostændring skriver ingen price_history | DONE for leverandørvarer (change_source manual); product_catalog: LATER |
+| GP-13 (S3) | parseDanishNumber("1.234") = 1,234; FTP-insert kost 0; søgning sorterer 0-kr øverst | DELVIS — søgning udelader kost 0; "1.234"-tvetydighed + FTP-insert 0: TODO |
 | GP-14 (S4) | Død line-item-form.tsx, ubrugt forespørgsel, maybeSingle i setDefaultSupplierMargin | TODO |
 
 ## NEXT-9 (backlog-wave 2026-10-14 — go-live/pilot, leverandørfakturaer, Profit Engine)
