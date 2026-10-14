@@ -677,6 +677,8 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <span
                 className="inline-flex items-center gap-2 px-4 py-2 border rounded-md text-gray-400 cursor-not-allowed"
                 title={offer.status === 'accepted' ? 'Accepterede tilbud kan ikke ændres — opret et nyt tilbud (Kopiér)' : 'Sendte tilbud er låst — sæt tilbuddet tilbage til kladde for at redigere'}
+                // M-20 (mobil-review 2026-10-14): årsagen stod kun i title (hover) — et tryk viser den også på touch
+                onClick={() => toast.info(offer.status === 'accepted' ? 'Accepterede tilbud kan ikke ændres — opret et nyt tilbud (Kopiér)' : 'Sendte tilbud er låst — sæt tilbuddet tilbage til kladde for at redigere')}
                 data-testid="offer-edit-locked"
               >
                 <Pencil className="w-4 h-4" />
