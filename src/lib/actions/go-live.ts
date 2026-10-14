@@ -11,6 +11,7 @@
  * also trigger an admin email alert via sendAdminAlert (with cooldown).
  */
 
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { secretColumnReader } from '@/lib/portal/token-reader'
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
@@ -336,7 +337,7 @@ export async function testBankImportAction(): Promise<ActionOutcome> {
   if ('ok' in ctx) return ctx
 
   try {
-    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const since7d = copenhagenDatePlusDays(-7)
     const { count } = await ctx.supabase
       .from('bank_transactions')
       .select('id', { count: 'exact', head: true })
