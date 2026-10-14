@@ -56,12 +56,15 @@ features delivered:
 - Kalenderens dag og uge viser besigtigelser, assistent-opkald og egne påmindelser (`902e9aa6`, `calendar-agenda-test`).
 - Mine forfaldne og I dag viser egne åbne påmindelser (`dac7a16e`, `my-day-test`).
 - Lead-, tilbuds- og sagslisten har kort på små skærme (`a054ff1d`, `mobile-lists-test`).
+- Kalenderens dag og uge er en liste på mobil, og "I dag" er dansk dato (`1c57f9c5`, `calendar-mobile-test`).
+- Lead-kanban på mobil viser én fase og kun lovlige flyt (`49911355`, `leads-kanban-mobile-test`).
+- Tilbudt vs. faktisk: "I alt" tæller ikke manglende kost som 0 (`5caed7ac`, `profitability-figures-test`).
 
-tests: `npx tsx scripts/calendar-agenda-test.ts`, `npx tsx scripts/my-day-test.ts`, `npx tsx scripts/mobile-lists-test.ts`, `npx tsc --noEmit` exit 0. Ingen browser: der er ingen `.env` / `.env.local`, og port 3000 lytter ikke.
+tests: de nævnte scripts og `npx tsc --noEmit` exit 0. Ingen browser: der er ingen `.env` / `.env.local`, og port 3000 lytter ikke.
 
 push: ikke sendt. Lokal politik afviser `git push origin`. Grenen er lokal `grok-next`. Ingen merge til main.
 
-blockers (ikke påbegyndt): Profit Engine trin 3–5, fakturakontrol trin 4 og IC7, e-conomic-push, opfølgning trin 2–4, T13, T14, F2b, N4, N3, N11, N33. De kræver migration, Vercel-flag, live afsendelse eller en prisregel.
+blockers (ikke stop): Profit Engine trin 3–5, fakturakontrol trin 4 og IC7, e-conomic-push, opfølgning trin 2–4, T13, T14, F2b, N4, N3, N11, N33. De kræver migration, et Vercel-flag, live afsendelse eller en prisregel. Arbejdet fortsætter på andre sikre opgaver.
 
 ## Grok på grok-next (2026-10-09)
 Efterkalkulation v1 er på `grok-next` (`2274215`): tilbudt/faktisk/afvigelse i øre, rabat én gang, manglende kost forbliver null, tilbudshoved via admin efter sagstjek. Sagsrentabiliteten på `/dashboard/reports` bruger samme kostregel (`src/lib/cases/profitability-figures.ts`). Fakturakontrol-dækningen i Pilot Health og fakturapanelet bruger kostprisen på fakturadatoen. Panelet henter `price_history` side for side, så den tidligste tilbagerulning ikke falder af ved over 1.000 senere ændringer (`price-at-date-test`). Opfølgningens skygge i Pilot Health viser kun antal mod dagens regler og sender intet (`followup-shadow-test`). Leverandørfakturaens panel viser om linjesummen stemmer med beløb ekskl. moms (`header-totals-test`); en linje uden beløb gør forskellen ukendt. OIOUBL-fakturaer og kreditnotaer læses til hovedfelter og linjer i `parseAndMatch` (`oioubl-test`); linjer gemmes kun når fakturaen ingen har. Dashboardet og opgavesiden viser mine forfaldne opgaver og dagens liste efter dansk kalenderdag (`my-day-test`). Tilbuddets linjefod viser DB efter tilbudsrabat ved siden af tallet før rabat (`offer-db-shadow-test`). Ingen prod-migration. Claude ejer fortsat storage/auth/RLS og prod-gates.
