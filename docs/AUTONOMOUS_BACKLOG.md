@@ -27,6 +27,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Leverandørfaktura-listen viser kort under `md`. Samme beløb, forfald, status og mærker. Godkendelse og e-conomic er uændret. | DONE — `incoming-invoices-mobile-test` |
 | Efterkalkulationens linjeliste viser antal og kost hver for sig. Ens tekst slås ikke sammen. En brugt linje uden kost vises som kost ukendt. Status-feltet til U81 er uændret. | DONE — `aftercalc-test`, `offer-vs-actual-test` |
 | Efterkalkulationens linjer og tilbudt vs. faktisk vises som kort under `md`. U81-test-id ligger kun i tabellen. | DONE — `economy-lines-mobile-test` |
+| Fakturaoverblik og kundens fakturaer vises som kort under `md`. Beløb er inkl. moms. Påmindelse kræver stadig et klik. Kost vises ikke. | DONE — `invoices-mobile-test` |
 
 ## Henriks beslutninger 2026-10-10 — status
 | # | Beslutning | Status |

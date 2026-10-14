@@ -59,6 +59,13 @@ const TYPE_PILL: Record<string, { label: string; cls: string }> = {
   credit: { label: 'Kreditnota', cls: 'bg-red-100 text-red-800' },
 }
 
+function emptyInvoiceText(search: string, onlyOutstanding: boolean, filter: FilterKey): string {
+  if (search.trim()) return `Ingen fakturaer matcher søgningen "${search.trim()}".`
+  if (onlyOutstanding && filter === 'sent') return 'Der er ingen sendte udestående fakturaer lige nu.'
+  if (onlyOutstanding) return 'Der er ingen udestående fakturaer lige nu.'
+  return EMPTY_TEXT[filter]
+}
+
 function kr(n: number, ccy: string | null): string {
   return formatCurrency(n, ccy || 'DKK', 2)
 }
@@ -395,7 +402,99 @@ export function InvoicesOverviewClient({
 
       {/* Tabel */}
       <div className="border rounded-lg overflow-hidden bg-white">
-        <div className="overflow-x-auto">
+        {filtered.length === 0 && (
+          <p className="md:hidden px-3 py-8 text-center text-gray-400 text-xs">
+            {emptyInvoiceText(search, onlyOutstanding, filter)}
+          </p>
+        )}
+        {filtered.length > 0 && (
+          <div className="md:hidden divide-y" data-testid="invoices-mobile-list">
+            {filtered.map((r) => {
+              const sb = statusBadge(r)
+              const pill = r.invoice_type ? TYPE_PILL[r.invoice_type] : undefined
+              return (
+                <div key={r.id} className={`p-4 ${r.is_overdue ? 'bg-rose-50/40' : ''}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-emerald-700 hover:underline">
+                        {r.invoice_number ?? '—'}
+                      </Link>
+                      {pill && (
+                        <span className={`block mt-0.5 w-fit px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${pill.cls}`}>
+                          {pill.label}
+                        </span>
+                      )}
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${sb.cls}`}>
+                      {r.voided_at && <Ban className="w-3 h-3" />}
+                      {sb.label}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-800">{r.customer_name ?? '—'}</p>
+                  {r.case_number && (
+                    <Link href={`/dashboard/orders/${r.case_number}`} className="font-mono text-xs text-emerald-700 hover:underline">
+                      {r.case_number}
+                    </Link>
+                  )}
+                  <p className="mt-2 font-medium tabular-nums">{kr(r.final_amount, r.currency)}</p>
+                  <p className="text-xs text-gray-600">
+                    {r.due_date ? `Forfald ${fmtDate(r.due_date)}` : 'Ingen forfaldsdato'}
+                    {r.is_overdue && r.days_overdue != null ? ` · ${r.days_overdue} dage over` : ''}
+                    {r.paid_at ? ` · betalt ${fmtDate(r.paid_at)}` : ''}
+                  </p>
+                  <p className="mt-1">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${ACC_SKIN[r.accounting_status].cls}`}>
+                      {ACC_SKIN[r.accounting_status].label}
+                    </span>
+                    {r.reminder_count > 0 && (
+                      <span className="ml-2 text-[10px] text-amber-700">
+                        {r.reminder_count} påmindelse{r.reminder_count === 1 ? '' : 'r'} sendt
+                      </span>
+                    )}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    {canExportAccounting && r.accounting_status !== 'exported' && (
+                      <label className="inline-flex items-center gap-1 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(r.id)}
+                          onChange={() => toggleSel(r.id)}
+                          aria-label={`Vælg faktura ${r.invoice_number ?? ''}`}
+                        />
+                        Vælg
+                      </label>
+                    )}
+                    <Link
+                      href={`/dashboard/invoices/${r.id}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Åbn
+                    </Link>
+                    <a href={`/api/invoices/${r.id}/pdf?view=1`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 text-xs" title="Vis PDF">
+                      <Eye className="w-3.5 h-3.5" />
+                    </a>
+                    <a href={`/api/invoices/${r.id}/pdf`} className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 text-xs" title="Download PDF">
+                      <FileDown className="w-3.5 h-3.5" />
+                    </a>
+                    {r.is_overdue && canSend && (
+                      <button
+                        type="button"
+                        onClick={() => handleReminder(r)}
+                        disabled={pending && busyId === r.id}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60 text-xs"
+                      >
+                        {pending && busyId === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                        Påmind
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs text-gray-600">
               <tr>
@@ -414,13 +513,7 @@ export function InvoicesOverviewClient({
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={canExportAccounting ? 9 : 8} className="px-3 py-8 text-center text-gray-400 text-xs">
-                    {search.trim()
-                      ? `Ingen fakturaer matcher søgningen "${search.trim()}".`
-                      : onlyOutstanding && filter === 'sent'
-                        ? 'Der er ingen sendte udestående fakturaer lige nu.'
-                        : onlyOutstanding
-                          ? 'Der er ingen udestående fakturaer lige nu.'
-                          : EMPTY_TEXT[filter]}
+                    {emptyInvoiceText(search, onlyOutstanding, filter)}
                   </td>
                 </tr>
               ) : (

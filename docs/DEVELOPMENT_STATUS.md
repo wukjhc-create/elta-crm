@@ -65,7 +65,8 @@ features delivered:
 - Tilbudt vs. faktisk: "I alt" tæller ikke manglende kost som 0 (`5caed7ac`, `profitability-figures-test`).
 - Leverandørfaktura-listen har kort på små skærme (`51d5be6e`, `incoming-invoices-mobile-test`). Godkendelse og e-conomic er uændret.
 - Efterkalkulationens linjeliste viser antal og kost hver for sig, og en brugt linje uden kost står som kost ukendt (`b18ca432`, `aftercalc-test`, `offer-vs-actual-test`).
-- De to linjelister er kort på små skærme. U81 læser stadig rækker og afvigelse i tabellen (`economy-lines-mobile-test`).
+- De to linjelister er kort på små skærme. U81 læser stadig rækker og afvigelse i tabellen (`4b41f085`, `economy-lines-mobile-test`).
+- Fakturaoverblik og kundens fakturaer er kort på små skærme. Påmindelse sendes ikke ved at åbne kortet (`invoices-mobile-test`).
 
 tests: de nævnte scripts og `npx tsc --noEmit` exit 0. Ingen browser: der er ingen `.env` / `.env.local`, og port 3000 lytter ikke.
 

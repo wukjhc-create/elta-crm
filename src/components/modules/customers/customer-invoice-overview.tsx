@@ -177,7 +177,62 @@ export function CustomerInvoiceOverview({
         {invoices.length === 0 ? (
           <p className="px-3 py-6 text-sm text-gray-500">Kunden har endnu ingen fakturaer.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="md:hidden divide-y" data-testid="customer-invoices-mobile">
+            {invoices.map((r) => {
+              const sb = statusBadge(r)
+              const pill = r.invoice_type ? TYPE_PILL[r.invoice_type] : undefined
+              return (
+                <div key={r.id} className={`p-3 ${r.is_overdue ? 'bg-rose-50/40' : ''}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-emerald-700 hover:underline">
+                        {r.invoice_number ?? '—'}
+                      </Link>
+                      {pill && (
+                        <span className={`block mt-0.5 w-fit px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${pill.cls}`}>
+                          {pill.label}
+                        </span>
+                      )}
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${sb.cls}`}>
+                      {r.voided_at && <Ban className="w-3 h-3" />}
+                      {sb.label}
+                    </span>
+                  </div>
+                  {r.case_number && (
+                    <Link href={`/dashboard/orders/${r.case_number}`} className="font-mono text-xs text-emerald-700 hover:underline">
+                      {r.case_number}
+                    </Link>
+                  )}
+                  <p className="mt-2 text-sm font-medium tabular-nums">{kr(r.final_amount, r.currency)}</p>
+                  <p className="text-xs text-gray-600">
+                    Oprettet {fmtDate(r.created_at)}
+                    {r.sent_at ? ` · sendt ${fmtDate(r.sent_at)}` : ''}
+                    {r.paid_at ? ` · betalt ${fmtDate(r.paid_at)}` : ''}
+                  </p>
+                  {!r.paid_at && r.due_date && (
+                    <p className={`text-xs ${r.is_overdue ? 'text-rose-700 font-medium' : 'text-gray-600'}`}>
+                      Forfald {fmtDate(r.due_date)}
+                      {r.is_overdue && r.days_overdue != null ? ` (${r.days_overdue} dage over)` : ''}
+                    </p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Link href={`/dashboard/invoices/${r.id}`} className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-emerald-300 text-emerald-700 text-xs">
+                      <FileText className="w-3.5 h-3.5" /> Åbn
+                    </Link>
+                    <a href={`/api/invoices/${r.id}/pdf?view=1`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 text-xs" title="Vis PDF">
+                      <Eye className="w-3.5 h-3.5" />
+                    </a>
+                    <a href={`/api/invoices/${r.id}/pdf`} className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 text-xs" title="Download PDF">
+                      <FileDown className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
@@ -265,6 +320,7 @@ export function CustomerInvoiceOverview({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
