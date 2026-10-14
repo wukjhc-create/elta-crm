@@ -366,6 +366,29 @@ export async function createCreditNoteForInvoice(
     return { ...empty, message: 'Original faktura mangler kunde — kan ikke kreditere' }
   }
 
+  // Faktura-review 2026-10-14 (S1): en forskuds-/ratefaktura er allerede fratrukket på sagens slutfaktura — en
+  // kreditnota på den ville give kunden beløbet tilbage en gang til. Slutfakturaen skal krediteres (eller kladden
+  // slettes) først. Tjekkes på sagen (invoice_predecessors-linket er best-effort).
+  if ((original.invoice_type === 'deposit' || original.invoice_type === 'progress') && original.case_id) {
+    const { data: finals } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, status')
+      .eq('case_id', original.case_id)
+      .neq('id', original.id)
+      .or('invoice_type.eq.final,is_final_invoice.eq.true')
+      .is('voided_at', null)
+      .limit(1)
+    const fin = (finals ?? [])[0] as { invoice_number: string | null; status: string } | undefined
+    if (fin) {
+      return {
+        ...empty,
+        message: fin.status === 'draft'
+          ? `Sagen har en slutfaktura-kladde (${fin.invoice_number ?? 'uden nr.'}), der fratrækker denne faktura — slet kladden før du krediterer`
+          : `Fakturaen er fratrukket på slutfaktura ${fin.invoice_number ?? ''} — kreditér slutfakturaen i stedet (ellers får kunden beløbet tilbage to gange)`,
+      }
+    }
+  }
+
   // ---- Read existing credits (race-safety: re-read just before insert) ----
   const summary = await getCreditedAmountForInvoice(input.invoice_id)
   if (!summary.ok) {

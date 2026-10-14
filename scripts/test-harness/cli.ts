@@ -2664,6 +2664,7 @@ async function main() {
     const { data: cu } = await admin.from('customers').insert({ customer_number: `IG-${stamp}`, company_name: `[HARNESS] fakturavagt ${stamp}`, contact_person: 'x', email: `ig-${stamp}@harness.test`, created_by: owner }).select('id').single()
     const custId = (cu as { id: string }).id
     let n = 0
+    let guardCaseId: string | null = null
     const mkInv = async (fields: Record<string, unknown>, lines: Array<[string, number, number]>) => {
       const { data, error } = await admin.from('invoices').insert({ invoice_number: `HX-${stamp}-${++n}`, customer_id: custId, status: 'draft', total_amount: 0, tax_amount: 0, final_amount: 0, ...fields }).select('id').single()
       if (error) throw new Error(`faktura: ${error.message}`)
@@ -2718,14 +2719,29 @@ async function main() {
         const { data: kh } = await admin.from('invoices').select('total_amount').eq('id', k2.credit_invoice_id).single()
         check('  kreditnotaens linjer og header stemmer', Math.abs(Math.abs(lineSum) - Math.abs(Number((kh as { total_amount: number }).total_amount))) < 0.01, `linjer ${lineSum} / header ${(kh as { total_amount: number }).total_amount}`)
       }
+
+      // Faktura-review 2026-10-14 (S1): forskud fratrukket på en slutfaktura kan ikke krediteres (kunden fik det ellers to gange)
+      const { data: sc } = await admin.from('service_cases').insert({ case_number: `SVC-6${String(stamp).slice(-6)}`, customer_id: custId, title: '[HARNESS] fradrag', status: 'in_progress', created_by: owner }).select('id').single()
+      guardCaseId = (sc as { id: string } | null)?.id ?? null
+      const dep2 = await mkInv({ invoice_type: 'deposit', billing_percentage: 30, case_id: guardCaseId }, [['Forskud 30 %', 1, 30000]])
+      await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', dep2.id)
+      const fin2 = await mkInv({ invoice_type: 'final', is_final_invoice: true, case_id: guardCaseId }, [['Arbejde', 1, 100000], ['Fradrag: forskud', 1, -30000]])
+      await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', fin2.id)
+      const g1 = await createCreditNoteForInvoice({ invoice_id: dep2.id, credit_type: 'full', reason: 'harness' }, owner)
+      check('forskud fratrukket på sendt slutfaktura: kreditering afvises', !g1.ok && /slutfaktura/.test(g1.message ?? ''), g1.message)
+      await admin.from('invoices').update({ voided_at: new Date().toISOString() }).eq('id', fin2.id)
+      const g2 = await createCreditNoteForInvoice({ invoice_id: dep2.id, credit_type: 'full', reason: 'harness' }, owner)
+      check('slutfakturaen annulleret (krediteret): forskuddet kan nu krediteres', g2.ok, g2.message)
     } finally {
       const { data: invs } = await admin.from('invoices').select('id').eq('customer_id', custId)
       const ids = ((invs ?? []) as Array<{ id: string }>).map((x) => x.id)
       if (ids.length) {
+        await admin.from('invoice_predecessors').delete().in('invoice_id', ids)
         await admin.from('invoice_lines').delete().in('invoice_id', ids)
         await admin.from('invoices').delete().in('credit_of_invoice_id', ids)
         await admin.from('invoices').delete().in('id', ids)
       }
+      if (guardCaseId) await admin.from('service_cases').delete().eq('id', guardCaseId)
       await admin.from('customers').delete().eq('id', custId)
     }
     log(fails ? `❌ ${fails} fejl` : '✅ fakturavagter (X1 #7/#8) bestået')
