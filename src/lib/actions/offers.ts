@@ -15,7 +15,7 @@ import { calculateSalePrice, calculateLineTotal, calculateMarginFromPrices, reso
 import { getOfferLowDbStatus } from '@/lib/offers/low-db-status'
 import { lowDbAckMessage, type OfferLowDbStatus } from '@/lib/offers/low-db-warning'
 import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
-import { mergeOfferLineCost, fetchOfferLineCostById } from '@/lib/offers/line-cost'
+import { mergeOfferLineCost } from '@/lib/offers/line-cost'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { supplierLinePricing } from '@/lib/offers/supplier-line-pricing'
 import { loadDefaultProductMargin } from '@/lib/settings/product-margin'
@@ -2205,7 +2205,6 @@ export async function refreshLineItemPrice(
       .select('cost_price, supplier_id, margin_percentage')
       .eq('id', lineItem.supplier_product_id)
       .maybeSingle()
-    const lineCost = (await fetchOfferLineCostById([lineItem.id])).get(lineItem.id)
 
     if (spError || !supplierProduct?.cost_price) {
       return { success: false, error: 'Kunne ikke hente leverandør pris' }
@@ -2214,7 +2213,6 @@ export async function refreshLineItemPrice(
     // Kalkulations-review 2026-10-09 (#2): samme prisberegning som ved oprettelse (avanceregler med fast tillæg/
     // afrunding, kunderabat, 0 % respekteres) — før gav en opdatering med uændret kost en anden pris
     const offerInfo = Array.isArray(lineItem.offers) ? lineItem.offers[0] : lineItem.offers
-    void lineCost
     const pricing = await supplierLinePricing({
       supplierId: supplierProduct.supplier_id,
       supplierProductId: lineItem.supplier_product_id,
