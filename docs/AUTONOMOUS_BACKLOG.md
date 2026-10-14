@@ -53,7 +53,7 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | GP-2 (S2) | Produktspecifikke kundepriser og aftalers gyldighedsdatoer ignoreres ved linjeoprettelse/-opdatering | DELVIS — gyldighedsdatoer håndhæves ved linjeoprettelse/-opdatering (`supplier-line-pricing-check`); produktspecifikke kundepriser + søgning/optimering/Kalkia: TODO |
 | GP-3 (S2) | Kategori-/underkategori-avanceregler bruges aldrig på manuelle linjer (p_category null) | DONE — kategori/underkategori sendes med (`supplier-line-pricing-check`) |
 | GP-4 (S2) | Avance-fallback og forrang forskellig på hver sti (20/25 %/indstilling; regel slår kundeaftale) | [H] forrang + én resolver |
-| GP-5 (S2) | optimizeOfferPrices: egen matematik, skriver bruttokost, navne-match på tværs af enheder, ukontrollerede fejl | TODO |
+| GP-5 (S2) | optimizeOfferPrices: egen matematik, skriver bruttokost, navne-match på tværs af enheder, ukontrollerede fejl | DONE — supplierLinePricing, kun EAN + samme enhed, effektiv kost, fejl tjekkes (UI U152) |
 | GP-6 (S2) | Pakke-/auto-tilbud: rabatteret kost gemt som leverandørkost (falsk "pris ændret"), avance gemt som 0, ROUND vs ceil | TODO (migration for 00079-funktionen) |
 | GP-7 (S2) | LM "API-sync" læser egne rækker og stempler last_synced_at → gamle priser ser friske ud | DONE — `readsLocalCatalog`: cron/manuel API-sync springer LM Classic over (ingen last_synced_at-stempel); live-søgning mærker LM-rækker "cache" (`supplier-client-catalog-test`) |
 | GP-8 (S2) | Kalkia-materialesync skriver vejl. udsalgspris som salgspris, 0-kost, upagineret/uchunket | TODO |

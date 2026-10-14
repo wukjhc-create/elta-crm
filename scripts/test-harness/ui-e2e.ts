@@ -3154,6 +3154,47 @@ ${m.text()}`) })
         out.push({ id: 'U150 kontraktsag: DB mod kontraktsum (PE-6)', ok: !!caseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${btxt.slice(0, 60)}` })
       }
 
+      // U152 GP-5: "Optimer priser" skifter kun til samme EAN med SAMME enhed (ikke en billigere meter-variant) og bruger
+      // samme prisberegning som oprettelse (kost = effektiv kost, rå leverandørkost i supplier_cost_price_at_creation)
+      if (want('U152') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const ean = `57${String(stamp).slice(-11)}`
+        const sups = await c.admin.from('suppliers').insert([{ name: `HARNESS OPT A ${stamp}`, code: `HOA${stamp}` }, { name: `HARNESS OPT B ${stamp}`, code: `HOB${stamp}` }, { name: `HARNESS OPT C ${stamp}`, code: `HOC${stamp}` }]).select('id')
+        const sIds = ((sups.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        const prods = sIds.length === 3 ? await c.admin.from('supplier_products').insert([
+          { supplier_id: sIds[0], supplier_sku: `OPT-A-${stamp}`, supplier_name: 'Harness stikkontakt', cost_price: 100, unit: 'stk', ean, is_available: true },
+          { supplier_id: sIds[1], supplier_sku: `OPT-B-${stamp}`, supplier_name: 'Harness stikkontakt', cost_price: 80, unit: 'stk', ean, is_available: true },
+          { supplier_id: sIds[2], supplier_sku: `OPT-C-${stamp}`, supplier_name: 'Harness stikkontakt', cost_price: 50, unit: 'm', ean, is_available: true },
+        ]).select('id, supplier_sku') : null
+        const pId = (sku: string) => ((prods?.data ?? []) as Array<{ id: string; supplier_sku: string }>).find((x) => x.supplier_sku.startsWith(sku))?.id ?? null
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-OPT-${stamp}`, title: '[HARNESS] optimer', created_by: adminUser.id, customer_id: profitCustomerId }]).select('id')
+        const offerId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const li = offerId ? await c.admin.from('offer_line_items').insert([{ offer_id: offerId, position: 1, description: 'Stikkontakt', quantity: 10, unit: 'stk',
+          unit_price: 125, total: 1250, cost_price: 100, supplier_product_id: pId('OPT-A'), supplier_cost_price_at_creation: 100 }]).select('id') : null
+        const lineId = (li?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!lineId && !!pId('OPT-B') && !!pId('OPT-C')
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/offers/${offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('cost-reveal-toggle').first().click({ timeout: 60_000 }).catch(() => {})
+          await a.page.getByRole('button', { name: /Optimer priser/ }).click({ timeout: 60_000 }).catch(() => {})
+          type L = { supplier_product_id: string | null; cost_price: number | null; supplier_cost_price_at_creation: number | null; unit_price: number | null }
+          let row: L | null = null
+          for (let i = 0; i < 20; i++) {
+            row = (await c.admin.from('offer_line_items').select('supplier_product_id, cost_price, supplier_cost_price_at_creation, unit_price').eq('id', lineId ?? '').maybeSingle()).data as L | null
+            if (row?.supplier_product_id !== pId('OPT-A')) break
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.skiftet_til_samme_enhed = row?.supplier_product_id === pId('OPT-B')
+          r.ikke_meter_varianten = row?.supplier_product_id !== pId('OPT-C')
+          r.kost_80 = Number(row?.cost_price) === 80 && Number(row?.supplier_cost_price_at_creation) === 80
+          r.salgspris_sat = Number(row?.unit_price) > 80
+          out.push({ id: 'U152 Optimer priser: EAN + samme enhed, samme prismodel (GP-5)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · kost=${row?.cost_price ?? '-'} pris=${row?.unit_price ?? '-'}` })
+        } finally {
+          if (offerId) { await c.admin.from('offer_line_items').delete().eq('offer_id', offerId); await c.admin.from('offers').delete().eq('id', offerId) }
+          if (sIds.length) { await c.admin.from('supplier_products').delete().in('supplier_id', sIds); await c.admin.from('suppliers').delete().in('id', sIds) }
+        }
+      }
+
       // U91 realiseret DB: netto faktureret ekskl. moms (udstedt − kreditnota; kladde/annulleret tæller ikke) mod faktisk
       // kost — materialer 600, faktura 1.000 + kreditnota 200 + kladde 5.000 → netto 800, realiseret DB 200 (25 %)
       if (want('U91') && profitCustomerId) {
