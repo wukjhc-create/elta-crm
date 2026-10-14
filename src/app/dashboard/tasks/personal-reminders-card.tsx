@@ -56,7 +56,7 @@ export function PersonalRemindersCard() {
   const done = state.reminders.filter((r) => r.status === 'done')
 
   return (
-    <div className="bg-white rounded-lg border p-6 mb-6" data-testid="personal-reminders">
+    <div id="personal-reminders" className="bg-white rounded-lg border p-6 mb-6" data-testid="personal-reminders">
       <h2 className="text-lg font-semibold mb-1 flex items-center gap-2"><AlarmClock className="w-5 h-5 text-sky-600" />Mine påmindelser</h2>
       <p className="text-xs text-gray-500 mb-4">Kun synlige for dig.</p>
       <form

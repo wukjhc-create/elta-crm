@@ -14,6 +14,28 @@ export interface MyDayTask {
   customer_name: string
 }
 
+export interface MyDayReminder {
+  id: string
+  title: string
+  due_at: string
+  status: string
+}
+
+/** Egne personlige påmindelser (ingen kunde). Samme danske dag som opgaverne. Udførte er ude. */
+export function splitMyDayReminders(
+  reminders: MyDayReminder[],
+  now: Date = new Date(),
+): { overdue: MyDayReminder[]; today: MyDayReminder[] } {
+  const today = copenhagenParts(now).date
+  const open = reminders.filter((r) => r.status !== 'done' && r.due_at)
+  const dayOf = (iso: string) => copenhagenParts(iso).date
+  const byDue = (a: MyDayReminder, b: MyDayReminder) => (a.due_at < b.due_at ? -1 : a.due_at > b.due_at ? 1 : 0)
+  return {
+    overdue: open.filter((r) => dayOf(r.due_at) < today).sort(byDue),
+    today: open.filter((r) => dayOf(r.due_at) === today).sort(byDue),
+  }
+}
+
 export function splitMyDayTasks<T extends MyDayTask>(
   tasks: T[],
   userId: string,

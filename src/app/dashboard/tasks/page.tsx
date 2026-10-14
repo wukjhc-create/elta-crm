@@ -5,6 +5,8 @@ import { MyHoursCard } from './my-hours-card'
 import { PersonalRemindersCard } from './personal-reminders-card'
 import { MyDayTasks } from '@/components/modules/dashboard/my-day-tasks'
 import { getMyDayTasks } from '@/lib/actions/customer-tasks'
+import { getMyPersonalReminders } from '@/lib/actions/personal-reminders'
+import { splitMyDayReminders } from '@/lib/tasks/my-day'
 import { getPageRoleContext } from '@/lib/auth/page-guard'
 import { isGraphConfigured } from '@/lib/services/microsoft-graph'
 
@@ -23,7 +25,11 @@ export default async function TasksPage() {
   // Sprint 8C-1 — saa send-mail-dialogen kan vise advarsel + mailto-fallback
   // hvis Graph ikke er konfigureret i miljøet.
   const graphConfigured = isGraphConfigured()
-  const myDay = await getMyDayTasks()
+  const [myDay, personalReminders] = await Promise.all([
+    getMyDayTasks(),
+    getMyPersonalReminders().catch(() => ({ available: false as const, reminders: [] })),
+  ])
+  const dayReminders = splitMyDayReminders(personalReminders.reminders)
   // Montørens landingsside: egne job øverst (kalender-scope = kun egne arbejdsordrer)
   const showMyJobs = ctx.has('calendar.view.own') && !ctx.has('calendar.view.all')
   return (
@@ -32,7 +38,12 @@ export default async function TasksPage() {
       {showMyJobs && <MyHoursCard />}
       <section className="bg-white rounded-lg border p-4 sm:p-5 mb-6">
         <h2 className="font-semibold mb-3">Mine opgaver</h2>
-        <MyDayTasks overdue={myDay.overdue} today={myDay.today} />
+        <MyDayTasks
+          overdue={myDay.overdue}
+          today={myDay.today}
+          reminderOverdue={dayReminders.overdue}
+          reminderToday={dayReminders.today}
+        />
       </section>
       <PersonalRemindersCard />
       <TasksPageClient

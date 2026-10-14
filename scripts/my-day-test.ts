@@ -1,6 +1,6 @@
 /** N29: mine forfaldne og dagens opgaver følger den danske kalender. Kør: npx tsx scripts/my-day-test.ts */
 import fs from 'fs'
-import { splitMyDayTasks, type MyDayTask } from '../src/lib/tasks/my-day'
+import { splitMyDayReminders, splitMyDayTasks, type MyDayReminder, type MyDayTask } from '../src/lib/tasks/my-day'
 
 let fail = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -46,6 +46,26 @@ const winterLists = splitMyDayTasks([
 eq('vintertid: dagen før er forfalden', winterLists.overdue.map((t) => t.id), ['før'])
 eq('vintertid: midnat dansk er i dag', winterLists.today.map((t) => t.id), ['nu'])
 
+const rem = (id: string, due: string, status = 'pending'): MyDayReminder => ({ id, title: id, due_at: due, status })
+const reminderLists = splitMyDayReminders([
+  rem('igår-sent', '2026-10-08T21:30:00.000Z'),
+  rem('i-dag-tidligt', '2026-10-08T22:30:00.000Z'),
+  rem('i-dag-sen', '2026-10-09T14:00:00.000Z'),
+  rem('i-morgen', '2026-10-09T22:30:00.000Z'),
+  rem('udført', '2026-10-01T10:00:00.000Z', 'done'),
+  rem('uden-frist', ''),
+  rem('ældre', '2026-10-01T08:00:00.000Z'),
+], now)
+eq('påmindelse: forfalden er danske dage før i dag', reminderLists.overdue.map((r) => r.id), ['ældre', 'igår-sent'])
+eq('påmindelse: i dag er den danske dato', reminderLists.today.map((r) => r.id), ['i-dag-tidligt', 'i-dag-sen'])
+eq('påmindelse: udførte, uden frist og fremtidige er ude', [...reminderLists.overdue, ...reminderLists.today].map((r) => r.id), ['ældre', 'igår-sent', 'i-dag-tidligt', 'i-dag-sen'])
+const winterReminders = splitMyDayReminders([
+  rem('før', '2026-10-25T22:30:00.000Z'),
+  rem('nu', '2026-10-25T23:30:00.000Z'),
+], winter)
+eq('påmindelse vintertid: dagen før er forfalden', winterReminders.overdue.map((r) => r.id), ['før'])
+eq('påmindelse vintertid: midnat dansk er i dag', winterReminders.today.map((r) => r.id), ['nu'])
+
 const tasksAction = fs.readFileSync('src/lib/actions/customer-tasks.ts', 'utf8')
 const start = tasksAction.indexOf('export async function getMyDayTasks')
 const body = tasksAction.slice(start, start + 1800)
@@ -57,10 +77,15 @@ eq('gamle projektopgaver bruges ikke', body.includes('project_tasks'), false)
 const page = fs.readFileSync('src/app/dashboard/page.tsx', 'utf8')
 eq('dashboardet viser listerne', page.includes('<MyDayTasks'), true)
 eq('dashboardet henter ikke de næste fem for alle', page.includes('getUpcomingTasks'), false)
+eq('dashboardet sender egne påmindelser særskilt', page.includes('reminderOverdue={dayReminders.overdue}') && page.includes('reminderToday={dayReminders.today}') && page.includes('getMyPersonalReminders'), true)
 const tasksPage = fs.readFileSync('src/app/dashboard/tasks/page.tsx', 'utf8')
 eq('opgavesiden viser de samme lister', tasksPage.includes('<MyDayTasks'), true)
+eq('opgavesiden sender egne påmindelser særskilt', tasksPage.includes('reminderOverdue={dayReminders.overdue}') && tasksPage.includes('reminderToday={dayReminders.today}') && tasksPage.includes('getMyPersonalReminders'), true)
 const view = fs.readFileSync('src/components/modules/dashboard/my-day-tasks.tsx', 'utf8')
 eq('visningen klassificerer ikke med servertid', view.includes('isToday') || view.includes('date-fns'), false)
+eq('påmindelsesrækken linker til kortet', view.includes('/dashboard/tasks#personal-reminders'), true)
+const card = fs.readFileSync('src/app/dashboard/tasks/personal-reminders-card.tsx', 'utf8')
+eq('påmindelseskortet har anker', card.includes('id="personal-reminders"'), true)
 
 console.log(fail ? `\n❌ ${fail} fejl` : '\n✅ alle mine-dag-tests bestået')
 process.exitCode = fail ? 1 : 0

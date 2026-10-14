@@ -19,6 +19,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Opgave | Status |
 |---|---|
 | Kalender dag/uge viser besigtigelser, assistent-opkald og egne påmindelser (samme danske dato som måneden). Arbejdsordrer, priser og afsendelse er uændret. | DONE — `calendar-agenda-test` |
+| Mine forfaldne / I dag viser også egne personlige påmindelser (dansk dato). Udførte er ude. Opgaverne overskrives ikke. | DONE — `my-day-test` |
 
 ## Henriks beslutninger 2026-10-10 — status
 | # | Beslutning | Status |

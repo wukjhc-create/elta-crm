@@ -19,6 +19,8 @@ import {
   getPendingOffers,
 } from '@/lib/actions/dashboard'
 import { getMyDayTasks } from '@/lib/actions/customer-tasks'
+import { getMyPersonalReminders } from '@/lib/actions/personal-reminders'
+import { splitMyDayReminders } from '@/lib/tasks/my-day'
 import { getDashboardOverview } from '@/lib/actions/dashboard-overview'
 import { getRejectionStats, getRecentRejections } from '@/lib/actions/reports'
 import { getDocumentCompanySettings } from '@/lib/actions/company-public'
@@ -77,6 +79,7 @@ export default async function DashboardPage() {
     stats,
     activities,
     tasks,
+    personalReminders,
     offers,
     settingsResult,
     overview,
@@ -86,6 +89,7 @@ export default async function DashboardPage() {
     getDashboardStats(),
     getRecentActivity(8),
     getMyDayTasks(),
+    getMyPersonalReminders().catch(() => ({ available: false as const, reminders: [] })),
     getPendingOffers(5),
     getDocumentCompanySettings(),
     getDashboardOverview(),
@@ -93,6 +97,7 @@ export default async function DashboardPage() {
     getRecentRejections(5),
   ])
 
+  const dayReminders = splitMyDayReminders(personalReminders.reminders)
   const companySettings = settingsResult.success && settingsResult.data ? settingsResult.data : null
   const rejectionStats = rejectionStatsResult.success && rejectionStatsResult.data
     ? rejectionStatsResult.data
@@ -319,7 +324,12 @@ export default async function DashboardPage() {
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white p-6 rounded-lg border">
             <h2 className="text-lg font-semibold mb-4">Mine opgaver</h2>
-            <MyDayTasks overdue={tasks.overdue} today={tasks.today} />
+            <MyDayTasks
+              overdue={tasks.overdue}
+              today={tasks.today}
+              reminderOverdue={dayReminders.overdue}
+              reminderToday={dayReminders.today}
+            />
           </div>
 
           <div className="bg-white p-6 rounded-lg border">
