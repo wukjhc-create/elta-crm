@@ -2732,6 +2732,21 @@ async function main() {
       await admin.from('invoices').update({ voided_at: new Date().toISOString() }).eq('id', fin2.id)
       const g2 = await createCreditNoteForInvoice({ invoice_id: dep2.id, credit_type: 'full', reason: 'harness' }, owner)
       check('slutfakturaen annulleret (krediteret): forskuddet kan nu krediteres', g2.ok, g2.message)
+
+      // Faktura-review 2026-10-14 #8/#9: "markér som sendt" taber til en igangværende sletning; kreditnota-PDF på momsfri faktura
+      const { markInvoiceSent, getInvoicePdfPayload } = await import('../../src/lib/services/invoices')
+      const claimed = await mkInv({ invoice_type: 'standard' }, [['Arbejde', 1, 1000]])
+      await admin.from('invoices').update({ sent_at: '1970-01-01T00:00:00Z' }).eq('id', claimed.id)
+      const ms1 = await markInvoiceSent(claimed.id).then(() => 'sendt', (e: Error) => `afvist: ${e.message.slice(0, 60)}`)
+      check('markér som sendt afvises mens kladden er claimet (sletning i gang)', ms1.startsWith('afvist'), ms1)
+      const free = await mkInv({ invoice_type: 'standard' }, [['Arbejde', 1, 1000]])
+      const ms2 = await markInvoiceSent(free.id).then(() => 'sendt', (e: Error) => `afvist: ${e.message.slice(0, 60)}`)
+      check('markér som sendt virker på almindelig kladde', ms2 === 'sendt', ms2)
+      const cn0 = await mkInv({ invoice_type: 'credit', credit_of_invoice_id: free.id }, [['Kreditnota: Arbejde', 1, -1000]])
+      await admin.from('invoices').update({ tax_amount: 0, final_amount: -1000 }).eq('id', cn0.id)
+      const pdf = await getInvoicePdfPayload(cn0.id)
+      const pdfVat = (pdf as unknown as { totals?: { vat?: number; vat_rate?: number } } | null)?.totals
+      check('kreditnota på momsfri faktura: PDF uden moms', !!pdfVat && Number(pdfVat.vat ?? -1) === 0, JSON.stringify(pdfVat))
     } finally {
       const { data: invs } = await admin.from('invoices').select('id').eq('customer_id', custId)
       const ids = ((invs ?? []) as Array<{ id: string }>).map((x) => x.id)
