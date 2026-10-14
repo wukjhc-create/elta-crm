@@ -204,7 +204,52 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
         </div>
       )}
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="md:hidden space-y-2" data-testid="offers-mobile-list">
+        {offers.map((offer) => {
+          const party = offer.customer?.company_name ?? offer.lead?.company_name ?? null
+          const partyKind = offer.customer ? null : offer.lead ? 'Lead' : null
+          return (
+            <div
+              key={offer.id}
+              className={`bg-white rounded-xl border p-4 ${selectedIds.has(offer.id) ? 'ring-2 ring-primary/30' : ''}`}
+            >
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(offer.id)}
+                  onChange={() => toggleOne(offer.id)}
+                  className="mt-1 rounded border-gray-300 text-primary focus:ring-primary"
+                  aria-label={`Vælg ${offer.title}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <Link href={`/dashboard/offers/${offer.id}`} className="block">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-gray-900 truncate">{offer.title}</p>
+                      <OfferStatusBadge status={offer.status} />
+                    </div>
+                    <p className="text-xs font-mono text-gray-500">{offer.offer_number}</p>
+                    {party && (
+                      <p className="text-sm text-gray-600 truncate">{party}{partyKind ? ` · ${partyKind}` : ''}</p>
+                    )}
+                    <p className="text-sm font-medium text-gray-900 mt-1">{formatCurrency(offer.final_amount, currency)}</p>
+                    <p className="text-xs text-gray-500">ekskl. moms: {formatCurrency(offer.total_amount - offer.discount_amount, currency)}</p>
+                  </Link>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <OfferExpiryChip status={offer.status} validUntil={offer.valid_until} />
+                    <OfferConversionBadge
+                      status={offer.status}
+                      convertedCaseId={offer.converted_case_id}
+                      convertedCase={offer.converted_case}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0 z-10">

@@ -192,7 +192,55 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
         </div>
       )}
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="md:hidden space-y-2" data-testid="leads-mobile-list">
+        {leads.map((lead) => (
+          <div
+            key={lead.id}
+            className={`bg-white rounded-xl border p-4 ${selectedIds.has(lead.id) ? 'ring-2 ring-primary/30' : ''}`}
+          >
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(lead.id)}
+                onChange={() => toggleOne(lead.id)}
+                className="mt-1 rounded border-gray-300 text-primary focus:ring-primary"
+                aria-label={`Vælg ${lead.company_name}`}
+              />
+              <Link href={`/dashboard/leads/${lead.id}`} className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-semibold text-gray-900 truncate">{lead.company_name}</p>
+                  <LeadStatusBadge status={lead.status} />
+                </div>
+                {lead.contact_person && (
+                  <p className="text-sm text-gray-500 truncate">{lead.contact_person}</p>
+                )}
+                {lead.notes?.startsWith('Webhenvendelse — ') && (
+                  <p className="text-xs text-emerald-800 mt-0.5 truncate" title={lead.notes} data-testid="lead-row-inquiry">
+                    {lead.notes.replace(/^Webhenvendelse — /, '')}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-500">
+                  <span>{formatValue(lead.value)}</span>
+                  {lead.phone && (
+                    <span className="inline-flex items-center gap-1">
+                      <Phone className="w-3 h-3" />
+                      {lead.phone}
+                    </span>
+                  )}
+                  {lead.email && (
+                    <span className="inline-flex items-center gap-1 min-w-0">
+                      <Mail className="w-3 h-3 shrink-0" />
+                      <span className="truncate max-w-[180px]">{lead.email}</span>
+                    </span>
+                  )}
+                </div>
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0 z-10">

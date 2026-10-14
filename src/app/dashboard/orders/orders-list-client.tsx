@@ -191,7 +191,64 @@ export function OrdersListClient({
 
       {/* Table */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        {cases.length === 0 && (
+          <p className="md:hidden px-3 py-12 text-center text-gray-400 text-sm">
+            {filters.search || filters.status || filters.type
+              ? 'Ingen sager matcher filtrene.'
+              : 'Ingen sager endnu — opret din første sag fra et tilbud, en email eller manuelt.'}
+          </p>
+        )}
+        {cases.length > 0 && (
+          <div className="md:hidden divide-y" data-testid="orders-mobile-list">
+            {cases.map((c) => {
+              const customerName = c.customer?.company_name || c.customer?.contact_person || '—'
+              const e = economy[c.id]
+              const badge = canSeeBilling ? caseBillingBadge(e, c.status) : 'none'
+              const cfg = badge !== 'none' ? CASE_BILLING_BADGE_CONFIG[badge] : null
+              const hasNumbers = canSeeBilling && e && e.invoice_count > 0
+              return (
+                <Link key={c.id} href={`/dashboard/orders/${c.id}`} className="block p-4 active:bg-gray-50">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-mono text-xs text-emerald-700">{c.case_number}</p>
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${SERVICE_CASE_STATUS_COLORS[c.status]}`}>
+                      {SERVICE_CASE_STATUS_LABELS[c.status]}
+                    </span>
+                  </div>
+                  <p className="font-medium text-gray-900 mt-1 truncate">{c.project_name || c.title}</p>
+                  <p className="text-sm text-gray-600 truncate">{customerName}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500">
+                    {(c.priority === 'urgent' || c.priority === 'high') && (
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${c.priority === 'urgent' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}`} data-testid="order-priority">
+                        {c.priority === 'urgent' ? 'Haster' : 'Høj'}
+                      </span>
+                    )}
+                    {c.type && (
+                      <span className="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                        {SERVICE_CASE_TYPE_LABELS[c.type]}
+                      </span>
+                    )}
+                    <span>{fmtDateRange(c.start_date, c.end_date)}</span>
+                  </div>
+                  <p className="text-xs text-gray-700 mt-2">Tilbudt {fmtAmount(c.contract_sum)} · revideret {fmtAmount(c.revised_sum)}</p>
+                  {hasNumbers && (
+                    <p className="text-xs mt-1">
+                      <span className="text-gray-700">Faktureret {fmtAmount(e!.net_invoiced)}</span>
+                      {e!.outstanding_total > 0 && (
+                        <span className="text-amber-700 font-medium"> · udestående {fmtAmount(e!.outstanding_total)}</span>
+                      )}
+                    </p>
+                  )}
+                  {cfg && (
+                    <span className={`mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cfg.cls}`}>
+                      {cfg.label}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+          </div>
+        )}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs text-gray-600">
               <tr>
