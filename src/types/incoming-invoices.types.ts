@@ -85,6 +85,10 @@ export interface ParsedInvoiceFields {
   paymentReference: string | null
   iban: string | null
   currency: string
+  /** Kreditnota (overskrift eller negativt beløb) — beløbene er da negative */
+  isCreditNote: boolean
+  /** ekskl. + moms = inkl. (±5 øre); null når ikke alle tre er udlæst */
+  amountsConsistent: boolean | null
   workOrderHints: string[]
   /** Supplier-side order references (AO order id, LM ordrenummer, …). */
   supplierOrderRefs: string[]

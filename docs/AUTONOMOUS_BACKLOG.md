@@ -13,6 +13,58 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## NEXT-9 (backlog-wave 2026-10-14 — go-live/pilot, leverandørfakturaer, Profit Engine)
+Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kontrol, Profit Engine). [H] = kræver Henrik.
+
+### Go-live-blockers
+| # | Opgave | Ejer | Status |
+|---|---|---|---|
+| G-1 | Slå selvregistrering fra (Supabase Auth "Allow new users to sign up") — standardrolle er montør → enhver med anon-nøglen kan oprette en aktiv montør. Målt 2026-10-14: stadig `disable_signup:false` | [H] manuel | BLOCKED (`prod-auth-signup-status.ts`) |
+| G-2 | Pilotbrugere: navne + roller (afgør om 00186 skal køres først — bogholderi ser ellers hele postkassen) | [H] beslutning | BLOCKED |
+| G-3 | G11 montør #2 uden koblet medarbejder (målt 2026-10-14: 2 logins / 1 koblet) | [H] manuel | BLOCKED (`prod-montor-linkage.ts`) |
+| G-4 | G12 bankoplysninger på fakturaer (Vercel `INVOICE_BANK_*` eller Indstillinger → Firma) | [H] manuel | BLOCKED |
+| G-5 | Admin-alarmer når ingen: `ADMIN_ALERT_EMAIL` i Vercel eller branch `admin-alert-recipients-auth-email` / 00188 | [H] env/godkendelse | BLOCKED |
+| G-6 | "Kør rykker-tjek nu" på go-live-siden sender rigtige rykkere uden bekræftelse/loft | dev | TODO (næste) |
+
+### Pilot-uge-risici
+| # | Opgave | Ejer | Status |
+|---|---|---|---|
+| P-1 | Mobil hamburger-menu ignorerer rettigheder (Mail/Tilbud for montør/salg/bogholderi → "ingen adgang") | dev | TODO |
+| P-2 | Interne beskeder (/dashboard/inbox) har intet menupunkt | dev | TODO |
+| P-3 | Tilbudsmail sendes uden PDF uden at brugeren får besked (`email.ts` "Continue without PDF") | dev | TODO |
+| P-4 | Go-live-tjeklisten: selvregistrerings-tjek, P-009-incident forældet (Pilot Health altid rød), menulink + admin-guard, `is_active` i montør-tjek | dev | TODO |
+| P-5 | 00186 bogholderi-mail-scope / 00211 / 00207 / 00204 sikkerhedspakke | [H] godkendelse | BLOCKED_APPROVAL |
+| P-6 | Vercel-flag `INVOICE_ATTACHMENT_FETCH_ENABLED` (godkendt 09-29, ikke sat) og `MONTOR_START_JOB_ENABLED` | [H] Vercel | BLOCKED |
+| P-7 | Kunde-mail-crons under pilot (rykkere/tilbudspåmindelser sender i dag intet), N74b auto-kunder, N69 "kræver svar", e-conomic (N12) | [H] beslutninger | BLOCKED |
+| P-8 | Arbejdskost-modellen (`docs/design/labour-cost-model.md` §5: 4 spørgsmål) | [H] beslutning | BLOCKED |
+
+### Leverandørfaktura-kontrol (review 2026-10-14)
+| # | Fund | Status |
+|---|---|---|
+| L-1 (S1) | Parseren læste "Momsgrundlag" som moms og "Subtotal" som total; ingen konsistenskontrol | DONE — ordgrænser, sidste "I alt", konsistens (ekskl.+moms=inkl., moms ≤ 25 %) → manuel kontrol + bogføring blokeres (`invoice-parser-test` 10/10, `economic-supplier-draft-test`) |
+| L-2 (S1) | Kreditnotaer bogført som positive fakturaer (fortegn tabt) | DONE — fortegn/"Kreditnota" → negative beløb (negative linjer i e-conomic), altid manuel kontrol |
+| L-3 (S1/S2) | Valuta altid DKK (kolonnestandard vandt over parseren) | DONE — fremmed valuta gemmes, kræver kontrol, bogføring blokeres |
+| L-4 (S2) | Genlæsning slettede en manuel sagskobling | DONE — eksisterende kobling bevares |
+| L-5 (S2) | Konvertér+godkend tjekkede ikke statusskiftet | DONE — rækketjek + tilbagerulning af kørslens konverteringer |
+| L-6 (S2) | Afvisning af godkendt faktura efterlod kost på sagen; afvisning under e-conomic-bogføring blev overskrevet | DONE — afvisning blokeres ved konverterede linjer / aktivt bogføringskrav; "bogført" kun med eget krav |
+| L-7 (S2) | Fakturahoved (nr., dato, beløb, valuta) kan ikke rettes i UI'et | TODO — redigér-hoved-action (incoming_invoices.edit, audit, genberegn kontrol) |
+| L-8 (S3) | Priskontrol overså merbetaling på lave enhedspriser | DONE — linje-tolerance (25 kr) ud over enhedstolerance (`invoice-control-test`) |
+| L-9 (S3) | price_history uden paginering (forkert "gammel" pris) | DONE — fetchAllRows sorteret |
+| L-10 (S3) | Gensendt rettet faktura (samme nr. som en afvist) annulleres som dublet (unik-indeks inkl. afviste) | TODO — migration: delvist unikt indeks uden afviste + dublet-af-afvist → manuel kontrol [H godkendelse] |
+| L-11 | Konvertér+godkend kræver både `incoming_invoices.approve` og `materials.add_to_case` → kun admin; bogholderi kan ikke | [H] beslutning (rettighedsmodel) |
+| L-12 | RLS lader admin/bogholderi ændre status/external_invoice_id direkte via REST (ingen overgangs-trigger); backfill-kandidater upagineret | LATER |
+
+### Profit Engine (review 2026-10-14)
+| # | Fund | Status |
+|---|---|---|
+| PE-1 (S1) | `calculate_work_order_profit` tæller kun timer (materialer kun via work_orders.source_offer_id, som aldrig sættes) og prissætter timer med live sats i stedet for sale_amount → forkert low_profit / AI-indsigter | TODO — migration: samme kilder som sags-økonomien [H godkendelse] |
+| PE-2 (S2) | Profit-snapshots forældes (kreditnotaer når dem aldrig; timer/materialer efter "udført" opdaterer ikke) | TODO — sammen med PE-1 (eller live beregning) |
+| PE-3 (S2) | Tilbudt-vs-faktisk: arbejdslinjer uden kost tæller 0 på tilbudssiden men fuldt på faktisk-siden | TODO — afhænger af arbejdskost-modellen (P-8) |
+| PE-4 (S2) | Lav-DB-afsendelsesværn tæller manglende arbejdskost som 0 og bruger anden tærskel end profitkortet | TODO — afhænger af P-8 + én tærskel |
+| PE-5 (S2) | Medarbejderøkonomi talte salg på ikke-fakturerbare timer | DONE |
+| PE-6 (S3) | Sagens hoved-DB bruger registrerede salgspriser i stedet for kontraktsum på kontraktsager | TODO (dev) |
+| PE-7 (S4) | DB-tærskler hardcoded og forskellige (10/15/db_red_threshold/minimum_db) | TODO — én kilde (calculation_settings) |
+
 ## Prod-kørsel 2026-10-14 — 00218–00220 (Henrik: "GODKENDT TIL PROD")
 | Nr. | Pre | Post | UI/tests |
 |---|---|---|---|

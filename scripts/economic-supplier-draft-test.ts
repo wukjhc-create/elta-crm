@@ -31,8 +31,14 @@ eq('manglende fakturadato → afvises', [noDate.canPost, noDate.issues.map((i) =
 const unlinked = buildEconomicSupplierInvoiceDraft({ ...base, supplierNumber: null, config: {} })
 eq('ukoblet leverandør + ingen konto → fejl', unlinked.issues.map((i) => i.code), ['supplier_not_linked', 'missing_config'])
 
-const credit = buildEconomicSupplierInvoiceDraft({ ...base, invoice: { ...base.invoice, amount_excl_vat: -200 }, lines: [{ description: 'Retur', quantity: 1, total_price: -200 }] })
-eq('kreditnota fra leverandør', [credit.canPost, credit.economicNet], [true, -200])
+const credit = buildEconomicSupplierInvoiceDraft({ ...base, invoice: { ...base.invoice, amount_excl_vat: -200, vat_amount: -50, amount_incl_vat: -250 }, lines: [{ description: 'Retur', quantity: 1, total_price: -200 }] })
+eq('kreditnota fra leverandør (negative linjer)', [credit.canPost, credit.economicNet, credit.issues.map((i) => i.code)], [true, -200, ['credit_note']])
+
+// Leverandørfaktura-review 2026-10-14: hellere ingen bogføring end en forkert
+const inconsistent = buildEconomicSupplierInvoiceDraft({ ...base, invoice: { ...base.invoice, amount_excl_vat: 250, vat_amount: 1000, amount_incl_vat: 1250 } })
+eq('ekskl. + moms ≠ inkl. (fx Momsgrundlag læst som moms) → afvises', [inconsistent.canPost, inconsistent.issues.some((i) => i.code === 'amounts_inconsistent')], [false, true])
+const eur = buildEconomicSupplierInvoiceDraft({ ...base, invoice: { ...base.invoice, currency: 'EUR' } })
+eq('fremmed valuta → afvises', [eur.canPost, eur.issues.some((i) => i.code === 'foreign_currency')], [false, true])
 
 const unitOnly = buildEconomicSupplierInvoiceDraft({ ...base, lines: [{ description: 'X', quantity: 4, unit_price: 250, total_price: null }] })
 eq('linje uden total → antal × stk-pris (før: kun stk-pris)', [unitOnly.economicNet, unitOnly.issues], [1000, []])

@@ -3,6 +3,7 @@
  * vinder, ellers deterministisk varenr. → EAN → varenr. i teksten (kun fakturaens leverandør). Klienten gives af kalderen
  * (bruger-session under RLS: linjer er kun læsbare for admin/serviceleder/bogholderi, 00166). Bevidst IKKE 'use server'.
  */
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { controlInvoice, type InvoiceControl } from '@/lib/invoice-control/engine'
 import { codeFromRawLine } from '@/lib/invoice-control/coverage'
 import { codesToLookup, matchLines, type ProductRef, type LineMatchMethod } from '@/lib/invoice-control/line-matcher'
@@ -58,9 +59,14 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     const productIds = [...new Set([...storedIds, ...(matched.map((m) => m.supplierProductId).filter(Boolean) as string[])])]
     const after = copenhagenLocalToIso(copenhagenDatePlusDays(1, new Date(`${invoiceDate}T12:00:00Z`)), '00:00')
     for (let k = 0; k < productIds.length; k += 200) {
-      const { data: ph } = await catalogClient.from('price_history').select('supplier_product_id, old_cost_price, created_at')
-        .in('supplier_product_id', productIds.slice(k, k + 200)).gte('created_at', after)
-      for (const c of (ph ?? []) as PriceChange[]) {
+      // Leverandørfaktura-review 2026-10-14 (#9): alle rækker i fast rækkefølge (PostgREST giver højst 1.000 i vilkårlig
+      // orden — blev den tidligste ændring efter fakturadatoen skåret fra, kontrolleredes mod en forkert "gammel" pris)
+      const chunk = productIds.slice(k, k + 200)
+      const ph = await fetchAllRows<PriceChange & { id: string }>((f, t) => catalogClient.from('price_history')
+        .select('id, supplier_product_id, old_cost_price, created_at')
+        .in('supplier_product_id', chunk).gte('created_at', after)
+        .order('created_at', { ascending: true }).order('id').range(f, t))
+      for (const c of ph as PriceChange[]) {
         const list = changesByProduct.get(c.supplier_product_id) ?? []
         list.push(c)
         changesByProduct.set(c.supplier_product_id, list)

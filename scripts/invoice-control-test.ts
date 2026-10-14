@@ -29,5 +29,13 @@ assert(controlInvoice([L(1, 100, 100), L(2, 5, null)]).verdict === 'partially_co
 assert(controlInvoice([L(1, 100, null), L(2, 5, null)]).verdict === 'not_controllable', 'ingen kontrollerbare linjer: aldrig "ok"')
 assert(controlInvoice([]).verdict === 'not_controllable' && controlInvoice([]).coveragePct === 0, 'faktura uden linjer: ikke kontrollerbar, dækning 0 %')
 
+// Leverandørfaktura-review 2026-10-14 (#8): lav enhedspris, stor mængde → linje-tolerancen fanger merbetalingen
+{
+  const c = controlLine(L(1, 4.45, 4.0, 500))
+  assert(c.verdict === 'overcharge' && c.varianceAmount === 225, 'kabel 4,00 → 4,45 kr/m × 500 m (+11 %, 225 kr): markeres', `${c.verdict} ${c.varianceAmount}`)
+}
+assert(controlLine(L(1, 1.2, 1.0, 10)).verdict === 'ok', '20 % over men kun 2 kr på linjen: stadig ok (afrunding)')
+assert(controlLine(L(1, 4.05, 4.0, 500)).verdict === 'ok', '1,25 % over på 500 m (25 kr): inden for procent-tolerancen')
+
 console.log(`\n${fails === 0 ? '✅ ALLE FAKTURAKONTROL-TESTS PASS' : `❌ ${fails} FEJL`}`)
 process.exit(fails === 0 ? 0 : 1)
