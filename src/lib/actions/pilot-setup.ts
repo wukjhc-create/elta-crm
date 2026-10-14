@@ -31,7 +31,8 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
 
   const [{ data: company }, { data: montorProfiles }, { data: employees }, { data: billed }] = await Promise.all([
     admin.from('company_settings').select('company_name, company_vat_number, bank_reg_no, bank_account').limit(1).maybeSingle(),
-    admin.from('profiles').select('id').eq('role', 'montør'),
+    // Pilot-review 2026-10-14 (P-4): kun aktive logins (en deaktiveret montør gav falsk alarm)
+    admin.from('profiles').select('id').eq('role', 'montør').eq('is_active', true),
     admin.from('employees').select('profile_id').not('profile_id', 'is', null),
     // side for side (før .limit(5000) → højst 1.000 fakturaer)
     fetchAllRows<{ id: string; customer_id: string }>((from, to) => admin.from('invoices').select('id, customer_id').in('status', ['sent', 'paid'])
@@ -56,7 +57,21 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
     unlinkedCustomers += count ?? 0
   }
 
+  // Pilot-review 2026-10-14 (P-4): selvregistrering (offentlig Auth-indstilling — ingen hemmeligheder)
+  const signup = await readSelfSignupEnabled()
+
   const items: PilotSetupItem[] = [
+    {
+      key: 'self_signup',
+      label: 'Selvregistrering slået fra',
+      ok: signup === false,
+      detail: signup === null
+        ? 'Kunne ikke læses'
+        : signup
+          ? 'Alle med app-adressen kan oprette en bruger (standardrolle montør) og læse kundedata'
+          : 'Kun inviterede brugere kan logge ind',
+      fixHint: 'Supabase → Authentication → Sign In / Providers → slå "Allow new users to sign up" fra (docs/runbooks/supabase-disable-signup.md)',
+    },
     {
       key: 'company',
       label: 'Firmaoplysninger på tilbud og fakturaer',
@@ -190,4 +205,19 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
     },
   )
   return { ok: true, items }
+}
+
+/** true = selvregistrering slået TIL, false = fra, null = ukendt. Læser den offentlige Auth-indstilling (anon-nøglen). */
+async function readSelfSignupEnabled(): Promise<boolean | null> {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !anon) return null
+    const res = await fetch(`${url.replace(/\/$/, '')}/auth/v1/settings`, { headers: { apikey: anon }, cache: 'no-store' })
+    if (!res.ok) return null
+    const body = (await res.json()) as { disable_signup?: boolean }
+    return typeof body.disable_signup === 'boolean' ? !body.disable_signup : null
+  } catch {
+    return null
+  }
 }

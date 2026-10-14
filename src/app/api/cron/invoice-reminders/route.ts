@@ -17,7 +17,7 @@ import { timingSafeEqual } from 'crypto'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
 
-const MAX_REMINDER_MAILS_PER_RUN = 3
+import { MAX_REMINDER_MAILS_PER_RUN } from '@/lib/invoices/reminder-limits'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 

@@ -59,6 +59,9 @@ export interface GoLiveStatus {
 }
 
 export async function getGoLiveStatus(): Promise<GoLiveStatus> {
+  // Pilot-review 2026-10-14 (P-4): kun admin (siden har nu også en admin-layout-guard)
+  const gate = await requireAdmin()
+  if ('ok' in gate) throw new Error(gate.message)
   const { supabase, userId } = await getAuthenticatedClient()
   const now = new Date()
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
@@ -386,15 +389,22 @@ export async function runEmailSyncNowAction(): Promise<ActionOutcome> {
   }
 }
 
-export async function runInvoiceRemindersNowAction(): Promise<ActionOutcome> {
+export async function runInvoiceRemindersNowAction(options?: { confirm?: boolean }): Promise<ActionOutcome> {
   const ctx = await requireAdmin()
   if ('ok' in ctx) return ctx
+  // Pilot-review 2026-10-14 (G-6): sender RIGTIGE rykkermails til kunder — kun med eksplicit bekræftelse og med samme
+  // loft pr. kørsel som cron'en (før: alle forfaldne på én gang, uden bekræftelse)
+  if (options?.confirm !== true) {
+    return { ok: false, message: 'Rykker-tjek sender rigtige mails til kunder — bekræft for at fortsætte' }
+  }
 
   try {
     const { getOverdueInvoices, sendInvoiceReminder } = await import('@/lib/services/invoices')
+    const { MAX_REMINDER_MAILS_PER_RUN } = await import('@/lib/invoices/reminder-limits')
     const overdue = await getOverdueInvoices()
     const summary = { checked: overdue.length, sent: 0, manual_review: 0, skipped: 0, failed: 0 }
     for (const inv of overdue) {
+      if (summary.sent >= MAX_REMINDER_MAILS_PER_RUN) { summary.skipped++; continue }
       try {
         const r = await sendInvoiceReminder(inv.id)
         if (r.status === 'sent') summary.sent++

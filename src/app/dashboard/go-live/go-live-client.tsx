@@ -155,7 +155,14 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
             `Sendt sidste 24 t: ${status.invoice_reminder_cron.last_24h_sent}`,
           ]}
           actions={
-            <Button size="sm" onClick={() => run('Run invoice reminders', runInvoiceRemindersNowAction)} disabled={writeDisabled}>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!confirm('Rykker-tjek sender RIGTIGE rykkermails til kunder med forfaldne fakturaer (højst 3 pr. kørsel). Fortsæt?')) return
+                run('Run invoice reminders', () => runInvoiceRemindersNowAction({ confirm: true }))
+              }}
+              disabled={writeDisabled}
+            >
               Kør rykker-tjek nu
             </Button>
           }

@@ -8,17 +8,22 @@ import { GlobalSearch } from './global-search'
 import { NotificationDropdown } from './notification-dropdown'
 import { Menu, X } from 'lucide-react'
 import { APP_NAME } from '@/lib/constants'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
 
-const mobileNavLinks = [
+// Pilot-review 2026-10-14 (P-1): samme rettigheder som sidebaren — før så montør/salg/bogholderi Mail/Tilbud og fik
+// "ingen adgang"
+const mobileNavLinks: Array<{ name: string; href: string; permission?: Permission }> = [
   { name: 'Dashboard', href: '/dashboard' },
-  { name: 'Leads', href: '/dashboard/leads' },
-  { name: 'Kunder', href: '/dashboard/customers' },
-  { name: 'Tilbud', href: '/dashboard/offers' },
-  { name: 'Sager / Ordrer', href: '/dashboard/orders' },
-  { name: 'Mail', href: '/dashboard/mail' },
-  { name: 'Opgaver', href: '/dashboard/tasks' },
-  { name: 'Kalender', href: '/dashboard/calendar' },
-  { name: 'Indstillinger', href: '/dashboard/settings' },
+  { name: 'Leads', href: '/dashboard/leads', permission: 'leads.create' },
+  { name: 'Kunder', href: '/dashboard/customers', permission: 'customers.view' },
+  { name: 'Tilbud', href: '/dashboard/offers', permission: 'offers.view' },
+  { name: 'Sager / Ordrer', href: '/dashboard/orders', permission: 'cases.view.assigned' },
+  { name: 'Mail', href: '/dashboard/mail', permission: 'inbox.view' },
+  { name: 'Beskeder', href: '/dashboard/inbox' },
+  { name: 'Opgaver', href: '/dashboard/tasks', permission: 'tasks.view' },
+  { name: 'Kalender', href: '/dashboard/calendar', permission: 'calendar.view.own' },
+  { name: 'Indstillinger', href: '/dashboard/settings', permission: 'settings.view' },
 ]
 
 export function Header() {
@@ -27,6 +32,8 @@ export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const { role } = useUserRole()
+  const visibleMobileLinks = mobileNavLinks.filter((l) => !l.permission || hasPermission(role, l.permission))
 
   const handleLogout = async () => {
     try {
@@ -128,7 +135,7 @@ export function Header() {
               <GlobalSearch />
             </div>
             <nav className="p-2">
-              {mobileNavLinks.map((link) => {
+              {visibleMobileLinks.map((link) => {
                 const isActive = pathname === link.href || pathname.startsWith(link.href + '/')
                 return (
                   <Link
