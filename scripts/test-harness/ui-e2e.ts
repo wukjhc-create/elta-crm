@@ -900,6 +900,27 @@ ${m.text()}`) })
         out.push({ id: 'U20 sagsliste: type, prioritet, tællere', ok: listCaseIds.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U148 (00220, Henrik 2026-10-10): notifikationsindstillinger — standard fra; push + daglig opsummering "ikke
+      // tilgængelig"; valget gemmes og huskes (det er det, afsenderne læser)
+      if (want('U148')) {
+        const r: Record<string, boolean> = {}
+        await c.admin.from('profiles').update({ notification_preferences: {} }).eq('id', adminUser.id)
+        await gotoSafe(a.page, `${base}/dashboard/settings/notifications`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.push_ikke_tilgaengelig = (await a.page.getByTestId('notify-new_lead-push-na').count()) > 0
+        r.daglig_ikke_tilgaengelig = (await a.page.getByTestId('notify-daily_summary-email-na').count()) > 0
+        r.standard_fra = ((await a.page.getByTestId('notify-offer_signed-email').getAttribute('aria-label').catch(() => '')) ?? '').endsWith(' fra')
+        await a.page.getByTestId('notify-offer_signed-email').click({ timeout: 15_000 }).catch(() => {})
+        await a.page.getByRole('button', { name: /Gem indstillinger/ }).click({ timeout: 15_000 }).catch(() => {})
+        await a.page.waitForTimeout(2000)
+        const { data: prof } = await c.admin.from('profiles').select('notification_preferences').eq('id', adminUser.id).single()
+        const prefs = (prof as { notification_preferences: Record<string, { email?: boolean; push?: boolean }> } | null)?.notification_preferences ?? {}
+        r.gemt_i_db = prefs.offer_signed?.email === true && prefs.new_lead?.email !== true && prefs.daily_summary?.email !== true && prefs.new_lead?.push !== true
+        await gotoSafe(a.page, `${base}/dashboard/settings/notifications`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.husket_efter_genindlaesning = ((await a.page.getByTestId('notify-offer_signed-email').getAttribute('aria-label').catch(() => '')) ?? '').endsWith(' til')
+        await c.admin.from('profiles').update({ notification_preferences: {} }).eq('id', adminUser.id)
+        out.push({ id: 'U148 notifikationsindstillinger (00220)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U23 portal-chat begge veje (kunde uden login ↔ sælger)
       if (want('U23') && (profitCustomerId)) {
         const r: Record<string, boolean> = {}
