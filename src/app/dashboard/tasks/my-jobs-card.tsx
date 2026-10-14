@@ -1,6 +1,7 @@
 /**
  * "Mine job" — montørens dagsoverblik på landingssiden (/dashboard/tasks). Henter kun brugerens egne arbejdsordrer
- * (scope i listWorkOrdersByDateRange). Ikke-afsluttede job fra de seneste 14 dage vises som "Ikke afsluttet".
+ * (scope i listWorkOrdersByDateRange). Ikke-afsluttede job fra før i dag — også ældre end 14 dage og uden dato (PL-8) —
+ * vises som "Ikke afsluttet".
  * Hvert job linker direkte til sagens Planlægning/Timer-fane (afslut + timer + fotos).
  */
 import Link from 'next/link'
@@ -22,10 +23,11 @@ const STATUS: Record<string, string> = { planned: 'Planlagt', in_progress: 'I ga
 
 export async function MyJobsCard() {
   const today = copenhagenParts(new Date()).date
-  const res = await listWorkOrdersByDateRange(shiftDay(today, -14), shiftDay(today, 7))
+  const res = await listWorkOrdersByDateRange(shiftDay(today, -14), shiftDay(today, 7), { includeOpenOutsideRange: true })
   if (!res.success) return null
   const open = (res.data ?? []).filter((w) => w.status === 'planned' || w.status === 'in_progress')
-  const overdue = open.filter((w) => w.scheduled_date && w.scheduled_date < today)
+  // PL-8: udaterede åbne job hører også under "Ikke afsluttet" (før forsvandt de + job ældre end 14 dage)
+  const overdue = open.filter((w) => !w.scheduled_date || w.scheduled_date < today)
   const todays = open.filter((w) => w.scheduled_date === today)
   const upcoming = open.filter((w) => w.scheduled_date && w.scheduled_date > today)
   // N64: afsluttede job (seneste 14 dage) uden en eneste timelinje — påmind montøren før timerne glemmes

@@ -2558,6 +2558,28 @@ ${m.text()}`) })
         out.push({ id: 'U72 N28 cockpit: timer afventer godkendelse', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · vist="${txt}" forventet=${count}` })
       }
 
+      // U151 PL-8: montørens åbne job uden dato og ældre end 14 dage vises under "Ikke afsluttet" i Mine job
+      if (want('U151') && jobCaseId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const t1 = `[HARNESS] udateret job ${stamp}`
+        const t2 = `[HARNESS] gammelt job ${stamp}`
+        const old = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() - 30 * 86_400_000))
+        const ins = await c.admin.from('work_orders').insert([
+          { case_id: jobCaseId, title: t1, scheduled_date: null, assigned_employee_id: jobEmployeeId, status: 'planned' },
+          { case_id: jobCaseId, title: t2, scheduled_date: old, assigned_employee_id: jobEmployeeId, status: 'planned' },
+        ]).select('id')
+        const ids = ((ins.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        r.seed = ids.length === 2
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const card = m.page.getByTestId('my-jobs-card')
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        const txt = (await card.innerText().catch(() => '')) ?? ''
+        r.udateret_vist = txt.includes(t1)
+        r.gammelt_vist = txt.includes(t2)
+        if (ids.length) await c.admin.from('work_orders').delete().in('id', ids)
+        out.push({ id: 'U151 Mine job: udaterede og gamle åbne job (PL-8)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${ins.error ? ` · ${ins.error.message.slice(0, 80)}` : ''}` })
+      }
+
       // U62 N2: timegodkendelse — montør registrerer (U11) → admin afviser med begrundelse → montør ser "Afvist" → godkend
       if (want('U62') && jobCaseId) {
         const r: Record<string, boolean> = {}

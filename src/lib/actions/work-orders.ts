@@ -497,7 +497,14 @@ export async function deletePlannedWorkOrder(
  */
 export async function listWorkOrdersByDateRange(
   startDate: string,    // YYYY-MM-DD inclusive
-  endDate: string       // YYYY-MM-DD inclusive
+  endDate: string,      // YYYY-MM-DD inclusive
+  options?: {
+    /**
+     * PL-8 (planlægnings-review 2026-10-14): medtag også ÅBNE job uden dato eller med dato før startDate — kun for
+     * brugere med eget scope (montør), så "Mine job" ikke taber udaterede/gamle uafsluttede job
+     */
+    includeOpenOutsideRange?: boolean
+  }
 ): Promise<ActionResult<WorkOrderForCalendar[]>> {
   try {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
@@ -514,15 +521,18 @@ export async function listWorkOrdersByDateRange(
       return { success: true, data: [] }
     }
 
-    const woQuery = supabase
+    const withOpen = !!options?.includeOpenOutsideRange && woScope.type === 'specific'
+    let woQuery = supabase
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
         scheduled_date, assigned_employee_id, source_offer_id,
         auto_invoice_on_done, low_profit, completed_at, created_at, updated_at
       `)
-      .gte('scheduled_date', startDate)
-      .lte('scheduled_date', endDate)
+    woQuery = withOpen
+      ? woQuery.or(`and(scheduled_date.gte.${startDate},scheduled_date.lte.${endDate}),and(scheduled_date.is.null,status.in.(planned,in_progress)),and(scheduled_date.lt.${startDate},status.in.(planned,in_progress))`)
+      : woQuery.gte('scheduled_date', startDate).lte('scheduled_date', endDate)
+    woQuery = woQuery
       .order('scheduled_date', { ascending: true })
       .order('created_at', { ascending: true })
 
