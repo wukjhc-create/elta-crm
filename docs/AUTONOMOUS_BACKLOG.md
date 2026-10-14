@@ -49,7 +49,7 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 ### Grossist / prissætning (GP)
 | # | Fund | Status |
 |---|---|---|
-| GP-1 (S1→S2) | Salg kan regne nettoindkøbspris baglæns: estimeret salgspris = kost × (1 + global avance), og avancen er læsbar for alle (calculation_settings RLS USING(true), ugated action) | DELVIS — app-vejen lukket: getCalculationSettings/getAllSettings udleverer ikke indkøbsavancer til roller uden kostadgang; server-beregning via lib/settings/product-margin (uændrede priser). Rest: RLS på calculation_settings (direkte REST) = migration [H] |
+| GP-1 (S1→S2) | Salg kan regne nettoindkøbspris baglæns: estimeret salgspris = kost × (1 + global avance), og avancen er læsbar for alle (calculation_settings RLS USING(true), ugated action) | DELVIS — app-vejen lukket: getCalculationSettings/getAllSettings udleverer ikke indkøbsavancer til roller uden kostadgang; server-beregning via lib/settings/product-margin (uændrede priser). Rest: RLS = udkast 00223 på branch `calc-settings-rls-00223` (staging `cli.ts calc-settings-rls` 3/3) BLOCKED_APPROVAL |
 | GP-2 (S2) | Produktspecifikke kundepriser og aftalers gyldighedsdatoer ignoreres ved linjeoprettelse/-opdatering | DELVIS — gyldighedsdatoer håndhæves ved linjeoprettelse/-opdatering (`supplier-line-pricing-check`); produktspecifikke kundepriser + søgning/optimering/Kalkia: TODO |
 | GP-3 (S2) | Kategori-/underkategori-avanceregler bruges aldrig på manuelle linjer (p_category null) | DONE — kategori/underkategori sendes med (`supplier-line-pricing-check`) |
 | GP-4 (S2) | Avance-fallback og forrang forskellig på hver sti (20/25 %/indstilling; regel slår kundeaftale) | [H] forrang + én resolver |
