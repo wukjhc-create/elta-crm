@@ -2100,6 +2100,13 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'calc-settings-rls') {
+    const { runCalcSettingsRls, formatCalcSettingsRls } = await import('./calc-settings-rls')
+    const checks = await runCalcSettingsRls({ admin, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })
+    log(formatCalcSettingsRls(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'supplier-vat') {
     const { runSupplierVat, formatSupplierVat } = await import('./supplier-vat')
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
