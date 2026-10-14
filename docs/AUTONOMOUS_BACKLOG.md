@@ -13,6 +13,15 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Checkpoint 2026-10-14 aften (long-run)
+- **I prod (push = deploy):** L-7 ret fakturahoved · PE-6 kontraktsum-DB · PE-7 fælles DB-tærskler · arbejdskost trin 2 (adfærdsneutralt)
+  · F-1 (S1) kreditering af fratrukket forskud blokeret · F-2/F-3 slutfaktura-vagter · F-8/F-9/F-10/F-12 · F-7 overbetaling
+  · PL-1–PL-8 (montør/planlægning) · GP-1 app-vej · GP-2/3/5/7/8/9/10/11/12/13/14 · 3 små audit-punkter
+- **Udkast BLOCKED_APPROVAL (branches, staging-testet):** 00221 L-10 (`l10-rejected-dup-00221`, rejected-dup 5/5) · 00222 PE-1/PE-2
+  (`profit-engine-00222`, wo-profit 7/7, erstatter 00205) · 00223 GP-1 RLS (`calc-settings-rls-00223`, calc-settings-rls 3/3).
+  Staging har 00221–00223 anvendt.
+- **Nye beslutninger** i HENRIK-DECISIONS: lav-DB 20 vs 10, GP-1, GP-4, F-3 kontrakt-rest, F-4, F-5, PL-10.
+
 ## NEXT-10 (backlog-wave 2026-10-14 aften — planlægning/montør, kundefaktura, grossist/prissætning)
 Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data er små (3 arbejdsordrer), så de fleste er latente.
 
