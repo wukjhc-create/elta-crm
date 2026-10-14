@@ -2694,6 +2694,10 @@ async function main() {
     const custId = (cu as { id: string }).id
     let n = 0
     let guardCaseId: string | null = null
+    let finalCaseId: string | null = null
+    let noRateEmpId: string | null = null
+    let noRateWoId: string | null = null
+    let noRateTlId: string | null = null
     const mkInv = async (fields: Record<string, unknown>, lines: Array<[string, number, number]>) => {
       const { data, error } = await admin.from('invoices').insert({ invoice_number: `HX-${stamp}-${++n}`, customer_id: custId, status: 'draft', total_amount: 0, tax_amount: 0, final_amount: 0, ...fields }).select('id').single()
       if (error) throw new Error(`faktura: ${error.message}`)
@@ -2762,6 +2766,25 @@ async function main() {
       const g2 = await createCreditNoteForInvoice({ invoice_id: dep2.id, credit_type: 'full', reason: 'harness' }, owner)
       check('slutfakturaen annulleret (krediteret): forskuddet kan nu krediteres', g2.ok, g2.message)
 
+      // Faktura-review 2026-10-14 F-3/F-2: slutfaktura med negativ total afvises; timer uden timepris blokerer slutfakturaen
+      const { createFinalInvoiceForCase } = await import('../../src/lib/services/invoice-stage')
+      const { data: sc3 } = await admin.from('service_cases').insert({ case_number: `SVC-8${String(stamp).slice(-6)}`, customer_id: custId, title: '[HARNESS] slutfaktura', status: 'in_progress', created_by: owner, contract_sum: 100000 }).select('id').single()
+      finalCaseId = (sc3 as { id: string } | null)?.id ?? null
+      const dep3 = await mkInv({ invoice_type: 'deposit', billing_percentage: 40, case_id: finalCaseId }, [['Forskud 40 %', 1, 40000]])
+      await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', dep3.id)
+      const fneg = await createFinalInvoiceForCase({ case_id: finalCaseId!, include_unbilled_lines: false }, owner)
+      check('slutfaktura uden linjer efter 40 % forskud (negativ total) afvises', !fneg.ok && /negativ/.test(fneg.message) && !fneg.invoice_number, fneg.message.slice(0, 90))
+      const empNoRate = ((await admin.from('employees').insert({ name: '[HARNESS] uden sats', email: `nr-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: null }).select('id').single()).data as { id: string }).id
+      noRateEmpId = empNoRate
+      const wo3 = ((await admin.from('work_orders').insert({ case_id: finalCaseId, customer_id: custId, title: '[HARNESS] uden sats', status: 'in_progress', scheduled_date: '2026-10-01', assigned_employee_id: empNoRate }).select('id').single()).data as { id: string }).id
+      noRateWoId = wo3
+      const tl3 = await admin.from('time_logs').insert({ work_order_id: wo3, employee_id: empNoRate, start_time: '2026-10-01T06:00:00Z', end_time: '2026-10-01T16:00:00Z', billable: true }).select('id, sale_amount').single()
+      noRateTlId = (tl3.data as { id: string } | null)?.id ?? null
+      // Rate-motoren kan have frosset en sats fra firmastandarden — tving "ingen sats" for at teste fallback-vagten
+      if (noRateTlId) await admin.from('time_logs').update({ sale_amount: null, sale_rate_snapshot: null }).eq('id', noRateTlId)
+      const fmiss = await createFinalInvoiceForCase({ case_id: finalCaseId!, include_unbilled_lines: true }, owner)
+      check('timer uden timepris blokerer slutfakturaen (før skjult 650 kr/t)', !fmiss.ok && /timepris/.test(fmiss.message), fmiss.message.slice(0, 90))
+
       // Faktura-review 2026-10-14 #8/#9: "markér som sendt" taber til en igangværende sletning; kreditnota-PDF på momsfri faktura
       const { markInvoiceSent, getInvoicePdfPayload } = await import('../../src/lib/services/invoices')
       const claimed = await mkInv({ invoice_type: 'standard' }, [['Arbejde', 1, 1000]])
@@ -2786,6 +2809,10 @@ async function main() {
         await admin.from('invoices').delete().in('id', ids)
       }
       if (guardCaseId) await admin.from('service_cases').delete().eq('id', guardCaseId)
+      if (noRateTlId) await admin.from('time_logs').delete().eq('id', noRateTlId)
+      if (noRateWoId) await admin.from('work_orders').delete().eq('id', noRateWoId)
+      if (finalCaseId) await admin.from('service_cases').delete().eq('id', finalCaseId)
+      if (noRateEmpId) await admin.from('employees').delete().eq('id', noRateEmpId)
       await admin.from('customers').delete().eq('id', custId)
     }
     log(fails ? `❌ ${fails} fejl` : '✅ fakturavagter (X1 #7/#8) bestået')

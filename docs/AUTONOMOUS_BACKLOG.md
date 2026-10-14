@@ -20,8 +20,8 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | # | Fund | Status |
 |---|---|---|
 | F-1 (S1) | Forskud/rate kunne krediteres efter slutfakturaen havde fratrukket den → kunden fik beløbet to gange | DONE 5b086139 (invoice-guards-check) |
-| F-2 (S2) | Slutfaktura/sagsfaktura prissætter timer uden timepris til hardcodet 650 kr/t, som forhåndsvisningen ikke viser | TODO |
-| F-3 (S2) | Slutfaktura kan oprettes med negativ total (typen final, ikke kreditnota); ingen "rest af kontraktsum" på kontraktsager | TODO (negativ total) · [H] rest-af-kontrakt-tilstand |
+| F-2 (S2) | Slutfaktura/sagsfaktura prissætter timer uden timepris til hardcodet 650 kr/t, som forhåndsvisningen ikke viser | DONE (slutfaktura blokeres med klar besked; sagsfaktura-kladde advarer stadig) — fallback-værdien 650/495/695 = P-8 §5.4 [H] |
+| F-3 (S2) | Slutfaktura kan oprettes med negativ total (typen final, ikke kreditnota); ingen "rest af kontraktsum" på kontraktsager | DONE negativ total afvises (før nummertildeling) · [H] rest-af-kontrakt-tilstand |
 | F-4 (S2) | Krediteret slutfaktura låser sagen for altid (uq_invoices_one_final_per_case tæller annullerede; kilde-låse frigives ikke) | [H] migration + kreditér-og-genfakturér-flow |
 | F-5 (S2) | Bankimport dropper en ægte 2. betaling med samme dato/beløb/reference (dedup-nøgle) | [H] migration (dedup på bank-id/rækkehash) |
 | F-6 (S2) | Auto-faktura ved tilbudsaccept sætter ikke case_id (kun hvis reglen går ud af dry-run) | TODO verificér prod-regel read-only |
@@ -30,7 +30,7 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | F-9 (S3) | Kreditnota på momsfri faktura viste 25 % moms i PDF | DONE f67e46b4 |
 | F-10 (S3) | Rykker-cron: fejlede afsendelser tæller med i loftet → kan gå i stå på de ældste | TODO |
 | F-11 (S4) | Tidszone-kanter (fakturaår ved nytår, CURRENT_DATE i SQL, rykker-cooldown floor) | LATER |
-| F-12 (S4) | Slutfakturaens "Intern note" siger "Vises på fakturaen" (vises ikke, D34) | TODO |
+| F-12 (S4) | Slutfakturaens "Intern note" siger "Vises på fakturaen" (vises ikke, D34) | DONE |
 
 ### Planlægning / montør (PL)
 | # | Fund | Status |

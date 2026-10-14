@@ -823,7 +823,7 @@ function BillingPercentMode({
               onChange={(e) => setNotes(e.target.value)}
               maxLength={500}
               disabled={submitting}
-              placeholder="Vises på fakturaen"
+              placeholder="Kun internt — vises ikke på fakturaen"
               className="w-full border rounded px-2 py-1.5 text-sm"
             />
           </div>
@@ -1161,7 +1161,7 @@ function BillingFinalMode({
               onChange={(e) => setNotes(e.target.value)}
               maxLength={500}
               disabled={submitting || !!existingFinal}
-              placeholder="Vises på fakturaen"
+              placeholder="Kun internt — vises ikke på fakturaen"
               className="w-full border rounded px-2 py-1.5 text-sm"
             />
           </div>
@@ -1695,7 +1695,7 @@ export function BillingStandardMode({
               onChange={(e) => setNotes(e.target.value)}
               maxLength={500}
               disabled={submitting}
-              placeholder="Vises på fakturaen"
+              placeholder="Kun internt — vises ikke på fakturaen"
               className="w-full border rounded px-2 py-1.5 text-sm"
             />
           </div>
