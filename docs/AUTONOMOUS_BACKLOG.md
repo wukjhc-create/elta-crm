@@ -13,6 +13,57 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## NEXT-10 (backlog-wave 2026-10-14 aften — planlægning/montør, kundefaktura, grossist/prissætning)
+Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data er små (3 arbejdsordrer), så de fleste er latente.
+
+### Kundefaktura (F)
+| # | Fund | Status |
+|---|---|---|
+| F-1 (S1) | Forskud/rate kunne krediteres efter slutfakturaen havde fratrukket den → kunden fik beløbet to gange | DONE 5b086139 (invoice-guards-check) |
+| F-2 (S2) | Slutfaktura/sagsfaktura prissætter timer uden timepris til hardcodet 650 kr/t, som forhåndsvisningen ikke viser | TODO |
+| F-3 (S2) | Slutfaktura kan oprettes med negativ total (typen final, ikke kreditnota); ingen "rest af kontraktsum" på kontraktsager | TODO (negativ total) · [H] rest-af-kontrakt-tilstand |
+| F-4 (S2) | Krediteret slutfaktura låser sagen for altid (uq_invoices_one_final_per_case tæller annullerede; kilde-låse frigives ikke) | [H] migration + kreditér-og-genfakturér-flow |
+| F-5 (S2) | Bankimport dropper en ægte 2. betaling med samme dato/beløb/reference (dedup-nøgle) | [H] migration (dedup på bank-id/rækkehash) |
+| F-6 (S2) | Auto-faktura ved tilbudsaccept sætter ikke case_id (kun hvis reglen går ud af dry-run) | TODO verificér prod-regel read-only |
+| F-7 (S3) | Overbetaling/dobbeltbetaling markeres ikke | TODO |
+| F-8 (S3) | "Markér som sendt" kunne vinde over kladde-sletning | DONE f67e46b4 |
+| F-9 (S3) | Kreditnota på momsfri faktura viste 25 % moms i PDF | DONE f67e46b4 |
+| F-10 (S3) | Rykker-cron: fejlede afsendelser tæller med i loftet → kan gå i stå på de ældste | TODO |
+| F-11 (S4) | Tidszone-kanter (fakturaår ved nytår, CURRENT_DATE i SQL, rykker-cooldown floor) | LATER |
+| F-12 (S4) | Slutfakturaens "Intern note" siger "Vises på fakturaen" (vises ikke, D34) | TODO |
+
+### Planlægning / montør (PL)
+| # | Fund | Status |
+|---|---|---|
+| PL-1 (S2) | Afvist timeregistrering kan ikke rettes/slettes af montøren og blokerer genindtastning (overlap tæller afviste) | TODO |
+| PL-2 (S2) | Godkender ser ikke satstype (overtid) → overtid godkendes uset | TODO |
+| PL-3 (S3) | Montør ser planlægnings-/statusknapper der altid fejler (kalenderdialog, "Planlæg medarbejder") | TODO |
+| PL-4 (S3) | Montør ser "salgspris mangler"-advarsler (salg er skjult for ham) | TODO |
+| PL-5 (S3) | Afvisningsårsag kun i hover — kan ikke læses på mobil | TODO |
+| PL-6 (S3) | Ingen fornuftsgrænse på manuel tid (80 t, fremtidige datoer) | TODO |
+| PL-7 (S3) | Omplanlægning tjekker ikke fratrædelsesdato | TODO |
+| PL-8 (S3) | "Mine job" skjuler udaterede og >14 dage gamle åbne job | TODO |
+| PL-9 (S3/S4) | Kalender dagvisning trang på mobil; overlap kun app-niveau; tidsformular-felter | LATER |
+| PL-10 | Montør ser kontraktsum i sagens Økonomi-panel (salg, ikke kost) — passer det med D42? | [H] beslutning |
+
+### Grossist / prissætning (GP)
+| # | Fund | Status |
+|---|---|---|
+| GP-1 (S1→S2) | Salg kan regne nettoindkøbspris baglæns: estimeret salgspris = kost × (1 + global avance), og avancen er læsbar for alle (calculation_settings RLS USING(true), ugated action) | [H] beslutning — skal salg kende avancen? (fix: gate margins + RLS-migration) |
+| GP-2 (S2) | Produktspecifikke kundepriser og aftalers gyldighedsdatoer ignoreres ved linjeoprettelse/-opdatering | TODO |
+| GP-3 (S2) | Kategori-/underkategori-avanceregler bruges aldrig på manuelle linjer (p_category null) | TODO |
+| GP-4 (S2) | Avance-fallback og forrang forskellig på hver sti (20/25 %/indstilling; regel slår kundeaftale) | [H] forrang + én resolver |
+| GP-5 (S2) | optimizeOfferPrices: egen matematik, skriver bruttokost, navne-match på tværs af enheder, ukontrollerede fejl | TODO |
+| GP-6 (S2) | Pakke-/auto-tilbud: rabatteret kost gemt som leverandørkost (falsk "pris ændret"), avance gemt som 0, ROUND vs ceil | TODO (migration for 00079-funktionen) |
+| GP-7 (S2) | LM "API-sync" læser egne rækker og stempler last_synced_at → gamle priser ser friske ud | TODO |
+| GP-8 (S2) | Kalkia-materialesync skriver vejl. udsalgspris som salgspris, 0-kost, upagineret/uchunket | TODO |
+| GP-9 (S3) | import: supplier_settings.upsert uden onConflict → last_import_at opdateres aldrig efter 1. import | TODO |
+| GP-10 (S3) | 1.000-rækkers-afkortning i prisændringer fra import og kategoriliste | TODO |
+| GP-11 (S3) | getAffectedOffers tager højeste nye kost i vinduet, ikke seneste | TODO |
+| GP-12 (S3) | Manuel kostændring skriver ingen price_history | TODO |
+| GP-13 (S3) | parseDanishNumber("1.234") = 1,234; FTP-insert kost 0; søgning sorterer 0-kr øverst | TODO |
+| GP-14 (S4) | Død line-item-form.tsx, ubrugt forespørgsel, maybeSingle i setDefaultSupplierMargin | TODO |
+
 ## NEXT-9 (backlog-wave 2026-10-14 — go-live/pilot, leverandørfakturaer, Profit Engine)
 Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kontrol, Profit Engine). [H] = kræver Henrik.
 
