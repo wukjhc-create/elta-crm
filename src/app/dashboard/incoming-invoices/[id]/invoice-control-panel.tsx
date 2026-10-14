@@ -50,9 +50,17 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
       {res && (
         <>
           {header && <p className={`text-xs mb-3 ${headerCls}`} data-testid="invoice-control-header">{header.text}</p>}
-          <div className="grid grid-cols-3 gap-3 text-xs mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-3">
             <div><div className="text-gray-500">Kontrollerede linjer</div><div className="font-medium">{res.control.controlledLines} / {res.control.totalLines} ({res.control.coveragePct} %)</div></div>
-            <div><div className="text-gray-500">Overpris i alt</div><div className={`font-medium ${res.control.overchargeAmount > 0 ? 'text-red-700' : ''}`} data-testid="invoice-control-overcharge">{kr(res.control.overchargeAmount)}</div></div>
+            <div>
+              <div className="text-gray-500">Overpris i alt</div>
+              <div className={`font-medium ${res.control.controlledLines > 0 && res.control.overchargeAmount > 0 ? 'text-red-700' : ''}`} data-testid="invoice-control-overcharge">
+                {res.control.controlledLines > 0 ? kr(res.control.overchargeAmount) : '—'}
+              </div>
+              {res.control.controlledLines === 0 && (
+                <p className="text-[10px] text-gray-500">Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr.</p>
+              )}
+            </div>
             <div><div className="text-gray-500">Leverandør</div><div className="font-medium">{res.hasSupplier ? 'Kendt' : 'Ukendt — kan ikke matche katalog'}</div></div>
           </div>
           <div className="overflow-x-auto">

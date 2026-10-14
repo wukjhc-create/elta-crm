@@ -66,7 +66,8 @@ features delivered:
 - Leverandørfaktura-listen har kort på små skærme (`51d5be6e`, `incoming-invoices-mobile-test`). Godkendelse og e-conomic er uændret.
 - Efterkalkulationens linjeliste viser antal og kost hver for sig, og en brugt linje uden kost står som kost ukendt (`b18ca432`, `aftercalc-test`, `offer-vs-actual-test`).
 - De to linjelister er kort på små skærme. U81 læser stadig rækker og afvigelse i tabellen (`4b41f085`, `economy-lines-mobile-test`).
-- Fakturaoverblik og kundens fakturaer er kort på små skærme. Påmindelse sendes ikke ved at åbne kortet (`invoices-mobile-test`).
+- Fakturaoverblik og kundens fakturaer er kort på små skærme. Påmindelse sendes ikke ved at åbne kortet (`d9d9eda8`, `invoices-mobile-test`).
+- Fakturakontrol viser ikke 0 kr i overpris, når ingen linje kunne kontrolleres (`header-totals-test`). Godkendelse og e-conomic er uændret.
 
 tests: de nævnte scripts og `npx tsc --noEmit` exit 0. Ingen browser: der er ingen `.env` / `.env.local`, og port 3000 lytter ikke.
 
