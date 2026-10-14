@@ -3195,6 +3195,46 @@ ${m.text()}`) })
         }
       }
 
+      // U153 NEXT-11 mobil (375 px): salg ser tilbud uden vandret scroll og uden admin-slet; kundekortet uden Slet;
+      // bogholderi ser ikke Ny Lead/Nyt Tilbud på dashboardet og ingen "+ Ny sag"; mail viser liste ELLER detalje
+      if (want('U153') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-MOB-${stamp}`, title: `[HARNESS] mobil ${stamp}`, created_by: salg.id, customer_id: profitCustomerId }]).select('id')
+        const offerId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sp = await login(salg)
+        try {
+          await sp.page.setViewportSize({ width: 375, height: 812 })
+          await gotoSafe(sp.page, `${base}/dashboard/offers/${offerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await sp.page.getByText(`[HARNESS] mobil ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const overflow = await sp.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)
+          r.tilbud_uden_vandret_scroll = overflow <= 2
+          r.salg_ingen_slet_paa_tilbud = (await sp.page.getByRole('button', { name: /^Slet$/ }).count()) === 0
+          r.salg_ingen_eksporter = (await sp.page.getByRole('button', { name: /Eksporter/ }).count()) === 0
+          await gotoSafe(sp.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await sp.page.getByRole('button', { name: /Nyt tilbud/ }).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.salg_kundekort_nyt_tilbud = (await sp.page.getByRole('button', { name: /Nyt tilbud/ }).count()) > 0
+          r.salg_kundekort_ingen_slet = (await sp.page.getByRole('button', { name: /^Slet/ }).count()) === 0
+        } finally { await sp.ctx.close().catch(() => {}) }
+        const bog = await mkUser('bogholderi')
+        const bp = await login(bog)
+        try {
+          await gotoSafe(bp.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await bp.page.waitForTimeout(1000)
+          r.bog_ingen_ny_lead = (await bp.page.getByRole('button', { name: /Ny Lead/ }).count()) === 0
+          r.bog_ingen_nyt_tilbud = (await bp.page.getByRole('button', { name: /Nyt Tilbud/ }).count()) === 0
+          await gotoSafe(bp.page, `${base}/dashboard/orders`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.bog_ingen_ny_sag = (await bp.page.getByRole('link', { name: /\+ Ny sag/ }).count()) === 0
+        } finally { await bp.ctx.close().catch(() => {}) }
+        await a.page.setViewportSize({ width: 375, height: 812 })
+        await gotoSafe(a.page, `${base}/dashboard/mail`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.waitForTimeout(1500)
+        const mailOverflow = await a.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)
+        r.mail_uden_vandret_scroll = mailOverflow <= 2
+        await a.page.setViewportSize({ width: 1400, height: 1000 })
+        if (offerId) await c.admin.from('offers').delete().eq('id', offerId)
+        out.push({ id: 'U153 mobil + rettigheder (NEXT-11)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
       // U91 realiseret DB: netto faktureret ekskl. moms (udstedt − kreditnota; kladde/annulleret tæller ikke) mod faktisk
       // kost — materialer 600, faktura 1.000 + kreditnota 200 + kladde 5.000 → netto 800, realiseret DB 200 (25 %)
       if (want('U91') && profitCustomerId) {
