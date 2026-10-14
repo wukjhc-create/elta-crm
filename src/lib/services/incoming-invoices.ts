@@ -575,7 +575,8 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
   // kræver altid manuel kontrol (godkendelse kræver kvittering; e-conomic-udkastet blokerer bogføring)
   const effectiveCurrency = row.currency && row.currency !== 'DKK' ? row.currency : parsed.currency
   const requiresReview =
-    overall < NEEDS_REVIEW_THRESHOLD || parsed.isCreditNote || parsed.amountsConsistent === false || effectiveCurrency !== 'DKK'
+    overall < NEEDS_REVIEW_THRESHOLD || parsed.isCreditNote || parsed.amountsConsistent === false || effectiveCurrency !== 'DKK' ||
+    !!match.sameNumberAsRejectedId // L-10: rettet/gensendt faktura med samme nr. som en afvist
 
   const parseStatus: 'parsed' | 'failed' | 'needs_review' =
     parsed.confidence === 0
