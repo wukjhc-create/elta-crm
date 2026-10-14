@@ -18,7 +18,7 @@ import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
 import { mergeOfferLineCost, fetchOfferLineCostById } from '@/lib/offers/line-cost'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { supplierLinePricing } from '@/lib/offers/supplier-line-pricing'
-import { getCalculationSettings } from '@/lib/actions/calculation-settings'
+import { loadDefaultProductMargin } from '@/lib/settings/product-margin'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { insertOfferWithNumber } from '@/lib/services/offer-number'
@@ -1635,11 +1635,8 @@ export async function searchSupplierProductsForOffer(
       return { success: false, error: 'Manglende tilladelse: offers.view' }
     }
 
-    // Hent global produkt-avance fra indstillinger (auto-markup)
-    const calcResult = await getCalculationSettings()
-    const defaultProductMargin = calcResult.success && calcResult.data
-      ? calcResult.data.margins.products
-      : CALC_DEFAULTS.MARGINS.PRODUCTS
+    // Hent global produkt-avance fra indstillinger (auto-markup) — server-side (GP-1: udleveres ikke til salg)
+    const defaultProductMargin = await loadDefaultProductMargin()
 
     // Search across ALL suppliers — increased limit for cross-supplier comparison
     const searchLimit = (options?.limit || 20) * 2
@@ -1972,11 +1969,8 @@ export async function searchSupplierProductsLive(
       return { success: true, data: [] }
     }
 
-    // Get global product margin for pricing
-    const calcResult = await getCalculationSettings()
-    const defaultMargin = calcResult.success && calcResult.data
-      ? calcResult.data.margins.products
-      : CALC_DEFAULTS.MARGINS.PRODUCTS
+    // Get global product margin for pricing — server-side (GP-1: udleveres ikke til salg)
+    const defaultMargin = await loadDefaultProductMargin()
 
     // Find active suppliers with API credentials
     let supplierQuery = supabase
