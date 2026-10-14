@@ -38,10 +38,10 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | PL-1 (S2) | Afvist timeregistrering kan ikke rettes/slettes af montøren og blokerer genindtastning (overlap tæller afviste) | DONE (overlap ignorerer afviste; `time-overlap-rejected-check`) — redigér/slet egne afviste: LATER |
 | PL-2 (S2) | Godkender ser ikke satstype (overtid) → overtid godkendes uset | DONE — badge pr. række + ændret satstype efter visning springes over |
 | PL-3 (S3) | Montør ser planlægnings-/statusknapper der altid fejler (kalenderdialog, "Planlæg medarbejder") | TODO |
-| PL-4 (S3) | Montør ser "salgspris mangler"-advarsler (salg er skjult for ham) | TODO |
+| PL-4 (S3) | Montør ser "salgspris mangler"-advarsler (salg er skjult for ham) | DONE — kolonne/sum/advarsel kun med invoices.view.own_cases |
 | PL-5 (S3) | Afvisningsårsag kun i hover — kan ikke læses på mobil | DONE — inline "Begrundelse:" (U62) |
 | PL-6 (S3) | Ingen fornuftsgrænse på manuel tid (80 t, fremtidige datoer) | DONE — højst 16 t og højst i morgen (`time-log-span-test` 7/7) |
-| PL-7 (S3) | Omplanlægning tjekker ikke fratrædelsesdato | TODO |
+| PL-7 (S3) | Omplanlægning tjekker ikke fratrædelsesdato | DONE |
 | PL-8 (S3) | "Mine job" skjuler udaterede og >14 dage gamle åbne job | TODO |
 | PL-9 (S3/S4) | Kalender dagvisning trang på mobil; overlap kun app-niveau; tidsformular-felter | LATER |
 | PL-10 | Montør ser kontraktsum i sagens Økonomi-panel (salg, ikke kost) — passer det med D42? | [H] beslutning |

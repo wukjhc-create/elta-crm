@@ -286,11 +286,15 @@ export async function updateWorkOrderPlanning(
     if (input.assigned_employee_id) {
       const { data: emp } = await supabase
         .from('employees')
-        .select('id, active')
+        .select('id, active, termination_date')
         .eq('id', input.assigned_employee_id)
         .maybeSingle()
       if (!emp) return { success: false, error: 'Medarbejder findes ikke' }
-      if (!emp.active) return { success: false, error: 'Medarbejder er inaktiv' }
+      // PL-7 (planlægnings-review 2026-10-14): samme regel som ved oprettelse — fratrådte tæller som inaktive
+      const e = emp as { active: boolean; termination_date: string | null }
+      if (!e.active || (e.termination_date && e.termination_date < copenhagenParts(new Date()).date)) {
+        return { success: false, error: 'Medarbejder er inaktiv' }
+      }
     }
 
     // X4: udførte/annullerede arbejdsordrer kan ikke omplanlægges (UI'et skjuler det; serveren håndhævede det ikke)
