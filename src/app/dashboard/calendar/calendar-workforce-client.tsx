@@ -28,6 +28,8 @@ import type { WorkOrderForCalendar } from '@/lib/actions/work-orders'
 import type { WorkOrderStatus } from '@/types/workforce.types'
 import { PlanWorkOrderDialog } from './plan-work-order-dialog'
 import { EditWorkOrderDialog } from './edit-work-order-dialog'
+import { CalendarAgenda } from './calendar-agenda'
+import type { AgendaDay } from '@/lib/calendar/agenda'
 
 // Local context: chip click handler shared across all rows
 const ChipClickContext = createContext<(wo: WorkOrderForCalendar) => void>(() => {})
@@ -91,6 +93,7 @@ export function CalendarWorkforceClient({
   workOrders,
   filters,
   loadError,
+  agenda,
 }: {
   view: CalendarView
   anchorDate: string
@@ -100,6 +103,7 @@ export function CalendarWorkforceClient({
   workOrders: WorkOrderForCalendar[]
   filters: FiltersState
   loadError: string | null
+  agenda: AgendaDay[]
 }) {
   const router = useRouter()
   const { role } = useUserRole()
@@ -285,6 +289,8 @@ export function CalendarWorkforceClient({
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
+
+      <CalendarAgenda days={agenda} />
 
       {/* Filters */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-3 flex flex-wrap items-end gap-3">

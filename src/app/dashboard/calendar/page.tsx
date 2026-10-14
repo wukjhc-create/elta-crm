@@ -5,6 +5,7 @@ import { ASSISTANT_RULES } from '@/lib/assistant/rules'
 import { listWorkOrdersByDateRange } from '@/lib/actions/work-orders'
 import { listCalendarEmployeesAction } from '@/lib/actions/employees'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { agendaForDates, type AgendaSource } from '@/lib/calendar/agenda'
 import { CalendarPageClient } from './calendar-client'
 import { CalendarWorkforceClient } from './calendar-workforce-client'
 import { pageHasPermission } from '@/lib/auth/page-guard'
@@ -57,6 +58,52 @@ function addDays(dateStr: string, n: number): string {
   return dateKey(d)
 }
 
+function datesFrom(start: string, end: string): string[] {
+  const out: string[] = []
+  let cursor = start
+  while (cursor <= end && out.length < 14) {
+    out.push(cursor)
+    cursor = addDays(cursor, 1)
+  }
+  return out
+}
+
+/** Samme kilder som månedsvisningen, skåret til de viste datoer. Ingen telefon eller mail. */
+async function loadAgenda(dates: string[]) {
+  const [allTasks, assistantTasks, mine] = await Promise.all([
+    getAllTasks({ search: 'besigtigelse' }),
+    getAllTasks({ autoRules: ASSISTANT_RULES }),
+    getMyPersonalReminders().catch(() => ({ available: false as const, reminders: [] })),
+  ])
+  const inspections = allTasks.filter((task) => task.title.toLowerCase().includes('besigtigelse'))
+  const seen = new Set(inspections.map((task) => task.id))
+  const sources: AgendaSource[] = [
+    ...inspections.map((task) => taskSource(task, 'inspection')),
+    ...assistantTasks.filter((task) => !seen.has(task.id)).map((task) => taskSource(task, 'callback')),
+    ...mine.reminders.map((reminder) => ({
+      id: reminder.id,
+      title: reminder.title,
+      at: reminder.due_at,
+      status: reminder.status,
+      kind: 'reminder' as const,
+    })),
+  ]
+  return agendaForDates(sources, dates)
+}
+
+function taskSource(task: Awaited<ReturnType<typeof getAllTasks>>[number], kind: 'inspection' | 'callback'): AgendaSource {
+  return {
+    id: task.id,
+    title: task.title,
+    at: task.due_date,
+    status: task.status,
+    kind,
+    description: task.description,
+    customerId: task.customer?.id ?? null,
+    customerName: task.customer?.company_name ?? null,
+  }
+}
+
 export default async function CalendarPage({ searchParams }: PageProps) {
   // Sprint 7E — accept enten calendar.view.all eller calendar.view.own.
   // Montor faar kun egne work orders via scope-filter i listWorkOrdersByDateRange.
@@ -100,9 +147,10 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     rangeEnd = anchorDate
   }
 
-  const [workOrdersRes, employees] = await Promise.all([
+  const [workOrdersRes, employees, agenda] = await Promise.all([
     listWorkOrdersByDateRange(rangeStart, rangeEnd),
     listCalendarEmployeesAction(),
+    loadAgenda(datesFrom(rangeStart, rangeEnd)),
   ])
 
   const workOrders = workOrdersRes.success && workOrdersRes.data ? workOrdersRes.data : []
@@ -127,6 +175,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
         status: params.status ?? '',
       }}
       loadError={!workOrdersRes.success ? workOrdersRes.error ?? null : null}
+      agenda={agenda}
     />
     </>
   )

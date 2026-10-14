@@ -13,6 +13,13 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Grok på grok-next (2026-10-14)
+`origin/main` er merget ind. Claudes prod-kørsler og migrationer 00212–00219 er ikke kørt igen herfra.
+
+| Opgave | Status |
+|---|---|
+| Kalender dag/uge viser besigtigelser, assistent-opkald og egne påmindelser (samme danske dato som måneden). Arbejdsordrer, priser og afsendelse er uændret. | DONE — `calendar-agenda-test` |
+
 ## Henriks beslutninger 2026-10-10 — status
 | # | Beslutning | Status |
 |---|---|---|
