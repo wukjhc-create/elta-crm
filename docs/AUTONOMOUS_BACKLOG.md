@@ -30,6 +30,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Fakturaoverblik og kundens fakturaer vises som kort under `md`. Beløb er inkl. moms. Påmindelse kræver stadig et klik. Kost vises ikke. | DONE — `invoices-mobile-test` |
 | Fakturakontrol viser overpris som en streg, når ingen linje kunne kontrolleres. En kendt overpris vises stadig. Linjerne er kort under `md`. | DONE — `header-totals-test` |
 | Medarbejderlisten viser kort under `md`. Mail og telefon er egne links. Intern kost og salgspris følger `canSeePayroll`. | DONE — `employees-mobile-test` |
+| Sagens materialer vises som kort under `md`. Salg kræver `canSeePrices`. Kost og foreløbig DB kræver `showCost`. Rediger og slet er de samme knapper. | DONE — `materials-mobile-test` |
 
 ## Henriks beslutninger 2026-10-10 — status
 | # | Beslutning | Status |

@@ -206,7 +206,66 @@ export function OrderMaterialsTab({
 
       {/* Table */}
       {rows && rows.length > 0 && (
-        <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
+        <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
+          <div className="md:hidden divide-y" data-testid="materials-mobile-list">
+            {rows.map((r) => {
+              const isLocked = !!r.invoice_line_id
+              return (
+                <div key={r.id} className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-gray-900">{r.description}</p>
+                      <p className="text-xs text-gray-500">{r.sku_snapshot ?? '—'} · {r.supplier_name_snapshot ?? '—'}</p>
+                    </div>
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${SOURCE_COLOR[r.source] ?? 'bg-gray-100 text-gray-700'}`}>
+                      {SOURCE_LABEL[r.source] ?? r.source}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-800">{fmtNum(r.quantity, 2)} {r.unit}</p>
+                  {isLocked && <span className="inline-block mt-1 text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Faktureret</span>}
+                  {!r.billable && <span className="inline-block mt-1 ml-1 text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Ikke faktura</span>}
+                  {canSeePrices && (
+                    <p className="mt-2 text-sm text-gray-800">
+                      Salg {formatCurrency(r.unit_sales_price, 'DKK', 2)} · i alt {formatCurrency(r.total_sales_price, 'DKK', 2)}
+                    </p>
+                  )}
+                  {canSeePrices && showCost && (
+                    <p className="text-xs text-gray-600">
+                      Kost {formatCurrency(r.unit_cost, 'DKK', 2)} · i alt {formatCurrency(r.total_cost, 'DKK', 2)}
+                    </p>
+                  )}
+                  {(canEdit || canDelete) && (
+                    <div className="mt-3 flex items-center gap-2">
+                      {canEdit && (
+                        <button type="button" onClick={() => { setEditing(r); setDialogOpen(true) }} disabled={isLocked} aria-label="Rediger materiale" className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-emerald-300 text-emerald-700 text-xs disabled:opacity-30">
+                          <Pencil className="w-3.5 h-3.5" /> Rediger
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button type="button" onClick={() => handleDelete(r)} disabled={isLocked || deletingId === r.id} aria-label="Slet materiale" className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-red-200 text-red-700 text-xs disabled:opacity-30">
+                          {deletingId === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          Slet
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {summary && canSeePrices && (
+              <div className="p-4 bg-gray-50 text-sm">
+                <p className="text-xs uppercase tracking-wide text-gray-600">Total ({summary.count} {summary.count === 1 ? 'linje' : 'linjer'})</p>
+                <p className="font-semibold text-gray-900">Salg {formatCurrency(summary.total_sales_price, 'DKK', 2)}</p>
+                {showCost && <p className="text-gray-700">Kost {formatCurrency(summary.total_cost, 'DKK', 2)}</p>}
+                {showCost && (
+                  <p className="text-gray-700">
+                    Foreløbig DB {formatCurrency(summary.contribution_margin, 'DKK', 2)} ({fmtPct(summary.margin_percentage)})
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-600">
               <tr>
@@ -379,6 +438,7 @@ export function OrderMaterialsTab({
               </tfoot>
             )}
           </table>
+          </div>
         </div>
       )}
 
