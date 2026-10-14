@@ -17,7 +17,7 @@ import { timingSafeEqual } from 'crypto'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
 
-import { MAX_REMINDER_MAILS_PER_RUN } from '@/lib/invoices/reminder-limits'
+import { reminderRunExhausted, orderRemindersFailedLast } from '@/lib/invoices/reminder-limits'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
@@ -40,15 +40,31 @@ async function handleCron(request: Request): Promise<Response> {
     )
     const { evaluateAndRunAutomations } = await import('@/lib/automation/rule-engine')
 
-    const overdue = await getOverdueInvoices()
+    // F-10: fakturaer hvis rykker fejlede inden for 3 døgn tages sidst — de må ikke blokere de øvrige
+    const overdueRaw = await getOverdueInvoices()
+    const recentlyFailed = new Set<string>()
+    {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const since = new Date(Date.now() - 3 * 24 * 3_600_000).toISOString()
+      const ids = overdueRaw.map((i) => i.id)
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await createAdminClient().from('invoice_reminder_log').select('invoice_id')
+          .in('invoice_id', ids.slice(i, i + 200)).eq('status', 'failed').gte('created_at', since)
+        for (const r of (data ?? []) as Array<{ invoice_id: string }>) recentlyFailed.add(r.invoice_id)
+      }
+    }
+    const overdue = orderRemindersFailedLast(overdueRaw, recentlyFailed)
     const summary = { checked: overdue.length, sent: 0, manual_review: 0, skipped: 0, failed: 0 }
     const errors: string[] = []
 
+    const startedAt = Date.now()
     let mailsThisRun = 0
+    const exhausted = () => reminderRunExhausted({ sent: mailsThisRun, elapsedMs: Date.now() - startedAt })
     for (const inv of overdue) {
       // Mail-review 2026-10-08 (#1): højst MAX_REMINDER_MAILS_PER_RUN afsendelser pr. kørsel (maxDuration 60 s, en
-      // Graph-afsendelse kan tage op til 30 s) — resten tages ved næste kørsel i stedet for at blive dræbt midt i en send
-      if (mailsThisRun >= MAX_REMINDER_MAILS_PER_RUN) { summary.skipped++; continue }
+      // Graph-afsendelse kan tage op til 30 s) — resten tages ved næste kørsel i stedet for at blive dræbt midt i en send.
+      // F-10: kun SENDTE tæller i loftet; tidsbudgettet stopper kørslen ved hængende afsendelser
+      if (exhausted()) { summary.skipped++; continue }
       // Phase 10 — fire automation rules first; default rule maps to
       // send_reminder. The DB UNIQUE index prevents double-fire even
       // if the cron runs twice for the same overdue invoice.
@@ -65,15 +81,15 @@ async function handleCron(request: Request): Promise<Response> {
           },
         })
         // Assistent-review 2026-10-08 (#2): regelmotorens send_reminder sender også — tælles med i loftet pr. kørsel
-        mailsThisRun += auto.executions.filter((e) => /^reminder (sent|failed)/.test(e.message ?? '')).length
+        mailsThisRun += auto.executions.filter((e) => /^reminder sent/.test(e.message ?? '')).length
       } catch (autoErr) {
         logger.error('autopilot invoice_overdue failed', { entityId: inv.id, error: autoErr })
       }
-      if (mailsThisRun >= MAX_REMINDER_MAILS_PER_RUN) { summary.skipped++; continue }
+      if (exhausted()) { summary.skipped++; continue }
 
       try {
         const result = await sendInvoiceReminder(inv.id)
-        if (result.status === 'sent' || result.status === 'failed') mailsThisRun++
+        if (result.status === 'sent') mailsThisRun++
         if (result.status === 'sent') summary.sent++
         else if (result.status === 'manual_review') summary.manual_review++
         else if (result.status === 'skipped') summary.skipped++
