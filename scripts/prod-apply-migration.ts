@@ -62,6 +62,9 @@ const APPROVED: Record<string, string> = {
   '00215': '2026-10-10', // kladde-lås og sletteregel for tilbud i DB (triggere), godkendt af Henrik i chat 2026-10-10 ("00212–00217 GODKENDT TIL PROD")
   '00216': '2026-10-10', // trinvis afrunding i tilbudstotal-triggeren, godkendt af Henrik i chat 2026-10-10 ("00212–00217 GODKENDT TIL PROD")
   '00217': '2026-10-10', // interne beskeder: afsender fra profilen, modtager kun status, godkendt af Henrik i chat 2026-10-10 ("00212–00217 GODKENDT TIL PROD")
+  '00218': '2026-10-14', // kundedokumenter interne som standard (visible_in_portal + backfill), godkendt af Henrik i chat 2026-10-14 ("00218 CUSTOMER DOCUMENT SHARING GODKENDT TIL PROD")
+  '00219': '2026-10-14', // kalkulationsrækker offer_mode + totals-trigger, godkendt af Henrik i chat 2026-10-14 ("00219 CALCULATION OFFER MODE GODKENDT TIL PROD")
+  '00220': '2026-10-14', // profiles.notification_preferences + kolonne-grant, godkendt af Henrik i chat 2026-10-14 ("00220 NOTIFICATION PREFERENCES GODKENDT TIL PROD")
 }
 
 async function main() {

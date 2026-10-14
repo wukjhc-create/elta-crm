@@ -45,6 +45,8 @@ export interface CustomerDocument {
   // Sprint 8D-1: kobling til sag + mail
   service_case_id?: string | null
   source_email_id?: string | null
+  /** 00218: delt med kunden i portalen ("Del med kunde"); default internt */
+  visible_in_portal?: boolean
   service_case?: {
     id: string
     case_number: string
@@ -142,6 +144,7 @@ export async function getCustomerDocuments(
         fuldmagt_signed_at,
         service_case_id: (doc as Record<string, unknown>).service_case_id as string | null,
         source_email_id: (doc as Record<string, unknown>).source_email_id as string | null,
+        visible_in_portal: (doc as Record<string, unknown>).visible_in_portal === true,
         service_case: sagJoin
           ? {
               id: (sagJoin as Record<string, unknown>).id as string,
@@ -394,5 +397,43 @@ export async function uploadCaseDocument(caseId: string, formData: FormData): Pr
     return { success: true, data: { id: doc.id as string } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
+  }
+}
+
+/**
+ * Henrik 2026-10-10 (00218): "Del med kunde" — et kundedokument vises kun i kundeportalen efter aktivt valg.
+ * Kun kunderelationen (customers.edit). Mail-arkiverede vedhæftninger (source_email_id) er altid interne, og
+ * fuldmagter vises kun via portalens fuldmagt-sektion (underskriver-tjek) — deres deling ændres ikke her.
+ */
+export async function setCustomerDocumentPortalVisibility(
+  documentId: string,
+  visible: boolean
+): Promise<ActionResult<{ id: string; visible_in_portal: boolean }>> {
+  try {
+    const { supabase } = await requireGate('customers.edit')
+    validateUUID(documentId, 'dokument-ID')
+    const { data: doc } = await supabase
+      .from('customer_documents')
+      .select('id, customer_id, source_email_id, document_type, description')
+      .eq('id', documentId)
+      .maybeSingle()
+    if (!doc) return { success: false, error: 'Dokumentet blev ikke fundet' }
+    const d = doc as { id: string; customer_id: string; source_email_id: string | null; document_type: string | null; description: string | null }
+    if (d.source_email_id) return { success: false, error: 'Mail-vedhæftninger kan ikke deles med kunden' }
+    const { isFuldmagtDocument } = await import('@/lib/documents/is-fuldmagt')
+    if (isFuldmagtDocument(d)) return { success: false, error: 'Fuldmagter vises i portalens fuldmagt-sektion' }
+
+    const { error } = await supabase
+      .from('customer_documents')
+      .update({ visible_in_portal: !!visible })
+      .eq('id', documentId)
+    if (error) {
+      logger.error('setCustomerDocumentPortalVisibility failed', { error, entityId: documentId })
+      return { success: false, error: 'Kunne ikke ændre deling' }
+    }
+    revalidatePath(`/dashboard/customers/${d.customer_id}`)
+    return { success: true, data: { id: documentId, visible_in_portal: !!visible } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke ændre deling') }
   }
 }

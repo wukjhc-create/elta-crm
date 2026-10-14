@@ -17,12 +17,14 @@ import {
   Plus,
   Mail,
   Briefcase,
+  Share2,
 } from 'lucide-react'
 import {
   getCustomerDocuments,
   getCustomerImages,
   getDocumentDownloadUrls,
   uploadCustomerDocument,
+  setCustomerDocumentPortalVisibility,
 } from '@/lib/actions/customer-documents'
 import type { CustomerDocument, CustomerImage } from '@/lib/actions/customer-documents'
 import { useToast } from '@/components/ui/toast'
@@ -129,6 +131,29 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
       toast.error('Upload fejlede')
     }
   }
+
+  // Henrik 2026-10-10 (00218): dokumenter er interne — "Del med kunde" gør dem synlige i kundeportalen
+  const [sharingId, setSharingId] = useState<string | null>(null)
+  const togglePortalShare = async (doc: CustomerDocument) => {
+    setSharingId(doc.id)
+    const next = !doc.visible_in_portal
+    const r = await setCustomerDocumentPortalVisibility(doc.id, next)
+    setSharingId(null)
+    if (!r.success) { toast.error(r.error || 'Kunne ikke ændre deling'); return }
+    setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, visible_in_portal: next } : d)))
+    toast.success(next ? 'Dokumentet er delt med kunden i portalen' : 'Dokumentet er nu internt')
+  }
+  const shareButton = (doc: CustomerDocument) => (
+    <button
+      onClick={() => togglePortalShare(doc)}
+      disabled={sharingId === doc.id}
+      title={doc.visible_in_portal ? 'Synlig i kundeportalen — klik for at gøre internt' : 'Internt — klik for at dele med kunden i portalen'}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg active:scale-95 transition-transform disabled:opacity-50 ${doc.visible_in_portal ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+    >
+      {sharingId === doc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
+      {doc.visible_in_portal ? 'Delt med kunde' : 'Del med kunde'}
+    </button>
+  )
 
   const handleDownloadAll = async () => {
     setIsDownloading(true)
@@ -291,6 +316,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     </div>
                   </div>
                   <div className="shrink-0 flex items-center gap-1.5">
+                    {shareButton(doc)}
                     {doc.file_url && (
                       <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform">
@@ -446,12 +472,15 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     )}
                   </div>
                 </div>
-                {doc.file_url && (
-                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform">
-                    <Download className="w-3.5 h-3.5" /> Åbn
-                  </a>
-                )}
+                <div className="shrink-0 flex items-center gap-1.5">
+                  {!doc.source_email_id && shareButton(doc)}
+                  {doc.file_url && (
+                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform">
+                      <Download className="w-3.5 h-3.5" /> Åbn
+                    </a>
+                  )}
+                </div>
               </div>
               )
             })}

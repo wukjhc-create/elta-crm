@@ -394,6 +394,8 @@ export async function saveBesigtigelsesnotat(
           service_case_id: input.serviceCaseId,
           document_type: 'besigtigelse',
           shared_by: userId,
+          // 00218: rapporten er til kunden (sendes også pr. mail) → delt i portalen fra start
+          visible_in_portal: true,
           ...docFields,
         })
         .select('id')
