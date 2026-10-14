@@ -1519,6 +1519,11 @@ export interface RegisterPaymentResult {
   amountPaid: number
   paymentStatus: InvoicePaymentStatus
   fullyPaid: boolean
+  /**
+   * F-7 (faktura-review 2026-10-14): beløb betalt UD OVER det udestående (efter kreditnotaer) — inkl. alle tidligere
+   * betalinger. En betaling til en allerede betalt faktura er i sin helhed overbetaling.
+   */
+  overpaidBy: number
 }
 
 /**
@@ -1584,6 +1589,7 @@ export async function registerPayment(
       amountPaid: Number(inv.amount_paid),
       paymentStatus: 'paid',
       fullyPaid: true,
+      overpaidBy: round2(amt),
     }
   }
 
@@ -1658,6 +1664,7 @@ export async function registerPayment(
     amountPaid: newAmountPaid,
     paymentStatus: nextPaymentStatus,
     fullyPaid: nextPaymentStatus === 'paid',
+    overpaidBy: Math.max(0, round2(newAmountPaid - final)),
   }
 }
 

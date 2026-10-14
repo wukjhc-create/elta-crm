@@ -3041,6 +3041,13 @@ async function main() {
       await Promise.all([registerPayment(conc, 300), registerPayment(conc, 300)])
       const c = await get(conc)
       check('to samtidige betalinger à 300 → amount_paid 600 (ingen tabt)', Number(c.amount_paid) === 600 && c.payment_status === 'partial', JSON.stringify(c))
+      // F-7 (faktura-review 2026-10-14): overbetaling måles på summen af betalinger mod udestående
+      const ov = await mk('ov', 'sent', 1000)
+      const p1 = await registerPayment(ov, 250)
+      const p2 = await registerPayment(ov, 1000)
+      check('250 + 1.000 på en 1.000-faktura → overbetalt 250 (før "matched")', p1.overpaidBy === 0 && p2.fullyPaid && p2.overpaidBy === 250, `${p1.overpaidBy}/${p2.overpaidBy}`)
+      const p3 = await registerPayment(ov, 1000)
+      check('betaling til allerede betalt faktura = overbetaling i sin helhed', p3.overpaidBy === 1000, String(p3.overpaidBy))
     } finally {
       if (ids.length) { await admin.from('invoice_payments').delete().in('invoice_id', ids); await admin.from('invoices').delete().in('credit_of_invoice_id', ids); await admin.from('invoices').delete().in('id', ids) }
       await admin.from('customers').delete().eq('id', cust)

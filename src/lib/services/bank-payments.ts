@@ -493,13 +493,13 @@ async function applyMatch(
     return { bankTxId: tx.id, status: 'unmatched', invoiceId: null, amount: tx.amount, reason: err instanceof Error ? err.message : 'registerPayment failed' }
   }
 
+  // F-7 (faktura-review 2026-10-14): overbetaling måles på SUMMEN af betalinger mod det udestående efter kreditnotaer
+  // (før kun denne transaktion mod fakturabeløbet → 5k + 20k på en 20k-faktura blev "matched"; dobbeltbetaling til en
+  // allerede betalt faktura blev aldrig opdaget)
   let finalStatus: BankMatchStatus = 'matched'
-  if (payment.fullyPaid) {
-    if (tx.amount > Number(invoice.final_amount)) finalStatus = 'overpayment'
-    else finalStatus = 'matched'
-  } else if (payment.paymentStatus === 'partial') {
-    finalStatus = 'partial'
-  }
+  if (payment.overpaidBy > 0.01) finalStatus = 'overpayment'
+  else if (payment.fullyPaid) finalStatus = 'matched'
+  else if (payment.paymentStatus === 'partial') finalStatus = 'partial'
 
   await supabase
     .from('bank_transactions')

@@ -25,7 +25,7 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | F-4 (S2) | Krediteret slutfaktura låser sagen for altid (uq_invoices_one_final_per_case tæller annullerede; kilde-låse frigives ikke) | [H] migration + kreditér-og-genfakturér-flow |
 | F-5 (S2) | Bankimport dropper en ægte 2. betaling med samme dato/beløb/reference (dedup-nøgle) | [H] migration (dedup på bank-id/rækkehash) |
 | F-6 (S2) | Auto-faktura ved tilbudsaccept sætter ikke case_id (kun hvis reglen går ud af dry-run) | LATENT — prod: reglen er active + dry_run (prod-automation-rules 2026-10-14); [H] case_id skal sættes før dry_run slås fra |
-| F-7 (S3) | Overbetaling/dobbeltbetaling markeres ikke | TODO |
+| F-7 (S3) | Overbetaling/dobbeltbetaling markeres ikke | DONE — `overpaidBy` (summen mod udestående efter kredit); bankmatch → "overpayment" (register-payment-check +2) |
 | F-8 (S3) | "Markér som sendt" kunne vinde over kladde-sletning | DONE f67e46b4 |
 | F-9 (S3) | Kreditnota på momsfri faktura viste 25 % moms i PDF | DONE f67e46b4 |
 | F-10 (S3) | Rykker-cron: fejlede afsendelser tæller med i loftet → kan gå i stå på de ældste | DONE — kun sendte tæller, nyligt fejlede sidst, tidsbudget 25 s (`reminder-run-test` 5/5) |
