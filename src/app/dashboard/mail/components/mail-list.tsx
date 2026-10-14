@@ -138,7 +138,8 @@ export function MailList({
   const hasActiveFilters = readFilter !== 'all' || sortOrder !== 'newest' || search.length > 0
 
   return (
-    <div className="w-2/5 flex flex-col gap-3">
+    // M-1 (mobil-review 2026-10-14): på mobil vises listen ELLER detaljen (før ~130 px liste ved siden af detaljen)
+    <div className={`w-full md:w-2/5 flex-col gap-3 ${selectedEmailId ? 'hidden md:flex' : 'flex'}`}>
       {/* ============================================= */}
       {/* FILTER BAR — same style as Leads page         */}
       {/* bg-white rounded-lg border p-4                */}

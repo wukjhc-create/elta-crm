@@ -73,6 +73,8 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
   }
 
   const handleDelete = async (taskId: string) => {
+    // M-5: bekræft (knapperne er synlige på touch)
+    if (!window.confirm('Slet opgaven?')) return
     const result = await deleteCustomerTask(taskId)
     if (result.success) {
       toast.success('Opgave slettet')
@@ -239,11 +241,11 @@ function TaskRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={onEdit} className="p-1 hover:bg-gray-200 rounded">
+      <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+        <button onClick={onEdit} className="p-1 hover:bg-gray-200 rounded" aria-label="Rediger opgave">
           <Pencil className="w-3.5 h-3.5 text-gray-500" />
         </button>
-        <button onClick={onDelete} className="p-1 hover:bg-red-100 rounded">
+        <button onClick={onDelete} className="p-1 hover:bg-red-100 rounded" aria-label="Slet opgave">
           <Trash2 className="w-3.5 h-3.5 text-red-500" />
         </button>
       </div>

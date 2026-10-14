@@ -1,4 +1,6 @@
 'use client'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -45,6 +47,9 @@ interface OffersTableProps {
 }
 
 export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort, filtered, onClearFilters }: OffersTableProps) {
+  // M-11 (mobil-review 2026-10-14): sletning er admin-only (offers.delete) — skjul knapperne for andre roller
+  const { role } = useUserRole()
+  const canDelete = !!role && hasPermission(role, 'offers.delete')
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -188,6 +193,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
               <option key={s} value={s}>{OFFER_STATUS_LABELS[s]}</option>
             ))}
           </select>
+          {canDelete && (
           <button
             onClick={handleBulkDelete}
             disabled={isBulkActing}
@@ -195,6 +201,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
           >
             Slet valgte
           </button>
+          )}
           <button
             onClick={() => setSelectedIds(new Set())}
             className="text-sm text-gray-500 hover:text-gray-700 ml-auto"
@@ -262,6 +269,12 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                         {offer.offer_number}
                         <CopyButton value={offer.offer_number} label="tilbudsnummer" />
                       </div>
+                      {/* M-9 (mobil-review 2026-10-14): kunde-kolonnen er skjult på mobil — vis kunden under titlen */}
+                      {(offer.customer || offer.lead) && (
+                        <div className="md:hidden text-xs text-gray-600 truncate">
+                          {offer.customer ? offer.customer.company_name : `${offer.lead?.company_name ?? ''} (lead)`}
+                        </div>
+                      )}
                       <div className="mt-1">
                         <OfferConversionBadge
                           status={offer.status}
@@ -401,6 +414,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                                 <ClipboardCheck className="w-4 h-4" />
                                 Opret Opgave
                               </button>
+                              {canDelete && (
                               <button
                                 onClick={() => handleDelete(offer.id)}
                                 disabled={deletingId === offer.id}
@@ -409,6 +423,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                                 <Trash2 className="w-4 h-4" />
                                 {deletingId === offer.id ? 'Sletter...' : 'Slet'}
                               </button>
+                              )}
                             </div>
                           </div>
                         </>

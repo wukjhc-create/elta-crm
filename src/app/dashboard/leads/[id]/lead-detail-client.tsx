@@ -148,18 +148,18 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
           { label: lead.company_name },
         ]} />
 
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-gray-900">
+        {/* Header — M-6/M-7 (mobil-review 2026-10-14): stables og knapperne ombrydes på mobil (før vandret scroll) */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 break-words">
                 {lead.company_name}
               </h1>
               <LeadStatusBadge status={lead.status} />
             </div>
             <p className="text-gray-600 mt-1">{lead.contact_person}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Lead → kunde (så der kan laves tilbud og portaladgang) */}
             {linkedCustomerId ? (
               <Link href={`/dashboard/customers/${linkedCustomerId}`}
@@ -193,6 +193,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
               <Pencil className="w-4 h-4" />
               Rediger
             </button>
+            {hasPermission(role, 'leads.delete') && (
             <button
               onClick={handleDelete}
               disabled={isDeleting}
@@ -201,6 +202,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
               <Trash2 className="w-4 h-4" />
               {isDeleting ? 'Sletter...' : 'Slet'}
             </button>
+            )}
           </div>
         </div>
 

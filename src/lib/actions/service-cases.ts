@@ -1361,8 +1361,11 @@ export async function getProfilesForOrderSelect(): Promise<
 > {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('users.view')) {
-      return { success: false, error: 'Manglende tilladelse: users.view' }
+    // M-16 (mobil-review 2026-10-14): den der må oprette sager skal kunne vælge ansvarlig (før kun users.view = admin →
+    // tom liste for serviceleder/salg). E-mail udleveres stadig kun med users.view.
+    const canSeeEmail = hasPermission('users.view')
+    if (!canSeeEmail && !hasPermission('cases.create')) {
+      return { success: false, error: 'Manglende tilladelse: cases.create' }
     }
     const { data, error } = await supabase
       .from('profiles')
@@ -1373,7 +1376,8 @@ export async function getProfilesForOrderSelect(): Promise<
       logger.error('Error fetching profiles for order select', { error })
       return { success: false, error: 'Kunne ikke hente brugere' }
     }
-    return { success: true, data: (data || []) as { id: string; full_name: string | null; email: string }[] }
+    const rows = (data || []) as { id: string; full_name: string | null; email: string }[]
+    return { success: true, data: canSeeEmail ? rows : rows.map((r) => ({ ...r, email: '' })) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

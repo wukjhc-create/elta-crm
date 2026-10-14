@@ -1,4 +1,6 @@
 'use client'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -33,6 +35,9 @@ interface LeadsTableProps {
 }
 
 export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClearFilters }: LeadsTableProps) {
+  // M-11 (mobil-review 2026-10-14): sletning er admin-only (leads.delete)
+  const { role } = useUserRole()
+  const canDelete = !!role && hasPermission(role, 'leads.delete')
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -176,6 +181,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
               <option key={s} value={s}>{LEAD_STATUS_LABELS[s]}</option>
             ))}
           </select>
+          {canDelete && (
           <button
             onClick={handleBulkDelete}
             disabled={isBulkActing}
@@ -183,6 +189,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
           >
             Slet valgte
           </button>
+          )}
           <button
             onClick={() => setSelectedIds(new Set())}
             className="text-sm text-gray-500 hover:text-gray-700 ml-auto"
@@ -337,6 +344,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                                 <Pencil className="w-4 h-4" />
                                 Rediger
                               </button>
+                              {canDelete && (
                               <button
                                 onClick={() => handleDelete(lead.id)}
                                 disabled={deletingId === lead.id}
@@ -347,6 +355,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                                   ? 'Sletter...'
                                   : 'Slet'}
                               </button>
+                              )}
                             </div>
                           </div>
                         </>

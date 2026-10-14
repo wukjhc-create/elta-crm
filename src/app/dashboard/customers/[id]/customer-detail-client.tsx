@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
@@ -79,6 +81,9 @@ interface CustomerDetailClientProps {
 
 export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false }: CustomerDetailClientProps) {
   const router = useRouter()
+  // M-10 (mobil-review 2026-10-14): kun handlinger brugeren har ret til (bogholderi/salg fik knapper der altid fejlede)
+  const { role } = useUserRole()
+  const can = (p: Permission) => !!role && hasPermission(role, p)
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
@@ -224,6 +229,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
           </div>
           {/* Action buttons — scrollable on mobile */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {can('offers.create') && (
             <button
               onClick={() => setShowOfferForm(true)}
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium active:scale-95 transition-transform touch-manipulation"
@@ -231,6 +237,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               <FileText className="w-4 h-4" />
               Nyt tilbud
             </button>
+            )}
+            {can('cases.create') && (
             <button
               onClick={() => setShowCaseModal(true)}
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium active:scale-95 transition-transform touch-manipulation"
@@ -238,6 +246,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               <Briefcase className="w-4 h-4" />
               Ny sag
             </button>
+            )}
+            {can('service.edit') && (
             <button
               onClick={() => setShowFuldmagtModal(true)}
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium active:scale-95 transition-transform touch-manipulation"
@@ -245,6 +255,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               <FileSignature className="w-4 h-4" />
               Fuldmagt
             </button>
+            )}
+            {can('customers.edit') && (
             <button
               onClick={() => setShowBesigtigelse(true)}
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium active:scale-95 transition-transform touch-manipulation"
@@ -252,6 +264,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               <CalendarCheck className="w-4 h-4" />
               Besigtigelse
             </button>
+            )}
+            {can('customers.edit') && (
             <button
               onClick={handleToggleActive}
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] border rounded-lg hover:bg-gray-50 text-sm active:scale-95 transition-transform touch-manipulation"
@@ -259,6 +273,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               {customer.is_active ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
               <span className="hidden sm:inline">{customer.is_active ? 'Deaktiver' : 'Aktiver'}</span>
             </button>
+            )}
+            {can('customers.edit') && (
             <button
               onClick={() => setShowEditForm(true)}
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] border rounded-lg hover:bg-gray-50 text-sm active:scale-95 transition-transform touch-manipulation"
@@ -266,6 +282,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               <Pencil className="w-4 h-4" />
               <span className="hidden sm:inline">Rediger</span>
             </button>
+            )}
+            {can('customers.delete') && (
             <button
               onClick={handleDelete}
               disabled={isDeleting}
@@ -274,6 +292,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               <Trash2 className="w-4 h-4" />
               <span className="hidden sm:inline">{isDeleting ? 'Sletter...' : 'Slet'}</span>
             </button>
+            )}
           </div>
         </div>
 

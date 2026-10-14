@@ -107,6 +107,10 @@ export default async function DashboardPage() {
   const canViewEconomic = await pageHasPermission('settings.economic')
   // Sprint Ø7.3 — tilbud-klar-til-sag-widget kun for offers.view.
   const canViewOffers = await pageHasPermission('offers.view')
+  // M-14 (mobil-review 2026-10-14): kort linker kun til moduler rollen kan åbne (før "Du har ikke adgang")
+  const canViewLeads = await pageHasPermission('leads.view')
+  const canViewCustomers = await pageHasPermission('customers.view')
+  const canViewMail = await pageHasPermission('inbox.view')
   // Sprint Ø8.1 — portefølje-udestående-widget kun for invoices.view.own_cases.
   const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
   // Sprint Ø9.1 — leverandørfaktura-forfaldswidget kun for incoming_invoices.view.
@@ -165,7 +169,7 @@ export default async function DashboardPage() {
           icon={Users}
           iconColor="text-blue-600"
           iconBgColor="bg-blue-100"
-          href="/dashboard/leads"
+          href={canViewLeads ? "/dashboard/leads" : undefined}
         />
         <StatCard
           title="Kunder"
@@ -174,7 +178,7 @@ export default async function DashboardPage() {
           icon={Building2}
           iconColor="text-green-600"
           iconBgColor="bg-green-100"
-          href="/dashboard/customers"
+          href={canViewCustomers ? "/dashboard/customers" : undefined}
         />
         <StatCard
           title="Afventende Tilbud"
@@ -183,7 +187,7 @@ export default async function DashboardPage() {
           icon={FileText}
           iconColor="text-purple-600"
           iconBgColor="bg-purple-100"
-          href="/dashboard/offers"
+          href={canViewOffers ? "/dashboard/offers" : undefined}
         />
         <StatCard
           title="Aktive Sager"
@@ -221,7 +225,7 @@ export default async function DashboardPage() {
           icon={Mail}
           iconColor="text-blue-600"
           iconBgColor="bg-blue-100"
-          href="/dashboard/mail"
+          href={canViewMail ? "/dashboard/mail" : undefined}
         />
       </div>
 
@@ -238,7 +242,7 @@ export default async function DashboardPage() {
           icon={XCircle}
           iconColor="text-red-600"
           iconBgColor="bg-red-100"
-          href="/dashboard/offers?status=rejected"
+          href={canViewOffers ? "/dashboard/offers?status=rejected" : undefined}
           trend={
             rejectionStats && rejectionStats.trend.prev30Days > 0
               ? {
@@ -257,7 +261,7 @@ export default async function DashboardPage() {
           icon={TrendingDown}
           iconColor="text-amber-600"
           iconBgColor="bg-amber-100"
-          href="/dashboard/offers?status=rejected"
+          href={canViewOffers ? "/dashboard/offers?status=rejected" : undefined}
         />
       </div>
 
