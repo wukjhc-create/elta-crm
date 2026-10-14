@@ -23,6 +23,7 @@ import { calculateSalePrice } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
 import { planMaterialCostUpdates } from '@/lib/suppliers/material-price-plan'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { onlyValidAgreements } from '@/lib/pricing/agreement-validity'
 
 // =====================================================
 // Supplier Integration for Materials
@@ -412,16 +413,17 @@ export async function loadSupplierPricesForVariant(
 
       // Parallelize customer pricing queries
       const [{ data: customerSupplierPrices }, { data: customerProductPrices }] = await Promise.all([
-        supabase
+        // GP-2: kun aftaler i deres gyldighedsperiode
+        onlyValidAgreements(supabase
           .from('customer_supplier_prices')
           .select('supplier_id, discount_percentage, custom_margin_percentage')
           .eq('customer_id', customerId)
-          .eq('is_active', true),
-        supabase
+          .eq('is_active', true)),
+        onlyValidAgreements(supabase
           .from('customer_product_prices')
           .select('supplier_product_id, custom_cost_price, custom_list_price, custom_discount_percentage')
           .eq('customer_id', customerId)
-          .eq('is_active', true)
+          .eq('is_active', true))
           .in('supplier_product_id', supplierProductIds),
       ])
 

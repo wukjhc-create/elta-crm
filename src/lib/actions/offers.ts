@@ -19,6 +19,7 @@ import { mergeOfferLineCost } from '@/lib/offers/line-cost'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { supplierLinePricing } from '@/lib/offers/supplier-line-pricing'
 import { loadDefaultProductMargin } from '@/lib/settings/product-margin'
+import { onlyValidAgreements } from '@/lib/pricing/agreement-validity'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { insertOfferWithNumber } from '@/lib/services/offer-number'
@@ -1688,11 +1689,11 @@ export async function searchSupplierProductsForOffer(
     if (options?.customerId) {
       validateUUID(options.customerId, 'kunde ID')
 
-      const { data: customerPricing } = await createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
+      const { data: customerPricing } = await onlyValidAgreements(createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
         .from('customer_supplier_prices')
         .select('supplier_id, discount_percentage, custom_margin_percentage')
         .eq('customer_id', options.customerId)
-        .eq('is_active', true)
+        .eq('is_active', true)) // GP-2: kun aftaler i deres gyldighedsperiode
 
       if (customerPricing) {
         customerPricingMap = new Map(

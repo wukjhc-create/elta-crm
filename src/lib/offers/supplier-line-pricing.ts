@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CALC_DEFAULTS } from '@/lib/constants'
 import { calculateSalePrice } from '@/lib/logic/pricing'
-import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { onlyValidAgreements } from '@/lib/pricing/agreement-validity'
 
 /**
  * Kalkulations-review 2026-10-09 (#1/#2): ÉN prisberegning for leverandørlinjer (oprettelse og opdatering).
@@ -29,8 +29,7 @@ export async function supplierLinePricing(input: {
   // Grossist-review 2026-10-14 (GP-3): kategori-/underkategoriregler gjaldt aldrig (p_category null)
   const { data: prodCat } = await admin.from('supplier_products').select('category, sub_category').eq('id', input.supplierProductId).maybeSingle()
   const cat = prodCat as { category: string | null; sub_category: string | null } | null
-  // GP-2: en udløbet/ikke-startet kundeaftale må ikke give rabat
-  const today = copenhagenParts(new Date()).date
+  // GP-2: en udløbet/ikke-startet kundeaftale må ikke give rabat (onlyValidAgreements)
   const [{ data: marginData }, customerRes] = await Promise.all([
     admin.rpc('get_effective_margin', {
       p_supplier_id: input.supplierId,
@@ -40,9 +39,8 @@ export async function supplierLinePricing(input: {
       p_customer_id: input.customerId,
     }),
     input.customerId
-      ? admin.from('customer_supplier_prices').select('discount_percentage, custom_margin_percentage')
-          .eq('customer_id', input.customerId).eq('supplier_id', input.supplierId).eq('is_active', true)
-          .or(`valid_from.is.null,valid_from.lte.${today}`).or(`valid_to.is.null,valid_to.gte.${today}`)
+      ? onlyValidAgreements(admin.from('customer_supplier_prices').select('discount_percentage, custom_margin_percentage')
+          .eq('customer_id', input.customerId).eq('supplier_id', input.supplierId).eq('is_active', true))
           .limit(1).maybeSingle()
       : Promise.resolve({ data: null }),
   ])
