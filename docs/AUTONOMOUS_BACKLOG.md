@@ -63,7 +63,7 @@ Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kon
 | PE-4 (S2) | Lav-DB-afsendelsesværn tæller manglende arbejdskost som 0 og bruger anden tærskel end profitkortet | TODO — afhænger af P-8 + én tærskel |
 | PE-5 (S2) | Medarbejderøkonomi talte salg på ikke-fakturerbare timer | DONE |
 | PE-6 (S3) | Sagens hoved-DB bruger registrerede salgspriser i stedet for kontraktsum på kontraktsager | DONE — `lib/cases/expected-revenue.ts`: kontraktsum (revideret først, ekskl. moms), netto faktureret hvis højere, ellers registreret salg; Økonomi-fanen viser grundlaget (`case-revenue-test` 7/7, UI U150+U91) |
-| PE-7 (S4) | DB-tærskler hardcoded og forskellige (10/15/db_red_threshold/minimum_db) | TODO — én kilde (calculation_settings) |
+| PE-7 (S4) | DB-tærskler hardcoded og forskellige (10/15/db_red_threshold/minimum_db) | DONE (app) — `lib/profit/db-thresholds.ts` (calculation_settings, standarder = hidtidige 10/20/35; sags-flag/-farver, AI-risiko, afsendelsesværn); `db-thresholds-test` 7/7. Rest: SQL-trigger 15 % → med PE-1; minimum 20 vs. rød 10 → [H] beslutning |
 
 ## Prod-kørsel 2026-10-14 — 00218–00220 (Henrik: "GODKENDT TIL PROD")
 | Nr. | Pre | Post | UI/tests |

@@ -25,6 +25,7 @@ async function requireGate(permission: Permission) {
 }
 import { DEFAULT_TAX_RATE, DEFAULT_CURRENCY, OFFER_VALIDITY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+import { DEFAULT_DB_RED_THRESHOLD } from '@/lib/profit/db-thresholds'
 // =====================================================
 // CALCULATION SETTINGS
 // =====================================================
@@ -59,7 +60,7 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
         minimum_db: CALC_DEFAULTS.MARGINS.MINIMUM_DB,
         db_green_threshold: CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET,
         db_yellow_threshold: CALC_DEFAULTS.MARGINS.MINIMUM_DB,
-        db_red_threshold: 10,
+        db_red_threshold: DEFAULT_DB_RED_THRESHOLD,
       },
       work_hours: {
         start: CALC_DEFAULTS.WORK_HOURS.START,
@@ -121,7 +122,7 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
           settings.margins.db_yellow_threshold = (value.percentage as number) ?? CALC_DEFAULTS.MARGINS.MINIMUM_DB
           break
         case 'db_red_threshold':
-          settings.margins.db_red_threshold = (value.percentage as number) ?? 10
+          settings.margins.db_red_threshold = (value.percentage as number) ?? DEFAULT_DB_RED_THRESHOLD
           break
         case 'work_hours_standard':
           settings.work_hours.start = (value.start as string) || CALC_DEFAULTS.WORK_HOURS.START

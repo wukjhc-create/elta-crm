@@ -56,3 +56,4 @@ Kør altid pre → `npm run prod:apply-migration -- <nr> --approved-by-henrik` (
 - ~~Kalkulation → tilbud~~ BESLUTTET 2026-10-10: eksplicit model (00219) — med "Vis på tilbud" fra stadig indgå i tilbudsprisen (som én samlelinje)? I dag falder de ud (kalkulation 14.400 → tilbud 12.000)
 - ~~Rumberegneren~~ BESLUTTET 2026-10-10: salgspris (DONE i prod) — kostpris (≈400 kr) eller salgspris (495 kr)? I dag lægges avance/overhead oven i (≈712 kr/t)
 - Rykker-cron: højst 3 rykkermails pr. kørsel (dagligt) — hæves hvis mange forfaldne fakturaer
+- **Lav DB — én grænse eller to?** (PE-7, 2026-10-14) Tilbuddets profitkort advarer under *Minimum DB* (20 % i prod), men afsendelse kræver først bekræftelse under *Trafiklys rød* (10 %, kodestandard — ikke sat i prod). Sagens DB-farve/"lav DB"-flag og AI-risiko bruger nu samme indstillinger (`lib/profit/db-thresholds.ts`, uændrede tal). Skal afsendelsesværnet bruge 20 %? Arbejdsordre-triggeren (SQL, 15 %) samles med PE-1-migrationen

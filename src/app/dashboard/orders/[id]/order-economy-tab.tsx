@@ -18,6 +18,7 @@
  *   sag.low_profit=true → extra red ribbon in hero
  */
 
+import { dbLevel } from '@/lib/profit/db-thresholds'
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import {
@@ -55,20 +56,22 @@ function fmtPct(n: number, decimals = 1): string {
   }).format(n)} %`
 }
 
-function marginPalette(pct: number): {
+function marginPalette(pct: number, t: { red: number; green: number }): {
   text: string
   bg: string
   border: string
   pill: string
 } {
-  if (pct >= 25)
+  // PE-7: grænser fra calculation_settings (Trafiklys), samme som tilbuddene
+  const level = dbLevel(pct, t)
+  if (level === 'green')
     return {
       text: 'text-emerald-700',
       bg: 'bg-emerald-50',
       border: 'ring-emerald-200',
       pill: 'bg-emerald-100 text-emerald-800',
     }
-  if (pct >= 10)
+  if (level === 'yellow')
     return {
       text: 'text-yellow-700',
       bg: 'bg-yellow-50',
@@ -161,7 +164,7 @@ function OrderEconomyTabContent({
     )
   }
 
-  const palette = marginPalette(data.totals.margin_percentage)
+  const palette = marginPalette(data.totals.margin_percentage, data.db_thresholds)
   const hasAnyData =
     data.labor.time_log_count > 0 ||
     data.materials.line_count > 0 ||
@@ -291,6 +294,7 @@ function OrderEconomyTabContent({
           cost={data.labor.total_cost}
           sale={data.labor.total_sales_price}
           tone="emerald"
+          thresholds={data.db_thresholds}
           rows={[
             { label: 'Arbejdsordrer', value: data.labor.work_order_count.toString() },
             {
@@ -322,6 +326,7 @@ function OrderEconomyTabContent({
           cost={data.materials.total_cost}
           sale={data.materials.total_sales_price}
           tone="blue"
+          thresholds={data.db_thresholds}
           rows={[
             { label: 'Linjer', value: data.materials.line_count.toString() },
             data.materials.lines_without_cost > 0
@@ -348,6 +353,7 @@ function OrderEconomyTabContent({
           cost={data.other_costs.total_cost}
           sale={data.other_costs.total_sales_price}
           tone="purple"
+          thresholds={data.db_thresholds}
           rows={[
             { label: 'Linjer', value: data.other_costs.line_count.toString() },
             data.other_costs.lines_without_sale > 0
@@ -656,6 +662,7 @@ function BreakdownCard({
   rows,
   onOpen,
   tone,
+  thresholds,
 }: {
   title: string
   icon: React.ReactNode
@@ -664,10 +671,11 @@ function BreakdownCard({
   rows: Array<{ label: string; value: string; warning?: boolean }>
   onOpen: () => void
   tone: 'emerald' | 'blue' | 'purple'
+  thresholds: { red: number; green: number }
 }) {
   const cm = sale - cost
   const pct = sale > 0 ? (cm / sale) * 100 : 0
-  const palette = sale > 0 ? marginPalette(pct) : null
+  const palette = sale > 0 ? marginPalette(pct, thresholds) : null
 
   const ringTone =
     tone === 'emerald'
@@ -827,7 +835,7 @@ function QualityFlagsPanel({
     items.push({
       severity: 'warning',
       label: 'Lav DB',
-      detail: `Dækningsgrad er ${fmtPct(data.totals.margin_percentage)} — under tærsklen på 10 %.`,
+      detail: `Dækningsgrad er ${fmtPct(data.totals.margin_percentage)} — under tærsklen på ${fmtPct(data.db_thresholds.red)}.`,
     })
   }
   if (data.quality_flags.unconverted_supplier_invoice_lines) {
