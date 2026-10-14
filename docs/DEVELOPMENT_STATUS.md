@@ -42,6 +42,8 @@ Lead-, tilbuds- og sagslisten viser kort på små skærme. Tabellen er der fra `
 
 Kalenderens dag- og ugevisning er en liste på små skærme. Tabellen er der fra `md`. Knappen "I dag" og markeringen af dagen bruger `copenhagenParts`, så UTC-serveren ikke viser gårsdagen mellem kl. 00 og 02. `npx tsx scripts/calendar-mobile-test.ts`.
 
+Lead-kanban på små skærme viser én fase ad gangen. Knapperne tilbyder kun de statusovergange, træk-og-slip allerede tillader, og kalder samme `updateLeadStatus`. `npx tsx scripts/leads-kanban-mobile-test.ts`.
+
 ## Slutrapport 2026-10-14
 AGENT: GROK
 BRANCH: grok-next

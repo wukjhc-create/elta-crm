@@ -65,27 +65,82 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
     setDragOverCol(null)
   }
 
+  const moveLead = async (leadId: string, targetStatus: LeadStatus) => {
+    setIsUpdating(leadId)
+    const result = await updateLeadStatus(leadId, targetStatus)
+    setIsUpdating(null)
+    if (result.success) router.refresh()
+  }
+
   const handleDrop = async (e: React.DragEvent, targetStatus: LeadStatus) => {
     e.preventDefault()
     setDragOverCol(null)
     const leadId = e.dataTransfer.getData('text/plain')
     if (!leadId || !canDrop(targetStatus)) return
-
-    setIsUpdating(leadId)
-    const result = await updateLeadStatus(leadId, targetStatus)
-    setIsUpdating(null)
-
-    if (result.success) {
-      router.refresh()
-    }
+    await moveLead(leadId, targetStatus)
   }
 
   // Calculate total value per column
   const colValue = (items: LeadWithRelations[]) =>
     items.reduce((sum, l) => sum + (l.value || 0), 0)
 
+  const [column, setColumn] = useState<LeadStatus>('new')
+  const mobileItems = columns[column]
+
   return (
-    <div className="overflow-x-auto pb-4">
+    <>
+    <div className="md:hidden space-y-3" data-testid="leads-kanban-mobile">
+      <label className="block text-sm">
+        <span className="text-xs text-gray-500">Fase</span>
+        <select
+          className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+          value={column}
+          onChange={(e) => setColumn(e.target.value as LeadStatus)}
+        >
+          {PIPELINE_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {LEAD_STATUS_LABELS[status]} ({columns[status].length})
+            </option>
+          ))}
+        </select>
+      </label>
+      {mobileItems.length === 0 ? (
+        <p className="text-sm text-gray-500">Ingen leads i denne fase.</p>
+      ) : (
+        mobileItems.map((lead) => {
+          const next = LEAD_STATUS_TRANSITIONS[lead.status] ?? []
+          return (
+            <div key={lead.id} className={`bg-white rounded-xl border p-4 ${isUpdating === lead.id ? 'opacity-60' : ''}`}>
+              <button
+                type="button"
+                className="block w-full text-left"
+                onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+              >
+                <p className="font-semibold text-gray-900 truncate">{lead.company_name}</p>
+                {lead.contact_person && <p className="text-sm text-gray-500 truncate">{lead.contact_person}</p>}
+                {lead.value ? <p className="text-sm text-gray-700 mt-1">{formatCurrency(lead.value)}</p> : null}
+              </button>
+              {next.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {next.map((target) => (
+                    <button
+                      key={target}
+                      type="button"
+                      disabled={isUpdating === lead.id}
+                      onClick={() => void moveLead(lead.id, target)}
+                      className="text-xs px-2 py-1 rounded-md ring-1 ring-gray-200 text-gray-700 disabled:opacity-50"
+                    >
+                      {LEAD_STATUS_LABELS[target]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })
+      )}
+    </div>
+    <div className="hidden md:block overflow-x-auto pb-4">
       <div className="flex gap-3 min-w-[1200px]">
         {PIPELINE_STATUSES.map((status) => {
           const items = columns[status]
@@ -171,5 +226,6 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
         })}
       </div>
     </div>
+    </>
   )
 }
