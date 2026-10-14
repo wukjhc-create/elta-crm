@@ -309,7 +309,7 @@ export function OrderPlanningTab({
         <>
           {/* Sag-level totals (sum across all work_orders) */}
           {caseTotals.count > 0 && (
-            <div className="bg-gray-50 ring-1 ring-gray-200 rounded-md px-3 py-2 text-sm flex items-center flex-wrap gap-x-4 gap-y-1">
+            <div data-testid="case-time-totals" className="bg-gray-50 ring-1 ring-gray-200 rounded-md px-3 py-2 text-sm flex items-center flex-wrap gap-x-4 gap-y-1">
               <span className="font-semibold text-gray-700">Sagstotal:</span>
               <span>
                 {caseTotals.count} timeregistrering

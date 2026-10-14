@@ -10,6 +10,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { rankEmployees } from '@/lib/ai/employee-analytics'
 import { forecastRevenue } from '@/lib/ai/forecasting'
 import { logAiSuggestion } from '@/lib/ai/suggestion-log'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import type { DashboardInsight } from '@/types/ai-insights.types'
 
 export async function generateDashboardInsights(): Promise<DashboardInsight[]> {
@@ -20,11 +21,13 @@ export async function generateDashboardInsights(): Promise<DashboardInsight[]> {
   try {
     const { data: snaps } = await supabase
       .from('work_order_profit')
-      .select('margin_percentage, revenue, total_cost, details')
+      .select('work_order_id, margin_percentage, revenue, total_cost, details')
       .gt('revenue', 0)
       .order('created_at', { ascending: false })
       .limit(200)
-    const margins = (snaps ?? [])
+    // Rapport-review 2026-10-09 (#5): work_order_profit er append-only (snapshot ved done + ved fakturaændring) —
+    // kun seneste snapshot pr. arbejdsordre, ellers vægter genåbnede/omfakturerede ordrer flere gange
+    const margins = latestPerWorkOrder(snaps ?? [])
       .map((s) => Number(s.margin_percentage))
       .filter((m) => Number.isFinite(m))
     if (margins.length >= 5) {
@@ -68,13 +71,18 @@ export async function generateDashboardInsights(): Promise<DashboardInsight[]> {
   // ---- 3. Margin upside: how much can total profit lift if median rises 8 % ----
   try {
     const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-    const { data: snaps } = await supabase
-      .from('work_order_profit')
-      .select('revenue, profit, created_at')
-      .gt('revenue', 0)
-      .gte('created_at', since)
-      .limit(500)
-    const totalRevenue = (snaps ?? []).reduce((s, r) => s + Number(r.revenue), 0)
+    // Rapport-review 2026-10-09 (#5): alle snapshots i perioden (før .limit(500)), men kun seneste pr. arbejdsordre
+    const snaps = await fetchAllRows<{ work_order_id: string | null; revenue: number | string; created_at: string }>((f, t) =>
+      supabase
+        .from('work_order_profit')
+        .select('id, work_order_id, revenue, created_at')
+        .gt('revenue', 0)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(f, t)
+    )
+    const totalRevenue = latestPerWorkOrder(snaps).reduce((s, r) => s + Number(r.revenue), 0)
     if (totalRevenue > 0) {
       const lift = totalRevenue * 0.08
       insights.push({
@@ -129,4 +137,15 @@ export async function generateDashboardInsights(): Promise<DashboardInsight[]> {
   }
 
   return insights
+}
+
+/** Første forekomst pr. work_order_id (rækkerne skal være sorteret nyeste først). Rækker uden ordre beholdes. */
+function latestPerWorkOrder<T extends { work_order_id?: string | null }>(rows: T[]): T[] {
+  const seen = new Set<string>()
+  return rows.filter((r) => {
+    if (!r.work_order_id) return true
+    if (seen.has(r.work_order_id)) return false
+    seen.add(r.work_order_id)
+    return true
+  })
 }

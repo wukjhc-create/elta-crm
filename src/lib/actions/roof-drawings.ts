@@ -12,6 +12,27 @@ async function requireGate(permission: Permission) {
   ctx.requirePermission(permission)
   return ctx
 }
+
+/**
+ * IDOR-sweep 2026-10-09 (#3): skrivning kræver kunderelationen (customers.edit) — ellers kun på en sag i brugerens scope
+ * (montør: egne sager) der hører til kunden. Før var læse-retten (customers.view) nok til at overskrive/slette enhver
+ * kundes tagtegning. Returnerer fejltekst eller null.
+ */
+async function roofWriteDenied(
+  ctx: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>,
+  customerId: string | null,
+  serviceCaseId: string | null,
+): Promise<string | null> {
+  if (serviceCaseId) {
+    const { data: sc } = await ctx.supabase.from('service_cases').select('customer_id').eq('id', serviceCaseId).maybeSingle()
+    if (!sc) return 'Sagen blev ikke fundet'
+    if (customerId && (sc as { customer_id: string | null }).customer_id !== customerId) return 'Sagen tilhører ikke kunden'
+  }
+  if (ctx.hasPermission('customers.edit')) return null
+  if (!serviceCaseId) return 'Manglende tilladelse: customers.edit'
+  const { userCanViewCase } = await import('@/lib/auth/case-scope')
+  return (await userCanViewCase(serviceCaseId, ctx)) ? null : 'Du har ikke adgang til denne sag'
+}
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
@@ -52,10 +73,15 @@ export async function createRoofDrawing(
   input: CreateRoofDrawingInput,
 ): Promise<ActionResult<RoofDrawingWithUrl>> {
   try {
-    const { supabase, userId } = await requireGate('customers.view')
+    const ctx = await requireGate('customers.view')
+    const { supabase, userId } = ctx
 
     validateUUID(input.customerId, 'kunde-ID')
     if (input.serviceCaseId) validateUUID(input.serviceCaseId, 'sags-ID')
+    {
+      const denied = await roofWriteDenied(ctx, input.customerId, input.serviceCaseId ?? null)
+      if (denied) return { success: false, error: denied }
+    }
 
     if (!input.imageBase64 || !input.imageBase64.startsWith('data:')) {
       return { success: false, error: 'Ugyldigt billede' }
@@ -152,8 +178,16 @@ export async function saveRoofDrawing(
   input: SaveRoofDrawingInput,
 ): Promise<ActionResult<RoofDrawing>> {
   try {
-    const { supabase } = await requireGate('customers.view')
+    const ctx = await requireGate('customers.view')
+    const { supabase } = ctx
     validateUUID(input.id, 'tegnings-ID')
+    {
+      const { data: cur } = await supabase.from('roof_drawings').select('customer_id, service_case_id').eq('id', input.id).maybeSingle()
+      if (!cur) return { success: false, error: 'Tegningen blev ikke fundet' }
+      const c = cur as { customer_id: string | null; service_case_id: string | null }
+      const denied = await roofWriteDenied(ctx, c.customer_id, c.service_case_id)
+      if (denied) return { success: false, error: denied }
+    }
 
     const patch: Record<string, unknown> = {
       panel_count: Math.max(0, Math.round(input.panelCount)),
@@ -183,8 +217,16 @@ export async function saveRoofDrawing(
 /** Slet en tagtegning. Billedet i storage ryddes ikke (kan gøres senere). */
 export async function deleteRoofDrawing(id: string): Promise<ActionResult<void>> {
   try {
-    const { supabase } = await requireGate('customers.view')
+    const ctx = await requireGate('customers.view')
+    const { supabase } = ctx
     validateUUID(id, 'tegnings-ID')
+    {
+      const { data: cur } = await supabase.from('roof_drawings').select('customer_id, service_case_id').eq('id', id).maybeSingle()
+      if (!cur) return { success: false, error: 'Tegningen blev ikke fundet' }
+      const c = cur as { customer_id: string | null; service_case_id: string | null }
+      const denied = await roofWriteDenied(ctx, c.customer_id, c.service_case_id)
+      if (denied) return { success: false, error: denied }
+    }
 
     const { error } = await supabase.from('roof_drawings').delete().eq('id', id)
     if (error) {

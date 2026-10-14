@@ -14,6 +14,8 @@ import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
 
 export const dynamic = 'force-dynamic'
+// Mail-review 2026-10-09 (#1): op til 1000 mails/postkasse + AI-analyse (budget pr. kørsel i orchestratoren)
+export const maxDuration = 300
 
 const CRON_SECRET = process.env.CRON_SECRET
 

@@ -437,6 +437,44 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'cleanup-harness-case') {
+    // Staging: slet ÉN efterladt harness-sag (titel skal starte med '[HARNESS]') — fx efter en afbrudt UI-kørsel
+    const no = process.argv[3]
+    const { data: sc } = await admin.from('service_cases').select('id, title').eq('case_number', no).maybeSingle()
+    const row = sc as { id: string; title: string } | null
+    if (!row || !row.title.startsWith('[HARNESS]')) { log('ikke en harness-sag — intet slettet'); return }
+    const { error } = await admin.from('service_cases').delete().eq('id', row.id)
+    log(error ? `fejl: ${error.message}` : `slettet ${no}`)
+    return
+  }
+  if (SUB === 'case-title-probe') {
+    // Read-only (staging): sager/kunder hvis navn indeholder et ord (UI-test-diagnose)
+    const w = process.argv[3]
+    const { data: sc } = await admin.from('service_cases').select('case_number, title, status').ilike('title', `%${w}%`).limit(10)
+    const { data: cu } = await admin.from('customers').select('customer_number, company_name').ilike('company_name', `%${w}%`).limit(10)
+    log(JSON.stringify({ sager: sc, kunder: cu }, null, 1))
+    return
+  }
+  if (SUB === 'case-timelogs-diag') {
+    // Read-only diagnose (staging): arbejdsordrer + timer på en sag
+    const caseId = process.argv[3]
+    const { data: sc } = await admin.from('service_cases').select('status, closed_at').eq('id', caseId).maybeSingle()
+    const { data: wos } = await admin.from('work_orders').select('id, status, assigned_employee_id').eq('case_id', caseId)
+    const ids = ((wos ?? []) as Array<{ id: string }>).map((w) => w.id)
+    const { data: tls } = ids.length ? await admin.from('time_logs').select('id, work_order_id, hours, approval_status, end_time').in('work_order_id', ids) : { data: [] }
+    log(JSON.stringify({ sag: sc, arbejdsordrer: wos, timer: tls }, null, 1))
+    return
+  }
+  if (SUB === 'web-inquiry-backlog') {
+    // Read-only (staging): antal åbne webhenvendelser (FormSubmit, ingen kunde, 90 dage) som bulk-knappen behandler
+    const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
+    const { count } = await admin.from('incoming_emails').select('id', { count: 'exact', head: true })
+      .ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null).eq('is_archived', false).gte('received_at', since)
+    const { count: harness } = await admin.from('incoming_emails').select('id', { count: 'exact', head: true })
+      .ilike('sender_email', '%@formsubmit.co').ilike('subject', '%[HARNESS]%').is('customer_id', null).eq('is_archived', false)
+    log(`åbne webhenvendelser: ${count} (heraf harness-efterladte: ${harness})`)
+    return
+  }
   if (SUB === 'fresh-signed-url-check') {
     // 00210: dokument med blankt file_url men rigtig fil → portalen (og kundekortets service) giver et friskt, virkende link
     const { getPortalDocuments } = await import('../../src/lib/actions/portal')
@@ -465,6 +503,170 @@ async function main() {
       await admin.from('customers').delete().eq('id', cust)
     }
     log(fails ? `❌ ${fails} fejl` : '✅ friske signerede links ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'messages-integrity-check') {
+    // 00217: montør (persona) kan ikke sende interne beskeder med falsk afsendernavn; modtageren (salg) kan kun ændre
+    // status/read_at/archived_at. Midlertidige beskeder ryddes.
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const montor = personas.get('montør' as never)!
+    const salg = personas.get('salg' as never)!
+    const montorId = (await montor.auth.getUser()).data.user!.id
+    const salgId = (await salg.auth.getUser()).data.user!.id
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const ids: string[] = []
+    try {
+      const { data: ins, error: insErr } = await montor.from('messages').insert({ subject: '[HARNESS] fra "chefen"', body: 'x', from_user_id: montorId, from_name: 'Henrik (admin)', from_email: 'henrik@falsk.invalid', to_user_id: salgId }).select('id').single()
+      if (insErr || !ins) throw new Error(`insert: ${insErr?.message}`)
+      ids.push((ins as { id: string }).id)
+      const { data: row } = await admin.from('messages').select('from_name, from_email').eq('id', ids[0]).single()
+      const { data: prof } = await admin.from('profiles').select('full_name, email').eq('id', montorId).single()
+      const r = row as { from_name: string | null; from_email: string | null }
+      const p = prof as { full_name: string | null; email: string }
+      check('afsendernavn/-mail kommer fra profilen (ikke klienten)', r.from_name === p.full_name && r.from_email === p.email, `navn=${r.from_name === 'Henrik (admin)' ? 'FALSK' : 'profil'}`)
+      const u1 = await salg.from('messages').update({ body: 'omskrevet' }).eq('id', ids[0]).select('id')
+      check('modtager kan ikke ændre brødtekst', !!u1.error || (u1.data ?? []).length === 0, u1.error?.code ?? `rækker=${(u1.data ?? []).length}`)
+      const u2 = await salg.from('messages').update({ status: 'read', read_at: new Date().toISOString() }).eq('id', ids[0]).select('id')
+      check('modtager kan markere læst', !u2.error && (u2.data ?? []).length === 1, u2.error?.message ?? '')
+    } finally {
+      if (ids.length) await admin.from('messages').delete().in('id', ids)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ beskedintegritet ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'offers-lock-check') {
+    // 00215: salg (rigtig persona-session) kan via REST ikke ændre linjer/priser på et sendt tilbud, ikke slette det og
+    // ikke gøre det til forslag; noter og kladder virker. 00216: 100,04 med 12,5 % rabat → total 109,41 (trinvis).
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const salg = personas.get('salg' as never)!
+    const salgId = (await salg.auth.getUser()).data.user!.id
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const cust = ((await admin.from('customers').insert({ customer_number: `OL-${stamp}`, company_name: `[HARNESS] ol ${stamp}`, contact_person: 'X', email: `ol-${stamp}@harness.test`, created_by: salgId }).select('id').single()).data as { id: string }).id
+    const mkOffer = async (n: number, status: string) => ((await admin.from('offers').insert({ offer_number: `OL-${stamp}-${n}`, title: '[HARNESS] ol', customer_id: cust, status, discount_percentage: 12.5, tax_percentage: 25, created_by: salgId }).select('id').single()).data as { id: string }).id
+    const draft = await mkOffer(1, 'draft')
+    const sent = await mkOffer(2, 'draft')
+    const ids = [draft, sent]
+    const blocked = (r: { error: { code?: string } | null; data: unknown[] | null }) => !!r.error || (r.data ?? []).length === 0
+    try {
+      for (const id of ids) await admin.from('offer_line_items').insert({ offer_id: id, position: 1, description: 'x', quantity: 1, unit: 'stk', unit_price: 100.04, total: 100.04 })
+      const { data: totals } = await admin.from('offers').select('final_amount, discount_amount, tax_amount').eq('id', draft).single()
+      log(`  (00216) linjer 100,04 · rabat 12,5 % → total ${(totals as { final_amount: number }).final_amount} (trinvis = 109.41, gammel trigger = 109.42)`)
+      check('00216 totaler afrundes trinvis (109,41)', Number((totals as { final_amount: number }).final_amount) === 109.41)
+      await admin.from('offers').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', sent)
+      const lineId = ((await admin.from('offer_line_items').select('id').eq('offer_id', sent).single()).data as { id: string }).id
+      const r1 = await salg.from('offer_line_items').update({ unit_price: 1, total: 1 }).eq('id', lineId).select('id')
+      check('salg kan ikke ændre linje på sendt tilbud', blocked(r1), r1.error?.code ?? `rækker=${(r1.data ?? []).length}`)
+      const r2 = await salg.from('offer_line_items').insert({ offer_id: sent, position: 2, description: 'y', quantity: 1, unit: 'stk', unit_price: 5, total: 5 }).select('id')
+      check('salg kan ikke tilføje linje på sendt tilbud', blocked(r2), r2.error?.code ?? `rækker=${(r2.data ?? []).length}`)
+      const r3 = await salg.from('offers').update({ discount_percentage: 90 }).eq('id', sent).select('id')
+      check('salg kan ikke ændre rabat på sendt tilbud', blocked(r3), r3.error?.code ?? `rækker=${(r3.data ?? []).length}`)
+      const r4 = await salg.from('offers').update({ is_proposal: true }).eq('id', sent).select('id')
+      check('salg kan ikke gøre tilbud til forslag', blocked(r4), r4.error?.code ?? `rækker=${(r4.data ?? []).length}`)
+      const r5 = await salg.from('offers').delete().eq('id', sent).select('id')
+      check('salg kan ikke slette sendt tilbud', blocked(r5), r5.error?.code ?? `rækker=${(r5.data ?? []).length}`)
+      const r6 = await salg.from('offers').update({ notes: 'intern note' }).eq('id', sent).select('id')
+      check('salg kan stadig skrive interne noter på sendt tilbud', !r6.error && (r6.data ?? []).length === 1, r6.error?.message ?? '')
+      const r7 = await salg.from('offer_line_items').update({ unit_price: 200, total: 200 }).eq('offer_id', draft).select('id')
+      check('salg kan stadig ændre linjer på kladde', !r7.error && (r7.data ?? []).length === 1, r7.error?.message ?? '')
+      const { data: after } = await admin.from('offers').select('final_amount').eq('id', sent).maybeSingle()
+      check('sendt tilbud findes stadig med uændret total', !!after && [109.41, 109.42].includes(Number((after as { final_amount: number }).final_amount)), after ? String((after as { final_amount: number }).final_amount) : 'SLETTET')
+    } finally {
+      await admin.from('offer_line_items').delete().in('offer_id', ids)
+      await admin.from('offer_activities').delete().in('offer_id', ids)
+      await admin.from('offers').delete().in('id', ids)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ tilbuds-lås ok (salg-persona)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'payment-summary-check') {
+    // 00214: v_customer_payment_summary.outstanding_total pr. kunde = appens åbne beløb (lib/invoices/open-amount.ts)
+    // for sendte, ikke-annullerede, ikke-kreditnota-fakturaer. Kun læsning.
+    const { fetchAllRows } = await import('../../src/lib/supabase/fetch-all')
+    const invs = await fetchAllRows<{ id: string; customer_id: string | null; status: string; invoice_type: string | null; voided_at: string | null; final_amount: number | null; amount_paid: number | null; credit_of_invoice_id: string | null }>((f, t) =>
+      admin.from('invoices').select('id, customer_id, status, invoice_type, voided_at, final_amount, amount_paid, credit_of_invoice_id').order('id').range(f, t) as never)
+    const credited = new Map<string, number>()
+    for (const c of invs) if (c.invoice_type === 'credit' && c.credit_of_invoice_id && ['sent', 'paid'].includes(c.status) && !c.voided_at) {
+      credited.set(c.credit_of_invoice_id, (credited.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.final_amount ?? 0)))
+    }
+    const expected = new Map<string, number>()
+    for (const i of invs) {
+      if (!i.customer_id || i.status !== 'sent' || i.voided_at || (i.invoice_type ?? 'standard') === 'credit') continue
+      const open = Math.max(0, Number(i.final_amount ?? 0) - Number(i.amount_paid ?? 0) - (credited.get(i.id) ?? 0))
+      expected.set(i.customer_id, (expected.get(i.customer_id) ?? 0) + open)
+    }
+    const view = await fetchAllRows<{ customer_id: string; outstanding_total: number }>((f, t) =>
+      admin.from('v_customer_payment_summary').select('customer_id, outstanding_total').order('customer_id').range(f, t) as never)
+    let diff = 0
+    for (const v of view) {
+      const e = Math.round((expected.get(v.customer_id) ?? 0) * 100) / 100
+      if (Math.abs(Number(v.outstanding_total) - e) > 0.01) diff++
+    }
+    const partial = invs.filter((i) => i.status === 'sent' && Number(i.amount_paid ?? 0) > 0).length + credited.size
+    log(`${diff === 0 ? '✅' : '❌'} ${view.length} kunder i viewet, ${diff} afviger fra appens åbne beløb (delbetalte/krediterede fakturaer i data: ${partial})`)
+    process.exitCode = diff === 0 ? 0 : 1
+    return
+  }
+  if (SUB === 'work-orders-guard-check') {
+    // 00213: montør (rigtig persona-session) på EGEN arbejdsordre: kun status (planned→in_progress→done) virker;
+    // case_id/dato/titel afvises; en annulleret ordre kan ikke gøres 'done'. Admin uændret. Midlertidige rækker ryddes.
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const montor = personas.get('montør' as never)!
+    const montorId = (await montor.auth.getUser()).data.user!.id
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: existingEmp } = await admin.from('employees').select('id').eq('profile_id', montorId).maybeSingle()
+    let empId = (existingEmp as { id: string } | null)?.id ?? null
+    let createdEmp = false
+    if (!empId) {
+      const { data: e, error } = await admin.from('employees').insert({ name: '[HARNESS] montør-persona', email: `wg-${stamp}@harness.test`, role: 'montør', active: true, profile_id: montorId }).select('id').single()
+      if (error) throw new Error(`employee: ${error.message}`)
+      empId = (e as { id: string }).id; createdEmp = true
+    }
+    const cust = ((await admin.from('customers').insert({ customer_number: `WG-${stamp}`, company_name: `[HARNESS] wg ${stamp}`, contact_person: 'X', email: `wg-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const mkCase = async (n: number, status: string) => ((await admin.from('service_cases').insert({ case_number: `SVC-5${String(stamp).slice(-5)}${n}`, customer_id: cust, title: '[HARNESS] wg', status, created_by: owner }).select('id').single()).data as { id: string }).id
+    const caseId = await mkCase(1, 'in_progress')
+    const closedCase = await mkCase(2, 'closed')
+    const mkWo = async (status: string) => ((await admin.from('work_orders').insert({ case_id: caseId, customer_id: cust, title: '[HARNESS] wg', status, scheduled_date: '2026-10-01', assigned_employee_id: empId }).select('id').single()).data as { id: string }).id
+    const wo = await mkWo('planned')
+    const cancelled = await mkWo('cancelled')
+    try {
+      const r3 = await montor.from('work_orders').update({ status: 'in_progress' }).eq('id', wo).select('id')
+      check('montør kan starte egen ordre (planned→in_progress)', !r3.error && (r3.data ?? []).length === 1, r3.error?.message ?? '')
+      // politikken (00181) kræver ny status in_progress/done — derfor sendes status med for at ramme selve hullet
+      const r1 = await montor.from('work_orders').update({ case_id: closedCase, status: 'in_progress' }).eq('id', wo).select('id')
+      check('montør kan ikke flytte egen ordre til anden sag', !!r1.error || (r1.data ?? []).length === 0, r1.error?.code ?? `rækker=${(r1.data ?? []).length}`)
+      const r2 = await montor.from('work_orders').update({ scheduled_date: '2027-01-01', title: 'ændret', status: 'in_progress' }).eq('id', wo).select('id')
+      check('montør kan ikke ændre dato/titel', !!r2.error || (r2.data ?? []).length === 0, r2.error?.code ?? `rækker=${(r2.data ?? []).length}`)
+      const r4 = await montor.from('work_orders').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', wo).select('id')
+      check('montør kan afslutte egen ordre (in_progress→done)', !r4.error && (r4.data ?? []).length === 1, r4.error?.message ?? '')
+      const r5 = await montor.from('work_orders').update({ status: 'done' }).eq('id', cancelled).select('id')
+      check('montør kan ikke gøre annulleret ordre done', !!r5.error || (r5.data ?? []).length === 0, r5.error?.code ?? `rækker=${(r5.data ?? []).length}`)
+      const r6 = await montor.from('work_orders').update({ status: 'in_progress' }).eq('id', wo).select('id')
+      check('montør kan ikke genåbne udført ordre', !!r6.error || (r6.data ?? []).length === 0, r6.error?.code ?? `rækker=${(r6.data ?? []).length}`)
+      const { data: row } = await admin.from('work_orders').select('case_id, title').eq('id', wo).single()
+      check('ordren er stadig på sin sag med uændret titel', (row as { case_id: string; title: string }).case_id === caseId && (row as { title: string }).title === '[HARNESS] wg')
+      const r7 = await admin.from('work_orders').update({ title: '[HARNESS] wg admin' }).eq('id', wo).select('id')
+      check('admin (service) kan stadig ændre', !r7.error && (r7.data ?? []).length === 1, r7.error?.message ?? '')
+    } finally {
+      await admin.from('work_order_profit').delete().in('work_order_id', [wo, cancelled])
+      await admin.from('work_orders').delete().in('id', [wo, cancelled])
+      await admin.from('service_cases').delete().in('id', [caseId, closedCase])
+      await admin.from('customers').delete().eq('id', cust)
+      if (createdEmp) await admin.from('employees').delete().eq('id', empId!)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ arbejdsordre-guard ok (montør-persona)')
     process.exitCode = fails ? 1 : 0
     return
   }
@@ -524,6 +726,70 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'ai-budget-concurrency-check') {
+    // Mail-review 2026-10-09 (#3): 20 samtidige recordAiCall → tælleren stiger med præcis 20 (før: læs-så-skriv tabte
+    // optællinger). Dagens tæller sættes tilbage bagefter. Ingen AI-kald.
+    const { recordAiCall } = await import('../../src/lib/services/ai-budget')
+    const day = new Date().toISOString().substring(0, 10)
+    const read = async () => ((await admin.from('ai_usage_daily').select('call_count').eq('day', day).maybeSingle()).data as { call_count: number } | null)?.call_count ?? null
+    const before = await read()
+    await Promise.all(Array.from({ length: 20 }, () => recordAiCall(1)))
+    const after = await read()
+    const delta = (after ?? 0) - (before ?? 0)
+    if (before === null) await admin.from('ai_usage_daily').delete().eq('day', day)
+    else await admin.from('ai_usage_daily').update({ call_count: (after ?? 0) - 20 }).eq('day', day)
+    log(`${delta === 20 ? '✅' : '❌'} 20 samtidige recordAiCall → +${delta}`)
+    process.exitCode = delta === 20 ? 0 : 1
+    return
+  }
+  if (SUB === 'mail-attachment-links-check') {
+    // Storage-review 2026-10-09: mailvedhæftninger får friske 1-times links fra storagePath; fremmede stier signeres
+    // ikke; listen bærer ingen links. Midlertidig mail + fil ryddes op.
+    const { withFreshAttachmentLinks, withoutAttachmentLinks } = await import('../../src/lib/mail/attachment-links')
+    const stamp = Date.now()
+    const { data: em, error: emErr } = await admin.from('incoming_emails').insert({
+      graph_message_id: `harness-att-${stamp}`, subject: '[HARNESS] vedhæftningslinks', sender_email: `att-${stamp}@harness.test`,
+      to_email: 'kontakt@harness.test', received_at: new Date().toISOString(), link_status: 'ignored', has_attachments: true,
+    }).select('id').single()
+    if (emErr || !em) { log(`❌ kunne ikke oprette mail: ${emErr?.message}`); process.exitCode = 1; return }
+    const id = (em as { id: string }).id
+    const path = `email-attachments/${id}/0-test.txt`
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    try {
+      await admin.storage.from('attachments').upload(path, new Blob(['hej'], { type: 'text/plain' }), { upsert: false })
+      const raw = [
+        { filename: 'test.txt', storagePath: path, url: 'https://gammelt-link.invalid/1aar' },
+        { filename: 'fremmed.txt', storagePath: 'customer-documents/x/y.pdf', url: '' },
+      ]
+      const fresh = await withFreshAttachmentLinks(id, raw)
+      const r = fresh[0].url ? await fetch(fresh[0].url) : null
+      check('egen fil får frisk link der kan hentes', !!r?.ok && fresh[0].url !== raw[0].url, `status=${r?.status}`)
+      check('fremmed sti signeres ikke', fresh[1].url === '')
+      check('listen bærer ingen links', withoutAttachmentLinks(raw).every((a) => a.url === ''))
+    } finally {
+      await admin.storage.from('attachments').remove([path])
+      await admin.from('incoming_emails').delete().eq('id', id)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ mail-vedhæftningslinks ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'mail-backfill-probe') {
+    // Mail-review 2026-10-09 (#1): orchestratorens backfill-forespørgsel (kolonner/filtre) virker mod det rigtige skema
+    const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
+    const { data, error } = await admin
+      .from('incoming_emails')
+      .select('id, subject, sender_email, sender_name, body_text, body_html, body_preview')
+      .eq('link_status', 'pending')
+      .is('processed_at', null)
+      .gte('received_at', since)
+      .order('received_at', { ascending: true })
+      .limit(60)
+    log(`${error ? '❌' : '✅'} backfill-forespørgsel ${error ? error.message : `ok (${(data ?? []).length} ubehandlede)`}`)
+    process.exitCode = error ? 1 : 0
+    return
+  }
   if (SUB === 'storage-persona-check') {
     // 00209: rigtige persona-sessioner (5 roller) må hverken liste, hente eller uploade direkte i attachments /
     // service-case-files / portal-attachments; service-klienten kan stadig liste, signere og hente.
@@ -554,6 +820,113 @@ async function main() {
       if (!up.error) await admin.storage.from('attachments').remove([up.data!.path])
     }
     log(fails ? `❌ ${fails} fejl` : '✅ storage-lockdown ok (personaer)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'notify-prefs-check') {
+    // 00220 + lib/notifications/user-notify: sender KUN når brugeren har slået hændelsens e-mail til (standard fra);
+    // push/daglig opsummering findes ikke → sendes aldrig. Test-transport (ingen live-mail). Brugerens egne indstillinger
+    // gemmes via egen session (kolonne-grant). Indstillingerne nulstilles bagefter.
+    const { notifyUser, setUserNotifyTransport } = await import('../../src/lib/notifications/user-notify')
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const salg = personas.get('salg' as never)!
+    const uid = (await salg.auth.getUser()).data.user!.id
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const sent: string[] = []
+    setUserNotifyTransport(async (m) => { sent.push(m.subject); return { delivered: true } })
+    const content = { subject: 'T', html: '<p>t</p>', text: 't' }
+    try {
+      await admin.from('profiles').update({ notification_preferences: {} }).eq('id', uid)
+      check('standard (intet valgt) → sendes ikke', (await notifyUser(uid, 'offer_signed', content)) === 'skipped')
+      const own = await salg.from('profiles').update({ notification_preferences: { offer_signed: { email: true, push: true }, daily_summary: { email: true, push: false } } }).eq('id', uid).select('id')
+      check('brugeren kan gemme egne indstillinger (kolonne-grant)', !own.error && (own.data ?? []).length === 1, own.error?.message ?? '')
+      const dbg = (await admin.from('profiles').select('email, is_active, notification_preferences').eq('id', uid).single()).data as { email: string | null; is_active: boolean | null; notification_preferences: unknown }
+      const outcome = await notifyUser(uid, 'offer_signed', content)
+      check('slået til → sendes', outcome === 'sent', `${outcome} (email=${dbg?.email ? 'ja' : 'nej'} aktiv=${dbg?.is_active} prefs=${JSON.stringify(dbg?.notification_preferences)})`)
+      check('anden hændelse (ikke valgt) → sendes ikke', (await notifyUser(uid, 'new_message', content)) === 'skipped')
+      check('daglig opsummering (ikke tilgængelig) → sendes ikke', (await notifyUser(uid, 'daily_summary', content)) === 'skipped')
+      const other = ((await admin.from('profiles').select('id').neq('id', uid).eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0]?.id
+      const foreign = other ? await salg.from('profiles').update({ notification_preferences: { new_lead: { email: true } } }).eq('id', other).select('id') : { data: [], error: null }
+      check('brugeren kan ikke ændre andres indstillinger', !!foreign.error || (foreign.data ?? []).length === 0, foreign.error?.code ?? `rækker=${(foreign.data ?? []).length}`)
+      check('præcis én mail via test-transport', sent.length === 1, `${sent.length}`)
+    } finally {
+      setUserNotifyTransport(null)
+      await admin.from('profiles').update({ notification_preferences: {} }).eq('id', uid)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ notifikationsindstillinger respekteres')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'calc-offer-mode-check') {
+    // 00219: kalkulationens total tæller 'visible' + 'hidden_included', ikke 'excluded'; dækningsbidrag efter avance/rabat.
+    // Midlertidig kalkulation ryddes.
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: calc, error: cErr } = await admin.from('calculations').insert({ name: `[HARNESS] offer_mode ${stamp}`, created_by: owner, margin_percentage: 20, discount_percentage: 10, tax_percentage: 25 }).select('id').single()
+    if (cErr || !calc) { log(`❌ kalkulation: ${cErr?.message}`); process.exitCode = 1; return }
+    const id = (calc as { id: string }).id
+    try {
+      const row = (description: string, total: number, cost: number, offer_mode: string) =>
+        ({ calculation_id: id, row_type: 'manual', position: 0, description, quantity: 1, unit: 'stk', cost_price: cost, sale_price: total, total, offer_mode, show_on_offer: offer_mode === 'visible' })
+      const { error: rErr } = await admin.from('calculation_rows').insert([
+        row('synlig', 10000, 6000, 'visible'), row('skjult medregnet', 2000, 1200, 'hidden_included'), row('udeladt', 500, 300, 'excluded'),
+      ])
+      if (rErr) throw new Error(`rækker: ${rErr.message}`)
+      const { data: c } = await admin.from('calculations').select('subtotal, final_amount, gross_profit, gross_profit_margin').eq('id', id).single()
+      const v = c as { subtotal: number; final_amount: number; gross_profit: number; gross_profit_margin: number }
+      // netto = 12.000 × 1,2 × 0,9 = 12.960; kost = 7.200 → DB 5.760 (44,44 %); total inkl. moms 16.200
+      check('subtotal = synlig + skjult medregnet (udeladt tæller ikke)', Number(v.subtotal) === 12000, `${v.subtotal}`)
+      check('total inkl. moms = 12.000 × 1,2 × 0,9 × 1,25', Number(v.final_amount) === 16200, `${v.final_amount}`)
+      check('dækningsbidrag efter avance og rabat', Number(v.gross_profit) === 5760, `${v.gross_profit} (${v.gross_profit_margin} %)`)
+      const { error: badErr } = await admin.from('calculation_rows').insert(row('ugyldig', 1, 0, 'skjult'))
+      check('ugyldig tilstand afvises', !!badErr, badErr?.code ?? 'TILLADT')
+    } finally {
+      await admin.from('calculation_rows').delete().eq('calculation_id', id)
+      await admin.from('calculations').delete().eq('id', id)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ kalkulationsrækkers tilbudstilstand ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'customer-docs-share-check') {
+    // 00218 (Henrik 2026-10-10): kundedokumenter er interne som standard — vises kun i portalen når de er delt;
+    // mail-arkiv vises aldrig. Midlertidig kunde/token/dokumenter ryddes.
+    const { getPortalDocuments } = await import('../../src/lib/actions/portal')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `DS-${stamp}`, company_name: `[HARNESS] ds ${stamp}`, contact_person: 'X', email: `ds-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const tok = randomBytes(32).toString('hex')
+    try {
+      await admin.from('portal_access_tokens').insert({ customer_id: cust, token: tok, email: `ds-${stamp}@harness.test`, is_active: true, created_by: owner })
+      const mk = async (title: string, extra: Record<string, unknown>) => ((await admin.from('customer_documents').insert({ customer_id: cust, title, document_type: 'other', file_url: '', file_name: `${title}.pdf`, storage_path: `customer-documents/${cust}/${title}.pdf`, ...extra }).select('id').single()).data as { id: string }).id
+      const internal = await mk('intern', {})
+      const shared = await mk('delt', { visible_in_portal: true })
+      const { data: em } = await admin.from('incoming_emails').insert({ graph_message_id: `ds-${stamp}`, subject: '[HARNESS]', sender_email: `ds-${stamp}@harness.test`, to_email: 'k@harness.test', received_at: new Date().toISOString(), link_status: 'ignored' }).select('id').single()
+      const mailDoc = await mk('mail', { visible_in_portal: true, source_email_id: (em as { id: string }).id })
+      const titles = async () => (((await getPortalDocuments(tok)).data ?? []) as Array<{ title: string }>).map((d) => d.title)
+      const t1 = await titles()
+      check('internt dokument (standard) vises ikke i portalen', !t1.includes('intern'), t1.join(','))
+      check('delt dokument vises i portalen', t1.includes('delt'))
+      check('mail-arkiv vises aldrig (selv med flag)', !t1.includes('mail'))
+      await admin.from('customer_documents').update({ visible_in_portal: true }).eq('id', internal)
+      check('efter "Del med kunde" vises det', (await titles()).includes('intern'))
+      await admin.from('customer_documents').update({ visible_in_portal: false }).eq('id', shared)
+      check('efter "gør internt" forsvinder det', !(await titles()).includes('delt'))
+      await admin.from('customer_documents').delete().in('id', [internal, shared, mailDoc])
+      await admin.from('incoming_emails').delete().eq('id', (em as { id: string }).id)
+    } finally {
+      await admin.from('customer_documents').delete().eq('customer_id', cust)
+      await admin.from('portal_access_tokens').delete().eq('customer_id', cust)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ kundedokumenter interne som standard')
     process.exitCode = fails ? 1 : 0
     return
   }
@@ -957,7 +1330,11 @@ async function main() {
     const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
     const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
     const key = `hk-${stamp}-${Math.random().toString(36).slice(2)}`
-    const { data: integ, error: iErr } = await admin.from('integrations').insert({ name: `[HARNESS] webhook ${stamp}`, is_active: true, api_key: key }).select('id').single()
+    // nøglen lagres krypteret som i UI'et (createIntegration → encryptIntegrationSecrets) — settings-review 2026-10-09
+    // test-nøgle kun i denne proces (krypter + dekrypter sker her) — rører ingen rigtig ENCRYPTION_KEY
+    if (!process.env.ENCRYPTION_KEY) process.env.ENCRYPTION_KEY = (await import('crypto')).randomBytes(32).toString('base64')
+    const { encryptSecret } = await import('../../src/lib/services/integration-secrets')
+    const { data: integ, error: iErr } = await admin.from('integrations').insert({ name: `[HARNESS] webhook ${stamp}`, is_active: true, api_key: await encryptSecret(key) }).select('id').single()
     if (iErr) throw new Error(`integration: ${iErr.message}`)
     const integId = (integ as { id: string }).id
     const { data: cu } = await admin.from('customers').insert({ customer_number: `WH-${stamp}`, company_name: `[HARNESS] wh ${stamp}`, contact_person: 'X', email: `wh-${stamp}@harness.test`, created_by: owner }).select('id').single()
@@ -2579,6 +2956,38 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'case-payer-invoice-check') {
+    // Sags-review #1: rate-/forskudsfaktura på en sag med separat betaler udstedes til betaleren (ellers sagens kunde)
+    const { createStageInvoiceForCase } = await import('../../src/lib/services/invoice-stage')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const mk = async (tag: string) => ((await admin.from('customers').insert({ customer_number: `CPI${tag}-${stamp}`, company_name: `[HARNESS] cpi ${tag} ${stamp}`, contact_person: tag, email: `cpi${tag.toLowerCase()}-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const end = await mk('E'), payer = await mk('P')
+    const caseIds: string[] = []
+    try {
+      const mkCase = async (n: string, p: string | null) => {
+        const { data } = await admin.from('service_cases').insert({ case_number: `SVC-3${n}${String(stamp).slice(-5)}`, customer_id: end, payer_customer_id: p, title: '[HARNESS] betaler', status: 'in_progress', contract_sum: 10000, created_by: owner }).select('id').single()
+        caseIds.push((data as { id: string }).id); return (data as { id: string }).id
+      }
+      const withPayer = await mkCase('1', payer), noPayer = await mkCase('2', null)
+      const r1 = await createStageInvoiceForCase({ case_id: withPayer, invoice_type: 'deposit', amount_basis: 'contract_sum', billing_percentage: 30 }, owner)
+      const r2 = await createStageInvoiceForCase({ case_id: noPayer, invoice_type: 'deposit', amount_basis: 'contract_sum', billing_percentage: 30 }, owner)
+      const inv = async (caseId: string) => ((await admin.from('invoices').select('customer_id').eq('case_id', caseId).maybeSingle()).data as { customer_id: string } | null)?.customer_id
+      check('sag med betaler → faktura til betaleren', r1.ok && (await inv(withPayer)) === payer, r1.message)
+      check('sag uden betaler → faktura til sagens kunde', r2.ok && (await inv(noPayer)) === end, r2.message)
+    } finally {
+      const { data: invs } = await admin.from('invoices').select('id').in('case_id', caseIds)
+      const ids = ((invs ?? []) as Array<{ id: string }>).map((r) => r.id)
+      if (ids.length) { await admin.from('invoice_lines').delete().in('invoice_id', ids); await admin.from('invoices').delete().in('id', ids) }
+      await admin.from('service_cases').delete().in('id', caseIds)
+      await admin.from('customers').delete().in('id', [end, payer])
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ faktura til betaler ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'stage-race-check') {
     // Økonomi-review: to samtidige rater à 60 % → kun én oprettes (≤ 100 %). Kun kladder; ingen mail/eksport.
     const { createStageInvoiceForCase } = await import('../../src/lib/services/invoice-stage')
@@ -2667,6 +3076,22 @@ async function main() {
     }
     log(fails ? `❌ ${fails} fejl` : '✅ telegram-webhook-rute ok (intet live)')
     process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'customer-delete-refs-probe') {
+    // deleteCustomer-forhåndstjekket: findes alle tabeller/kolonner, og hvilke fejlkoder giver de? Kun læsning.
+    const id = '00000000-0000-0000-0000-000000000000'
+    const refs: Array<[string, string]> = [
+      ['service_cases', 'site_customer_id'], ['service_cases', 'orderer_customer_id'], ['service_cases', 'end_customer_id'], ['service_cases', 'payer_customer_id'], ['service_cases', 'purchased_from_customer_id'],
+      ['offers', 'orderer_customer_id'], ['offers', 'end_customer_id'], ['offers', 'payer_customer_id'],
+      ['customer_notes', 'customer_id'], ['roof_drawings', 'customer_id'], ['email_threads', 'customer_id'], ['partner_access_tokens', 'partner_customer_id'],
+      ['customer_supplier_prices', 'customer_id'], ['customer_product_prices', 'customer_id'], ['supplier_margin_rules', 'customer_id'],
+      ['invoices', 'orderer_customer_id'], ['invoices', 'end_customer_id'], ['invoices', 'payer_customer_id'],
+    ]
+    for (const [t, c] of refs) {
+      const { error } = await admin.from(t).select('id').eq(c, id).limit(1)
+      log(`  ${error ? '⚠' : '✓'} ${t}.${c}${error ? ` — ${error.code ?? '?'} ${(error.message ?? '').slice(0, 60)}` : ''}`)
+    }
     return
   }
   if (SUB === 'leads-json-in-probe') {

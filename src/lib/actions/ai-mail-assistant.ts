@@ -107,7 +107,7 @@ async function callAI(userPrompt: string): Promise<AiTextResult> {
       return { ok: false, text: null, error: `AI-tjeneste fejlede (${res.status})` }
     }
 
-    void recordAiCall(1)
+    await recordAiCall(1)
 
     const data = await res.json()
     const text = (data.choices?.[0]?.message?.content as string | undefined)?.trim() || null

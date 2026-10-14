@@ -37,6 +37,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
+import { attachmentList, hasStoredFile, withFreshAttachmentLinks, withoutAttachmentLinks } from '@/lib/mail/attachment-links'
 import { pageWithinIds } from '@/lib/supabase/in-chunks'
 import { selectInChunks } from '@/lib/supabase/in-chunks'
 import type {
@@ -170,6 +171,8 @@ export async function getIncomingEmails(options?: {
   }
 
   const rows = (data || []) as unknown as IncomingEmailWithCustomer[] // body_html/body_text er undefined (hentes ved åbning)
+  // Gemte (1-års) vedhæftningslinks sendes ikke med listen — detaljen signerer friskt (getIncomingEmail)
+  for (const r of rows) r.attachment_urls = withoutAttachmentLinks(r.attachment_urls) as typeof r.attachment_urls
   // N96: webhenvendelser har alle afsender "FormSubmit" og samme emne → listen viser navn · postnr. fra formularen.
   // Kun disse rækker (højst en side) hentes med brødtekst og parses her; listen sender stadig ingen brødtekst.
   try {
@@ -218,8 +221,12 @@ export async function getIncomingEmail(
     logger.error('Failed to fetch incoming email', { entityId: id, error })
     return null
   }
+  if (!data) return null
 
-  return data as unknown as IncomingEmailWithCustomer
+  const email = data as unknown as IncomingEmailWithCustomer
+  // Friske 1-times links fra storagePath i stedet for de gemte 1-års links (RLS har allerede afgjort adgangen til mailen)
+  email.attachment_urls = (await withFreshAttachmentLinks(email.id, email.attachment_urls, email.customer_id)) as typeof email.attachment_urls
+  return email
 }
 
 export async function getIncomingEmailStats(): Promise<{
@@ -448,6 +455,9 @@ export async function quickCreateCustomerFromEmail(
   input: QuickCreateCustomerInput
 ): Promise<{ success: boolean; customerId?: string; error?: string }> {
   try {
+    // IDOR-sweep 2026-10-09 (#7): samme gate som linkEmailToCustomer (før kun login)
+    const denied = await gateDenied('inbox.view')
+    if (denied) return { success: false, error: denied }
     const { supabase, userId } = await getAuthenticatedClient()
 
     // Check if customer already exists by email
@@ -778,8 +788,8 @@ async function copyAttachmentsToLead(
         // Phase β.2.2: signed URL (1 år) i stedet for manuelt konstrueret
         // /object/public/ URL. Sidstnaevnte virker IKKE efter bucket-
         // privatisering. storagePath bevares saa consumer kan refreshe.
-        const signedUrl = await getStorageSignedUrlOrNull('attachments', destPath, SIGNED_URL_TTL.YEAR) ?? ''
-        results.push({ filename: att.filename, url: signedUrl, storagePath: destPath })
+        // Storage-review 2026-10-09: intet 1-årigt link i leadets JSON — leadsiden signerer ved klik (getLeadAttachmentUrlAction)
+        results.push({ filename: att.filename, url: '', storagePath: destPath })
 
         logger.info('Attachment copied to lead folder', {
           entity: 'leads',
@@ -903,12 +913,12 @@ export async function createCustomerFromEmail(
     filename: string; contentType?: string; size?: number; url?: string; storagePath?: string
   }>
   const attachmentRefs = emailAttachments
-    .filter((a) => a.url && a.url.length > 0)
+    .filter(hasStoredFile)
     .map((a) => ({
       filename: a.filename,
       contentType: a.contentType || 'application/octet-stream',
       size: a.size || 0,
-      sourceUrl: a.url,
+      // sourceUrl gemmes ikke (langlivet link) — leadsiden signerer friskt fra sourcePath
       sourcePath: a.storagePath,
     }))
 
@@ -1046,9 +1056,9 @@ export async function backfillEmailAttachments(
     return { success: true, count: 0 }
   }
 
-  // Check if already has real URLs
-  const urls = email.attachment_urls as Array<{ url?: string }> | null
-  if (urls && urls.length > 0 && urls.some((u) => u.url && u.url.length > 0)) {
+  // Allerede hentet til storage? (storagePath; ældre rækker kun url)
+  const urls = attachmentList(email.attachment_urls)
+  if (urls.length > 0 && urls.some(hasStoredFile)) {
     return { success: true, count: urls.length }
   }
 

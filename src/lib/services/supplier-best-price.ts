@@ -57,6 +57,8 @@ export async function getBestSupplierPrice(
       )
       .eq('supplier_sku', trimmed)
       .eq('suppliers.is_active', true)
+      // Kalkulations-review 2026-10-09 (#5): 0-kost (fx live-import uden prisaftale) må aldrig "vinde" som billigst
+      .gt('cost_price', 0)
       .order('cost_price', { ascending: true })
       .limit(limit)
 

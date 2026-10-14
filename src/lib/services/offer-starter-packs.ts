@@ -99,6 +99,12 @@ export async function fillOfferStarterLines(args: {
           }
 
           const supplier = resolved.supplier
+          // Kalkulations-review 2026-10-09 (#5): ingen linje til 0 kr — en vare uden kostpris prissættes ikke automatisk
+          if (!(Number(supplier.cost_price) > 0)) {
+            console.log('STARTER LINE SKIPPED (no cost price):', material.slug || material.name)
+            result.skipped++
+            continue
+          }
           const quantity = material.default_quantity
           const unit = material.default_unit || supplier.unit || 'stk'
 

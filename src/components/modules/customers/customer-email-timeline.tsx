@@ -123,7 +123,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
   const handleCompose = async () => {
     if (!composeSubject.trim() || !composeBody.trim()) return
     setComposeSending(true)
-    const result = await sendEmailToCustomer(customerEmail, composeSubject, composeBody)
+    const result = await sendEmailToCustomer(customerEmail, composeSubject, composeBody, customerId)
     setComposeSending(false)
     if (result.success) {
       toast.success('Email sendt til ' + customerEmail)

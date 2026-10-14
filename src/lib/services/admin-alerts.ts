@@ -138,6 +138,9 @@ export interface ScanReport {
  *   - bank: no rows in last 7 days (treated as warning, not error,
  *     unless the operator explicitly tagged it)
  */
+/** Vindue for fejl-scanning = intervallet mellem to kørsler af system-health-check (dagligt). */
+const SCAN_WINDOW_MS = 24 * 60 * 60_000
+
 export async function scanAndAlert(): Promise<ScanReport> {
   const supabase = createAdminClient()
   const report: ScanReport = { alerts_sent: 0, alerts_skipped: 0, details: [] }
@@ -149,9 +152,10 @@ export async function scanAndAlert(): Promise<ScanReport> {
     report.details.push({ key, sent: r.sent, reason: r.reason })
   }
 
-  // 1. system_health_log error in last hour.
+  // 1. system_health_log errors siden sidste scanning. Cron-review 2026-10-09 (#2): scanningen kører én gang i døgnet
+  // (09:00 UTC) — med 1-times vindue blev natlige fejl (supplier-sync, bank-match, rykkere …) aldrig mailet.
   try {
-    const sinceHour = new Date(Date.now() - 60 * 60_000).toISOString()
+    const sinceHour = new Date(Date.now() - SCAN_WINDOW_MS).toISOString()
     const { data: errs } = await supabase
       .from('system_health_log')
       .select('service, message, created_at')
@@ -164,7 +168,7 @@ export async function scanAndAlert(): Promise<ScanReport> {
       await dispatch(
         `system_errors`,
         'error',
-        `[ELTA Drift] ${errs.length} system-fejl i sidste time`,
+        `[ELTA Drift] ${errs.length >= 20 ? '20+' : errs.length} system-fejl det seneste døgn`,
         `${errs.length} fejl-rækker registreret i system_health_log.\n\nSeneste:\n${sample}`,
       )
     }

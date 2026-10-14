@@ -414,11 +414,15 @@ export async function resolveOfferMailRoute(
         (offer.payer_customer_id as string | null) || (offer.customer_id as string)
       break
     case 'orderer_pays':
+      activePartyCustomerId =
+        (offer.orderer_customer_id as string | null) || (offer.customer_id as string)
+      break
     case 'same_as_customer':
     case 'unknown':
     default:
-      activePartyCustomerId =
-        (offer.orderer_customer_id as string | null) || (offer.customer_id as string)
+      // Tilbuds-review 2026-10-09 (#1, S1): "samme som kunden" = tilbuddets kunde. Før blev orderer_customer_id brugt,
+      // som kunne stå på en TIDLIGERE valgt kunde (kundeskift på kladde) → tilbud + portal-link til den forkerte kunde
+      activePartyCustomerId = offer.customer_id as string
       break
   }
 

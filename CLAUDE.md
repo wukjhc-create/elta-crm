@@ -83,7 +83,7 @@ Vi bygger:
 - ✅ Ordreflow
 - ✅ Integration til eksternt ordresystem
 - ✅ Email-integration
-- ✅ SMS-notifikationer
+- 🔜 SMS-notifikationer (ikke implementeret — planlagt via Relatel)
 - 🔜 Fuldt kalkulationsmodul som Kalkia
 
 ---
@@ -200,7 +200,7 @@ elta-crm/
 ### FASE 6: Integration ✅
 - [x] Eksternt ordresystem (Generic API integration med webhooks)
 - [x] Email-integration
-- [x] SMS-notifikationer (GatewayAPI)
+- [ ] SMS-notifikationer — IKKE implementeret (der findes ingen GatewayAPI-kode). Planlagt retning: Relatel (SMS/telefoni), kontrakt-stub i src/lib/integrations/relatel
 
 ### FASE 7: Grossist-Integration ✅
 - [x] Leverandør-modul med CRUD

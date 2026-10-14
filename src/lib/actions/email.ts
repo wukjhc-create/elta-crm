@@ -296,7 +296,10 @@ export async function getEmailThreads(options?: {
   limit?: number
 }): Promise<EmailThreadWithRelations[]> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // IDOR-sweep 2026-10-09 (#4): tilbudsmails (brødtekst/vedhæftninger) kun for roller med offers.view — før var
+    // login nok (montør/bogholderi kunne læse alle sendte tilbudsmails)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) return []
 
     let query = supabase
       .from('email_threads')
@@ -349,7 +352,10 @@ export async function getEmailThreads(options?: {
 
 export async function getEmailThread(id: string): Promise<EmailThreadWithRelations | null> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // IDOR-sweep 2026-10-09 (#4): tilbudsmails (brødtekst/vedhæftninger) kun for roller med offers.view — før var
+    // login nok (montør/bogholderi kunne læse alle sendte tilbudsmails)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) return null
     validateUUID(id, 'tråd ID')
 
     const { data, error } = await supabase
@@ -415,7 +421,10 @@ export async function createEmailThread(
 
 export async function getEmailMessages(threadId: string): Promise<EmailMessageWithRelations[]> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // IDOR-sweep 2026-10-09 (#4): tilbudsmails (brødtekst/vedhæftninger) kun for roller med offers.view — før var
+    // login nok (montør/bogholderi kunne læse alle sendte tilbudsmails)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) return []
     validateUUID(threadId, 'tråd ID')
 
     const { data, error } = await supabase
@@ -700,6 +709,13 @@ export async function sendOfferEmail(
 
     if (!offer.customer?.email) {
       return { success: false, error: 'Kunde har ingen e-mail adresse' }
+    }
+    // Tilbuds-review 2026-10-09 (#7): udløbet tilbud sendes ikke (kunden ville få "klik for at acceptere" og blive afvist)
+    {
+      const { isOfferExpired } = await import('@/lib/offers/validity')
+      if (isOfferExpired(offer.valid_until as string | null)) {
+        return { success: false, error: 'Tilbuddets gyldighed er udløbet — ret "Gyldig til" før afsendelse' }
+      }
     }
 
     // N8a: lav DB er en advarsel — et kladde-tilbud under minimum-DB sendes kun med aktiv bekræftelse

@@ -22,7 +22,7 @@ import { convertOfferToCase } from '@/lib/services/offer-to-case'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { sendEmail } from '@/lib/email/email-service'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
-import { getSmtpSettings } from '@/lib/actions/settings'
+import { readSmtpSettingsServerOnly } from '@/lib/services/smtp-settings'
 import { isInternalEmail } from '@/lib/services/mail-routing'
 import { MAX_FILE_SIZE, APP_URL } from '@/lib/constants'
 import type {
@@ -409,7 +409,7 @@ export async function getPortalOffer(
     // Mark as viewed if first time. Eksplicit customer_id-scope paa UPDATE
     // for defense-in-depth — selv om offer.customer_id er verificeret ovenfor.
     if (!offer.viewed_at && offer.status === 'sent') {
-      await admin
+      const { data: viewedRows } = await admin
         .from('offers')
         .update({
           viewed_at: new Date().toISOString(),
@@ -420,6 +420,20 @@ export async function getPortalOffer(
         // tilbuds-review 2026-10-07: kun fra 'sent' — en samtidig accept/kladde (telefon/medarbejder) blev overskrevet
         .eq('status', 'sent')
         .is('viewed_at', null)
+        .select('id')
+
+      // Henrik 2026-10-10: personlig notifikation til tilbuddets opretter (kun hvis brugeren har slået den til)
+      if ((viewedRows ?? []).length > 0) {
+        const { notifyUser } = await import('@/lib/notifications/user-notify')
+        const title = escapeHtml(String(offer.title ?? ''))
+        const link = `${APP_URL}/dashboard/offers/${offerId}`
+        await notifyUser(offer.created_by as string | null, 'offer_viewed', {
+          subject: `Tilbud set af kunden: ${offer.offer_number ?? ''}`.trim(),
+          html: `<p>Kunden har åbnet tilbuddet <strong>${title}</strong> i kundeportalen.</p><p><a href="${link}">Åbn tilbuddet</a></p>`,
+          text: `Kunden har åbnet tilbuddet "${offer.title ?? ''}" i kundeportalen.
+${link}`,
+        })
+      }
 
       // Log view activity (anon-INSERT droppet i 00124)
       await admin.from('offer_activities').insert({
@@ -502,10 +516,22 @@ export async function acceptOffer(
     const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
+    // Tilbuds-review 2026-10-09 (#6): server-side validering af underskriften (et direkte kald kunne acceptere uden
+    // underskrift eller med vilkårligt store data)
+    const signerName = String(data.signer_name ?? '').trim()
+    const signerEmail = String(data.signer_email ?? '').trim()
+    const signature = String(data.signature_data ?? '')
+    if (!signerName || signerName.length > 200) return { success: false, error: 'Angiv dit navn' }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signerEmail) || signerEmail.length > 254) return { success: false, error: 'Angiv en gyldig e-mail' }
+    if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signature) || signature.length < 200 || signature.length > 400_000) {
+      return { success: false, error: 'Underskriften mangler — tegn venligst igen' }
+    }
+    data = { ...data, signer_name: signerName, signer_email: signerEmail }
+
     // Verify offer belongs to customer and get details for project creation
     const { data: offer, error: offerError } = await admin
       .from('offers')
-      .select('id, status, customer_id, title, final_amount, created_by, valid_until')
+      .select('id, status, customer_id, title, final_amount, created_by, valid_until, sent_at')
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
       .maybeSingle()
@@ -533,6 +559,15 @@ export async function acceptOffer(
       return { success: false, error: 'Tilbuddet er erstattet af en nyere version — genindlæs siden' }
     }
     const snapshotId = await latestSnapshotId(data.offer_id)
+
+    // Tilbuds-review 2026-10-09 (#3): accepten bindes til det beløb/den udsendelse kunden så — er tilbuddet ændret og
+    // gensendt imens (kladde → ny pris → sendt), afvises den forældede side
+    const seenChanged =
+      (data.seen_final_amount !== undefined && Math.abs(Number(offer.final_amount ?? 0) - Number(data.seen_final_amount)) > 0.005) ||
+      (data.seen_sent_at !== undefined && (data.seen_sent_at ?? null) !== ((offer as { sent_at?: string | null }).sent_at ?? null))
+    if (seenChanged) {
+      return { success: false, error: 'Tilbuddet er ændret siden du åbnede det — genindlæs siden og gennemse det igen' }
+    }
 
     // Get client IP
     const headersList = await headers()
@@ -570,6 +605,8 @@ export async function acceptOffer(
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
       .in('status', ['sent', 'viewed'])
+      // compare-and-set også på beløbet kunden underskrev (tilbuds-review 2026-10-09 #3)
+      .eq('final_amount', offer.final_amount as number)
       .select('id')
       .maybeSingle()
 
@@ -634,6 +671,18 @@ export async function acceptOffer(
     // Salgspipeline: tilknyttede leads → vundet (kaster aldrig)
     const { markLeadsWonForAcceptedOffer } = await import('@/lib/services/lead-won')
     await markLeadsWonForAcceptedOffer(admin, data.offer_id, null)
+
+    // Henrik 2026-10-10: personlig notifikation til tilbuddets opretter (kun hvis brugeren har slået den til)
+    {
+      const { notifyUser } = await import('@/lib/notifications/user-notify')
+      const link = `${APP_URL}/dashboard/offers/${data.offer_id}`
+      await notifyUser(offer.created_by as string | null, 'offer_signed', {
+        subject: `Tilbud underskrevet: ${offer.title}`,
+        html: `<p>Kunden har accepteret og underskrevet tilbuddet <strong>${escapeHtml(offer.title)}</strong> (${escapeHtml(data.signer_name)}).</p><p><a href="${link}">Åbn tilbuddet</a></p>`,
+        text: `Kunden har accepteret og underskrevet tilbuddet "${offer.title}" (${data.signer_name}).
+${link}`,
+      })
+    }
 
     // Send automatic email confirmation to CRM mailbox
     try {
@@ -902,7 +951,11 @@ export async function getPortalMessages(
       .from('portal_messages')
       .select('id, customer_id, offer_id, sender_type, sender_name, message, attachments, read_at, created_at')
       .eq('customer_id', customerId)
-      .order('created_at', { ascending: true })
+      // Kommunikations-review 2026-10-09 (#6): de NYESTE 500 (før stigende uden grænse → over 1.000 beskeder blev de
+      // nyeste skåret af PostgREST og forsvandt), vendt til kronologisk orden nedenfor
+      .order('created_at', { ascending: false })
+      .limit(CHAT_HISTORY_LIMIT)
+    if (data) data.reverse()
 
     if (error) {
       logger.error('Error fetching portal messages', { error: error })
@@ -938,7 +991,9 @@ export async function getPortalMessages(
       offer: m.offer_id ? offerMap.get(m.offer_id) || null : null,
     }))
 
-    return { success: true, data: enriched as PortalMessageWithRelations[] }
+    // Kommunikations-review 2026-10-09 (#1): friske links (de gemte udløb efter 1 time)
+    const { withFreshChatAttachmentUrls } = await import('@/lib/portal/chat-attachment-links')
+    return { success: true, data: (await withFreshChatAttachmentUrls(enriched, customerId)) as PortalMessageWithRelations[] }
   } catch (error) {
     logger.error('Error in getPortalMessages', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -1008,7 +1063,9 @@ export async function sendPortalMessage(
       const { data: own } = await admin.from('offers').select('id').eq('id', data.offer_id).eq('customer_id', customerId).maybeSingle()
       if (!own) return { success: false, error: 'Ugyldigt tilbud' }
     }
-    const senderName = data.sender_name || sessionResult.data.customer.contact_person
+    // Kommunikations-review 2026-10-09 (#7): afsendernavnet kommer fra kunden selv (token), aldrig fra klienten — ellers
+    // kunne en tokenholder skrive som "Elta Solar – Henrik" eller gemme vilkårligt lange navne
+    const senderName = sessionResult.data.customer.contact_person || sessionResult.data.customer.company_name || 'Kunde'
     const { data: message, error } = await admin
       .from('portal_messages')
       .insert({
@@ -1092,7 +1149,13 @@ export async function sendEmployeeMessage(
   attachments?: PortalAttachment[]
 ): Promise<ActionResult<PortalMessage>> {
   try {
-    const { supabase, userId } = await requireGate('customers.view')
+    // Kommunikations-review 2026-10-09 (#5): skrive til kunden kræver kunderelationen (customers.edit — samme som at
+    // markere læst); montør/bogholderi kunne ellers skrive i enhver kundes chat (og udløse mail til kunden). Længdeloft
+    // som portalens 5000 tegn.
+    const { supabase, userId } = await requireGate('customers.edit')
+    if (!/^[0-9a-f-]{36}$/i.test(customerId)) return { success: false, error: 'Ugyldig kunde' }
+    if ((!message || !message.trim()) && !(attachments && attachments.length)) return { success: false, error: 'Beskeden er tom' }
+    if ((message ?? '').length > 5000) return { success: false, error: 'Beskeden er for lang (højst 5000 tegn)' }
     // Mail-review 2026-10-08 (#8): offerId blev aldrig tjekket — en besked kunne knyttes til en anden kundes tilbud
     if (offerId) {
       const { data: own } = await supabase.from('offers').select('id').eq('id', offerId).eq('customer_id', customerId).maybeSingle()
@@ -1222,15 +1285,15 @@ export async function sendEmployeeMessage(
             mailOk = sendResult.success
             mailError = sendResult.error
           } else {
-            const smtpResult = await getSmtpSettings()
-            const smtpConfig = smtpResult.success && smtpResult.data
+            const smtp = await readSmtpSettingsServerOnly()
+            const smtpConfig = smtp
               ? {
-                  host: smtpResult.data.host || undefined,
-                  port: smtpResult.data.port || undefined,
-                  user: smtpResult.data.user || undefined,
-                  password: smtpResult.data.password || undefined,
-                  fromEmail: smtpResult.data.fromEmail || undefined,
-                  fromName: smtpResult.data.fromName || undefined,
+                  host: smtp.host || undefined,
+                  port: smtp.port || undefined,
+                  user: smtp.user || undefined,
+                  password: smtp.password || undefined,
+                  fromEmail: smtp.fromEmail || undefined,
+                  fromName: smtp.fromName || undefined,
                 }
               : undefined
             const sendResult = await sendEmail(
@@ -1373,19 +1436,29 @@ export async function getUnreadPortalMessageCount(
   }
 }
 
+/** Højst så mange (nyeste) chatbeskeder hentes pr. visning. */
+const CHAT_HISTORY_LIMIT = 500
+
 // Get messages for a customer (employee view)
 export async function getCustomerPortalMessages(
   customerId: string,
   offerId?: string
 ): Promise<ActionResult<PortalMessageWithRelations[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // Kommunikations-review 2026-10-09 (#8): gate (før kun login) + UUID-validering (offerId gik ufiltreret i .or())
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
+    if (!/^[0-9a-f-]{36}$/i.test(customerId) || (offerId && !/^[0-9a-f-]{36}$/i.test(offerId))) {
+      return { success: false, error: 'Ugyldigt id' }
+    }
 
     let query = supabase
       .from('portal_messages')
       .select('*')
       .eq('customer_id', customerId)
-      .order('created_at', { ascending: true })
+      // Kommunikations-review 2026-10-09 (#6): nyeste først med grænse, vendes efter hentning
+      .order('created_at', { ascending: false })
+      .limit(CHAT_HISTORY_LIMIT)
 
     // Sprint 12C hotfix — match getUnreadPortalMessageCount: when offerId
     // is set, include messages for this offer OR with no offer link
@@ -1398,13 +1471,15 @@ export async function getCustomerPortalMessages(
 
     if (error) {
       logger.error('Error fetching customer portal messages', { error })
-      return { success: false, error: `Kunne ikke hente beskeder: ${error.message}` }
+      return { success: false, error: 'Kunne ikke hente beskeder' }
     }
 
-    return { success: true, data: (data || []) as PortalMessageWithRelations[] }
+    const { withFreshChatAttachmentUrls } = await import('@/lib/portal/chat-attachment-links')
+    const chronological = (data || []).slice().reverse()
+    return { success: true, data: (await withFreshChatAttachmentUrls(chronological, customerId)) as PortalMessageWithRelations[] }
   } catch (error) {
     logger.error('Error in getCustomerPortalMessages', { error })
-    return { success: false, error: `Fejl ved hentning: ${error instanceof Error ? error.message : 'Ukendt fejl'}` }
+    return { success: false, error: 'Kunne ikke hente beskeder' }
   }
 }
 
@@ -1558,7 +1633,12 @@ export async function uploadEmployeeAttachment(
   formData: FormData
 ): Promise<ActionResult<UploadAttachmentResult>> {
   try {
-    const { supabase, userId } = await requireGate('customers.view')
+    const { userId } = await requireGate('customers.edit')
+    // Kommunikations-review 2026-10-09 (#3): fil-adgang via service-klienten bag gaten — 00209 (prod) fjernede
+    // medarbejdernes direkte storage-politikker, så upload med bruger-sessionen fejlede. customers.edit (#5) som
+    // markCustomerMessagesAsRead; gyldig kunde-id (stien bygges af den)
+    if (!/^[0-9a-f-]{36}$/i.test(customerId)) return { success: false, error: 'Ugyldig kunde' }
+    const supabase = createAdminClient()
 
     const file = formData.get('file') as File | null
 
@@ -1778,6 +1858,8 @@ export async function getPortalDocuments(
       // Kommunikations-review (S1): mail-vedhæftninger arkiveres automatisk på kunden ("Download" i mailen) — også fra
       // leverandørmails (ordrebekræftelser, kostpriser), der er koblet til kunden. De er INTERNE og vises ikke i portalen.
       .is('source_email_id', null)
+      // Henrik 2026-10-10 (00218): kun dokumenter der aktivt er delt med kunden ("Del med kunde")
+      .eq('visible_in_portal', true)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -1861,7 +1943,7 @@ export async function portalBookBesigtigelse(
 
     // N31: offentligt endpoint (kun token) — valider input og begræns åbne bookinger
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
-    const maxDate = new Date(Date.now() + 180 * 86_400_000).toISOString().slice(0, 10)
+    const maxDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() + 180 * 86_400_000))
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today || date > maxDate) {
       return { success: false, error: 'Vælg en dato fra i dag og op til et halvt år frem' }
     }
@@ -2055,6 +2137,9 @@ export async function getPortalBesigtigelser(
       .from('customer_tasks')
       .select('id, customer_id, title, description, due_date, status, created_at, auto_rule')
       .eq('customer_id', customerId)
+      // Planlægnings-review 2026-10-09 (#8): filtrér til besigtigelser FØR grænsen — kunder med mange opgaver
+      // (auto-oprettede mailkunder) så ellers ikke deres nyeste booking. Endelig klassifikation sker nedenfor.
+      .ilike('title', '%esigtigelse%')
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(50)
 

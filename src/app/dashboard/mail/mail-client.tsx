@@ -528,7 +528,7 @@ export function MailClient() {
     let alive = true
     void import('@/lib/actions/incoming-emails').then(({ getIncomingEmail }) => getIncomingEmail(selectedId)).then((full) => {
       if (!alive || !full) return
-      setSelectedEmail((prev) => (prev?.id === full.id ? { ...prev, body_html: full.body_html ?? null, body_text: full.body_text ?? null } : prev))
+      setSelectedEmail((prev) => (prev?.id === full.id ? { ...prev, body_html: full.body_html ?? null, body_text: full.body_text ?? null, attachment_urls: full.attachment_urls } : prev))
     }).catch(() => {})
     return () => { alive = false }
   }, [selectedId, selectedNeedsBody])

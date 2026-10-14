@@ -34,6 +34,7 @@ import type {
 import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
 import type { PortalServiceCase } from '@/types/portal.types'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { safeDocumentDescription } from '@/lib/documents/safe-description'
 import { pageWithinIds, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 import { escapeHtml } from '@/lib/utils/html-escape'
 
@@ -405,6 +406,22 @@ export async function updateServiceCase(
           return { success: false, error: `${UNBILLED_PREFIX}${block}` }
         }
         if (payload.closed_at === undefined) payload.closed_at = new Date().toISOString()
+      }
+    } else if (payload.status) {
+      // Sags-review 2026-10-09 (#10): genåbnet sag beholdt closed_at → talte stadig som lukket i rapporter/filtre
+      payload.closed_at = null
+    }
+
+    // Sags-review 2026-10-09 (#4): skiftes sagens kunde, flyttes de parter der pegede på den GAMLE kunde med (bestiller/
+    // slutkunde/betaler/anlæg). Før blev de stående → underskrifts-/besigtigelsesmails og kopier gik til den forkerte kunde.
+    if (typeof payload.customer_id === 'string') {
+      const { data: before } = await supabase.from('service_cases')
+        .select('customer_id, orderer_customer_id, end_customer_id, payer_customer_id, site_customer_id').eq('id', id).maybeSingle()
+      const b = before as Record<string, string | null> | null
+      if (b && b.customer_id && b.customer_id !== payload.customer_id) {
+        for (const f of ['orderer_customer_id', 'end_customer_id', 'payer_customer_id', 'site_customer_id']) {
+          if (payload[f] === undefined && b[f] === b.customer_id) payload[f] = payload.customer_id
+        }
       }
     }
 
@@ -971,7 +988,11 @@ export async function getCaseEmailDetail(
       return null
     }
 
-    return data as CaseEmailDetail
+    const detail = data as CaseEmailDetail
+    // Friske 1-times links fra storagePath i stedet for gemte 1-års links
+    const { withFreshAttachmentLinks } = await import('@/lib/mail/attachment-links')
+    detail.attachment_urls = (await withFreshAttachmentLinks(detail.id, detail.attachment_urls, detail.customer_id)) as CaseEmailDetail['attachment_urls']
+    return detail
   } catch {
     return null
   }
@@ -1027,7 +1048,7 @@ export async function archiveEmailAttachmentsToCase(
     }>
 
     // Filtrér til attachments der faktisk har storage URL (downloadet)
-    const ready = attachments.filter((a) => a.url && a.storagePath)
+    const ready = attachments.filter((a) => !!a.storagePath)
 
     if (attachments.length === 0) {
       return { success: true, archivedCount: 0, skippedCount: 0 }
@@ -1072,7 +1093,8 @@ export async function archiveEmailAttachmentsToCase(
           title: att.filename,
           description,
           document_type: 'other',
-          file_url: att.url!,
+          // Intet gemt link (00210): læsere signerer friskt fra storage_path
+          file_url: '',
           storage_path: att.storagePath!,
           file_name: att.filename,
           mime_type: att.contentType || 'application/octet-stream',
@@ -1144,7 +1166,8 @@ export async function getDocumentsForCase(
     for (let i = 0; i < paths.length; i++) {
       if (paths[i]) { freshByIdx[i] = fresh[fIdx]; fIdx++ }
     }
-    return rows.map((r, idx) => ({ ...r, file_url: freshByIdx[idx] ?? r.file_url ?? '' }))
+    // IDOR-sweep 2026-10-09 (#2): ingen CPR/underskrift fra fuldmagter i listen
+    return rows.map((r, idx) => ({ ...r, description: safeDocumentDescription(r.description), file_url: freshByIdx[idx] ?? r.file_url ?? '' }))
   } catch {
     return []
   }
@@ -1379,17 +1402,24 @@ export async function listOpenServiceCasesForPicker(): Promise<
     if (!hasPermission('cases.view.all')) {
       return { success: false, error: 'Manglende tilladelse: cases.view.all' }
     }
-    const { data, error } = await supabase
-      .from('service_cases')
-      .select(`
-        id, case_number, title, status,
-        customer:customers!service_cases_customer_id_fkey(company_name)
-      `)
-      .in('status', ['new', 'in_progress', 'pending'])
-      .order('case_number', { ascending: false })
-      .limit(200)
-
-    if (error) {
+    // Planlægnings-review 2026-10-09 (#4): ALLE åbne sager (før kun de 200 højeste sagsnumre — "Mangler planlægning"
+    // viser de ældste først, som så ikke kunne findes i dialogen) og ikke forslag-sager
+    let data: unknown[]
+    try {
+      data = await fetchAllRows((f, t) =>
+        supabase
+          .from('service_cases')
+          .select(`
+            id, case_number, title, status,
+            customer:customers!service_cases_customer_id_fkey(company_name)
+          `)
+          .in('status', ['new', 'in_progress', 'pending'])
+          .eq('is_proposal', false)
+          .order('case_number', { ascending: false })
+          .order('id')
+          .range(f, t)
+      )
+    } catch (error) {
       logger.error('listOpenServiceCasesForPicker failed', { error })
       return { success: false, error: 'Kunne ikke hente sager' }
     }
@@ -1511,7 +1541,12 @@ async function unbilledCloseBlock(
   caseId: string
 ): Promise<string | null> {
   const { unbilledCloseMessage } = await import('@/lib/invoices/unbilled')
-  return unbilledCloseMessage((await loadCaseWork(supabase, caseId)).unbilled)
+  const work = await loadCaseWork(supabase, caseId)
+  const msg = unbilledCloseMessage(work.unbilled)
+  // Sags-review 2026-10-09 (#6): åbne arbejdsordrer (planlagt/i gang) — montøren så stadig jobbet efter lukning
+  const open = work.workOrderStatuses.filter((st) => st === 'planned' || st === 'in_progress').length
+  const openMsg = open ? `${open} arbejdsordre${open === 1 ? '' : 'r'} er stadig planlagt eller i gang.` : ''
+  return [msg, openMsg].filter(Boolean).join(' ') || null
 }
 
 /** Sagens job-statusser + ufaktureret optælling (samme regler som fakturakladden). */
@@ -1525,7 +1560,7 @@ async function loadCaseWork(
   const [tl, mat, oth] = await Promise.all([
     woIds.length
       ? // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
-        fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data }))
+        fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).neq('approval_status', 'rejected').order('id').range(f, t)).then((data) => ({ data })) /* sags-review 2026-10-09 (#5): afviste timer blokerer ikke lukning */
       : Promise.resolve({ data: [] }),
     supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
     supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
@@ -1625,6 +1660,8 @@ export async function setServiceCaseStatus(
       }
       closedDespite = block
       update.closed_at = new Date().toISOString()
+    } else if (status !== 'closed') {
+      update.closed_at = null // genåbnet (sags-review 2026-10-09 #10)
     }
 
     const { data, error } = await supabase

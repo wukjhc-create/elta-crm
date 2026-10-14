@@ -247,6 +247,8 @@ const NEWSLETTER_KEYWORDS = [
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
 const OPENAI_MODEL = 'gpt-4o-mini'
+/** Højst så mange auto-email-kunder oprettes pr. døgn (prod: ~92 i alt over flere måneder). */
+const MAX_AUTO_CUSTOMERS_PER_DAY = 25
 
 export type EmailType = 'customer' | 'supplier' | 'newsletter' | 'ignored'
 
@@ -602,6 +604,18 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
   const hasAddress = !!(data.address && data.address.trim().length >= 5)
   if (!hasPhone && !hasAddress) {
     console.log('SKIP: NO VALID CUSTOMER DATA', { name: !!data.name, phone: !!data.phone, address: !!data.address })
+    return { customerId: null, created: false }
+  }
+
+  // Mail-review 2026-10-09 (#4): loft over auto-oprettede kunder pr. døgn — en afsender kan ellers sende mange mails
+  // med hver sit telefonnummer og fylde kundelisten. Mails over loftet forbliver ukoblede til manuel behandling.
+  const { count: createdLastDay } = await supabase
+    .from('customers')
+    .select('id', { count: 'exact', head: true })
+    .contains('tags', ['auto-email'])
+    .gte('created_at', new Date(Date.now() - 86_400_000).toISOString())
+  if ((createdLastDay ?? 0) >= MAX_AUTO_CUSTOMERS_PER_DAY) {
+    console.warn('CUSTOMER CREATE SKIPPED: døgnloft for auto-oprettede kunder nået', { createdLastDay })
     return { customerId: null, created: false }
   }
 
@@ -1111,7 +1125,7 @@ async function callOpenAI(
     }
 
     // Count successful API calls toward the daily cap (best-effort).
-    void recordAiCall(1)
+    await recordAiCall(1)
 
     const data = await res.json()
     return data.choices?.[0]?.message?.content || null

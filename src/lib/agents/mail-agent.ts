@@ -14,6 +14,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import { scoreLinkConfidence, type CustomerCandidate } from '@/lib/agents/mail-confidence'
@@ -43,6 +44,7 @@ interface IncomingEmailLite {
   sender_email: string
   sender_name: string | null
   body_text: string | null
+  body_html?: string | null
   body_preview: string | null
   customer_id: string | null
 }
@@ -56,7 +58,8 @@ export async function findLinkCandidates(admin: any, mail: IncomingEmailLite): P
     const { data } = await admin
       .from('customers')
       .select('id, company_name, customer_number, email, phone')
-      .eq('email', mail.sender_email)
+      // Mail-review 2026-10-09 (#8): case-insensitivt som resten af koden (sync lowercaser afsenderen)
+      .ilike('email', escapeLike(mail.sender_email))
       .limit(5)
     for (const c of data ?? []) {
       byId.set(c.id, {
@@ -122,7 +125,8 @@ export async function generateReplyDraft(email: IncomingEmailLite): Promise<{ dr
       `Emne: ${email.subject}`,
       `Afsender: ${email.sender_name ?? email.sender_email}`,
       '',
-      (email.body_text || email.body_preview || '').slice(0, 4000),
+      // HTML-only mails (det meste Outlook-post) har ingen body_text — før fik modellen kun 200 tegns preview
+      (email.body_text || htmlToText(email.body_html ?? '') || email.body_preview || '').slice(0, 4000),
     ].join('\n')
     const res = await fetch(OPENAI_URL, {
       method: 'POST',
@@ -188,13 +192,24 @@ export async function runMailAgent(
   // Read email (READ-only)
   const { data: email, error: eErr } = await admin
     .from('incoming_emails')
-    .select('id, subject, sender_email, sender_name, body_text, body_preview, customer_id')
+    .select('id, subject, sender_email, sender_name, body_text, body_html, body_preview, customer_id')
     .eq('id', emailId)
     .maybeSingle()
   if (eErr || !email) {
     return { success: false, error: 'Mail ikke fundet' }
   }
   const mail = email as IncomingEmailLite
+
+  // Mail-review 2026-10-09 (#7): genkørsel på samme mail → returnér det eksisterende forslag i stedet for et nyt run
+  // + LLM-kald, der alligevel ramte 23505 på idempotency_key og efterlod tomme 'awaiting_approval'-runs
+  const { data: existingAction } = await admin
+    .from('agent_actions')
+    .select('run_id')
+    .eq('idempotency_key', `mail-reply:${mail.id}`)
+    .maybeSingle()
+  if (existingAction?.run_id) {
+    return { success: true, data: { runId: existingAction.run_id as string, proposals: 0 } }
+  }
 
   // Create run
   const { data: run, error: rErr } = await admin
@@ -343,4 +358,17 @@ export async function runMailAgent(
     .eq('id', runId)
 
   return { success: true, data: { runId, proposals } }
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim()
 }

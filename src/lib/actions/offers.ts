@@ -26,6 +26,7 @@ import { offerEditLockReason, offerIdForLine } from '@/lib/offers/edit-lock'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { isValidOfferTransition, OFFER_STATUS_LABELS } from '@/types/offers.types'
+import { rowOfferMode } from '@/types/calculations.types'
 import type {
   Offer,
   OfferWithRelations,
@@ -42,6 +43,7 @@ import {
 import { logger } from '@/lib/utils/logger'
 import type { Permission } from '@/lib/auth/permissions'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { isOfferExpired } from '@/lib/offers/validity'
 
 // Get all offers with optional filtering and pagination
 export async function getOffers(filters?: {
@@ -177,6 +179,8 @@ export async function getOffers(filters?: {
 
 /** D43/D44: synlighed af kost/avance (navngivet: check:rls-matrix læser literal-strenge i skrivefunktioner som skrive-gates). */
 const OFFER_COST_VISIBILITY_PERMISSION = 'offers.view.cost_prices' as const
+/** Tilbud der må slettes (tilbuds-review 2026-10-09 #5) — øvrige arkiveres/afvises i stedet. */
+const DELETABLE_OFFER_STATUSES: string[] = ['draft', 'rejected']
 
 /**
  * D43 (privacy/RBAC): kost/leverandørkost/avance på en tilbudslinje kun for offers.view.cost_prices.
@@ -546,6 +550,22 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       }
     }
 
+    // Tilbuds-review 2026-10-09 (#1, S1): kundeskift på kladden flytter parti-roller med, der stod på den gamle kunde
+    // (formularen sender dem ikke) — ellers gik tilbud, portal-link og senere sag/faktura til den tidligere kunde
+    if (customerId) {
+      const { data: cur } = await supabase
+        .from('offers')
+        .select('customer_id, orderer_customer_id, end_customer_id, payer_customer_id')
+        .eq('id', offerId!)
+        .maybeSingle()
+      const prev = cur as { customer_id: string | null; orderer_customer_id: string | null; end_customer_id: string | null; payer_customer_id: string | null } | null
+      if (prev && prev.customer_id !== customerId) {
+        for (const k of ['orderer_customer_id', 'end_customer_id', 'payer_customer_id'] as const) {
+          if (updateData[k] === undefined && (!prev[k] || prev[k] === prev.customer_id)) updateData[k] = customerId
+        }
+      }
+    }
+
     const { data, error } = await supabase
       .from('offers')
       .update(updateData)
@@ -648,11 +668,23 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
     // Get offer before deleting for audit log
     const { data: offer } = await supabase
       .from('offers')
-      .select('title, offer_number')
+      .select('title, offer_number, status')
       .eq('id', id)
       .maybeSingle()
+    if (!offer) return { success: false, error: 'Tilbuddet blev ikke fundet' }
 
-    const { error } = await supabase.from('offers').delete().eq('id', id)
+    // Tilbuds-review 2026-10-09 (#5): kun kladder og afviste tilbud kan slettes — et sendt/accepteret tilbud har
+    // kundens underskrift (offer_signatures slettes kaskade) og sporbarhed fra sag/faktura (source_offer_id/offer_id)
+    if (!DELETABLE_OFFER_STATUSES.includes((offer as { status: string }).status)) {
+      return { success: false, error: 'Kun kladder og afviste tilbud kan slettes' }
+    }
+
+    // compare-and-set: status kan være ændret (fx sendt) siden læsningen
+    const { data: deleted, error } = await supabase.from('offers').delete().eq('id', id)
+      .in('status', DELETABLE_OFFER_STATUSES).select('id')
+    if (!error && (!deleted || deleted.length === 0)) {
+      return { success: false, error: 'Tilbuddet er ændret i mellemtiden — opdatér siden' }
+    }
 
     if (error) {
       if (error.code === '23503') {
@@ -690,7 +722,7 @@ export async function updateOfferStatus(
     // Fetch current status for transition validation
     const { data: current, error: fetchError } = await supabase
       .from('offers')
-      .select('status')
+      .select('status, valid_until, converted_case_id')
       .eq('id', id)
       .maybeSingle()
 
@@ -703,6 +735,16 @@ export async function updateOfferStatus(
         success: false,
         error: `Kan ikke ændre status fra "${OFFER_STATUS_LABELS[current.status as OfferStatus]}" til "${OFFER_STATUS_LABELS[status]}"`,
       }
+    }
+
+    // Tilbuds-review 2026-10-09 (#2): et tilbud der allerede er blevet til en sag kan ikke sendes tilbage til kladde
+    // (og omprisses) — sagen beholdt ellers den gamle kontraktsum, og en senere accept returnerede den gamle sag
+    if (status === 'draft' && (current as { converted_case_id?: string | null }).converted_case_id) {
+      return { success: false, error: 'Tilbuddet er allerede oprettet som sag — lav et nyt tilbud (kopiér) i stedet' }
+    }
+    // Tilbuds-review 2026-10-09 (#7): et udløbet tilbud kan ikke sendes (portalen afviser accept) — forlæng gyldigheden
+    if (status === 'sent' && isOfferExpired((current as { valid_until?: string | null }).valid_until)) {
+      return { success: false, error: 'Tilbuddets gyldighed er udløbet — ret "Gyldig til" før afsendelse' }
     }
 
     // N8a (Henrik 2026-10-02): lav DB er en ADVARSEL, ikke en blokering — 'sent' med DB under minimum kræver bekræftelse
@@ -731,6 +773,13 @@ export async function updateOfferStatus(
         break
       case 'rejected':
         updateData.rejected_at = now
+        break
+      case 'draft':
+        // Tilbuds-review 2026-10-09 (#7): afvist → kladde nulstiller afvisningen (portal-tidslinje/rapporter talte den)
+        if (current.status === 'rejected') {
+          updateData.rejected_at = null
+          updateData.rejection_reason = null
+        }
         break
     }
 
@@ -906,9 +955,12 @@ export async function createLineItem(
     // Extract supplier tracking fields if present.
     // cost_price er NOT NULL DEFAULT 0 i offer_line_items — manuelle linjer
     // uden leverandoer-data skal default til 0 (ikke NULL) for at undgaa 23502.
-    const costPrice = formData.get('cost_price') ? Number(formData.get('cost_price')) : 0
-    const supplierMargin = formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
-    const supplierCostAtCreation = formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
+    // Tilbuds-review 2026-10-09 (#8): som updateLineItem (D43) — uden kost-ret (salg) ignoreres kost-/avancefelter fra
+    // klienten (før kunne salg sætte cost_price=0 på vilkårlige linjer → kunstigt høj DB uden lav-DB-kvittering)
+    const mayTouchCost = hasPermission(OFFER_COST_VISIBILITY_PERMISSION)
+    const costPrice = mayTouchCost && formData.get('cost_price') ? Number(formData.get('cost_price')) : 0
+    const supplierMargin = mayTouchCost && formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
+    const supplierCostAtCreation = mayTouchCost && formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
     const supplierNameAtCreation = formData.get('supplier_name_at_creation') as string || null
     const imageUrl = formData.get('image_url') as string || null
 
@@ -1220,6 +1272,63 @@ export async function addProductToOffer(
   }
 }
 
+/**
+ * Kalkulations-review 2026-10-09 (#6): "Konverter til tilbud" på kalkulationssiden (model-A `calculations`) kaldte
+ * convertCalculationToOffer, der læser `kalkia_calculations` → fejlede altid. Opretter en kladde til kalkulationens
+ * kunde og importerer linjerne med importCalculationToOffer (rabat/avance-linjer, kost, sale_price); fejler importen,
+ * slettes kladden igen.
+ */
+export async function createOfferFromCalculationRecord(
+  calculationId: string
+): Promise<ActionResult<{ offer_id: string }>> {
+  try {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.create')) return { success: false, error: 'Manglende tilladelse: offers.create' }
+    if (!hasPermission('tools.calculations')) return { success: false, error: 'Manglende tilladelse: tools.calculations' }
+    validateUUID(calculationId, 'kalkulation ID')
+
+    const { data: calc } = await supabase
+      .from('calculations')
+      .select('id, name, description, customer_id, tax_percentage')
+      .eq('id', calculationId)
+      .maybeSingle()
+    if (!calc) return { success: false, error: 'Kalkulation ikke fundet' }
+    const c = calc as { id: string; name: string; description: string | null; customer_id: string | null; tax_percentage: number | null }
+    if (!c.customer_id) return { success: false, error: 'Kalkulationen har ingen kunde — vælg en kunde på kalkulationen først' }
+
+    const { data: offer, error } = await insertOfferWithNumber<{ id: string; offer_number: string }>(supabase, {
+      title: c.name,
+      description: c.description,
+      customer_id: c.customer_id,
+      orderer_customer_id: c.customer_id,
+      end_customer_id: c.customer_id,
+      payer_customer_id: c.customer_id,
+      billing_mode: 'same_as_customer',
+      status: 'draft',
+      tax_percentage: c.tax_percentage ?? 25,
+      discount_percentage: 0,
+      created_by: userId,
+    })
+    if (error || !offer) {
+      logger.error('createOfferFromCalculationRecord: offer insert failed', { error })
+      return { success: false, error: 'Kunne ikke oprette tilbud' }
+    }
+
+    const imported = await importCalculationToOffer(offer.id, calculationId)
+    if (!imported.success) {
+      await supabase.from('offers').delete().eq('id', offer.id).eq('status', 'draft')
+      return { success: false, error: imported.error || 'Kunne ikke importere kalkulationen' }
+    }
+
+    await logOfferActivity(offer.id, 'created', `Tilbud oprettet fra kalkulation "${c.name}"`, userId)
+    revalidatePath('/dashboard/offers')
+    return { success: true, data: { offer_id: offer.id } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette tilbud fra kalkulation') }
+  }
+}
+
+
 // Import all rows from a calculation to an offer
 export async function importCalculationToOffer(
   offerId: string,
@@ -1271,15 +1380,17 @@ export async function importCalculationToOffer(
     // standard (før null → DB/avance ~100 % på importerede linjer)
     const includeCostPrices = options?.includeCostPrices ?? true
 
-    // Filter rows that should be shown on offer (unless includeHiddenRows is true)
-    let rowsToImport = calculation.rows || []
-    if (!includeHiddenRows) {
-      rowsToImport = rowsToImport.filter(
-        (row: { show_on_offer: boolean }) => row.show_on_offer
-      )
-    }
+    // 00219 (Henrik 2026-10-10): eksplicit tilbudstilstand pr. række —
+    //   visible → egen linje · hidden_included → ingen egen linje, men med i prisen (én samlet linje med kost)
+    //   excluded → hverken linje eller pris (tæller heller ikke i kalkulationens total)
+    // Før faldt skjulte rækker stille ud af tilbuddet (kalkulation 14.400 → tilbud 12.000).
+    const allRows = calculation.rows || []
+    type ModeRow = { show_on_offer?: boolean; offer_mode?: string | null }
+    let rowsToImport = allRows.filter((r: ModeRow) => rowOfferMode(r) === 'visible' || (includeHiddenRows && rowOfferMode(r) === 'hidden_included'))
+    const hiddenIncluded: Array<{ total?: number | null; cost_price?: number | null; quantity?: number | null }> =
+      includeHiddenRows ? [] : allRows.filter((r: ModeRow) => rowOfferMode(r) === 'hidden_included')
 
-    if (rowsToImport.length === 0) {
+    if (rowsToImport.length === 0 && hiddenIncluded.length === 0) {
       return { success: false, error: 'Ingen linjer at importere' }
     }
 
@@ -1351,6 +1462,18 @@ export async function importCalculationToOffer(
         cost_price: includeCostPrices ? row.cost_price : null,
         discount_percentage: row.discount_percentage,
         total: row.total,
+      })
+    }
+
+    // 00219: skjulte-men-medregnede rækker → én samlet linje (pris = rækkernes total, kost = deres kost) — kunden ser ikke
+    // detaljerne, men prisen og DB er de samme som i kalkulationen
+    if (hiddenIncluded.length > 0) {
+      const amount = Math.round(hiddenIncluded.reduce((sum, r) => sum + Number(r.total ?? 0), 0) * 100) / 100
+      const cost = Math.round(hiddenIncluded.reduce((sum, r) => sum + Number(r.cost_price ?? 0) * Number(r.quantity ?? 1), 0) * 100) / 100
+      lineItems.push({
+        offer_id: offerId, line_type: 'calculation', product_id: null, calculation_id: calculationId, section: null,
+        position: positionCounter++, description: 'Øvrige materialer og ydelser', quantity: 1, unit: 'stk',
+        unit_price: amount, sale_price: amount, cost_price: includeCostPrices ? cost : null, discount_percentage: 0, total: amount,
       })
     }
 
@@ -1470,47 +1593,22 @@ export async function createLineItemFromSupplierProduct(
     // RBAC-review 2026-10-07: egen avance kun for kost-roller — salg kunne ellers sende ~0 % og læse den eksakte
     // kostpris som linjens salgspris (ingen UI sender feltet)
     const customMargin = hasPermission(OFFER_COST_VISIBILITY_PERMISSION) ? options?.customMarginPercentage : undefined
-    let marginPercentage = customMargin ?? supplierProduct.margin_percentage ?? CALC_DEFAULTS.MARGINS.PRODUCTS
-    let effectiveCostPrice = supplierProduct.cost_price
-    let fixedMarkup = 0
-    let roundTo: number | null = null
+    let marginPercentage: number
+    let effectiveCostPrice: number
 
-    // Try margin rules engine first, then fall back to customer pricing
-    // 00192: DB-funktionen læser kostkolonner (invoker) → admin-klienten (kost/avance returneres ikke til salg)
-    const { data: marginData } = await createAdminClient().rpc('get_effective_margin', {
-      p_supplier_id: supplierProduct.supplier_id,
-      p_supplier_product_id: supplierProductId,
-      p_category: null,
-      p_sub_category: null,
-      p_customer_id: offer?.customer_id || null,
+    // Kalkulations-review 2026-10-09 (#1): fælles prisberegning (oprettelse = opdatering) — kundens leverandørrabat
+    // gælder ALTID kostprisen (før blev den droppet, så snart en avanceregel fandtes for leverandøren)
+    const pricing = await supplierLinePricing({
+      supplierId: supplierProduct.supplier_id,
+      supplierProductId,
+      customerId: offer?.customer_id || null,
+      costPrice: supplierProduct.cost_price,
+      productMargin: supplierProduct.margin_percentage,
+      customMargin,
     })
-
-    if (marginData && marginData.length > 0 && !customMargin) {
-      marginPercentage = marginData[0].margin_percentage
-      fixedMarkup = marginData[0].fixed_markup || 0
-      roundTo = marginData[0].round_to
-    } else if (offer?.customer_id && !customMargin) {
-      // Fallback: check customer-specific pricing
-      const { data: customerPricing } = await createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
-        .from('customer_supplier_prices')
-        .select('discount_percentage, custom_margin_percentage')
-        .eq('customer_id', offer.customer_id)
-        .eq('supplier_id', supplierProduct.supplier_id)
-        .eq('is_active', true)
-        .maybeSingle()
-
-      if (customerPricing) {
-        if (customerPricing.discount_percentage) {
-          effectiveCostPrice = supplierProduct.cost_price * (1 - customerPricing.discount_percentage / 100)
-        }
-        if (customerPricing.custom_margin_percentage !== null) {
-          marginPercentage = customerPricing.custom_margin_percentage
-        }
-      }
-    }
-
-    // Calculate sale price with margin + optional fixed markup and rounding
-    const unitPrice = calculateSalePrice(effectiveCostPrice, marginPercentage, { fixedMarkup, roundTo: roundTo ?? undefined })
+    marginPercentage = pricing.marginPercentage
+    effectiveCostPrice = pricing.effectiveCost
+    const unitPrice = pricing.unitPrice
 
     // Get next position if not provided
     let position = options?.position
@@ -1549,6 +1647,8 @@ export async function createLineItemFromSupplierProduct(
         discount_percentage: discount,
         total,
         supplier_product_id: supplierProductId,
+        // samme betydning som ved opdatering: cost_price = Eltas faktiske indkøbspris (efter kunde-/leverandørrabat)
+        cost_price: Math.round(effectiveCostPrice * 100) / 100,
         supplier_cost_price_at_creation: supplierProduct.cost_price,
         supplier_margin_applied: marginPercentage,
         supplier_name_at_creation: supplierInfo?.name || null,
@@ -1806,6 +1906,9 @@ export async function searchSupplierProductsForOffer(
                 last_synced_at: new Date().toISOString(),
               }).eq('id', existing.id)
             } else {
+              // Kalkulations-review 2026-10-09 (#5): uden pris (0 = ingen prisaftale) oprettes varen ikke — en 0-kost-vare
+              // kunne ellers vinde som "billigst" og give tilbudslinjer til 0 kr
+              if (!(Number(lp.costPrice) > 0)) continue
               const { data: inserted } = await sys.from('supplier_products').insert({
                 supplier_id: lp._supplierId,
                 supplier_sku: lp.sku,
@@ -2186,7 +2289,7 @@ export async function refreshLineItemPrice(
     // 00192: kostkolonner — admin-klient bag offers.view.cost_prices
     const { data: supplierProduct, error: spError } = await createAdminClient()
       .from('supplier_products')
-      .select('cost_price, supplier_id')
+      .select('cost_price, supplier_id, margin_percentage')
       .eq('id', lineItem.supplier_product_id)
       .maybeSingle()
     const lineCost = (await fetchOfferLineCostById([lineItem.id])).get(lineItem.id)
@@ -2195,32 +2298,20 @@ export async function refreshLineItemPrice(
       return { success: false, error: 'Kunne ikke hente leverandør pris' }
     }
 
-    // Get customer-specific pricing if applicable
+    // Kalkulations-review 2026-10-09 (#2): samme prisberegning som ved oprettelse (avanceregler med fast tillæg/
+    // afrunding, kunderabat, 0 % respekteres) — før gav en opdatering med uændret kost en anden pris
     const offerInfo = Array.isArray(lineItem.offers) ? lineItem.offers[0] : lineItem.offers
-    let effectiveCostPrice = supplierProduct.cost_price
-    let marginPercentage = lineCost?.supplier_margin_applied || CALC_DEFAULTS.MARGINS.MATERIALS
-
-    if (offerInfo?.customer_id) {
-      const { data: customerPricing } = await createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
-        .from('customer_supplier_prices')
-        .select('discount_percentage, custom_margin_percentage')
-        .eq('customer_id', offerInfo.customer_id)
-        .eq('supplier_id', supplierProduct.supplier_id)
-        .eq('is_active', true)
-        .maybeSingle()
-
-      if (customerPricing) {
-        if (customerPricing.discount_percentage) {
-          effectiveCostPrice = supplierProduct.cost_price * (1 - customerPricing.discount_percentage / 100)
-        }
-        if (customerPricing.custom_margin_percentage !== null) {
-          marginPercentage = customerPricing.custom_margin_percentage
-        }
-      }
-    }
-
-    // Calculate new price
-    const newUnitPrice = calculateSalePrice(effectiveCostPrice, marginPercentage)
+    void lineCost
+    const pricing = await supplierLinePricing({
+      supplierId: supplierProduct.supplier_id,
+      supplierProductId: lineItem.supplier_product_id,
+      customerId: offerInfo?.customer_id || null,
+      costPrice: supplierProduct.cost_price,
+      productMargin: (supplierProduct as { margin_percentage?: number | null }).margin_percentage ?? null,
+    })
+    const effectiveCostPrice = pricing.effectiveCost
+    const marginPercentage = pricing.marginPercentage
+    const newUnitPrice = pricing.unitPrice
     const discount = lineItem.discount_percentage || 0
     const total = calculateLineTotal(lineItem.quantity, newUnitPrice, discount)
 
@@ -2833,4 +2924,55 @@ export async function getOfferRevisionHistoryAction(offerId: string): Promise<Ac
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente revisioner') }
   }
+}
+
+/**
+ * Kalkulations-review 2026-10-09 (#1/#2): ÉN prisberegning for leverandørlinjer (oprettelse og opdatering).
+ *   kost (effektiv) = leverandørens kostpris × (1 − kundens leverandørrabat)
+ *   avance = egen avance (kost-roller) → avanceregel (inkl. fast tillæg/afrunding) → kundens aftale-avance → produktets
+ *   avance → standard. Kost/aftaler læses med admin-klienten bag kaldernes gate (00192/00201).
+ */
+async function supplierLinePricing(input: {
+  supplierId: string
+  supplierProductId: string
+  customerId: string | null
+  costPrice: number
+  productMargin: number | null | undefined
+  customMargin?: number
+}): Promise<{ unitPrice: number; marginPercentage: number; effectiveCost: number }> {
+  const admin = createAdminClient()
+  const [{ data: marginData }, customerRes] = await Promise.all([
+    admin.rpc('get_effective_margin', {
+      p_supplier_id: input.supplierId,
+      p_supplier_product_id: input.supplierProductId,
+      p_category: null,
+      p_sub_category: null,
+      p_customer_id: input.customerId,
+    }),
+    input.customerId
+      ? admin.from('customer_supplier_prices').select('discount_percentage, custom_margin_percentage')
+          .eq('customer_id', input.customerId).eq('supplier_id', input.supplierId).eq('is_active', true).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+  const agreement = customerRes.data as { discount_percentage: number | null; custom_margin_percentage: number | null } | null
+  const discountPct = Number(agreement?.discount_percentage ?? 0)
+  const effectiveCost = discountPct > 0 ? input.costPrice * (1 - discountPct / 100) : input.costPrice
+
+  const rule = (marginData as Array<{ margin_percentage: number; fixed_markup: number | null; round_to: number | null }> | null)?.[0]
+  let marginPercentage: number
+  let fixedMarkup = 0
+  let roundTo: number | undefined
+  if (input.customMargin !== undefined && input.customMargin !== null) {
+    marginPercentage = input.customMargin
+  } else if (rule) {
+    marginPercentage = Number(rule.margin_percentage)
+    fixedMarkup = Number(rule.fixed_markup ?? 0)
+    roundTo = rule.round_to ?? undefined
+  } else if (agreement?.custom_margin_percentage !== null && agreement?.custom_margin_percentage !== undefined) {
+    marginPercentage = Number(agreement.custom_margin_percentage)
+  } else {
+    marginPercentage = input.productMargin ?? CALC_DEFAULTS.MARGINS.PRODUCTS
+  }
+  const unitPrice = Math.round(calculateSalePrice(effectiveCost, marginPercentage, { fixedMarkup, roundTo }) * 100) / 100
+  return { unitPrice, marginPercentage, effectiveCost }
 }

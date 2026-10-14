@@ -135,6 +135,12 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       .single()
 
     if (insertErr || !sag) {
+      // Sags-review 2026-10-09 (#8): samtidig konvertering (portal-accept + manuel) → unikt indeks på source_offer_id
+      // afviste den ene. Returnér den sag der blev oprettet i stedet for en fejl.
+      if ((insertErr as { code?: string } | null)?.code === '23505') {
+        const { data: winner } = await supabase.from('service_cases').select('id, case_number').eq('source_offer_id', offerId).limit(1).maybeSingle()
+        if (winner) return { success: true, data: { case_id: winner.id as string, case_number: winner.case_number as string, created: false } }
+      }
       logger.error('createServiceCaseFromOffer insert failed', { error: insertErr })
       return { success: false, error: 'Kunne ikke oprette sag' }
     }

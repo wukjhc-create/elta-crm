@@ -1819,10 +1819,11 @@ ${m.text()}`) })
         const offStatus = String(((await c.admin.from('offers').select('status').eq('id', u57OfferId ?? '').maybeSingle()).data as { status?: string } | null)?.status ?? '')
         r.tilbud_accepteret = offStatus === 'accepted'
         r.lead_via_lead_id_vundet = st(leadA) === 'won'
-        r.konverteret_lead_vundet = st(leadB) === 'won'
+        // Leads-review 2026-10-08 (#1): kun tilbuddets EGET lead vindes — kundens andet åbne lead (fx en anden forespørgsel) røres ikke
+        r.andet_lead_uaendret = st(leadB) === 'negotiation'
         r.tabt_lead_uaendret = st(leadC) === 'lost'
         const acts = ((await c.admin.from('lead_activities').select('lead_id, description').in('lead_id', [leadA, leadB].filter(Boolean) as string[])).data ?? []) as Array<{ lead_id: string; description: string }>
-        r.aktivitet_logget = acts.filter((x) => x.description.includes('Vundet')).length === 2
+        r.aktivitet_logget = acts.filter((x) => x.description.includes('Vundet')).length === 1
         out.push({ id: 'U57 accepteret tilbud → lead vundet', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · leads=${JSON.stringify(leads.map((l) => l.status))}` })
       }
 
@@ -2886,7 +2887,8 @@ ${m.text()}`) })
         await card.waitFor({ timeout: 60_000 }).catch(() => {})
         await card.getByText(caseTitle).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.sag_i_rapport = (await card.getByText(caseTitle).count()) > 0
-        r.foldet = (await card.getByText('Tilbudt kost').count()) === 0 && (await card.getByText('Budget').count()) === 0
+        // kolonneoverskrifterne (ikke fritekst — en efterladt '[HARNESS] budget …'-sag matchede getByText('Budget'))
+        r.foldet = (await card.getByRole('columnheader', { name: 'Tilbudt kost', exact: true }).count()) === 0 && (await card.getByRole('columnheader', { name: 'Budget', exact: true }).count()) === 0
         await card.getByTestId('cost-reveal-toggle').click({ timeout: 30_000 }).catch(() => {})
         await a.page.waitForTimeout(800)
         const row = card.locator('tr', { hasText: caseTitle }).first()
@@ -3931,7 +3933,10 @@ ${m.text()}`) })
         }
         const viaCard = await mk('kort')
         const viaBulk = await mk('bulk')
-        r.seed = !!custId && !!viaCard && !!viaBulk
+        // knappen vises kun ved > 1 åben henvendelse — efter kort-koblingen skal der stadig være 2 (før afhang testen af
+        // efterladte henvendelser på staging)
+        const viaBulk2 = await mk('bulk2')
+        r.seed = !!custId && !!viaCard && !!viaBulk && !!viaBulk2
         const mailCustomer = async (id: string | null) => ((await c.admin.from('incoming_emails').select('customer_id').eq('id', id ?? '').maybeSingle()).data as { customer_id: string | null } | null)?.customer_id ?? null
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
         const row = a.page.getByTestId('cockpit-web-inquiries').locator('li', { hasText: `Eksisterende kort ${stamp}` }).first()
@@ -4696,10 +4701,16 @@ ${m.text()}`) })
           await secondTry
         }
         await m.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {})
+        // Henrik 2026-10-10 (U73 deterministisk): tidsdata bevises via DOM'en — sagstotalen vises først når
+        // listTimeLogsForCase har svaret med montørens timer. Netværkssnifning af server-action-svar var upålidelig
+        // (svaret blev ikke altid opfanget: m_timer=0 trods data). Opfangede svar bruges stadig til læk-tjekket.
+        const totals = m.page.getByTestId('case-time-totals')
+        const totalsShown = await totals.waitFor({ state: 'visible', timeout: 60_000 }).then(() => true).catch(() => false)
+        const totalsText = totalsShown ? ((await totals.innerText().catch(() => '')) ?? '') : ''
         m.page.off('response', onRespM)
         try { writeFileSync(join(shots, 'u73-montoer-net.txt'), netM.map((t) => `${t.slice(0, 1500)}\n…\n${t.slice(-2500)}`).join('\n----\n')) } catch { /* diagnose */ }
         const mAll = (await m.page.content().catch(() => '')) + netM.join('\n')
-        const sawTimeLogs = netM.some((t) => t.includes('"hours"'))
+        const sawTimeLogs = totalsShown && totalsText.includes('timeregistrering') && /\d/.test(totalsText)
         r.montoer_tidsdata_hentet = sawTimeLogs
         const leak = /"cost_amount":\s*[1-9]/.test(mAll) || /"cost_rate_snapshot":\s*[1-9]/.test(mAll) || /"hourly_rate":\s*650/.test(mAll) || mAll.includes('543.21')
         r.montoer_ingen_kost_eller_sats = !leak

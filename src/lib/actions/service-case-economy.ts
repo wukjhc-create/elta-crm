@@ -1,4 +1,5 @@
 'use server'
+import { getCaseScope, userCanViewCase } from '@/lib/auth/case-scope'
 
 /**
  * Sprint 5D — getServiceCaseEconomy
@@ -579,10 +580,12 @@ export async function getServiceCaseBillingStatus(
 ): Promise<ActionResult<CaseBillingStatus>> {
   try {
     validateUUID(caseId, 'case_id')
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
     if (!hasPermission('invoices.view.own_cases')) {
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
     }
+    // IDOR-sweep 2026-10-09 (#5): kun sager i brugerens scope (salg: egne) — kontraktsum/udestående er ellers åbne
+    if (!(await userCanViewCase(caseId, { supabase, userId, role }))) return { success: false, error: 'Du har ikke adgang til denne sag' }
 
     const { data: sag } = await supabase
       .from('service_cases')
@@ -691,10 +694,12 @@ export async function getServiceCaseProjectEconomy(
 ): Promise<ActionResult<CaseProjectEconomy>> {
   try {
     validateUUID(caseId, 'case_id')
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
     if (!hasPermission('invoices.view.own_cases')) {
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
     }
+    // IDOR-sweep 2026-10-09 (#5): kun sager i brugerens scope (salg: egne) — kontraktsum/udestående er ellers åbne
+    if (!(await userCanViewCase(caseId, { supabase, userId, role }))) return { success: false, error: 'Du har ikke adgang til denne sag' }
 
     const { data: sag } = await supabase
       .from('service_cases')
@@ -788,12 +793,18 @@ export async function getServiceCaseEconomyBatch(
   caseIds: string[]
 ): Promise<ActionResult<Record<string, CaseEconomyBatchEntry>>> {
   try {
-    const ids = Array.from(new Set((caseIds ?? []).filter(Boolean)))
+    let ids = Array.from(new Set((caseIds ?? []).filter(Boolean)))
     if (ids.length === 0) return { success: true, data: {} }
 
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
     if (!hasPermission('invoices.view.own_cases')) {
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
+    }
+    // IDOR-sweep 2026-10-09 (#5): kun sager i brugerens scope ('all' ved cases.view.all)
+    {
+      const scope = await getCaseScope({ supabase, userId, role })
+      if (scope.type !== 'all') ids = ids.filter((id) => scope.caseIds.includes(id))
+      if (ids.length === 0) return { success: true, data: {} }
     }
 
     // X4n: i bidder af 200 — ordrelistens fakturafilter sender op til 500 sager; én .in() sprængte URL-grænsen (~350)
@@ -898,7 +909,7 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
       return { success: true, data: { total_outstanding: 0, total_net_invoiced: 0, cases_with_outstanding: 0, currency, top: [] } }
     }
 
-    // Kun aktive (ikke-lukkede) sager tæller med.
+    // Alle sager undtagen konverterede tæller med (også lukkede — se nedenfor).
     // i bidder af 200 (én .in() med alle fakturerede sager sprænger URL-længden ved vækst → tom liste → 0 kr udestående)
     const cases: Array<{ id: string; case_number: string | null; title: string | null; status: string | null }> = []
     for (let k = 0; k < caseIds.length; k += 200) {
@@ -911,7 +922,9 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
     }
     const activeMeta = new Map<string, { case_number: string | null; title: string | null }>()
     for (const c of cases as Array<{ id: string; case_number: string | null; title: string | null; status: string | null }>) {
-      if (c.status === 'closed') continue
+      // Rapport-review 2026-10-09 (#3): lukkede sager tæller MED — lukning kræver ikke betaling, så en sendt
+      // slutfaktura på en lukket sag er stadig udestående (fulgte-op-oversigten talte den allerede). Kun konverterede ud.
+      if (c.status === 'converted') continue
       activeMeta.set(c.id, { case_number: c.case_number, title: c.title })
     }
 

@@ -13,6 +13,146 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Henriks beslutninger 2026-10-10 — status
+| # | Beslutning | Status |
+|---|---|---|
+| 1 | 00212–00217 til prod | DONE (se prod-kørsel nedenfor) |
+| 2 | Kundedokumenter interne som standard ("Del med kunde") | Bygget + staging-testet på branch `customer-docs-share-00218` → **BLOCKED_APPROVAL** (migration 00218) |
+| 3 | GDPR eksport/anonymisering | NEXT efter pilot (ikke go-live-blocker) |
+| 4 | Kalkulationsrækker: skjult-men-medregnet vs. udeladt | Bygget + staging-testet på branch `calc-offer-mode-00219` → **BLOCKED_APPROVAL** (migration 00219) |
+| 5 | Rumberegner: timepris = salgspris | DONE i prod (5496e2d; profit-simulatoren samme model; kostsats FALLBACK_COST_RATE 400). NB: hurtigkalkulationens arbejdskost er 295 kr/t (lærlingesats) — afviger fra 400; afklares ved lejlighed |
+| 6 | Notifikationsindstillinger implementeres | Afsendere på main (DONE, springer over uden kolonne); side + kolonne på branch `notify-prefs-00220` → **BLOCKED_APPROVAL** (migration 00220) |
+| 7 | CLAUDE.md: GatewayAPI/SMS ikke implementeret | DONE |
+| 8 | U73 | DONE — adgangskontrollerne var korrekte (data fandtes; montør-scope ok); testen ventede på et netværkssvar der ikke altid blev opfanget → nu deterministisk via DOM (`case-time-totals`); 3/3 grønne |
+
+## Prod-kørsel 2026-10-10 — 00212–00217 (Henrik: "GODKENDT TIL PROD")
+| Trin | Resultat |
+|---|---|
+| Pre (rollback, rigtige personaer; salg simuleret inde i transaktionen) | `prod-flow-check-00212-00217.ts pre`: alle huller åbne som forventet (00214: 0 afvigende kunder i dag — forebyggende) |
+| Migration + post pr. nummer | 00212 montør 1589→0 rækker (admin uændret) · 00213 case-flyt/annulleret→done 42501, afslut egen ordre OK · 00214 0 afvigelser · 00215 linje/rabat/forslag 42501, noter + kladde OK · 00216 109,42→109,41 · 00217 profilnavn, omskriv 42501, markér læst OK |
+| Samlet post + tidligere flows | 15/15; 00208 10/10; 00198–00202 4/4 |
+| DB-audit | HØJ=0 · MIDDEL=0 · LAV=0 |
+| UI (staging, alle seks aktive) | smoke 8/8; tidligere: sales+portal 71/71, montør 23/23, beskeder U2/U11/U21 |
+
+## CHECKPOINT 2026-10-10 ~01:00 (long-run)
+- Reviews afsluttet og rettet siden 2026-10-09 eftermiddag: AI-mail, crons/alarmer, planlægning, rapporter/KPI, tilbudsforløb,
+  kundemodul, IDOR-sweep, kalkulation (tabeller nedenfor). Fire læk-rettelser deployet direkte (besigtigelses-send, kundeskift på
+  tilbud, fuldmagts-CPR i dokumentlister, rumberegner-kost).
+- Nye BLOCKED_APPROVAL-udkast (alle staging-verificeret): 00212 health-log, 00213 arbejdsordre-guard, 00214 betalingsoversigt,
+  00215 tilbuds-lås i DB, 00216 tilbudsafrunding — se docs/runbooks/HENRIK-DECISIONS-2026-10-08.md.
+- UI-regression i dag (gruppevis): portal-mail 34/34, montør 23/23 (+guard), økonomi+smoke 38/38, sales+portal 71/71 (+00215/00216),
+  montør+økonomi 54/55 (U73: kendt timing-flake i montør-tidsdata-delen), kalkulation 21/21, kunde-subset 10/10.
+- Prod-version tjekkes via /api/public/version.
+
+## Long-run 2026-10-10 — kommunikation (interne beskeder, portalchat) (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| KOM #3 (S2, PROD-REGRESSION) medarbejderes chat-upload brugte bruger-sessionen mod portal-attachments → fejlede efter 00209 | DONE (deployet) — service-klienten bag customers.edit. Sweep: ingen andre bruger-session-storagekald | U22/U23/U25/U92/U98 |
+| KOM #1 (S2) chat-vedhæftninger: gemt 1-times link → døde links dagen efter | DONE — signeres friskt ved læsning (kun kundens mappe) | samme |
+| KOM #5/#7/#8 skriv til kunde kun customers.edit + længdeloft; portal-afsendernavn fra token; medarbejder-læsning gated + UUID | DONE | samme |
+| KOM #6 over 1.000 beskeder forsvandt de nyeste | DONE — nyeste 500, kronologisk | samme |
+| KOM #4 interne beskeder: falsk afsendernavn; modtager kunne omskrive beskeden | **BLOCKED_APPROVAL** 00217 på branch `messages-integrity-00217` | `cli.ts messages-integrity-check` pre 2 huller → post 3/3; U2/U11/U21 med 00217 |
+| KOM #2 portal-ratelimit/notifikation ikke atomisk (parallelle kald) | LATER — DB-lås/RPC (migration) | — |
+| SMS: ingen GatewayAPI-kode i src (kun Relatel-stub) — CLAUDE.md's "SMS-notifikationer (GatewayAPI) ✅" er forældet | INFO til Henrik | — |
+
+## Long-run 2026-10-10 — kalkulationsmotor (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| C #9b (læk) rumberegnerens calculateProject gav kost/DB til alle indloggede | DONE — tools.calculations | tsc/gates |
+| C #1 (S2) kundens leverandørrabat droppet når en avanceregel fandtes (søgning 112,50 vs. linje 125,00) | DONE — fælles `supplierLinePricing` (rabat altid; regel → aftale-avance → produkt) | kalkule-UI |
+| C #2 (S2) opdatér leverandørpris ændrede prisen ved uændret kost (regel/fast tillæg tabt, 0 % → 25 %, kost-betydning forskellig) | DONE — samme funktion; cost_price = faktisk indkøbspris ved både oprettelse og opdatering | kalkule-UI |
+| C #5 (S2) starter-linjer/billigste match til 0 kr (0-kost fra live-import) | DONE — 0-kost vinder aldrig, starter-linje springes over, live-import uden pris oprettes ikke | tsc/gates |
+| C #6 "Konverter til tilbud" på kalkulationssiden fejlede altid (forkert tabel) | DONE — `createOfferFromCalculationRecord` (kladde + importCalculationToOffer, rulles tilbage ved fejl) | kalkule-UI |
+| C #3 skjulte rækker ("Vis på tilbud" fra) falder ud af tilbudstotalen (kalkulation 14.400 → tilbud 12.000) | FORRETNINGSVALG — skal skjulte rækker indgå i prisen (samlelinje) eller ej? | — |
+| C #4 hurtigkalkulation anvender ikke komponent-varianter/kompleksitet (fx beton ×1,8) | NEXT — feature-hul (varianter er kun et navn i dag) | — |
+| C #8 rumberegnerens "Timepris" behandles som KOST og lægges der avance på (495 × 1,15 × 1,25 ≈ 712 kr/t) | FORRETNINGSVALG — er feltet kost (≈400) eller salgspris? | — |
+| C #9a kalkulationens dækningsbidrag ignorerer kalkulationens avance/rabat (DB-trigger 00015) | LATER — migration | — |
+| C #7 + dormant Kalkia Pro-motor (ikke nåbar fra UI) | LATER — ryd op eller ret før den aktiveres | — |
+| Søgningens "estimeret salgspris" bruger ikke avanceregler (estimat) | LATER — kan bruge supplierLinePricing pr. resultat (pris pr. kald) | — |
+
+## Long-run 2026-10-09 — IDOR/scope-sweep af server-actions (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| I #2 (S2→S1-klasse: CPR) kundens og sagens dokumentlister returnerede fuldmagtens description med fødselsdato/CVR, underskrift og e-mail til alle med customers.view (montør) | DONE (deployet direkte — lukker læk) — `lib/documents/safe-description.ts` (kun ufølsomme felter) i kundedokumenter + sagsdokumenter | tsc/gates |
+| I #1 createFuldmagt uden sag-scope (montør kunne oprette fuldmagt på enhver kunde/sag) | DONE — UUID + userCanViewCase (+ eksisterende sag↔kunde-tjek) | tsc/gates |
+| I #3 tagtegninger: læse-ret var nok til at overskrive/slette enhver kundes tegning | DONE — customers.edit eller sag i scope der hører til kunden | tsc/gates |
+| I #4 tilbudsmail-tråde/beskeder læsbare med login alene | DONE — offers.view | tsc/gates |
+| I #5 sags-økonomi (kontraktsum/udestående) uden sag-scope for salg | DONE — userCanViewCase / getCaseScope-filter | tsc/gates |
+| I #6 sagskontakter uden sag-scope | DONE | tsc/gates |
+| I #7 ugatede 'use server'-eksporter (bekræftelser, hændelseslog, hurtig-kunde fra mail) | DONE — gates + forældede RBAC-undtagelser fjernet. route-preview/mail-route-resolvers kun server-importeret (cron uden session) → uændret | check:rbac |
+| I #8 materiale med fremmed sags arbejdsordre | DONE — arbejdsordren skal høre til sagen | tsc/gates |
+| RLS `USING (true)` på email_threads/messages, customer_documents, roof_drawings, case_materials m.fl. | LATER/BLOCKED_APPROVAL — DB-stramning når app-gates er på plads (samme mønster som 00204/00207) | — |
+| Prod-overblik 2026-10-09 (`prod-open-select-tables.ts`): 102 tabeller læsbare for alle indloggede. Hemmelige kolonner (portal-/partner-/bekræftelses-tokens, integrations-/e-conomic-nøgler, leverandør-credentials) er LUKKET (`prod-secret-column-privs.ts`); kostkolonner på supplier_products/product_catalog/offer_line_items lukket (`prod-cost-column-privs.ts`). Stadig åbne kostdata: `packages` (00207-udkast) og `kalkia_calculation_rows.labor/material/total_cost` (ny kandidat). Følsomme rækker åbne: offer_signatures (underskrift + IP), portal_messages, email_*/sms_messages, customer_documents.description (fuldmagter — app filtrerer nu) | LATER — samlet RLS-plan pr. tabel (rolle + scope) til Henrik | scripts ovenfor |
+
+## Long-run 2026-10-09 — kundemodul (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| K #1 (S2) kundekortets postkasse/forløb brugte klientens e-mail (direkte kald: læs vilkårlig postkasse; kunder gemt med kontakt@ viste hele postkassen inkl. leverandørkost); getCustomerFlow uden gate | DONE — adressen læses fra kunden, egne/pladsholder-/formular-adresser matches ikke, UUID-validering, gate | kunde-UI |
+| K #2 (S2) manuelt uploadede kundedokumenter vises straks i portalen; montør/bogholderi kunne uploade til enhver kunde | DONE app: upload kræver customers.edit. **FORRETNINGSVALG + migration**: `visible_in_portal`-flag (default skjult for manuelle uploads) | — |
+| K #3 (S2) prisaftaler kunne ikke rydde felter (avance/udløb blev ved at gælde); rabat uvalideret; klientdata spredt i rækken | DONE — eksplicit række (NULL), validering (rabat 0–100, avance, datoer) | tsc/gates |
+| K #4 deleteCustomer: fejl talte som 0 (sletning kaskadede); manglende avanceregler | DONE — fail-closed (HEAD-fejl gentages for fejlkode), avanceregler + faktura-roller med | `cli.ts customer-delete-refs-probe`, U135 |
+| K #5 mail fra kundekort koblet til vilkårlig kunde med samme adresse | DONE — kortets kunde-id sendes med | tsc/gates |
+| K #6 opgaver: læsning uden gate; montør/bogholderi kunne slette/ændre enhver opgave | DONE — customers.edit eller egne opgaver; læsning gated | kunde-UI |
+| K #7/#8 adresser/emner i logs; ?page=-1/sortBy fra URL | DONE | tsc/gates |
+| K (gap) ingen GDPR-eksport/anonymisering eller kundefletning | FORRETNINGSVALG — design ved behov | — |
+
+## Long-run 2026-10-09 — tilbudsforløb (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| T #1 (S1) kundeskift på kladde flyttede ikke parti-roller → tilbud + portal-token for kunde B mailet til kunde A (og sag/faktura til A) | DONE (deployet direkte — lukker læk) — parti-roller på den gamle kunde følger med; mail-routing "samme som kunden" bruger tilbuddets kunde. Prod: 0 berørte tilbud (`prod-offer-party-mismatch.ts`) | tsc/gates; sales/portal-UI |
+| T #2 (S2) tilbud konverteret til sag kunne sættes tilbage til kladde og omprisses (sagen beholdt gammel kontraktsum) | DONE — kladde blokeret når converted_case_id er sat | sales-UI |
+| T #3 (S2) portal-accept ikke bundet til det beløb kunden så | DONE — siden sender beløb + sent_at; accept afvises hvis ændret; compare-and-set på final_amount | portal-UI |
+| T #4 (S2) kladde-lås og sletteregel kun i appen (salg via REST: ændre linjer på accepteret tilbud, slette underskrevet tilbud via is_proposal) | **BLOCKED_APPROVAL** 00215 på branch `offers-lock-00215` (triggere, ikke politikker) | `cli.ts offers-lock-check` pre: alle huller bekræftet |
+| T #5 admin kunne slette accepteret/underskrevet tilbud | DONE — kun kladde/afvist (compare-and-set) | tsc/gates |
+| T #6 portal-accept uden server-validering af underskrift | DONE — navn/e-mail/PNG-data med grænser | portal-UI |
+| T #7 udløbet tilbud kunne sendes; afvist→kladde beholdt afvisningen | DONE | tsc/gates |
+| T #8 createLineItem tog kostfelter fra salg | DONE — som updateLineItem (D43) | tsc/gates |
+| T #9 1-øres afrundingsforskel trigger vs. app | **BLOCKED_APPROVAL** 00216 på branch `offer-rounding-00216` | offers-lock-check: 109,42 (gammel) vs 109,41 |
+| T #10 kalkulation→tilbud: fejlet linje-insert efterlod tilbud uden linjer | DONE — rulles tilbage | tsc/gates |
+
+## Long-run 2026-10-09 — rapporter/dashboard/KPI (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| R #1 (S2) cockpittets "Forfaldne fakturaer" + dashboard-API'ets forfaldsliste med fuldt beløb (delbetalt/krediteret) | DONE — fælles `lib/invoices/open-amount.ts` (final − betalt − kreditnotaer); fuldt dækkede udelades. View `v_customer_payment_summary` (00146, kundeliste + betalingsrapport) har samme fejl → **BLOCKED_APPROVAL** 00214 på branch `payment-summary-00214` (samme kolonner; åbent beløb + dansk dato) | economy-UI |
+| R #2 (S2) tilbudsværdi tre måder (dashboard subtotal før rabat, rapporter inkl. moms, tragt ekskl. moms) | DONE — ekskl. moms efter rabat (final − tax) overalt | sales-funnel-test ✅, economy-UI |
+| R #3 (S2) udestående-porteføljen udelod lukkede sager | DONE — kun konverterede udelades | economy-UI |
+| R #4 (S2) AI-forecast talte kladder og AI-forslag + 1.000-grænse | DONE — kun sendte, is_proposal=false, pagineret, ekskl. moms | tsc/gates |
+| R #5 (S2) AI "90-dages omsætning" talte alle profit-snapshots (append-only) | DONE — seneste pr. arbejdsordre, pagineret | tsc/gates |
+| R #6–#9 projektrentabilitet med forslag; topkunder upagineret + acceptrate inkl. kladder; "sendt"-serien forkert; månedsgraf UTC/upagineret | DONE | tsc/gates |
+| R #10 medarbejderøkonomi: rækkefølge efter DB afslørede kost uden løn-ret | DONE — sorteres efter timer efter maskering | tsc/gates |
+
+## Long-run 2026-10-09 — planlægning (arbejdsordrer, kalender, besigtigelse) (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| PL #1 (S1) `sendBesigtigelsePdf`: dokument-id og kunde-id hver for sig → ethvert dokument (intern mailvedhæftning, tilbud, faktura) kunne mailes til en vilkårlig kunde som "Besigtigelsesrapport" (gate kun service.edit = også montør) | DONE (deployet direkte — lukker kun læk) — dokumentet skal tilhøre kunden, være en besigtigelsesrapport (ikke mailarkiv) og sagen være i brugerens scope | tsc/gates; montør-UI-gruppe |
+| PL #2 (S2) montør kan via REST ændre alle kolonner på egen arbejdsordre (case_id → lukket sag, annulleret → done, dato/kunde/auto_invoice) | **BLOCKED_APPROVAL** 00213 på branch `work-orders-guard-00213` (BEFORE UPDATE-guard: montør kun status/completed_at fra planned/in_progress) | — |
+| PL #3 besigtigelse gemt på vilkårlig sag; lukkede alle kundens "%esigtigelse%"-opgaver (også andre sagers bookinger og interne opgaver) uden completed_at | DONE — sag-scope; kun kundevendte opgaver på denne sag (eller uden sag); completed_at | tsc/gates |
+| PL #4 kalenderens sags-vælger kun 200 højeste sagsnumre (inkl. forslag) | DONE — alle åbne, ikke forslag | tsc/gates |
+| PL #5 createWorkOrderForCase: status fra klient ('done' direkte), inaktiv/fratrådt medarbejder, forslag-sager | DONE | tsc/gates |
+| PL #6 "job uden tid" talte afviste timer som registreret; .limit(500) | DONE | tsc/gates |
+| PL #7 besigtigelses-læseactions uden gate (sager/parter/modtagere for enhver kunde) | DONE — service.view + sag-scope | tsc/gates |
+| PL #8 portal-besigtigelser: 50 første opgaver før filtrering | DONE — filtrerer på titel før grænsen | portal-mail-UI 34/34 |
+| PL #9 slet arbejdsordre uden compare-and-set; kalender valgte UTC-dato; portalens maks-dato i UTC | DONE | tsc/gates |
+
+## Long-run 2026-10-09 — AI-mailautomatik + crons/alarmer (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| M #1 (S2) mails indsat af en kørsel der døde blev aldrig linket/analyseret (DUPLICATE SKIP) — passer med ~59 'pending' i prod | DONE — backfill af 'pending' + processed_at NULL (14 d), AI-budget 60 mails/kørsel, email-sync maxDuration 300 | `cli.ts mail-backfill-probe` (staging 55 ubehandlede) |
+| M #2 sendte mails tabt efter mislykket kørsel (last_sync_at flyttet ved fejl) / >25 pr. kørsel | DONE — cursor = kørslens start og kun ved succes; nextLink-paginering (10×50) | tsc/gates |
+| M #3 AI-dagsloft tabte optællinger (læs-så-skriv, fire-and-forget) | DONE — compare-and-set med backoff, awaited alle steder. Atomisk RPC = senere (migration) | `cli.ts ai-budget-concurrency-check` 20 → +20 |
+| M #4 én afsender kunne fylde kundelisten/brænde AI-budget | DONE — 25 auto-oprettede kunder/døgn + 60 mails/kørsel | tsc/gates |
+| M #6 vedhæftninger med samme navn overskrev hinanden; afsenderens content-type (html/svg) stolet på; ingen størrelsesgrænse | DONE (begge uploadstier) — index-præfiks, aktive typer → octet-stream, 25 MB | tsc/gates |
+| M #7/#8 mailagent: genkørsel lavede tomme runs; case-følsomt e-mail-match; HTML-mails gav 200 tegns udkast | DONE | tsc/gates |
+| M (fund) mailvedhæftninger: prod 123/123 gemte links er `/object/public/`-links til den PRIVATE bucket → døde links i mail-UI'et; nye mails fik 1-års signerede links | DONE — detaljer (mail + sag) signerer friskt 1 t fra storagePath (kun mailens egen mappe / kundens outbound-mappe), listen bærer ingen links, intet link gemmes længere (heller ikke i customer_documents ved arkivering); faktura-ingest henter via storagePath og gemmer `attachments/<sti>`. Blanking af de gamle (ubrugelige) links er kosmetik — ikke sikkerhed | `cli.ts mail-attachment-links-check` 3/3; `prod-mail-attachment-url-kinds.ts` |
+| C #1 (S2) bank-match læste de 500 ældste 'unmatched' (udbetalinger/umatchbare) → nye betalinger aldrig matchet → rykkere på betalte fakturaer | DONE — kun indbetalinger, nyeste først. `last_match_attempt_at` = senere (migration) | tsc/gates |
+| C #2 (S2) admin-alarmer scannede 1 t, men kører dagligt → natlige cron-fejl aldrig mailet | DONE — 24 t | tsc/gates |
+| C #3 cron med HTTP 200 + `status:'failed'`/`success:false`/`errors[]` logget 'ok' | DONE — bodyStatus → error/warning | `scripts/cron-paused-test.ts` 14/14 |
+| C #4 én bell-advarsel pr. ændret vare (≤1.000 rækker) | DONE — én pr. leverandør/regeltype/dag, alle rækker (fetchAllRows) | `cli.ts system-alerts-check` ✅ |
+| C #5 faktura-ingest 24 t-vindue mistede fakturaer synket sent | DONE — 72 t, nyeste først (idempotent) | tsc/gates |
+| C #6 pauset cron loggede uautoriserede kald | DONE — 401 uden secret | cron-paused-test |
+| C #7 system_health_log læsbar for alle indloggede (postkasser, bank-id'er, modtagere) | DONE app (dashboard-stats kun drift-roller). **BLOCKED_APPROVAL** 00212 på branch `health-log-00212` | — |
+| C #8 notifikationsindstillinger gemmes men læses aldrig | FORRETNINGSVALG — implementér i afsendere eller skjul siden | — |
+
 ## Long-run 2026-10-08 — partner-/offentlige links + leads-tragt (review-fund)
 | Fund | Status | Bevis |
 |---|---|---|
@@ -66,18 +206,23 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | P #7/#4/#8 mail-leads hentede alle mail-leads; prissync/intelligence-check uden maxDuration | DONE | `leads-json-in-probe` |
 | P realtime: én fuld genindlæsning pr. ændret række + forældet closure (indbakken kunne vise gammelt filter efter en realtime-hændelse) | DONE — debounce 1,5 s + seneste callback | UI-regression |
 | P #1/#3/#5/#6/#9/#10 "kræver svar" genberegnes pr. kald; dashboard-widgets i kæde; 25× lukkeklar-tjek; tællinger via hele tabeller; faktura-/ufaktureret-summer i JS | LATER — prod-volumen lille (5 leads, 109 kunder, 15 tilbud, ~800 mails); bedste løsning er DB-aggregater/visninger (kræver migration) eller samlet server-hentning af widgets | — |
-| HR #1 (S1) time_logs skrivbar på alle kolonner via REST (egne timer: beløb, fakturabinding, sats) | **BLOCKED_APPROVAL** — udkast 00208 på branch `time-logs-grants-00208` (kolonne-grants + sats-ejerskab); prod-bevis `prod-time-logs-update-privs.ts` | — |
+| HR #1 (S1) time_logs skrivbar på alle kolonner via REST (egne timer: beløb, fakturabinding, sats) | **S1 CLOSED** — 00208 i prod 2026-10-09 (Henrik godkendt). 00205 var ikke kørt; guard-delen fjernet fra 00205-udkastet (00208 er overmængden) | prod `prod-flow-check-00208.ts` pre 10/10 (hul bekræftet med rigtig montør) → post 10/10 (42501 på beløb/faktura/snapshots/kollegas+inaktiv sats; egen sats + sluttid nulstiller godkendelse; ny registrering virker; kun 6 UPDATE-kolonner); `prod-flow-check-00198-00202` 4/4; db-audit 0/0/0; staging pipeline/afviste/grants grøn, UI 16/16 |
 | HR #2 fire-øjne (indtaster = godkender) | BLOCKED_DECISION/migration (`created_by` på time_logs) | — |
 | HR #3/#4/#5/#6/#7 godkendelse af ubeset ændring; afvisning af fakturerede timer; afviste timer i totaler; teamproduktivitet afkortet/"Ukendt" | DONE | `week-hours-test` |
 | Eksport: tilbud/projekter/kalkulationer afkortet ved 1.000; kalkulationseksport uden gate | DONE | — |
 | K #1 (S1) Kalkia "Opret tilbud" ≠ vist pris; #2 import uden avance/rabat/kost; #3 salgspakke på låst tilbud; #4 AI-tilbud fejlede altid; #5 arbejdskost kvadratisk; #6 sale_price ≠ unit_price | DONE | tsc/gates |
-| S #1 (S1) storage-politikker kun på bucket_id (alle kan læse/overskrive alle filer) | App DONE (al fil-adgang via service-klient bag gates, UI upload-regression 15/15); **BLOCKED_APPROVAL** 00209 på branch `storage-lockdown-00209` | `prod-storage-policies.ts` |
+| S #1 (S1) storage-politikker kun på bucket_id (alle kan læse/overskrive alle filer) | **S1 CLOSED** — 00209 + 00210 i prod 2026-10-09 (se prod-kørsel øverst) | `prod-role-check-00209.ts post` 3/3 |
 | S #2 (S1) partnerportalen udleverede fuldmagt-PDF (CPR + underskrift) | DONE (deployet) | `partner-fuldmagt-leak-check` 3/3 |
 | S #3 besigtigelses-PDF overskrev hinanden (samme kunde, samme dag); #5/#6 upload uden type-/stitjek; #7 portalen signerede fremmede stier | DONE | `portal-token-rules-check` |
 | S #4 1-årige signerede links gemt i file_url (læsbare for alle) | DELVIS — nye kundedokumenter gemmer intet link. Gemte links virker til udløb uanset RLS → **BLOCKED_APPROVAL** (dataændring): `UPDATE customer_documents SET file_url = ''` hvor storage_path findes (læsere signerer allerede fra storage_path) + øvrige skrivesteder (fuldmagt, mailvedhæftninger, sagsbilag) — foreslås sammen med 00209 | — |
 | C #1 portal-links uden udløb og aktive for deaktiverede kunder | DONE — deaktiveret kunde afvises (også partner), nye links 365 dage, mail genbruger kun links med ≥ 30 dage tilbage | `portal-token-rules-check` |
 | C #2/#3 sletning tabte noter/tagtegninger/roller stille; retro-kobling af egne/system-adresser | DONE | — |
-| C #4–#7 CSV-import uden skema-validering/dublet-lås; primærkontakt; upload-oprydning | #7 DONE; #4–#6 LATER (lav volumen) | — |
+| C #4–#7 CSV-import uden skema-validering/dublet-lås; primærkontakt; upload-oprydning | DONE (import: skema i forhåndsvisning + ved indsættelse, dublet-tjek lige før insert, retro-kobling; primærkontakt skiftes efter vellykket insert / ud fra kontaktens egen kunde) | `customer-csv-import-test`, UI 15/15 |
+| S #4 rest: lead-vedhæftninger med 1-årigt link i leads.custom_fields | DONE — signeres ved klik (`getLeadAttachmentUrlAction`, kun stier på leadet, leads.view); intet link gemmes (prod: 0 leads med vedhæftninger → ingen dataændring) | U57/U133 |
+| Settings #1–#5 (webhook sammenlignede med ciphertext → korrekte kald fik altid 401; nøgler i integration_logs; hemmeligheder til browser; whitelist på firmaindstillinger; e-conomic-notifikation gemtes ikke) | DONE (app); integration_logs-RLS LATENT | `integration-webhook-check` 5/5 m. krypteret nøgle |
+| Sager #1 (faktura til betaler), #4–#10 | DONE | `case-payer-invoice-check` 2/2, planning-flow, invoice-pipeline |
+| Sager #2/#3 (montør/salg skriver direkte via REST) | **BLOCKED_APPROVAL** 00211 på branch `case-write-rows-00211` | `prod-table-write-policies.ts` |
+| Fuld UI-regression 2026-10-09 (efter 00208/00209/00210 på staging + dagens fixes) | smoke/crawl 21/21 · salg 29/29 · montør/økonomi 52/53 · portal/mail 33/33 → 135/136. Eneste afvigelse U73 = kendt flaky positiv kontrol (privatlivstjekket grønt, U44 bekræfter montørens timer). U88 fejlede pga. efterladt harness-sag fra afbrudt kørsel → test gjort robust (kolonneoverskrifter), sag ryddet | harness:ui-batches |
 | T11 talebeskeder (fundament) | DONE staging — flag ASSISTANT_VOICE_ENABLED (OFF), ingen live | `assistant-voice-check` 7/7 |
 | T12 ubesvaret opkald → tilbageringning | DONE (fundament) — `lib/integrations/relatel/missed-calls.ts`: kun ved præcis én kunde, idempotent pr. opkald, telefonsvarer i beskrivelsen, kalender 📞; Relatel-klienten er fortsat 'disabled' (ingen cron, intet live) | `missed-call-check` 8/8 |
 

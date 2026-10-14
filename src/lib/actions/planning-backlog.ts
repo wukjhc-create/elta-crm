@@ -99,7 +99,9 @@ async function workOrdersWithTime(supabase: Awaited<ReturnType<typeof getAuthent
   for (let i = 0; i < ids.length; i += 100) {
     const chunk = ids.slice(i, i + 100)
     for (let from = 0; from < 100_000; from += 1000) {
-      const { data, error } = await supabase.from('time_logs').select('id, work_order_id').in('work_order_id', chunk).order('id').range(from, from + 999)
+      const { data, error } = await supabase.from('time_logs').select('id, work_order_id').in('work_order_id', chunk)
+        // Planlægnings-review 2026-10-09 (#6): afviste timer tæller aldrig (00202) — et job med kun afviste timer er "uden tid"
+        .neq('approval_status', 'rejected').order('id').range(from, from + 999)
       if (error) { logger.error('workOrdersWithTime: time_logs failed', { error }); return null }
       for (const l of (data ?? []) as Array<{ work_order_id: string }>) out.add(l.work_order_id)
       if (!data || data.length < 1000) break
@@ -131,20 +133,26 @@ export async function getJobsWithoutTimeAction(): Promise<ActionResult<{ items: 
 
     const today = copenhagenParts(new Date()).date
     const from = copenhagenParts(new Date(Date.now() - 60 * 86_400_000)).date
-    const { data: wos, error } = await supabase
-      .from('work_orders')
-      .select('id, case_id, title, status, scheduled_date, assigned_employee_id')
-      .neq('status', 'cancelled')
-      .not('assigned_employee_id', 'is', null)
-      .lt('scheduled_date', today)
-      .gte('scheduled_date', from)
-      .order('scheduled_date', { ascending: true })
-      .limit(500)
-    if (error) {
+    // Planlægnings-review 2026-10-09 (#6): alle rækker (før .limit(500) → total undertalt og nyere job tabt)
+    let wos: unknown[]
+    try {
+      wos = await fetchAllRows((f, t) =>
+        supabase
+          .from('work_orders')
+          .select('id, case_id, title, status, scheduled_date, assigned_employee_id')
+          .neq('status', 'cancelled')
+          .not('assigned_employee_id', 'is', null)
+          .lt('scheduled_date', today)
+          .gte('scheduled_date', from)
+          .order('scheduled_date', { ascending: true })
+          .order('id')
+          .range(f, t)
+      )
+    } catch (error) {
       logger.error('getJobsWithoutTimeAction: work_orders failed', { error })
       return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
     }
-    const list = (wos ?? []) as Array<{ id: string; case_id: string | null; title: string; status: string; scheduled_date: string; assigned_employee_id: string }>
+    const list = wos as Array<{ id: string; case_id: string | null; title: string; status: string; scheduled_date: string; assigned_employee_id: string }>
     if (!list.length) return { success: true, data: { items: [], total: 0 } }
 
     const withTime = await workOrdersWithTime(supabase, list.map((w) => w.id))

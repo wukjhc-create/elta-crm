@@ -45,12 +45,15 @@ async function handleCron(request: Request): Promise<Response> {
       if (s.name) supplierTokens.add(String(s.name).toLowerCase().split(/\s+/)[0])
     }
 
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    // Cron-review 2026-10-09 (#5): 72 t i stedet for 24 t — mail synkes kun 05:00 (eller når nogen har mailsiden
+    // åben), så fakturaer modtaget efter synk faldt uden for næste vindue. Ingest er idempotent (duplicates).
+    const since = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
     const { data: emails } = await supabase
       .from('incoming_emails')
       .select('id, sender_email, subject, has_attachments')
       .gte('received_at', since)
       .or('has_attachments.eq.true,subject.ilike.%faktura%,subject.ilike.%invoice%')
+      .order('received_at', { ascending: false })
       .limit(200)
 
     const summary = { scanned: 0, ingested: 0, duplicates: 0, errors: 0 }

@@ -321,7 +321,7 @@ ${(body || '').substring(0, 2500)}`,
       return null
     }
 
-    void recordAiCall(1)
+    await recordAiCall(1)
 
     const data = await res.json()
     const content = data.choices?.[0]?.message?.content

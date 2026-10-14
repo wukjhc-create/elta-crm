@@ -23,6 +23,7 @@ import type {
   ProjectCalculationInput,
 } from '@/types/calculation-intelligence.types'
 import type { ElectricalProjectResult, LoadEntry, ElectricalRoomInput } from '@/types/electrical.types'
+import { FALLBACK_COST_RATE } from '@/lib/services/rates'
 import { calculateElectricalProject } from '@/lib/services/electrical-engine'
 import { FALLBACK_SALE_RATE } from '@/lib/services/rates'
 
@@ -369,23 +370,29 @@ export class CalculationIntelligenceEngine {
     totalTimeSeconds += panelTimeSeconds
 
     // Total labor
+    // Henrik 2026-10-10 (kalkulations-review #8): "Timepris" er SALGSPRIS — arbejdet sælges til timer × timepris uden
+    // avance/overhead ovenpå (før: behandlet som kost og markeret op til ≈712 kr/t). Kost til DB = timer × kostsats
+    // (input.labor_cost_rate, ellers FALLBACK_COST_RATE som resten af systemet).
     const totalLaborHours = totalTimeSeconds / 3600
-    const totalLaborCost = totalLaborHours * hourlyRate
+    const totalLaborSale = totalLaborHours * hourlyRate
+    const laborCostRate = input.labor_cost_rate && input.labor_cost_rate > 0 ? input.labor_cost_rate : FALLBACK_COST_RATE
+    const totalLaborCost = totalLaborHours * laborCostRate
 
     // Other costs (transport, equipment rental, etc.)
     const totalOtherCosts = this.estimateOtherCosts(input, totalLaborHours)
 
-    // Cost price
+    // Cost price (faktisk kost: materialer + arbejdskost + øvrige)
     const costPrice = totalMaterialCost + totalLaborCost + totalOtherCosts
 
-    // Overhead and risk
-    const overheadAmount = costPrice * (overheadPct / 100)
-    const riskAmount = costPrice * (riskPct / 100)
+    // Overhead, risiko og avance kun på materialer + øvrige omkostninger (arbejdet er allerede salgspris)
+    const markupBasis = totalMaterialCost + totalOtherCosts
+    const overheadAmount = markupBasis * (overheadPct / 100)
+    const riskAmount = markupBasis * (riskPct / 100)
 
     // Margin
-    const salesBasis = costPrice + overheadAmount + riskAmount
+    const salesBasis = markupBasis + overheadAmount + riskAmount
     const marginAmount = salesBasis * (marginPct / 100)
-    const salePriceExclVat = salesBasis + marginAmount
+    const salePriceExclVat = salesBasis + marginAmount + totalLaborSale
 
     // Discount
     const discountAmount = salePriceExclVat * (discountPct / 100)
@@ -415,6 +422,7 @@ export class CalculationIntelligenceEngine {
       total_material_cost: Math.round(totalMaterialCost * 100) / 100,
       total_cable_meters: Math.round(totalCableMeters * 100) / 100,
       total_labor_cost: Math.round(totalLaborCost * 100) / 100,
+      total_labor_sale: Math.round(totalLaborSale * 100) / 100,
       total_other_costs: Math.round(totalOtherCosts * 100) / 100,
       cost_price: Math.round(costPrice * 100) / 100,
       overhead_amount: Math.round(overheadAmount * 100) / 100,
@@ -916,11 +924,15 @@ export class CalculationIntelligenceEngine {
   // =====================================================
 
   static simulateProfit(input: ProfitSimulationInput): ProfitSimulationResult {
-    const laborCost = input.hourly_rate * input.total_hours
+    // Henrik 2026-10-10: timepris = SALGSPRIS (som calculateProject) — arbejdet sælges til timer × timepris uden
+    // overhead/risiko/avance; kost til DB = timer × kostsats; overhead/risiko/avance kun på materialer
+    const laborSale = input.hourly_rate * input.total_hours
+    const laborCostRate = input.labor_cost_rate && input.labor_cost_rate > 0 ? input.labor_cost_rate : FALLBACK_COST_RATE
+    const laborCost = laborCostRate * input.total_hours
     const costPrice = input.material_cost + laborCost
-    const overheadAmount = costPrice * (input.overhead_percentage / 100)
-    const riskAmount = costPrice * (input.risk_percentage / 100)
-    const salesBasis = costPrice + overheadAmount + riskAmount
+    const overheadAmount = input.material_cost * (input.overhead_percentage / 100)
+    const riskAmount = input.material_cost * (input.risk_percentage / 100)
+    const salesBasis = input.material_cost + overheadAmount + riskAmount
 
     // Generate scenarios
     const marginScenarios = [
@@ -935,7 +947,7 @@ export class CalculationIntelligenceEngine {
 
     const scenarios: ProfitScenario[] = marginScenarios.map((s) => {
       const marginAmount = salesBasis * (s.margin / 100)
-      const salePriceExclVat = salesBasis + marginAmount
+      const salePriceExclVat = salesBasis + marginAmount + laborSale
       const discountAmount = salePriceExclVat * (s.discount / 100)
       const netPrice = salePriceExclVat - discountAmount
       const vatAmount = netPrice * (input.vat_percentage / 100)

@@ -148,6 +148,8 @@ export function SignatureDialog({
         signer_name: name,
         signer_email: email,
         signature_data: signatureData,
+        seen_final_amount: offer.final_amount,
+        seen_sent_at: offer.sent_at,
       })
 
       if (!result.success) {

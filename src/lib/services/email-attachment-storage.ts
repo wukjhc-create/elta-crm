@@ -13,7 +13,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { fetchAttachmentContent } from '@/lib/services/microsoft-graph'
 import { logger } from '@/lib/utils/logger'
-import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 
 // =====================================================
 // Service role client for storage operations
@@ -106,7 +105,8 @@ export async function downloadAndStoreAttachment(
     // 5. Phase β.2.2: signed URL (1 år) i stedet for public URL.
     //    Mail-vedhaeftninger gemmes i incoming_emails.attachment_urls
     //    og bruges af UI; storagePath bevares saa consumer kan refreshe.
-    const publicUrl = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.YEAR) ?? ''
+    // Storage-review 2026-10-09: intet 1-års link gemmes — læsere signerer friskt fra storagePath (lib/mail/attachment-links)
+    const publicUrl = ''
 
     logger.info('Attachment stored', {
       entity: 'incoming_emails',
@@ -165,20 +165,27 @@ export async function processEmailAttachments(
   // 2. Store each attachment that has content
   const stored: StoredAttachment[] = []
 
-  for (const att of attachments) {
+  for (const [index, att] of attachments.entries()) {
     if (!att.contentBytes) continue
 
     try {
       const buffer = Buffer.from(att.contentBytes, 'base64')
+      // Mail-review 2026-10-09 (#6): højst 25 MB pr. fil
+      if (buffer.length > MAX_ATTACHMENT_BYTES) {
+        logger.warn('Attachment skipped (too large)', { entity: 'incoming_emails', entityId: emailId, metadata: { size: buffer.length } })
+        continue
+      }
       const safeName = sanitizeFilename(att.name || 'unnamed')
-      const storagePath = `email-attachments/${emailId}/${safeName}`
+      // Index-præfiks: to vedhæftninger med samme (rensede) navn overskrev før hinanden (upsert) og pegede på samme fil
+      const storagePath = `email-attachments/${emailId}/${index}-${safeName}`
 
       const supabase = getServiceClient()
 
       const { error: uploadError } = await supabase.storage
         .from('attachments')
         .upload(storagePath, buffer, {
-          contentType: att.contentType || 'application/octet-stream',
+          // Afsenderens content-type stoles ikke på for aktive typer (html/svg/xml/js)
+          contentType: safeContentType(att.contentType),
           upsert: true,
         })
 
@@ -193,7 +200,8 @@ export async function processEmailAttachments(
       }
 
       // Phase β.2.2: signed URL (1 år) i stedet for public.
-      const signedUrl = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.YEAR) ?? ''
+      // Storage-review 2026-10-09: intet 1-års link gemmes — læsere signerer friskt fra storagePath
+      const signedUrl = ''
 
       stored.push({
         filename: att.name,
@@ -337,7 +345,7 @@ async function archiveAttachmentsToCustomerDocuments(
           title: `${att.filename} — ${subjectLabel}`,
           description,
           document_type: 'other',
-          file_url: att.url,
+          file_url: '', // 00210: læsere signerer friskt fra storage_path
           storage_path: att.storagePath,
           file_name: att.filename,
           mime_type: att.contentType || 'application/octet-stream',
@@ -375,4 +383,12 @@ async function archiveAttachmentsToCustomerDocuments(
       })
     }
   }
+}
+
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+
+function safeContentType(contentType: string | null | undefined): string {
+  const ct = (contentType || '').toLowerCase().trim()
+  if (!ct || /html|svg|xml|javascript|ecmascript/.test(ct)) return 'application/octet-stream'
+  return ct
 }

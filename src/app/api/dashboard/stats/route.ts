@@ -11,8 +11,12 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { copenhagenParts, copenhagenLocalToIso, calendarDaysSince } from '@/lib/utils/copenhagen-time'
 import { logger } from '@/lib/utils/logger'
+import { getUserRoleForPage } from '@/lib/auth/page-guard'
+import type { UserRole } from '@/types/auth.types'
 
 export const dynamic = 'force-dynamic'
+
+const OPS_ROLES: UserRole[] = ['admin', 'serviceleder', 'bogholderi'] as UserRole[]
 
 interface DashboardStats {
   generated_at: string
@@ -145,7 +149,7 @@ export async function GET() {
         .limit(8),
       supabase
         .from('invoices')
-        .select('id, invoice_number, final_amount, currency, due_date, customer_id')
+        .select('id, invoice_number, final_amount, amount_paid, currency, due_date, customer_id')
         .eq('status', 'sent')
         .neq('payment_status', 'paid')
         .neq('invoice_type', 'credit')
@@ -155,12 +159,16 @@ export async function GET() {
         .limit(10),
     ])
 
-    const overdue_invoices = (overdueRes.data ?? []).map((r) => {
+    // Rapport-review 2026-10-09 (#1): vist beløb = åbent beløb (− betalt − kreditnotaer); fuldt dækkede udelades
+    const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
+    const overdueRows = overdueRes.data ?? []
+    const credited = await creditedByOriginal(supabase, overdueRows.map((r) => r.id as string)).catch(() => new Map<string, number>())
+    const overdue_invoices = overdueRows.filter((r) => openAmount(r as { id: string; final_amount: number; amount_paid: number }, credited) > 0).map((r) => {
       const daysOverdue = r.due_date ? Math.max(0, calendarDaysSince(String(r.due_date), now)) : 0
       return {
         id: r.id,
         invoice_number: r.invoice_number,
-        final_amount: Number(r.final_amount) || 0,
+        final_amount: openAmount(r as { id: string; final_amount: number; amount_paid: number }, credited),
         currency: r.currency || 'DKK',
         due_date: r.due_date,
         days_overdue: daysOverdue,
@@ -169,8 +177,12 @@ export async function GET() {
     })
 
     // System health — already safely-fallbacked internally.
+    // Cron-review 2026-10-09 (#7): driftsloggen (postkasser, bank-id'er, modtagerlister) kun for samme roller som
+    // system_alerts (admin/serviceleder/bogholderi); øvrige får en tom oversigt
+    const role = await getUserRoleForPage()
+    const canSeeOps = OPS_ROLES.includes(role)
     let systemHealth: DashboardStats['system_health'] = { overall: 'ok', services: [] }
-    try {
+    if (canSeeOps) try {
       const { getSystemHealth } = await import('@/lib/services/system-health')
       const snap = await getSystemHealth()
       systemHealth = {
@@ -195,7 +207,7 @@ export async function GET() {
         invoices_sent: invoicesSent,
         invoices_overdue: invoicesOverdue,
         payments_today: paymentsToday,
-        system_errors_last_hour: systemErrors,
+        system_errors_last_hour: canSeeOps ? systemErrors : 0,
       },
       latest_emails: (latestEmailsRes.data ?? []).map((r) => ({
         id: r.id,

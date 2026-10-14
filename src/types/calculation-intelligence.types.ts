@@ -165,6 +165,8 @@ export interface ProjectEstimate {
   total_material_cost: number
   total_cable_meters: number
   total_labor_cost: number
+  /** Arbejde til salgspris (timer × timepris) — indgår uden avance i salgsprisen */
+  total_labor_sale: number
   total_other_costs: number
   cost_price: number
   overhead_amount: number
@@ -292,6 +294,8 @@ export interface SystemAlert {
 export interface ProfitSimulationInput {
   cost_price: number
   hourly_rate: number
+  /** Kostsats pr. time til DB (standard FALLBACK_COST_RATE) */
+  labor_cost_rate?: number
   total_hours: number
   material_cost: number
   overhead_percentage: number
@@ -353,6 +357,8 @@ export interface ProjectCalculationInput {
   building_type?: string
   building_age_years?: number
   hourly_rate?: number
+  /** Kostsats pr. time til DB-beregning (standard FALLBACK_COST_RATE) */
+  labor_cost_rate?: number
   overhead_percentage?: number
   risk_percentage?: number
   margin_percentage?: number

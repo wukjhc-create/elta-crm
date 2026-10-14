@@ -121,7 +121,7 @@ export async function createInvoiceDraftFromCase(
   // ---- 1. Validate sag + customer ----
   const { data: sag, error: sagErr } = await supabase
     .from('service_cases')
-    .select('id, customer_id, case_number')
+    .select('id, customer_id, payer_customer_id, case_number')
     .eq('id', caseId)
     .maybeSingle()
   if (sagErr || !sag) {
@@ -170,7 +170,7 @@ export async function createInvoiceDraftFromCase(
     .from('invoices')
     .insert({
       invoice_number: invoiceNumber,
-      customer_id: sag.customer_id,
+      customer_id: sag.payer_customer_id ?? sag.customer_id, // sags-review 2026-10-09 (#1): fakturaen udstedes til sagens BETALER (fx installatør-partner), ellers sagens kunde
       case_id: sag.id,
       status: 'draft' as const,
       payment_status: 'pending' as const,

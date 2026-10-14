@@ -205,7 +205,7 @@ export async function createTimeLog(
     // Validate work_order exists and grab case_id for revalidate.
     const { data: wo, error: woErr } = await supabase
       .from('work_orders')
-      .select('id, case_id, status')
+      .select('id, case_id, status, case:service_cases(status)')
       .eq('id', input.work_order_id)
       .maybeSingle()
     if (woErr || !wo) {
@@ -213,6 +213,11 @@ export async function createTimeLog(
     }
     if (wo.status === 'cancelled') {
       return { success: false, error: 'Kan ikke registrere timer på en annulleret arbejdsordre' }
+    }
+    {
+      // Sags-review 2026-10-09 (#6): ingen nye timer på en lukket sag
+      const cs = (wo as { case?: { status?: string } | Array<{ status?: string }> | null }).case
+      if ((Array.isArray(cs) ? cs[0] : cs)?.status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
     }
 
     // Validate employee exists + active.

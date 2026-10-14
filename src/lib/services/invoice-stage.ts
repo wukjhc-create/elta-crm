@@ -92,7 +92,7 @@ export async function createStageInvoiceForCase(
   // 1. Sag + customer + basis-værdi
   const { data: sag } = await supabase
     .from('service_cases')
-    .select('id, case_number, customer_id, contract_sum, revised_sum')
+    .select('id, case_number, customer_id, payer_customer_id, contract_sum, revised_sum')
     .eq('id', input.case_id)
     .maybeSingle()
   if (!sag) return { ...empty, message: 'Sag ikke fundet' }
@@ -204,7 +204,7 @@ export async function createStageInvoiceForCase(
     .from('invoices')
     .insert({
       invoice_number: invoiceNumber,
-      customer_id: sag.customer_id,
+      customer_id: sag.payer_customer_id ?? sag.customer_id, // sags-review 2026-10-09 (#1): fakturaen udstedes til sagens BETALER (fx installatør-partner), ellers sagens kunde
       case_id: sag.id,
       status: 'draft' as const,
       payment_status: 'pending' as const,
@@ -368,7 +368,7 @@ export async function createFinalInvoiceForCase(
   // 1. Sag + customer
   const { data: sag } = await supabase
     .from('service_cases')
-    .select('id, case_number, customer_id')
+    .select('id, case_number, customer_id, payer_customer_id')
     .eq('id', input.case_id)
     .maybeSingle()
   if (!sag) return { ...empty, message: 'Sag ikke fundet' }
@@ -627,7 +627,7 @@ export async function createFinalInvoiceForCase(
     .from('invoices')
     .insert({
       invoice_number: invoiceNumber,
-      customer_id: sag.customer_id,
+      customer_id: sag.payer_customer_id ?? sag.customer_id, // sags-review 2026-10-09 (#1): fakturaen udstedes til sagens BETALER (fx installatør-partner), ellers sagens kunde
       case_id: sag.id,
       status: 'draft' as const,
       payment_status: 'pending' as const,

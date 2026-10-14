@@ -358,7 +358,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                         if (task.due_date) {
                           const d = new Date(task.due_date)
                           setCurrentDate(new Date(d.getFullYear(), d.getMonth(), 1))
-                          setSelectedDate(task.due_date.slice(0, 10))
+                          setSelectedDate(copenhagenParts(task.due_date).date)
                         }
                       }}
                       className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"

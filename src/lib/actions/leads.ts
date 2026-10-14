@@ -277,6 +277,9 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       status: data.status,
     })
 
+    // Henrik 2026-10-10: personlig notifikation når leadet tildeles en anden end opretteren
+    if (data.assigned_to && data.assigned_to !== userId) await notifyLeadAssigned(data.assigned_to as string, data.id as string, String(data.company_name ?? ''))
+
     revalidatePath('/leads')
     return { success: true, data: data as Lead }
   } catch (err) {
@@ -377,6 +380,8 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
             activity_type: 'assigned',
             description: 'Lead tildelt ny ansvarlig',
           })
+          // Henrik 2026-10-10: personlig notifikation til den nye ansvarlige (ikke ved selv-tildeling)
+          if (data.assigned_to !== userId) await notifyLeadAssigned(data.assigned_to as string, data.id as string, String(data.company_name ?? ''))
         } else {
           activities.push({
             activity_type: 'unassigned',
@@ -730,4 +735,38 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette kunde fra lead') }
   }
+}
+
+/**
+ * Storage-review 2026-10-09: et frisk, kortlivet download-link til en fil fra leadets kildemail. Før stod et 1-årigt
+ * signeret link i leads.custom_fields (læsbart for alle indloggede). Kun stier der står på DETTE lead, kun leads.view.
+ */
+export async function getLeadAttachmentUrlAction(leadId: string, storagePath: string): Promise<ActionResult<{ url: string }>> {
+  try {
+    validateUUID(leadId, 'lead ID')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.view')) return { success: false, error: 'Manglende tilladelse: leads.view' }
+    const { data: lead } = await supabase.from('leads').select('custom_fields').eq('id', leadId).maybeSingle()
+    const atts = (((lead as { custom_fields?: Record<string, unknown> } | null)?.custom_fields?.attachments ?? []) as Array<{ leadStoragePath?: string; sourcePath?: string }>)
+    const allowed = atts.some((a) => a.leadStoragePath === storagePath || a.sourcePath === storagePath)
+    if (!allowed || !storagePath || storagePath.includes('..')) return { success: false, error: 'Filen hører ikke til leadet' }
+    const { getStorageSignedUrlOrNull, SIGNED_URL_TTL } = await import('@/lib/storage/signed-url')
+    const url = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.SHORT)
+    return url ? { success: true, data: { url } } : { success: false, error: 'Filen findes ikke længere' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente filen') }
+  }
+}
+
+async function notifyLeadAssigned(assigneeId: string, leadId: string, companyName: string): Promise<void> {
+  const { notifyUser } = await import('@/lib/notifications/user-notify')
+  const { escapeHtml } = await import('@/lib/utils/html-escape')
+  const { APP_URL } = await import('@/lib/constants')
+  const link = `${APP_URL}/dashboard/leads/${leadId}`
+  await notifyUser(assigneeId, 'new_lead', {
+    subject: `Lead tildelt dig: ${companyName}`,
+    html: `<p>Leadet <strong>${escapeHtml(companyName)}</strong> er tildelt dig i ELTA Drift.</p><p><a href="${link}">Åbn leadet</a></p>`,
+    text: `Leadet "${companyName}" er tildelt dig i ELTA Drift.
+${link}`,
+  })
 }

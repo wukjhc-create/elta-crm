@@ -347,7 +347,7 @@ export function RoomCalculatorClient() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs text-gray-500">Timepris (kr)</label>
+                  <label className="text-xs text-gray-500">Timepris, salg (kr)</label>
                   <input
                     type="number"
                     className="w-full border rounded px-2 py-1.5 text-sm mt-1"
@@ -646,7 +646,11 @@ export function RoomCalculatorClient() {
                   <span>{Math.ceil(estimate.total_labor_hours / 8)} dage</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Arbejdsløn:</span>
+                  <span className="text-gray-500">Arbejde (salg):</span>
+                  <span>{formatCurrency(estimate.total_labor_sale)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Arbejde (kost):</span>
                   <span>{formatCurrency(estimate.total_labor_cost)}</span>
                 </div>
               </div>

@@ -29,8 +29,11 @@ interface PageProps {
 
 export default async function CustomersPage({ searchParams }: PageProps) {
   const params = await searchParams
-  const page = params.page ? parseInt(params.page, 10) : 1
-  const pageSize = params.pageSize ? parseInt(params.pageSize, 10) : 25
+  // Kunde-review 2026-10-09 (#8): ?page=-1/abc gav negativ/NaN range → fejlside
+  const pageRaw = params.page ? parseInt(params.page, 10) : 1
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1
+  const sizeRaw = params.pageSize ? parseInt(params.pageSize, 10) : 25
+  const pageSize = Number.isFinite(sizeRaw) ? Math.min(100, Math.max(1, sizeRaw)) : 25
   const search = params.search || undefined
   const is_active = params.is_active === 'true' ? true : params.is_active === 'false' ? false : undefined
   const sortBy = params.sortBy || undefined

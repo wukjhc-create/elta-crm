@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
+import { maybeDecryptSecret } from '@/lib/services/integration-secrets'
 import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 import { isValidOfferTransition, type OfferStatus } from '@/types/offers.types'
@@ -107,7 +108,14 @@ export async function POST(
       }
 
       const providedKey = authHeader.replace('Bearer ', '')
-      const expected = Buffer.from(integration.api_key)
+      // Settings-review 2026-10-09: api_key lagres krypteret (enc:v1:…) — før blev nøglen sammenlignet med ciphertexten,
+      // så korrekte partnerkald altid fik 401. Dekrypter; fejler det → afvis (fail-closed).
+      const storedKey = await maybeDecryptSecret(integration.api_key as string)
+      if (!storedKey) {
+        logger.warn('integration webhook: unauthorized', { entityId: integrationId, metadata: { reason: 'API key not decryptable' } })
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      const expected = Buffer.from(storedKey)
       const provided = Buffer.from(providedKey)
       const keysMatch = expected.length === provided.length &&
         timingSafeEqual(expected, provided)

@@ -118,6 +118,10 @@ export async function getComponentTimeData(): Promise<ActionResult<ComponentTime
 export async function calculateProject(
   input: ProjectCalculationInput
 ): Promise<ActionResult<ProjectEstimate>> {
+  // Kalkulations-review 2026-10-09 (#9b): resultatet indeholder kostpris/DB — kun roller med kalkulationsværktøjet
+  // (før kun login: salg/montør fik kost og dækningsbidrag)
+  const __denied = await permissionDenied('tools.calculations')
+  if (__denied) return { success: false, error: __denied }
   try {
     const { supabase } = await getAuthenticatedClient()
 
@@ -488,9 +492,10 @@ export async function getOfferTextTemplates(
 export async function simulateProfit(
   input: ProfitSimulationInput
 ): Promise<ActionResult<ProfitSimulationResult>> {
+  // Resultatet er kost/DB — samme gate som calculateProject (før kun login)
+  const __denied = await permissionDenied('tools.calculations')
+  if (__denied) return { success: false, error: __denied }
   try {
-    await requireAuth()
-
     const result = CalculationIntelligenceEngine.simulateProfit(input)
     return { success: true, data: result }
   } catch (err) {
@@ -711,8 +716,11 @@ export async function convertCalculationToOffer(
         .insert(lineItems)
 
       if (liError) {
-        logger.error('Error creating line items', { error: liError })
-        // Don't fail - offer is created, just missing line items
+        // Tilbuds-review 2026-10-09 (#10): ingen kladde med total uden linjer — rul tilbuddet tilbage (som
+        // duplicateOfferAction/kalkia-calculations)
+        logger.error('Error creating line items — rolling back offer', { error: liError })
+        await supabase.from('offers').delete().eq('id', offer.id).eq('status', 'draft')
+        return { success: false, error: 'Kunne ikke oprette tilbudslinjerne — tilbuddet blev ikke oprettet' }
       }
     }
 
