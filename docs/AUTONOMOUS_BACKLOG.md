@@ -17,22 +17,22 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
 |---|---|---|
-| M-1 (S2) | Mail (/dashboard/mail) side-om-side liste/detalje + faneblade uden scroll → ubrugelig på mobil | TODO |
-| M-2 (S2) | Beskeder (/dashboard/inbox) fast w-56 mappekolonne + w-1/2 detalje | TODO |
-| M-3 (S2) | Bundnavigationen (z-50, senere i DOM) ligger over alle modaler → skjult Send-knap, tab af input | TODO |
-| M-4 (S2) | Opgavelisten: 8-kolonne-grid i overflow-hidden, handlinger kun ved hover | TODO |
-| M-5 (S2) | Usynlige slet-knapper (hover) uden bekræftelse: tilbudslinjer, kundeopgaver | TODO |
-| M-6/7 (S3) | Tilbuds-/lead-hoved med 8/4 knapper uden ombrydning | TODO |
-| M-8 (S3) | Rækkemenuer/statusdropdown klippes i tabeller (overflow) | TODO |
-| M-9 (S3) | Tilbudslisten viser ikke kunden på mobil | TODO |
-| M-10/11 (S3) | Knapper vises uden rettighed (kundekort, slet-knapper for salg) | TODO |
-| M-12 (S3) | "Eksporter" på tilbud kræver settings.economic → fejltoast for salg/serviceleder | TODO |
-| M-13/14 (S3) | Dashboard-genveje/-kort ignorerer rolle; "Nyt Projekt" opretter usynlige legacy-projekter | TODO |
-| M-15 (S3) | Mobilmenuen mangler kontormoduler; salg mangler Leads i bundnavigationen | TODO |
-| M-16 (S3) | Ny sag: "Ansvarlig" tom for serviceleder/salg (users.view); "+ Ny sag" vises for bogholderi | TODO |
-| M-17 (S3) | Inline-linjer: dobbelt "Tilføj linje"; fejlet gem markeres som gemt | TODO |
-| M-18 (S3) | Opgavedialog lukker ved tryk på baggrunden (tab af input) | TODO |
-| M-19/20 (S4) | Skraldespand som luk-ikon; "Låst"-årsag kun hover; avatar "U"; padding | TODO |
+| M-1 (S2) | Mail (/dashboard/mail) side-om-side liste/detalje + faneblade uden scroll → ubrugelig på mobil | DONE (UI U153) |
+| M-2 (S2) | Beskeder (/dashboard/inbox) fast w-56 mappekolonne + w-1/2 detalje | DONE (UI U153) |
+| M-3 (S2) | Bundnavigationen (z-50, senere i DOM) ligger over alle modaler → skjult Send-knap, tab af input | DONE (UI U153) |
+| M-4 (S2) | Opgavelisten: 8-kolonne-grid i overflow-hidden, handlinger kun ved hover | DONE (UI U153) |
+| M-5 (S2) | Usynlige slet-knapper (hover) uden bekræftelse: tilbudslinjer, kundeopgaver | DONE (UI U153) |
+| M-6/7 (S3) | Tilbuds-/lead-hoved med 8/4 knapper uden ombrydning | DONE (UI U153) |
+| M-8 (S3) | Rækkemenuer/statusdropdown klippes i tabeller (overflow) | LATER (portal/fixed-positionering af menuer) |
+| M-9 (S3) | Tilbudslisten viser ikke kunden på mobil | DONE (UI U153) |
+| M-10/11 (S3) | Knapper vises uden rettighed (kundekort, slet-knapper for salg) | DONE (UI U153) |
+| M-12 (S3) | "Eksporter" på tilbud kræver settings.economic → fejltoast for salg/serviceleder | DONE (UI U153) |
+| M-13/14 (S3) | Dashboard-genveje/-kort ignorerer rolle; "Nyt Projekt" opretter usynlige legacy-projekter | DONE (UI U153) |
+| M-15 (S3) | Mobilmenuen mangler kontormoduler; salg mangler Leads i bundnavigationen | DONE (UI U153) |
+| M-16 (S3) | Ny sag: "Ansvarlig" tom for serviceleder/salg (users.view); "+ Ny sag" vises for bogholderi | DONE (UI U153) |
+| M-17 (S3) | Inline-linjer: dobbelt "Tilføj linje"; fejlet gem markeres som gemt | DONE (UI U153) |
+| M-18 (S3) | Opgavedialog lukker ved tryk på baggrunden (tab af input) | DONE (UI U153) |
+| M-19/20 (S4) | Skraldespand som luk-ikon; "Låst"-årsag kun hover; avatar "U"; padding | DONE (X-ikon, Låst ved tryk); avatar/padding: LATER |
 
 ## Checkpoint 2026-10-14 aften (long-run)
 - **I prod (push = deploy):** L-7 ret fakturahoved · PE-6 kontraktsum-DB · PE-7 fælles DB-tærskler · arbejdskost trin 2 (adfærdsneutralt)

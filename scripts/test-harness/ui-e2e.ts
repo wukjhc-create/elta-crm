@@ -3213,7 +3213,7 @@ ${m.text()}`) })
           await gotoSafe(sp.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
           await sp.page.getByRole('button', { name: /Nyt tilbud/ }).first().waitFor({ timeout: 60_000 }).catch(() => {})
           r.salg_kundekort_nyt_tilbud = (await sp.page.getByRole('button', { name: /Nyt tilbud/ }).count()) > 0
-          r.salg_kundekort_ingen_slet = (await sp.page.getByRole('button', { name: /^Slet/ }).count()) === 0
+          r.salg_kundekort_ingen_slet = (await sp.page.getByTestId('customer-delete').count()) === 0
         } finally { await sp.ctx.close().catch(() => {}) }
         const bog = await mkUser('bogholderi')
         const bp = await login(bog)
@@ -3224,6 +3224,10 @@ ${m.text()}`) })
           r.bog_ingen_nyt_tilbud = (await bp.page.getByRole('button', { name: /Nyt Tilbud/ }).count()) === 0
           await gotoSafe(bp.page, `${base}/dashboard/orders`, { waitUntil: 'networkidle', timeout: 120_000 })
           r.bog_ingen_ny_sag = (await bp.page.getByRole('link', { name: /\+ Ny sag/ }).count()) === 0
+          // negativ kontrol: admin ser stadig slet-knappen
+          await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await a.page.getByTestId('customer-delete').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.admin_ser_slet = (await a.page.getByTestId('customer-delete').count()) > 0
         } finally { await bp.ctx.close().catch(() => {}) }
         await a.page.setViewportSize({ width: 375, height: 812 })
         await gotoSafe(a.page, `${base}/dashboard/mail`, { waitUntil: 'networkidle', timeout: 120_000 })

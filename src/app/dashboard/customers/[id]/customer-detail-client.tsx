@@ -287,6 +287,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             <button
               onClick={handleDelete}
               disabled={isDeleting}
+              data-testid="customer-delete"
+              aria-label="Slet kunde"
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 text-sm active:scale-95 transition-transform touch-manipulation"
             >
               <Trash2 className="w-4 h-4" />
