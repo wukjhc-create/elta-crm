@@ -55,15 +55,15 @@ function KpiCard({
   color: string
 }) {
   return (
-    <div className="bg-white rounded-lg border p-4">
+    <div className="bg-white rounded-lg border p-4 min-w-0">
       <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-lg ${color}`}>
+        <div className={`p-2 rounded-lg shrink-0 ${color}`}>
           <Icon className="w-5 h-5" />
         </div>
         <div className="min-w-0">
           <p className="text-xs text-gray-500 break-words">{label}</p>
-          <p className="text-lg font-bold text-gray-900">{value}</p>
-          {sublabel && <p className="text-xs text-gray-400">{sublabel}</p>}
+          <p className="text-lg font-bold text-gray-900 break-words">{value}</p>
+          {sublabel && <p className="text-xs text-gray-400 break-words">{sublabel}</p>}
         </div>
       </div>
     </div>
