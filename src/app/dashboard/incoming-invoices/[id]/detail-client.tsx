@@ -462,7 +462,7 @@ export function IncomingInvoiceDetailClient({
 
       <Panel title={`Linjer (${detail.lines.length})`}>
         {detail.lines.length === 0 ? (
-          <p className="text-xs text-gray-400">Ingen linjer ekstraheret.</p>
+          <p className="text-xs text-gray-400">Ingen linjer ekstraheret. Uden linjer er der ikke noget at kontrollere. Tjek bilaget nedenfor.</p>
         ) : (
           <>
           <div className="md:hidden space-y-2" data-testid="incoming-invoice-lines-mobile">
