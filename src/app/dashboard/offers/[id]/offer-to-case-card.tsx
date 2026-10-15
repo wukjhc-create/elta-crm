@@ -70,12 +70,12 @@ export function OfferToCaseCard({
   // --- Linked sag exists ---
   if (linkedCase) {
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
           <Briefcase className="w-5 h-5 text-emerald-700 shrink-0" />
           <div className="min-w-0">
             <div className="text-sm font-semibold text-emerald-900">Tilknyttet sag</div>
-            <div className="text-sm text-emerald-800 font-mono truncate">{linkedCase.case_number}</div>
+            <div className="text-sm text-emerald-800 font-mono break-all">{linkedCase.case_number}</div>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -215,7 +215,7 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   return (
     <div className="min-w-0">
       <div className="text-xs text-gray-500">{label}</div>
-      <div className={`text-sm text-gray-800 truncate ${mono ? 'font-mono' : ''}`}>{value}</div>
+      <div className={`text-sm text-gray-800 break-words ${mono ? 'font-mono break-all' : ''}`}>{value}</div>
     </div>
   )
 }
