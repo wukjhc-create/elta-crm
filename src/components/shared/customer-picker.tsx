@@ -18,6 +18,7 @@ export function CustomerPicker({ value, onChange, disabled, id = 'customer_picke
   placeholder?: string
 }) {
   const [selected, setSelected] = useState<CustomerPickerItem | null>(null)
+  const [selectedError, setSelectedError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<CustomerPickerItem[]>([])
   const [searchError, setSearchError] = useState<string | null>(null)
@@ -25,13 +26,29 @@ export function CustomerPicker({ value, onChange, disabled, id = 'customer_picke
   const [loading, setLoading] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
   const resultsQuery = useRef<string | null>(null)
+  const loadedFor = useRef<string | null>(null)
 
   // Vis navnet på en forvalgt kunde (redigering / "nyt tilbud fra kundekortet")
   useEffect(() => {
-    if (!value) { setSelected(null); return }
-    if (selected?.id === value) return
+    if (!value) { setSelected(null); setSelectedError(null); loadedFor.current = null; return }
+    if (selected?.id === value || loadedFor.current === value) return
     let alive = true
-    getCustomerPickerItemAction(value).then((r) => { if (alive && r.success) setSelected(r.data ?? null) })
+    getCustomerPickerItemAction(value).then((r) => {
+      if (!alive) return
+      loadedFor.current = value
+      if (r.success) {
+        setSelected(r.data ?? null)
+        setSelectedError(null)
+      } else {
+        setSelected(null)
+        setSelectedError('Kunden kunne ikke hentes. Det tælles ikke som ingen kunde.')
+      }
+    }).catch(() => {
+      if (!alive) return
+      loadedFor.current = value
+      setSelected(null)
+      setSelectedError('Kunden kunne ikke hentes. Det tælles ikke som ingen kunde.')
+    })
     return () => { alive = false }
   }, [value, selected?.id])
 
@@ -94,6 +111,9 @@ export function CustomerPicker({ value, onChange, disabled, id = 'customer_picke
             className="w-full pl-9 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
+      )}
+      {selectedError && (
+        <p className="mt-1 text-xs text-red-700 break-words" data-testid="customer-picker-selected-error">{selectedError}</p>
       )}
       {open && (
         <ul className="absolute z-20 mt-1 w-full max-h-64 overflow-auto bg-white border rounded-md shadow-lg" role="listbox">

@@ -1127,7 +1127,8 @@ export async function getCustomerPickerItemAction(id: string): Promise<ActionRes
     validateUUID(id, 'kunde ID')
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
-    const { data } = await supabase.from('customers').select('id, customer_number, company_name, contact_person, email').eq('id', id).maybeSingle()
+    const { data, error } = await supabase.from('customers').select('id, customer_number, company_name, contact_person, email').eq('id', id).maybeSingle()
+    if (error) return { success: false, error: 'Kunne ikke hente kunde' }
     return { success: true, data: (data as CustomerPickerItem | null) ?? null }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente kunde') }
