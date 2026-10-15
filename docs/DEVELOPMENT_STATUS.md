@@ -61,7 +61,17 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 | 6deca5e0 | B-11 testfaktura bag flag, S-10 danske lead-statusser, S-11 link i notifikation |
 | 606c647f | B-5 bogføringskrav "i gang", B-4/B-2 fakturaoverblik |
 
-Næste: S-5 (opfølgningsopgave lukkes, test kører), derefter NEXT-17 rest (B-3/B-6/B-7/B-9/B-10, S-2/S-6/S-7/S-8/S-9, M-7/M-9/M-12).
+| a4bf84ef | S-5 opfølgningsopgave lukkes ved accept/afvisning |
+| 8e0f44b3 | S-7 mailkobling hele tråden, S-9 opret kunde fra mail kræver customers.create |
+| 48f26330 | S-8 indbakkefejl, S-3 afventende ekskl. moms, B-9 "ordreindgang", "klar til lukning" over alle åbne sager (fundet under test) |
+| 27c2d77f | B-6/B-7 forfaldne leverandørfakturaer (DB-filter, kun DKK) |
+| fdfd9047 | S-2 inline-redigering bevarer oprindelig leverandørkost |
+| 6f1569f1 / 23c9d639 | M-7 paginering af arbejdsordrer, M-8 starttid, M-12 fravær-advarsel + tidsgodkendelse-loft |
+| 99d0d79b / e6607f94 | B-3 åbent beløb i fakturaoverblik, kundekort og betalingsmærke |
+| ab88d248 | S-6 send på mail: CAS + aktivitet + webhook (ikke UI-testet — ingen live mail) |
+| c7a5e91e / aa2c5d97 / 65b27c92 / 526fd8cc | S-4 kanban-besked, M-10 tap-mål, S-12 lettere dashboard, B-8 fane i URL, M-2 underskrift ved rotation |
+
+Næste: M-4 (foreslået start på tværs af arbejdsordrer, test kører), derefter M-9 (N+1 timer), B-10 tælle-optimering, S-8 tællere, S-11 tekst, B-9 faktureret serie, B-2 server-summer.
 
  → (løbende checkpoint)
 **Start:** 2026-10-01 20:18 dansk (18:18 UTC) · start-commit `4606dde`

@@ -3090,6 +3090,13 @@ ${m.text()}`) })
           const expEnd = new Date(copenhagenLocalToIso(today, '11:45')).getTime()
           r.timer_registreret = !!tl && tl.employee_id === jobEmployeeId && Number(tl.hours) === 4.25
           r.timer_dansk_tid = !!tl && new Date(tl.start_time!).getTime() === expStart && new Date(tl.end_time!).getTime() === expEnd
+          // M-4: ny registrering samme dag foreslår start efter seneste sluttid (før altid 08:00 → overlap)
+          await m.page.waitForLoadState('networkidle').catch(() => {})
+          await m.page.getByRole('button', { name: /Registrér timer/ }).first().click({ timeout: 30_000 }).catch(() => {})
+          let sugg = ''
+          for (let i = 0; i < 10 && sugg !== '11:45'; i++) { sugg = await m.page.locator('input[type="time"]').first().inputValue().catch(() => ''); if (sugg !== '11:45') await new Promise((res) => setTimeout(res, 500)) }
+          r.foreslaaet_start_efter_seneste = sugg === '11:45'
+          await m.page.getByRole('button', { name: 'Annuller' }).first().click({ timeout: 10_000 }).catch(() => {})
         }
 
         // Foto-upload på Dokumenter-fanen

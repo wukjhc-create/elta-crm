@@ -20,6 +20,7 @@ import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
 import {
   listTimeLogsForWorkOrder,
+  suggestTimeLogStartAction,
   createTimeLog,
   updateTimeLog,
   deleteRejectedTimeLogAction,
@@ -132,8 +133,18 @@ export function WorkOrderTimeLogs({
   const openForm = () => {
     const d = today()
     setDate(d)
-    setStartClock(suggestStart(d, employeeId))
+    const local = suggestStart(d, employeeId)
+    setStartClock(local)
     setShowForm(true)
+    // M-4: også registreringer på andre arbejdsordrer samme dag (serveren) — senere sluttid vinder
+    if (employeeId) {
+      suggestTimeLogStartAction(employeeId, d)
+        .then((r) => {
+          const clock = r.success ? r.data?.clock : null
+          if (clock && clock > local) setStartClock((cur) => (cur === local ? clock : cur))
+        })
+        .catch(() => {})
+    }
   }
 
   const resetForm = () => {

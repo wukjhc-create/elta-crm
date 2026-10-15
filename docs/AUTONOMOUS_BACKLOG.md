@@ -51,7 +51,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | M-1 (S1) | Tryk på afleveringsfoto sletter det uden bekræftelse (hover-skraldespand findes ikke på telefon) | DONE — tryk åbner fotoet; synlig 32 px slet-knap med "Slet foto?". UI U11 (annuller → foto bevaret) |
 | M-2 (S2) | Fejlet underskrift lukker paden (tegningen tabt); canvas skaleres ikke ved rotation | DONE — navn tjekkes før afsendelse, feltet lukkes kun ved succes; lærredet skaleres om ved rotation/resize med underskriften bevaret. UI U11/U50 |
 | M-3 (S2) | Timeformularen beholder gårsdagens dato når fanen står åben natten over | DONE — dato sættes (Københavnstid) når formularen åbnes |
-| M-4 (S2) | Anden "kun timer"-registrering samme dag fejler som overlap (start altid 08:00) | DELVIS — start foreslås efter medarbejderens seneste registrering samme dag på arbejdsordren; på tværs af arbejdsordrer = TODO (opslag) |
+| M-4 (S2) | Anden "kun timer"-registrering samme dag fejler som overlap (start altid 08:00) | DONE — start foreslås efter medarbejderens seneste sluttid samme dag, også på andre arbejdsordrer (suggestTimeLogStartAction; montør kun egen). UI U11 (foreslår 11:45) |
 | M-5 (S2) | Timer med komma ("7,5") afvises (type=number) | DONE — tekstfelt med decimal-tastatur (toNumberDa) |
 | M-6 (S2) | "Mine job" forsvinder tavst ved hentefejl | DONE — fejlkort med "Prøv igen" |
 | M-7 (S3) | Mine job henter alle åbne arbejdsordrer uden loft og filtrerer i JS (1.000-loft kan skjule egne) | DELVIS — pagineret (intet 1.000-loft, frisk forespørgsel pr. side), så egne job ikke skæres fra. DB-filter på montørens job = TODO (scope er arbejdsordre-id'er; .in()-grænse). UI U151/U43/U11/U160 |
