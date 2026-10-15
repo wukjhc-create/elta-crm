@@ -40,6 +40,18 @@ export function copenhagenDateLabel(value: string | Date, month: 'short' | 'long
   })
 }
 
+/** Synlig dato og klokkeslæt i dansk lokaltid. Værdien i databasen ændres ikke. */
+export function copenhagenDateTimeLabel(value: string | Date, month: 'short' | 'long' | 'numeric' = 'short'): string {
+  return new Date(value).toLocaleString('da-DK', {
+    timeZone: TZ,
+    day: 'numeric',
+    month,
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 /** ISO/Date -> { date: 'YYYY-MM-DD', clock: 'HH:mm' } i dansk lokaltid. */
 export function copenhagenParts(value: string | Date): { date: string; clock: string } {
   const p = parts(new Date(value).getTime())

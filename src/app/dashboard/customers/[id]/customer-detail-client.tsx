@@ -5,8 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission, type Permission } from '@/lib/auth/permissions'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
 import { CopyButton } from '@/components/shared/copy-button'
 import { useConfirm } from '@/components/shared/confirm-dialog'
@@ -738,20 +737,16 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Tidsstempler</h2>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <span className="text-gray-500">Oprettet</span>
-                  <span>
-                    {format(new Date(customer.created_at), 'd. MMM yyyy HH:mm', {
-                      locale: da,
-                    })}
+                  <span className="whitespace-nowrap">
+                    {copenhagenDateTimeLabel(customer.created_at)}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <span className="text-gray-500">Opdateret</span>
-                  <span>
-                    {format(new Date(customer.updated_at), 'd. MMM yyyy HH:mm', {
-                      locale: da,
-                    })}
+                  <span className="whitespace-nowrap">
+                    {copenhagenDateTimeLabel(customer.updated_at)}
                   </span>
                 </div>
               </div>
