@@ -60,6 +60,12 @@ export default async function TeamSettingsPage() {
         </div>
       </div>
 
+      {!invitationsResult.success && (
+        <p className="text-sm text-red-700" data-testid="team-invites-load-error">
+          {invitationsResult.error ?? 'Kunne ikke hente invitationer'}. Det tælles ikke som ingen invitationer.
+        </p>
+      )}
+
       <TeamSettingsClient
         members={result.data}
         invitations={invitationsResult.success && invitationsResult.data ? invitationsResult.data : []}
@@ -68,6 +74,11 @@ export default async function TeamSettingsPage() {
 
       {activityResult.success && activityResult.data && (
         <UserActivityPanel users={activityResult.data} />
+      )}
+      {!activityResult.success && (
+        <p className="text-sm text-red-700" data-testid="team-activity-load-error">
+          {activityResult.error ?? 'Kunne ikke hente aktivitet'}. Det tælles ikke som ingen aktivitet.
+        </p>
       )}
     </div>
   )
