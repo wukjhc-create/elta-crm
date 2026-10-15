@@ -24,6 +24,7 @@ import {
 import type { PortalMessageWithRelations, PortalAttachment } from '@/types/portal.types'
 import { MAX_FILE_SIZE } from '@/lib/constants'
 import { formatBytes } from '@/lib/utils/format'
+import { copenhagenDateTimeLabel, copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 interface EmployeeChatProps {
   customerId: string
@@ -215,22 +216,11 @@ export function EmployeeChat({
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr)
-    const now = new Date()
-    const isToday = date.toDateString() === now.toDateString()
-
-    if (isToday) {
-      return date.toLocaleTimeString('da-DK', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+    if (Number.isNaN(date.getTime())) return dateStr
+    if (copenhagenParts(dateStr).date === copenhagenParts(new Date()).date) {
+      return copenhagenParts(dateStr).clock
     }
-
-    return date.toLocaleDateString('da-DK', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return copenhagenDateTimeLabel(dateStr, 'short', false)
   }
 
   const formatFileSize = (bytes: number) => formatBytes(bytes)
