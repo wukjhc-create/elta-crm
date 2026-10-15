@@ -207,10 +207,11 @@ export function SignatureDialog({
           {/* Name & Email */}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label htmlFor="portal-sign-name" className="block text-sm font-medium mb-1">
                 Dit navn
               </label>
               <input
+                id="portal-sign-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -219,10 +220,11 @@ export function SignatureDialog({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label htmlFor="portal-sign-email" className="block text-sm font-medium mb-1">
                 Din email
               </label>
               <input
+                id="portal-sign-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -234,7 +236,7 @@ export function SignatureDialog({
           {/* Signature */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium">
+              <label id="portal-sign-pad-label" className="text-sm font-medium">
                 Din underskrift
               </label>
               <button
@@ -250,6 +252,7 @@ export function SignatureDialog({
             <div className="border-2 border-dashed rounded-lg overflow-hidden bg-white">
               <canvas
                 ref={canvasRef}
+                aria-labelledby="portal-sign-pad-label"
                 width={400}
                 height={150}
                 className="w-full touch-none cursor-crosshair"
