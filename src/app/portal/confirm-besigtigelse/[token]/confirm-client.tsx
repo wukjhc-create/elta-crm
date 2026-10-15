@@ -134,8 +134,8 @@ function AwaitingView({
             <FileText className="w-5 h-5 text-green-600" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-semibold text-gray-900">{context.documentTitle}</h1>
-            <p className="text-sm text-gray-500 mt-0.5 truncate">{context.documentFileName}</p>
+            <h1 className="text-lg font-semibold text-gray-900 break-words">{context.documentTitle}</h1>
+            <p className="text-sm text-gray-500 mt-0.5 break-all">{context.documentFileName}</p>
           </div>
         </div>
 
@@ -450,11 +450,11 @@ function RowKV({
   valueClass?: string
 }) {
   return (
-    <div className="flex items-baseline gap-3">
+    <div className="flex items-baseline gap-3 min-w-0">
       <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider shrink-0 w-28">
         {label}
       </dt>
-      <dd className={`text-sm text-gray-800 ${valueClass ?? ''}`}>{value}</dd>
+      <dd className={`text-sm text-gray-800 min-w-0 break-words ${valueClass ?? ''}`}>{value}</dd>
     </div>
   )
 }

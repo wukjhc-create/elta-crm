@@ -205,13 +205,13 @@ function FuldmagtForm({ token, fuldmagt }: { token: string; fuldmagt: FuldmagtDa
     <div className="p-4 sm:p-6">
       {/* Pre-filled info */}
       <div className="mb-6">
-        <h3 className="font-semibold text-gray-900 mb-3">
+        <h3 className="font-semibold text-gray-900 mb-3 break-words">
           Fuldmagt — Ordrenr. {fuldmagt.order_number}
         </h3>
         <div className="bg-gray-50 rounded-lg p-4 space-y-1 text-sm">
-          <p><span className="text-gray-500 w-24 inline-block">Navn:</span> {fuldmagt.customer_name}</p>
-          <p><span className="text-gray-500 w-24 inline-block">Adresse:</span> {fuldmagt.customer_address}</p>
-          <p><span className="text-gray-500 w-24 inline-block">Postnr./by:</span> {fuldmagt.customer_postal_city}</p>
+          <p className="flex flex-wrap gap-x-2"><span className="text-gray-500 shrink-0">Navn:</span> <span className="break-words min-w-0">{fuldmagt.customer_name}</span></p>
+          <p className="flex flex-wrap gap-x-2"><span className="text-gray-500 shrink-0">Adresse:</span> <span className="break-words min-w-0">{fuldmagt.customer_address}</span></p>
+          <p className="flex flex-wrap gap-x-2"><span className="text-gray-500 shrink-0">Postnr./by:</span> <span className="break-words min-w-0">{fuldmagt.customer_postal_city}</span></p>
         </div>
       </div>
 

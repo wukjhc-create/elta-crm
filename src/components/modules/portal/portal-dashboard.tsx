@@ -145,10 +145,10 @@ export function PortalDashboard({
         <p className="text-xs font-medium uppercase tracking-wide text-primary">
           Din kundeportal
         </p>
-        <h1 className="text-2xl font-bold text-gray-900 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 mt-1 break-words">
           Velkommen, {session.customer.contact_person}
         </h1>
-        <p className="text-gray-600 mt-1">
+        <p className="text-gray-600 mt-1 break-words">
           {session.customer.company_name} ({session.customer.customer_number})
         </p>
         <p className="text-sm text-gray-500 mt-3">
