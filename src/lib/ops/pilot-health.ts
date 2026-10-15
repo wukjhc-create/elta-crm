@@ -101,6 +101,9 @@ async function cronItems(admin: Admin): Promise<HealthItem[]> {
 async function followupShadowHealthItem(admin: Admin): Promise<HealthItem> {
   try {
     const settings = await admin.from('company_settings').select('reminder_enabled, reminder_interval_days, reminder_max_count').limit(1)
+    if (settings.error) {
+      return { label: 'Opfølgning (skygge)', level: 'unknown', detail: 'Kunne ikke læse påmindelsesindstillinger. Det tælles ikke som standard.' }
+    }
     const s = (settings.data?.[0] ?? {}) as { reminder_enabled?: boolean | null; reminder_interval_days?: number | null; reminder_max_count?: number | null }
     const cfg = {
       ...DEFAULT_FOLLOWUP_CONFIG,
