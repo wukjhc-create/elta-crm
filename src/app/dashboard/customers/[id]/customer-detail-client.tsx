@@ -267,7 +267,9 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             )}
             {can('customers.edit') && (
             <button
+              type="button"
               onClick={handleToggleActive}
+              aria-label={customer.is_active ? 'Deaktiver' : 'Aktiver'}
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] border rounded-lg hover:bg-gray-50 text-sm active:scale-95 transition-transform touch-manipulation"
             >
               {customer.is_active ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
@@ -276,7 +278,9 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             )}
             {can('customers.edit') && (
             <button
+              type="button"
               onClick={() => setShowEditForm(true)}
+              aria-label="Rediger kunde"
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] border rounded-lg hover:bg-gray-50 text-sm active:scale-95 transition-transform touch-manipulation"
             >
               <Pencil className="w-4 h-4" />
@@ -413,39 +417,39 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Kontaktoplysninger</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                     <Building className="w-5 h-5 text-gray-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-500">Firma</p>
-                    <p className="font-medium">{customer.company_name}</p>
+                    <p className="font-medium break-words">{customer.company_name}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                     <User className="w-5 h-5 text-gray-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-500">Kontaktperson</p>
-                    <p className="font-medium">{customer.contact_person}</p>
+                    <p className="font-medium break-words">{customer.contact_person}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                     <Mail className="w-5 h-5 text-gray-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-500">E-mail</p>
                     {/* N80: pladsholder fra mail-automatikken (@elta-crm.local) — kan ikke modtage mail */}
                     {(customer.email ?? '').toLowerCase().endsWith('@elta-crm.local') ? (
-                      <p className="font-medium text-amber-800" data-testid="customer-email-missing">
+                      <p className="font-medium text-amber-800 break-words" data-testid="customer-email-missing">
                         Mangler e-mail <span className="text-xs font-normal text-amber-700">(oprettet automatisk fra en mail — ret via Rediger)</span>
                       </p>
                     ) : (
                       <a
                         href={`mailto:${customer.email}`}
-                        className="font-medium text-primary hover:underline"
+                        className="font-medium text-primary hover:underline break-all"
                       >
                         {customer.email}
                       </a>
@@ -453,15 +457,15 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                   </div>
                 </div>
                 {customer.phone && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 rounded-lg">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                       <Phone className="w-5 h-5 text-gray-600" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm text-gray-500">Telefon</p>
                       <a
                         href={`tel:${customer.phone}`}
-                        className="font-medium text-primary hover:underline"
+                        className="font-medium text-primary hover:underline break-all"
                       >
                         {customer.phone}
                       </a>
@@ -469,15 +473,15 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                   </div>
                 )}
                 {customer.mobile && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 rounded-lg">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                       <Phone className="w-5 h-5 text-gray-600" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm text-gray-500">Mobil</p>
                       <a
                         href={`tel:${customer.mobile}`}
-                        className="font-medium text-primary hover:underline"
+                        className="font-medium text-primary hover:underline break-all"
                       >
                         {customer.mobile}
                       </a>
@@ -485,17 +489,17 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                   </div>
                 )}
                 {customer.website && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 rounded-lg">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                       <Globe className="w-5 h-5 text-gray-600" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm text-gray-500">Hjemmeside</p>
                       <a
                         href={customer.website}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-medium text-primary hover:underline"
+                        className="font-medium text-primary hover:underline break-all"
                       >
                         {customer.website}
                       </a>
@@ -519,7 +523,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                   {billingAddress ? (
                     <div className="text-gray-600 space-y-1">
                       {billingAddress.map((line, i) => (
-                        <p key={i}>{line}</p>
+                        <p key={i} className="break-words">{line}</p>
                       ))}
                       {getGoogleMapsUrl(customer.billing_address, customer.billing_postal_code, customer.billing_city) && (
                         <a
@@ -547,7 +551,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                   {shippingAddress ? (
                     <div className="text-gray-600 space-y-1">
                       {shippingAddress.map((line, i) => (
-                        <p key={i}>{line}</p>
+                        <p key={i} className="break-words">{line}</p>
                       ))}
                       {getGoogleMapsUrl(customer.shipping_address, customer.shipping_postal_code, customer.shipping_city) && (
                         <a
@@ -570,7 +574,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
 
             {/* Contacts */}
             <div className="bg-white rounded-lg border p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h2 className="text-lg font-semibold">Kontaktpersoner</h2>
                 <button
                   onClick={() => setShowContactForm(true)}
@@ -582,22 +586,22 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               </div>
               {contacts.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">
-                  Ingen ekstra kontaktpersoner
+                  Ingen ekstra kontaktpersoner. Tilføj en ovenfor.
                 </p>
               ) : (
                 <div className="space-y-3">
                   {contacts.map((contact) => (
                     <div
                       key={contact.id}
-                      className="flex items-start justify-between p-3 bg-gray-50 rounded-lg"
+                      className="flex items-start justify-between gap-2 p-3 bg-gray-50 rounded-lg"
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-white rounded-full">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="p-2 bg-white rounded-full shrink-0">
                           <User className="w-4 h-4 text-gray-600" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium">{contact.name}</p>
+                            <p className="font-medium break-words">{contact.name}</p>
                             {contact.is_primary && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">
                                 <Star className="w-3 h-3" />
@@ -621,13 +625,13 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                             )}
                           </div>
                           {contact.title && (
-                            <p className="text-sm text-gray-500">{contact.title}</p>
+                            <p className="text-sm text-gray-500 break-words">{contact.title}</p>
                           )}
-                          <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-gray-500">
                             {contact.email && (
                               <a
                                 href={`mailto:${contact.email}`}
-                                className="hover:text-primary"
+                                className="hover:text-primary break-all"
                               >
                                 {contact.email}
                               </a>
@@ -635,7 +639,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                             {contact.phone && (
                               <a
                                 href={`tel:${contact.phone}`}
-                                className="hover:text-primary"
+                                className="hover:text-primary break-all"
                               >
                                 {contact.phone}
                               </a>
@@ -643,7 +647,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                             {contact.mobile && (
                               <a
                                 href={`tel:${contact.mobile}`}
-                                className="hover:text-primary"
+                                className="hover:text-primary break-all"
                               >
                                 {contact.mobile}
                               </a>
@@ -651,17 +655,23 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
+                          type="button"
                           onClick={() => setEditingContact(contact)}
-                          className="p-1 hover:bg-gray-200 rounded"
+                          aria-label={`Rediger ${contact.name}`}
+                          title="Rediger"
+                          className="inline-flex items-center justify-center min-h-11 min-w-11 hover:bg-gray-200 rounded"
                         >
                           <Pencil className="w-4 h-4 text-gray-500" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleDeleteContact(contact.id)}
                           disabled={deletingContactId === contact.id}
-                          className="p-1 hover:bg-red-100 rounded disabled:opacity-50"
+                          aria-label={`Slet ${contact.name}`}
+                          title="Slet"
+                          className="inline-flex items-center justify-center min-h-11 min-w-11 hover:bg-red-100 rounded disabled:opacity-50"
                         >
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </button>
