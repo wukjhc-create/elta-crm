@@ -50,6 +50,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
   const [emails, setEmails] = useState<CustomerMailboxEmail[]>([])
   const [conversations, setConversations] = useState<CustomerConversation[]>([])
   const [loadError, setLoadError] = useState(false)
+  const loadedFor = useRef<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(false)
@@ -88,19 +89,24 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
   const replyRef = useRef<HTMLTextAreaElement>(null)
 
   const load = async () => {
+    const key = `${customerId}|${customerEmail}`
+    if (loadedFor.current !== key) {
+      setEmails([])
+      setConversations([])
+      setUnreadCount(0)
+      setLoadError(false)
+    }
     setLoading(true)
-    setLoadError(false)
     let result: Awaited<ReturnType<typeof getCustomerMailbox>>
     try {
       result = await getCustomerMailbox(customerId, customerEmail)
     } catch {
-      setEmails([])
-      setConversations([])
-      setUnreadCount(0)
       setLoadError(true)
       setLoading(false)
       return
     }
+    loadedFor.current = key
+    setLoadError(false)
     setEmails(result.emails)
     setConversations(result.conversations || [])
     setUnreadCount(result.unreadCount)
@@ -160,7 +166,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
   const viewingEmail = viewingId ? emails.find((e) => e.id === viewingId) : null
   const visibleEmails = expanded ? emails : emails.slice(0, 8)
 
-  if (loading) {
+  if (loading && emails.length === 0) {
     return (
       <div className="bg-white rounded-lg border p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -266,8 +272,21 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
         </div>
       )}
 
+      {loadError && emails.length > 0 && (
+        <div className="p-4 text-center border-b">
+          <p className="text-gray-700 font-medium">Kunne ikke hente kundens indbakke.</p>
+          <p className="text-sm text-gray-500 mt-1">Det tælles ikke som en tom indbakke.</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="mt-4 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+          >
+            Prøv igen
+          </button>
+        </div>
+      )}
       {/* Email list */}
-      {loadError ? (
+      {loadError && emails.length === 0 ? (
         <div className="p-8 text-center">
           <p className="text-gray-700 font-medium">Kunne ikke hente kundens indbakke.</p>
           <p className="text-sm text-gray-500 mt-1">Det tælles ikke som en tom indbakke.</p>
