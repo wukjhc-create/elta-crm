@@ -163,12 +163,16 @@ export async function getJobsWithoutTimeAction(): Promise<ActionResult<{ items: 
     const shown = missing.slice(0, 20)
     const caseIds = Array.from(new Set(shown.map((w) => w.case_id).filter((x): x is string => !!x)))
     const empIds = Array.from(new Set(shown.map((w) => w.assigned_employee_id)))
-    const [cs, emps] = await Promise.all([
-      caseIds.length ? supabase.from('service_cases').select('id, case_number').in('id', caseIds) : Promise.resolve({ data: [] }),
-      supabase.from('employees').select('id, name').in('id', empIds),
-    ])
-    const caseNo = new Map(((cs.data ?? []) as Array<{ id: string; case_number: string | null }>).map((c) => [c.id, c.case_number]))
-    const empName = new Map(((emps.data ?? []) as Array<{ id: string; name: string }>).map((e) => [e.id, e.name]))
+    const caseResult = caseIds.length
+      ? await supabase.from('service_cases').select('id, case_number').in('id', caseIds)
+      : { data: [] as Array<{ id: string; case_number: string | null }>, error: null }
+    const empResult = await supabase.from('employees').select('id, name').in('id', empIds)
+    if (caseResult.error || empResult.error) {
+      logger.error('getJobsWithoutTimeAction: labels failed', { error: caseResult.error || empResult.error })
+      return { success: false, error: 'Kunne ikke hente job uden tid' }
+    }
+    const caseNo = new Map(((caseResult.data ?? []) as Array<{ id: string; case_number: string | null }>).map((c) => [c.id, c.case_number]))
+    const empName = new Map(((empResult.data ?? []) as Array<{ id: string; name: string }>).map((e) => [e.id, e.name]))
     return {
       success: true,
       data: {
