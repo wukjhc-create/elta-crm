@@ -188,6 +188,8 @@ export interface IncomingInvoiceDetail {
   /** Sprint Ø9.0 — har fakturaen et bilag? (beregnet før storage-URL redaction). */
   has_file: boolean
   lines: IncomingInvoiceLineRow[]
+  /** Linjeopslaget fejlede. En tom liste er så ikke "ingen linjer". */
+  lines_failed: boolean
   supplier: { id: string; name: string; code: string | null } | null
   workOrder: { id: string; title: string; status: string; case_id: string | null } | null
   case: {
@@ -301,10 +303,13 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
       }
     : null
 
+  if (linesRes.error) logger.error('getIncomingInvoiceDetailAction lines failed', { error: linesRes.error })
+
   return {
     invoice,
     has_file: hasFile,
-    lines: (linesRes.data ?? []) as IncomingInvoiceLineRow[],
+    lines: (linesRes.error ? [] : (linesRes.data ?? [])) as IncomingInvoiceLineRow[],
+    lines_failed: !!linesRes.error,
     supplier: (supplierRes.data ?? null) as IncomingInvoiceDetail['supplier'],
     workOrder: (woRes.data ?? null) as IncomingInvoiceDetail['workOrder'],
     case: caseDetail,
