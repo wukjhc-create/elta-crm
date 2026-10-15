@@ -311,7 +311,7 @@ export function WorkOrderTimeLogs({
           onSubmit={onSubmit}
           className="bg-emerald-50/50 ring-1 ring-emerald-200 rounded p-3 space-y-2"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 min-w-0">
             <Field label="Dato">
               <input
                 type="date"
@@ -320,7 +320,7 @@ export function WorkOrderTimeLogs({
                 onChange={(e) => setDate(e.target.value)}
                 disabled={isWorking}
                 required
-                className="w-full px-2 py-1 border rounded text-sm"
+                className="w-full min-w-0 max-w-full px-2 py-1 border rounded text-sm"
               />
             </Field>
 
@@ -331,7 +331,7 @@ export function WorkOrderTimeLogs({
                 onChange={(e) => setEmployeeId(e.target.value)}
                 disabled={isWorking}
                 required
-                className="w-full px-2 py-1 border rounded text-sm bg-white"
+                className="w-full min-w-0 max-w-full px-2 py-1 border rounded text-sm bg-white"
               >
                 <option value="">— vælg —</option>
                 {employees.map((e) => (
@@ -352,12 +352,12 @@ export function WorkOrderTimeLogs({
                 value={startClock}
                 onChange={(e) => setStartClock(e.target.value)}
                 disabled={isWorking}
-                className="w-full px-2 py-1 border rounded text-sm"
+                className="w-full min-w-0 max-w-full px-2 py-1 border rounded text-sm"
               />
             </Field>
 
             <Field label="Slut ELLER timer">
-              <div className="flex gap-1">
+              <div className="flex gap-1 min-w-0">
                 <input
                   type="time"
                   aria-label="Slut"
@@ -368,7 +368,7 @@ export function WorkOrderTimeLogs({
                   }}
                   disabled={isWorking}
                   placeholder="HH:mm"
-                  className="w-1/2 px-2 py-1 border rounded text-sm"
+                  className="w-1/2 min-w-0 max-w-full px-2 py-1 border rounded text-sm"
                 />
                 <input
                   type="number"
@@ -382,20 +382,20 @@ export function WorkOrderTimeLogs({
                   }}
                   disabled={isWorking}
                   placeholder="t"
-                  className="w-1/2 px-2 py-1 border rounded text-sm"
+                  className="w-1/2 min-w-0 max-w-full px-2 py-1 border rounded text-sm"
                 />
               </div>
             </Field>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
             <Field label="Satstype">
               <select
                 aria-label="Satstype"
                 value={payRateType}
                 onChange={(e) => setPayRateType(e.target.value as PayRateType)}
                 disabled={isWorking}
-                className="w-full px-2 py-1 border rounded text-sm bg-white"
+                className="w-full min-w-0 max-w-full px-2 py-1 border rounded text-sm bg-white"
               >
                 {PAY_RATE_TYPE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -410,7 +410,7 @@ export function WorkOrderTimeLogs({
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isWorking}
                 placeholder="Hvad blev der lavet?"
-                className="w-full px-2 py-1 border rounded text-sm"
+                className="w-full min-w-0 max-w-full px-2 py-1 border rounded text-sm"
               />
             </Field>
           </div>
@@ -517,11 +517,11 @@ export function WorkOrderTimeLogs({
                   </div>
                 )}
                 {isRejected && fixId === l.id && (
-                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-800">
-                    <label className="flex flex-col">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-1 py-1" /></label>
-                    <label className="flex flex-col">Start<input type="time" value={fixStart} onChange={(e) => setFixStart(e.target.value)} className="border rounded px-1 py-1" /></label>
-                    <label className="flex flex-col">Slut<input type="time" value={fixEnd} onChange={(e) => setFixEnd(e.target.value)} className="border rounded px-1 py-1" /></label>
-                    <label className="flex flex-col sm:col-span-2">Beskrivelse<input value={fixDesc} onChange={(e) => setFixDesc(e.target.value)} className="border rounded px-1 py-1" /></label>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-800 min-w-0">
+                    <label className="flex flex-col min-w-0">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-1 py-1 min-w-0 max-w-full" /></label>
+                    <label className="flex flex-col min-w-0">Start<input type="time" value={fixStart} onChange={(e) => setFixStart(e.target.value)} className="border rounded px-1 py-1 min-w-0 max-w-full" /></label>
+                    <label className="flex flex-col min-w-0">Slut<input type="time" value={fixEnd} onChange={(e) => setFixEnd(e.target.value)} className="border rounded px-1 py-1 min-w-0 max-w-full" /></label>
+                    <label className="flex flex-col sm:col-span-2 min-w-0">Beskrivelse<input value={fixDesc} onChange={(e) => setFixDesc(e.target.value)} className="border rounded px-1 py-1 min-w-0 max-w-full" /></label>
                     <button type="button" onClick={() => saveFix(l)} disabled={isWorking} className="px-2 py-1 rounded bg-emerald-600 text-white disabled:opacity-50">Gem — send til godkendelse</button>
                     <button type="button" onClick={() => setFixId(null)} className="px-2 py-1 rounded border bg-white">Annullér</button>
                   </div>
@@ -675,9 +675,9 @@ export function WorkOrderTimeLogs({
                         {(l as { rejection_reason?: string | null }).rejection_reason ?? 'Ingen begrundelse'}
                         {fixId === l.id && (
                           <div className="mt-2 flex flex-wrap items-end gap-2 text-gray-800" data-testid="time-log-fix-form">
-                            <label className="flex flex-col">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-1 py-0.5" /></label>
-                            <label className="flex flex-col">Start<input type="time" value={fixStart} onChange={(e) => setFixStart(e.target.value)} className="border rounded px-1 py-0.5" data-testid="time-log-fix-start" /></label>
-                            <label className="flex flex-col">Slut<input type="time" value={fixEnd} onChange={(e) => setFixEnd(e.target.value)} className="border rounded px-1 py-0.5" data-testid="time-log-fix-end" /></label>
+                            <label className="flex flex-col min-w-0">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-1 py-0.5 min-w-0 max-w-full" /></label>
+                            <label className="flex flex-col min-w-0">Start<input type="time" value={fixStart} onChange={(e) => setFixStart(e.target.value)} className="border rounded px-1 py-0.5 min-w-0 max-w-full" data-testid="time-log-fix-start" /></label>
+                            <label className="flex flex-col min-w-0">Slut<input type="time" value={fixEnd} onChange={(e) => setFixEnd(e.target.value)} className="border rounded px-1 py-0.5 min-w-0 max-w-full" data-testid="time-log-fix-end" /></label>
                             <label className="flex flex-col flex-1 min-w-[10rem]">Beskrivelse<input value={fixDesc} onChange={(e) => setFixDesc(e.target.value)} className="border rounded px-1 py-0.5" /></label>
                             <button type="button" onClick={() => saveFix(l)} disabled={isWorking} className="px-2 py-1 rounded bg-emerald-600 text-white disabled:opacity-50" data-testid="time-log-fix-save">Gem — send til godkendelse</button>
                             <button type="button" onClick={() => setFixId(null)} className="px-2 py-1 rounded border">Annullér</button>
@@ -748,7 +748,7 @@ function Field({
   children: React.ReactNode
 }) {
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-0.5 min-w-0">
       <label className="text-[10px] uppercase tracking-wide text-gray-600">{label}</label>
       {children}
     </div>
