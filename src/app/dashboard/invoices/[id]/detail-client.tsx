@@ -128,9 +128,17 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
   const isCreditNote = inv.invoice_type === 'credit'
   // G12: uden bankoplysninger får kunden ingen betalingsinfo på fakturaen
   const [bankConfigured, setBankConfigured] = useState(true)
+  const [bankStatusFailed, setBankStatusFailed] = useState(false)
   useEffect(() => {
     if (isCreditNote || (status !== 'draft' && status !== 'sent')) return
-    getInvoicePaymentInfoStatusAction().then((r) => { if (r.ok) setBankConfigured(r.bankConfigured) }).catch(() => {})
+    getInvoicePaymentInfoStatusAction().then((r) => {
+      if (r.ok) {
+        setBankConfigured(r.bankConfigured)
+        setBankStatusFailed(false)
+      } else if (r.message) {
+        setBankStatusFailed(true)
+      }
+    }).catch(() => setBankStatusFailed(true))
   }, [isCreditNote, status])
   const isVoided = !!inv.voided_at
 
@@ -245,6 +253,9 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
 
   return (
     <div className="p-6 space-y-4 max-w-5xl">
+      {bankStatusFailed && (
+        <p className="text-sm text-red-700 break-words" data-testid="bank-status-load-error">Bankoplysninger kunne ikke tjekkes. Det tælles ikke som at de mangler.</p>
+      )}
       {!bankConfigured && (
         <div className="rounded-md ring-1 ring-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" data-testid="bank-missing">
           <strong>Bankoplysninger mangler.</strong> Fakturaen viser ikke reg.nr./konto — kunden kan ikke se hvordan der skal betales.{' '}
