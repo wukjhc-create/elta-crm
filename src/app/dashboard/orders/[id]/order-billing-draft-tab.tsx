@@ -482,8 +482,8 @@ function StageInvoicesOverview({
             <p className="mt-2 text-xs text-gray-600">
               Procent {r.billing_percentage == null ? '—' : fmtPct(r.billing_percentage)}
             </p>
-            <p className="text-xs tabular-nums text-gray-700">Subtotal {fmtKr(r.total_amount)}</p>
-            <p className="tabular-nums font-medium text-gray-900">{fmtKr(r.final_amount)} inkl. moms</p>
+            <p className="text-xs tabular-nums text-gray-700 break-words">Subtotal {fmtKr(r.total_amount)}</p>
+            <p className="tabular-nums font-medium text-gray-900 break-words">{fmtKr(r.final_amount)} inkl. moms</p>
             <Link
               href={`/dashboard/invoices/${r.id}`}
               className="mt-2 inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900"
