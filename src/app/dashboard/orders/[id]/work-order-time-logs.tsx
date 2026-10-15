@@ -406,7 +406,7 @@ export function WorkOrderTimeLogs({
             </Field>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="flex items-center gap-1 text-xs">
               <input
                 type="checkbox"
@@ -426,14 +426,16 @@ export function WorkOrderTimeLogs({
                   setError(null)
                 }}
                 disabled={isWorking}
-                className="text-xs px-2 py-1 border rounded hover:bg-gray-50"
+                aria-label="Annullér tidsregistrering"
+                className="text-xs px-3 min-h-[44px] border rounded hover:bg-gray-50"
               >
                 Annullér
               </button>
               <button
                 type="submit"
                 disabled={isWorking}
-                className="text-xs px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                aria-label={isWorking ? 'Gemmer timer' : 'Gem timer'}
+                className="text-xs px-3 min-h-[44px] bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
               >
                 {isWorking ? 'Gemmer…' : 'Gem timer'}
               </button>
