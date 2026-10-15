@@ -224,11 +224,11 @@ function RecipientRow({ item, onSent }: { item: ConfirmationListItem; onSent?: (
     <div className="p-3 text-xs">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-900 truncate">
+          <p className="text-sm font-medium text-gray-900 break-words">
             {item.recipientName || item.recipientEmail}
           </p>
           {item.recipientName && (
-            <p className="text-xs text-gray-500 truncate">{item.recipientEmail}</p>
+            <p className="text-xs text-gray-500 break-all">{item.recipientEmail}</p>
           )}
           <p className="text-xs text-gray-500 mt-0.5">{roleLabel}</p>
         </div>
@@ -359,7 +359,7 @@ function KV({
       <dt className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider shrink-0">
         {label}:
       </dt>
-      <dd className={`text-[11px] text-gray-700 truncate ${valueClass ?? ''}`}>{value}</dd>
+      <dd className={`text-[11px] text-gray-700 break-words ${valueClass ?? ''}`}>{value}</dd>
     </div>
   )
 }

@@ -289,8 +289,8 @@ export function SendBesigtigelsesreportDialog({
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {/* Document info */}
           <div className="bg-gray-50 rounded-lg p-3 text-sm">
-            <p className="font-medium text-gray-900 truncate">{documentTitle}</p>
-            <p className="text-xs text-gray-500 mt-0.5 truncate">{documentFileName}</p>
+            <p className="font-medium text-gray-900 break-words">{documentTitle}</p>
+            <p className="text-xs text-gray-500 mt-0.5 break-all">{documentFileName}</p>
           </div>
 
           {/* Sag-context */}
@@ -418,8 +418,8 @@ export function SendBesigtigelsesreportDialog({
                       />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-900">{r.roleLabel}</p>
-                        <p className="text-xs text-gray-600 truncate">{r.name}</p>
-                        <p className="text-xs text-gray-500 truncate">
+                        <p className="text-xs text-gray-600 break-words">{r.name}</p>
+                        <p className="text-xs text-gray-500 break-all">
                           {r.email || 'mangler email'}
                         </p>
                       </div>
