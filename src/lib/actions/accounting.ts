@@ -829,6 +829,10 @@ export interface SyncLogResult {
   ok: boolean
   message?: string
   integration_ready: boolean
+  /** Sat når opslaget kaster. integration_ready er da false, men det er ikke "ikke opsat". */
+  integration_error?: string | null
+  /** Sat når tællerne fejler. counts er da 0, men det er ikke et ægte nul. */
+  counts_error?: string | null
   entries: SyncLogEntry[]
   counts: { all: number; success: number; failed: number; skipped: number }
 }
@@ -856,15 +860,18 @@ export async function listAccountingSyncLogAction(params?: {
   }
 
   let integrationReady = false
+  let integrationError: string | null = null
   try {
     const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
     integrationReady = isEconomicReady(await getEconomicSettings())
   } catch (e) {
     logger.error('listAccountingSyncLogAction: settings read failed', { error: e })
+    integrationError = 'Kunne ikke tjekke e-conomic'
   }
 
   // Status-tællere (uafhængigt af valgt filter) — ét lille aggregat.
   const counts = { all: 0, success: 0, failed: 0, skipped: 0 }
+  let countsError: string | null = null
   try {
     // X1 (regnskabs-review 2026-10-07): eksakte tal via count (før de nyeste 1.000 rækker → for lave tællere)
     const countFor = async (status?: AccountingStatus) => {
@@ -876,8 +883,9 @@ export async function listAccountingSyncLogAction(params?: {
     }
     const [all, success, failed, skipped] = await Promise.all([countFor(), countFor('success'), countFor('failed'), countFor('skipped')])
     Object.assign(counts, { all, success, failed, skipped })
-  } catch {
-    /* tællere er best-effort */
+  } catch (e) {
+    logger.error('listAccountingSyncLogAction: counts failed', { error: e })
+    countsError = 'Kunne ikke tælle eksportforsøg'
   }
 
   let query = supabase
@@ -897,7 +905,15 @@ export async function listAccountingSyncLogAction(params?: {
   const { data: logs, error } = await query
   if (error) {
     logger.error('listAccountingSyncLogAction: query failed', { error })
-    return { ...empty, ok: true, integration_ready: integrationReady, counts }
+    return {
+      ...empty,
+      ok: false,
+      message: 'Kunne ikke hente eksport-loggen',
+      integration_ready: integrationReady,
+      integration_error: integrationError,
+      counts_error: countsError,
+      counts,
+    }
   }
 
   const rows = logs ?? []
@@ -1032,7 +1048,7 @@ export async function listAccountingSyncLogAction(params?: {
     }
   })
 
-  return { ok: true, integration_ready: integrationReady, entries, counts }
+  return { ok: true, integration_ready: integrationReady, integration_error: integrationError, counts_error: countsError, entries, counts }
 }
 
 export interface RetryExportResult {

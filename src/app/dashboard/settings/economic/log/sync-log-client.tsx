@@ -85,7 +85,12 @@ export function SyncLogClient({ initial }: { initial: SyncLogResult }) {
         </p>
       </div>
 
-      {!initial.integration_ready && (
+      {initial.integration_error && (
+        <div className="rounded-lg ring-1 ring-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-800" data-testid="sync-log-economic-error">
+          {initial.integration_error}. Det tælles ikke som at e-conomic mangler. Genforsøg er deaktiveret.
+        </div>
+      )}
+      {initial.ok && !initial.integration_error && !initial.integration_ready && (
         <div className="rounded-lg ring-1 ring-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
           <strong>e-conomic er ikke opsat endnu.</strong> Du kan se historikken, men
           “Prøv igen” er deaktiveret, indtil integrationen er aktiv.{' '}
@@ -104,6 +109,7 @@ export function SyncLogClient({ initial }: { initial: SyncLogResult }) {
         {STATUS_FILTERS.map((f) => {
           const active = status === f.key
           const count = f.key === 'all' ? c.all : f.key === 'success' ? c.success : f.key === 'failed' ? c.failed : c.skipped
+          const countLabel = initial.counts_error ? '—' : String(count)
           return (
             <button
               key={f.key}
@@ -111,7 +117,7 @@ export function SyncLogClient({ initial }: { initial: SyncLogResult }) {
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm ring-1 ${active ? 'bg-emerald-600 text-white ring-emerald-600' : 'bg-white text-gray-700 ring-gray-300 hover:bg-gray-50'}`}
             >
               {f.label}
-              <span className={`text-xs ${active ? 'text-emerald-100' : 'text-gray-400'}`}>{count}</span>
+              <span className={`text-xs ${active ? 'text-emerald-100' : 'text-gray-400'}`}>{countLabel}</span>
             </button>
           )
         })}
@@ -131,10 +137,15 @@ export function SyncLogClient({ initial }: { initial: SyncLogResult }) {
           ))}
         </div>
       </div>
+      {initial.counts_error && (
+        <p className="text-xs text-red-700" data-testid="sync-log-counts-error">
+          {initial.counts_error}. Det tælles ikke som 0.
+        </p>
+      )}
 
       {/* Tabel */}
-      <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto" data-testid="sync-log-table">
+        <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left font-medium px-3 py-2">Tidspunkt</th>
@@ -147,7 +158,14 @@ export function SyncLogClient({ initial }: { initial: SyncLogResult }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {entries.length === 0 && (
+            {!initial.ok && (
+              <tr>
+                <td colSpan={7} className="px-3 py-8 text-center text-red-800" data-testid="sync-log-load-error">
+                  {initial.message ?? 'Kunne ikke hente eksport-loggen'}. Det tælles ikke som ingen eksportforsøg.
+                </td>
+              </tr>
+            )}
+            {initial.ok && entries.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-3 py-8 text-center text-gray-400">
                   Ingen eksportforsøg i denne visning.
@@ -194,11 +212,13 @@ export function SyncLogClient({ initial }: { initial: SyncLogResult }) {
                         onClick={() => handleRetry(e)}
                         disabled={!canRetry || retrying}
                         title={
-                          !initial.integration_ready
-                            ? 'Integration ikke opsat'
-                            : !e.retry_eligible
-                              ? 'Ikke berettiget til genforsøg'
-                              : 'Prøv eksporten igen'
+                          initial.integration_error
+                            ? 'e-conomic kunne ikke tjekkes'
+                            : !initial.integration_ready
+                              ? 'Integration ikke opsat'
+                              : !e.retry_eligible
+                                ? 'Ikke berettiget til genforsøg'
+                                : 'Prøv eksporten igen'
                         }
                         className="inline-flex items-center gap-1.5 rounded-md ring-1 ring-emerald-300 bg-white px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
