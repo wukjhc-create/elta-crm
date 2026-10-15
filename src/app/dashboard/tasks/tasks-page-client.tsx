@@ -423,6 +423,7 @@ export function TasksPageClient({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Søg i opgaver..."
+            aria-label="Søg i opgaver"
             className="w-full pl-10 pr-4 py-2 border rounded-md text-sm"
           />
         </div>
@@ -430,6 +431,7 @@ export function TasksPageClient({
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <Filter className="w-4 h-4 text-gray-400 shrink-0" />
           <select
+            aria-label="Status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as FilterStatus)}
             className="w-full sm:w-auto px-3 py-2 border rounded-md text-sm"
@@ -441,6 +443,7 @@ export function TasksPageClient({
           </select>
 
           <select
+            aria-label="Prioritet"
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value as FilterPriority)}
             className="w-full sm:w-auto px-3 py-2 border rounded-md text-sm"
@@ -453,6 +456,7 @@ export function TasksPageClient({
 
           {!isMontor && (
             <select
+              aria-label="Ansvarlig"
               value={assignedFilter}
               onChange={(e) => setAssignedFilter(e.target.value)}
               className="w-full sm:w-auto px-3 py-2 border rounded-md text-sm"
@@ -1050,6 +1054,7 @@ function TaskFormDialog({
               value={formData.title}
               onChange={(e) => setFormData((f) => ({ ...f, title: e.target.value }))}
               placeholder="Hvad skal gøres?"
+              aria-label="Titel"
               className="w-full px-3 py-2 border rounded-md text-sm"
               autoFocus
             />
@@ -1062,6 +1067,7 @@ function TaskFormDialog({
               value={formData.description}
               onChange={(e) => setFormData((f) => ({ ...f, description: e.target.value }))}
               placeholder="Yderligere detaljer..."
+              aria-label="Beskrivelse"
               rows={3}
               className="w-full px-3 py-2 border rounded-md text-sm resize-none"
             />
@@ -1071,6 +1077,7 @@ function TaskFormDialog({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Kunde *</label>
             <select
+              aria-label="Kunde"
               value={formData.customer_id}
               onChange={(e) => setFormData((f) => ({ ...f, customer_id: e.target.value }))}
               disabled={disableCustomer}
@@ -1086,10 +1093,11 @@ function TaskFormDialog({
           </div>
 
           {/* Priority + Assigned */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Prioritet</label>
               <select
+                aria-label="Prioritet"
                 value={formData.priority}
                 onChange={(e) => setFormData((f) => ({ ...f, priority: e.target.value as TaskPriority }))}
                 className="w-full px-3 py-2 border rounded-md text-sm"
@@ -1102,6 +1110,7 @@ function TaskFormDialog({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Ansvarlig</label>
               <select
+                aria-label="Ansvarlig"
                 value={formData.assigned_to}
                 onChange={(e) => setFormData((f) => ({ ...f, assigned_to: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-md text-sm"
@@ -1122,11 +1131,12 @@ function TaskFormDialog({
           </div>
 
           {/* Due date + Reminder */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Forfaldsdato</label>
               <input
                 type="date"
+                aria-label="Forfaldsdato"
                 value={formData.due_date}
                 onChange={(e) => setFormData((f) => ({ ...f, due_date: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-md text-sm"
@@ -1136,6 +1146,7 @@ function TaskFormDialog({
               <label className="block text-sm font-medium text-gray-700 mb-1">Påmindelse</label>
               <input
                 type="datetime-local"
+                aria-label="Påmindelse"
                 value={formData.reminder_at}
                 onChange={(e) => setFormData((f) => ({ ...f, reminder_at: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-md text-sm"

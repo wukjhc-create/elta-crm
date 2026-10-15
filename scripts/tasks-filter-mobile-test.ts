@@ -16,6 +16,16 @@ eq('valg fylder bredden paa mobil', filters.includes('w-full sm:w-auto px-3 py-2
 eq('noegletal er to kolonner', src.includes('grid grid-cols-2 sm:grid-cols-4'), true)
 eq('filter uden traef kan ryddes', src.includes('Ingen opgaver matcher filteret') && src.includes('data-testid="tasks-clear-filters"'), true)
 eq('tom liste uden filter er den samme', src.includes('Ingen opgaver fundet') && src.includes('Klik "Ny opgave" for at oprette en'), true)
+eq('soegning har et navn', filters.includes('aria-label="Søg i opgaver"'), true)
+eq('status har et navn', filters.includes('aria-label="Status"'), true)
+eq('prioritet har et navn', filters.includes('aria-label="Prioritet"'), true)
+eq('ansvarlig har et navn', filters.includes('aria-label="Ansvarlig"'), true)
+const dialog = src.slice(src.indexOf('id="task-dialog-title"'))
+eq('titel har et navn', dialog.includes('aria-label="Titel"'), true)
+eq('kunde har et navn', dialog.includes('aria-label="Kunde"'), true)
+eq('forfald har et navn', dialog.includes('aria-label="Forfaldsdato"'), true)
+eq('formular stables paa mobil', dialog.includes('grid grid-cols-1 sm:grid-cols-2 gap-4'), true)
+eq('opret bliver', src.includes("isEditing ? 'Gem ændringer' : 'Opret opgave'"), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ntasks-filter-mobile-test OK')
 process.exitCode = fail ? 1 : 0
