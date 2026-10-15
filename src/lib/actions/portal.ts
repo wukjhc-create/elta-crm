@@ -401,8 +401,11 @@ export async function getPortalOffer(
       }
     }
 
-    if (error || !offer) {
+    if (error) {
       logger.error('Error fetching offer', { error: error })
+      return { success: false, error: 'Kunne ikke hente tilbuddet.' }
+    }
+    if (!offer) {
       return { success: false, error: 'Tilbud ikke fundet' }
     }
 
