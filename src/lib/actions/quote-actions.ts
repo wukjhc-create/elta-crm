@@ -76,18 +76,20 @@ export async function getCustomerQuoteHistory(
       .order('created_at', { ascending: false })
       .limit(1)
 
-    if (error || !offers || offers.length === 0) {
+    if (error) return { success: false, error: 'Kunne ikke hente kundehistorik' }
+    if (!offers || offers.length === 0) {
       return { success: true, data: { totalOffers: 0 } }
     }
 
     const lastOffer = offers[0]
 
     // Get line items from the last offer
-    const { data: lineItems } = await supabase
+    const { data: lineItems, error: lineError } = await supabase
       .from('offer_line_items')
       .select('description, quantity, unit, unit_price, section')
       .eq('offer_id', lastOffer.id)
       .order('position')
+    if (lineError) return { success: false, error: 'Kunne ikke hente kundehistorik' }
 
     const mappedItems: QuoteLineItem[] = (lineItems || []).map((li) => ({
       id: crypto.randomUUID(),
@@ -99,10 +101,11 @@ export async function getCustomerQuoteHistory(
     }))
 
     // Get total count of offers
-    const { count } = await supabase
+    const { count, error: countError } = await supabase
       .from('offers')
       .select('*', { count: 'exact', head: true })
       .eq('customer_id', customerId)
+    if (countError) return { success: false, error: 'Kunne ikke hente kundehistorik' }
 
     return {
       success: true,
@@ -111,7 +114,7 @@ export async function getCustomerQuoteHistory(
         lastOfferDescription: lastOffer.description || undefined,
         lastOfferNotes: lastOffer.terms_and_conditions || lastOffer.notes || undefined,
         lastLineItems: mappedItems.length > 0 ? mappedItems : undefined,
-        totalOffers: count || 0,
+        totalOffers: count ?? 0,
       },
     }
   } catch (error) {

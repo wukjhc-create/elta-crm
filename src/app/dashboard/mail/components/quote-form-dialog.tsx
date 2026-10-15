@@ -51,6 +51,7 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
   ])
 
   const [title, setTitle] = useState('')
+  const [historyError, setHistoryError] = useState<string | null>(null)
   const [description, setDescription] = useState('')
   const [notes, setNotes] = useState('')
   const [validityDays, setValidityDays] = useState(30)
@@ -92,7 +93,12 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
 
       // Fetch previous offer data for auto-fill
       getCustomerQuoteHistory(selectedEmail.customer_id).then((res) => {
-        if (res.success && res.data && res.data.totalOffers > 0) {
+        if (!res.success) {
+          setHistoryError(res.error || 'Kunne ikke hente kundehistorik')
+          return
+        }
+        setHistoryError(null)
+        if (res.data && res.data.totalOffers > 0) {
           // Auto-fill title and description from last offer
           if (res.data.lastOfferTitle && !title) {
             setTitle(res.data.lastOfferTitle)
@@ -208,6 +214,11 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+          {historyError && !result && (
+            <p className="mb-3 text-sm text-amber-800" data-testid="quote-history-load-error">
+              {historyError}. Det tælles ikke som ingen tidligere tilbud.
+            </p>
+          )}
           {result ? (
             /* Success screen */
             <div className="text-center py-8">
