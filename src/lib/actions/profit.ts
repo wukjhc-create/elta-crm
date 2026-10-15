@@ -8,6 +8,7 @@
  *   medarbejdere (aggregeret med service-role; ingen individuelle lønoplysninger forlader serveren).
  */
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { validateUUID } from '@/lib/validations/common'
 import { analyzeOfferProfit, isLabourUnit, type OfferProfitAnalysis } from '@/lib/profit/offer-analysis'
@@ -133,7 +134,11 @@ export async function fillMissingOfferLineCosts(offerId: string): Promise<Action
     if (!ctx.hasPermission('offers.edit')) return { success: false, error: 'Manglende tilladelse: offers.edit' }
     if (!ctx.hasPermission(OFFER_COST_PERMISSION)) return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
     const { supabase } = ctx
-    const { data: offer } = await supabase.from('offers').select('id, status').eq('id', offerId).maybeSingle()
+    const { data: offer, error: offerErr } = await supabase.from('offers').select('id, status').eq('id', offerId).maybeSingle()
+    if (offerErr) {
+      logger.error('fillMissingOfferLineCosts offer read failed', { error: offerErr })
+      return { success: false, error: 'Kunne ikke læse tilbuddet. Ingen kostpris er udfyldt.' }
+    }
     if (!offer) return { success: false, error: 'Tilbud ikke fundet' }
     if (offer.status !== 'draft') return { success: false, error: 'Kun kladder kan opdateres' }
     // 00192: kostkolonner — admin-klient bag offers.view.cost_prices (kun læsninger; opdateringen sker med bruger-klienten)
@@ -145,7 +150,11 @@ export async function fillMissingOfferLineCosts(offerId: string): Promise<Action
     const spIds = Array.from(new Set(missing.map((i) => i.supplier_product_id as string | null).filter((x): x is string => !!x)))
     const spCost = new Map<string, number>()
     if (spIds.length) {
-      const { data: sps } = await admin.from('supplier_products').select('id, cost_price').in('id', spIds)
+      const { data: sps, error: spErr } = await admin.from('supplier_products').select('id, cost_price').in('id', spIds)
+      if (spErr) {
+        logger.error('fillMissingOfferLineCosts supplier cost read failed', { error: spErr })
+        return { success: false, error: 'Kunne ikke hente leverandørkost. Ingen kostpris er udfyldt.' }
+      }
       for (const p of sps ?? []) if (Number(p.cost_price ?? 0) > 0) spCost.set(p.id as string, Number(p.cost_price))
     }
     const hourly = missing.some((i) => isLabourUnit(i.unit as string | null)) ? await resolveHourlyCost(supabase) : { cost: null, source: '—' }
