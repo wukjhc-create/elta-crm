@@ -1,6 +1,7 @@
 'use client'
 
 import { CreateLeadFromMailButton } from './create-lead-from-mail-button'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import { WebInquiryCard } from './web-inquiry-card'
 import { useState, useEffect } from 'react'
 import {
@@ -75,9 +76,9 @@ function formatFileSize(bytes: number): string {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('da-DK', {
-    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return copenhagenDateTimeLabel(iso, 'long')
 }
 
 function statusBadge(status: EmailLinkStatus) {

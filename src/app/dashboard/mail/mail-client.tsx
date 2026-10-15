@@ -21,6 +21,7 @@ import { MailList } from './components/mail-list'
 import { MailDetail } from './components/mail-detail'
 import type { ReadFilter, SortOrder } from './components/mail-list'
 import { useToast } from '@/components/ui/toast'
+import { copenhagenDateTimeLabel, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import {
   getIncomingEmails,
   getIncomingEmailStats,
@@ -90,12 +91,13 @@ const DEBUG_FILTER_TABS: { value: FilterTab; label: string; icon: typeof Mail }[
 
 function formatDate(iso: string) {
   const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
   const now = new Date()
   const diff = now.getTime() - d.getTime()
   if (diff < 60_000) return 'Lige nu'
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)} min siden`
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}t siden`
-  return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return copenhagenDateTimeLabel(iso, 'short', false)
 }
 
 // =====================================================
@@ -450,7 +452,7 @@ export function MailClient() {
             : 'alle mailboxe'
           toast.info(
             `Ingen nye mails fundet (${elapsedSec}s)`,
-            `Synket: ${lastSyncLabel} — ${new Date().toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}`
+            `Synket: ${lastSyncLabel} — ${copenhagenParts(new Date()).clock}`
           )
         }
 
