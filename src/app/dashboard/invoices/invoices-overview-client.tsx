@@ -283,7 +283,7 @@ export function InvoicesOverviewClient({
       </div>
 
       {/* Summary-cards — kun salgsbeløb */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 min-w-0">
         <SummaryCard label="Kladder" value={String(summary.draftCount)} tone="gray" icon={<FileText className="w-4 h-4" />} />
         <SummaryCard label="Sendt — ikke betalt" value={kr(summary.sentUnpaid, 'DKK')} tone="blue" icon={<Send className="w-4 h-4" />} />
         <SummaryCard
@@ -467,7 +467,7 @@ export function InvoicesOverviewClient({
                       {r.case_number}
                     </Link>
                   )}
-                  <p className="mt-2 font-medium tabular-nums">{kr(r.final_amount, r.currency)}</p>
+                  <p className="mt-2 font-medium tabular-nums break-words">{kr(r.final_amount, r.currency)}</p>
                   <p className="text-xs text-gray-600">
                     {r.due_date ? `Forfald ${fmtDate(r.due_date)}` : 'Ingen forfaldsdato'}
                     {r.is_overdue && r.days_overdue != null ? ` · ${r.days_overdue} dage over` : ''}
@@ -700,12 +700,12 @@ function SummaryCard({
     amber: 'ring-amber-200 text-amber-700',
   }[tone]
   return (
-    <div className={`rounded-lg ring-1 bg-white px-3 py-2.5 ${toneCls}`}>
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
-        {icon}
-        {label}
+    <div className={`min-w-0 rounded-lg ring-1 bg-white px-3 py-2.5 ${toneCls}`}>
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide min-w-0">
+        <span className="shrink-0">{icon}</span>
+        <span className="break-words min-w-0">{label}</span>
       </div>
-      <div className="mt-1 text-lg font-bold tabular-nums text-gray-900">{value}</div>
+      <div className="mt-1 text-lg font-bold tabular-nums text-gray-900 break-words">{value}</div>
     </div>
   )
 }
