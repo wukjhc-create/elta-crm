@@ -28,6 +28,8 @@ eq('desktop-mail ombrydes', desk.includes("break-all min-w-0\">{customer.email |
 eq('desktop klipper ikke mailen', desk.includes('max-w-[160px]'), false)
 eq('betalingsmaerke bliver paa desktop', desk.includes('PaymentListChip'), true)
 eq('kundenummer bliver', desk.includes('{customer.customer_number}'), true)
+eq('mobil viser kundenummer', mobile.includes('customer.customer_number'), true)
+eq('mobil siger om kunden er aktiv', mobile.includes('\n                      Aktiv') && mobile.includes('\n                      Inaktiv'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncustomers-list-mobile-test OK')
 process.exitCode = fail ? 1 : 0

@@ -240,7 +240,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
       )}
 
       {/* Mobile card view */}
-      <div className="md:hidden space-y-2">
+      <div className="md:hidden space-y-2" data-testid="customers-mobile-list">
         {customers.map((customer) => (
           <Link
             key={customer.id}
@@ -253,13 +253,20 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                   <p className="font-semibold text-gray-900 break-words min-w-0">{customer.company_name}</p>
                   <AutoCreatedChip customer={customer} />
                   {customer.is_active ? (
-                    <span className="shrink-0 w-2 h-2 bg-green-500 rounded-full" />
+                    <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-green-700">
+                      <span className="w-2 h-2 bg-green-500 rounded-full" />
+                      Aktiv
+                    </span>
                   ) : (
-                    <span className="shrink-0 w-2 h-2 bg-gray-300 rounded-full" />
+                    <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-gray-500">
+                      <span className="w-2 h-2 bg-gray-300 rounded-full" />
+                      Inaktiv
+                    </span>
                   )}
                   <PaymentListChip badge={paymentBadges?.[customer.id]} />
                 </div>
                 <p className="text-sm text-gray-500 mt-0.5 break-words">{customer.contact_person || customer.email}</p>
+                <p className="text-xs text-gray-500 break-words">Kundenr. {customer.customer_number || '—'}</p>
               </div>
               <svg className="w-5 h-5 text-gray-300 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
