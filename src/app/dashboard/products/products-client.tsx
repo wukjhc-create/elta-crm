@@ -372,6 +372,7 @@ export default function ProductsClient({
           </DialogHeader>
           <ProductForm
             categories={categories}
+            categoriesError={categoriesError}
             onSuccess={() => {
               setShowCreateDialog(false)
               router.refresh()
@@ -391,6 +392,7 @@ export default function ProductsClient({
             <ProductForm
               product={editingProduct}
               categories={categories}
+              categoriesError={categoriesError}
               onSuccess={() => {
                 setEditingProduct(null)
                 router.refresh()

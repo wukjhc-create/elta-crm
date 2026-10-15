@@ -25,6 +25,7 @@ import { formatCurrency, formatTimeMinutes } from '@/lib/utils/format'
 interface PackagesClientProps {
   initialPackages: PaginatedResponse<PackageSummary> | null
   categories: PackageCategory[]
+  categoriesError?: string | null
   loadError?: string | null
   initialFilters: {
     search: string
@@ -35,6 +36,7 @@ interface PackagesClientProps {
 export default function PackagesClient({
   initialPackages,
   categories,
+  categoriesError = null,
   loadError = null,
   initialFilters,
 }: PackagesClientProps) {
@@ -156,6 +158,11 @@ export default function PackagesClient({
             </option>
           ))}
         </select>
+        {categoriesError && (
+          <p className="text-xs text-red-700 sm:self-center" data-testid="package-list-categories-error">
+            {categoriesError}. Det tælles ikke som ingen kategorier.
+          </p>
+        )}
         <button
           type="button"
           onClick={handleSearch}
@@ -313,6 +320,7 @@ export default function PackagesClient({
       {showCreateDialog && (
         <CreatePackageDialog
           categories={categories}
+          categoriesError={categoriesError}
           onClose={() => setShowCreateDialog(false)}
           onCreated={(pkg) => {
             setShowCreateDialog(false)
@@ -327,10 +335,12 @@ export default function PackagesClient({
 // Create Package Dialog Component
 function CreatePackageDialog({
   categories,
+  categoriesError = null,
   onClose,
   onCreated,
 }: {
   categories: PackageCategory[]
+  categoriesError?: string | null
   onClose: () => void
   onCreated: (pkg: { id: string }) => void
 }) {
@@ -402,6 +412,11 @@ function CreatePackageDialog({
                 </option>
               ))}
             </select>
+            {categoriesError && (
+              <p className="text-xs text-red-700" data-testid="package-create-categories-error">
+                {categoriesError}. Det tælles ikke som ingen kategorier.
+              </p>
+            )}
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button

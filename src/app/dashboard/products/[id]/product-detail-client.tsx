@@ -21,11 +21,13 @@ import { formatCurrency } from '@/lib/utils/format'
 interface ProductDetailClientProps {
   product: ProductWithCategory
   categories: ProductCategory[]
+  categoriesError?: string | null
 }
 
 export default function ProductDetailClient({
   product,
   categories,
+  categoriesError = null,
 }: ProductDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
@@ -165,6 +167,7 @@ export default function ProductDetailClient({
           <ProductForm
             product={product}
             categories={categories}
+            categoriesError={categoriesError}
             onSuccess={() => {
               setShowEditDialog(false)
               router.refresh()

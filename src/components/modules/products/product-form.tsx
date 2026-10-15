@@ -21,6 +21,7 @@ import type { ProductWithCategory, ProductCategory } from '@/types/products.type
 interface ProductFormProps {
   product?: ProductWithCategory
   categories: ProductCategory[]
+  categoriesError?: string | null
   onSuccess: () => void
   onCancel: () => void
 }
@@ -28,6 +29,7 @@ interface ProductFormProps {
 export default function ProductForm({
   product,
   categories,
+  categoriesError = null,
   onSuccess,
   onCancel,
 }: ProductFormProps) {
@@ -95,6 +97,11 @@ export default function ProductForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="category_id">Kategori</Label>
+          {categoriesError && (
+            <p className="text-xs text-red-700 mb-1" data-testid="product-form-categories-error">
+              {categoriesError}. Det tælles ikke som ingen kategorier.
+            </p>
+          )}
           <Select name="category_id" defaultValue={product?.category_id || ''}>
             <SelectTrigger>
               <SelectValue placeholder="Vælg kategori" />

@@ -38,6 +38,7 @@ export default async function PackagesPage({ searchParams }: PageProps) {
         initialPackages={packagesResult.success && packagesResult.data ? packagesResult.data : null}
         loadError={packagesResult.success ? null : (packagesResult.error || 'Kunne ikke hente pakker')}
         categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
+        categoriesError={categoriesResult.success ? null : categoriesResult.error || 'Kunne ikke hente kategorier'}
         initialFilters={{
           search: params.search || '',
           category_id: params.category_id || '',

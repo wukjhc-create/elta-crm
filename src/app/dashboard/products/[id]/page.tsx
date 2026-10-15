@@ -25,6 +25,15 @@ export default async function ProductDetailPage({ params }: PageProps) {
   ])
 
   if (!productResult.success || !productResult.data) {
+    if (!productResult.success && productResult.error && productResult.error !== 'Produktet blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="product-detail-load-error">
+            {productResult.error}. Det tælles ikke som at produktet mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
 
@@ -47,6 +56,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       <ProductDetailClient
         product={productResult.data}
         categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
+        categoriesError={categoriesResult.success ? null : categoriesResult.error || 'Kunne ikke hente kategorier'}
       />
     </div>
   )
