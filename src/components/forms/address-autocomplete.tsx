@@ -190,12 +190,12 @@ export function AddressAutocomplete({
                   type="button"
                   onMouseEnter={() => setHighlightedIndex(idx)}
                   onClick={() => handleSelect(s)}
-                  className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                  className={`w-full px-3 py-2 text-left text-sm flex items-start gap-2 ${
                     isHighlighted ? 'bg-emerald-50' : 'hover:bg-gray-50'
                   }`}
                 >
-                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  <span className="truncate">{s.label}</span>
+                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                  <span className="break-words min-w-0">{s.label}</span>
                 </button>
               </li>
             )
