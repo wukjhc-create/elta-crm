@@ -5,6 +5,7 @@ import type { SalesFunnel } from '@/lib/reports/sales-funnel'
 import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
 import { useState, useEffect } from 'react'
 import { formatCurrency } from '@/lib/utils/format'
+import { profitByClosedMonth, profitByCustomer, type ProfitGroup } from '@/lib/profit/profitability-groups'
 import {
   BarChart3,
   TrendingUp,
@@ -165,6 +166,40 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
 // =====================================================
 // Project Profitability Table
 // =====================================================
+
+/** Fokus D 2026-10-15: realiseret DB pr. kunde og pr. lukkemåned (samme sager og filtre som tabellen) */
+function ProfitGroups({ rows, minDb }: { rows: ProjectProfitability[]; minDb: number }) {
+  const byCustomer = profitByCustomer(rows).slice(0, 10)
+  const byMonth = profitByClosedMonth(rows).slice(0, 12)
+  const Table = ({ title, groups, testId }: { title: string; groups: ProfitGroup[]; testId: string }) => (
+    <div className="rounded border p-3" data-testid={testId}>
+      <h4 className="text-sm font-medium text-gray-900 mb-2">{title}</h4>
+      {groups.length === 0 ? <p className="text-xs text-gray-400">Ingen fakturerede sager</p> : (
+        <table className="w-full text-sm">
+          <thead><tr className="border-b text-left text-gray-500"><th className="py-1 font-medium"></th><th className="py-1 font-medium text-right">Sager</th><th className="py-1 font-medium text-right">Faktureret</th><th className="py-1 font-medium text-right">DB</th></tr></thead>
+          <tbody>
+            {groups.map((g) => (
+              <tr key={g.key} className="border-b last:border-b-0">
+                <td className="py-1 truncate max-w-[10rem]">{g.label}</td>
+                <td className="py-1 text-right text-gray-600">{g.cases}</td>
+                <td className="py-1 text-right text-gray-600">{formatCurrency(g.net_invoiced)}</td>
+                <td className={`py-1 text-right font-medium ${g.realized_db_pct != null && g.realized_db_pct < minDb ? 'text-red-600' : 'text-green-700'}`}>
+                  {formatCurrency(g.realized_db)}{g.realized_db_pct != null ? ` (${d1(g.realized_db_pct)} %)` : ''}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+  return (
+    <div className="grid md:grid-cols-2 gap-3 mt-4">
+      <Table title="Realiseret DB pr. kunde (top 10)" groups={byCustomer} testId="report-db-by-customer" />
+      <Table title="Realiseret DB pr. måned (lukkede sager)" groups={byMonth} testId="report-db-by-month" />
+    </div>
+  )
+}
 
 const PERIODS: Array<{ value: string; label: string; days: number | null }> = [
   { value: '90', label: 'Seneste 90 dage', days: 90 },
@@ -349,6 +384,7 @@ function ProjectTable() {
           {report?.truncated && <p className="mt-2 text-xs text-amber-600">Viser de 500 nyeste sager — vælg en kortere periode for resten.</p>}
         </div>
       )}
+      {costOpen && report && report.rows.length > 0 && <ProfitGroups rows={report.rows} minDb={minDb} />}
     </div>
   )
 }

@@ -48,6 +48,8 @@ export interface ProjectProfitability {
   project_number: string
   project_name: string
   customer_name: string | null
+  customer_id: string | null
+  closed_at: string | null
   status: string
   budget: number | null
   actual_hours: number
@@ -448,7 +450,7 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
     // længere → rapporten var tom/forkert for alle rigtige sager.
     let q = supabase
       .from('service_cases')
-      .select('id, case_number, title, status, budget, planned_hours, source_offer_id, created_at, customer:customers!service_cases_customer_id_fkey(company_name)')
+      .select('id, case_number, title, status, budget, planned_hours, source_offer_id, created_at, closed_at, customer_id, customer:customers!service_cases_customer_id_fkey(company_name)')
       .neq('status', 'converted')
       .eq('is_proposal', false) // rapport-review 2026-10-09 (#6): AI-forslag er ikke projekter
     if (status === 'closed') q = q.eq('status', 'closed')
@@ -541,6 +543,8 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
         project_number: (c.case_number as string | null) || '',
         project_name: (c.title as string | null) || '',
         customer_name: customer?.company_name || null,
+        customer_id: (c.customer_id as string | null) ?? null,
+        closed_at: (c.closed_at as string | null) ?? null,
         status: c.status as string,
         budget: c.budget == null ? null : Number(c.budget),
         actual_hours: actualHours,

@@ -3489,6 +3489,8 @@ ${m.text()}`) })
         await a.page.waitForTimeout(600)
         const repRow = rep.locator('tr', { hasText: `[HARNESS] realiseret ${stamp}` }).first()
         r.rapport_realiseret = ((await repRow.getByTestId('report-case-realized').textContent().catch(() => '')) ?? '').includes('200')
+        // fokus D: DB pr. kunde/måned vises når beløb er foldet ud
+        r.db_pr_kunde = (await rep.getByTestId('report-db-by-customer').count()) === 1 && (await rep.getByTestId('report-db-by-month').count()) === 1
         out.push({ id: 'U91 realiseret DB pr. sag', ok: !!caseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${u91SeedErr ? ` · SEED: ${u91SeedErr}` : ''} · "${txt.replace(/\s+/g, ' ').slice(0, 200)}"` })
       }
 
