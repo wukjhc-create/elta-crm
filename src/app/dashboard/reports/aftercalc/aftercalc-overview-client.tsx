@@ -156,7 +156,7 @@ export function AftercalcOverviewClient() {
                 )}
                 {data.rows.length === 0 ? (
                   <div className="text-sm text-gray-500" data-testid="aftercalc-empty">
-                    <p>{filtersActive ? 'Ingen sager matcher filtrene.' : 'Ingen sager i oversigten.'}</p>
+                    <p>{filtersActive ? 'Ingen sager matcher filtrene.' : 'Ingen sager i oversigten. Opret en sag fra kunden, så den kan efterkalkuleres her.'}</p>
                     {filtersActive && (
                       <button type="button" onClick={resetFilters} className="mt-2 text-blue-700 hover:underline" data-testid="aftercalc-clear-filters">
                         Nulstil filtre
