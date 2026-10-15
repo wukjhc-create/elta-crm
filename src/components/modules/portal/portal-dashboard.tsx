@@ -31,11 +31,17 @@ interface PortalDashboardProps {
   token: string
   session: PortalSession
   offers: PortalOffer[]
+  offersError?: string | null
   messages: PortalMessageWithRelations[]
+  messagesError?: string | null
   documents?: PortalDocument[]
+  documentsError?: string | null
   serviceCases?: PortalServiceCase[]
+  serviceCasesError?: string | null
   invoices?: PortalInvoice[]
+  invoicesError?: string | null
   fuldmagter?: FuldmagtData[]
+  fuldmagterError?: string | null
   companySettings?: CompanySettings | null
 }
 
@@ -43,11 +49,17 @@ export function PortalDashboard({
   token,
   session,
   offers,
+  offersError = null,
   messages,
+  messagesError = null,
   documents = [],
+  documentsError = null,
   serviceCases = [],
+  serviceCasesError = null,
   invoices = [],
+  invoicesError = null,
   fuldmagter = [],
+  fuldmagterError = null,
   companySettings,
 }: PortalDashboardProps) {
   const [showChat, setShowChat] = useState(false)
@@ -164,7 +176,7 @@ export function PortalDashboard({
               <FileText className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{pendingOffers.length}</p>
+              <p className="text-2xl font-bold">{offersError ? '—' : pendingOffers.length}</p>
               <p className="text-sm text-gray-600">Afventende tilbud</p>
             </div>
           </div>
@@ -176,7 +188,7 @@ export function PortalDashboard({
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{acceptedOffers.length}</p>
+              <p className="text-2xl font-bold">{offersError ? '—' : acceptedOffers.length}</p>
               <p className="text-sm text-gray-600">Accepterede tilbud</p>
             </div>
           </div>
@@ -196,8 +208,13 @@ export function PortalDashboard({
               )}
             </div>
             <div>
-              <p className="text-2xl font-bold">{messages.length}</p>
+              <p className="text-2xl font-bold">{messagesError ? '—' : messages.length}</p>
               <p className="text-sm text-gray-600">Beskeder</p>
+              {messagesError && (
+                <p className="text-xs text-red-700 mt-1" data-testid="portal-messages-load-error">
+                  {messagesError}. Det tælles ikke som ingen beskeder.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -238,12 +255,12 @@ export function PortalDashboard({
       />
 
       {/* Fuldmagter */}
-      <PortalFuldmagtSection token={token} fuldmagter={fuldmagter} />
+      <PortalFuldmagtSection token={token} fuldmagter={fuldmagter} fuldmagterError={fuldmagterError} />
 
       {/* Offers List */}
       <div className="bg-white rounded-xl border shadow-sm">
         <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Dine tilbud ({offers.length})</h2>
+          <h2 className="text-lg font-semibold">Dine tilbud ({offersError ? '—' : offers.length})</h2>
           {offers.length > 1 && (
             <p className="text-sm text-gray-500 mt-1">
               Du har flere tilbud samlet her. Åbn det enkelte tilbud for at se detaljer, acceptere eller afvise.
@@ -251,12 +268,18 @@ export function PortalDashboard({
           )}
         </div>
 
-        {offers.length === 0 ? (
+        {offersError && (
+          <p className="p-6 text-sm text-red-700" data-testid="portal-offers-load-error">
+            {offersError}. Det tælles ikke som ingen tilbud.
+          </p>
+        )}
+        {!offersError && offers.length === 0 && (
           <div className="p-12 text-center text-gray-500">
             <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>Du har ingen tilbud endnu. De vises her, når ELTA sender et tilbud.</p>
           </div>
-        ) : (
+        )}
+        {offers.length > 0 && (
           <div className="divide-y">
             {offers.map((offer) => (
               <Link
@@ -321,11 +344,17 @@ export function PortalDashboard({
             )}
           </div>
         </div>
-        {serviceCases.length === 0 ? (
+        {serviceCasesError && (
+          <p className="p-6 text-sm text-red-700" data-testid="portal-cases-load-error">
+            {serviceCasesError}. Det tælles ikke som ingen sager.
+          </p>
+        )}
+        {!serviceCasesError && serviceCases.length === 0 && (
           <div className="p-6 text-sm text-gray-500">
             Der er endnu ingen aktive sager. De vises her, når en sag er i gang.
           </div>
-        ) : (
+        )}
+        {serviceCases.length > 0 && (
           <div className="divide-y">
             {serviceCases.map((sc) => {
               const statusColor =
@@ -380,11 +409,17 @@ export function PortalDashboard({
             )}
           </div>
         </div>
-        {invoices.length === 0 ? (
+        {invoicesError && (
+          <p className="p-6 text-sm text-red-700" data-testid="portal-invoices-load-error">
+            {invoicesError}. Det tælles ikke som ingen fakturaer.
+          </p>
+        )}
+        {!invoicesError && invoices.length === 0 && (
           <div className="p-6 text-sm text-gray-500">
             Der er endnu ingen fakturaer.
           </div>
-        ) : (
+        )}
+        {invoices.length > 0 && (
           <div className="divide-y">
             {invoices.map((inv) => (
               <div
@@ -441,11 +476,17 @@ export function PortalDashboard({
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Dokumenter</h2>
         </div>
-        {documents.length === 0 ? (
+        {documentsError && (
+          <p className="p-6 text-sm text-red-700" data-testid="portal-documents-load-error">
+            {documentsError}. Det tælles ikke som ingen dokumenter.
+          </p>
+        )}
+        {!documentsError && documents.length === 0 && (
           <div className="p-6 text-sm text-gray-500">
             Der er endnu ingen dokumenter tilgængelige.
           </div>
-        ) : (
+        )}
+        {documents.length > 0 && (
           <div className="divide-y">
             {documents.map((doc) => {
               const safeDesc = getSafeDocumentDescription(doc)
