@@ -298,8 +298,8 @@ export function MailList({
 
                       {/* Content */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`text-sm truncate ${isUnread ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
+                        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-0.5">
+                          <span className={`text-sm break-all min-w-0 ${isUnread ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
                             {email.web_contact
                               ? <span data-testid="mail-row-web-contact">{email.web_contact} <span className="text-xs font-normal text-emerald-700">· hjemmesiden</span></span>
                               : (email.sender_name || email.sender_email)}
@@ -308,7 +308,7 @@ export function MailList({
                             {formatDate(email.received_at)}
                           </span>
                         </div>
-                        <p className={`text-sm truncate ${isUnread ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+                        <p className={`text-sm line-clamp-2 ${isUnread ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
                           {email.subject}
                         </p>
                         <p className="text-xs text-gray-400 truncate mt-0.5">
