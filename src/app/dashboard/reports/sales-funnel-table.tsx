@@ -22,7 +22,27 @@ export function SalesFunnelTable({ data }: { data: SalesFunnel | null }) {
       <p className="text-xs text-gray-500 mb-4">
         Sendt-rate {pct(t.sent_rate)} af oprettede tilbud · vinderrate {pct(t.win_rate)} af sendte. Accepteret værdi og faktureret er ekskl. moms (kreditnotaer trukket fra; faktura i udstedelsesmåneden).
       </p>
-      <div className="overflow-x-auto">
+      <div className="md:hidden space-y-2" data-testid="sales-funnel-mobile">
+        {data.months.map((m) => (
+          <article key={m.month} className="rounded ring-1 ring-gray-200 p-3 text-sm">
+            <p className="font-medium text-gray-900">{monthLabel(m.month)}</p>
+            <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+              <div><dt className="text-gray-500">Nye kunder</dt><dd className="tabular-nums">{m.new_customers}</dd></div>
+              <div><dt className="text-gray-500">Tilbud oprettet</dt><dd className="tabular-nums">{m.offers_created}</dd></div>
+              <div><dt className="text-gray-500">Sendt</dt><dd className="tabular-nums">{m.offers_sent}</dd></div>
+              <div><dt className="text-gray-500">Accepteret</dt><dd className="tabular-nums">{m.offers_accepted}</dd></div>
+              <div><dt className="text-gray-500">Accepteret værdi</dt><dd className="tabular-nums">{m.accepted_value ? kr(m.accepted_value) : '—'}</dd></div>
+              <div><dt className="text-gray-500">Faktureret</dt><dd className="tabular-nums">{m.invoiced_ex_vat ? kr(m.invoiced_ex_vat) : '—'}</dd></div>
+            </dl>
+          </article>
+        ))}
+        <article className="rounded bg-gray-50 ring-1 ring-gray-200 p-3 text-sm">
+          <p className="font-semibold">I alt</p>
+          <p className="text-xs text-gray-700 mt-1">Nye kunder {t.new_customers} · tilbud {t.offers_created} · sendt {t.offers_sent} · accepteret {t.offers_accepted}</p>
+          <p className="text-xs text-gray-700">Accepteret værdi {kr(t.accepted_value)} · faktureret {kr(t.invoiced_ex_vat)}</p>
+        </article>
+      </div>
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left">
