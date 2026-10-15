@@ -31,5 +31,12 @@ eq('kundekortet åbner fakturaen og pdf', customer.includes('/dashboard/invoices
 eq('kundekortet sender ikke påmindelse', customer.includes('handleReminder'), false)
 eq('kundekortet viser ikke kost', /cost_price|margin|contribution|dækningsbidrag/.test(customer), false)
 
+const customerSrc = fs.readFileSync('src/components/modules/customers/customer-invoice-overview.tsx', 'utf8')
+const events = between('src/components/modules/customers/customer-invoice-overview.tsx', 'Seneste faktura-hændelser', 'Omkostningsfrit overblik')
+eq('haendelse ombrydes', events.includes('text-sm text-gray-800 break-words') && events.includes('{e.action_label}'), true)
+eq('haendelse klippes ikke', events.includes('truncate'), false)
+eq('haendelse viser beloeb inkl moms', events.includes('kr(e.amount_incl_vat)'), true)
+eq('fodnoten holder kost ude', customerSrc.includes('kun fakturabeløb inkl. moms') && customerSrc.includes('Ingen kost, margin eller dækningsbidrag.'), true)
+
 console.log(fail ? `\n${fail} fejl` : '\ninvoices-mobile-test OK')
 process.exitCode = fail ? 1 : 0

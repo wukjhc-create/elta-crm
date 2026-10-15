@@ -334,10 +334,10 @@ export function CustomerInvoiceOverview({
             {events.map((e) => {
               const v = eventVisual(e)
               return (
-                <li key={e.id} className="px-3 py-2 flex items-center gap-2.5">
-                  <span className={`shrink-0 ${v.cls}`}>{v.icon}</span>
+                <li key={e.id} className="px-3 py-2 flex items-start gap-2.5">
+                  <span className={`shrink-0 mt-0.5 ${v.cls}`}>{v.icon}</span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm text-gray-800 truncate">
+                    <div className="text-sm text-gray-800 break-words">
                       {e.action_label}
                       {e.invoice_number ? <span className="text-gray-500"> · {e.invoice_number}</span> : null}
                     </div>
