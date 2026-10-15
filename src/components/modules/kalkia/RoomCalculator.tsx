@@ -213,8 +213,8 @@ export function RoomCalculator({ onAddItems, className = '' }: RoomCalculatorPro
         </div>
 
         {/* Room Type Selection */}
-        <div className="grid grid-cols-5 gap-2">
-          {roomTypes.slice(0, 10).map((roomType) => {
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 min-w-0">
+          {roomTypes.map((roomType) => {
             const Icon = roomIcons[roomType.icon] || Square
             const colorClasses = roomColors[roomType.color] || roomColors.gray
             const isSelected = selectedRoomType?.id === roomType.id
@@ -223,7 +223,7 @@ export function RoomCalculator({ onAddItems, className = '' }: RoomCalculatorPro
               <button
                 key={roomType.id}
                 onClick={() => handleRoomTypeSelect(roomType.id)}
-                className={`flex flex-col items-center p-2 rounded-lg border transition-all ${
+                className={`min-w-0 flex flex-col items-center p-2 rounded-lg border transition-all ${
                   isSelected
                     ? `${colorClasses} ring-2 ring-offset-1 ring-current`
                     : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
