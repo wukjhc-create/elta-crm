@@ -90,6 +90,8 @@ export interface DashboardOverview {
     oldest: DashboardOverviewOffer[]
     /** N52: kladder ældre end 14 dage (aldrig sendt) */
     staleDraftCount: number
+    /** Sat når kladderne ikke kunne tælles. Opfølgningstallet bliver stående. */
+    staleDraftFailed?: boolean
   }
   /** N51: sager med fakturerbart arbejde der ikke er faktureret (timer/materialer/øvrige; kun invoices.create). */
   unbilled: {
@@ -393,7 +395,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const { count: staleCount, error: staleError } = await supabase.from('offers').select('id', { count: 'exact', head: true })
           .eq('status', 'draft').eq('is_proposal', false).lt('created_at', staleCutoff)
         if (staleError) {
-          overview.errors.offers = 'Kunne ikke hente kladder'
+          overview.offers.staleDraftFailed = true
         } else {
           overview.offers.staleDraftCount = staleCount || 0
         }

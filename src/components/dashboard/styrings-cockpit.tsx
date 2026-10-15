@@ -267,7 +267,12 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
       headlineLabel="ældre end 7 dage"
       error={err}
     >
-      {staleDraftCount > 0 && (
+      {!err && overview.offers.staleDraftFailed && (
+        <p className="text-xs text-amber-800 mb-1" data-testid="cockpit-stale-drafts-error">
+          Kladder kunne ikke tælles. Det tælles ikke som 0.
+        </p>
+      )}
+      {!err && staleDraftCount > 0 && (
         <Link href="/dashboard/offers?status=draft" className="block text-xs text-amber-800 hover:underline mb-1" data-testid="cockpit-stale-drafts">
           {staleDraftCount} kladde{staleDraftCount === 1 ? '' : 'r'} ældre end 14 dage — aldrig sendt →
         </Link>
