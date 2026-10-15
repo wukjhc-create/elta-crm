@@ -144,7 +144,73 @@ export function SyncLogClient({ initial }: { initial: SyncLogResult }) {
       )}
 
       {/* Tabel */}
-      <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto" data-testid="sync-log-table">
+      <ul className="md:hidden space-y-2" data-testid="sync-log-mobile">
+        {!initial.ok && (
+          <li className="rounded-lg ring-1 ring-red-200 bg-red-50 p-3 text-sm text-red-800">
+            {initial.message ?? 'Kunne ikke hente eksport-loggen'}. Det tælles ikke som ingen eksportforsøg.
+          </li>
+        )}
+        {initial.ok && entries.length === 0 && (
+          <li className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm text-gray-500">
+            Ingen eksportforsøg i denne visning.
+          </li>
+        )}
+        {entries.map((e) => {
+          const skin = STATUS_SKIN[e.status] ?? STATUS_SKIN.skipped
+          const justExported = e.invoice_id ? exportedNow.has(e.invoice_id) : false
+          const canRetry = e.retry_eligible && !justExported
+          return (
+            <li key={e.id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs text-gray-600">{dkDateTime(e.created_at)}</p>
+                <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1 ${skin.cls}`}>
+                  <skin.Icon className="w-3 h-3" />
+                  {justExported ? 'Eksporteret' : skin.label}
+                </span>
+              </div>
+              {e.invoice_id ? (
+                <Link href={`/dashboard/invoices/${e.invoice_id}`} className="mt-1 inline-flex items-center gap-1 font-mono text-emerald-700 hover:underline break-all">
+                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                  {e.invoice_number ?? 'Faktura'}
+                </Link>
+              ) : (
+                <p className="mt-1 text-gray-400">{e.entity_type === 'customer' ? 'Kunde' : '—'}</p>
+              )}
+              {e.case_number && (
+                <Link href={`/dashboard/orders/${e.case_number}`} className="mt-0.5 flex items-center gap-1 text-xs text-gray-500 hover:underline break-all">
+                  <Briefcase className="w-3 h-3 shrink-0" /> {e.case_number}
+                </Link>
+              )}
+              <p className="mt-1 break-words text-gray-700">{e.customer_name ?? '—'}</p>
+              <p className="mt-1 break-all font-mono text-xs text-gray-600">{e.external_id ?? '—'}</p>
+              <p className="mt-1 break-words text-gray-600">
+                {e.error ? <span className="text-red-700">{e.error}</span> : <span className="text-gray-400">—</span>}
+                {e.started_by && <span className="mt-0.5 block text-xs text-gray-400">Startet af {e.started_by}</span>}
+              </p>
+              {e.status === 'failed' && (
+                <button
+                  onClick={() => handleRetry(e)}
+                  disabled={!canRetry || retrying}
+                  title={
+                    initial.integration_error
+                      ? 'e-conomic kunne ikke tjekkes'
+                      : !initial.integration_ready
+                        ? 'Integration ikke opsat'
+                        : !e.retry_eligible
+                          ? 'Ikke berettiget til genforsøg'
+                          : 'Prøv eksporten igen'
+                  }
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-md ring-1 ring-emerald-300 bg-white px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {retrying && retryingId === e.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  Prøv igen
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto" data-testid="sync-log-table">
         <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
             <tr>
