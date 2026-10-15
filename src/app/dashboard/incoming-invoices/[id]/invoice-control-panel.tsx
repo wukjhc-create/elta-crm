@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import { getInvoiceControl } from '@/lib/actions/invoice-control'
+import { chargeLabel, chargeLabelText } from '@/lib/invoice-control/charge-label'
 import { headerLineSummary } from '@/lib/invoice-control/header-totals'
 import type { InvoiceControlResult } from '@/lib/invoice-control/invoice-control-loader'
 
@@ -19,6 +20,12 @@ const VERDICT: Record<string, { label: string; cls: string }> = {
 }
 const LINE: Record<string, string> = { ok: 'OK', overcharge: 'Overpris', undercharge: 'Underpris', not_controllable: '—' }
 const METHOD: Record<string, string> = { stored: 'linket vare', sku: 'varenr.', ean: 'EAN', description_sku: 'varenr. i tekst' }
+
+function ChargeMark({ description }: { description: string }) {
+  const text = chargeLabelText(chargeLabel(description))
+  if (!text) return null
+  return <span className="ml-1 inline-block text-[10px] uppercase tracking-wide bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{text}</span>
+}
 
 export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: string; lineCount: number }) {
   const [res, setRes] = useState<InvoiceControlResult | null>(null)
@@ -70,7 +77,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
               return (
                 <div key={l.lineNumber} className={`p-3 ${bad ? 'bg-red-50' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-gray-900"><span className="text-gray-400">{l.lineNumber}.</span> {l.description}</p>
+                    <p className="text-gray-900"><span className="text-gray-400">{l.lineNumber}.</span> {l.description}<ChargeMark description={l.description} /></p>
                     <span className={bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : 'text-gray-600'}>{LINE[l.verdict] ?? l.verdict}</span>
                   </div>
                   <p className="mt-1 text-gray-600">{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : (l.reason ?? 'ingen')}</p>
@@ -90,7 +97,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
                   return (
                     <tr key={l.lineNumber} className={`border-t ${bad ? 'bg-red-50' : ''}`}>
                       <td className="py-1">{l.lineNumber}</td>
-                      <td>{l.description}</td>
+                      <td>{l.description}<ChargeMark description={l.description} /></td>
                       <td>{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : <span className="text-gray-400">{l.reason ?? 'ingen'}</span>}</td>
                       <td className="text-right">{m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</td>
                       <td className="text-right">{l.varianceAmount != null && l.verdict !== 'not_controllable' ? `${kr(l.varianceAmount)}${l.variancePct != null ? ` (${l.variancePct} %)` : ''}` : '—'}</td>
@@ -102,6 +109,9 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
             </table>
           </div>
           <p className="text-xs text-gray-400 mt-2">Sammenlignet med kostpris i leverandørkataloget (tolerance 2 % / 0,50 kr pr. enhed).</p>
+          {res.control.lines.some((l) => chargeLabel(l.description)) && (
+            <p className="text-xs text-gray-500 mt-1" data-testid="invoice-control-charges">Fragt og gebyr er markeret i teksten. Overprisen er uændret.</p>
+          )}
         </>
       )}
     </div>
