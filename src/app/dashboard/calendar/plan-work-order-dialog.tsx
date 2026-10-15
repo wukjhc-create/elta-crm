@@ -196,9 +196,9 @@ export function PlanWorkOrderDialog({
                   <div className="font-mono text-xs text-emerald-900">
                     {selectedCase.case_number}
                   </div>
-                  <div className="font-medium truncate">{selectedCase.title}</div>
+                  <div className="font-medium break-words">{selectedCase.title}</div>
                   {selectedCase.customer_name && (
-                    <div className="text-xs text-gray-600 truncate">
+                    <div className="text-xs text-gray-600 break-words">
                       {selectedCase.customer_name}
                     </div>
                   )}
@@ -220,6 +220,7 @@ export function PlanWorkOrderDialog({
                     value={caseSearch}
                     onChange={(e) => setCaseSearch(e.target.value)}
                     placeholder="Søg på sagsnr, titel eller kunde…"
+                    aria-label="Søg åbne sager"
                     className="w-full pl-7 pr-2 py-1.5 border rounded text-sm"
                     autoFocus
                   />
@@ -234,7 +235,18 @@ export function PlanWorkOrderDialog({
                       <AlertCircle className="w-3 h-3" /> {casesError}
                     </div>
                   ) : filteredCases.length === 0 ? (
-                    <div className="p-3 text-xs text-gray-500">Ingen åbne sager matcher</div>
+                    <div className="p-3 text-xs text-gray-500">
+                      {caseSearch.trim() ? (
+                        <>
+                          Ingen åbne sager matcher søgningen.{' '}
+                          <button type="button" onClick={() => setCaseSearch('')} className="text-blue-700 hover:underline">
+                            Ryd søgning
+                          </button>
+                        </>
+                      ) : (
+                        'Der er ingen åbne sager.'
+                      )}
+                    </div>
                   ) : (
                     <ul className="divide-y divide-gray-100">
                       {filteredCases.map((c) => (
@@ -247,14 +259,14 @@ export function PlanWorkOrderDialog({
                             }}
                             className="w-full text-left px-2 py-1.5 text-sm hover:bg-emerald-50"
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[11px] text-gray-500">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-[11px] text-gray-500 shrink-0">
                                 {c.case_number}
                               </span>
-                              <span className="font-medium truncate">{c.title}</span>
+                              <span className="font-medium break-words min-w-0">{c.title}</span>
                             </div>
                             {c.customer_name && (
-                              <div className="text-[11px] text-gray-500 truncate">
+                              <div className="text-[11px] text-gray-500 break-words">
                                 {c.customer_name}
                               </div>
                             )}

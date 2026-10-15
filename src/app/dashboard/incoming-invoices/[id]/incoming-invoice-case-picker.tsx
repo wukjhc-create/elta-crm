@@ -130,6 +130,7 @@ export function IncomingInvoiceCasePicker({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Søg på sagsnr, titel eller kunde…"
+              aria-label="Søg åbne sager"
               className="w-full pl-7 pr-2 py-1.5 border rounded text-sm"
               autoFocus
             />
@@ -145,7 +146,18 @@ export function IncomingInvoiceCasePicker({
                 <AlertCircle className="w-3 h-3" /> {loadError}
               </div>
             ) : filtered.length === 0 ? (
-              <div className="p-3 text-xs text-gray-500">Ingen åbne sager matcher</div>
+              <div className="p-3 text-xs text-gray-500">
+                {search.trim() ? (
+                  <>
+                    Ingen åbne sager matcher søgningen.{' '}
+                    <button type="button" onClick={() => setSearch('')} className="text-blue-700 hover:underline">
+                      Ryd søgning
+                    </button>
+                  </>
+                ) : (
+                  'Der er ingen åbne sager.'
+                )}
+              </div>
             ) : (
               <ul className="divide-y divide-gray-100">
                 {filtered.map((c) => {
@@ -162,11 +174,11 @@ export function IncomingInvoiceCasePicker({
                             : 'hover:bg-emerald-50'
                         } disabled:opacity-60`}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[11px] text-gray-500">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-[11px] text-gray-500 shrink-0">
                             {c.case_number}
                           </span>
-                          <span className="font-medium truncate">{c.title}</span>
+                          <span className="font-medium break-words min-w-0">{c.title}</span>
                           {isCurrent && (
                             <span className="ml-auto text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
                               Nuværende
@@ -174,7 +186,7 @@ export function IncomingInvoiceCasePicker({
                           )}
                         </div>
                         {c.customer_name && (
-                          <div className="text-[11px] text-gray-500 truncate">
+                          <div className="text-[11px] text-gray-500 break-words">
                             {c.customer_name}
                           </div>
                         )}
