@@ -56,6 +56,56 @@ export function DraftLinesEditor({ invoiceId, lines, onChanged }: { invoiceId: s
 
   return (
     <div data-testid="draft-lines-editor">
+      <ul className="md:hidden space-y-2" data-testid="draft-lines-mobile">
+        {lines.map((l) => editing === l.id ? (
+          <li key={l.id} className="rounded-lg ring-1 ring-amber-200 bg-amber-50/50 p-3 text-sm">
+            <p className="text-xs text-gray-500">Linje {l.position}</p>
+            <label className="mt-1 block text-[11px] text-gray-600">Beskrivelse
+              <input className={input} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+            </label>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label className="text-[11px] text-gray-600">Antal
+                {sourced(l)
+                  ? <span className="block py-1" title="Antal kommer fra sagen">{String(l.quantity).replace('.', ',')}</span>
+                  : <input className={`${input} text-right`} value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} />}
+              </label>
+              <label className="text-[11px] text-gray-600">Stk-pris
+                <input className={`${input} text-right`} value={draft.unit_price} onChange={(e) => setDraft({ ...draft, unit_price: e.target.value })} />
+              </label>
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button type="button" disabled={busy} onClick={() => save(l)} className="inline-flex items-center gap-1 px-2 py-1.5 text-xs rounded ring-1 ring-emerald-300 text-emerald-700">
+                <Check className="w-4 h-4" /> Gem
+              </button>
+              <button type="button" disabled={busy} onClick={() => setEditing(null)} className="inline-flex items-center gap-1 px-2 py-1.5 text-xs rounded ring-1 ring-gray-300 text-gray-600">
+                <X className="w-4 h-4" /> Annullér
+              </button>
+            </div>
+          </li>
+        ) : (
+          <li key={l.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+            <div className="flex items-start justify-between gap-2">
+              <p className="min-w-0 break-words text-gray-900">{l.position}. {l.description}{sourced(l) && <span className="ml-1 text-[10px] text-gray-400">(fra sagen)</span>}</p>
+              <p className="shrink-0 tabular-nums font-medium">{fmt(l.total_price)}</p>
+            </div>
+            <p className="mt-1 text-xs tabular-nums text-gray-700">
+              {String(l.quantity).replace('.', ',')} {l.unit ?? ''} · {fmt(l.unit_price)}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button type="button" disabled={busy || editing !== null} onClick={() => startEdit(l)} className="inline-flex items-center gap-1 px-2 py-1.5 text-xs rounded ring-1 ring-gray-300 text-gray-700">
+                <Pencil className="w-3.5 h-3.5" /> Ret
+              </button>
+              {!sourced(l) && (
+                <button type="button" disabled={busy || editing !== null} onClick={() => { if (window.confirm('Slet denne manuelle linje?')) run(() => deleteDraftInvoiceLineAction(invoiceId, l.id)) }}
+                  className="inline-flex items-center gap-1 px-2 py-1.5 text-xs rounded ring-1 ring-red-200 text-red-700">
+                  <Trash2 className="w-3.5 h-3.5" /> Slet
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden md:block overflow-x-auto">
       <table className="w-full text-xs">
         <thead className="bg-gray-50 text-left text-gray-600">
           <tr><th className="px-2 py-1.5 w-8">#</th><th className="px-2 py-1.5">Beskrivelse</th><th className="px-2 py-1.5 text-right w-20">Antal</th>
@@ -94,6 +144,7 @@ export function DraftLinesEditor({ invoiceId, lines, onChanged }: { invoiceId: s
           ))}
         </tbody>
       </table>
+      </div>
       <form
         className="mt-3 grid grid-cols-2 sm:grid-cols-[1fr_5rem_5rem_7rem_auto] gap-2 items-end"
         onSubmit={async (e) => {
