@@ -23,6 +23,9 @@ eq('kost kræver samme gate', mobile.includes('showCost') && mobile.includes('un
 eq('rediger og slet er de samme knapper', mobile.includes('setEditing(r)') && mobile.includes('handleDelete(r)'), true)
 eq('kortet fordobler ikke DB-test-id', mobile.includes('materials-db-row'), false)
 eq('tabellen beholder DB-rækken', text.includes('data-testid="materials-db-row"'), true)
+eq('beskrivelse ombrydes', mobile.includes('break-words">{r.description}'), true)
+eq('noter ombrydes', text.includes('break-words max-w-[16rem]'), true)
+eq('noten klippes ikke', text.includes('truncate'), false)
 
 console.log(fail ? `\n${fail} fejl` : '\nmaterials-mobile-test OK')
 process.exitCode = fail ? 1 : 0

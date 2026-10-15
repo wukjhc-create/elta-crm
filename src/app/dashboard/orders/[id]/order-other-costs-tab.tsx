@@ -205,9 +205,9 @@ export function OrderOtherCostsTab({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs text-gray-500">{fmtDate(r.cost_date)}</p>
-                    <p className="font-medium text-gray-900">{r.description}</p>
-                    {r.notes && <p className="text-xs text-gray-500">{r.notes}</p>}
-                    <p className="text-xs text-gray-600">{r.supplier_name ?? '—'}</p>
+                    <p className="font-medium text-gray-900 break-words">{r.description}</p>
+                    {r.notes && <p className="text-xs text-gray-500 break-words">{r.notes}</p>}
+                    <p className="text-xs text-gray-600 break-words">{r.supplier_name ?? '—'}</p>
                   </div>
                   <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${CASE_OTHER_COST_CATEGORY_COLORS[r.category]}`}>
                     {CASE_OTHER_COST_CATEGORY_LABELS[r.category]}
@@ -318,9 +318,9 @@ export function OrderOtherCostsTab({
                       </span>
                     </td>
                     <td className="px-3 py-2">
-                      <div className="font-medium text-gray-900">{r.description}</div>
+                      <div className="font-medium text-gray-900 break-words">{r.description}</div>
                       {r.notes && (
-                        <div className="text-[11px] text-gray-500 truncate max-w-[260px]">
+                        <div className="text-[11px] text-gray-500 break-words max-w-[16rem]">
                           {r.notes}
                         </div>
                       )}

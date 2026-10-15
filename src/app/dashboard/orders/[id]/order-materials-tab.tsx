@@ -213,9 +213,9 @@ export function OrderMaterialsTab({
               return (
                 <div key={r.id} className="p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-gray-900">{r.description}</p>
-                      <p className="text-xs text-gray-500">{r.sku_snapshot ?? '—'} · {r.supplier_name_snapshot ?? '—'}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 break-words">{r.description}</p>
+                      <p className="text-xs text-gray-500 break-words">{r.sku_snapshot ?? '—'} · {r.supplier_name_snapshot ?? '—'}</p>
                     </div>
                     <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${SOURCE_COLOR[r.source] ?? 'bg-gray-100 text-gray-700'}`}>
                       {SOURCE_LABEL[r.source] ?? r.source}
@@ -292,9 +292,9 @@ export function OrderMaterialsTab({
                 return (
                   <tr key={r.id} className="hover:bg-gray-50/60">
                     <td className="px-3 py-2">
-                      <div className="font-medium text-gray-900">{r.description}</div>
+                      <div className="font-medium text-gray-900 break-words">{r.description}</div>
                       {r.notes && (
-                        <div className="text-[11px] text-gray-500 truncate max-w-[260px]">
+                        <div className="text-[11px] text-gray-500 break-words max-w-[16rem]">
                           {r.notes}
                         </div>
                       )}

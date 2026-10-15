@@ -23,6 +23,9 @@ eq('foreloebig db paa kortet kraever showCost', db > mobile.lastIndexOf('{showCo
 eq('db-testid ligger ikke paa kortet', mobile.includes('other-costs-db-row'), false)
 eq('desktop-foden beholder db-testid', src.includes('data-testid="other-costs-db-row"'), true)
 eq('rediger og slet har samme etiketter', mobile.includes('aria-label="Rediger omkostning"') && mobile.includes('aria-label="Slet omkostning"'), true)
+eq('noter ombrydes', mobile.includes('break-words">{r.notes}') && src.includes('break-words max-w-[16rem]'), true)
+eq('noten klippes ikke', src.includes('truncate'), false)
+eq('afventer pris bliver', src.includes('data-testid="other-cost-awaiting-price"'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nother-costs-mobile-test OK')
 process.exitCode = fail ? 1 : 0
