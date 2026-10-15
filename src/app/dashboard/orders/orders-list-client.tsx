@@ -314,12 +314,12 @@ export function OrdersListClient({
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 max-w-xs truncate" title={c.project_name || c.title}>
-                        <Link href={`/dashboard/orders/${c.id}`} className="font-medium hover:underline">
+                      <td className="px-3 py-2 max-w-xs break-words" title={c.project_name || c.title}>
+                        <Link href={`/dashboard/orders/${c.id}`} className="font-medium hover:underline break-words">
                           {c.project_name || c.title}
                         </Link>
                       </td>
-                      <td className="px-3 py-2 text-xs">{customerName}</td>
+                      <td className="px-3 py-2 text-xs break-words">{customerName}</td>
                       <td className="px-3 py-2 text-xs">
                         {c.type ? (
                           <span className="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700">
@@ -327,10 +327,10 @@ export function OrdersListClient({
                           </span>
                         ) : <span className="text-gray-400">—</span>}
                       </td>
-                      <td className="px-3 py-2 text-xs">{c.reference || <span className="text-gray-400">—</span>}</td>
-                      <td className="px-3 py-2 text-xs">{c.requisition || <span className="text-gray-400">—</span>}</td>
-                      <td className="px-3 py-2 text-xs">{assigneeName}</td>
-                      <td className="px-3 py-2 text-xs">{formandName}</td>
+                      <td className="px-3 py-2 text-xs break-words">{c.reference || <span className="text-gray-400">—</span>}</td>
+                      <td className="px-3 py-2 text-xs break-words">{c.requisition || <span className="text-gray-400">—</span>}</td>
+                      <td className="px-3 py-2 text-xs break-words">{assigneeName}</td>
+                      <td className="px-3 py-2 text-xs break-words">{formandName}</td>
                       <td className="px-3 py-2 text-xs whitespace-nowrap">{fmtDateRange(c.start_date, c.end_date)}</td>
                       <td className="px-3 py-2 text-right text-xs">{fmtAmount(c.contract_sum)}</td>
                       <td className="px-3 py-2 text-right text-xs">{fmtAmount(c.revised_sum)}</td>
