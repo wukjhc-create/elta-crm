@@ -25,6 +25,7 @@ import type {
 } from '@/types/auto-project.types'
 import type { RiskAnalysis } from './riskEngine'
 import { formatCurrency, formatHours, estimateWorkdays } from './calculationEngine'
+import { copenhagenDateLabel } from '@/lib/utils/copenhagen-time'
 
 // =====================================================
 // Types
@@ -280,7 +281,7 @@ function generateFullOfferText(sections: OfferTextSections, ctx: GeneratorContex
   if (projectAddress) {
     lines.push(`Adresse: ${projectAddress}`)
   }
-  lines.push(`Dato: ${new Intl.DateTimeFormat('da-DK').format(new Date())}`)
+  lines.push(`Dato: ${copenhagenDateLabel(new Date())}`)
   lines.push('')
 
   // Price summary at top
