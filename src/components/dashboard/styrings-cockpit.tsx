@@ -336,12 +336,12 @@ function UnbilledCard({ overview }: { overview: DashboardOverview }) {
         <ul className="text-xs divide-y" data-testid="cockpit-unbilled">
           {cases.map((c) => (
             <li key={c.id}>
-              <Link href={`/dashboard/orders/${c.id}?tab=fakturakladde`} className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+              <Link href={`/dashboard/orders/${c.id}?tab=fakturakladde`} className="py-1.5 flex flex-wrap items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 min-w-0">
                 <div className="min-w-0">
                   <div className="line-clamp-2 break-words font-medium">{c.case_number ? `${c.case_number} · ` : ''}{c.title}</div>
                   <div className="line-clamp-2 break-words text-gray-500">{c.customer_name ?? '—'} · {c.lines} linje{c.lines === 1 ? '' : 'r'}</div>
                 </div>
-                <span className="shrink-0 tabular-nums font-medium">{kr(c.sale)}</span>
+                <span className="min-w-0 tabular-nums font-medium break-words">{kr(c.sale)}</span>
               </Link>
             </li>
           ))}
@@ -467,7 +467,7 @@ function OverdueInvoicesCard({ overview }: { overview: DashboardOverview }) {
           )}
           {items.map((i) => (
             <li key={i.id}>
-              <Link href={`/dashboard/invoices/${i.id}`} className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+              <Link href={`/dashboard/invoices/${i.id}`} className="py-1.5 flex flex-wrap items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 min-w-0">
                 <div className="min-w-0">
                   <div className="line-clamp-2 break-words font-medium">{i.invoice_number ?? 'Faktura'} · {i.customer_name ?? '—'}</div>
                   <div className="line-clamp-2 break-words text-gray-500">
@@ -479,7 +479,7 @@ function OverdueInvoicesCard({ overview }: { overview: DashboardOverview }) {
                     }</span>
                   </div>
                 </div>
-                <span className="shrink-0 tabular-nums font-medium">{kr(i.amount)}</span>
+                <span className="min-w-0 tabular-nums font-medium break-words">{kr(i.amount)}</span>
               </Link>
             </li>
           ))}
