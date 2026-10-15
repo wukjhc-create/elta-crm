@@ -170,7 +170,7 @@ export default async function DashboardPage() {
         <StatCard
           title="Aktive Leads"
           value={stats.leads.total - stats.leads.won - stats.leads.lost}
-          subtitle={`${stats.leads.conversionRate}% konvertering`}
+          subtitle={stats.leads.total === 0 ? 'Ingen leads endnu' : `${stats.leads.conversionRate}% konvertering`}
           icon={Users}
           iconColor="text-blue-600"
           iconBgColor="bg-blue-100"
@@ -179,7 +179,7 @@ export default async function DashboardPage() {
         <StatCard
           title="Kunder"
           value={stats.customers.active}
-          subtitle={`${stats.customers.new_this_month} nye denne måned`}
+          subtitle={stats.customers.active === 0 && stats.customers.new_this_month === 0 ? 'Ingen kunder endnu' : `${stats.customers.new_this_month} nye denne måned`}
           icon={Building2}
           iconColor="text-green-600"
           iconBgColor="bg-green-100"
@@ -188,7 +188,7 @@ export default async function DashboardPage() {
         <StatCard
           title="Afventende Tilbud"
           value={stats.offers.sent + stats.offers.viewed}
-          subtitle={formatCurrency(stats.offers.pending_value)}
+          subtitle={stats.offers.sent + stats.offers.viewed === 0 && stats.offers.pending_value === 0 ? 'Ingen tilbud afventer svar' : formatCurrency(stats.offers.pending_value)}
           icon={FileText}
           iconColor="text-purple-600"
           iconBgColor="bg-purple-100"
@@ -197,7 +197,7 @@ export default async function DashboardPage() {
         <StatCard
           title="Aktive Sager"
           value={stats.cases.active}
-          subtitle={`${stats.cases.total_hours}t registreret`}
+          subtitle={stats.cases.active === 0 && stats.cases.total_hours === 0 ? 'Ingen aktive sager' : `${stats.cases.total_hours}t registreret`}
           icon={FolderKanban}
           iconColor="text-orange-600"
           iconBgColor="bg-orange-100"
@@ -210,7 +210,7 @@ export default async function DashboardPage() {
         <StatCard
           title="Accepterede Tilbud"
           value={stats.offers.accepted}
-          subtitle={formatCurrency(stats.offers.accepted_value)}
+          subtitle={stats.offers.accepted === 0 && stats.offers.accepted_value === 0 ? 'Ingen accepterede tilbud' : formatCurrency(stats.offers.accepted_value)}
           icon={TrendingUp}
           iconColor="text-green-600"
           iconBgColor="bg-green-100"
