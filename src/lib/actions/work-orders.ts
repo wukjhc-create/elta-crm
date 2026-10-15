@@ -9,6 +9,7 @@ import {
 } from '@/lib/actions/action-helpers'
 import { getWorkOrderScope, userCanViewWorkOrder } from '@/lib/auth/case-scope'
 import { createAuditLog } from '@/lib/actions/audit'
+import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import type { WorkOrderRow, WorkOrderStatus } from '@/types/workforce.types'
@@ -621,4 +622,32 @@ function hideLowProfit<T extends { low_profit?: boolean | null }>(row: T, allowe
  *  ikke tolker tjekket som en rolle-gate for status-skrivningen. */
 function lowProfitVisible(hasPermission: (p: import('@/lib/auth/permissions').Permission) => boolean): boolean {
   return hasPermission('economy.cost_prices')
+}
+
+// =====================================================
+// Planlægning — dobbeltbooking-varsel (fokus E 2026-10-15)
+// =====================================================
+
+export interface EmployeeDayLoad { count: number; titles: string[] }
+
+/**
+ * Aktive arbejdsordrer (planlagt/i gang) for en medarbejder på en dato — vises som advarsel i planlægningsdialogerne
+ * før gem (før kunne samme montør bookes flere gange uden besked). Blokerer ikke: flere små job på én dag er normalt.
+ */
+export async function getEmployeeDayLoadAction(employeeId: string, date: string, excludeWorkOrderId?: string | null): Promise<ActionResult<EmployeeDayLoad>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('work_orders.plan')) return { success: false, error: 'Manglende tilladelse: work_orders.plan' }
+    validateUUID(employeeId, 'medarbejder-ID')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { success: false, error: 'Ugyldig dato' }
+    let q = supabase.from('work_orders').select('id, title')
+      .eq('assigned_employee_id', employeeId).eq('scheduled_date', date).in('status', ['planned', 'in_progress'])
+    if (excludeWorkOrderId) q = q.neq('id', excludeWorkOrderId)
+    const { data, error } = await q.order('created_at').limit(20)
+    if (error) throw error
+    const rows = (data ?? []) as Array<{ id: string; title: string | null }>
+    return { success: true, data: { count: rows.length, titles: rows.map((r) => r.title ?? 'Arbejdsordre') } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente medarbejderens dag') }
+  }
 }

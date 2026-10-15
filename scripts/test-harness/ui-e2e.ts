@@ -1746,6 +1746,9 @@ ${m.text()}`) })
         const woTitle = `Omplan ${stamp}`
         const wo = u43.caseId && empA ? await c.admin.from('work_orders').insert([{ case_id: u43.caseId, title: woTitle, status: 'planned', scheduled_date: d1, assigned_employee_id: empA }]).select('id') : null
         u43.woId = (wo?.data?.[0] as { id?: string } | undefined)?.id
+        // fokus E 2026-10-15: Bente har allerede et job på d3 → dobbeltbooking-varsel i dialogen + "2 job samme dag" i ugevisning
+        const busyTitle = `Optaget ${stamp}`
+        if (u43.caseId && empB) await c.admin.from('work_orders').insert([{ case_id: u43.caseId, title: busyTitle, status: 'planned', scheduled_date: d3, assigned_employee_id: empB }])
         const seedErr = u43.woId && empB ? '' : `SEED: ${wo?.error?.message ?? sc.error?.message ?? 'medarbejder'} · `
         await gotoSafe(a.page, `${base}/dashboard/calendar?date=${d1}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByText(woTitle).first().click({ timeout: 90_000 }).catch(() => {})
@@ -1753,6 +1756,8 @@ ${m.text()}`) })
         await dlg.waitFor({ timeout: 30_000 }).catch(() => {})
         await dlg.locator('input[type="date"]').fill(d3).catch(() => {})
         await dlg.locator('select').first().selectOption(empB ?? '').catch(() => {})
+        await dlg.getByTestId('employee-day-load').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.dobbeltbooking_varsel = ((await dlg.getByTestId('employee-day-load').textContent().catch(() => '')) ?? '').includes(busyTitle)
         await dlg.getByRole('button', { name: /Gem ændringer/ }).click({ timeout: 30_000 }).catch(() => {})
         type W = { scheduled_date?: string; assigned_employee_id?: string; status?: string }
         const readW = async (): Promise<W | null> => ((await c.admin.from('work_orders').select('scheduled_date, assigned_employee_id, status').eq('id', u43.woId ?? '').maybeSingle()).data as W | null)
@@ -1763,6 +1768,9 @@ ${m.text()}`) })
         r.stadig_planlagt = w?.status === 'planned'
         await gotoSafe(a.page, `${base}/dashboard/calendar?date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.vist_paa_ny_dag = (await a.page.getByText(woTitle).count()) > 0
+        await gotoSafe(a.page, `${base}/dashboard/calendar?view=week&date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const bRow = a.page.locator('tr', { hasText: `Harness Bente ${stamp}` }).first()
+        r.uge_belastning = (await bRow.getByTestId('week-day-overload').count()) === 1 && /2 aktive job denne uge/.test(((await bRow.getByTestId('week-employee-load').textContent().catch(() => '')) ?? ''))
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u43-omplanlaegning.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }

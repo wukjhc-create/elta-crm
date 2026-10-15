@@ -371,6 +371,7 @@ export function CalendarWorkforceClient({
           date={anchorDate}
           byDateThenEmployee={byDateThenEmployee}
           hasUnassigned={hasUnassigned}
+          canPlan={canPlan}
         />
       )}
 
@@ -405,7 +406,9 @@ function DayView({
   date,
   byDateThenEmployee,
   hasUnassigned,
+  canPlan,
 }: {
+  canPlan: boolean
   employees: EmployeeRow[]
   date: string
   byDateThenEmployee: Map<string, Map<string, WorkOrderForCalendar[]>>
@@ -419,9 +422,13 @@ function DayView({
       <div className="text-center py-16 bg-white rounded-lg ring-1 ring-gray-200">
         <h3 className="text-base font-medium text-gray-700">Ingen planlagte opgaver</h3>
         <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-          Der er ikke planlagt nogen arbejdsordrer for {fmtDate(date)}. Åbn en
-          sag og brug "Planlæg medarbejder" til at tilføje en.
+          Der er ikke planlagt nogen arbejdsordrer for {fmtDate(date)}.
+          {/* fokus E 2026-10-15: montøren kan ikke planlægge — henvis til egne åbne job i stedet */}
+          {canPlan ? ' Åbn en sag og brug "Planlæg medarbejder" til at tilføje en.' : ' Se dine åbne job fra andre dage under "Mine job".'}
         </p>
+        {!canPlan && (
+          <Link href="/dashboard/tasks" className="inline-block mt-3 text-sm text-emerald-700 hover:underline">Gå til Mine job</Link>
+        )}
       </div>
     )
   }
@@ -576,6 +583,9 @@ function WeekEmployeeRow({
 }) {
   const today = todayKey()
   const roleLabel = ROLE_LABEL.get(employee.role as any) ?? employee.role
+  // Fokus E 2026-10-15: belastning — aktive job (planlagt/i gang) pr. dag og uge
+  const active = (wos: WorkOrderForCalendar[]) => wos.filter((w) => w.status === 'planned' || w.status === 'in_progress').length
+  const weekActive = weekDates.reduce((n, d) => n + active(byDateThenEmployee.get(d)?.get(employee.id) ?? []), 0)
   return (
     <tr className="align-top">
       <td className="px-3 py-2 w-48 border-r">
@@ -586,10 +596,12 @@ function WeekEmployeeRow({
           {employee.name || '—'}
         </Link>
         <div className="text-[11px] text-gray-500 truncate">{roleLabel}</div>
+        <div className="text-[11px] text-gray-500" data-testid="week-employee-load">{weekActive} aktive job denne uge</div>
       </td>
       {weekDates.map((d) => {
         const isToday = d === today
         const wos = byDateThenEmployee.get(d)?.get(employee.id) ?? []
+        const dayActive = active(wos)
         return (
           <td
             key={d}
@@ -601,6 +613,9 @@ function WeekEmployeeRow({
               <span className="text-[10px] text-gray-300">—</span>
             ) : (
               <div className="space-y-1">
+                {dayActive >= 2 && (
+                  <div className="text-[10px] font-medium text-amber-800 bg-amber-50 rounded px-1" data-testid="week-day-overload">{dayActive} job samme dag</div>
+                )}
                 {wos.map((wo) => (
                   <WorkOrderChip key={wo.id} wo={wo} compact />
                 ))}

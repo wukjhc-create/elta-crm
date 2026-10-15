@@ -1,5 +1,6 @@
 'use client'
 
+import { EmployeeDayLoadHint } from '@/app/dashboard/calendar/employee-day-load-hint'
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUserRole } from '@/lib/hooks/use-user-role'
@@ -255,6 +256,7 @@ export function OrderPlanningTab({
                 className="w-full px-3 py-2 border rounded-md text-sm"
                 disabled={isWorking}
               />
+              <EmployeeDayLoadHint employeeId={formEmployee} date={formDate} />
             </div>
 
             <div className="space-y-1">

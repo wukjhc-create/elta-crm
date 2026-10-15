@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { EmployeeDayLoadHint } from './employee-day-load-hint'
 import { useRouter } from 'next/navigation'
 import { X, Loader2, AlertCircle, Search } from 'lucide-react'
 import { createWorkOrderForCase } from '@/lib/actions/work-orders'
@@ -296,6 +297,7 @@ export function PlanWorkOrderDialog({
               onChange={(e) => setDate(e.target.value)}
               className="w-full border rounded px-2 py-1.5 text-sm"
             />
+            <EmployeeDayLoadHint employeeId={employeeId} date={date} />
           </div>
 
           {/* Titel */}

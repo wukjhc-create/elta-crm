@@ -34,6 +34,15 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | C-1 | Leverandørfaktura-kontrol kun pr. faktura — intet overblik over merbetaling pr. leverandør | DONE — panel "Prisafvigelser mod aftalepriser" på Indgående fakturaer (foldet; hentes ved åbning): merbetaling i alt, pr. leverandør, afvigende fakturaer med link, dækning; 30/90/365 dage, højst 100 nyeste aktive fakturaer (`getInvoiceDeviationOverview`, `lib/invoice-control/deviation-overview.ts`). Unit 7/7, UI U158 + U9 |
 | D-10 | Ledelse: ingen DB pr. kunde / pr. måned (kunderapporten viste kun omsætning) | DONE — Sagsrentabilitet (beløb foldet ud): realiseret DB pr. kunde (top 10) og pr. lukkemåned (dansk tid), samme sager/filtre (`lib/profit/profitability-groups.ts`). Unit 7/7, UI U91 (udvidet)/U88 |
 | D-11 | Ingen tidlig varsling af sager der løber over estimat (først synligt i efterkalkulationen) | DONE — dashboard-widget "Sager over estimat" (economy.view): åbne sager med timer >10 % over estimat eller faktisk kost over tilbudt; kun procenter/flag, ingen beløb. UI U159 (admin ser, montør ikke) |
+| E-1 | Planlægning: ingen advarsel ved dobbeltbooking af samme montør samme dag | DONE — `getEmployeeDayLoadAction` + `EmployeeDayLoadHint` i opret-/omplanlæg-dialog og sagens planlægningsfane (varsel, blokerer ikke). UI U43 (udvidet) |
+| E-2 | Ugevisning uden belastning pr. medarbejder | DONE — "N aktive job denne uge" pr. medarbejder + "N job samme dag" ved ≥2. UI U43 |
+| E-3 | Montør: uafsluttede job fra tidligere dage forsvinder fra kalenderen; tom dag henviste til planlægning montøren ikke må | DONE — banner "N uafsluttede job … se Mine job"; rolleafhængig tomtekst. UI U21/U96/U151 |
+| E-4 | Arbejdsordrer har kun dato (ingen tidspunkt/varighed) → ingen dagsrækkefølge/overlap | BLOCKED_APPROVAL — kræver migration (`work_orders.start_time/end_time` el. `estimated_hours`) |
+| E-5 | Fravær/ferie/helligdage findes ikke → planlægning på syge/ferierende montører | BLOCKED_APPROVAL — kræver ny tabel (fravær) + helligdagsliste; forslag udarbejdes |
+| E-6 | Kapacitet pr. uge (normtimer) | BLOCKED_APPROVAL — kræver `employees.weekly_hours` (eller lign.) |
+| E-7 | Træk-og-slip omplanlægning, klik på tom celle for at planlægge | TODO |
+| E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | TODO (download uden migration; abonnement kræver token-tabel) |
+| E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | TODO |
 
 ## NEXT-13 (2026-10-15 — tavse fejl/feedback + døde revalidateringer + doc-drift)
 Kilde: to opfølgende read-only sweeps til pilot-reviewet.

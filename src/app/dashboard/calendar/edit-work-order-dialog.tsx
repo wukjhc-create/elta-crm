@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useState, useTransition } from 'react'
+import { EmployeeDayLoadHint } from './employee-day-load-hint'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -314,6 +315,7 @@ export function EditWorkOrderDialog({
                   onChange={(e) => setDate(e.target.value)}
                   className="w-full border rounded px-2 py-1.5 text-sm"
                 />
+                <EmployeeDayLoadHint employeeId={employeeId} date={date} excludeWorkOrderId={workOrder.id} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getAllTasks } from '@/lib/actions/customer-tasks'
 import { getMyPersonalReminders } from '@/lib/actions/personal-reminders'
@@ -110,11 +111,26 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   // N62: overståede job uden registreret tid (kun planlæggere)
   const canPlan = await pageHasPermission('work_orders.plan')
   const [backlog, noTime] = canPlan ? await Promise.all([getPlanningBacklogAction(), getJobsWithoutTimeAction()]) : [null, null]
+  // Fokus E 2026-10-15: montørens uafsluttede job fra tidligere dage/uden dato forsvandt fra kalenderen → banner til Mine job
+  let openElsewhere = 0
+  if (!canPlan) {
+    const withOpen = await listWorkOrdersByDateRange(rangeStart, rangeEnd, { includeOpenOutsideRange: true })
+    openElsewhere = withOpen.success && withOpen.data
+      ? withOpen.data.filter((w) => !w.scheduled_date || w.scheduled_date.slice(0, 10) < rangeStart).length
+      : 0
+  }
 
   return (
     <>
     {backlog?.success && backlog.data && <div className="px-4 sm:px-6 pt-4"><PlanningBacklogPanel items={backlog.data.items} total={backlog.data.total} /></div>}
     {noTime?.success && noTime.data && <div className="px-4 sm:px-6 pt-4"><JobsWithoutTimePanel items={noTime.data.items} total={noTime.data.total} /></div>}
+    {openElsewhere > 0 && (
+      <div className="px-4 sm:px-6 pt-4">
+        <Link href="/dashboard/tasks" className="block rounded-lg ring-1 ring-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 hover:bg-amber-100" data-testid="calendar-open-elsewhere">
+          Du har {openElsewhere} uafsluttet{openElsewhere === 1 ? '' : 'e'} job fra tidligere dage eller uden dato — se Mine job
+        </Link>
+      </div>
+    )}
     <CalendarWorkforceClient
       view={view}
       anchorDate={anchorDate}
