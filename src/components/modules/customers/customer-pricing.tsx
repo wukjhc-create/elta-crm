@@ -374,7 +374,7 @@ function PriceAgreementForm({
         <h4 className="text-sm font-semibold">
           {editingAgreement ? 'Rediger prisaftale' : 'Ny prisaftale'}
         </h4>
-        <button type="button" onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+        <button type="button" onClick={onCancel} aria-label="Luk" className="text-gray-400 hover:text-gray-600">
           <X className="h-4 w-4" />
         </button>
       </div>

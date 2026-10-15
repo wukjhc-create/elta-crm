@@ -201,7 +201,7 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
               </div>
             )}
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded">
+          <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-200 rounded">
             <X className="w-5 h-5" />
           </button>
         </div>

@@ -726,7 +726,7 @@ function ProductDialog({ type, product, onSave, onClose, isPending }: ProductDia
           <h2 className="text-xl font-semibold">
             {isEditing ? `Rediger ${typeLabels[type]}` : `Opret ${typeLabels[type]}`}
           </h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
+          <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded-full">
             <X className="w-5 h-5" />
           </button>
         </div>

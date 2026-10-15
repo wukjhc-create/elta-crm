@@ -66,7 +66,7 @@ export function BookBesigtigelseModal({
             <CalendarCheck className="w-5 h-5" />
             <h3 className="text-lg font-bold">Book Besigtigelse</h3>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white">
+          <button type="button" onClick={onClose} aria-label="Luk" className="text-white/80 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
