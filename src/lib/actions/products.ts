@@ -41,6 +41,8 @@ async function requireGate(permission: Permission) {
   return ctx
 }
 import { logger } from '@/lib/utils/logger'
+import { readSupplierProductPrices, recordManualSupplierPriceChange } from '@/lib/suppliers/manual-price-history'
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { PRODUCT_PUBLIC_COLUMNS, PRODUCT_SORT_COLUMNS } from '@/lib/products/product-columns'
 function safeJsonParse<T>(value: string | null, defaultValue: T): T {
   if (!value) return defaultValue
@@ -423,7 +425,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult<Pr
 
 export async function updateProduct(formData: FormData): Promise<ActionResult<Product>> {
   try {
-    const { supabase } = await requireGate('materials.edit')
+    const { supabase, userId } = await requireGate('materials.edit')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -455,6 +457,9 @@ export async function updateProduct(formData: FormData): Promise<ActionResult<Pr
       return { success: false, error: errors }
     }
     const { id: productId, ...updateData } = validated.data
+    // Prisspor for produktkataloget (ingen historiktabel): kost-/listeprisændringer logges i audit-loggen med før/efter.
+    // Audit-loggen kan kun læses af admin og af brugeren selv (materials.edit = admin/serviceleder, som har kostadgang).
+    const { data: priceBefore } = await createAdminClient().from('product_catalog').select('cost_price, list_price').eq('id', productId).maybeSingle()
 
     const { data, error } = await supabase
       .from('product_catalog')
@@ -462,6 +467,21 @@ export async function updateProduct(formData: FormData): Promise<ActionResult<Pr
       .eq('id', productId)
       .select(PRODUCT_PUBLIC_COLUMNS)
       .single()
+    if (data && priceBefore) {
+      const pb = priceBefore as { cost_price: number | null; list_price: number | null }
+      const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+      const newCost = n((updateData as { cost_price?: number | null }).cost_price)
+      const newList = n((updateData as { list_price?: number | null }).list_price)
+      if (n(pb.cost_price) !== newCost || n(pb.list_price) !== newList) {
+        await insertAuditRow({
+          user_id: userId, entity_type: 'product', entity_id: productId, entity_name: (data as { name?: string }).name ?? null,
+          action: 'product_price_changed',
+          action_description: 'Produktpris ændret manuelt',
+          changes: { cost_price: { old: n(pb.cost_price), new: newCost }, list_price: { old: n(pb.list_price), new: newList } },
+          metadata: { source: 'manual' },
+        })
+      }
+    }
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -972,6 +992,8 @@ export async function updateSupplierProduct(
       return { success: false, error: errors }
     }
     const { id: supplierProductId, ...updateData } = validated.data
+    // GP-12: manuel kostændring → prishistorik (samme helper som Indstillinger → Leverandører)
+    const before = await readSupplierProductPrices(createAdminClient(), supplierProductId)
 
     // 00192: return=representation kun med id (kostkolonner er ikke læsbare for authenticated);
     // hele rækken læses derefter med admin-klienten bag settings.suppliers
@@ -981,6 +1003,7 @@ export async function updateSupplierProduct(
       .eq('id', supplierProductId)
       .select('id')
       .single()
+    if (updated) await recordManualSupplierPriceChange(createAdminClient(), supplierProductId, before, { cost_price: (updateData as { cost_price?: number | null }).cost_price })
     const data = updated
       ? (await createAdminClient().from('supplier_products').select('*').eq('id', updated.id).single()).data
       : null

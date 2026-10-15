@@ -88,7 +88,7 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | GP-9 (S3) | import: supplier_settings.upsert uden onConflict → last_import_at opdateres aldrig efter 1. import | DONE (onConflict) |
 | GP-10 (S3) | 1.000-rækkers-afkortning i prisændringer fra import og kategoriliste | DONE (fetchAllRows) |
 | GP-11 (S3) | getAffectedOffers tager højeste nye kost i vinduet, ikke seneste | DONE — første gamle → seneste nye |
-| GP-12 (S3) | Manuel kostændring skriver ingen price_history | DONE for leverandørvarer (change_source manual); product_catalog: LATER |
+| GP-12 (S3) | Manuel kostændring skriver ingen price_history | DONE — fælles helper (lib/suppliers/manual-price-history) i begge redigeringsstier (Leverandører + Produkter); produktkataloget: audit `product_price_changed` med før/efter (ingen historiktabel — ny tabel kræver migration) (`manual-price-history-check` 4/4) |
 | GP-13 (S3) | parseDanishNumber("1.234") = 1,234; FTP-insert kost 0; søgning sorterer 0-kr øverst | DONE 2026-10-15 — deterministisk `parsePrice` (lib/import/price-parse): filens decimaltegn detekteres, tvetydige ("1.234" uden entydigt format) og ugyldige priser → rækkefejl/kontrol, aldrig gæt; `parseDanishNumber` streng ("12abc" → null); FTP opretter aldrig nye varer uden kost > 0 og logger "N rækker kræver kontrol" (`price-parse-test` 37/37, UI U17) |
 | GP-14 (S4) | Død line-item-form.tsx, ubrugt forespørgsel, maybeSingle i setDefaultSupplierMargin | DONE |
 

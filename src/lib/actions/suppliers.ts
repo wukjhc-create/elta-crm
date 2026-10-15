@@ -69,6 +69,7 @@ async function requireSupplierWrite() {
 }
 import { logger } from '@/lib/utils/logger'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { readSupplierProductPrices, recordManualSupplierPriceChange } from '@/lib/suppliers/manual-price-history'
 // =====================================================
 // Supplier CRUD
 // =====================================================
@@ -509,11 +510,9 @@ export async function updateSupplierProduct(
     const { supabase } = await requireSupplierWrite()
     validateUUID(id, 'produkt ID')
 
-    // GP-12: manuel kostændring skal i prishistorikken (før kun import/sync) — læs den gamle pris først
+    // GP-12: manuel kost-/listeprisændring skal i prishistorikken (lib/suppliers/manual-price-history)
     const admin = createAdminClient()
-    const before = data.cost_price !== undefined
-      ? ((await admin.from('supplier_products').select('cost_price, list_price').eq('id', id).maybeSingle()).data as { cost_price: number | null; list_price: number | null } | null)
-      : null
+    const before = data.cost_price !== undefined || data.list_price !== undefined ? await readSupplierProductPrices(admin, id) : null
 
     // 00192: return=representation kun med id (kostkolonner er ikke læsbare for authenticated);
     // hele rækken læses derefter med admin-klienten bag settings.suppliers
@@ -523,19 +522,7 @@ export async function updateSupplierProduct(
       .eq('id', id)
       .select('id')
       .single()
-    if (updated && before && data.cost_price != null && Number(before.cost_price) !== Number(data.cost_price)) {
-      const oldCost = before.cost_price == null ? null : Number(before.cost_price)
-      const { error: phErr } = await admin.from('price_history').insert({
-        supplier_product_id: id,
-        old_cost_price: oldCost,
-        new_cost_price: Number(data.cost_price),
-        old_list_price: before.list_price,
-        new_list_price: data.list_price !== undefined ? data.list_price : before.list_price,
-        change_percentage: oldCost && oldCost > 0 ? Math.round(((Number(data.cost_price) - oldCost) / oldCost) * 10000) / 100 : 0,
-        change_source: 'manual',
-      })
-      if (phErr) logger.warn('price_history (manuel) kunne ikke skrives', { entityId: id, error: phErr })
-    }
+    if (updated) await recordManualSupplierPriceChange(admin, id, before, { cost_price: data.cost_price, list_price: data.list_price })
     const product = updated
       ? (await createAdminClient().from('supplier_products').select('*').eq('id', updated.id).single()).data
       : null

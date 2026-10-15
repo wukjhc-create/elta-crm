@@ -2165,6 +2165,37 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'manual-price-history-check') {
+    // GP-12: manuel kost-/listeprisændring → price_history (manual); uændret eller ryddet kost → ingen række
+    const { readSupplierProductPrices, recordManualSupplierPriceChange } = await import('../../src/lib/suppliers/manual-price-history')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const sup = ((await admin.from('suppliers').insert({ name: `HARNESS-MPH ${stamp}`, code: `HMP${stamp}` }).select('id').single()).data as { id: string }).id
+    const prod = ((await admin.from('supplier_products').insert({ supplier_id: sup, supplier_sku: `MPH-${stamp}`, supplier_name: 'Harness vare', cost_price: 100, list_price: 150 }).select('id').single()).data as { id: string }).id
+    const rows = async () => ((await admin.from('price_history').select('old_cost_price, new_cost_price, change_source, change_percentage').eq('supplier_product_id', prod)).data ?? []) as Array<{ old_cost_price: number; new_cost_price: number; change_source: string; change_percentage: number }>
+    try {
+      const b1 = await readSupplierProductPrices(admin, prod)
+      await admin.from('supplier_products').update({ cost_price: 120 }).eq('id', prod)
+      await recordManualSupplierPriceChange(admin, prod, b1, { cost_price: 120 })
+      const r1 = await rows()
+      check('kost 100 → 120 giver én manual-række (+20 %)', r1.length === 1 && r1[0].change_source === 'manual' && Number(r1[0].old_cost_price) === 100 && Number(r1[0].new_cost_price) === 120 && Number(r1[0].change_percentage) === 20, JSON.stringify(r1))
+      const b2 = await readSupplierProductPrices(admin, prod)
+      await recordManualSupplierPriceChange(admin, prod, b2, { cost_price: 120 })
+      check('uændret kost giver ingen ny række', (await rows()).length === 1)
+      await recordManualSupplierPriceChange(admin, prod, b2, { cost_price: null })
+      check('ryddet kost (ingen aftale) giver ingen række', (await rows()).length === 1)
+      await recordManualSupplierPriceChange(admin, prod, b2, { list_price: 175 })
+      check('kun listepris ændret → række med uændret kost', (await rows()).length === 2)
+    } finally {
+      await admin.from('price_history').delete().eq('supplier_product_id', prod)
+      await admin.from('supplier_products').delete().eq('id', prod)
+      await admin.from('suppliers').delete().eq('id', sup)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ manuel prishistorik ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'supplier-vat') {
     const { runSupplierVat, formatSupplierVat } = await import('./supplier-vat')
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
