@@ -21,7 +21,7 @@ const MODE_ICONS: Record<CalculationMode, React.ComponentType<{ className?: stri
 }
 
 const MODE_DESCRIPTIONS: Record<CalculationMode, string> = {
-  standard: 'Almindelig kalkulation med materialer og arbejdslon',
+  standard: 'Almindelig kalkulation med materialer og arbejdsløn',
   solar: 'Solcelleanlæg med ROI og besparelsesberegning',
   electrician: 'El-arbejde med timebaseret afregning',
 }
@@ -32,7 +32,7 @@ export default function CalculationModeSelector({
   disabled = false,
 }: CalculationModeSelectorProps) {
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {CALCULATION_MODES.map((mode) => {
         const Icon = MODE_ICONS[mode]
         const isSelected = value === mode

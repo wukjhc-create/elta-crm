@@ -97,7 +97,7 @@ export function LMClassicImportPanel({ supplierId }: LMClassicImportPanelProps) 
       </div>
 
       {/* Status cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="border rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
             <Package className="w-4 h-4" />
