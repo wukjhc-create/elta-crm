@@ -53,17 +53,25 @@ export function OfferToCaseCard({
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<OfferConversionPreview | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
+  const [previewError, setPreviewError] = useState(false)
+  const [previewTry, setPreviewTry] = useState(0)
 
   // Hent preview når der ikke allerede er en koblet sag og status tillader det.
   useEffect(() => {
     if (linkedCase || !ALLOWED_STATUSES.has(offerStatus)) return
     let alive = true
     setLoadingPreview(true)
+    setPreviewError(false)
     getOfferConversionPreview(offerId)
-      .then((res) => { if (alive && res.success && res.data) setPreview(res.data) })
+      .then((res) => {
+        if (!alive) return
+        if (res.success && res.data) setPreview(res.data)
+        else setPreviewError(true)
+      })
+      .catch(() => { if (alive) setPreviewError(true) })
       .finally(() => { if (alive) setLoadingPreview(false) })
     return () => { alive = false }
-  }, [offerId, offerStatus, linkedCase])
+  }, [offerId, offerStatus, linkedCase, previewTry])
 
   if (!ALLOWED_STATUSES.has(offerStatus)) return null
 
@@ -116,7 +124,7 @@ export function OfferToCaseCard({
     startTransition(() => router.push(`/dashboard/orders/${res.data!.case_number}`))
   }
 
-  const canConvert = preview ? preview.can_convert : true
+  const canConvert = preview ? preview.can_convert : !previewError
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
@@ -183,6 +191,17 @@ export function OfferToCaseCard({
               ))}
             </div>
           )}
+        </div>
+      ) : previewError ? (
+        <div className="text-sm text-red-800">
+          <p>Kunne ikke hente forhåndsvisningen. Opret er blokeret, indtil den er hentet.</p>
+          <button
+            type="button"
+            onClick={() => setPreviewTry((n) => n + 1)}
+            className="mt-2 min-h-[44px] px-3 text-sm font-medium border border-red-200 rounded-lg bg-white"
+          >
+            Prøv igen
+          </button>
         </div>
       ) : (
         <div className="text-sm text-blue-800">
