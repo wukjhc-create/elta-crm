@@ -59,6 +59,9 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
         </h3>
         {open ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
       </button>
+      {!open && (
+        <p className="mt-1 text-xs text-gray-500">Kost pr. linje er skjult, indtil du åbner.</p>
+      )}
 
       {open && (
         <div className="mt-3">
@@ -71,7 +74,7 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
             const totalUnknown = figures.offered_cost == null || figures.actual_cost == null
             return (
             <>
-              <p className="text-xs text-gray-500 mb-2">
+              <p className="text-xs text-gray-500 mb-2 break-words">
                 {data.offer
                   ? `Tilbud ${data.offer.offer_number ?? ''} mod sagens registrerede materialer og timer. Timekost er samlet for sagen.`
                   : 'Sagen er ikke oprettet fra et tilbud — viser kun faktisk forbrug.'}

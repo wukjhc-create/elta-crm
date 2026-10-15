@@ -24,6 +24,8 @@ eq(
 )
 eq('ukendt total bliver', ova.includes('data-testid="offer-vs-actual-total-unknown"'), true)
 eq('synlig status aendrer ikke data-status', ova.includes('data-status bliver ved antal-reglen'), true)
+eq('lukket panel siger at kost er skjult', ova.includes('Kost pr. linje er skjult, indtil du åbner.'), true)
+eq('ukendt total teksten bliver', ova.includes('Den tælles ikke som 0 kr.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\neconomy-lines-empty-test OK')
 process.exitCode = fail ? 1 : 0
