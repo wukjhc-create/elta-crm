@@ -602,11 +602,11 @@ export function IntegrationsSettingsClient() {
                     <p className="text-xs text-blue-600 mb-2">
                       Brug denne URL til at modtage opdateringer fra eksterne systemer
                     </p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-white px-3 py-2 rounded text-sm font-mono truncate">
+                    <div className="flex items-start gap-2">
+                      <code className="flex-1 min-w-0 bg-white px-3 py-2 rounded text-sm font-mono break-all">
                         {`${typeof window !== 'undefined' ? window.location.origin : ''}/api/integrations/webhook/${selectedIntegration.id}`}
                       </code>
-                      <Button variant="outline" size="sm" onClick={copyWebhookUrl}>
+                      <Button variant="outline" size="sm" onClick={copyWebhookUrl} aria-label="Kopiér webhook-URL" className="shrink-0">
                         <Copy className="w-4 h-4" />
                       </Button>
                     </div>
@@ -808,12 +808,12 @@ export function IntegrationsSettingsClient() {
                             </span>
                           </div>
                           {log.request_url && (
-                            <div className="text-xs text-gray-500 truncate">
+                            <div className="text-xs text-gray-500 break-all">
                               {log.request_method} {log.request_url}
                             </div>
                           )}
                           {log.error_message && (
-                            <div className="text-xs text-red-600 mt-1">
+                            <div className="text-xs text-red-600 mt-1 break-words">
                               {log.error_message}
                             </div>
                           )}
