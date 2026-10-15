@@ -18,6 +18,7 @@ import {
   type CaseNoteEntry,
 } from '@/lib/actions/service-cases'
 import { CASE_NOTE_KINDS, type CaseNoteKind } from '@/types/service-cases.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const fmtDateTime = (s: string) => {
   const d = new Date(s)
@@ -58,7 +59,7 @@ export function OrderNotesTab({
     let cancelled = false
     getCaseNotes(caseId).then((res) => {
       if (cancelled) return
-      if (!res.success) { setError(res.error || 'Kunne ikke hente noter'); setNotes([]); return }
+      if (!res.success) { setError(humanizeErrorText(res.error) || 'Kunne ikke hente noter'); setNotes([]); return }
       setNotes(res.data ?? [])
     })
     return () => { cancelled = true }

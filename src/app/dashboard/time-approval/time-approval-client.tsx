@@ -17,6 +17,7 @@ import {
   type TimeApprovalStatus,
 } from '@/lib/actions/time-approval'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const TABS: Array<{ key: TimeApprovalStatus; label: string }> = [
   { key: 'pending', label: 'Afventer' },
@@ -46,7 +47,7 @@ export function TimeApprovalClient() {
   const load = useCallback(async () => {
     setError(null)
     const r = await listTimeLogsForApprovalAction(tab)
-    if (!r.success) { setError(r.error ?? 'Kunne ikke hente timer'); setRows([]); return }
+    if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke hente timer'); setRows([]); return }
     setRows(r.data ?? [])
   }, [tab])
 
@@ -69,7 +70,7 @@ export function TimeApprovalClient() {
     const seen = Object.fromEntries((rows ?? []).filter((l) => ids.includes(l.id)).map((l) => [l.id, { start_time: l.start_time, end_time: l.end_time, pay_rate_type: l.pay_rate_type, employee_rate_id: l.employee_rate_id }]))
     const r = await approveTimeLogsAction(ids, seen)
     setBusy(null)
-    if (!r.success) { setError(r.error ?? 'Kunne ikke godkende'); return }
+    if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke godkende'); return }
     setMsg(`${r.data?.updated ?? 0} registrering(er) godkendt${r.data?.skipped ? ` · ${r.data.skipped} sprunget over (egne/igangværende/ændret siden visning)` : ''}`)
     await load()
   }
@@ -79,7 +80,7 @@ export function TimeApprovalClient() {
     setBusy(rejecting.id); setMsg(null); setError(null)
     const r = await rejectTimeLogAction(rejecting.id, rejecting.reason)
     setBusy(null)
-    if (!r.success) { setError(r.error ?? 'Kunne ikke afvise'); return }
+    if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke afvise'); return }
     setRejecting(null)
     setMsg('Registreringen er afvist — montøren kan rette den, hvorefter den skal godkendes igen')
     await load()

@@ -27,6 +27,7 @@ import {
   BILLING_MODE_LABELS,
   type ServiceCaseBillingMode,
 } from '@/types/service-cases.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface CustomerOption {
   id: string
@@ -246,7 +247,7 @@ export function NewOrderForm({
       })
 
       if (!result.success || !result.data) {
-        setError(result.error || 'Kunne ikke oprette sag')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke oprette sag')
         return
       }
 

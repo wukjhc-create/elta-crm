@@ -10,6 +10,7 @@ import { ChevronDown, ChevronRight, Scale } from 'lucide-react'
 import { getInvoiceDeviationOverview } from '@/lib/actions/invoice-control'
 import { formatCurrency } from '@/lib/utils/format'
 import type { DeviationOverview } from '@/lib/invoice-control/deviation-overview'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 type Overview = DeviationOverview & { truncated: boolean; days: number }
 
@@ -28,7 +29,7 @@ export function DeviationOverviewPanel() {
     try {
       const res = await getInvoiceDeviationOverview(d)
       if (res.success && res.data) setData(res.data)
-      else setError(res.error || 'Kunne ikke hente prisafvigelser')
+      else setError(humanizeErrorText(res.error) || 'Kunne ikke hente prisafvigelser')
     } finally {
       setLoading(false)
     }

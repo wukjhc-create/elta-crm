@@ -8,6 +8,7 @@ import { X } from 'lucide-react'
 import { createTimeEntrySchema, type CreateTimeEntryInput } from '@/lib/validations/projects'
 import { createTimeEntry, updateTimeEntry } from '@/lib/actions/projects'
 import type { TimeEntry, ProjectTask } from '@/types/projects.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface TimeEntryFormProps {
   projectId: string
@@ -85,7 +86,7 @@ export function TimeEntryForm({
         : await createTimeEntry(formData)
 
       if (!result.success) {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
         return
       }
 

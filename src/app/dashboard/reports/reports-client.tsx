@@ -36,6 +36,7 @@ import {
   type TeamProductivity,
   type RejectionStats,
 } from '@/lib/actions/reports'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 // =====================================================
 // KPI Card
@@ -233,7 +234,7 @@ function ProjectTable() {
       .then((res) => {
         if (!alive) return
         if (res.success && res.data) setReport(res.data)
-        else setError(res.error || 'Kunne ikke hente sagsrentabilitet')
+        else setError(humanizeErrorText(res.error) || 'Kunne ikke hente sagsrentabilitet')
       })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }

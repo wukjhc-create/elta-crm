@@ -22,6 +22,7 @@ import {
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
 import { isUnbilledCloseError, confirmCloseDespiteUnbilled } from '@/lib/cases/close-guard'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface CustomerOption {
   id: string
@@ -135,7 +136,7 @@ export function EditOrderForm({
       }
 
       if (!result.success || !result.data) {
-        setError(result.error || 'Kunne ikke gemme ændringer')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke gemme ændringer')
         return
       }
 

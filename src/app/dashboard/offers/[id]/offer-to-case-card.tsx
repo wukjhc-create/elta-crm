@@ -22,6 +22,7 @@ import {
   type OfferConversionPreview,
 } from '@/lib/actions/offer-to-case'
 import type { OfferStatus } from '@/types/offers.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface LinkedCase {
   case_id: string
@@ -106,7 +107,7 @@ export function OfferToCaseCard({
     const res = await createServiceCaseFromOffer(offerId)
     setIsWorking(false)
     if (!res.success || !res.data) {
-      setError(res.error || 'Kunne ikke oprette sag')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke oprette sag')
       return
     }
     if (!res.data.created) {

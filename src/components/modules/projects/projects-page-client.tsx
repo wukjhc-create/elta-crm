@@ -18,6 +18,7 @@ import {
   type ProjectStatus,
   type ProjectPriority,
 } from '@/types/projects.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface PaginationData {
   currentPage: number
@@ -94,7 +95,7 @@ export function ProjectsPageClient() {
           pageSize: result.data.pageSize,
         })
       } else {
-        setError(result.error || 'Kunne ikke hente projekter')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke hente projekter')
       }
     } catch (err) {
       console.error('Failed to load projects:', err)

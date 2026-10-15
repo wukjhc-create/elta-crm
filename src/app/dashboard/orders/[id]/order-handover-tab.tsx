@@ -15,6 +15,7 @@ import {
   getCaseHandoverAction, startCaseHandoverAction, toggleHandoverItemAction, uploadHandoverPhotoAction,
   deleteHandoverPhotoAction, signCaseHandoverAction, type CaseHandover,
 } from '@/lib/actions/case-handover'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function OrderHandoverTab({ caseId }: { caseId: string }) {
   const [data, setData] = useState<CaseHandover | null>(null)
@@ -25,7 +26,7 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
 
   const load = useCallback(async () => {
     const r = await getCaseHandoverAction(caseId)
-    if (r.success && r.data) { setData(r.data); setError(null) } else setError(r.error ?? 'Kunne ikke hente aflevering')
+    if (r.success && r.data) { setData(r.data); setError(null) } else setError(humanizeErrorText(r.error) ?? 'Kunne ikke hente aflevering')
   }, [caseId])
   useEffect(() => { load() }, [load])
 
@@ -34,7 +35,7 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
     // pilot-review 2026-10-15 (#5): en kastet fejl (fx for stort foto/netværk) låste fanen i "busy"
     try {
       const r = await fn()
-      if (!r.success) setError(r.error ?? 'Fejl')
+      if (!r.success) setError(humanizeErrorText(r.error) ?? 'Fejl')
       else setError(null)
     } catch {
       setError('Handlingen fejlede — filen er måske for stor, eller forbindelsen røg')

@@ -29,6 +29,7 @@ import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
 import { PAY_RATE_TYPE_OPTIONS, PAY_RATE_TYPE_LABEL, type PayRateType } from '@/types/workforce.types'
 import { toNumberDa } from '@/lib/utils/danish-number'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const fmtAmount = (n: number | null | undefined) =>
   n == null
@@ -161,7 +162,7 @@ export function WorkOrderTimeLogs({
     setIsWorking(false)
 
     if (!res.success) {
-      setError(res.error || 'Kunne ikke gemme timer')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke gemme timer')
       return
     }
     setShowForm(false)
@@ -194,7 +195,7 @@ export function WorkOrderTimeLogs({
     setIsWorking(true)
     const res = await updateTimeLog(l.id, { date: fixDate, start_clock: fixStart, end_clock: fixEnd || undefined, description: fixDesc })
     setIsWorking(false)
-    if (!res.success) { setError(res.error || 'Kunne ikke rette timeregistreringen'); return }
+    if (!res.success) { setError(humanizeErrorText(res.error) || 'Kunne ikke rette timeregistreringen'); return }
     setFixId(null)
     await reload()
     onChange?.()
@@ -206,7 +207,7 @@ export function WorkOrderTimeLogs({
     setIsWorking(true)
     const res = await deleteRejectedTimeLogAction(l.id)
     setIsWorking(false)
-    if (!res.success) { setError(res.error || 'Kunne ikke slette'); return }
+    if (!res.success) { setError(humanizeErrorText(res.error) || 'Kunne ikke slette'); return }
     await reload()
     onChange?.()
     startTransition(() => router.refresh())
@@ -220,7 +221,7 @@ export function WorkOrderTimeLogs({
     const res = await updateTimeLog(logId, { pay_rate_type: value, employee_rate_id: null })
     setIsWorking(false)
     if (!res.success) {
-      setError(res.error || 'Kunne ikke ændre satstype')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke ændre satstype')
       return
     }
     await reload()

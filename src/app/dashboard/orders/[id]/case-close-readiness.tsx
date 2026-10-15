@@ -11,6 +11,7 @@ import { CheckCircle2, Loader2, PlayCircle } from 'lucide-react'
 import { getCaseCloseReadinessAction, getCaseStartHintAction, setServiceCaseStatus } from '@/lib/actions/service-cases'
 import { isUnbilledCloseError, confirmCloseDespiteUnbilled } from '@/lib/cases/close-guard'
 import type { CloseReadiness } from '@/lib/cases/case-progress'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function CaseCloseReadiness({ caseId, status }: { caseId: string; status: string }) {
   const router = useRouter()
@@ -36,7 +37,7 @@ export function CaseCloseReadiness({ caseId, status }: { caseId: string; status:
       res = await setServiceCaseStatus(caseId, 'closed', null, { acknowledgeUnbilled: true })
     }
     setBusy(false)
-    if (!res.success) { setError(res.error ?? 'Kunne ikke lukke sagen'); return }
+    if (!res.success) { setError(humanizeErrorText(res.error) ?? 'Kunne ikke lukke sagen'); return }
     startTransition(() => router.refresh())
   }
 
@@ -85,7 +86,7 @@ export function CaseStartHint({ caseId, status }: { caseId: string; status: stri
     setBusy(true); setError(null)
     const res = await setServiceCaseStatus(caseId, 'in_progress', null)
     setBusy(false)
-    if (!res.success) { setError(res.error ?? 'Kunne ikke ændre status'); return }
+    if (!res.success) { setError(humanizeErrorText(res.error) ?? 'Kunne ikke ændre status'); return }
     startTransition(() => router.refresh())
   }
 

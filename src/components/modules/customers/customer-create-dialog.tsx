@@ -24,6 +24,7 @@ import { quickCreateCustomer, checkDuplicateCustomer } from '@/lib/actions/custo
 import { AddressAutocomplete } from '@/components/forms/address-autocomplete'
 import type { AddressSuggestion } from '@/lib/services/address-lookup'
 import type { Customer } from '@/types/customers.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export interface CreatedCustomerRef {
   id: string
@@ -180,7 +181,7 @@ export function CustomerCreateDialog({
         notes: isFullMode ? (notes || null) : null,
       })
       if (!res.success || !res.data) {
-        setError(res.error || 'Kunne ikke oprette kunde')
+        setError(humanizeErrorText(res.error) || 'Kunne ikke oprette kunde')
         setSaving(false)
         return
       }

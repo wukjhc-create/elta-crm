@@ -24,6 +24,7 @@ import {
   type CaseOtherCostRow,
 } from '@/types/case-other-costs.types'
 import { toNumberDa } from '@/lib/utils/danish-number'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface FormState {
   category: CaseOtherCostCategory
@@ -164,7 +165,7 @@ export function CaseOtherCostDialog({
 
     if (!res.success) {
       setSubmitting(false)
-      setError(res.error ?? 'Kunne ikke gemme omkostning')
+      setError(humanizeErrorText(res.error) ?? 'Kunne ikke gemme omkostning')
       return
     }
 
@@ -403,7 +404,7 @@ export function CaseOtherCostDialog({
                     } finally {
                       setReceiptUploading(false)
                     }
-                    if (!r.success || !r.data) { setError(r.error ?? 'Kunne ikke uploade kvittering'); return }
+                    if (!r.success || !r.data) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke uploade kvittering'); return }
                     update('receipt_url', r.data.path)
                     update('receipt_filename', r.data.filename)
                   }}

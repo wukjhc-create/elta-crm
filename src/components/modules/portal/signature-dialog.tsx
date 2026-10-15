@@ -7,6 +7,7 @@ import { acceptOffer } from '@/lib/actions/portal'
 import type { PortalSession, PortalOffer } from '@/types/portal.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface SignatureDialogProps {
   token: string
@@ -153,7 +154,7 @@ export function SignatureDialog({
       })
 
       if (!result.success) {
-        setError(result.error || 'Kunne ikke acceptere tilbud')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke acceptere tilbud')
         return
       }
 

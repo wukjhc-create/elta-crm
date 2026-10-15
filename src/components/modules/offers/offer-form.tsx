@@ -17,6 +17,7 @@ import {
 } from '@/lib/actions/offers'
 import type { Offer } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface CalculatorData {
   systemSize?: number
@@ -181,7 +182,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
         : await createOffer(formData)
 
       if (!result.success) {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
         return
       }
 

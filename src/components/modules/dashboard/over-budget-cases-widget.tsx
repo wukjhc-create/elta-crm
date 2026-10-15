@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { ArrowRight, CheckCircle2, Gauge, Loader2 } from 'lucide-react'
 import { getProjectProfitabilityReport, type ProjectProfitability } from '@/lib/actions/reports'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function overBudget(p: ProjectProfitability): boolean {
   return (p.hours_deviation_pct ?? 0) > 10 || (p.cost_deviation ?? 0) > 0
@@ -21,7 +22,7 @@ export function OverBudgetCasesWidget() {
   useEffect(() => {
     let alive = true
     getProjectProfitabilityReport({ status: 'open', limit: 200 })
-      .then((r) => { if (!alive) return; if (r.success && r.data) setRows(r.data.rows.filter(overBudget)); else setError(r.error || 'Kunne ikke hente sager') })
+      .then((r) => { if (!alive) return; if (r.success && r.data) setRows(r.data.rows.filter(overBudget)); else setError(humanizeErrorText(r.error) || 'Kunne ikke hente sager') })
       .catch(() => { if (alive) setError('Kunne ikke hente sager') })
     return () => { alive = false }
   }, [])

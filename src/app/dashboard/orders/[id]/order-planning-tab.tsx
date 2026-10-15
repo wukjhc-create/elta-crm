@@ -19,6 +19,7 @@ import { getCaseLaborCostTotal, listTimeLogsForCase } from '@/lib/actions/time-l
 import type { WorkOrderStatus } from '@/types/workforce.types'
 import { WorkOrderTimeLogs } from './work-order-time-logs'
 import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   planned: 'Planlagt',
@@ -169,7 +170,7 @@ export function OrderPlanningTab({
     }
     setIsWorking(false)
     if (!res.success) {
-      setError(res.error || 'Kunne ikke oprette arbejdsordre')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke oprette arbejdsordre')
       return
     }
     setShowForm(false)
@@ -187,7 +188,7 @@ export function OrderPlanningTab({
     const res = await changeWorkOrderStatus(woId, next)
     setIsWorking(false)
     if (!res.success) {
-      setError(res.error || 'Kunne ikke ændre status')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke ændre status')
       return
     }
     await reload()
@@ -201,7 +202,7 @@ export function OrderPlanningTab({
     const res = await deletePlannedWorkOrder(woId)
     setIsWorking(false)
     if (!res.success) {
-      setError(res.error || 'Kunne ikke slette')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke slette')
       return
     }
     await reload()

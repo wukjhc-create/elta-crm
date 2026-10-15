@@ -6,6 +6,7 @@ import { X } from 'lucide-react'
 import { rejectOffer } from '@/lib/actions/portal'
 import { RejectOfferForm } from '@/components/shared/reject-offer-form'
 import type { OfferRejectionInput } from '@/types/offers.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface RejectDialogProps {
   token: string
@@ -37,7 +38,7 @@ export function RejectDialog({ token, offerId, onClose }: RejectDialogProps) {
     try {
       const result = await rejectOffer(token, offerId, input)
       if (!result.success) {
-        setError(result.error || 'Kunne ikke afvise tilbud')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke afvise tilbud')
         setIsSubmitting(false)
         return
       }

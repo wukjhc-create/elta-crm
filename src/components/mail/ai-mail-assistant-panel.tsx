@@ -37,6 +37,7 @@ import {
 } from '@/lib/actions/ai-mail-assistant'
 import { AttachmentPicker, type PickerAttachment } from '@/components/mail/attachment-picker'
 import { RecipientPicker } from '@/components/mail/recipient-picker'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 type AiAction =
   | 'suggest'
@@ -152,7 +153,7 @@ export function AIMailAssistantPanel({
 
     if (!result.ok || !result.text) {
       // Bevar eksisterende draft ved fejl
-      setError(result.error || 'AI ikke tilgængelig — skriv selv.')
+      setError(humanizeErrorText(result.error) || 'AI ikke tilgængelig — skriv selv.')
     } else {
       setDraft(result.text)
       if (result.placeholders && result.placeholders.length > 0) {
@@ -187,7 +188,7 @@ export function AIMailAssistantPanel({
         setAttachments([]) // Lokal liste ryddes — filerne ligger nu på customer/sag
       } else {
         setSendStatus('error')
-        setError(res.error || 'Kunne ikke sende.')
+        setError(humanizeErrorText(res.error) || 'Kunne ikke sende.')
       }
     } catch (err) {
       setSendStatus('error')

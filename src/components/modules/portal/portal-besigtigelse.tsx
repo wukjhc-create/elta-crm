@@ -18,6 +18,7 @@ import {
 } from '@/lib/actions/portal'
 import type { PortalBesigtigelse } from '@/lib/actions/portal'
 import { PortalBookBesigtigelse } from './portal-book-besigtigelse'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface PortalBesigtigelseSectionProps {
   token: string
@@ -191,7 +192,7 @@ function BesigtigelseCard({
         setConfirmed(true)
         onUpdated()
       } else {
-        setError(result.error || 'Kunne ikke bekræfte')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke bekræfte')
       }
     } catch {
       setError('Uventet fejl')
@@ -210,7 +211,7 @@ function BesigtigelseCard({
         setRescheduleSent(true)
         setShowReschedule(false)
       } else {
-        setError(result.error || 'Kunne ikke sende anmodning')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke sende anmodning')
       }
     } catch {
       setError('Uventet fejl')

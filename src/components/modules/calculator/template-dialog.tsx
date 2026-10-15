@@ -11,6 +11,7 @@ import type {
   TemplateWithCreator,
 } from '@/types/calculator.types'
 import { formatCurrency } from '@/lib/utils/format'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface SaveTemplateDialogProps {
   isOpen: boolean
@@ -69,7 +70,7 @@ export function SaveTemplateDialog({
       onSaved()
       onClose()
     } else {
-      setError(result.error || 'Kunne ikke gemme skabelon')
+      setError(humanizeErrorText(result.error) || 'Kunne ikke gemme skabelon')
     }
   }
 

@@ -21,6 +21,7 @@ import {
   PROJECT_PRIORITY_LABELS,
   type Project,
 } from '@/types/projects.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface ProjectFormProps {
   project?: Project
@@ -149,7 +150,7 @@ export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
         : await createProject(formData)
 
       if (!result.success) {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
         return
       }
 

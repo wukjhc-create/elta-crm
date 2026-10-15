@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Search, X, UserPlus, AlertCircle } from 'lucide-react'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface CustomerRow {
   id: string
@@ -152,7 +153,7 @@ export function CustomerLinkDialog({
     try {
       const r = await onLink(c.id)
       if (!r.success) {
-        setError(r.error || 'Kunne ikke koble mailen')
+        setError(humanizeErrorText(r.error) || 'Kunne ikke koble mailen')
         setLinkingId(null)
         return
       }

@@ -8,6 +8,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Upload, X } from 'lucide-react'
 import { importCustomersAction, previewCustomerImportAction, type CustomerImportPreview } from '@/lib/actions/customer-import'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const FIELD_LABEL: Record<string, string> = {
   company_name: 'Firmanavn', contact_person: 'Kontaktperson', email: 'E-mail', phone: 'Telefon', mobile: 'Mobil', vat_number: 'CVR',
@@ -38,7 +39,7 @@ export function CustomerImportDialog({ onClose }: { onClose: () => void }) {
     setText(t); setFileName(file.name)
     const res = await previewCustomerImportAction(t)
     setBusy(false)
-    if (!res.success || !res.data) { setError(res.error ?? 'Kunne ikke læse filen'); return }
+    if (!res.success || !res.data) { setError(humanizeErrorText(res.error) ?? 'Kunne ikke læse filen'); return }
     setPreview(res.data)
   }
 
@@ -47,7 +48,7 @@ export function CustomerImportDialog({ onClose }: { onClose: () => void }) {
     setBusy(true); setError(null)
     const res = await importCustomersAction(text)
     setBusy(false)
-    if (!res.success || !res.data) { setError(res.error ?? 'Import fejlede'); return }
+    if (!res.success || !res.data) { setError(humanizeErrorText(res.error) ?? 'Import fejlede'); return }
     setResult(res.data)
     router.refresh()
   }

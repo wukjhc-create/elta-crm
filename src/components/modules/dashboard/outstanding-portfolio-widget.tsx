@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react'
 import { Wallet, ArrowRight, Loader2, CheckCircle2, TrendingUp } from 'lucide-react'
 import { getCaseOutstandingPortfolioAction, type OutstandingPortfolio } from '@/lib/actions/service-case-economy'
 import { formatCurrency } from '@/lib/utils/format'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function OutstandingPortfolioWidget() {
   const [data, setData] = useState<OutstandingPortfolio | null>(null)
@@ -22,7 +23,7 @@ export function OutstandingPortfolioWidget() {
   useEffect(() => {
     let alive = true
     getCaseOutstandingPortfolioAction()
-      .then((r) => { if (!alive) return; if (r.success && r.data) setData(r.data); else setError(r.error || 'Kunne ikke hente porteføljeøkonomi') })
+      .then((r) => { if (!alive) return; if (r.success && r.data) setData(r.data); else setError(humanizeErrorText(r.error) || 'Kunne ikke hente porteføljeøkonomi') })
       .catch(() => { if (alive) setError('Kunne ikke hente porteføljeøkonomi') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }

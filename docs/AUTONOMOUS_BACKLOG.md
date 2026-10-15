@@ -45,6 +45,45 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-17 (pilot-review-bølge 2026-10-15 nat — montør/serviceleder, kontor/bogholderi, salg)
+| # | Fund | Status |
+|---|---|---|
+| M-1 (S1) | Tryk på afleveringsfoto sletter det uden bekræftelse (hover-skraldespand findes ikke på telefon) | TODO |
+| M-2 (S2) | Fejlet underskrift lukker paden (tegningen tabt); canvas skaleres ikke ved rotation | TODO |
+| M-3 (S2) | Timeformularen beholder gårsdagens dato når fanen står åben natten over | TODO |
+| M-4 (S2) | Anden "kun timer"-registrering samme dag fejler som overlap (start altid 08:00) | TODO |
+| M-5 (S2) | Timer med komma ("7,5") afvises (type=number) | TODO |
+| M-6 (S2) | "Mine job" forsvinder tavst ved hentefejl | TODO |
+| M-7 (S3) | Mine job henter alle åbne arbejdsordrer uden loft og filtrerer i JS (1.000-loft kan skjule egne) | TODO |
+| M-8 (S3) | Montøren ser ikke starttid/estimat på sine job | TODO |
+| M-9 (S3) | N+1: hver arbejdsordre henter egne timer + medarbejderliste; fejl på medarbejderliste tavs | TODO |
+| M-10 (S3) | Små tap-mål (Start/Afslut/Annullér, Registrér timer, Ret/Slet, tjekliste-flueben) | TODO |
+| M-11 (S3) | Tjeklistefoto kun via kamera (capture) — kan ikke vælge fra galleri | TODO |
+| M-12 (S4) | Kalender: fravær-hentefejl tavs; tidsgodkendelse 500-loft uden besked | TODO |
+| B-1 (S1) | "Annuller" på betalingsreference-prompten markerer alligevel fakturaen betalt (irreversibelt); send uden mail uden bekræftelse | TODO |
+| B-2 (S2) | Fakturaoversigten henter kun 500 nyeste uden besked; summeringskort regnes på det beskårne udsnit | TODO |
+| B-3 (S2) | Tre forskellige "udestående" (widget trækker indbetalt/kreditnota fra, oversigt/kundekort/badge gør ikke); kundeoversigt loft 200, badge 500 uden order | TODO |
+| B-4 (S3) | "Betalt denne måned" på browserens måned vs. UTC paid_at | TODO |
+| B-5 (S2) | Bogføring i gang/hængt claim vises som "allerede bogført" (pending-…) og skjuler Bogfør | TODO |
+| B-6 (S2) | Forfaldne leverandørfakturaer: klientfilter på 200 nyeste → færre end widgetten | TODO |
+| B-7 (S3) | Forfaldsoversigt: fejl → "0 forfaldne", valutaer lægges sammen | TODO |
+| B-8 (S3) | Leverandørfaktura-fane/tællere og rapportfiltre ikke i URL / opdateres ikke efter handling | TODO |
+| B-9 (S2) | Rapporter: "Omsætning" og "Top kunder" er accepterede tilbud, ikke fakturering | TODO |
+| B-10 (S3) | Dashboard henter alle rækker for at tælle; fejl → 0 uden advarsel | TODO |
+| B-11 (S3) | "+ Opret test-leverandørfaktura" synlig i prod og kobler til rigtig sag; forældet engelsk tekst | TODO |
+| S-1 (S2) | Tilbudsstatus-piller: ét klik "Sendt" (ingen mail) og irreversibel "Accepteret" (vinder lead + opretter sag) uden bekræftelse | TODO |
+| S-2 (S3) | Inline-redigering af leverandørlinje overskriver supplier_cost_price_at_creation; avance 0 → null | TODO |
+| S-3 (S3) | Dashboard "Samlet værdi" = 5 nyeste, før rabat — afviger fra stat-kortet | TODO |
+| S-4 (S3) | Lead-kanban taber leads efter 500 (lukkede fylder) | TODO |
+| S-5 (S3) | Auto "Følg op: intet svar"-opgave uden due_date (vises ikke) og lukkes ikke ved accept/afvisning | TODO |
+| S-6 (S3) | Send på mail: statusskift uden CAS, aktivitet, audit, webhook og revalidering | TODO |
+| S-7 (S3) | Manuel mail→kunde-kobling kan fejle tavst (0 rækker) og kobler ikke resten af tråden | TODO |
+| S-8 (S3) | Indbakke viser tom liste/0-tællere ved DB-fejl | TODO |
+| S-9 (S3) | createCustomerFromEmail kun gated på inbox.view (opretter kunder/leads); quickCreateCustomerFromEmail død men kaldbar | TODO |
+| S-10 (S4) | Lead-tidslinje viser engelske statuskoder | TODO |
+| S-11 (S4) | Accept/afvis-notifikationsmail linker til listen, mangler tilbudsnr./kunde | TODO |
+| S-12 (S4) | Dashboard henter alle mail-leads med fulde custom_fields | TODO |
+
 ## NEXT-16 (pilot-review-bølge 2026-10-15 aften — "hvad irriterer brugerne i morgen?")
 | # | Fund | Status |
 |---|---|---|
@@ -53,7 +92,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | W-3 (S2) | Materiale på sag: kun manuel indtastning (ingen leverandørsøgning) → pris 0 | DONE — "Søg i leverandørkatalog" i Tilføj materiale (ny action searchProductsForCaseMaterialAction, gate materials.add_to_case + sagsadgang; kost/salg kun med materials.view.cost_prices, salgspris med kundens gyldige aftale) udfylder felter og kobler supplier_product_id. UI U167/U34 |
 | W-4 (S2) | Sagslisten 13 kolonner på mobil — montørens bundnav går dertil | DONE — kortliste under md (nr., status, haster, titel, kunde, adresse, datoer), tabellen fra md; søgefelt fuld bredde. UI U160 (375 px uden scroll) + U20/U165/U12 |
 | W-5 (S2) | Montør ser statusskift/Rediger på sag han ikke må bruge | DONE — statusskift + Rediger (hoved, sagsoplysninger, sagspartnere, adresse) kun med cases.edit; ellers statusmærke. UI U40/U12/U11 |
-| W-6 (S2) | "Manglende tilladelse: x.y"-literaler | DELVIS — vises allerede dansk via humanizeErrorText i toast/action-helpers (R-12); resterende direkte visninger tjekkes |
+| W-6 (S2) | "Manglende tilladelse: x.y"-literaler | DONE — toast (R-12) + alle inline-fejl `setError(x.error || …)` (66 filer, 91 steder) går gennem humanizeErrorText → "Du har ikke adgang til at …". UI-smoke U27/U34/U163/U11/U40/U160/U28/U164/U53/U145 |
 | W-7 (S2) | Opgaver genindlæser alt pr. tastetryk; getAllTasks uden limit/guard | DONE — søgning debounces (300 ms), profiler hentes én gang, loft 1.000, escapeLike. UI U151/U140/U101/U102 |
 | W-8 (S2) | Salg/bogholderi kan oprette opgaver men ikke se en opgaveliste; getAllTasks uden rettighedstjek | DELVIS — guard DONE: uden tasks.view ses kun egne oprettede/tildelte opgaver (liste + tællere; før så alle indloggede alle opgaver). Rettighedsudvidelse (opgavemenu for salg/bogholderi) = [H] |
 | W-9 (S2) | Ingen genkald/opfølgning på leads | DELVIS — interim "Påmind mig" på leadet: kalenderfil (.ics, Københavnstid, alarm) med kontakt/tlf/link — intet gemmes i CRM. UI U167, unit work-order-ics. Rigtigt felt next_follow_up_at (eller 00197 personal_reminders til prod) = [H] migration |

@@ -17,6 +17,7 @@ import {
 import { searchProductsForCaseMaterialAction, type CaseMaterialProductHit } from '@/lib/actions/case-material-search'
 import type { CaseMaterialRow } from '@/types/case-materials.types'
 import { toNumberDa } from '@/lib/utils/danish-number'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface FormState {
   description: string
@@ -172,7 +173,7 @@ export function CaseMaterialDialog({
 
     if (!res.success) {
       setSubmitting(false)
-      setError(res.error ?? 'Kunne ikke gemme materiale')
+      setError(humanizeErrorText(res.error) ?? 'Kunne ikke gemme materiale')
       return
     }
 

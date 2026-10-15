@@ -16,6 +16,7 @@ import {
   LEAD_SOURCE_LABELS,
   type Lead,
 } from '@/types/leads.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface LeadFormProps {
   lead?: Lead
@@ -137,7 +138,7 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
         : await createLead(formData)
 
       if (!result.success) {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
         return
       }
 

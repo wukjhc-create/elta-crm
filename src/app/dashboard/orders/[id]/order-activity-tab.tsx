@@ -5,6 +5,7 @@ import {
   getServiceCaseActivity,
   type ServiceCaseActivityEntry,
 } from '@/lib/actions/service-cases'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const fmtDateTime = (s: string) => {
   const d = new Date(s)
@@ -36,7 +37,7 @@ export function OrderActivityTab({ caseId }: { caseId: string }) {
       const res = await getServiceCaseActivity(caseId)
       if (cancelled) return
       if (!res.success) {
-        setError(res.error || 'Kunne ikke hente aktivitet')
+        setError(humanizeErrorText(res.error) || 'Kunne ikke hente aktivitet')
         setEntries([])
         return
       }

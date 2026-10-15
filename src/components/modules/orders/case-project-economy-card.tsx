@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react'
 import { Wallet, ArrowRight, Loader2, AlertTriangle, Receipt } from 'lucide-react'
 import { getServiceCaseProjectEconomy, type CaseProjectEconomy } from '@/lib/actions/service-case-economy'
 import { formatCurrency } from '@/lib/utils/format'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string; caseNumber?: string | null }) {
   const [data, setData] = useState<CaseProjectEconomy | null>(null)
@@ -23,7 +24,7 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
   useEffect(() => {
     let alive = true
     getServiceCaseProjectEconomy(caseId)
-      .then((r) => { if (!alive) return; if (r.success && r.data) setData(r.data); else setError(r.error || 'Kunne ikke hente projektøkonomi') })
+      .then((r) => { if (!alive) return; if (r.success && r.data) setData(r.data); else setError(humanizeErrorText(r.error) || 'Kunne ikke hente projektøkonomi') })
       .catch(() => { if (alive) setError('Kunne ikke hente projektøkonomi') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }

@@ -34,6 +34,7 @@ import {
   OFFER_BILLING_MODES,
   type OfferBillingMode,
 } from '@/types/offers.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface PartyRef {
   id: string
@@ -154,7 +155,7 @@ export function EditOfferPartiesDialog({
       }
       const res = await updateOfferParties(offerId, payload)
       if (!res.success) {
-        setError(res.error || 'Kunne ikke gemme')
+        setError(humanizeErrorText(res.error) || 'Kunne ikke gemme')
         setSaving(false)
         return
       }

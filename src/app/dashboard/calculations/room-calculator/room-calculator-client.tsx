@@ -18,6 +18,7 @@ import type {
   CreateRoomCalculationInput,
   ProfitSimulationResult,
 } from '@/types/calculation-intelligence.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 // =====================================================
 // Room Calculator Client
@@ -239,7 +240,7 @@ export function RoomCalculatorClient() {
         setProfitSim(profitResult.data)
       }
     } else {
-      setError(result.error || 'Beregningsfejl')
+      setError(humanizeErrorText(result.error) || 'Beregningsfejl')
     }
     setIsCalculating(false)
   }, [rooms, buildingType, buildingAge, hourlyRate, overheadPct, riskPct, marginPct, discountPct])

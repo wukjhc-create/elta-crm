@@ -36,6 +36,7 @@ import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
 import type { EmployeeRow } from '@/types/employees.types'
 import type { WorkOrderStatus } from '@/types/workforce.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   planned: 'Planlagt',
@@ -173,7 +174,7 @@ export function EditWorkOrderDialog({
     }
     setSavingPatch(false)
     if (!res.success) {
-      setError(res.error ?? 'Kunne ikke opdatere arbejdsordre')
+      setError(humanizeErrorText(res.error) ?? 'Kunne ikke opdatere arbejdsordre')
       return
     }
     setInfo('Ændringer gemt')
@@ -191,7 +192,7 @@ export function EditWorkOrderDialog({
     const res = await changeWorkOrderStatus(workOrder.id, next)
     setStatusBusy(null)
     if (!res.success) {
-      setError(res.error ?? 'Kunne ikke ændre status')
+      setError(humanizeErrorText(res.error) ?? 'Kunne ikke ændre status')
       return
     }
     setCurrentStatus(next)

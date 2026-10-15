@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react'
 import { getInvoiceControl } from '@/lib/actions/invoice-control'
 import type { InvoiceControlResult } from '@/lib/invoice-control/invoice-control-loader'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const kr = (n: number) => `${n.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`
 
@@ -28,7 +29,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
     getInvoiceControl(invoiceId).then((r) => {
       if (!alive) return
       if (r.success && r.data) setRes(r.data)
-      else setError(r.error ?? 'Ukendt fejl')
+      else setError(humanizeErrorText(r.error) ?? 'Ukendt fejl')
     })
     return () => { alive = false }
   }, [invoiceId, lineCount])

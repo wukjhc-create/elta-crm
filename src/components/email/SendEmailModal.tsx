@@ -48,6 +48,7 @@ import {
   Paperclip,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface SendEmailModalProps {
   open: boolean
@@ -176,7 +177,7 @@ export function SendEmailModal({
         setSubject(result.data.subject)
         setBodyHtml(result.data.body_html)
       } else {
-        setError(result.error || 'Kunne ikke generere forhåndsvisning')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke generere forhåndsvisning')
       }
     } catch (error) {
       console.error('Error loading preview:', error)
@@ -236,7 +237,7 @@ export function SendEmailModal({
         onOpenChange(false)
         onEmailSent?.()
       } else {
-        setError(result.error || 'Kunne ikke sende e-mail')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke sende e-mail')
         toast?.error('Fejl', result.error || 'Kunne ikke sende e-mail')
       }
     } catch (error) {

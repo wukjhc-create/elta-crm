@@ -21,6 +21,7 @@ import {
 } from '@/lib/actions/employee-overtime-rates'
 import type { EmployeeOvertimeRate } from '@/types/employees.types'
 import { toNumberDa } from '@/lib/utils/danish-number'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const fmt = (n: number | null) =>
   n == null ? '—' : new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 2 }).format(n)
@@ -49,7 +50,7 @@ export function EmployeeOvertimeRatesPanel({
     setLoading(true)
     const res = await listEmployeeOvertimeRates(employeeId)
     if (res.success && res.data) setRates(res.data)
-    else setError(res.error ?? 'Kunne ikke hente satser')
+    else setError(humanizeErrorText(res.error) ?? 'Kunne ikke hente satser')
     setLoading(false)
     return res.success && res.data ? res.data : []
   }, [employeeId])
@@ -71,7 +72,7 @@ export function EmployeeOvertimeRatesPanel({
     setError(null)
     startTransition(async () => {
       const res = await fn()
-      if (!res.success) setError(res.error ?? 'Handlingen fejlede')
+      if (!res.success) setError(humanizeErrorText(res.error) ?? 'Handlingen fejlede')
       await load()
     })
   }
