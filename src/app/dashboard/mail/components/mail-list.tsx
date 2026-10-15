@@ -146,7 +146,7 @@ export function MailList({
       {/* ============================================= */}
       <div className="bg-white rounded-lg border p-4 space-y-3">
         {/* Row 1: Search + Søg button */}
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -155,11 +155,14 @@ export function MailList({
               onChange={(e) => onSearchChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') onSearchSubmit() }}
               placeholder="Søg i emne, afsender..."
+              aria-label="Søg i mails"
               className="w-full pl-10 pr-10 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {search && (
               <button
+                type="button"
                 onClick={() => { onSearchChange(''); onSearchSubmit() }}
+                aria-label="Ryd søgefelt"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <X className="w-4 h-4" />
@@ -175,12 +178,13 @@ export function MailList({
         </div>
 
         {/* Row 2: Sortér dropdown + Læst/ulæst dropdown */}
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           {/* Sort dropdown — exactly like Leads status filter */}
           <select
+            aria-label="Sortering"
             value={sortOrder}
             onChange={(e) => onSortOrderChange(e.target.value as SortOrder)}
-            className="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
           >
             <option value="newest">Nyeste først</option>
             <option value="oldest">Ældste først</option>
@@ -188,9 +192,10 @@ export function MailList({
 
           {/* Read filter dropdown — exactly like Leads source filter */}
           <select
+            aria-label="Læst"
             value={readFilter}
             onChange={(e) => onReadFilterChange(e.target.value as ReadFilter)}
-            className="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
           >
             <option value="all">Alle emails</option>
             <option value="unread">Kun ulæste</option>
@@ -200,7 +205,7 @@ export function MailList({
 
         {/* Active filters display — same pattern as Leads */}
         {hasActiveFilters && (
-          <div className="flex items-center gap-2 pt-3 border-t">
+          <div className="flex flex-wrap items-center gap-2 pt-3 border-t">
             <span className="text-sm text-gray-500">Aktive filtre:</span>
             {search && (
               <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
@@ -213,7 +218,7 @@ export function MailList({
             {readFilter !== 'all' && (
               <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
                 {readFilter === 'unread' ? 'Ulæste' : 'Læste'}
-                <button onClick={() => onReadFilterChange('all')} className="hover:text-red-600">
+                <button type="button" onClick={() => onReadFilterChange('all')} aria-label="Ryd læst-filter" className="hover:text-red-600">
                   <X className="w-3 h-3" />
                 </button>
               </span>

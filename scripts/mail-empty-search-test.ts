@@ -17,6 +17,12 @@ eq('tom indbakke er der stadig', empty.includes('Ingen emails fundet'), true)
 eq('ryd bruger den samme handler', empty.includes("onSearchChange('')") && empty.includes('onSearchSubmit()'), true)
 eq('krydset har et navn', src.includes('aria-label="Ryd søgning"'), true)
 eq('laesefilter kan stadig nulstilles', empty.includes('Vis alle emails'), true)
+eq('soegning har et navn', src.includes('aria-label="Søg i mails"'), true)
+eq('sortering har et navn', src.includes('aria-label="Sortering"'), true)
+eq('laest har et navn', src.includes('aria-label="Læst"'), true)
+eq('laest-filter kan ryddes med navn', src.includes('aria-label="Ryd læst-filter"'), true)
+eq('filtre ombrydes', src.includes('flex flex-wrap gap-3'), true)
+eq('forhaandsvisning bliver', src.includes('email.body_preview'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nmail-empty-search-test OK')
 process.exitCode = fail ? 1 : 0
