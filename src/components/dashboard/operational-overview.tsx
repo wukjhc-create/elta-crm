@@ -131,7 +131,7 @@ export function OperationalOverview() {
           <p className="text-xs text-gray-500 break-words">
             Auto-refresh hvert 5 min · pauser når fanen er skjult
             {lastFetched && ` · sidst opdateret ${fmtRelative(lastFetched.toISOString())} siden`}
-            {error && <span className="text-red-600 ml-2">· kunne ikke hente data</span>}
+            {error && <span className="text-red-600 ml-2">· kunne ikke hente data{data ? '. De tidligere tal bliver.' : ''}</span>}
           </p>
         </div>
         <button
@@ -144,6 +144,14 @@ export function OperationalOverview() {
         </button>
       </div>
 
+      {!data ? (
+        <p className={`text-sm break-words ${loading ? 'text-gray-500' : 'text-red-700'}`} data-testid="ops-overview-load-error">
+          {loading
+            ? 'Henter overblik…'
+            : `${error || 'Kunne ikke hente overblikket'}. Det tælles ikke som 0, og det tælles ikke som ingen forfaldne.`}
+        </p>
+      ) : (
+      <>
       <StatGrid data={data} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -196,7 +204,9 @@ export function OperationalOverview() {
         />
       </div>
 
-      <SystemHealthPanel health={data?.system_health ?? null} />
+      <SystemHealthPanel health={data.system_health ?? null} />
+      </>
+      )}
 
       <AiInsightsPanel />
     </div>
