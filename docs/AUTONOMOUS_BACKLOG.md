@@ -59,13 +59,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Kundeprisaftaler ombrydes på mobil. Tom liste siger næste skridt. Ikoner har et navn. Kost og priser er de samme. | DONE — `customer-pricing-mobile-test` |
 | Produktsøgning uden træf siger det og kan ryddes. Tomt katalog siger stadig at man opretter et produkt. | DONE — `products-empty-search-test` |
 | Sagsoverblikket viser den tildelte. Mangler den, står der ikke tildelt. Opretteren bliver sælger i ansvar-panelet. | DONE — `case-assignee-test` |
+| Sagsdokumenter er kort. Filnavnet ombrydes. Den tomme liste siger stadig at man tilføjer filer. | DONE — `document-name-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: case-assignee efter f9d7ea09
-TESTS: case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, calendar-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
+LAST_COMMIT: document-name efter 95a7a8c3
+TESTS: document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, calendar-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00223 GP-1 RLS, 00224 GP-6 (migrationer, ikke kørt). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: aria-label på ikonknapper; tomme filterresultater i rapporter; sagsdokumenter som kort; leverandørkort ombrydes; påmindelse uden dato; kundehistorik tom tekst; sync-log kort; dokumentnavn ombrydes; opgavefilter ombrydes; kalender forrige/næste navn.
+NEXT_QUEUE: aria-label på ikonknapper; tomme filterresultater i rapporter; leverandørkort ombrydes; påmindelse uden dato; kundehistorik tom tekst; sync-log kort; opgavefilter ombrydes; kalender forrige/næste navn; opgavestatistik to kolonner; personlig påmindelse ombrydes; lead-aktivitet tom tekst; rapporter tom sektion forklarer; kundeopgave uden forfald; planlægning tom uge; tilbudsliste tom søgning.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.

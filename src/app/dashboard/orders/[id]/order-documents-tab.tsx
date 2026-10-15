@@ -184,8 +184,8 @@ export function OrderDocumentsTab({
 function DocumentRow({ doc, fromMail }: { doc: CaseDocument; fromMail: boolean }) {
   const isImg = isImage(doc.mime_type, doc.file_name)
   return (
-    <div className="p-4 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3 min-w-0">
+    <div className="p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      <div className="flex items-start gap-3 min-w-0">
         <div className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center ${
           fromMail ? 'bg-blue-100' : 'bg-gray-100'
         }`}>
@@ -197,7 +197,7 @@ function DocumentRow({ doc, fromMail }: { doc: CaseDocument; fromMail: boolean }
           )}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{doc.file_name}</p>
+          <p className="text-sm font-medium break-all">{doc.file_name}</p>
           <div className="flex items-center gap-2 flex-wrap mt-0.5">
             <p className="text-xs text-gray-500">
               {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: da })}
