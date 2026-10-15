@@ -22,7 +22,7 @@
  */
 
 import type { Permission } from '@/lib/auth/permissions'
-import { endDateForClocks, findOverlappingTimeLog, rateBelongsToEmployee, timeLogSpanError } from '@/lib/time-logs/guards'
+import { endDateForClocks, findOverlappingTimeLog, missingSaleRateError, rateBelongsToEmployee, timeLogSpanError } from '@/lib/time-logs/guards'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import {
@@ -174,6 +174,12 @@ export interface CreateTimeLogInput {
   employee_rate_id?: string | null
 }
 
+async function employeeSaleRateError(employeeId: string): Promise<string | null> {
+  const { data, error } = await createAdminClient().from('employees').select('hourly_rate').eq('id', employeeId).maybeSingle()
+  if (error) return 'Kunne ikke kontrollere medarbejderens timepris — prøv igen'
+  return missingSaleRateError((data as { hourly_rate?: number | string | null } | null)?.hourly_rate)
+}
+
 export async function createTimeLog(
   input: CreateTimeLogInput
 ): Promise<ActionResult<TimeLogRow>> {
@@ -229,6 +235,12 @@ export async function createTimeLog(
       .maybeSingle()
     if (!emp) return { success: false, error: 'Medarbejder ikke fundet' }
     if (!emp.active) return { success: false, error: 'Medarbejder er inaktiv' }
+    // PR-4b: ingen tid uden gyldig timepris (DB-triggeren ville ellers fryse en skjult standardpris). Satsen læses med
+    // admin-klienten (montør må ikke se den) — kun ja/nej bruges, intet beløb returneres
+    {
+      const rateErr = await employeeSaleRateError(input.employee_id)
+      if (rateErr) return { success: false, error: rateErr }
+    }
 
     // Compute start_time / end_time.
     const startClock = (input.start_clock?.trim() || '08:00').padEnd(5, '0')
@@ -423,6 +435,9 @@ export async function updateTimeLog(
         if (new Date(endTimeIso).getTime() <= new Date(startTimeIso).getTime()) {
           return { success: false, error: 'Sluttid skal være efter starttid' }
         }
+        // PR-4b: afslutning/ændring fryser satsen igen (trigger) — kræver gyldig timepris
+        const rateErr = await employeeSaleRateError(cur.employee_id as string)
+        if (rateErr) return { success: false, error: rateErr }
         patch.end_time = endTimeIso
       }
     }

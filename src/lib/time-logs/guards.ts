@@ -70,3 +70,17 @@ export function endDateForClocks(date: string, startClock: string, endClock: str
   const [y, m, d] = date.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)
 }
+
+/**
+ * Henrik 2026-10-15 (PR-4b): ingen skjult standardpris. DB-triggeren (00137) fryser `COALESCE(employees.hourly_rate, 495)`
+ * — en medarbejder uden timepris gav stille 495 kr/t på fakturaen. Appen blokerer derfor registrering/afslutning af tid
+ * når medarbejderen ikke har en timepris (NULL). En eksplicit sats (også 0) er medarbejderens egen og bruges som den er.
+ * Eksisterende frosne snapshots røres ikke.
+ */
+export const MISSING_SALE_RATE_TEXT =
+  'Medarbejderen mangler en timepris. En administrator eller serviceleder skal sætte den under Medarbejdere, før der kan registreres tid (der bruges ikke en standardpris).'
+
+export function missingSaleRateError(hourlyRate: number | string | null | undefined): string | null {
+  if (hourlyRate === null || hourlyRate === undefined || hourlyRate === '') return MISSING_SALE_RATE_TEXT
+  return Number.isFinite(Number(hourlyRate)) ? null : MISSING_SALE_RATE_TEXT
+}

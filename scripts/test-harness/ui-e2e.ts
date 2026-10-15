@@ -2554,6 +2554,13 @@ ${m.text()}`) })
           await m.page.locator('input[type="time"]').first().fill('07:30').catch(() => {})
           await m.page.locator('input[type="time"]').nth(1).fill('11:45').catch(() => {})
           await m.page.getByPlaceholder('Hvad blev der lavet?').fill('Montage af stikkontakter').catch(() => {})
+          // PR-4b (Henrik 2026-10-15): montøren har ingen timepris endnu → blokeret med dansk besked, ingen skjult 495
+          await m.page.getByRole('button', { name: 'Gem timer' }).click({ timeout: 30_000 }).catch(() => {})
+          await m.page.getByText(/mangler en timepris/).first().waitFor({ timeout: 20_000 }).catch(() => {})
+          r.uden_timepris_blokeret = (await m.page.getByText(/mangler en timepris/).count()) > 0
+            && (((await c.admin.from('time_logs').select('id').eq('work_order_id', woId)).data ?? []).length === 0)
+          // admin/serviceleder sætter satsen → montøren kan registrere
+          if (jobEmployeeId) await c.admin.from('employees').update({ hourly_rate: 495 }).eq('id', jobEmployeeId)
           await m.page.getByRole('button', { name: 'Gem timer' }).click({ timeout: 30_000 }).catch(() => {})
           type TL = { start_time?: string; end_time?: string; hours?: number; employee_id?: string }
           let tl = null as TL | null
@@ -2773,6 +2780,8 @@ ${m.text()}`) })
       // godkendt række kan ikke rettes (ingen knap); sletning bevarer øjebliksbillede i audit; admin kan slette en afvist
       if (want('U155') && jobCaseId && jobEmployeeId) {
         const r: Record<string, boolean> = {}
+        // PR-4b: rettelse fryser satsen igen → montøren skal have en timepris (sættes også af U11; her uafhængigt)
+        await c.admin.from('employees').update({ hourly_rate: 495 }).eq('id', jobEmployeeId)
         const wo = ((await c.admin.from('work_orders').select('id').eq('case_id', jobCaseId).limit(1).maybeSingle()).data as { id?: string } | null)?.id ?? null
         const mk = async (day: string, status: 'rejected' | 'approved') => {
           const ins = await c.admin.from('time_logs').insert([{ work_order_id: wo, employee_id: jobEmployeeId, start_time: `${day}T06:00:00Z`, end_time: `${day}T10:00:00Z`, billable: true, description: `[HARNESS] U155 ${status} ${stamp}` }]).select('id')

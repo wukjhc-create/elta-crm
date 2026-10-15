@@ -2,7 +2,7 @@
  * Unit-tests for timeregistreringens overlap-regel (src/lib/time-logs/guards.ts). Ingen DB.
  *   npx tsx scripts/time-log-guards-test.ts
  */
-import { endDateForClocks, intervalsOverlap } from '../src/lib/time-logs/guards'
+import { endDateForClocks, intervalsOverlap, missingSaleRateError } from '../src/lib/time-logs/guards'
 
 let bad = 0
 const ok = (c: boolean, label: string) => { if (!c) bad++; console.log(`${c ? 'PASS' : 'FAIL'}  ${label}`) }
@@ -19,6 +19,12 @@ ok(endDateForClocks('2026-10-15', '08:00', '16:00') === '2026-10-15', 'dagvagt: 
 ok(endDateForClocks('2026-10-15', '22:00', '02:00') === '2026-10-16', 'nattevagt: sluttid næste dag')
 ok(endDateForClocks('2026-10-31', '23:00', '01:00') === '2026-11-01', 'nattevagt over månedsskifte')
 ok(endDateForClocks('2026-10-15', '08:00', '08:00') === null, 'samme klokkeslæt = fejl (ikke 24 t)')
+
+// PR-4b ingen skjult standardpris (Henrik 2026-10-15)
+ok(missingSaleRateError(null) !== null && missingSaleRateError(undefined) !== null, 'uden timepris → blokér')
+ok(missingSaleRateError(495) === null && missingSaleRateError('650.00') === null, 'egen timepris → ok (også som tekst fra PostgREST)')
+ok(missingSaleRateError(0) === null, 'eksplicit 0 er medarbejderens egen sats (ikke en skjult fallback)')
+ok(missingSaleRateError('abc') !== null, 'ugyldig værdi → blokér')
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle overlap-tests bestået')
 process.exitCode = bad ? 1 : 0
