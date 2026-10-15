@@ -336,7 +336,7 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
           )}
           {emailSync.lastError && (
             <div className="px-4 py-2 bg-red-50 border-t">
-              <div className="text-xs text-red-700 truncate">{emailSync.lastError}</div>
+              <div className="text-xs text-red-700 break-words">{emailSync.lastError}</div>
             </div>
           )}
         </div>

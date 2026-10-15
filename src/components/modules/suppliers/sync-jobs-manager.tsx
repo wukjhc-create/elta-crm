@@ -199,8 +199,8 @@ export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerPro
 
                     {/* Job info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{job.name}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-900 break-words">{job.name}</span>
                         <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
                           {JOB_TYPE_LABELS[job.job_type]}
                         </span>
@@ -211,7 +211,7 @@ export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerPro
                         )}
                       </div>
                       {job.description && (
-                        <p className="text-sm text-gray-500 mt-0.5 truncate">{job.description}</p>
+                        <p className="text-sm text-gray-500 mt-0.5 break-words">{job.description}</p>
                       )}
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400 mt-1">
                         {job.schedule_cron && (

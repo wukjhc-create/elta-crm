@@ -16,6 +16,14 @@ eq('jobbet stables paa mobil', job.includes('flex flex-col gap-3 sm:flex-row sm:
 eq('ikonerne har et navn', job.includes('Skjul kørsler') && job.includes('Deaktiver job') && job.includes('Rediger job') && job.includes('Slet job'), true)
 eq('koerslen ombrydes', logs.includes('flex flex-wrap items-center gap-x-2 gap-y-1 text-sm'), true)
 eq('tom koersel er den samme', logs.includes('Ingen kørsler endnu'), true)
+eq('beskrivelse ombrydes', src.includes('text-sm text-gray-500 mt-0.5 break-words">{job.description}'), true)
+eq('jobnavn ombrydes', src.includes('font-medium text-gray-900 break-words">{job.name}'), true)
+eq('job klipper ikke', src.includes('truncate'), false)
+
+const health = fs.readFileSync('src/components/modules/suppliers/supplier-health-overview.tsx', 'utf8')
+eq('fejltekst ombrydes', health.includes('text-xs text-red-700 break-words">{emailSync.lastError}'), true)
+eq('fejltekst klippes ikke', health.includes('truncate'), false)
+eq('seneste sync bliver', health.includes('Sidst synkroniseret:'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nsync-jobs-mobile-test OK')
 process.exitCode = fail ? 1 : 0
