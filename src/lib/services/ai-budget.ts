@@ -7,6 +7,7 @@
  * Cap: env AI_DAILY_CAP (default 2000).
  */
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const DEFAULT_CAP = 2000
@@ -19,8 +20,10 @@ function getCap(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_CAP
 }
 
+// R-12 (pilot-review 2026-10-15): budgetdøgnet følger dansk kalenderdag (før UTC → nulstillet kl. 01/02 dansk tid).
+// Navnet bevares for kalderne.
 function todayUtc(): string {
-  return new Date().toISOString().substring(0, 10)
+  return copenhagenParts(new Date()).date
 }
 
 /**

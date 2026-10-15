@@ -105,12 +105,15 @@ async function userItems(admin: Admin): Promise<HealthItem[]> {
   const real = ((profiles ?? []) as Array<{ id: string; role: string | null; is_active: boolean | null; email: string | null }>)
     .filter((p) => !(p.email ?? '').endsWith('@harness.test'))
   const byRole = new Map<string, { total: number; active: number; seen7d: number }>()
+  // R-12 (pilot-review 2026-10-15): aktive brugere der aldrig har logget ind — onboarding at følge op på
+  let neverSignedIn = 0
   for (const p of real) {
     const r = byRole.get(p.role ?? '(ingen)') ?? { total: 0, active: 0, seen7d: 0 }
     r.total++
     if (p.is_active !== false) r.active++
     const s = signIns.get(p.id)
     if (s && Date.now() - new Date(s).getTime() < 7 * 24 * HOUR) r.seen7d++
+    if (p.is_active !== false && !s) neverSignedIn++
     byRole.set(p.role ?? '(ingen)', r)
   }
   const items: HealthItem[] = [...byRole.entries()].sort().map(([role, r]) => ({
@@ -118,6 +121,7 @@ async function userItems(admin: Admin): Promise<HealthItem[]> {
   }))
   const admins = byRole.get('admin')?.active ?? 0
   items.push({ label: 'Admin-dækning', level: admins >= 1 ? 'green' : 'red', detail: `${admins} aktive admins` })
+  items.push({ label: 'Aldrig logget ind', level: neverSignedIn > 0 ? 'yellow' : 'green', detail: neverSignedIn > 0 ? `${neverSignedIn} aktive brugere har endnu ikke logget ind — følg op på invitationen` : 'alle aktive brugere har logget ind' })
   return items
 }
 

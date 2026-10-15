@@ -7,6 +7,7 @@
  * instead of defining local copies.
  */
 
+import { permissionDeniedText } from '@/lib/auth/permission-text'
 import { cache } from 'react'
 import { getUser } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
@@ -87,7 +88,7 @@ export async function getAuthenticatedClientWithRole(): Promise<{
   const req = (perm: Permission) => {
     if (!has(perm)) {
       throw new ActionError(
-        `Manglende tilladelse: ${perm}`,
+        permissionDeniedText(perm), // R-12: dansk tekst (før "Manglende tilladelse: offers.edit")
         'PERMISSION_DENIED',
         { required: perm, role }
       )
@@ -110,7 +111,7 @@ export async function getAuthenticatedClientWithRole(): Promise<{
 export async function permissionDenied(permission: Permission): Promise<string | null> {
   try {
     const ctx = await getAuthenticatedClientWithRole()
-    return ctx.hasPermission(permission) ? null : `Manglende tilladelse: ${permission}`
+    return ctx.hasPermission(permission) ? null : permissionDeniedText(permission)
   } catch {
     return 'Ikke logget ind'
   }

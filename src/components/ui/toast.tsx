@@ -1,5 +1,6 @@
 'use client'
 
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react'
 
@@ -74,7 +75,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   )
 
   const error = useCallback(
-    (title: string, message?: string) => addToast({ type: 'error', title, message, duration: 8000 }),
+    // R-12: "Manglende tilladelse: x.y" → dansk tekst (ingen interne rettighedsnøgler i UI'et)
+    (title: string, message?: string) => addToast({ type: 'error', title: humanizeErrorText(title), message: humanizeErrorText(message), duration: 8000 }),
     [addToast]
   )
 

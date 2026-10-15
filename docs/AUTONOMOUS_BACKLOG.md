@@ -49,7 +49,7 @@ Kilde: read-only review. [H] = kræver Henrik. NB: selvregistrering er STADIG sl
 | R-9 (S3) | Klient-crashes når aldrig admin (error boundary kun console) | DONE — error boundary rapporterer til system_health_log service 'ui' (throttlet, afkortet, kun indloggede); vises som "Brugerfejl" |
 | R-10 (S3) | Dashboard N+1 (~125 forespørgsler ved hver forsideindlæsning) | DONE — `batchCaseCloseReadiness` (5 samlede forespørgsler, samme rene regler) (UI U67/U10) |
 | R-11 (S4) | Admin-alarmmail kun én gang i døgnet | [H] plan/rutine |
-| R-12 (S4) | Småting: rå permission-nøgler i fejl, ubrugt mapDatabaseError, x-last-active-cookie, AI-budget UTC-dag, "inviteret men aldrig logget ind" | TODO |
+| R-12 (S4) | Småting: rå permission-nøgler i fejl, ubrugt mapDatabaseError, x-last-active-cookie, AI-budget UTC-dag, "inviteret men aldrig logget ind" | DONE — dansk rettighedstekst centralt (gates + toast; kilde-strengene bevaret for assert-scripts), mapDatabaseError dansk (U-20), x-last-active fjernet, AI-budget følger dansk dag, Pilot Health "Aldrig logget ind" |
 | R-B1..B5 | Beslutninger: invitationsafsender, alarmmodtagere/-frekvens, link-levetid/gensend, kanonisk brugeroprettelse, incident-rutine | [H] |
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
