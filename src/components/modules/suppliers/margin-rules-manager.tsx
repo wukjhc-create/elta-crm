@@ -230,14 +230,16 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
                   {typeRules.map(rule => (
                     <div
                       key={rule.id}
-                      className={`px-4 py-3 flex items-center gap-4 ${!rule.is_active ? 'opacity-50' : ''}`}
+                      className={`px-4 py-3 flex flex-wrap items-center gap-3 ${!rule.is_active ? 'opacity-50' : ''}`}
                     >
                       {/* Toggle */}
                       <button
+                        type="button"
                         onClick={() => handleToggle(rule.id)}
                         disabled={actingRuleId === rule.id}
                         className="shrink-0 disabled:opacity-50"
                         title={rule.is_active ? 'Deaktiver' : 'Aktiver'}
+                        aria-label={rule.is_active ? 'Deaktiver regel' : 'Aktiver regel'}
                       >
                         {rule.is_active
                           ? <ToggleRight className="h-5 w-5 text-green-500" />
@@ -247,7 +249,7 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
 
                       {/* Rule info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-sm">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
                           <span className="font-medium text-gray-900">
                             {rule.margin_percentage}% margin
                           </span>
@@ -258,14 +260,14 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
                             <span className="text-gray-400">afrund til {rule.round_to}</span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mt-0.5">
                           {rule.category && <span>Kategori: {rule.category}</span>}
                           {rule.sub_category && <span>Underkat: {rule.sub_category}</span>}
                           {rule.min_margin_percentage != null && <span>Min: {rule.min_margin_percentage}%</span>}
                           {rule.max_margin_percentage != null && <span>Maks: {rule.max_margin_percentage}%</span>}
                           {rule.valid_from && <span>Fra: {new Date(rule.valid_from).toLocaleDateString('da-DK')}</span>}
                           {rule.valid_to && <span>Til: {new Date(rule.valid_to).toLocaleDateString('da-DK')}</span>}
-                          {rule.notes && <span className="italic">{rule.notes}</span>}
+                          {rule.notes && <span className="italic break-words">{rule.notes}</span>}
                         </div>
                       </div>
 
@@ -277,6 +279,8 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
                       {/* Actions */}
                       <div className="flex items-center gap-1 shrink-0">
                         <button
+                          type="button"
+                          aria-label="Rediger regel"
                           onClick={() => handleEdit(rule)}
                           className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
                           title="Rediger"
@@ -284,6 +288,8 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
+                          type="button"
+                          aria-label="Slet regel"
                           onClick={() => handleDelete(rule)}
                           disabled={actingRuleId === rule.id}
                           className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 disabled:opacity-50"
