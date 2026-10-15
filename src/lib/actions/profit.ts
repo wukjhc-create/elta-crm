@@ -55,7 +55,11 @@ export async function getOfferProfitAnalysis(offerId: string): Promise<ActionRes
     const { supabase } = ctx
 
     const { data: offer, error: offerErr } = await supabase.from('offers').select('id, discount_percentage').eq('id', offerId).maybeSingle()
-    if (offerErr || !offer) return { success: false, error: 'Tilbud ikke fundet' }
+    if (offerErr) {
+      logger.error('getOfferProfitAnalysis offer read failed', { error: offerErr })
+      return { success: false, error: 'Kunne ikke læse tilbuddet. DB er ikke beregnet.' }
+    }
+    if (!offer) return { success: false, error: 'Tilbud ikke fundet' }
     // 00192: kostkolonner — admin-klient bag offers.view.cost_prices
     const { data: items, error: itemsErr } = await createAdminClient().from('offer_line_items')
       .select('description, quantity, unit, total, cost_price, supplier_cost_price_at_creation').eq('offer_id', offerId).order('position')
