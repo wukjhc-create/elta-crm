@@ -140,6 +140,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   const [showSendEmailModal, setShowSendEmailModal] = useState(false)
   const [showPackagePicker, setShowPackagePicker] = useState(false)
   const [products, setProducts] = useState<{ id: string; name: string; sku: string | null; list_price: number }[]>([])
+  const [productsError, setProductsError] = useState<string | null>(null)
   const [calculations, setCalculations] = useState<{ id: string; name: string; final_amount: number }[]>([])
   const [calculationsError, setCalculationsError] = useState<string | null>(null)
   const [isAddingProduct, setIsAddingProduct] = useState(false)
@@ -277,6 +278,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     const result = await getProductsForSelect()
     if (result.success && result.data) {
       setProducts(result.data)
+      setProductsError(null)
+    } else if (!result.success) {
+      setProductsError(result.error || 'Kunne ikke hente produkter')
     }
     setShowProductPicker(true)
   }
@@ -1378,12 +1382,19 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {products.length === 0 ? (
+              {productsError && (
+                <p className="text-sm text-red-700 text-center" data-testid="offer-products-load-error">
+                  {productsError}. {products.length === 0
+                    ? 'Det tælles ikke som ingen produkter.'
+                    : 'Allerede hentede produkter bliver.'}
+                </p>
+              )}
+              {!productsError && products.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Package className="w-12 h-12 mx-auto mb-2 text-gray-400" />
                   <p>Ingen produkter fundet</p>
                 </div>
-              ) : (
+              ) : products.length > 0 ? (
                 products.map((product) => (
                   <button
                     key={product.id}
@@ -1402,7 +1413,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     </div>
                   </button>
                 ))
-              )}
+              ) : null}
             </div>
             <div className="flex justify-end p-4 border-t">
               <button
