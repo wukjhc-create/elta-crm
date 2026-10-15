@@ -63,6 +63,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
   const [open, toggle] = useCostReveal()
   const [data, setData] = useState<CaseAftercalcView | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [tryKey, setTryKey] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -72,9 +73,11 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
       if (!alive) return
       if (res.success && res.data) setData(res.data)
       else setError(res.error ?? 'Kunne ikke hente efterkalkulation')
+    }).catch(() => {
+      if (alive) setError('Kunne ikke hente efterkalkulation')
     })
     return () => { alive = false }
-  }, [open, caseId])
+  }, [open, caseId, tryKey])
 
   useEffect(() => { if (!open) setData(null) }, [open])
 
@@ -106,7 +109,14 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
 
       {open && (
         <div className="mt-3 space-y-4">
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {error && (
+            <div className="text-sm text-red-700">
+              <p>{error}. Det tælles ikke som 0 kr.</p>
+              <button type="button" onClick={() => setTryKey((n) => n + 1)} className="mt-2 min-h-[44px] px-3 text-sm font-medium border rounded-lg">
+                Prøv igen
+              </button>
+            </div>
+          )}
           {!error && !data && (
             <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Henter…</p>
           )}
