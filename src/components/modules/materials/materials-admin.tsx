@@ -125,7 +125,47 @@ export function MaterialsAdmin() {
           Ingen materialer matcher filteret.
         </div>
       ) : rows.length === 0 ? null : (
-        <div className="overflow-x-auto rounded-lg border bg-white">
+        <>
+        <div className="md:hidden divide-y rounded-lg border bg-white" data-testid="materials-admin-mobile-list">
+          {rows.map((r) => (
+            <div key={r.id} className="p-3 space-y-2">
+              <div className="font-medium break-words">{r.name}</div>
+              <div className="text-xs text-gray-500 break-words">{r.slug}</div>
+              <div className="text-sm text-gray-700 break-words">{r.category} · {r.section}</div>
+              <div className="text-sm text-gray-700">{r.default_quantity} {r.default_unit}</div>
+              <div>
+                {r.bound ? (
+                  <Badge className="bg-green-100 text-green-700">Bundet</Badge>
+                ) : (
+                  <Badge className="bg-amber-100 text-amber-700">Ubundet</Badge>
+                )}
+              </div>
+              {r.bound ? (
+                <div className="text-sm break-words">
+                  {r.supplier_name || '—'}
+                  <div className="text-xs text-gray-500 break-words">{r.supplier_sku || '—'}</div>
+                </div>
+              ) : null}
+              <div className="text-sm text-gray-700">
+                {r.cost_price !== null ? formatCurrency(r.cost_price) : '—'}
+              </div>
+              <div className="text-xs text-gray-500">Brug: {r.usage_count}</div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => setBindingFor(r)} disabled={pending}>
+                  <LinkIcon className="w-3.5 h-3.5 mr-1" />
+                  {r.bound ? 'Skift' : 'Bind'}
+                </Button>
+                {r.bound && (
+                  <Button variant="outline" size="sm" onClick={() => handleUnbind(r)} disabled={pending}>
+                    <Unlink className="w-3.5 h-3.5 mr-1" />
+                    Fjern
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden md:block overflow-x-auto rounded-lg border bg-white">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
               <tr>
@@ -219,6 +259,7 @@ export function MaterialsAdmin() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {bindingFor && (
@@ -305,7 +346,7 @@ function BindDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="material-bind-title"
@@ -313,7 +354,7 @@ function BindDialog({
         if (e.key === 'Escape') onClose()
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl w-[680px] max-h-[80vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-[680px] max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b">
           <div>
             <h3 id="material-bind-title" className="text-lg font-semibold">
