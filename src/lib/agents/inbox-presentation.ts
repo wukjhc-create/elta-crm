@@ -37,6 +37,17 @@ export const AGENT_LABELS: Record<string, string> = {
   purchase: 'Indkøbsagent', economy: 'Økonomiagent', director: 'Direktøragent',
 }
 
+/** Visningsnavn. safety_mode i databasen ændres ikke, og auto slår ikke live afsendelse til. */
+const SAFETY_LABELS: Record<string, string> = {
+  suggest: 'Forslag',
+  approve: 'Kræver godkendelse',
+  auto: 'Automatisk',
+}
+
+export function safetyModeLabel(mode: string): string {
+  return SAFETY_LABELS[mode] ?? mode
+}
+
 const TERMINAL = ['executed', 'rejected', 'failed', 'rolled_back']
 const HARD_BLOCKED = ['send_external', 'push_external', 'finance', 'delete']
 /** En 'executing'-action der ikke er rørt i så lang tid, er formentlig hængt (proces-crash). */

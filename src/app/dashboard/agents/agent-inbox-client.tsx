@@ -15,7 +15,7 @@ import {
 } from '@/lib/actions/agent-inbox'
 import type { AgentInboxItem } from '@/types/agent-core.types'
 import { reviewPriority, type ConfidenceLevel, type CustomerCandidate } from '@/lib/agents/mail-confidence'
-import { actionControls, reviewerReason, CAPABILITY_LABELS, STATUS_LABELS, AGENT_LABELS } from '@/lib/agents/inbox-presentation'
+import { actionControls, reviewerReason, CAPABILITY_LABELS, STATUS_LABELS, AGENT_LABELS, safetyModeLabel } from '@/lib/agents/inbox-presentation'
 
 const HARD_BLOCKED = ['send_external', 'push_external', 'finance', 'delete']
 const EDITABLE_DRAFTS = ['mail.draft_reply', 'followup.draft_offer_reminder']
@@ -160,7 +160,7 @@ export function AgentInboxClient({ items, liveSendEnabled = false }: { items: Ag
             <div>
               <p className="font-medium text-gray-900">{item.run.summary || item.run.agent_type}</p>
               <p className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                <span>{AGENT_LABELS[item.run.agent_type] ?? item.run.agent_type} · {item.run.safety_mode}</span>
+                <span className="break-words">{AGENT_LABELS[item.run.agent_type] ?? item.run.agent_type} · {safetyModeLabel(item.run.safety_mode)}</span>
                 {item.agentEnabled ? (
                   <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">agent aktiv</span>
                 ) : (
@@ -181,14 +181,14 @@ export function AgentInboxClient({ items, liveSendEnabled = false }: { items: Ag
 
           {item.mail && (
             <div className="mt-2 rounded border border-gray-100 bg-gray-50 p-2 text-xs text-gray-600">
-              <div>
-                <span className="font-medium text-gray-800">{item.mail.sender_name || item.mail.sender_email}</span>
-                <span className="text-gray-400"> &lt;{item.mail.sender_email}&gt;</span>
+              <div className="flex flex-wrap gap-x-1">
+                <span className="font-medium text-gray-800 break-words">{item.mail.sender_name || item.mail.sender_email}</span>
+                <span className="text-gray-400 break-all">&lt;{item.mail.sender_email}&gt;</span>
                 {item.mail.received_at && (
-                  <span className="text-gray-400"> · {new Date(item.mail.received_at).toLocaleString('da-DK')}</span>
+                  <span className="text-gray-400">· {new Date(item.mail.received_at).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                 )}
               </div>
-              <div className="font-medium text-gray-700">{item.mail.subject || '(Intet emne)'}</div>
+              <div className="font-medium text-gray-700 break-words">{item.mail.subject || '(Intet emne)'}</div>
               {item.mail.body_preview && <div className="mt-0.5 line-clamp-2 text-gray-500">{item.mail.body_preview}</div>}
               <div className="mt-1 flex flex-wrap gap-3">
                 {item.mail.customer_id ? (
