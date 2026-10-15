@@ -22,6 +22,8 @@ eq('kost paa kortet kraever canSeeCost', cost > mobile.lastIndexOf('{canSeeCost 
 eq('kortet er ikke en tabel', mobile.includes('<Table') || mobile.includes('<th'), false)
 eq('tom tekst er der stadig', src.includes('Ingen produkter fundet'), true)
 eq('handlinger har et navn', src.includes('aria-label="Flere handlinger"'), true)
+eq('rediger navngiver produktet', mobile.includes('aria-label={`Rediger ${product.name}`}'), true)
+eq('slet navngiver produktet', mobile.includes('aria-label={`Slet ${product.name}`}'), true)
 eq('paging ligger uden for kortet', mobile.includes('Pagination'), false)
 const desk = src.slice(end)
 eq('desktop-navn ombrydes', desk.includes('hover:text-blue-600 break-words'), true)

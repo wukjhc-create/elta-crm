@@ -247,9 +247,9 @@ export default function ProductsClient({
                     <dd className="font-medium">{formatCurrency(product.list_price)}</dd>
                   </div>
                 </dl>
-                <div className="flex gap-3 text-sm">
-                  <button type="button" onClick={() => setEditingProduct(product)} className="text-blue-700">Rediger</button>
-                  <button type="button" onClick={() => handleDelete(product)} className="text-red-600">Slet</button>
+                <div className="flex flex-wrap gap-3 text-sm">
+                  <button type="button" onClick={() => setEditingProduct(product)} className="text-blue-700" aria-label={`Rediger ${product.name}`}>Rediger</button>
+                  <button type="button" onClick={() => handleDelete(product)} className="text-red-600" aria-label={`Slet ${product.name}`}>Slet</button>
                 </div>
               </article>
             ))}
