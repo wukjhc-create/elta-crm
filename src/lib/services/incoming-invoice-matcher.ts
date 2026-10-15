@@ -29,6 +29,11 @@ export interface MatchResult {
    */
   caseId: string | null
   duplicateOfId: string | null
+  /**
+   * L-10 (00221): samme leverandør + fakturanummer som en AFVIST faktura — typisk en rettet, gensendt faktura.
+   * Ikke en dublet (annulleres ikke), men kræver manuel kontrol.
+   */
+  sameNumberAsRejectedId: string | null
   confidence: number
   breakdown: MatchBreakdown
 }
@@ -157,19 +162,28 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
       breakdown.reasons.push('duplicate_file_hash')
     }
   }
+  let sameNumberAsRejectedId: string | null = null
   if (!duplicateOfId && supplierId && input.invoiceNumber) {
-    const { data: refHit } = await supabase
+    // L-10 (00221): afviste/annullerede fakturaer optager ikke nummeret — en gensendt, rettet faktura er ikke en dublet
+    const { data: refHits } = await supabase
       .from('incoming_invoices')
-      .select('id')
+      .select('id, status')
       .eq('supplier_id', supplierId)
       .eq('invoice_number', input.invoiceNumber)
       .neq('id', input.excludeInvoiceId ?? '00000000-0000-0000-0000-000000000000')
-      .limit(1)
-      .maybeSingle()
-    if (refHit) {
-      duplicateOfId = refHit.id
+      .limit(20)
+    const hits = (refHits ?? []) as Array<{ id: string; status: string }>
+    const active = hits.find((h) => h.status !== 'rejected' && h.status !== 'cancelled')
+    if (active) {
+      duplicateOfId = active.id
       breakdown.duplicate_detected = 1
       breakdown.reasons.push('duplicate_supplier_invoice_number')
+    } else {
+      const rejected = hits.find((h) => h.status === 'rejected')
+      if (rejected) {
+        sameNumberAsRejectedId = rejected.id
+        breakdown.reasons.push('same_number_as_rejected')
+      }
     }
   }
 
@@ -292,6 +306,7 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
     workOrderId,
     caseId,
     duplicateOfId,
+    sameNumberAsRejectedId,
     confidence: breakdown.total,
     breakdown,
   }

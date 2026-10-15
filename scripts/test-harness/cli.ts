@@ -2107,6 +2107,13 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'rejected-dup') {
+    const { runRejectedDup, formatRejectedDup } = await import('./rejected-dup')
+    const checks = await runRejectedDup({ admin, sql: stagingSql })
+    log(formatRejectedDup(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'supplier-vat') {
     const { runSupplierVat, formatSupplierVat } = await import('./supplier-vat')
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
