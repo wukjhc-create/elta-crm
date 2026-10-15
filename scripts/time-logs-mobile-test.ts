@@ -24,6 +24,9 @@ eq('manglende kost staar som tekst bag canSeeCost', missingCost > mobile.lastInd
 eq('salgspris paa kortet kraever canSeeSale', saleLabel > mobile.lastIndexOf('{canSeeSale && (', saleLabel) && mobile.lastIndexOf('{canSeeSale && (', saleLabel) > 0, true)
 eq('overskriftens salg kraever canSeeSale', src.includes('canSeeSale && totalSale > 0'), true)
 eq('overskriften viser ikke salg uden gate', src.includes('{totalSale > 0 && ` · salg'), false)
+eq('afvist timer kan rettes paa kortet', mobile.includes('isRejected') && mobile.includes('startFix(l)') && mobile.includes('deleteRejected(l)') && mobile.includes('rejection_reason'), true)
+eq('U155-testid bliver i tabellen', mobile.includes('time-log-fix') || mobile.includes('time-log-rejected-row'), false)
+eq('godkendt sats er laast som i tabellen', mobile.includes("approval === 'approved' && !canApprove"), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ntime-logs-mobile-test OK')
 process.exitCode = fail ? 1 : 0

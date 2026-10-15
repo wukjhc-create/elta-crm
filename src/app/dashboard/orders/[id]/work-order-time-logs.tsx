@@ -449,8 +449,11 @@ export function WorkOrderTimeLogs({
           {logs.map((l) => {
             const sale = saleFor(l)
             const db = dbFor(l)
+            const approval = (l as { approval_status?: string }).approval_status
+            const isRejected = approval === 'rejected' && !l.invoice_line_id
+            const rateLocked = !!l.invoice_line_id || (approval === 'approved' && !canApprove)
             return (
-              <article key={l.id} className="rounded ring-1 ring-gray-200 p-2">
+              <article key={l.id} className={`rounded ring-1 p-2 ${isRejected ? 'ring-red-200 bg-red-50/40' : 'ring-gray-200'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900">{l.employee?.name ?? '—'}</p>
@@ -463,12 +466,18 @@ export function WorkOrderTimeLogs({
                   <p className="text-sm tabular-nums font-medium text-gray-900">{fmtHours(l.hours)}</p>
                 </div>
                 {l.description && <p className="mt-1 text-xs text-gray-700">{l.description}</p>}
+                {isRejected && (
+                  <p className="mt-1 text-xs text-red-800">
+                    <span className="uppercase text-[10px] bg-red-100 px-1.5 py-0.5 rounded mr-1">Afvist</span>
+                    {(l as { rejection_reason?: string | null }).rejection_reason ?? 'Ingen begrundelse'}
+                  </p>
+                )}
                 <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
                   {l.billable ? <span className="text-emerald-700">Fakturerbar</span> : <span className="text-gray-500">Ikke fakturerbar</span>}
                   {l.invoice_line_id && <span className="text-[10px] uppercase bg-purple-100 text-purple-800 px-1 py-0.5 rounded">Faktureret</span>}
                 </div>
                 <div className="mt-2">
-                  {l.invoice_line_id ? (
+                  {rateLocked ? (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-medium">
                       {PAY_RATE_TYPE_LABEL.get(l.pay_rate_type) ?? 'Normal'}
                     </span>
@@ -486,6 +495,22 @@ export function WorkOrderTimeLogs({
                     </select>
                   )}
                 </div>
+                {isRejected && canEditOwn && fixId !== l.id && (
+                  <div className="mt-2 flex gap-2">
+                    <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-xs px-2 py-1 rounded border border-gray-300 bg-white">Ret</button>
+                    <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-xs px-2 py-1 rounded border border-red-200 text-red-700 bg-white">Slet</button>
+                  </div>
+                )}
+                {isRejected && fixId === l.id && (
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-800">
+                    <label className="flex flex-col">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-1 py-1" /></label>
+                    <label className="flex flex-col">Start<input type="time" value={fixStart} onChange={(e) => setFixStart(e.target.value)} className="border rounded px-1 py-1" /></label>
+                    <label className="flex flex-col">Slut<input type="time" value={fixEnd} onChange={(e) => setFixEnd(e.target.value)} className="border rounded px-1 py-1" /></label>
+                    <label className="flex flex-col col-span-2">Beskrivelse<input value={fixDesc} onChange={(e) => setFixDesc(e.target.value)} className="border rounded px-1 py-1" /></label>
+                    <button type="button" onClick={() => saveFix(l)} disabled={isWorking} className="px-2 py-1 rounded bg-emerald-600 text-white disabled:opacity-50">Gem — send til godkendelse</button>
+                    <button type="button" onClick={() => setFixId(null)} className="px-2 py-1 rounded border bg-white">Annullér</button>
+                  </div>
+                )}
                 {(canSeeCost || canSeeSale) && (
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                     {canSeeCost && (
