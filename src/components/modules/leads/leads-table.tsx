@@ -229,6 +229,15 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                 )}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-500">
                   <span>{formatValue(lead.value)}</span>
+                  <span className="break-words" data-testid="lead-mobile-source">{LEAD_SOURCE_LABELS[lead.source]}</span>
+                  {lead.probability !== null && (
+                    <span>{lead.probability}% sandsynlighed</span>
+                  )}
+                  {(lead.assigned_to_profile?.full_name || lead.assigned_to_profile?.email) && (
+                    <span className="break-words" data-testid="lead-mobile-assignee">
+                      {lead.assigned_to_profile?.full_name || lead.assigned_to_profile?.email}
+                    </span>
+                  )}
                   {lead.phone && (
                     <span className="inline-flex items-center gap-1">
                       <Phone className="w-3 h-3" />
