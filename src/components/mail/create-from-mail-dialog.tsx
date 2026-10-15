@@ -204,9 +204,11 @@ export function CreateFromMailDialog({ email, onClose, onSuccess }: CreateFromMa
             <h2 className="text-lg font-semibold text-gray-900">Opret kunde fra mail</h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
             disabled={submitting}
             className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+            aria-label="Luk"
           >
             <X className="w-5 h-5" />
           </button>

@@ -277,8 +277,10 @@ export function SendBesigtigelsesreportDialog({
         <div className="p-5 border-b flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">Send besigtigelsesrapport</h2>
           <button
+            type="button"
             onClick={onClose}
             disabled={isSending}
+            aria-label="Luk"
             className="p-1 hover:bg-gray-100 rounded-lg disabled:opacity-50"
           >
             <X className="w-5 h-5 text-gray-500" />

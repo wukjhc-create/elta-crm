@@ -292,7 +292,7 @@ export function CustomersPageClient({
               {filters.is_active !== undefined && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
                   Status: {filters.is_active ? 'Aktiv' : 'Inaktiv'}
-                  <button onClick={() => handleStatusFilter('')} className="hover:text-red-600">
+                  <button type="button" onClick={() => handleStatusFilter('')} aria-label="Ryd status" className="hover:text-red-600">
                     <X className="w-3 h-3" />
                   </button>
                 </span>

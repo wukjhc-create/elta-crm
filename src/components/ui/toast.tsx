@@ -114,7 +114,9 @@ function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
               {toast.message && <p className="text-sm opacity-80 mt-0.5">{toast.message}</p>}
             </div>
             <button
+              type="button"
               onClick={() => onRemove(toast.id)}
+              aria-label="Luk"
               className="flex-shrink-0 p-1 hover:bg-black/10 rounded transition-colors"
             >
               <X className="w-4 h-4" />

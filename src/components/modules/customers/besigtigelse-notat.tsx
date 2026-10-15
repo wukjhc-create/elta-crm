@@ -298,6 +298,7 @@ function ImageThumbs({ category }: { category: ImageUpload['category'] }) {
             <button
               type="button"
               onClick={() => removeImage(globalIdx)}
+              aria-label="Fjern billede"
               className="absolute top-0.5 right-0.5 p-0.5 bg-red-500 text-white rounded-full"
             >
               <X className="w-3 h-3" />

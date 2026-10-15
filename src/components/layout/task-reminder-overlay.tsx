@@ -111,9 +111,11 @@ export function TaskReminderOverlay() {
               <span className="text-sm font-medium">Notifikationer ({totalVisible})</span>
             </div>
             <button
+              type="button"
               onClick={() => setIsMinimized(true)}
               className="p-1 hover:bg-gray-700 rounded"
               title="Minimer"
+              aria-label="Minimer"
             >
               <X className="w-4 h-4" />
             </button>

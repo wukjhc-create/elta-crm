@@ -212,7 +212,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
         <div className="p-4 sm:p-6 border-b bg-green-50/50">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-700">Ny email til {customerEmail}</h3>
-            <button onClick={() => setShowCompose(false)} className="p-1 hover:bg-gray-200 rounded">
+            <button type="button" onClick={() => setShowCompose(false)} className="p-1 hover:bg-gray-200 rounded" aria-label="Luk email">
               <X className="w-4 h-4 text-gray-500" />
             </button>
           </div>
