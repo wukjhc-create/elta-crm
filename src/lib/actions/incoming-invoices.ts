@@ -1072,11 +1072,15 @@ export async function getIncomingInvoiceFileUrlAction(id: string): Promise<Attac
   if (!hasPermission('incoming_invoices.view')) {
     return { ok: false, url: null, external: false, message: 'Manglende tilladelse: incoming_invoices.view' }
   }
-  const { data: row } = await supabase
+  const { data: row, error } = await supabase
     .from('incoming_invoices')
     .select('file_url')
     .eq('id', id)
     .maybeSingle()
+  if (error) {
+    logger.error('getIncomingInvoiceFileUrlAction failed', { error })
+    return { ok: false, url: null, external: false, message: 'Kunne ikke læse bilaget. Det tælles ikke som at der ingen fil er.' }
+  }
   const cls = classifyAttachmentUrl(row?.file_url as string | null)
   if (cls.kind === 'none') return { ok: true, url: null, external: false, message: 'Ingen fil tilknyttet' }
   if (cls.kind === 'external') return { ok: true, url: cls.url, external: true }
