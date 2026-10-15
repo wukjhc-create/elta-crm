@@ -240,6 +240,7 @@ export function IncomingInvoicesListClient({
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 {r.probably_not_invoice && <NotInvoiceBadge />}
+                {r.duplicate_of_id && <DuplicateBadge />}
                 {isTest && <TestBadge />}
                 <span className="font-mono text-xs text-gray-700 break-all">{r.invoice_number ?? '—'}</span>
               </div>
@@ -292,6 +293,7 @@ export function IncomingInvoicesListClient({
                       {r.supplier_name || '—'}
                     </Link>
                     {r.probably_not_invoice && <NotInvoiceBadge />}
+                    {r.duplicate_of_id && <DuplicateBadge />}
                     {isTest && <TestBadge />}
                   </div>
                 </td>
@@ -327,6 +329,18 @@ function openInvoiceLabel(r: IncomingInvoiceListItem): string {
 function countFor(c: CountMap, k: FilterKey): number | null {
   if (k === 'all' || k === 'not_invoice') return null // N68: tælles ikke på forhånd (kræver afsender-opslag)
   return c[k] ?? 0
+}
+
+function DuplicateBadge() {
+  return (
+    <span
+      className="inline-block text-[10px] uppercase tracking-wide bg-red-100 text-red-800 px-1.5 py-0.5 rounded"
+      data-testid="invoice-duplicate-badge"
+      title="Samme fil eller samme leverandør og fakturanummer findes allerede. Status og bogføring er uændret."
+    >
+      Dublet
+    </span>
+  )
 }
 
 function NotInvoiceBadge() {

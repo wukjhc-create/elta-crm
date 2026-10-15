@@ -58,6 +58,8 @@ export interface IncomingInvoiceListItem {
   requires_manual_review: boolean
   matched_work_order_id: string | null
   matched_case_id: string | null
+  /** Sat når filen eller leverandør+nummer allerede findes. Kun markering. */
+  duplicate_of_id: string | null
   created_at: string
   /** N68: privat-/gratis-mail uden leverandør og beløb — sandsynligvis ikke en leverandørfaktura (kun markering) */
   probably_not_invoice: boolean
@@ -104,7 +106,7 @@ export async function listIncomingInvoicesAction(
       amount_incl_vat, currency, invoice_date, due_date, status,
       parse_status, parse_confidence, match_confidence,
       requires_manual_review, matched_work_order_id, matched_case_id,
-      created_at, source_email_id,
+      duplicate_of_id, created_at, source_email_id,
       suppliers:supplier_id ( name )
     `)
     .order('created_at', { ascending: false })
@@ -162,6 +164,7 @@ export async function listIncomingInvoicesAction(
       requires_manual_review: !!r.requires_manual_review,
       matched_work_order_id: r.matched_work_order_id,
       matched_case_id: (r as { matched_case_id?: string | null }).matched_case_id ?? null,
+      duplicate_of_id: (r as { duplicate_of_id?: string | null }).duplicate_of_id ?? null,
       created_at: r.created_at,
       probably_not_invoice: notInvoice({ ...r, source_email_id: (r as { source_email_id?: string | null }).source_email_id ?? null }),
     }
@@ -900,6 +903,7 @@ export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem
     requires_manual_review: !!r.requires_manual_review,
     matched_work_order_id: r.matched_work_order_id,
     matched_case_id: (r as { matched_case_id?: string | null }).matched_case_id ?? null,
+    duplicate_of_id: r.duplicate_of_id ?? null,
     created_at: r.created_at,
     probably_not_invoice: notInvoice({ status: r.status, supplier_id: r.supplier_id, amount_incl_vat: r.amount_incl_vat, source_email_id: (r as { source_email_id?: string | null }).source_email_id ?? null }),
   }))

@@ -421,7 +421,14 @@ export function IncomingInvoiceDetailClient({
           />
           {inv.duplicate_of_id && (
             <Row label="Duplikat af"
-              value={<Link href={`/dashboard/incoming-invoices/${inv.duplicate_of_id}`} className="text-red-700 hover:underline">{inv.duplicate_of_id}</Link>}
+              value={
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  <Link href={`/dashboard/incoming-invoices/${inv.duplicate_of_id}`} className="text-red-700 hover:underline">
+                    Åbn originalen
+                  </Link>
+                  <span className="text-xs text-gray-500">Status og bogføring er uændret.</span>
+                </span>
+              }
             />
           )}
         </Panel>
