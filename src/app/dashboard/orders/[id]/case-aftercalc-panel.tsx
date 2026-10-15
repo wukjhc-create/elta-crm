@@ -33,7 +33,7 @@ const qty = (n: number | null) => (n == null ? '—' : n.toLocaleString('da-DK',
 const pct = (n: number | null) => (n == null ? '—' : `${n.toLocaleString('da-DK', { maximumFractionDigits: 2 })} %`)
 
 function moneyDev(amount: number | null, goodWhenPositive: boolean) {
-  if (amount == null) return <span className="text-gray-400">—</span>
+  if (amount == null) return <span className="text-gray-400">Kan ikke beregnes</span>
   const bad = goodWhenPositive ? amount < 0 : amount > 0
   const sign = amount > 0 ? '+' : ''
   return <span className={bad ? 'text-red-700' : amount === 0 ? 'text-gray-700' : 'text-emerald-700'}>{sign}{kr(amount)}</span>
@@ -41,7 +41,7 @@ function moneyDev(amount: number | null, goodWhenPositive: boolean) {
 
 function DevCell({ value, kind }: { value: VarianceAmount; kind: 'cost' | 'gain' | 'hours' | 'pct' }) {
   if (kind === 'hours') {
-    if (value.amount == null) return <span className="text-gray-400">—</span>
+    if (value.amount == null) return <span className="text-gray-400">Kan ikke beregnes</span>
     const bad = value.amount > 0
     const sign = value.amount > 0 ? '+' : ''
     return (
@@ -51,7 +51,7 @@ function DevCell({ value, kind }: { value: VarianceAmount; kind: 'cost' | 'gain'
     )
   }
   if (kind === 'pct') {
-    if (value.amount == null) return <span className="text-gray-400">—</span>
+    if (value.amount == null) return <span className="text-gray-400">Kan ikke beregnes</span>
     const bad = value.amount < 0
     const sign = value.amount > 0 ? '+' : ''
     return <span className={bad ? 'text-red-700' : value.amount === 0 ? 'text-gray-700' : 'text-emerald-700'}>{sign}{value.amount.toLocaleString('da-DK', { maximumFractionDigits: 2 })} pp</span>
@@ -200,7 +200,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                         </div>
                         <p className="mt-2 text-xs text-gray-600">Tilbudt antal {qty(r.offered_qty)} · faktisk antal {qty(r.actual_qty)}</p>
                         <p className="text-xs text-gray-700">Tilbudt kost {kr(r.offered_cost)} · faktisk kost {kr(r.actual_cost)}</p>
-                        <p className="text-xs">Afvigelse {r.cost_deviation == null ? '—' : moneyDev(r.cost_deviation, false)}</p>
+                        <p className="text-xs">Afvigelse {r.cost_deviation == null ? 'Kan ikke beregnes' : moneyDev(r.cost_deviation, false)}</p>
                       </div>
                     ))}
                   </div>
@@ -228,7 +228,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                             <td className="px-2 py-1.5 text-right tabular-nums">{qty(r.actual_qty)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.offered_cost)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.actual_cost)}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums">{r.cost_deviation == null ? '—' : moneyDev(r.cost_deviation, false)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{r.cost_deviation == null ? 'Kan ikke beregnes' : moneyDev(r.cost_deviation, false)}</td>
                             <td className="px-2 py-1.5 text-center">
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
                             </td>
