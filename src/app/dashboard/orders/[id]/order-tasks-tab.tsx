@@ -42,7 +42,7 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
   }
 
   if (tasks === null) return <div className="text-sm text-gray-500 py-6 text-center">Henter opgaver…</div>
-  if (error) return <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>
+  if (error && tasks.length === 0) return <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>
   if (tasks.length === 0) {
     return (
       <div className="text-center py-12">
@@ -59,6 +59,7 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
 
   return (
     <div className="space-y-2">
+      {error && <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>}
       <div className="text-xs text-gray-500 mb-1">{openCount} af {tasks.length} udestår</div>
       {tasks.map((t) => {
         const status = TASK_STATUS_CONFIG[t.status] ?? TASK_STATUS_CONFIG.pending
@@ -71,8 +72,8 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
                 type="button"
                 onClick={() => handleComplete(t.id)}
                 disabled={busy}
-                title="Markér som udført"
-                aria-label="Markér som udført"
+                title={`Markér ${t.title} som udført`}
+                aria-label={`Markér ${t.title} som udført`}
                 className="mt-0.5 inline-flex items-center justify-center min-h-[44px] min-w-[44px] -my-2 text-gray-300 hover:text-emerald-600 disabled:opacity-50"
               >
                 {busy && busyId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Circle className="w-4 h-4" />}
