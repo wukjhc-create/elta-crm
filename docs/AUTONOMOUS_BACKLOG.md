@@ -45,6 +45,28 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-16 (pilot-review-bølge 2026-10-15 aften — "hvad irriterer brugerne i morgen?")
+| # | Fund | Status |
+|---|---|---|
+| W-1 (S2) | Sagssøgning ignorerer kunde/adresse trods label "titel · kunde · case nr" | TODO |
+| W-2 (S2) | Lead → kunde efterlader leadets tilbud uden kunde (ingen Send, kan ikke blive sag) | TODO |
+| W-3 (S2) | Materiale på sag: kun manuel indtastning (ingen leverandørsøgning) → pris 0 | TODO |
+| W-4 (S2) | Sagslisten 13 kolonner på mobil — montørens bundnav går dertil | TODO |
+| W-5 (S2) | Montør ser statusskift/Rediger på sag han ikke må bruge | TODO |
+| W-6 (S2) | "Manglende tilladelse: x.y"-literaler | DELVIS — vises allerede dansk via humanizeErrorText i toast/action-helpers (R-12); resterende direkte visninger tjekkes |
+| W-7 (S2) | Opgaver genindlæser alt pr. tastetryk; getAllTasks uden limit/guard | TODO |
+| W-8 (S2) | Salg/bogholderi kan oprette opgaver men ikke se en opgaveliste; getAllTasks uden rettighedstjek | DELVIS — guard = TODO (kode); rettighedsudvidelse (tasks.view for salg/bogholderi) = [H] |
+| W-9 (S2) | Ingen genkald/opfølgning på leads | TODO (interim "Påmind mig"); felt next_follow_up_at = [H] migration |
+| W-10 (S3) | Lead-statusknapper tillader ugyldige skift; Rediger ikke gated | TODO |
+| W-11 (S3) | Leverandørsøgning: hele sætningen som én ILIKE, sorteret efter pris, "bedste pris" på tværs af forskellige varer | TODO |
+| W-12 (S3) | Tilbudseditorens søgning: race, tavse fejl, antal låst til 1 | TODO |
+| W-13 (S3) | Sags-/kundefaner ikke i URL (refresh/tilbage → Overblik) | TODO |
+| W-14 (S3) | "Ansvarlig" = opretter i sagshovedet men tildelt i listen | TODO |
+| W-15 (S3) | Advarselsnoter gemt i Noter-fanen; noter tavst begrænset til 100; små tap-mål | TODO |
+| W-16 (S3) | Faktureringsfilter tavst begrænset til 500 sager | TODO (besked) |
+| W-17 (S3) | Dokumenter på sag kan ikke slettes | [H] (sletning af kundedata/fotos — rettighed + historik) |
+| W-18 (S4) | Lead-søgning uden telefon, ubegrænset lead-dropdown, pageSize uden loft, "Kun mine" på tilbud, død kode, 2 rå DB-fejl | TODO |
+
 ## NEXT-15 (pilot-readiness review 2026-10-15 eftermiddag — daglige flows)
 | # | Fund | Status |
 |---|---|---|
