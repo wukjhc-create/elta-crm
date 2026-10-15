@@ -104,40 +104,40 @@ export function AftercalcOverviewClient() {
 
         {open && (
           <div className="mt-3 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
-              <label className="block">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm min-w-0">
+              <label className="block min-w-0">
                 <span className="text-xs text-gray-500">Fra dato</span>
-                <input type="date" value={filters.from ?? ''} onChange={(e) => setFilter({ from: e.target.value || null })} className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1" />
+                <input type="date" value={filters.from ?? ''} onChange={(e) => setFilter({ from: e.target.value || null })} className="mt-0.5 w-full min-w-0 max-w-full rounded border border-gray-300 px-2 py-1" />
               </label>
-              <label className="block">
+              <label className="block min-w-0">
                 <span className="text-xs text-gray-500">Til dato</span>
-                <input type="date" value={filters.to ?? ''} onChange={(e) => setFilter({ to: e.target.value || null })} className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1" />
+                <input type="date" value={filters.to ?? ''} onChange={(e) => setFilter({ to: e.target.value || null })} className="mt-0.5 w-full min-w-0 max-w-full rounded border border-gray-300 px-2 py-1" />
               </label>
-              <label className="block">
+              <label className="block min-w-0">
                 <span className="text-xs text-gray-500">Ansvarlig</span>
-                <select value={filters.assigneeId ?? ''} onChange={(e) => setFilter({ assigneeId: e.target.value || null })} className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1">
+                <select value={filters.assigneeId ?? ''} onChange={(e) => setFilter({ assigneeId: e.target.value || null })} className="mt-0.5 w-full min-w-0 max-w-full rounded border border-gray-300 px-2 py-1">
                   <option value="">Alle</option>
                   {assignees.map((a) => <option key={a.id} value={a.id}>{a.full_name || 'Uden navn'}</option>)}
                 </select>
               </label>
-              <label className="block">
+              <label className="block min-w-0">
                 <span className="text-xs text-gray-500">Status</span>
-                <select value={filters.status ?? ''} onChange={(e) => setFilter({ status: e.target.value || null })} className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1">
+                <select value={filters.status ?? ''} onChange={(e) => setFilter({ status: e.target.value || null })} className="mt-0.5 w-full min-w-0 max-w-full rounded border border-gray-300 px-2 py-1">
                   <option value="">Alle undtagen konverterede</option>
                   {SERVICE_CASE_STATUSES.map((s) => <option key={s} value={s}>{SERVICE_CASE_STATUS_LABELS[s]}</option>)}
                 </select>
               </label>
-              <label className="block">
+              <label className="block min-w-0">
                 <span className="text-xs text-gray-500">Afvigelse</span>
-                <select value={(filters.variance ?? 'all') as AftercalcVarianceFilter} onChange={(e) => setFilter({ variance: e.target.value as AftercalcVarianceFilter })} className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1">
+                <select value={(filters.variance ?? 'all') as AftercalcVarianceFilter} onChange={(e) => setFilter({ variance: e.target.value as AftercalcVarianceFilter })} className="mt-0.5 w-full min-w-0 max-w-full rounded border border-gray-300 px-2 py-1">
                   <option value="all">Alle</option>
                   <option value="negative">Negativ DB</option>
                   <option value="positive">Positiv DB</option>
                 </select>
               </label>
-              <label className="block">
+              <label className="block min-w-0">
                 <span className="text-xs text-gray-500">Sortering</span>
-                <select value={(filters.sort ?? 'worst_db') as AftercalcSort} onChange={(e) => setFilter({ sort: e.target.value as AftercalcSort })} className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1">
+                <select value={(filters.sort ?? 'worst_db') as AftercalcSort} onChange={(e) => setFilter({ sort: e.target.value as AftercalcSort })} className="mt-0.5 w-full min-w-0 max-w-full rounded border border-gray-300 px-2 py-1">
                   {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
               </label>
