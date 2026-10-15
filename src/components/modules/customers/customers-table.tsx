@@ -23,7 +23,6 @@ import { CustomerForm } from './customer-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { CopyButton } from '@/components/shared/copy-button'
-import { TruncatedCell } from '@/components/shared/truncated-cell'
 import { useConfirm } from '@/components/shared/confirm-dialog'
 import { deleteCustomer, toggleCustomerActive } from '@/lib/actions/customers'
 import { useToast } from '@/components/ui/toast'
@@ -337,7 +336,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                       <div className="flex items-center gap-2 flex-wrap">
                         <Link
                           href={`/dashboard/customers/${customer.id}`}
-                          className="font-medium text-gray-900 hover:text-primary"
+                          className="font-medium text-gray-900 hover:text-primary break-words"
                         >
                           {customer.company_name}
                         </Link>
@@ -358,13 +357,13 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                     </span>
                   </td>
                   <td className="px-6 py-4 hidden lg:table-cell">
-                    <div className="text-sm text-gray-900">
+                    <div className="text-sm text-gray-900 break-words">
                       {customer.contact_person}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                       <span className="flex items-center gap-1 min-w-0">
                         <Mail className="w-3 h-3 shrink-0" />
-                        <TruncatedCell text={customer.email} maxWidth="max-w-[160px]" className="text-xs text-gray-400" />
+                        <span className="break-all min-w-0">{customer.email || '-'}</span>
                       </span>
                       {customer.phone && (
                         <span className="flex items-center gap-1">
