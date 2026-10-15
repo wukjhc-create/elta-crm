@@ -342,6 +342,12 @@ export interface InvoiceDetail {
   } | null
   /** Sæt når linjeopslaget fejler. Tom lines er da ikke en ægte tom faktura. */
   linesError?: string | null
+  /** Sæt når kunden er koblet på, men opslaget fejler. */
+  customerError?: string | null
+  /** Sæt når sagen er koblet på, men opslaget fejler. */
+  caseError?: string | null
+  /** Sæt når forgængeropslaget på en slutfaktura fejler. */
+  predecessorsError?: string | null
   /** Sprint 6D-4 — forgængere når is_final_invoice=true. */
   predecessors: Array<{
     invoice_id: string
@@ -405,7 +411,18 @@ export async function getInvoiceDetailAction(
       : Promise.resolve({ data: null }),
   ])
 
-  const cust = customerRes.data as
+  const customerQueryError = 'error' in customerRes ? customerRes.error : null
+  const customerError = invoice.customer_id && customerQueryError ? 'Kunne ikke hente kunden.' : null
+  if (customerError) {
+    logger.error('getInvoiceDetailAction customer failed', { error: customerQueryError, entityId: invoiceId })
+  }
+  const caseQueryError = 'error' in caseRes ? caseRes.error : null
+  const caseError = invoice.case_id && caseQueryError ? 'Kunne ikke hente sagen.' : null
+  if (caseError) {
+    logger.error('getInvoiceDetailAction case failed', { error: caseQueryError, entityId: invoiceId })
+  }
+
+  const cust = customerError ? null : customerRes.data as
     | {
         id: string
         company_name: string | null
@@ -429,23 +446,34 @@ export async function getInvoiceDetailAction(
       }
     : null
 
-  const caseRow = caseRes.data as
+  const caseRow = caseError
+    ? null
+    : caseRes.data as
     | { id: string; case_number: string; title: string | null; project_name: string | null }
     | null
 
   // Sprint 6D-4: predecessors for slutfaktura
   let predecessors: InvoiceDetail['predecessors'] = []
+  let predecessorsError: string | null = null
   if ((invoice as { is_final_invoice?: boolean }).is_final_invoice) {
-    const { data: links } = await supabase
+    const { data: links, error: linksErr } = await supabase
       .from('invoice_predecessors')
       .select('predecessor_invoice_id, deduction_amount')
       .eq('invoice_id', invoiceId)
-    const ids = (links ?? []).map((l) => l.predecessor_invoice_id as string)
+    if (linksErr) {
+      predecessorsError = 'Kunne ikke hente tidligere fakturaer.'
+      logger.error('getInvoiceDetailAction predecessors failed', { error: linksErr, entityId: invoiceId })
+    }
+    const ids = predecessorsError ? [] : (links ?? []).map((l) => l.predecessor_invoice_id as string)
     if (ids.length > 0) {
-      const { data: predRows } = await supabase
+      const { data: predRows, error: predErr } = await supabase
         .from('invoices')
         .select('id, invoice_number, invoice_type, stage_label, status')
         .in('id', ids)
+      if (predErr) {
+        predecessorsError = 'Kunne ikke hente tidligere fakturaer.'
+        logger.error('getInvoiceDetailAction predecessor rows failed', { error: predErr, entityId: invoiceId })
+      }
       type PR = {
         id: string
         invoice_number: string
@@ -453,8 +481,8 @@ export async function getInvoiceDetailAction(
         stage_label: string | null
         status: string
       }
-      const byId = new Map(((predRows ?? []) as PR[]).map((p) => [p.id, p]))
-      for (const link of links ?? []) {
+      const byId = new Map(((predErr ? [] : predRows ?? []) as PR[]).map((p) => [p.id, p]))
+      for (const link of predErr ? [] : links ?? []) {
         const p = byId.get(link.predecessor_invoice_id as string)
         if (!p) continue
         predecessors.push({
@@ -479,8 +507,11 @@ export async function getInvoiceDetailAction(
       invoice,
       lines: linesError ? [] : ((linesRes.data ?? []) as InvoiceLineRow[]),
       linesError,
+      customerError,
+      caseError,
       customer,
       case: caseRow,
+      predecessorsError,
       predecessors,
     },
     error: null,

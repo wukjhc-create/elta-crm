@@ -408,7 +408,11 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
       {/* Customer + sag */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Panel title="Kunde">
-          {detail.customer ? (
+          {detail.customerError ? (
+            <p className="text-sm text-red-700" data-testid="invoice-customer-load-error">
+              {detail.customerError} Det tælles ikke som ingen kunde.
+            </p>
+          ) : detail.customer ? (
             <div className="text-sm space-y-0.5">
               <Link
                 href={`/dashboard/customers/${detail.customer.id}`}
@@ -440,7 +444,11 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
         </Panel>
 
         <Panel title="Sag">
-          {detail.case ? (
+          {detail.caseError ? (
+            <p className="text-sm text-red-700" data-testid="invoice-case-load-error">
+              {detail.caseError} Det tælles ikke som ingen sag.
+            </p>
+          ) : detail.case ? (
             <div className="text-sm space-y-0.5">
               <Link
                 href={`/dashboard/orders/${detail.case.case_number}`}
@@ -500,7 +508,12 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
       )}
 
       {/* Sprint 6D-4 — predecessor panel for final invoice */}
-      {inv.is_final_invoice && detail.predecessors.length > 0 && (
+      {inv.is_final_invoice && detail.predecessorsError && (
+        <p className="text-sm text-red-700" data-testid="invoice-predecessors-load-error">
+          {detail.predecessorsError} Det tælles ikke som ingen tidligere fakturaer.
+        </p>
+      )}
+      {inv.is_final_invoice && !detail.predecessorsError && detail.predecessors.length > 0 && (
         <Panel title={`Tidligere fakturaer fratrukket (${detail.predecessors.length})`}>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
