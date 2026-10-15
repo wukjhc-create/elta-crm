@@ -180,6 +180,7 @@ export async function resolveMaterialSupplier(
           supplier_sku: data.supplier_sku,
           product_name: data.supplier_name || '',
           cost_price: costPrice,
+          raw_cost_price: Number(data.cost_price ?? 0),
           list_price: data.list_price !== null ? Number(data.list_price) : null,
           unit: data.unit ?? null,
           is_available: !!data.is_available,

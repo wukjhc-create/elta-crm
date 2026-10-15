@@ -141,6 +141,8 @@ export async function applyPackageToOffer(
     unit: string
     quantity: number
     cost_price: number
+    /** GP-6 (00224): rå leverandørkost → supplier_cost_price_at_creation */
+    raw_cost_price: number
     notes: string
   }> = []
   let skipped = 0
@@ -169,6 +171,7 @@ export async function applyPackageToOffer(
       unit: material.default_unit || s.unit || 'stk',
       quantity,
       cost_price: Number(s.cost_price ?? 0),
+      raw_cost_price: Number(s.raw_cost_price ?? s.cost_price ?? 0),
       notes: `Package: ${pkg.slug} · ${material.slug ?? material.name}${
         resolved.fromBinding ? ' (bundet)' : ' (auto-match)'
       }`,

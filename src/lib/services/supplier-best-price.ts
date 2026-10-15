@@ -26,7 +26,10 @@ export interface BestSupplierPrice {
   supplier_name_at_creation: string
   supplier_sku: string
   product_name: string
+  /** Effektiv kost (efter evt. kundeaftale) */
   cost_price: number
+  /** GP-6: leverandørens rå kostpris (før kundeaftale) — til supplier_cost_price_at_creation/prisændrings-sporing */
+  raw_cost_price: number
   list_price: number | null
   unit: string | null
   is_available: boolean
@@ -125,6 +128,7 @@ export async function getBestSupplierPrice(
       supplier_sku: winner.supplier_sku,
       product_name: winner.supplier_name || '',
       cost_price: costPrice,
+      raw_cost_price: Number(winner.cost_price ?? 0),
       list_price: winner.list_price !== null ? Number(winner.list_price) : null,
       unit: winner.unit ?? null,
       is_available: !!winner.is_available,
