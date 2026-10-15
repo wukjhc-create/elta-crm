@@ -278,7 +278,50 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
               {reason === 'all' && !q && !supplier ? 'Ingen sager kræver indkøbshandling lige nu.' : 'Ingen sager matcher de valgte filtre.'}
             </div>
           ) : (
-            <div className="bg-white rounded-lg border overflow-hidden">
+            <>
+            <div className="md:hidden space-y-2" data-testid="purchase-ops-mobile">
+              {data.items.map((c) => {
+                const expandable = c.unconverted_line_count > 0
+                const isExpanded = expandedCaseId === c.case_id
+                return (
+                  <article key={c.case_id} className="bg-white rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                    <p className="font-medium text-gray-900">{c.case_number ?? c.case_id.slice(0, 8)}</p>
+                    <p className="text-xs text-gray-500">{c.customer_label ?? c.case_title ?? '—'}</p>
+                    <p className="mt-1 text-xs text-gray-600">{c.supplier_names.length ? c.supplier_names.join(', ') : '—'}</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {c.action_reasons.map((r) => (
+                        <span key={r} className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ${REASON_BADGE[r].cls}`}>{REASON_BADGE[r].label}</span>
+                      ))}
+                      {c.action_reasons.length === 0 && c.received_awaiting_count > 0 && (
+                        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 bg-gray-50 text-gray-600 ring-gray-200">Modtaget/afventer</span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-gray-600">
+                      Linjer {c.unconverted_line_count > 0 ? c.unconverted_line_count : '—'}
+                      {canAmt ? ` · ${kr(c.unconverted_amount)}` : ''}
+                    </p>
+                    <p className="text-xs text-gray-500">{fmtDate(c.latest_invoice_date)}{c.latest_due_date ? ` · forfald ${fmtDate(c.latest_due_date)}` : ''}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {expandable && (
+                        <button type="button" onClick={() => toggleExpand(c.case_id)} aria-expanded={isExpanded} className={`inline-flex items-center gap-1 text-xs rounded px-2 py-1 ring-1 ${isExpanded ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'text-gray-600 ring-gray-200'}`}>
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} /> Linjer
+                        </button>
+                      )}
+                      <Link href={c.case_link} className="inline-flex items-center gap-1 text-emerald-700 text-xs">Åbn sag <ArrowRight className="w-3 h-3" /></Link>
+                      {c.top_invoice_link && (
+                        <Link href={c.top_invoice_link} className="inline-flex items-center gap-1 text-blue-700 text-xs"><FileText className="w-3 h-3" /> Faktura</Link>
+                      )}
+                    </div>
+                    {isExpanded && (
+                      <div className="mt-2">
+                        <ExpandedInvoices expansion={expansion} canConvert={canConvert} onConvert={openConvert} />
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+            <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-500 text-xs">
@@ -359,9 +402,9 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
                   </tbody>
                 </table>
               </div>
+            </div>
 
-              {/* Pagination */}
-              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-sm text-gray-600">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-3 text-sm text-gray-600">
                 <span>
                   {(data.page - 1) * data.page_size + 1}
                   –{Math.min(data.page * data.page_size, data.total_count)} af {data.total_count}
@@ -380,7 +423,7 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
                   >Næste <ChevronRight className="w-4 h-4" /></button>
                 </div>
               </div>
-            </div>
+            </>
           )}
 
           <p className="text-[11px] text-gray-400">
