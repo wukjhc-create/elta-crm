@@ -270,7 +270,9 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
           <Loader2 className="w-5 h-5 animate-spin" /> Henter…
         </div>
       ) : error || !data ? (
-        <p className="text-sm text-red-600 py-4">{error || 'Ingen data'}</p>
+        <p className="text-sm text-red-700 break-words py-4" data-testid="purchase-ops-load-error">
+          {error || 'Kunne ikke hente indkøbsdrift'}. Det tælles ikke som 0 sager.
+        </p>
       ) : (
         <>
           {data.items.length === 0 ? (
