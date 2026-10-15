@@ -1778,24 +1778,24 @@ function OfferPdfView({
 
         {/* Totals */}
         <div className="flex justify-end mb-8">
-          <div className="w-full sm:w-64 space-y-2">
-            <div className="flex justify-between gap-3">
+          <div className="w-full sm:w-64 space-y-2 min-w-0">
+            <div className="flex flex-wrap justify-between gap-3 min-w-0">
               <span>Subtotal:</span>
-              <span className="shrink-0 tabular-nums">{formatCurrency(offer.total_amount, currency, 2)}</span>
+              <span className="min-w-0 tabular-nums break-words">{formatCurrency(offer.total_amount, currency, 2)}</span>
             </div>
             {offer.discount_percentage > 0 && (
-              <div className="flex justify-between gap-3 text-red-600">
+              <div className="flex flex-wrap justify-between gap-3 min-w-0 text-red-600">
                 <span>Rabat ({offer.discount_percentage}%):</span>
-                <span className="shrink-0 tabular-nums">-{formatCurrency(offer.discount_amount, currency, 2)}</span>
+                <span className="min-w-0 tabular-nums break-words">-{formatCurrency(offer.discount_amount, currency, 2)}</span>
               </div>
             )}
-            <div className="flex justify-between gap-3">
+            <div className="flex flex-wrap justify-between gap-3 min-w-0">
               <span>Moms ({offer.tax_percentage}%):</span>
-              <span className="shrink-0 tabular-nums">{formatCurrency(offer.tax_amount, currency, 2)}</span>
+              <span className="min-w-0 tabular-nums break-words">{formatCurrency(offer.tax_amount, currency, 2)}</span>
             </div>
-            <div className="flex justify-between gap-3 text-lg font-bold pt-2 border-t-2">
+            <div className="flex flex-wrap justify-between gap-3 min-w-0 text-lg font-bold pt-2 border-t-2">
               <span>Total:</span>
-              <span className="shrink-0 tabular-nums">{formatCurrency(offer.final_amount, currency, 2)}</span>
+              <span className="min-w-0 tabular-nums break-words">{formatCurrency(offer.final_amount, currency, 2)}</span>
             </div>
           </div>
         </div>
