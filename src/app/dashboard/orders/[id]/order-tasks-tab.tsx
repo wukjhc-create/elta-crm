@@ -16,13 +16,14 @@ import { TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG, type CustomerTaskWithRelation
 
 export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string; canComplete?: boolean }) {
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[] | null>(null)
+  const [namesFailed, setNamesFailed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, startBusy] = useTransition()
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = () => {
     getServiceCaseTasks(caseId)
-      .then((rows) => { setError(null); setTasks(rows) })
+      .then((result) => { setError(null); setTasks(result.tasks); setNamesFailed(result.names_failed) })
       .catch(() => { setError('Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver.') })
   }
   useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [caseId])
@@ -60,6 +61,11 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
 
   return (
     <div className="space-y-2">
+      {namesFailed && (
+        <p className="text-sm text-red-700" data-testid="case-task-assignee-names-error">
+          Ansvarlige kunne ikke hentes. Det tælles ikke som ikke tildelt.
+        </p>
+      )}
       {error && <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>}
       <div className="text-xs text-gray-500 mb-1">{openCount} af {tasks.length} udestår</div>
       {tasks.map((t) => {

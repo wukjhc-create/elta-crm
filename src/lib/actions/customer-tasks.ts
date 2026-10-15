@@ -69,9 +69,9 @@ type ProfileMap = Record<string, { id: string; full_name: string | null; email: 
 async function enrichWithProfiles(
   _supabase: Awaited<ReturnType<typeof createClient>>,
   tasks: CustomerTaskWithRelations[]
-): Promise<CustomerTaskWithRelations[]> {
+): Promise<{ tasks: CustomerTaskWithRelations[]; names_failed: boolean }> {
   const assignedIds = [...new Set(tasks.map((t) => t.assigned_to).filter(Boolean))] as string[]
-  if (assignedIds.length === 0) return tasks
+  if (assignedIds.length === 0) return { tasks, names_failed: false }
 
   // Sprint 7E fix — profiles RLS begraenser authenticated user til at se
   // egen profile. Konsekvens: tasks tildelt andre brugere viste
@@ -79,10 +79,14 @@ async function enrichWithProfiles(
   // tom map. Vi bypasser RLS via admin-client server-side. Samme
   // moenster som getActiveProfiles + getTeamMembers.
   const admin = createAdminClient()
-  const { data: profiles } = await admin
+  const { data: profiles, error: profilesErr } = await admin
     .from('profiles')
     .select('id, full_name, email')
     .in('id', assignedIds)
+  if (profilesErr) {
+    logger.error('enrichWithProfiles profile read failed', { error: profilesErr })
+    return { tasks, names_failed: true }
+  }
 
   const profileMap: ProfileMap = {}
   for (const p of profiles || []) {
@@ -105,10 +109,13 @@ async function enrichWithProfiles(
     }
   }
 
-  return tasks.map((t) => ({
-    ...t,
-    assigned_profile: t.assigned_to ? profileMap[t.assigned_to] || null : null,
-  }))
+  return {
+    tasks: tasks.map((t) => ({
+      ...t,
+      assigned_profile: t.assigned_to ? profileMap[t.assigned_to] || null : null,
+    })),
+    names_failed: false,
+  }
 }
 
 // =====================================================
@@ -117,10 +124,10 @@ async function enrichWithProfiles(
 
 export async function getCustomerTasks(
   customerId: string
-): Promise<CustomerTaskWithRelations[]> {
+): Promise<{ tasks: CustomerTaskWithRelations[]; names_failed: boolean }> {
   // Kunde-review 2026-10-09 (#6): gate (før ingen) — enrichWithProfiles henter kollegers profiler med admin-klienten
-  if (await gateDenied('customers.view')) return []
-  if (!/^[0-9a-f-]{36}$/i.test(customerId)) return []
+  if (await gateDenied('customers.view')) return { tasks: [], names_failed: false }
+  if (!/^[0-9a-f-]{36}$/i.test(customerId)) return { tasks: [], names_failed: false }
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -144,13 +151,13 @@ export async function getCustomerTasks(
  */
 export async function getServiceCaseTasks(
   caseId: string
-): Promise<CustomerTaskWithRelations[]> {
-  if (!caseId) return []
+): Promise<{ tasks: CustomerTaskWithRelations[]; names_failed: boolean }> {
+  if (!caseId) return { tasks: [], names_failed: false }
   let supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']
   try {
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission('cases.view.all') && !ctx.hasPermission('cases.view.assigned')) {
-      return []
+      return { tasks: [], names_failed: false }
     }
     supabase = ctx.supabase
   } catch {
@@ -178,7 +185,7 @@ export async function getAllTasks(options?: {
   search?: string
   /** Kun opgaver med disse auto_rule-værdier (fx ELTA Assistant-opkald i kalenderen) */
   autoRules?: string[]
-}): Promise<{ tasks: CustomerTaskWithRelations[]; error: string | null }> {
+}): Promise<{ tasks: CustomerTaskWithRelations[]; error: string | null; names_failed?: boolean }> {
   // Sprint 7E fix — scope tasks per rolle.
   // Montor maa kun se tasks tildelt til egen profile.id (assigned_to).
   // Andre roller (admin/serviceleder/salg/bogholderi) ser alle tasks.
@@ -247,7 +254,8 @@ export async function getAllTasks(options?: {
     return { tasks: [], error: 'Kunne ikke hente opgaver' }
   }
 
-  return { tasks: await enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[]), error: null }
+  const enriched = await enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
+  return { tasks: enriched.tasks, error: null, names_failed: enriched.names_failed }
 }
 
 /**
@@ -394,7 +402,8 @@ export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations
     throw new Error('Kunne ikke hente påmindelser')
   }
 
-  return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
+  const enriched = await enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
+  return enriched.tasks
 }
 
 export async function getActiveProfiles(): Promise<

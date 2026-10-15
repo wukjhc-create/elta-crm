@@ -101,6 +101,7 @@ export function TasksPageClient({
   const [customerTry, setCustomerTry] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [tasksError, setTasksError] = useState<string | null>(null)
+  const [namesFailed, setNamesFailed] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
   const [priorityFilter, setPriorityFilter] = useState<FilterPriority>('all')
@@ -134,6 +135,7 @@ export function TasksPageClient({
     else {
       setTasksError(null)
       setTasks(tasksData.tasks)
+      setNamesFailed(!!tasksData.names_failed)
     }
     if (profilesResult.failed) {
       setProfilesError('Medarbejdere kunne ikke hentes. Det tælles ikke som ingen.')
@@ -517,6 +519,11 @@ export function TasksPageClient({
             {tasksError}. Det tælles ikke som ingen opgaver.
           </p>
         )}
+        {!tasksError && namesFailed && (
+          <p className="px-4 py-3 text-sm text-red-700" data-testid="task-assignee-names-error">
+            Ansvarlige kunne ikke hentes. Det tælles ikke som ikke tildelt.
+          </p>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -564,6 +571,7 @@ export function TasksPageClient({
                   onDelete={() => handleDelete(task.id)}
                   onMailClick={() => setMailTask(task)}
                   canManage={canManage}
+                  namesFailed={namesFailed}
                 />
               ))}
             </div>
@@ -598,6 +606,7 @@ export function TasksPageClient({
                     onDelete={() => handleDelete(task.id)}
                     onMailClick={() => setMailTask(task)}
                     canManage={canManage}
+                    namesFailed={namesFailed}
                   />
                 ))}
               </div>
@@ -734,6 +743,7 @@ function TaskRow({
   onMailClick,
   canManage = true,
   layout = 'row',
+  namesFailed = false,
 }: {
   task: CustomerTaskWithRelations
   deleteConfirm: string | null
@@ -753,13 +763,15 @@ function TaskRow({
    *  men ikke redigere eller slette tasks. */
   canManage?: boolean
   layout?: 'row' | 'card'
+  /** Navneopslaget fejlede. En opgave med ansvarlig maa ikke ligne "Ikke tildelt". */
+  namesFailed?: boolean
 }) {
   const statusCfg = TASK_STATUS_CONFIG[task.status]
   const priorityCfg = TASK_PRIORITY_CONFIG[task.priority]
   const isDone = task.status === 'done'
   const isOverdue = task.due_date && !isDone && new Date(task.due_date) < new Date()
   const isDeleting = deleteConfirm === task.id
-  const assignee = task.assigned_profile?.full_name || task.assigned_profile?.email || 'Ikke tildelt'
+  const assignee = task.assigned_profile?.full_name || task.assigned_profile?.email || (namesFailed && task.assigned_to ? 'Navn kunne ikke hentes' : 'Ikke tildelt')
 
   if (layout === 'card') {
     return (
@@ -961,6 +973,8 @@ function TaskRow({
           <span className="text-sm text-gray-600 break-words block">
             {task.assigned_profile.full_name || task.assigned_profile.email}
           </span>
+        ) : namesFailed && task.assigned_to ? (
+          <span className="text-sm text-red-700">Navn kunne ikke hentes</span>
         ) : (
           <span className="text-sm text-gray-400">Ikke tildelt</span>
         )}

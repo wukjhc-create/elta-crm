@@ -42,6 +42,7 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
   const [profilesError, setProfilesError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [namesFailed, setNamesFailed] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingTask, setEditingTask] = useState<CustomerTaskWithRelations | null>(null)
   const [showDone, setShowDone] = useState(false)
@@ -51,7 +52,8 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
     try {
       const tasksData = await getCustomerTasks(customerId)
       setLoadError(null)
-      setTasks(tasksData)
+      setTasks(tasksData.tasks)
+      setNamesFailed(tasksData.names_failed)
     } catch {
       setLoadError('Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver.')
       setIsLoading(false)
@@ -121,6 +123,11 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
 
       {profilesError && (
         <p className="text-sm text-red-700 mb-3" data-testid="customer-task-profiles-error">{profilesError}</p>
+      )}
+      {namesFailed && !loadError && (
+        <p className="text-sm text-red-700 mb-3" data-testid="customer-task-assignee-names-error">
+          Ansvarlige kunne ikke hentes. Det tælles ikke som ikke tildelt.
+        </p>
       )}
 
       {isLoading ? (

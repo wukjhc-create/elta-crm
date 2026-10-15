@@ -25,7 +25,7 @@ eq('opgavefejl bliver', tasks.includes('data-testid="tasks-list-load-error"'), t
 
 const customer = fs.readFileSync('src/components/modules/customers/customer-tasks.tsx', 'utf8')
 eq('kundekort siger det', customer.includes(msg) && customer.includes('data-testid="customer-task-profiles-error"'), true)
-eq('opgaver foerst', customer.indexOf('setLoadError(null)') < customer.indexOf('setTasks(tasksData)'), true)
+eq('opgaver foerst', customer.indexOf('setLoadError(null)') < customer.indexOf('setTasks(tasksData.tasks)'), true)
 eq('opgavefejl paa kort bliver', customer.includes('data-testid="customer-tasks-load-error"'), true)
 eq('udfoer bliver', customer.includes('completeCustomerTask(taskId)'), true)
 

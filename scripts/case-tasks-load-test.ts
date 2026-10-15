@@ -14,7 +14,7 @@ const next = action.indexOf('export async function getAllTasks')
 const body = action.slice(start, next === -1 ? start + 1800 : next)
 eq('auth kaster', body.includes("throw new Error('Kunne ikke hente opgaver')"), true)
 eq('query kaster', body.split("throw new Error('Kunne ikke hente opgaver')").length >= 3, true)
-eq('manglende tilladelse bliver tom', body.includes('return []'), true)
+eq('manglende tilladelse bliver tom', body.includes('return { tasks: [], names_failed: false }'), true)
 eq('sagens opgaver bliver', body.includes(".eq('service_case_id', caseId)"), true)
 
 const tab = fs.readFileSync('src/app/dashboard/orders/[id]/order-tasks-tab.tsx', 'utf8')
