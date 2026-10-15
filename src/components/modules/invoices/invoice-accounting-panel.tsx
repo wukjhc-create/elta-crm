@@ -209,38 +209,48 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
                         <>ny kunde</>
                       )}
                     </div>
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-gray-500">
-                          <th className="py-1 pr-2">Linje</th>
-                          <th className="py-1 pr-2 text-right">Antal</th>
-                          <th className="py-1 pr-2 text-right">Enhedspris</th>
-                          <th className="py-1 text-right">Beløb</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {preview.draft.body.lines.map((l) => (
-                          <tr key={l.lineNumber} className="border-t border-gray-200">
-                            <td className="py-1 pr-2">{l.description}</td>
-                            <td className="py-1 pr-2 text-right tabular-nums">{fmtNum(l.quantity)}</td>
-                            <td className="py-1 pr-2 text-right tabular-nums">{fmtNum(l.unitNetPrice)}</td>
-                            <td className="py-1 text-right tabular-nums">{fmtNum(Math.round(l.quantity * l.unitNetPrice * 100) / 100)}</td>
+                    <ul className="md:hidden divide-y" data-testid="economic-preview-lines-mobile">
+                      {preview.draft.body.lines.map((l) => (
+                        <li key={l.lineNumber} className="py-1.5">
+                          <p className="break-words">{l.description}</p>
+                          <p className="text-gray-600">Antal {fmtNum(l.quantity)} · {fmtNum(l.unitNetPrice)} · {fmtNum(Math.round(l.quantity * l.unitNetPrice * 100) / 100)}</p>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-gray-500">
+                            <th className="py-1 pr-2">Linje</th>
+                            <th className="py-1 pr-2 text-right">Antal</th>
+                            <th className="py-1 pr-2 text-right">Enhedspris</th>
+                            <th className="py-1 text-right">Beløb</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="text-xs flex justify-between border-t border-gray-300 pt-1">
+                        </thead>
+                        <tbody>
+                          {preview.draft.body.lines.map((l) => (
+                            <tr key={l.lineNumber} className="border-t border-gray-200">
+                              <td className="py-1 pr-2 break-words">{l.description}</td>
+                              <td className="py-1 pr-2 text-right tabular-nums">{fmtNum(l.quantity)}</td>
+                              <td className="py-1 pr-2 text-right tabular-nums">{fmtNum(l.unitNetPrice)}</td>
+                              <td className="py-1 text-right tabular-nums">{fmtNum(Math.round(l.quantity * l.unitNetPrice * 100) / 100)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="text-xs flex flex-wrap justify-between gap-2 border-t border-gray-300 pt-1">
                       <span>e-conomic ekskl. moms</span>
                       <span className="tabular-nums font-medium" data-testid="economic-preview-net">{fmtNum(preview.draft.economicNet)} kr</span>
                     </div>
-                    <div className="text-xs flex justify-between text-gray-500">
+                    <div className="text-xs flex flex-wrap justify-between gap-2 text-gray-500">
                       <span>Fakturaen ekskl. moms</span>
                       <span className="tabular-nums">{fmtNum(preview.draft.crmNet)} kr</span>
                     </div>
                     {preview.draft.issues.map((i, k) => (
                       <div
                         key={k}
-                        className={`text-xs rounded px-2 py-1 ring-1 ${i.severity === 'error' ? 'bg-red-50 text-red-900 ring-red-200' : 'bg-blue-50 text-blue-900 ring-blue-200'}`}
+                        className={`text-xs break-words rounded px-2 py-1 ring-1 ${i.severity === 'error' ? 'bg-red-50 text-red-900 ring-red-200' : 'bg-blue-50 text-blue-900 ring-blue-200'}`}
                       >
                         {i.message}
                       </div>
