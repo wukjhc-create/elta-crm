@@ -64,6 +64,11 @@ const fmtDate = (iso: string | null) => (iso ? iso.slice(0, 10) : '—')
 const fmtPct = (n: number | null) =>
   n == null ? '—' : `${Math.round(n * 100)} %`
 
+function emptyListText(due: IncomingDueFilter | null): string {
+  if (due) return 'Ingen godkendte fakturaer med dette forfald.'
+  return 'Ingen fakturaer i denne kategori.'
+}
+
 export function IncomingInvoicesListClient({
   initialRows,
   initialCounts,
@@ -214,14 +219,14 @@ export function IncomingInvoicesListClient({
           <p className="px-3 py-6 text-center text-gray-400 text-xs">Henter…</p>
         )}
         {!busy && displayRows.length === 0 && (
-          <p className="px-3 py-6 text-center text-gray-400 text-xs">Ingen fakturaer i denne kategori.</p>
+          <p className="px-3 py-6 text-center text-gray-400 text-xs">{emptyListText(due)}</p>
         )}
         {!busy && displayRows.map((r) => {
           const isTest = isTestRow(r)
           return (
             <div key={r.id} className={`p-4 ${isTest ? 'bg-amber-50/40' : ''}`}>
               <div className="flex items-start justify-between gap-2">
-                <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline">
+                <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline break-words min-w-0">
                   {r.supplier_name || '—'}
                 </Link>
                 <StatusBadge row={r} />
@@ -229,7 +234,7 @@ export function IncomingInvoicesListClient({
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 {r.probably_not_invoice && <NotInvoiceBadge />}
                 {isTest && <TestBadge />}
-                <span className="font-mono text-xs text-gray-700">{r.invoice_number ?? '—'}</span>
+                <span className="font-mono text-xs text-gray-700 break-all">{r.invoice_number ?? '—'}</span>
               </div>
               <p className="font-medium text-gray-900 mt-2">{fmtAmount(r.amount_incl_vat, r.currency)}</p>
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
@@ -268,15 +273,15 @@ export function IncomingInvoicesListClient({
               <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400 text-xs">Henter…</td></tr>
             )}
             {!busy && displayRows.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400 text-xs">Ingen fakturaer i denne kategori.</td></tr>
+              <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400 text-xs">{emptyListText(due)}</td></tr>
             )}
             {!busy && displayRows.map((r) => {
               const isTest = isTestRow(r)
               return (
               <tr key={r.id} className={`border-t hover:bg-gray-50 ${isTest ? 'bg-amber-50/40' : ''}`}>
                 <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline break-words">
                       {r.supplier_name || '—'}
                     </Link>
                     {r.probably_not_invoice && <NotInvoiceBadge />}

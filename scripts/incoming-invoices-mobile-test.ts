@@ -27,6 +27,11 @@ eq('kortlisten indeholder ikke tabellen', mobile.includes('<table'), false)
 eq('tabellen er skjult på mobil', text.includes('hidden md:block'), true)
 eq('skrivebordet beholder test-id til U123', text.includes('invoice-not-invoice-badge'), true)
 eq('kortet opretter ikke testfaktura', mobile.includes('createTestIncomingInvoiceAction'), false)
+eq('leverandoer ombrydes', mobile.includes('break-words min-w-0'), true)
+eq('fakturanummer ombrydes', mobile.includes('break-all'), true)
+eq('tom forfald siger forfald', text.includes('Ingen godkendte fakturaer med dette forfald.'), true)
+eq('tom kategori bliver', text.includes('Ingen fakturaer i denne kategori.'), true)
+eq('tom tekst bruges begge steder', text.split('emptyListText(due)').length === 3, true)
 
 console.log(fail ? `\n${fail} fejl` : '\nincoming-invoices-mobile-test OK')
 process.exitCode = fail ? 1 : 0
