@@ -178,7 +178,7 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
           const firstField = Object.keys(fieldErrors)[0] as keyof CreateLeadInput
           if (firstField) setFocus(firstField)
         })} className="p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
             <FormField label="Firmanavn" htmlFor="company_name" required error={errors.company_name}>
               <input {...register('company_name')} id="company_name" type="text" className={inputClass(!!errors.company_name)} disabled={isLoading} />
             </FormField>
@@ -219,8 +219,8 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
               <input {...register('probability', { valueAsNumber: true })} id="probability" type="number" min="0" max="100" className={inputClass(!!errors.probability)} disabled={isLoading} />
             </FormField>
 
-            <FormField label="Forventet lukkedato" htmlFor="expected_close_date">
-              <input {...register('expected_close_date')} id="expected_close_date" type="date" className={inputClass()} disabled={isLoading} />
+            <FormField label="Forventet lukkedato" htmlFor="expected_close_date" className="min-w-0">
+              <input {...register('expected_close_date')} id="expected_close_date" type="date" className={`${inputClass()} min-w-0 max-w-full`} disabled={isLoading} />
             </FormField>
 
             <FormField label="Tildelt til" htmlFor="assigned_to">
