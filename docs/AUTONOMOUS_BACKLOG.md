@@ -67,7 +67,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | B-5 (S2) | Bogføring i gang/hængt claim vises som "allerede bogført" (pending-…) og skjuler Bogfør | DONE — pending-krav ≠ bogført (Bogfør vises, "Bogføring i gang"), handlingen returnerer in_progress og et hængt krav kan genoptages efter 15 min. UI U169 |
 | B-6 (S2) | Forfaldne leverandørfakturaer: klientfilter på 200 nyeste → færre end widgetten | DONE — forfaldsfilter i databasen (dansk dato, samme regler), loft 1.000. UI U172 |
 | B-7 (S3) | Forfaldsoversigt: fejl → "0 forfaldne", valutaer lægges sammen | DONE — fejl meldes, alle godkendte pagineret, beløb kun DKK + "N i anden valuta". UI U172 |
-| B-8 (S3) | Leverandørfaktura-fane/tællere og rapportfiltre ikke i URL / opdateres ikke efter handling | TODO |
+| B-8 (S3) | Leverandørfaktura-fane/tællere og rapportfiltre ikke i URL / opdateres ikke efter handling | DELVIS — leverandørfaktura-fanen i URL (?tab=), tællere hentes ved fane-skift. Rapportfiltre i URL = TODO. UI U172/U28 |
 | B-9 (S2) | Rapporter: "Omsætning" og "Top kunder" er accepterede tilbud, ikke fakturering | DELVIS — omdøbt til "Ordreindgang (accepterede tilbud)"; faktureret serie = TODO. UI U88/U91 |
 | B-10 (S3) | Dashboard henter alle rækker for at tælle; fejl → 0 uden advarsel | DELVIS — fundet under test: "klar til lukning" brugte .limit(200) uden rækkefølge (nye sager faldt ud ved >200 åbne) → alle åbne pagineret, nyeste først, arbejdsordrer i bidder. UI U67. Tælle-optimering = TODO |
 | B-11 (S3) | "+ Opret test-leverandørfaktura" synlig i prod og kobler til rigtig sag; forældet engelsk tekst | DONE — kun når TEST_SEED_ENABLED=true (knap + server-handling); tekst "bogføres i e-conomic via Bogfør". UI U28 |

@@ -2030,6 +2030,11 @@ ${m.text()}`) })
           await gotoSafe(a.page, `${base}/dashboard/incoming-invoices?due=overdue`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByText(`UI-E2E-DUE-${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
           r.filter_finder_forfalden = (await a.page.getByText(`UI-E2E-DUE-${stamp}`).count()) > 0
+          // B-8: fanen skrives i URL'en
+          await gotoSafe(a.page, `${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: /^Godkendt/ }).first().click({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForURL(/tab=approved/, { timeout: 15_000 }).catch(() => {})
+          r.fane_i_url = a.page.url().includes('tab=approved')
           await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByTestId('due-other-currency').waitFor({ timeout: 60_000 }).catch(() => {})
           r.anden_valuta_vist = (await a.page.getByTestId('due-other-currency').count()) > 0

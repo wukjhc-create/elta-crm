@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import {
   createTestIncomingInvoiceAction,
+  getApprovalQueueCountsAction,
   listIncomingInvoicesAction,
   type IncomingInvoiceListItem,
 } from '@/lib/actions/incoming-invoices'
@@ -89,9 +90,18 @@ export function IncomingInvoicesListClient({
   const todayIso = copenhagenParts(new Date()).date
 
   const [rows, setRows] = useState<IncomingInvoiceListItem[]>(initialRows)
-  const [filter, setFilter] = useState<FilterKey>('needs_review')
+  // B-8 (pilot-review 2026-10-15): fanen står i URL'en (?tab=) — tilbage fra en faktura lander på samme fane; tællerne
+  // opdateres ved fane-skift (før: frosset fra første indlæsning, også efter godkend/afvis)
+  const tabParam = searchParams.get('tab')
+  const filter: FilterKey = FILTERS.some((f) => f.key === tabParam) ? (tabParam as FilterKey) : 'needs_review'
+  const setFilter = (key: FilterKey) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (key === 'needs_review') params.delete('tab')
+    else params.set('tab', key)
+    router.replace(`/dashboard/incoming-invoices?${params.toString()}`, { scroll: false })
+  }
   const [busy, startTransition] = useTransition()
-  const [counts] = useState<CountMap>(initialCounts)
+  const [counts, setCounts] = useState<CountMap>(initialCounts)
   const [seedBusy, setSeedBusy] = useState(false)
   const [seedMsg, setSeedMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -115,8 +125,12 @@ export function IncomingInvoicesListClient({
   // scope); ellers brug det valgte statusfilter.
   useEffect(() => {
     startTransition(async () => {
-      const next = await listIncomingInvoicesAction(due ? { status: 'approved', due } : { status: filter })
+      const [next, freshCounts] = await Promise.all([
+        listIncomingInvoicesAction(due ? { status: 'approved', due } : { status: filter }),
+        getApprovalQueueCountsAction().catch(() => null),
+      ])
       setRows(next)
+      if (freshCounts) setCounts(freshCounts as CountMap)
     })
   }, [filter, due])
 
