@@ -292,7 +292,7 @@ export function PaymentReportSettings({ canManage }: { canManage: boolean }) {
               <li key={e.id} className="px-3 py-2 flex items-start gap-2.5">
                 <span className="mt-0.5 shrink-0">{eventIcon(e.action)}</span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm text-gray-800">
+                  <div className="text-sm text-gray-800 break-words">
                     {e.label}
                     {e.row_count != null && (
                       <span className="text-gray-500"> · {e.row_count} kunde{e.row_count === 1 ? '' : 'r'}</span>
@@ -320,7 +320,7 @@ function StatusItem({ icon, label, value }: { icon: React.ReactNode; label: stri
         {icon}
         {label}
       </div>
-      <div className="mt-0.5 text-gray-800 font-medium truncate" title={value}>{value}</div>
+      <div className="mt-0.5 text-gray-800 font-medium break-all" title={value}>{value}</div>
     </div>
   )
 }

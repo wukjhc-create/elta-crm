@@ -147,13 +147,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Tilbud til sag ombryder sagsnummer og feltværdi. Beløb og fakturering bliver. | DONE — `offer-case-wrap-test` |
 | Mine timer ombryder sag og afvisningsbegrundelse. Timer og status bliver. | DONE — `my-hours-wrap-test` |
 | Aktivitetsloggen ombryder beskrivelse og udført af. Tom liste og loft bliver. | DONE — `activity-empty-test` |
+| Betalingsrapportens status og historik ombrydes. Send og gem bliver. | DONE — `payment-report-wrap-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: activity-wrap efter cd6e70bd
+LAST_COMMIT: payment-report-wrap efter e243d8ba
 TESTS: inspection-list-test, offer-product-name-test, title-wrap-test, close-button-label-test, case-notes-empty-test, customer-notes-empty-test, messages-empty-test, invoices-empty-search-test, aftercalc-empty-filter-test, calendar-mobile-test, reports-empty-test, reports-mobile-test, sync-jobs-mobile-test, activity-empty-test, missing-date-test, inspection-calendar-test, tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, pricing-name-wrap-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 er kørt af Claude på main (d318ebe5) — køres ikke igen. 00222 er kørt af Claude på main (47a5a977) — køres ikke igen. 00223 er kørt af Claude på main (bc5705a2) — køres ikke igen. 00224 er kørt af Claude på main (725df30d) — køres ikke igen. 00225 ACL er Claudes (8f97e621). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic. Claudes mail-feedback (67b1997d), påmindelsesbekræftelse (af645e9b), prisparser (80b9bdef) og FloatingMenu (287d616f) duplikeres ikke.
-NEXT_QUEUE: Betalingsrapportens værdier ombrydes. Kalenderchips i ugevisningen bliver afkortet med vilje. Indbakkens forhåndsvisning bliver på én linje med vilje. Mailens forhåndsvisning bliver på én linje med vilje.
+NEXT_QUEUE: Mailens vedhæftede filnavn ombrydes. Åbn og download bliver. Kalenderchips i ugevisningen bliver afkortet med vilje. Indbakkens forhåndsvisning bliver på én linje med vilje. Mailens forhåndsvisning bliver på én linje med vilje.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
