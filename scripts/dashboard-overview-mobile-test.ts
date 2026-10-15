@@ -22,6 +22,10 @@ eq('ukendt status bliver raa', src.includes(": status"), true)
 eq('fakturanummer ombrydes', src.includes('font-medium break-all">{r.invoice_number}'), true)
 eq('tom faktura siger naeste skridt', src.includes('når en faktura er oprettet'), true)
 eq('beloebsformat bliver', src.includes("style: 'currency'"), true)
+eq('driftstatus er dansk', src.includes("if (status === 'warning') return 'Advarsel'") && src.includes('healthStatusLabel(s.status)'), true)
+eq('advarsler er dansk', src.includes('advarsler (1 t)'), true)
+eq('mail hedder mail', src.includes("email: 'Mail'"), true)
+eq('ukendt driftstatus bliver raa', src.includes('return status'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ndashboard-overview-mobile-test OK')
 process.exitCode = fail ? 1 : 0

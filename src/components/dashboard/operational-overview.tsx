@@ -83,14 +83,21 @@ const fmtRelative = (iso: string) => {
 }
 
 const SERVICE_LABEL: Record<string, string> = {
-  email: 'Email',
+  email: 'Mail',
   email_intel: 'AI',
-  auto_case: 'Cases',
+  auto_case: 'Sager',
   auto_offer: 'Tilbud',
   invoice: 'Faktura',
   bank: 'Bank',
   economic: 'e-conomic',
-  health_check: 'Health',
+  health_check: 'Drift',
+}
+
+function healthStatusLabel(status: string): string {
+  if (status === 'ok') return 'I orden'
+  if (status === 'warning') return 'Advarsel'
+  if (status === 'error') return 'Fejl'
+  return status
 }
 
 export function OperationalOverview() {
@@ -335,7 +342,7 @@ function SystemHealthPanel({ health }: { health: DashboardPayload['system_health
     return (
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4">
         <h3 className="text-sm font-semibold mb-2">System status</h3>
-        <p className="text-xs text-gray-400">Ingen data tilgængelig.</p>
+        <p className="text-xs text-gray-400">Ingen data tilgængelig. Status vises her, når overblikket er hentet.</p>
       </div>
     )
   }
@@ -352,7 +359,7 @@ function SystemHealthPanel({ health }: { health: DashboardPayload['system_health
         <h3 className="text-sm font-semibold">System status</h3>
         <span className={`text-xs font-medium flex items-center gap-1.5 ${overallTone.text}`}>
           <span className={`inline-block h-2 w-2 rounded-full ${overallTone.dot}`} />
-          {health.overall.toUpperCase()}
+          {healthStatusLabel(health.overall)}
         </span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -364,9 +371,9 @@ function SystemHealthPanel({ health }: { health: DashboardPayload['system_health
                 <span className={`inline-block h-2 w-2 rounded-full ${cls.dot}`} />
                 {SERVICE_LABEL[s.service] || s.service}
               </div>
-              <div className={`mt-1 text-sm font-medium ${cls.text}`}>{s.status}</div>
+              <div className={`mt-1 text-sm font-medium ${cls.text}`}>{healthStatusLabel(s.status)}</div>
               <div className="mt-1 text-[11px] text-gray-500">
-                {s.errorsLastHour} fejl · {s.warningsLastHour} warn (1t)
+                {s.errorsLastHour} fejl · {s.warningsLastHour} advarsler (1 t)
               </div>
               {s.lastErrorMessage && s.status !== 'ok' && (
                 <div className="mt-1 text-[11px] text-red-700 break-words" title={s.lastErrorMessage}>
