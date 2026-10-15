@@ -78,10 +78,11 @@ export function BookBesigtigelseModal({
             <span className="text-xs">Bekræftelses-email sendes til {customerEmail}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Dato *</label>
+              <label htmlFor="book-visit-date" className="block text-xs font-medium text-gray-600 mb-1">Dato *</label>
               <input
+                id="book-visit-date"
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
@@ -92,8 +93,9 @@ export function BookBesigtigelseModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Tidspunkt *</label>
+              <label htmlFor="book-visit-time" className="block text-xs font-medium text-gray-600 mb-1">Tidspunkt *</label>
               <input
+                id="book-visit-time"
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
@@ -104,8 +106,9 @@ export function BookBesigtigelseModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Noter (valgfrit)</label>
+            <label htmlFor="book-visit-notes" className="block text-xs font-medium text-gray-600 mb-1">Noter (valgfrit)</label>
             <textarea
+              id="book-visit-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Fx: Husk at medbringe stiger, kunden har hund..."
