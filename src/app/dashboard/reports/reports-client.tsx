@@ -232,13 +232,13 @@ function ProjectTable({ data, error }: { data: ProjectProfitability[]; error: bo
                 <p className="text-xs text-gray-500 break-words">{p.project_number} · {p.customer_name || '—'}</p>
                 <p className="mt-1 text-xs text-gray-600">Est. {p.estimated_hours != null ? `${p.estimated_hours}t` : '—'} · Faktisk {p.actual_hours}t · Udnyttelse {utilization !== null ? `${utilization.toFixed(0)}%` : '—'}</p>
                 {costOpen && (
-                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                    <div><dt className="text-gray-500">Budget</dt><dd>{p.budget ? formatCurrency(p.budget) : '—'}</dd></div>
-                    <div><dt className="text-gray-500">Tilbudt kost</dt><dd>{p.offered_cost != null ? formatCurrency(p.offered_cost) : '—'}</dd></div>
-                    <div><dt className="text-gray-500">Faktisk kost</dt><dd>{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</dd></div>
-                    <div><dt className="text-gray-500">Afvigelse</dt><dd className={p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}>{p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : 'Kan ikke beregnes'}</dd></div>
-                    <div><dt className="text-gray-500">Faktureret netto</dt><dd>{p.net_invoiced ? formatCurrency(p.net_invoiced) : '—'}</dd></div>
-                    <div><dt className="text-gray-500">Realiseret DB</dt><dd className={p.realized_db == null ? 'text-gray-400' : p.realized_db >= 0 ? 'text-green-700' : 'text-red-600'}>{p.realized_db == null ? 'Kan ikke beregnes' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${p.realized_db_pct.toFixed(1)} %)` : ''}`}</dd></div>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0">
+                    <div className="min-w-0"><dt className="text-gray-500">Budget</dt><dd className="break-words">{p.budget ? formatCurrency(p.budget) : '—'}</dd></div>
+                    <div className="min-w-0"><dt className="text-gray-500">Tilbudt kost</dt><dd className="break-words">{p.offered_cost != null ? formatCurrency(p.offered_cost) : '—'}</dd></div>
+                    <div className="min-w-0"><dt className="text-gray-500">Faktisk kost</dt><dd className="break-words">{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</dd></div>
+                    <div className="min-w-0"><dt className="text-gray-500">Afvigelse</dt><dd className={`break-words ${p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}`}>{p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : 'Kan ikke beregnes'}</dd></div>
+                    <div className="min-w-0"><dt className="text-gray-500">Faktureret netto</dt><dd className="break-words">{p.net_invoiced ? formatCurrency(p.net_invoiced) : '—'}</dd></div>
+                    <div className="min-w-0"><dt className="text-gray-500">Realiseret DB</dt><dd className={`break-words ${p.realized_db == null ? 'text-gray-400' : p.realized_db >= 0 ? 'text-green-700' : 'text-red-600'}`}>{p.realized_db == null ? 'Kan ikke beregnes' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${p.realized_db_pct.toFixed(1)} %)` : ''}`}</dd></div>
                   </dl>
                 )}
               </article>
