@@ -214,18 +214,18 @@ export function SupplierProductsTable({
                 {product.category && (
                   <Badge variant="secondary" className="text-xs">{product.category}</Badge>
                 )}
-                <dl className="grid grid-cols-3 gap-2 text-xs">
+                <dl className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                   <div>
                     <dt className="text-gray-500">Kostpris</dt>
-                    <dd className="font-mono">{product.cost_price !== null ? formatCurrency(product.cost_price) : '-'}</dd>
+                    <dd className="font-mono break-words">{product.cost_price !== null ? formatCurrency(product.cost_price) : '-'}</dd>
                   </div>
                   <div>
                     <dt className="text-gray-500">Listepris</dt>
-                    <dd className="font-mono">{product.list_price !== null ? formatCurrency(product.list_price) : '-'}</dd>
+                    <dd className="font-mono break-words">{product.list_price !== null ? formatCurrency(product.list_price) : '-'}</dd>
                   </div>
                   <div>
                     <dt className="text-gray-500">Salgspris</dt>
-                    <dd className="font-mono text-blue-600">{product.effective_sale_price !== null ? formatCurrency(product.effective_sale_price) : '-'}</dd>
+                    <dd className="font-mono break-words text-blue-600">{product.effective_sale_price !== null ? formatCurrency(product.effective_sale_price) : '-'}</dd>
                   </div>
                 </dl>
                 <p className="text-xs text-gray-500">

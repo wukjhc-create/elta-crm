@@ -18,6 +18,7 @@ const gate = action.slice(fn, action.indexOf('await getAuthenticatedClient()', f
 
 eq('mobil-liste findes', start > 0, true)
 eq('tabellen er skjult under md', end > start, true)
+eq('priser stables paa mobil', mobile.includes('grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs') && mobile.includes('font-mono break-words'), true)
 eq(
   'kortet viser varenummer, navn og priser',
   mobile.includes('supplier_sku') && mobile.includes('supplier_name') && mobile.includes('cost_price') && mobile.includes('list_price') && mobile.includes('effective_sale_price'),
