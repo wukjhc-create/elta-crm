@@ -110,7 +110,9 @@ export function EditSiteInfoDialog({
     initial.site_contact?.id || null
   )
   const [contacts, setContacts] = useState<ContactOption[]>([])
+  const [contactsError, setContactsError] = useState<string | null>(null)
   const [contactsLoading, setContactsLoading] = useState(false)
+  const contactsKey = useRef<string | null>(null)
 
   // Section D — opret ny kontakt
   const [showCreateContact, setShowCreateContact] = useState(false)
@@ -136,11 +138,28 @@ export function EditSiteInfoDialog({
   // Hent eksisterende kontakter
   useEffect(() => {
     let cancelled = false
+    const term = `${caseId}:${siteCustomerId ?? ''}`
     setContactsLoading(true)
     void getContactsForCase(caseId).then((res) => {
       if (cancelled) return
-      if (res.success && res.contacts) {
-        setContacts(res.contacts as ContactOption[])
+      if (res.success) {
+        setContacts((res.contacts ?? []) as ContactOption[])
+        contactsKey.current = term
+        setContactsError(null)
+      } else if (contactsKey.current === term) {
+        setContactsError(res.error || 'Kunne ikke hente kontakter')
+      } else {
+        setContacts([])
+        setContactsError(res.error || 'Kunne ikke hente kontakter')
+      }
+      setContactsLoading(false)
+    }).catch(() => {
+      if (cancelled) return
+      if (contactsKey.current === term) {
+        setContactsError('Kunne ikke hente kontakter')
+      } else {
+        setContacts([])
+        setContactsError('Kunne ikke hente kontakter')
       }
       setContactsLoading(false)
     })
@@ -469,6 +488,12 @@ export function EditSiteInfoDialog({
                 <Loader2 className="w-3 h-3 animate-spin" /> Henter kontakter...
               </div>
             ) : (
+              <>
+              {contactsError && (
+                <div className="text-xs text-red-700 break-words" data-testid="site-contacts-load-error">
+                  {contactsError}{contacts.length === 0 ? '. Det tælles ikke som ingen kontakter.' : '. De tidligere kontakter bliver.'}
+                </div>
+              )}
               <select
                 value={siteContactId || ''}
                 onChange={(e) => setSiteContactId(e.target.value || null)}
@@ -487,6 +512,7 @@ export function EditSiteInfoDialog({
                   )
                 })}
               </select>
+              </>
             )}
 
             {/* D — Opret ny kontakt */}
