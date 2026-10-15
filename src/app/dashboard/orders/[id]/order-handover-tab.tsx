@@ -30,11 +30,13 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
   }, [caseId])
   useEffect(() => { load() }, [load])
 
-  const run = async (fn: () => Promise<{ success: boolean; error?: string }>) => {
+  const run = async (fn: () => Promise<{ success: boolean; error?: string }>): Promise<boolean> => {
+    let ok = false
     setBusy(true)
     // pilot-review 2026-10-15 (#5): en kastet fejl (fx for stort foto/netværk) låste fanen i "busy"
     try {
       const r = await fn()
+      ok = r.success
       if (!r.success) setError(humanizeErrorText(r.error) ?? 'Fejl')
       else setError(null)
     } catch {
@@ -43,6 +45,7 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
       setBusy(false)
     }
     await load().catch(() => {})
+    return ok
   }
 
   if (!data && !error) return <div className="bg-white rounded-lg border p-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
@@ -97,7 +100,11 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
           <p className="text-sm text-gray-500">Ikke underskrevet endnu.</p>
         ) : showSign ? (
           <SignaturePad
-            onSign={(dataUrl) => run(() => signCaseHandoverAction(caseId, dataUrl, signerName)).then(() => setShowSign(false))}
+            onSign={(dataUrl) => {
+              // M-2 (pilot-review 2026-10-15): navn tjekkes før afsendelse, og feltet lukkes kun ved succes
+              if (!signerName.trim()) { setError('Skriv kundens navn før underskriften gemmes'); return }
+              run(() => signCaseHandoverAction(caseId, dataUrl, signerName)).then((ok) => { if (ok) setShowSign(false) })
+            }}
             signerName={signerName}
             onNameChange={setSignerName}
             disabled={busy}

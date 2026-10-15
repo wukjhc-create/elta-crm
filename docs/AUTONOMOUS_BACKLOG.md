@@ -49,13 +49,13 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | # | Fund | Status |
 |---|---|---|
 | M-1 (S1) | Tryk på afleveringsfoto sletter det uden bekræftelse (hover-skraldespand findes ikke på telefon) | DONE — tryk åbner fotoet; synlig 32 px slet-knap med "Slet foto?". UI U11 (annuller → foto bevaret) |
-| M-2 (S2) | Fejlet underskrift lukker paden (tegningen tabt); canvas skaleres ikke ved rotation | TODO |
-| M-3 (S2) | Timeformularen beholder gårsdagens dato når fanen står åben natten over | TODO |
-| M-4 (S2) | Anden "kun timer"-registrering samme dag fejler som overlap (start altid 08:00) | TODO |
-| M-5 (S2) | Timer med komma ("7,5") afvises (type=number) | TODO |
-| M-6 (S2) | "Mine job" forsvinder tavst ved hentefejl | TODO |
+| M-2 (S2) | Fejlet underskrift lukker paden (tegningen tabt); canvas skaleres ikke ved rotation | DELVIS — navn tjekkes før afsendelse, feltet lukkes kun ved succes. Canvas-resize ved rotation = TODO |
+| M-3 (S2) | Timeformularen beholder gårsdagens dato når fanen står åben natten over | DONE — dato sættes (Københavnstid) når formularen åbnes |
+| M-4 (S2) | Anden "kun timer"-registrering samme dag fejler som overlap (start altid 08:00) | DELVIS — start foreslås efter medarbejderens seneste registrering samme dag på arbejdsordren; på tværs af arbejdsordrer = TODO (opslag) |
+| M-5 (S2) | Timer med komma ("7,5") afvises (type=number) | DONE — tekstfelt med decimal-tastatur (toNumberDa) |
+| M-6 (S2) | "Mine job" forsvinder tavst ved hentefejl | DONE — fejlkort med "Prøv igen" |
 | M-7 (S3) | Mine job henter alle åbne arbejdsordrer uden loft og filtrerer i JS (1.000-loft kan skjule egne) | TODO |
-| M-8 (S3) | Montøren ser ikke starttid/estimat på sine job | TODO |
+| M-8 (S3) | Montøren ser ikke starttid/estimat på sine job | DELVIS — vises i Mine job; sagens Planlægning-fane = TODO |
 | M-9 (S3) | N+1: hver arbejdsordre henter egne timer + medarbejderliste; fejl på medarbejderliste tavs | TODO |
 | M-10 (S3) | Små tap-mål (Start/Afslut/Annullér, Registrér timer, Ret/Slet, tjekliste-flueben) | TODO |
 | M-11 (S3) | Tjeklistefoto kun via kamera (capture) — kan ikke vælge fra galleri | DONE — capture fjernet (telefonen tilbyder kamera eller galleri); knap "Foto" |

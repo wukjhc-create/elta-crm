@@ -59,10 +59,8 @@ const fmtTime = (s: string | null | undefined) => {
   return d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })
 }
 
-const today = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+// Dansk dato (ikke enhedens tidszone)
+const today = () => copenhagenParts(new Date()).date
 
 export function WorkOrderTimeLogs({
   workOrderId,
@@ -118,6 +116,25 @@ export function WorkOrderTimeLogs({
     reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workOrderId])
+
+  // M-3/M-4 (pilot-review 2026-10-15): formularen får dagens dato ved åbning (før: datoen fra da fanen blev åbnet — en
+  // fane åben natten over gemte på i går), og start foreslås efter medarbejderens seneste registrering samme dag på
+  // denne arbejdsordre (før altid 08:00 → "Overlapper" ved anden registrering)
+  const suggestStart = (d: string, emp: string): string => {
+    let latest = ''
+    for (const l of logs ?? []) {
+      if (l.employee_id !== emp || !l.end_time) continue
+      const e = copenhagenParts(l.end_time)
+      if (e.date === d && e.clock > latest) latest = e.clock
+    }
+    return latest || '08:00'
+  }
+  const openForm = () => {
+    const d = today()
+    setDate(d)
+    setStartClock(suggestStart(d, employeeId))
+    setShowForm(true)
+  }
 
   const resetForm = () => {
     setDate(today())
@@ -291,7 +308,7 @@ export function WorkOrderTimeLogs({
         {!showForm && (
           <button
             type="button"
-            onClick={() => setShowForm(true)}
+            onClick={openForm}
             className="text-xs px-2 py-1 border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50"
           >
             + Registrér timer
@@ -362,9 +379,8 @@ export function WorkOrderTimeLogs({
                   className="w-1/2 px-2 py-1 border rounded text-sm"
                 />
                 <input
-                  type="number"
-                  step="0.25"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={hoursStr}
                   onChange={(e) => {
                     setHoursStr(e.target.value)
