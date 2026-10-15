@@ -1275,6 +1275,7 @@ export function RoofDrawingEditor({
         {/* Header */}
         <div className="flex items-center justify-between gap-2 p-4 border-b">
           <input
+            aria-label="Titel"
             value={title}
             onChange={(e) => {
               setTitle(e.target.value)
@@ -1328,9 +1329,10 @@ export function RoofDrawingEditor({
           </div>
 
           <select
+            aria-label="Panel"
             value={panelCode ?? ''}
             onChange={(e) => handlePanelChange(e.target.value)}
-            className="px-3 py-2 rounded-lg text-sm border border-gray-300 bg-white max-w-full"
+            className="w-full min-w-0 max-w-full sm:w-auto sm:max-w-xs px-3 py-2 rounded-lg text-sm border border-gray-300 bg-white"
           >
             <option value="">Vælg panel…</option>
             {panels.map((p) => (
@@ -1381,6 +1383,7 @@ export function RoofDrawingEditor({
                 <span>Reel længde af linjen:</span>
                 <input
                   type="number"
+                  aria-label="Længde i meter"
                   value={lengthInput}
                   onChange={(e) => setLengthInput(e.target.value)}
                   step="0.1"
