@@ -13,6 +13,27 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## NEXT-13 (2026-10-15 — tavse fejl/feedback + døde revalidateringer + doc-drift)
+Kilde: to opfølgende read-only sweeps til pilot-reviewet.
+| # | Fund | Status |
+|---|---|---|
+| U-1 (S2) | Opgavepåmindelses-popup (alle sider) ignorerer fejl, ingen pending → kort forsvinder, opgave stadig åben | TODO |
+| U-2 (S2) | Leads-kanban: mislykket træk giver ingen besked | TODO |
+| U-3 (S2) | Mail: arkivér/ignorér/læst er fire-and-forget uden tilbagerulning | TODO |
+| U-4 (S2) | Mail: "Kunde tildelt" vises selvom intet blev koblet (void-handling); cockpit-knap uden feedback | TODO |
+| U-5 (S3) | Mail-debugpanel på engelsk, vist for alle, "Fast-forward OK" ved fejl, "Spring til nye" uden bekræftelse | TODO |
+| U-6 (S3) | Mail-svar-fejl viser Graph/Azure-internals og env-navne for alle | TODO |
+| U-7 (S3) | Personlige påmindelser: slet uden bekræftelse, ingen pending | TODO |
+| U-8/9 (S3) | Arbejdsordre "Annullér"/"Afslut" (endelige) uden bekræftelse — kalender + planlægningsfane | TODO |
+| U-11 (S3) | Kundenoter: slet uden bekræftelse | TODO |
+| U-12/13 (S3) | UUID-fragmenter vist til brugere (sag "Fra tilbud", fakturakladdens sprungne linjer med engelske koder) | TODO |
+| U-14 (S3) | Tilbud: masse-statusskift håndterer ikke lav-DB-bekræftelse, ingen årsag | TODO |
+| U-15/16 (S3) | Besigtigelsesrapport "se browser console"; kundedokument-upload/ZIP-fejl tavse | TODO |
+| U-17/18/19 (S3) | Team: deaktivér uden bekræftelse, gensend-invitation dobbelt; medarbejder-login deaktivér/rolleskift uden bekræftelse | TODO |
+| U-20 (S3) | Medarbejder-handlinger returnerer rå Postgres-fejl | TODO |
+| U-21 (S3) | revalidatePath uden /dashboard-præfiks (offers/customers/leads/messages/projects/calc) → forældede sider | TODO |
+| U-22 (S4) | Doc-drift: test-harness-architecture (gammel guard), system-map (GatewayAPI/src/lib/sms), data-model-risks (files.ts), 00191 vs 00199 | TODO |
+
 ## NEXT-12 (pilot readiness review 2026-10-15)
 Kilde: read-only review. [H] = kræver Henrik. NB: selvregistrering er STADIG slået til i prod (prod-auth-signup-status 2026-10-15) — G-1.
 | # | Fund | Status |
@@ -23,8 +44,8 @@ Kilde: read-only review. [H] = kræver Henrik. NB: selvregistrering er STADIG sl
 | R-4 (S3) | Nulstil adgangskode: svag/genbrugt adgangskode vises på engelsk | DONE |
 | R-5 (S3) | Deep links tabes ved login (?redirect ignoreres) | DONE — sikker ?redirect (kun /dashboard), proxy bevarer query (UI U156) |
 | R-6 (S3) | Vilkårlig tekst kan injiceres på login-siden via ?error= | DONE — kun kendte fejlkoder; callback sender `link_expired` (UI U156) |
-| R-7 (S3) | Pilot-tjeklisten mangler "Graph-mail konfigureret" og "App-URL sat" | TODO |
-| R-8 (S3) | Notifikationsklokken: tilbuds-/leverandøradvarsler kan ikke klikkes | TODO |
+| R-7 (S3) | Pilot-tjeklisten mangler "Graph-mail konfigureret" og "App-URL sat" | DONE — punkter "Mail-afsendelse (Graph)" og "App-adresse sat" (kun ja/nej; U53) |
+| R-8 (S3) | Notifikationsklokken: tilbuds-/leverandøradvarsler kan ikke klikkes | DONE — tilbud/leverandør/leverandørvare-advarsler navigerer |
 | R-9 (S3) | Klient-crashes når aldrig admin (error boundary kun console) | TODO |
 | R-10 (S3) | Dashboard N+1 (~125 forespørgsler ved hver forsideindlæsning) | TODO |
 | R-11 (S4) | Admin-alarmmail kun én gang i døgnet | [H] plan/rutine |

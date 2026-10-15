@@ -93,6 +93,17 @@ export function NotificationDropdown() {
       setIsOpen(false)
       router.push(`/dashboard/customers/${details.customer_id}`)
       if (!alert.is_read) handleMarkRead(alert.id)
+    } else {
+      // R-8 (pilot-review 2026-10-15): tilbuds- og leverandøradvarsler (intelligence-check) kunne ikke klikkes
+      const target = alert.entity_type === 'offer' && alert.entity_id ? `/dashboard/offers/${alert.entity_id}`
+        : alert.entity_type === 'supplier' && alert.entity_id ? `/dashboard/settings/suppliers/${alert.entity_id}`
+        : alert.entity_type === 'supplier_product' ? '/dashboard/settings/suppliers'
+        : null
+      if (target) {
+        setIsOpen(false)
+        router.push(target)
+        if (!alert.is_read) handleMarkRead(alert.id)
+      }
     }
   }
 

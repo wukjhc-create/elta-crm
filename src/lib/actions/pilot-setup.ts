@@ -59,6 +59,9 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
 
   // Pilot-review 2026-10-14 (P-4): selvregistrering (offentlig Auth-indstilling — ingen hemmeligheder)
   const signup = await readSelfSignupEnabled()
+  const { isGraphConfigured } = await import('@/lib/services/microsoft-graph')
+  const graphOk = isGraphConfigured()
+  const appUrlOk = /^https:\/\/[^\s/]+/.test(process.env.NEXT_PUBLIC_APP_URL ?? '')
 
   const items: PilotSetupItem[] = [
     {
@@ -107,6 +110,21 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
         : `${unlinkedCustomers} kunde(r) med sendte fakturaer er ikke koblet — ville blive oprettet som nye debitorer ved eksport`,
       fixHint: 'Kundekort → Fakturaer → e-conomic-kundenr. (findes kunden allerede i e-conomic)',
       href: '/dashboard/settings/economic',
+    },
+    // R-7 (pilot-review 2026-10-15): uden disse virker invitationer/nulstil adgangskode ikke — kun ja/nej, aldrig værdier
+    {
+      key: 'graph_mail',
+      label: 'Mail-afsendelse (Microsoft Graph) konfigureret',
+      ok: graphOk,
+      detail: graphOk ? 'mails til kunder og medarbejdere kan sendes' : 'nulstil adgangskode, adgangsmails og tilbuds-/fakturamails kan IKKE sendes (brugeren får alligevel "E-mail sendt")',
+      fixHint: 'Vercel-env: Microsoft Graph (tenant/klient/secret) — se .env.example',
+    },
+    {
+      key: 'app_url',
+      label: 'App-adresse sat (links i mails)',
+      ok: appUrlOk,
+      detail: appUrlOk ? 'links i invitationer og nulstil-mails peger på appen' : 'NEXT_PUBLIC_APP_URL mangler eller er ikke en https-adresse — links i mails virker ikke',
+      fixHint: 'Vercel-env NEXT_PUBLIC_APP_URL = https://<appens adresse>',
     },
   ]
 

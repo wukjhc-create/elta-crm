@@ -1848,6 +1848,8 @@ ${m.text()}`) })
         // de fire opsætningspunkter (driftspunkterne fra U114 kommer oveni)
         r.fire_punkter = (await Promise.all(['company', 'bank', 'montors', 'economic_customers'].map(async (k) => (await card.getByTestId(`pilot-setup-${k}`).count()) === 1))).every(Boolean)
         r.montoer_status_korrekt = (await a.page.getByTestId('pilot-setup-montors').getAttribute('data-ok').catch(() => null)) === (expectMontorsOk ? 'ja' : 'nej')
+        // R-7: mail-afsendelse og app-adresse vises (kun ja/nej — testserveren har ingen Graph-nøgler, så værdien tjekkes ikke)
+        r.mail_og_appurl_punkter = (await card.getByTestId('pilot-setup-graph_mail').count()) === 1 && (await card.getByTestId('pilot-setup-app_url').count()) === 1
         out.push({ id: 'U53 go-live: opsætning før pilot', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · montører=${profs.length} koblede=${profs.filter((p) => linked.has(p.id)).length}` })
       }
 
