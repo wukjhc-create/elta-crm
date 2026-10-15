@@ -254,6 +254,7 @@ export function CustomerLinkDialog({
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Søg firmanavn, kundenr, email, kontakt..."
+              aria-label="Søg kunde til mailen"
               disabled={linkingId !== null || creatingNew}
               className="w-full pl-8 pr-8 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:bg-gray-100"
             />

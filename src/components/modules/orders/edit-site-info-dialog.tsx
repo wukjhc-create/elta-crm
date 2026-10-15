@@ -385,6 +385,7 @@ export function EditSiteInfoDialog({
                     value={customerQuery}
                     onChange={(e) => setCustomerQuery(e.target.value)}
                     placeholder="Søg firmanavn, kundenr, email..."
+                    aria-label="Søg leveringskunde"
                     disabled={saving}
                     className="flex-1 px-2.5 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
                     autoFocus
