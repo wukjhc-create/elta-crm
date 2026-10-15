@@ -456,7 +456,7 @@ export function WorkOrderTimeLogs({
               <article key={l.id} className={`rounded ring-1 p-2 ${isRejected ? 'ring-red-200 bg-red-50/40' : 'ring-gray-200'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{l.employee?.name ?? '—'}</p>
+                    <p className="text-sm font-medium text-gray-900 break-words">{l.employee?.name ?? '—'}</p>
                     <p className="text-xs text-gray-500">
                       {fmtDate(l.start_time)} · {fmtTime(l.start_time)}
                       {l.end_time ? ` → ${fmtTime(l.end_time)}` : ''}
@@ -465,7 +465,7 @@ export function WorkOrderTimeLogs({
                   </div>
                   <p className="text-sm tabular-nums font-medium text-gray-900">{fmtHours(l.hours)}</p>
                 </div>
-                {l.description && <p className="mt-1 text-xs text-gray-700">{l.description}</p>}
+                {l.description && <p className="mt-1 text-xs text-gray-700 break-words">{l.description}</p>}
                 {isRejected && (
                   <p className="mt-1 text-xs text-red-800">
                     <span className="uppercase text-[10px] bg-red-100 px-1.5 py-0.5 rounded mr-1">Afvist</span>
@@ -563,7 +563,7 @@ export function WorkOrderTimeLogs({
                   <Fragment key={l.id}>
                   <tr className={isRejected ? 'bg-red-50/40' : 'hover:bg-gray-50'} data-testid={isRejected ? 'time-log-rejected-row' : undefined}>
                     <td className="py-1 pr-2 whitespace-nowrap">{fmtDate(l.start_time)}</td>
-                    <td className="py-1 pr-2 whitespace-nowrap">
+                    <td className="py-1 pr-2 break-words max-w-[12rem]">
                       {l.employee?.name ?? <span className="text-gray-400">—</span>}
                     </td>
                     <td className="py-1 pr-2 whitespace-nowrap text-gray-500">
@@ -627,7 +627,7 @@ export function WorkOrderTimeLogs({
                         )}
                       </td>
                     )}
-                    <td className="py-1 pr-2 text-gray-600 max-w-[200px] truncate" title={l.description ?? ''}>
+                    <td className="py-1 pr-2 text-gray-600 max-w-[16rem] break-words" title={l.description ?? ''}>
                       {l.description ?? ''}
                     </td>
                     <td className="py-1 pr-2">

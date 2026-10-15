@@ -1493,7 +1493,7 @@ export function BillingStandardMode({
                     <td className="px-2 py-1.5">
                       {t.employee_name ?? '—'}
                       {t.description && (
-                        <div className="text-[11px] text-gray-500 truncate max-w-[280px]">
+                        <div className="text-[11px] text-gray-500 break-words max-w-[16rem]">
                           {t.description}
                         </div>
                       )}
