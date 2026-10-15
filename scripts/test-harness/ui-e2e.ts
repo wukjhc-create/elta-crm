@@ -1990,8 +1990,13 @@ ${m.text()}`) })
         await a.page.getByRole('button', { name: /Planlægning \/ Timer/ }).first().click({ timeout: 30_000 }).catch(() => {})
         await a.page.waitForTimeout(500)
         r.sag_url = a.page.url().includes('tab=planlaegning')
+        // W-15: advarselsnote vises øverst på Overblik
+        if (caseId) await c.admin.from('case_notes').insert([{ case_id: caseId, content: `Hund på adressen ${stamp}`, kind: 'warning', created_by: adminUser.id }])
         await a.page.reload({ waitUntil: 'networkidle' }).catch(() => {})
         r.sag_efter_reload = (await a.page.getByRole('button', { name: /Planlæg medarbejder/ }).count()) > 0
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('case-warning-notes').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.advarsel_paa_overblik = ((await a.page.getByTestId('case-warning-notes').textContent().catch(() => '')) ?? '').includes(`Hund på adressen ${stamp}`)
         await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /^Sager/ }).first().click({ timeout: 30_000 }).catch(() => {})
         await a.page.waitForTimeout(500)

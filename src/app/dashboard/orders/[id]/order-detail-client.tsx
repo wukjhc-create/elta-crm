@@ -1,5 +1,6 @@
 'use client'
 
+import { CaseWarningNotes } from './case-warning-notes'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
@@ -254,6 +255,7 @@ export function OrderDetailClient({
           {active === 'overblik' && (
             <OverblikTab
               canEditCase={canEditCase}
+              onOpenNotes={() => setActive('noter')}
               sag={sag}
               customerName={customerName}
               fullAddress={fullAddress}
@@ -348,8 +350,10 @@ function OverblikTab({
   canSeeBilling = false,
   onOpenFakturakladde,
   canEditCase = false,
+  onOpenNotes,
 }: {
   canEditCase?: boolean
+  onOpenNotes?: () => void
   sag: ServiceCaseWithRelations
   customerName: string
   fullAddress: string
@@ -364,6 +368,8 @@ function OverblikTab({
 
   return (
     <>
+    {/* W-15: advarselsnoter øverst på Overblik */}
+    <div className="mb-5 empty:hidden"><CaseWarningNotes caseId={sag.id} onOpenNotes={onOpenNotes} /></div>
     {/* Sprint Ø3.1 — kost-fri faktureringsstatus på overblik */}
     {canSeeBilling && (
       <div className="mb-5 grid grid-cols-1 lg:grid-cols-2 gap-5">

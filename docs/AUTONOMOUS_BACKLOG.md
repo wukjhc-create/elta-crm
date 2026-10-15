@@ -62,7 +62,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | W-12 (S3) | Tilbudseditorens søgning: race, tavse fejl, antal låst til 1 | TODO |
 | W-13 (S3) | Sags-/kundefaner ikke i URL (refresh/tilbage → Overblik) | DONE — ?tab= skrives ved fanevalg (sag + kunde) og læses ved indlæsning. UI U166 |
 | W-14 (S3) | "Ansvarlig" = opretter i sagshovedet men tildelt i listen | DONE — hovedet viser den tildelte (opretter kun som fallback) |
-| W-15 (S3) | Advarselsnoter gemt i Noter-fanen; noter tavst begrænset til 100; små tap-mål | TODO |
+| W-15 (S3) | Advarselsnoter gemt i Noter-fanen; noter tavst begrænset til 100; små tap-mål | DONE — advarselsnoter som banner øverst på Overblik (link til Noter), loft 500 med besked, rediger/slet med større tap-mål og afstand. UI U166/U40 |
 | W-16 (S3) | Faktureringsfilter tavst begrænset til 500 sager | TODO (besked) |
 | W-17 (S3) | Dokumenter på sag kan ikke slettes | [H] (sletning af kundedata/fotos — rettighed + historik) |
 | W-18 (S4) | Lead-søgning uden telefon, ubegrænset lead-dropdown, pageSize uden loft, "Kun mine" på tilbud, død kode, 2 rå DB-fejl | TODO |

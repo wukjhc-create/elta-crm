@@ -1901,7 +1901,8 @@ export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNot
       .select('id, content, kind, urgency, created_at, created_by')
       .eq('case_id', caseId)
       .order('created_at', { ascending: false })
-      .limit(100)
+      // W-15: før tavst 100 — nu 500 (UI'et siger det, hvis loftet rammes)
+      .limit(500)
     if (error) {
       logger.warn('Could not fetch case notes', { error })
       return { success: true, data: [] }
