@@ -28,6 +28,8 @@ eq('salgspris paa kortet kraever canSeeSale', saleLabel > mobile.lastIndexOf('{c
 eq('overskriftens salg kraever canSeeSale', src.includes('canSeeSale && totalSale > 0'), true)
 eq('overskriften viser ikke salg uden gate', src.includes('{totalSale > 0 && ` · salg'), false)
 eq('afvist timer kan rettes paa kortet', mobile.includes('isRejected') && mobile.includes('startFix(l)') && mobile.includes('deleteRejected(l)') && mobile.includes('rejection_reason'), true)
+eq('ret navngiver medarbejderen', mobile.includes('aria-label={`Ret afvist tid${l.employee?.name ? ` for ${l.employee.name}` : \'\'}`}'), true)
+eq('slet navngiver medarbejderen', mobile.includes('aria-label={`Slet afvist tid${l.employee?.name ? ` for ${l.employee.name}` : \'\'}`}'), true)
 eq('afvist rettelse stables', mobile.includes('grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-800') && mobile.includes('saveFix(l)') && mobile.includes('Gem — send til godkendelse'), true)
 eq('U155-testid bliver i tabellen', mobile.includes('time-log-fix') || mobile.includes('time-log-rejected-row'), false)
 eq('godkendt sats er laast som i tabellen', mobile.includes("approval === 'approved' && !canApprove"), true)

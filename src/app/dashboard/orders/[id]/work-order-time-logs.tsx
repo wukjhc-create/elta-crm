@@ -501,8 +501,8 @@ export function WorkOrderTimeLogs({
                 </div>
                 {isRejected && canEditOwn && fixId !== l.id && (
                   <div className="mt-2 flex gap-2">
-                    <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-xs px-2 py-1 rounded border border-gray-300 bg-white">Ret</button>
-                    <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-xs px-2 py-1 rounded border border-red-200 text-red-700 bg-white">Slet</button>
+                    <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-xs px-2 py-1 rounded border border-gray-300 bg-white" aria-label={`Ret afvist tid${l.employee?.name ? ` for ${l.employee.name}` : ''}`}>Ret</button>
+                    <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-xs px-2 py-1 rounded border border-red-200 text-red-700 bg-white" aria-label={`Slet afvist tid${l.employee?.name ? ` for ${l.employee.name}` : ''}`}>Slet</button>
                   </div>
                 )}
                 {isRejected && fixId === l.id && (
@@ -651,8 +651,8 @@ export function WorkOrderTimeLogs({
                       )}
                       {isRejected && canEditOwn && fixId !== l.id && (
                         <span className="ml-2 inline-flex gap-1">
-                          <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-300 hover:bg-white" data-testid="time-log-fix">Ret</button>
-                          <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-red-200 text-red-700 hover:bg-red-50" data-testid="time-log-delete-rejected">Slet</button>
+                          <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-300 hover:bg-white" data-testid="time-log-fix" aria-label={`Ret afvist tid${l.employee?.name ? ` for ${l.employee.name}` : ''}`}>Ret</button>
+                          <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-red-200 text-red-700 hover:bg-red-50" data-testid="time-log-delete-rejected" aria-label={`Slet afvist tid${l.employee?.name ? ` for ${l.employee.name}` : ''}`}>Slet</button>
                         </span>
                       )}
                     </td>
