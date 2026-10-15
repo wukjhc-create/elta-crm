@@ -36,7 +36,9 @@ interface ComponentCategory {
 
 interface KalkiaNodesClientProps {
   nodes: KalkiaNodeSummary[]
+  loadError?: string | null
   categories: ComponentCategory[]
+  categoriesError?: string | null
 }
 
 const nodeTypeIcons: Record<KalkiaNodeType, React.ElementType> = {
@@ -51,7 +53,12 @@ const nodeTypeColors: Record<KalkiaNodeType, string> = {
   composite: 'bg-purple-100 text-purple-600',
 }
 
-export default function KalkiaNodesClient({ nodes, categories }: KalkiaNodesClientProps) {
+export default function KalkiaNodesClient({
+  nodes,
+  loadError = null,
+  categories,
+  categoriesError = null,
+}: KalkiaNodesClientProps) {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
@@ -163,22 +170,38 @@ export default function KalkiaNodesClient({ nodes, categories }: KalkiaNodesClie
         </Select>
       </div>
 
+      {categoriesError && (
+        <p className="text-sm text-red-700" data-testid="kalkia-categories-load-error">
+          {categoriesError}. Det tælles ikke som ingen kategorier.
+        </p>
+      )}
+
       {/* Stats */}
-      <div className="flex gap-4">
-        <Badge variant="secondary">{filteredNodes.length} noder</Badge>
-        <Badge variant="outline">
-          {filteredNodes.filter((n) => n.node_type === 'group').length} grupper
-        </Badge>
-        <Badge variant="outline">
-          {filteredNodes.filter((n) => n.node_type === 'operation').length} operationer
-        </Badge>
-        <Badge variant="outline">
-          {filteredNodes.filter((n) => n.node_type === 'composite').length} sammensatte
-        </Badge>
-      </div>
+      {loadError ? (
+        <p className="text-sm text-red-700" data-testid="kalkia-nodes-count-error">
+          Antallet kunne ikke hentes. Det tælles ikke som 0 noder.
+        </p>
+      ) : (
+        <div className="flex gap-4">
+          <Badge variant="secondary">{filteredNodes.length} noder</Badge>
+          <Badge variant="outline">
+            {filteredNodes.filter((n) => n.node_type === 'group').length} grupper
+          </Badge>
+          <Badge variant="outline">
+            {filteredNodes.filter((n) => n.node_type === 'operation').length} operationer
+          </Badge>
+          <Badge variant="outline">
+            {filteredNodes.filter((n) => n.node_type === 'composite').length} sammensatte
+          </Badge>
+        </div>
+      )}
 
       {/* Nodes List */}
-      {filteredNodes.length === 0 ? (
+      {loadError ? (
+        <p className="text-sm text-red-700 py-8 text-center" data-testid="kalkia-nodes-load-error">
+          {loadError}. Det tælles ikke som ingen noder.
+        </p>
+      ) : filteredNodes.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-gray-500">
             <Network className="w-12 h-12 mx-auto mb-4 opacity-50" />
