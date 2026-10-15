@@ -415,21 +415,21 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               <div>
                 <h4 className="font-medium mb-3">Bygningsinformation</h4>
                 <dl className="space-y-2 text-sm">
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500">Type</dt>
-                    <dd className="font-medium">{getBuildingTypeName(result.interpretation.building_type)}</dd>
+                    <dd className="font-medium min-w-0 break-words">{getBuildingTypeName(result.interpretation.building_type)}</dd>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500">Størrelse</dt>
-                    <dd className="font-medium">{result.interpretation.building_size_m2 || 'Ukendt'} m²</dd>
+                    <dd className="font-medium min-w-0 break-words">{result.interpretation.building_size_m2 || 'Ukendt'} m²</dd>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500">Alder</dt>
-                    <dd className="font-medium">{result.interpretation.building_age_years ? `~${result.interpretation.building_age_years} år` : 'Ukendt'}</dd>
+                    <dd className="font-medium min-w-0 break-words">{result.interpretation.building_age_years ? `~${result.interpretation.building_age_years} år` : 'Ukendt'}</dd>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500">Kompleksitet</dt>
-                    <dd className="font-medium">{getComplexityLabel(result.interpretation.complexity_score)}</dd>
+                    <dd className="font-medium min-w-0 break-words">{getComplexityLabel(result.interpretation.complexity_score)}</dd>
                   </div>
                 </dl>
               </div>
@@ -438,8 +438,8 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <dl className="space-y-2 text-sm">
                   {Object.entries(result.interpretation.electrical_points).map(([key, value]) => (
                     value ? (
-                      <div key={key} className="flex justify-between">
-                        <dt className="text-gray-500">{getPointTypeName(key)}</dt>
+                      <div key={key} className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                        <dt className="text-gray-500 min-w-0 break-words">{getPointTypeName(key)}</dt>
                         <dd className="font-medium">{value} stk</dd>
                       </div>
                     ) : null
