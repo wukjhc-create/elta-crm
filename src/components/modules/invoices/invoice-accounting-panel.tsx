@@ -194,12 +194,20 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
                 {previewLoading && (
                   <div className="text-xs text-gray-500 flex items-center gap-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Bygger forhåndsvisning…</div>
                 )}
-                {previewError && <div className="text-xs text-red-800">{previewError}</div>}
+                {previewError && <div className="text-xs text-red-800" data-testid="economic-preview-load-error">{previewError}</div>}
                 {preview && !previewLoading && (
                   <>
-                    <div className="text-xs text-gray-600">
+                    <div className="text-xs text-gray-600 break-words">
                       Fakturakladde i e-conomic · dato {preview.draft.body.date} · reference {preview.draft.body.references.other} ·{' '}
-                      {preview.draft.body.customer.customerNumber != null ? `kunde nr. ${preview.draft.body.customer.customerNumber}` : 'ny kunde'}
+                      {preview.customer_error && (
+                        <span data-testid="economic-preview-customer-error">{preview.customer_error}. Det tælles ikke som en ny kunde.</span>
+                      )}
+                      {!preview.customer_error && preview.draft.body.customer.customerNumber != null && (
+                        <>kunde nr. {preview.draft.body.customer.customerNumber}</>
+                      )}
+                      {!preview.customer_error && preview.draft.body.customer.customerNumber == null && (
+                        <>ny kunde</>
+                      )}
                     </div>
                     <table className="w-full text-xs">
                       <thead>
@@ -237,6 +245,11 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
                         {i.message}
                       </div>
                     ))}
+                    {preview.integration_error && (
+                      <div className="text-xs text-red-800" data-testid="economic-preview-ready-error">
+                        {preview.integration_error}. Det tælles ikke som at e-conomic mangler.
+                      </div>
+                    )}
                     {preview.draft.canPost && (
                       <div className="text-xs text-emerald-800">Kladden stemmer med fakturaen.</div>
                     )}
