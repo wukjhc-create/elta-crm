@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { useUserRole } from '@/lib/hooks/use-user-role'
 import { Bell, Check, X, AlertTriangle, Info, AlertCircle, FileSignature, ClipboardCheck, Mail } from 'lucide-react'
 import { markAlertRead, dismissAlert } from '@/lib/actions/calculation-intelligence'
 import { useNotifications } from './notifications-provider'
@@ -23,6 +24,7 @@ const CRM_EVENT_CONFIG: Partial<Record<AlertType, { icon: typeof Info; bgClass: 
 
 export function NotificationDropdown() {
   const router = useRouter()
+  const { role } = useUserRole()
   const [isOpen, setIsOpen] = useState(false)
   // System alerts come from the shared NotificationsProvider (single 60 s
   // poll for the whole dashboard) — no per-component fetch loop here.
@@ -98,6 +100,8 @@ export function NotificationDropdown() {
       const target = alert.entity_type === 'offer' && alert.entity_id ? `/dashboard/offers/${alert.entity_id}`
         : alert.entity_type === 'supplier' && alert.entity_id ? `/dashboard/settings/suppliers/${alert.entity_id}`
         : alert.entity_type === 'supplier_product' ? '/dashboard/settings/suppliers'
+        // Systemalarmer (alarm-politik 2026-10-15) → Pilot Health (kun admin har adgang)
+        : alert.alert_type.startsWith('admin_alert:') && role === 'admin' ? '/dashboard/pilot-health'
         : null
       if (target) {
         setIsOpen(false)

@@ -25,6 +25,7 @@ const TYPE_LABELS: Record<string, string> = {
   anomaly_detected: 'Anomali',
   sync_failed: 'Sync fejl',
 }
+const typeLabel = (t: string) => TYPE_LABELS[t] || (t.startsWith('admin_alert:critical:') ? 'Kritisk fejl' : t.startsWith('admin_alert:') ? 'Systemadvarsel' : t)
 
 export function SystemAlertsWidget() {
   const toast = useToast()
@@ -95,7 +96,7 @@ export function SystemAlertsWidget() {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-xs uppercase opacity-60">
-                    {TYPE_LABELS[alert.alert_type] || alert.alert_type}
+                    {typeLabel(alert.alert_type)}
                   </span>
                 </div>
                 <p className="font-medium">{alert.title}</p>

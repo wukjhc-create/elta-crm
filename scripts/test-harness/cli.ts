@@ -2121,6 +2121,13 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'alert-policy-check') {
+    const { runAlertPolicyCheck, formatAlertPolicyCheck } = await import('./alert-policy-check')
+    const checks = await runAlertPolicyCheck({ admin })
+    log(formatAlertPolicyCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'invite-link-check') {
     const { runInviteLinkCheck, formatInviteLinkCheck } = await import('./invite-link-check')
     const checks = await runInviteLinkCheck({ admin, url: runtime.url, anonKey: runtime.anonKey })

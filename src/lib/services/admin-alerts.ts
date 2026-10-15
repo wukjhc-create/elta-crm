@@ -7,13 +7,18 @@
  *
  * Recipients:
  *   1. process.env.ADMIN_ALERT_EMAIL (comma-separated) takes priority
- *   2. else: every profile.email where role='admin'
+ *   2. else: every ACTIVE profile with role admin or serviceleder (Henrik 2026-10-15)
+ *
+ * Politik (lib/alerts/alert-policy.ts): kun severity 'error' (kritisk) mailes. 'warning' går til
+ * notifikationsklokken (system_alerts) + Pilot Health — ingen mail (før: 2–3 advarselsmails dagligt).
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { BRAND_COMPANY_NAME, BRAND_GREEN } from '@/lib/brand'
 import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
+import { ALERT_RECIPIENT_ROLES, CRITICAL_ALERT_COOLDOWN_MIN, criticalAlertSubject, isCriticalHealthEvent } from '@/lib/alerts/alert-policy'
+import type { HealthService } from '@/types/system-health.types'
 
 export type AlertSeverity = 'warning' | 'error'
 
@@ -39,6 +44,13 @@ export async function sendAdminAlert(input: AdminAlertInput): Promise<AdminAlert
   const cooldown = input.cooldownMinutes ?? DEFAULT_COOLDOWN_MIN
   const supabase = createAdminClient()
 
+  // Ikke-kritisk → klokken (én åben pr. nøgle), ingen mail
+  if (input.severity !== 'error') {
+    await raiseBellAlert(input, 'warning')
+    await markAttempted(input, 'notification_only')
+    return { sent: false, reason: 'notification_only' }
+  }
+
   // Cooldown check via system_health_log entries tagged with our alert key.
   try {
     const since = new Date(Date.now() - cooldown * 60_000).toISOString()
@@ -56,7 +68,7 @@ export async function sendAdminAlert(input: AdminAlertInput): Promise<AdminAlert
   }
 
   // Resolve recipients.
-  const recipients = await resolveRecipients()
+  const recipients = await resolveAlertRecipients()
   if (recipients.length === 0) {
     await markAttempted(input, 'no_recipients')
     return { sent: false, reason: 'no_recipients' }
@@ -164,16 +176,19 @@ export async function scanAndAlert(): Promise<ScanReport> {
       .order('created_at', { ascending: false })
       .limit(20)
     if (errs && errs.length > 0) {
-      const sample = errs.slice(0, 5).map((r) => `[${r.service}] ${r.message ?? '(no message)'}`).join('\n')
+      // Kun kritiske services mailes (backstop for fejl der faldt i straks-alarmens cooldown); resten → Pilot Health
+      const critical = errs.filter((r) => isCriticalHealthEvent(r.service as HealthService, 'error'))
+      if (critical.length === 0) throw new SkipScan()
+      const sample = critical.slice(0, 5).map((r) => `[${r.service}] ${r.message ?? '(no message)'}`).join('\n')
       await dispatch(
         `system_errors`,
         'error',
-        `[ELTA Drift] ${errs.length >= 20 ? '20+' : errs.length} system-fejl det seneste døgn`,
-        `${errs.length} fejl-rækker registreret i system_health_log.\n\nSeneste:\n${sample}`,
+        `[ELTA Drift] ${errs.length >= 20 ? '20+' : critical.length} kritiske system-fejl det seneste døgn`,
+        `${critical.length} kritiske fejl-rækker registreret i system_health_log.\n\nSeneste:\n${sample}`,
       )
     }
   } catch (err) {
-    logger.warn('scanAndAlert: system errors probe failed', { error: err })
+    if (!(err instanceof SkipScan)) logger.warn('scanAndAlert: system errors probe failed', { error: err })
   }
 
   // 2. e-conomic not configured (warning).
@@ -242,21 +257,68 @@ export async function scanAndAlert(): Promise<ScanReport> {
 // internals
 // =====================================================
 
-async function resolveRecipients(): Promise<string[]> {
+class SkipScan extends Error {}
+
+/**
+ * Kritisk fejl logget via logHealth → straks-mail til admin + serviceleder (højst én pr. service pr. time) og en
+ * kritisk række i klokken. Kaldes kun for isCriticalHealthEvent; fejler aldrig kalderen.
+ */
+export async function alertCriticalHealthEvent(service: HealthService, message: string): Promise<void> {
+  try {
+    const input: AdminAlertInput = {
+      key: `critical:${service}`,
+      severity: 'error',
+      subject: criticalAlertSubject(service),
+      body: `${message.slice(0, 500)}\n\nSe Pilot Health for detaljer og efterfølgende fejl.`,
+      cooldownMinutes: CRITICAL_ALERT_COOLDOWN_MIN,
+      metadata: { service },
+    }
+    await raiseBellAlert(input, 'critical')
+    await sendAdminAlert(input)
+  } catch { /* never crash */ }
+}
+
+export async function resolveAlertRecipients(): Promise<string[]> {
   const fromEnv = (process.env.ADMIN_ALERT_EMAIL || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
   if (fromEnv.length > 0) return fromEnv
 
+  // Login-e-mailen fra Auth — ikke profiles.email (kan være tom og kan ændres af brugeren selv)
   const supabase = createAdminClient()
   const { data } = await supabase
     .from('profiles')
-    .select('email')
-    .eq('role', 'admin')
-  return (data ?? [])
-    .map((r) => (r.email as string | null) ?? '')
-    .filter((e) => e.includes('@'))
+    .select('id')
+    .in('role', [...ALERT_RECIPIENT_ROLES])
+    .eq('is_active', true)
+    .limit(25)
+  const emails = await Promise.all(((data ?? []) as Array<{ id: string }>).map(async (p) => {
+    const { data: u } = await supabase.auth.admin.getUserById(p.id)
+    return (u?.user?.email ?? '').trim().toLowerCase()
+  }))
+  return Array.from(new Set(emails.filter((e) => e.includes('@'))))
+}
+
+/** Notifikationsklokken: højst én åben (ikke afvist) række pr. alarmnøgle — ingen spam */
+async function raiseBellAlert(input: AdminAlertInput, severity: 'warning' | 'critical'): Promise<void> {
+  try {
+    const supabase = createAdminClient()
+    const alertType = `admin_alert:${input.key}`
+    const { count } = await supabase
+      .from('system_alerts')
+      .select('id', { count: 'exact', head: true })
+      .eq('alert_type', alertType)
+      .eq('is_dismissed', false)
+    if ((count ?? 0) > 0) return
+    await supabase.from('system_alerts').insert({
+      alert_type: alertType,
+      severity,
+      title: input.subject.replace(/^\[ELTA Drift\]\s*/, ''),
+      message: input.body.slice(0, 1000),
+      details: { key: input.key, ...(input.metadata ?? {}) },
+    })
+  } catch { /* never crash */ }
 }
 
 async function markAttempted(

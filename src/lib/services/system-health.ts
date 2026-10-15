@@ -11,6 +11,7 @@
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isCriticalHealthEvent } from '@/lib/alerts/alert-policy'
 import type {
   HealthService,
   HealthStatus,
@@ -67,6 +68,14 @@ export async function logHealth(
     })
   } catch {
     // Swallow — never crash the calling flow because logging failed.
+  }
+
+  // Henrik 2026-10-15: kritiske fejl → straks til admin + serviceleder (cooldown pr. service); resten kun Pilot Health
+  if (isCriticalHealthEvent(service, status)) {
+    try {
+      const { alertCriticalHealthEvent } = await import('@/lib/services/admin-alerts')
+      await alertCriticalHealthEvent(service, message)
+    } catch { /* never crash */ }
   }
 }
 
