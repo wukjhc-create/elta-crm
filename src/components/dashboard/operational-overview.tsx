@@ -261,7 +261,7 @@ function AiInsightsPanel() {
           return (
             <div key={i.id} className={`p-3 rounded ring-1 ${tone}`}>
               <div className="text-sm font-medium break-words">{i.message}</div>
-              {i.detail && <div className="text-xs opacity-80 mt-1">{i.detail}</div>}
+              {i.detail && <div className="text-xs opacity-80 mt-1 break-words">{i.detail}</div>}
             </div>
           )
         })}
