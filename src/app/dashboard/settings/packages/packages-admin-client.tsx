@@ -217,8 +217,8 @@ function PackageEditor({
       </Field>
 
       <div className="flex gap-2">
-        <Button onClick={save} disabled={busy}>Gem pakke</Button>
-        <Button variant="outline" onClick={remove} disabled={busy}>Slet pakke</Button>
+        <Button onClick={save} disabled={busy} aria-label={`Gem pakke ${pkg.name}`}>Gem pakke</Button>
+        <Button variant="outline" onClick={remove} disabled={busy} aria-label={`Slet pakke ${pkg.name}`}>Slet pakke</Button>
       </div>
 
       <div className="border-t pt-4">
@@ -273,14 +273,14 @@ function OptionRow({
 
   return (
     <div className="border rounded p-2 grid grid-cols-1 md:grid-cols-[2fr_1fr_2fr_auto] gap-2 items-start">
-      <input className="border rounded px-2 py-1 text-sm" value={name} onChange={(e) => setName(e.target.value)} />
-      <input type="number" className="border rounded px-2 py-1 text-sm" value={price} onChange={(e) => setPrice(e.target.value)} />
-      <input className="border rounded px-2 py-1 text-sm" placeholder="Tekst i tilbud" value={offerText} onChange={(e) => setOfferText(e.target.value)} />
+      <input className="border rounded px-2 py-1 text-sm" value={name} onChange={(e) => setName(e.target.value)} aria-label={`Navn på ${option.name || 'tilvalg'}`} />
+      <input type="number" className="border rounded px-2 py-1 text-sm" value={price} onChange={(e) => setPrice(e.target.value)} aria-label={`Pris på ${option.name || 'tilvalg'}`} />
+      <input className="border rounded px-2 py-1 text-sm" placeholder="Tekst i tilbud" value={offerText} onChange={(e) => setOfferText(e.target.value)} aria-label={`Tilbudstekst for ${option.name || 'tilvalg'}`} />
       <div className="flex flex-col gap-1 text-xs">
         <label className="flex items-center gap-1"><input type="checkbox" checked={affects} onChange={(e) => setAffects(e.target.checked)} /> BOM</label>
         <label className="flex items-center gap-1"><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Aktiv</label>
       </div>
-      <input className="md:col-span-3 border rounded px-2 py-1 text-sm" placeholder="Note (intern)" value={description} onChange={(e) => setDescription(e.target.value)} />
+      <input className="md:col-span-3 border rounded px-2 py-1 text-sm" placeholder="Note (intern)" value={description} onChange={(e) => setDescription(e.target.value)} aria-label={`Note for ${option.name || 'tilvalg'}`} />
       <div className="md:col-span-1 flex gap-2">
         <Button size="sm"
           onClick={() => startTransition(async () => {
@@ -296,14 +296,14 @@ function OptionRow({
             })
             if (r.ok) { await onChanged(); flash(true, r.message) } else flash(false, r.message)
           })}
-          disabled={busy}>Gem</Button>
+          disabled={busy} aria-label={`Gem tilvalg ${option.name}`}>Gem</Button>
         <Button size="sm" variant="outline"
           onClick={() => startTransition(async () => {
             if (!confirm(`Slet tilvalg "${option.name}"?`)) return
             const r = await deleteOptionAction(option.id)
             if (r.ok) { await onChanged(); flash(true, r.message) } else flash(false, r.message)
           })}
-          disabled={busy}>Slet</Button>
+          disabled={busy} aria-label={`Slet tilvalg ${option.name}`}>Slet</Button>
       </div>
     </div>
   )
