@@ -111,7 +111,7 @@ export default function CalculationForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="calculation_type">Type</Label>
           <Select
@@ -148,7 +148,7 @@ export default function CalculationForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="margin_percentage">Avance %</Label>
           <Input
@@ -193,7 +193,7 @@ export default function CalculationForm({
       {calculationMode === 'electrician' && (
         <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
           <h4 className="font-medium text-gray-700">El-arbejde indstillinger</h4>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="default_hourly_rate">Standard timepris (DKK)</Label>
               <Input

@@ -123,7 +123,7 @@ export default function CalculationRowForm({
       {row && <input type="hidden" name="id" value={row.id} />}
       <input type="hidden" name="position" value={position} />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="row_type">Type</Label>
           <Select name="row_type" defaultValue={row?.row_type || 'manual'}>
@@ -170,7 +170,7 @@ export default function CalculationRowForm({
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="quantity">Antal *</Label>
           <Input
@@ -221,7 +221,7 @@ export default function CalculationRowForm({
       {(isLaborSection || isLaborMode) && (
         <div className="border rounded-lg p-4 bg-blue-50 space-y-4">
           <h4 className="font-medium text-blue-700 text-sm">Arbejdstid</h4>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="hours">Timer</Label>
               <Input
@@ -252,7 +252,7 @@ export default function CalculationRowForm({
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="cost_price">Kostpris</Label>
           <Input
