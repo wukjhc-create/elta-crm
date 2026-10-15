@@ -237,7 +237,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       <p className="font-semibold text-gray-900 break-words min-w-0">{offer.title}</p>
                       <OfferStatusBadge status={offer.status} />
                     </div>
-                    <p className="text-xs font-mono text-gray-500">{offer.offer_number}</p>
+                    <p className="text-xs font-mono text-gray-500 break-all">{offer.offer_number}</p>
                     {party && (
                       <p className="text-sm text-gray-600 break-words">{party}{partyKind ? ` · ${partyKind}` : ''}</p>
                     )}
@@ -309,7 +309,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                     <div>
                       <Link
                         href={`/dashboard/offers/${offer.id}`}
-                        className="font-medium text-gray-900 hover:text-primary"
+                        className="font-medium text-gray-900 hover:text-primary break-words"
                       >
                         {offer.title}
                       </Link>
