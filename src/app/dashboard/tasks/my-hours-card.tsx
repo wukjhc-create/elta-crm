@@ -47,9 +47,9 @@ export async function MyHoursCard() {
         <ul className="divide-y text-sm">
           {week.entries.slice(0, 12).map((e) => (
             <li key={e.id} className="py-1.5">
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-2">
               <span className="text-xs text-gray-500 w-20 shrink-0">{dayLabel(e.date)} {e.clock}</span>
-              <span className="truncate">
+              <span className="min-w-0 break-words">
                 {e.case_number ? <span className="font-mono text-xs text-gray-600 mr-1">{e.case_number}</span> : null}
                 {e.work_order_title ?? e.case_title ?? e.description ?? 'Timer'}
               </span>
@@ -69,7 +69,7 @@ export async function MyHoursCard() {
               </div>
               {/* PL-5: begrundelsen skal kunne læses på mobil (før kun hover) */}
               {e.end_time && e.approval_status === 'rejected' && e.rejection_reason && (
-                <p className="mt-0.5 ml-[5.5rem] text-xs text-red-700" data-testid="my-hours-rejection-reason">Begrundelse: {e.rejection_reason}</p>
+                <p className="mt-0.5 ml-[5.5rem] text-xs text-red-700 break-words" data-testid="my-hours-rejection-reason">Begrundelse: {e.rejection_reason}</p>
               )}
             </li>
           ))}
