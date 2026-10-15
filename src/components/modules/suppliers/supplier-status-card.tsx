@@ -125,6 +125,17 @@ export function SupplierStatusCard({
     )
   }
 
+  if (!status) {
+    return (
+      <div className="border rounded-lg p-6 bg-white">
+        <h3 className="font-semibold break-words">{supplierName}</h3>
+        <p className="text-sm text-red-700 break-words mt-2" data-testid="supplier-status-load-error">
+          Kunne ikke hente status. Det tælles ikke som offline.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="border rounded-lg p-6 bg-white">
       {/* Header */}
