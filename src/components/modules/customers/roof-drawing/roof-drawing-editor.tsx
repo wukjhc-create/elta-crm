@@ -1282,7 +1282,7 @@ export function RoofDrawingEditor({
             }}
             className="text-lg font-semibold border-b border-transparent hover:border-gray-300 focus:border-primary outline-none"
           />
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
+          <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded-full">
             <X className="w-5 h-5" />
           </button>
         </div>

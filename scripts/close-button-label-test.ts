@@ -15,6 +15,10 @@ const files = [
   'src/app/dashboard/settings/solar/solar-settings-client.tsx',
   'src/components/modules/customers/book-besigtigelse-modal.tsx',
   'src/components/modules/customers/customer-pricing.tsx',
+  'src/components/modules/service-cases/create-service-case-modal.tsx',
+  'src/components/modules/offers/offer-task-form.tsx',
+  'src/components/modules/customers/roof-drawing/roof-drawing-editor.tsx',
+  'src/components/modules/customers/customer-tasks.tsx',
 ]
 
 for (const file of files) {

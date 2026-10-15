@@ -68,7 +68,7 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Opret opgave til tilbud</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+          <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded">
             <X className="w-5 h-5" />
           </button>
         </div>

@@ -350,7 +350,7 @@ function TaskForm({
           <h3 className="text-lg font-semibold">
             {task ? 'Rediger opgave' : 'Ny opgave'}
           </h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+          <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded">
             <X className="w-5 h-5" />
           </button>
         </div>

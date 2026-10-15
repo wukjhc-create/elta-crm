@@ -84,7 +84,7 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold">Ny serviceopgave</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+          <button type="button" onClick={onClose} aria-label="Luk" className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="space-y-4">
