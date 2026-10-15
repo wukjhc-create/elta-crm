@@ -200,10 +200,10 @@ export function EditWorkOrderDialog({
         {/* Header */}
         <div className="flex items-start justify-between border-b px-4 py-3">
           <div className="min-w-0 pr-4">
-            <h2 id="edit-wo-title" className="text-base font-semibold text-gray-900 truncate">
+            <h2 id="edit-wo-title" className="text-base font-semibold text-gray-900 break-words">
               {workOrder.title || 'Arbejdsordre'}
             </h2>
-            <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
               <span
                 className={`px-1.5 py-0.5 rounded ring-1 text-[10px] uppercase tracking-wide ${STATUS_COLORS[currentStatus]}`}
               >
@@ -213,7 +213,7 @@ export function EditWorkOrderDialog({
                 <span className="font-mono">{workOrder.case.case_number}</span>
               )}
               {workOrder.case?.customer_name && (
-                <span className="truncate">· {workOrder.case.customer_name}</span>
+                <span className="break-words min-w-0">· {workOrder.case.customer_name}</span>
               )}
             </div>
           </div>
