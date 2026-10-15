@@ -4350,7 +4350,8 @@ ${m.text()}`) })
         r.seed = !!withOffer && !!free && !!offerId
         const tryDelete = async (id: string) => {
           await gotoSafe(a.page, `${base}/dashboard/customers/${id}`, { waitUntil: 'networkidle', timeout: 120_000 })
-          await a.page.getByRole('button', { name: /^Slet$/ }).first().click({ timeout: 60_000 }).catch(() => {})
+          // knappen har aria-label "Slet kunde" (NEXT-11) — fast testid i stedet for tekst
+          await a.page.getByTestId('customer-delete').first().click({ timeout: 60_000 }).catch(() => {})
           await a.page.getByRole('alertdialog').getByRole('button', { name: /^Slet$/ }).click({ timeout: 30_000 }).catch(() => {})
           await a.page.waitForTimeout(2500)
         }
