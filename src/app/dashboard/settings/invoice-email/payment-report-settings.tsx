@@ -18,6 +18,7 @@ import {
   getPaymentReportHistoryAction,
   type PaymentReportHistory,
 } from '@/lib/actions/settings'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import {
   DEFAULT_PAYMENT_REPORT_CONFIG,
   FREQUENCY_LABEL,
@@ -40,9 +41,7 @@ const FORMAT_OPTIONS: PaymentReportFormat[] = ['csv', 'pdf', 'both']
 
 function fmtDateTime(s: string | null): string {
   if (!s) return '—'
-  return new Intl.DateTimeFormat('da-DK', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  }).format(new Date(s))
+  return copenhagenDateTimeLabel(s)
 }
 function fmtDate(d: Date | null): string {
   if (!d) return '—'
