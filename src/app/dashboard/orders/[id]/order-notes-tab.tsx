@@ -18,11 +18,12 @@ import {
   type CaseNoteEntry,
 } from '@/lib/actions/service-cases'
 import { CASE_NOTE_KINDS, type CaseNoteKind } from '@/types/service-cases.types'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 const fmtDateTime = (s: string) => {
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleString('da-DK', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return copenhagenDateTimeLabel(s)
 }
 
 const KIND_LABEL: Record<string, string> = {
