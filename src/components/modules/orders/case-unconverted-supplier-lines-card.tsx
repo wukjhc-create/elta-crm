@@ -59,7 +59,9 @@ export function CaseUnconvertedSupplierLinesCard({ caseId }: { caseId: string })
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-400 py-3"><Loader2 className="w-4 h-4 animate-spin" /> Henter…</div>
       ) : error || !data ? (
-        <p className="text-sm text-gray-400 py-2">{error || 'Ingen data'}</p>
+        <p className="text-sm text-red-700 break-words py-2" data-testid="unconverted-lines-load-error">
+          {error || 'Kunne ikke hente ukonverterede linjer'}. Det tælles ikke som 0 linjer.
+        </p>
       ) : isEmpty ? (
         <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 ring-1 ring-emerald-100 rounded-md px-3 py-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
