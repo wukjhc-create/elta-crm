@@ -213,6 +213,7 @@ export default function CalculationsClient({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
+              aria-label="Søg efter kalkulationer"
               placeholder="Søg efter kalkulationer..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -228,7 +229,7 @@ export default function CalculationsClient({
             updateFilters({ calculation_type: value })
           }}
         >
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]" aria-label="Type">
             <SelectValue placeholder="Alle typer" />
           </SelectTrigger>
           <SelectContent>
@@ -246,7 +247,7 @@ export default function CalculationsClient({
             updateFilters({ is_template: value })
           }}
         >
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-full sm:w-[150px]" aria-label="Skabelon">
             <SelectValue placeholder="Alle" />
           </SelectTrigger>
           <SelectContent>
