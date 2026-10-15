@@ -164,7 +164,8 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
 
   const refresh = async () => {
     const fresh = await getInvoiceDetailAction(inv.id)
-    if (fresh) setDetail(fresh)
+    if (fresh.detail) setDetail(fresh.detail)
+    else if (fresh.error) flash(false, fresh.error)
   }
 
   const flash = (ok: boolean, text: string) => {
@@ -560,14 +561,18 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
       )}
 
       {/* Lines */}
-      {isDraft && canEditDraft && (
+      {isDraft && canEditDraft && !detail.linesError && (
         <Panel title="Rediger kladde">
           <DraftLinesEditor invoiceId={inv.id} lines={detail.lines} onChanged={async (ok, message) => { flash(ok, message); if (ok) await refresh() }} />
         </Panel>
       )}
 
-      <Panel title={`Fakturalinjer (${detail.lines.length})`}>
-        {detail.lines.length === 0 ? (
+      <Panel title={detail.linesError ? 'Fakturalinjer' : `Fakturalinjer (${detail.lines.length})`}>
+        {detail.linesError ? (
+          <p className="text-sm text-red-700" data-testid="invoice-lines-load-error">
+            {detail.linesError} Det tælles ikke som ingen linjer.
+          </p>
+        ) : detail.lines.length === 0 ? (
           <p className="text-xs text-gray-500">
             {isDraft && canEditDraft
               ? 'Ingen linjer på fakturaen. Tilføj linjer i kladden ovenfor.'

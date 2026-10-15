@@ -340,6 +340,8 @@ export interface InvoiceDetail {
     title: string | null
     project_name: string | null
   } | null
+  /** Sæt når linjeopslaget fejler. Tom lines er da ikke en ægte tom faktura. */
+  linesError?: string | null
   /** Sprint 6D-4 — forgængere når is_final_invoice=true. */
   predecessors: Array<{
     invoice_id: string
@@ -358,15 +360,15 @@ export type InvoiceActionOutcome = {
 
 export async function getInvoiceDetailAction(
   invoiceId: string
-): Promise<InvoiceDetail | null> {
+): Promise<{ detail: InvoiceDetail | null; error: string | null }> {
   try {
     validateUUID(invoiceId, 'id')
   } catch {
-    return null
+    return { detail: null, error: null }
   }
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.view.all')) {
-    return null
+    return { detail: null, error: null }
   }
 
   const { data: invRaw, error } = await supabase
@@ -374,7 +376,11 @@ export async function getInvoiceDetailAction(
     .select('*')
     .eq('id', invoiceId)
     .maybeSingle()
-  if (error || !invRaw) return null
+  if (error) {
+    logger.error('getInvoiceDetailAction read failed', { error, entityId: invoiceId })
+    return { detail: null, error: 'Kunne ikke hente fakturaen.' }
+  }
+  if (!invRaw) return { detail: null, error: null }
   const invoice = invRaw as InvoiceRow
 
   const [linesRes, customerRes, caseRes] = await Promise.all([
@@ -463,12 +469,21 @@ export async function getInvoiceDetailAction(
     }
   }
 
+  const linesError = linesRes.error ? 'Kunne ikke hente fakturalinjerne.' : null
+  if (linesError) {
+    logger.error('getInvoiceDetailAction lines failed', { error: linesRes.error, entityId: invoiceId })
+  }
+
   return {
-    invoice,
-    lines: (linesRes.data ?? []) as InvoiceLineRow[],
-    customer,
-    case: caseRow,
-    predecessors,
+    detail: {
+      invoice,
+      lines: linesError ? [] : ((linesRes.data ?? []) as InvoiceLineRow[]),
+      linesError,
+      customer,
+      case: caseRow,
+      predecessors,
+    },
+    error: null,
   }
 }
 

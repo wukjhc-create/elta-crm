@@ -16,7 +16,16 @@ interface PageProps {
 
 export default async function InvoiceDetailPage({ params }: PageProps) {
   const { id } = await params
-  const detail = await getInvoiceDetailAction(id)
-  if (!detail) notFound()
-  return <InvoiceDetailClient initial={detail} />
+  const loaded = await getInvoiceDetailAction(id)
+  if (loaded.error) {
+    return (
+      <main className="max-w-lg mx-auto p-6">
+        <p className="text-sm text-red-700" data-testid="invoice-detail-load-error">
+          {loaded.error} Det tælles ikke som at fakturaen ikke findes.
+        </p>
+      </main>
+    )
+  }
+  if (!loaded.detail) notFound()
+  return <InvoiceDetailClient initial={loaded.detail} />
 }
