@@ -14,6 +14,7 @@ import {
   Trash2,
   Pencil,
   Filter,
+  X,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { Pagination } from '@/components/shared/pagination'
@@ -372,14 +373,18 @@ function CreatePackageDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-        <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold">Ny pakke</h2>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-2 p-4 border-b">
+          <h2 className="text-lg font-semibold break-words min-w-0">Ny pakke</h2>
+          <button type="button" onClick={onClose} className="p-1 hover:bg-muted rounded shrink-0" aria-label="Luk">
+            <X className="w-4 h-4" />
+          </button>
         </div>
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium">Navn *</label>
+            <label htmlFor="package-create-name" className="text-sm font-medium">Navn *</label>
             <input
+              id="package-create-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -389,8 +394,9 @@ function CreatePackageDialog({
             />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium">Kode</label>
+            <label htmlFor="package-create-code" className="text-sm font-medium">Kode</label>
             <input
+              id="package-create-code"
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value)}
@@ -399,8 +405,9 @@ function CreatePackageDialog({
             />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium">Kategori</label>
+            <label htmlFor="package-create-category" className="text-sm font-medium">Kategori</label>
             <select
+              id="package-create-category"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               className="w-full px-3 py-2 border rounded-md"
@@ -413,12 +420,12 @@ function CreatePackageDialog({
               ))}
             </select>
             {categoriesError && (
-              <p className="text-xs text-red-700" data-testid="package-create-categories-error">
+              <p className="text-xs text-red-700 break-words" data-testid="package-create-categories-error">
                 {categoriesError}. Det tælles ikke som ingen kategorier.
               </p>
             )}
           </div>
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="flex flex-wrap justify-end gap-3 pt-4 border-t">
             <button
               type="button"
               onClick={onClose}
