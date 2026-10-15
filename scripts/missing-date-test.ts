@@ -16,6 +16,9 @@ eq('kundeopgave uden forfald siger det', tasks.includes('Ingen forfaldsdato') &&
 eq('forfaldsdato formateres stadig', tasks.includes("format(new Date(task.due_date), 'd. MMM yyyy'"), true)
 eq('paamindelse uden dato siger det', overlay.includes("'Ingen dato'") && overlay.includes('reminder.due_date'), true)
 eq('luk har et navn', overlay.includes('aria-label="Luk påmindelse"'), true)
+eq('prisadvarsel ombrydes', overlay.includes('break-words min-w-0">{alert.title}'), true)
+eq('paamindelsestitel ombrydes', overlay.includes('break-words">{reminder.title}'), true)
+eq('prisadvarsel kan lukkes med navn', overlay.includes('aria-label="Luk prisadvarsel"'), true)
 eq('personlig paamindelse ombrydes', personal.includes('flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'), true)
 eq('tidspunktet formateres stadig', personal.includes('fmt(r.due_at)'), true)
 

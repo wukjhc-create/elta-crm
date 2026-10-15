@@ -177,14 +177,16 @@ function PriceAlertCard({
       <div className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-amber-600 shrink-0" />
-              <p className="text-sm font-medium text-gray-900 truncate">{alert.title}</p>
+            <div className="flex items-start gap-1.5">
+              <TrendingUp className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm font-medium text-gray-900 break-words min-w-0">{alert.title}</p>
             </div>
             <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-line line-clamp-2">{alert.message}</p>
           </div>
           <button
+            type="button"
             onClick={onDismiss}
+            aria-label="Luk prisadvarsel"
             className="p-0.5 hover:bg-white/50 rounded shrink-0"
           >
             <X className="w-3.5 h-3.5 text-gray-400" />
@@ -253,7 +255,7 @@ function ReminderCard({
       <div className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-gray-900 truncate">{reminder.title}</p>
+            <p className="text-sm font-medium text-gray-900 break-words">{reminder.title}</p>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">
               {reminder.offer && (
                 <a
@@ -268,7 +270,7 @@ function ReminderCard({
               {reminder.customer && (
                 <a
                   href={`/dashboard/customers/${reminder.customer.id}`}
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline break-words"
                 >
                   {reminder.customer.company_name}
                   <ExternalLink className="w-3 h-3" />
