@@ -761,11 +761,16 @@ function WorkOrderChip({
   const customerLabel = wo.case?.customer_name ?? null
   const caseNumber = wo.case?.case_number ?? null
 
+  const chipName = [wo.title, caseNumber, customerLabel, wo.employee?.name || 'Ikke tildelt', STATUS_LABELS[status]]
+    .filter(Boolean)
+    .join(', ')
+
   return (
     <button
       type="button"
       onClick={() => onChipClick(wo)}
       title={`Åbn arbejdsordre${caseNumber ? ` (${caseNumber})` : ''}`}
+      aria-label={chipName}
       className={`block text-left px-2 py-1.5 rounded ring-1 ${colorClass} ${
         compact ? 'text-[11px]' : 'text-xs'
       } w-full max-w-[260px] hover:ring-2 hover:ring-offset-1 cursor-pointer`}

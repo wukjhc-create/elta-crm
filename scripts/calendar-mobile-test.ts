@@ -22,6 +22,8 @@ eq('datonav ombrydes', nav.includes('flex-wrap') && nav.includes('aria-label="Fo
 eq('filtre fylder bredden paa mobil', filters.includes('w-full sm:w-auto') && filters.split('w-full sm:w-auto').length >= 3, true)
 const chip = src.slice(src.indexOf('function WorkOrderChip'))
 eq('jobkort viser ansvarlig', chip.includes('wo.employee?.name') && chip.includes('Ikke tildelt') && chip.includes('!compact'), true)
+eq('jobkort har et navn', chip.includes('aria-label={chipName}'), true)
+eq('jobkort bliver afkortet', chip.includes('font-medium truncate'), true)
 eq('tom uge-dag siger at der ikke er job', src.includes('Ingen planlagte job denne dag'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncalendar-mobile-test OK')
