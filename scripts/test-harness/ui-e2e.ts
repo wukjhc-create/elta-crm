@@ -3239,6 +3239,38 @@ ${m.text()}`) })
         out.push({ id: 'U153 mobil + rettigheder (NEXT-11)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U154 M-8 (NEXT-11): rækkemenuer klippes ikke ved 375 px — menuen på SIDSTE række ligger helt inden for skærmen, er
+      // øverst i stablen (ikke skjult af tabel-overflow/bundnavigation) og "Se detaljer" kan klikkes
+      if (want('U154') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const offs = await c.admin.from('offers').insert([1, 2].map((n) => ({ offer_number: `UI-E2E-M8-${n}-${stamp}`, title: `[HARNESS] menu ${n} ${stamp}`, created_by: adminUser.id, customer_id: profitCustomerId }))).select('id')
+        const ids = ((offs.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        try {
+          await a.page.setViewportSize({ width: 375, height: 812 })
+          await gotoSafe(a.page, `${base}/dashboard/offers?search=${encodeURIComponent(`[HARNESS] menu`)}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const triggers = a.page.getByRole('button', { name: 'Flere handlinger' })
+          await triggers.first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const n = await triggers.count()
+          r.raekker = n >= 1
+          await triggers.nth(Math.max(0, n - 1)).scrollIntoViewIfNeeded().catch(() => {})
+          await triggers.nth(Math.max(0, n - 1)).click({ timeout: 15_000 }).catch(() => {})
+          const menu = a.page.getByTestId('row-menu')
+          await menu.waitFor({ timeout: 15_000 }).catch(() => {})
+          const box = await menu.boundingBox().catch(() => null)
+          const vp = a.page.viewportSize() ?? { width: 375, height: 812 }
+          r.inden_for_skaermen = !!box && box.x >= 0 && box.y >= 0 && box.x + box.width <= vp.width + 0.5 && box.y + box.height <= vp.height + 0.5
+          const item = menu.getByText('Se detaljer')
+          const ib = await item.boundingBox().catch(() => null)
+          r.oeverst_i_stablen = !!ib && await a.page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('[data-floating-menu]'), { x: ib.x + ib.width / 2, y: ib.y + ib.height / 2 }).catch(() => false)
+          await a.page.keyboard.press('Escape').catch(() => {})
+          r.esc_lukker = (await a.page.getByTestId('row-menu').count()) === 0
+        } finally {
+          await a.page.setViewportSize({ width: 1400, height: 1000 })
+          if (ids.length) await c.admin.from('offers').delete().in('id', ids)
+        }
+        out.push({ id: 'U154 rækkemenu ved 375 px (M-8)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U91 realiseret DB: netto faktureret ekskl. moms (udstedt − kreditnota; kladde/annulleret tæller ikke) mod faktisk
       // kost — materialer 600, faktura 1.000 + kreditnota 200 + kladde 5.000 → netto 800, realiseret DB 200 (25 %)
       if (want('U91') && profitCustomerId) {

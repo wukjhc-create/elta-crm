@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { FloatingMenu } from '@/components/shared/floating-menu'
 import { setServiceCaseStatus } from '@/lib/actions/service-cases'
 import {
   SERVICE_CASE_STATUSES,
@@ -21,6 +22,7 @@ export function InlineStatusChanger({
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const [isWorking, setIsWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,7 +48,7 @@ export function InlineStatusChanger({
     <div className="relative inline-flex items-center gap-2">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => { setAnchor(e.currentTarget); setOpen((v) => !v) }}
         disabled={isWorking}
         title="Skift status"
         aria-haspopup="listbox"
@@ -60,12 +62,9 @@ export function InlineStatusChanger({
       </button>
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <ul
-            role="listbox"
-            className="absolute top-full mt-1 left-0 z-20 min-w-[12rem] bg-white border rounded-md shadow-lg py-1"
-          >
+        // M-8: portal + fixed position (klippes ikke af sagslistens overflow / skærmkanten)
+        <FloatingMenu anchor={anchor} onClose={() => setOpen(false)} align="left" className="min-w-[12rem]" testId="case-status-menu">
+          <ul role="listbox" className="py-1">
             {SERVICE_CASE_STATUSES.map((s) => (
               <li key={s}>
                 <button
@@ -84,7 +83,7 @@ export function InlineStatusChanger({
               </li>
             ))}
           </ul>
-        </>
+        </FloatingMenu>
       )}
 
       {error && (

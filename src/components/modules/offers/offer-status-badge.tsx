@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { FloatingMenu } from '@/components/shared/floating-menu'
 import {
   OFFER_STATUS_LABELS,
   OFFER_STATUS_COLORS,
@@ -17,6 +18,7 @@ interface OfferStatusBadgeProps {
 
 export function OfferStatusBadge({ status, className, onStatusChange }: OfferStatusBadgeProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const validTransitions = OFFER_STATUS_TRANSITIONS[status] || []
   const isInteractive = onStatusChange && validTransitions.length > 0
 
@@ -37,7 +39,7 @@ export function OfferStatusBadge({ status, className, onStatusChange }: OfferSta
   return (
     <div className="relative inline-block">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => { setAnchor(e.currentTarget); setIsOpen(!isOpen) }}
         className={cn(
           'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-gray-300 transition-shadow',
           OFFER_STATUS_COLORS[status],
@@ -48,9 +50,8 @@ export function OfferStatusBadge({ status, className, onStatusChange }: OfferSta
       </button>
 
       {isOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-          <div className="absolute left-0 mt-1 w-36 bg-white border rounded-md shadow-lg z-20 py-1">
+        // M-8: portal + fixed position (klippes ikke af tabellens overflow)
+        <FloatingMenu anchor={anchor} onClose={() => setIsOpen(false)} align="left" className="w-36 py-1" testId="status-menu">
             {validTransitions.map((targetStatus) => (
               <button
                 key={targetStatus}
@@ -64,8 +65,7 @@ export function OfferStatusBadge({ status, className, onStatusChange }: OfferSta
                 {OFFER_STATUS_LABELS[targetStatus]}
               </button>
             ))}
-          </div>
-        </>
+        </FloatingMenu>
       )}
     </div>
   )
