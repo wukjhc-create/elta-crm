@@ -129,6 +129,7 @@ export default function PackagesClient({
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             placeholder="Søg efter pakker..."
+            aria-label="Søg efter pakker"
             className="w-full pl-10 pr-4 py-2 border rounded-md"
           />
         </div>
@@ -141,6 +142,7 @@ export default function PackagesClient({
             if (e.target.value) params.set('category_id', e.target.value)
             router.push(`/dashboard/packages?${params.toString()}`)
           }}
+          aria-label="Kategori"
           className="px-3 py-2 border rounded-md w-full sm:w-auto sm:min-w-[150px]"
         >
           <option value="">Alle kategorier</option>
