@@ -249,7 +249,39 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
   return (
     <div className="space-y-3">
       {error && <LoadFailed message={error} />}
-    <div className="bg-white rounded-lg border overflow-hidden">
+    <ul className="md:hidden space-y-2" data-testid="price-alerts-mobile">
+      {alerts.map((alert) => {
+        const isIncrease = alert.change_direction === 'increase'
+        const severity = Math.abs(alert.change_percentage) >= 10 ? 'critical'
+          : Math.abs(alert.change_percentage) >= 5 ? 'warning' : 'info'
+        return (
+          <li key={alert.id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-medium text-gray-900 break-words">{alert.product_name}</p>
+                <p className="text-xs text-gray-400 break-all">{alert.supplier_sku}</p>
+              </div>
+              <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                severity === 'critical' ? 'bg-red-100 text-red-700'
+                  : severity === 'warning' ? 'bg-amber-100 text-amber-700'
+                  : 'bg-blue-100 text-blue-700'
+              }`}>
+                {isIncrease ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {isIncrease ? '+' : ''}{alert.change_percentage.toFixed(1)}%
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-gray-600 break-words">{alert.supplier_name}</p>
+            <p className="mt-1 text-xs tabular-nums text-gray-500">Gammel {formatCurrency(alert.old_price)}</p>
+            <p className="text-xs tabular-nums font-medium text-gray-900">Ny {formatCurrency(alert.new_price)}</p>
+            <p className="mt-1 text-xs text-gray-600">
+              Tilbud {alert.affects_offers} · kalkulationer {alert.affects_calculations}
+            </p>
+            <p className="text-xs text-gray-500">{formatDateUtil(alert.changed_at)}</p>
+          </li>
+        )
+      })}
+    </ul>
+    <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
