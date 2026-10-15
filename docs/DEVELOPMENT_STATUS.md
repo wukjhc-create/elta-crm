@@ -49,6 +49,20 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 
 **Manuelle blokere (Henrik):** selvregistrering OFF i Supabase · "Email OTP expiry" = 86400 s. Arbejdet fortsætter uden at vente.
 
+## Long-run 2026-10-15 nat — pilot-review NEXT-16 + NEXT-17 (kun kode, ingen migrationer)
+| Commit | Indhold |
+|---|---|
+| 2f2efc1e | W-11 leverandørsøgning ord-for-ord + relevans, "billigst" kun samme EAN |
+| 5b813a5c | W-3 katalogsøgning i "Tilføj materiale", W-9 "Påmind mig" (.ics), W-12 tilbudssøgning race/fejl/antal, lead-dropdown |
+| 2df29d31 | W-18 "Kun mine" på tilbud, sikker sortering, død Placeholder-fane |
+| 29130914 | W-6 dansk adgangstekst i alle inline-fejl (66 filer); NEXT-17-bølge (35 fund) |
+| 558d823e | M-1 afleveringsfoto slettes ikke ved tryk, B-1 Annuller ≠ betalt, S-1 tilbudsstatus med bekræftelse |
+| 9616ef57 | M-2..M-8 montørens timeformular/underskrift/Mine job |
+| 6deca5e0 | B-11 testfaktura bag flag, S-10 danske lead-statusser, S-11 link i notifikation |
+| 606c647f | B-5 bogføringskrav "i gang", B-4/B-2 fakturaoverblik |
+
+Næste: S-5 (opfølgningsopgave lukkes, test kører), derefter NEXT-17 rest (B-3/B-6/B-7/B-9/B-10, S-2/S-6/S-7/S-8/S-9, M-7/M-9/M-12).
+
  → (løbende checkpoint)
 **Start:** 2026-10-01 20:18 dansk (18:18 UTC) · start-commit `4606dde`
 

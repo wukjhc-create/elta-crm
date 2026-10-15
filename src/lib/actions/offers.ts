@@ -1,4 +1,5 @@
 'use server'
+import { closeOfferFollowUpTasks } from '@/lib/offers/follow-up-tasks'
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 
 import { revalidatePath } from 'next/cache'
@@ -848,6 +849,8 @@ export async function updateOfferStatus(
     }
     const webhookEvent = webhookEventMap[status]
     if (webhookEvent) await emitOfferEvent(supabase, id, webhookEvent)
+    // S-5: kunden har svaret → "Følg op: intet svar"-opgaven lukkes (admin: opgaven kan være oprettet af en anden sælger)
+    if (status === 'accepted' || status === 'rejected') await closeOfferFollowUpTasks(createAdminClient(), id)
 
     // Sprint 3D — auto-create service_case when transitioning to accepted.
     // Gated on transition (current → accepted, not already-accepted) so a

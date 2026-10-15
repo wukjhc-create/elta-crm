@@ -75,7 +75,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | S-2 (S3) | Inline-redigering af leverandørlinje overskriver supplier_cost_price_at_creation; avance 0 → null | TODO |
 | S-3 (S3) | Dashboard "Samlet værdi" = 5 nyeste, før rabat — afviger fra stat-kortet | TODO |
 | S-4 (S3) | Lead-kanban taber leads efter 500 (lukkede fylder) | TODO |
-| S-5 (S3) | Auto "Følg op: intet svar"-opgave uden due_date (vises ikke) og lukkes ikke ved accept/afvisning | TODO |
+| S-5 (S3) | Auto "Følg op: intet svar"-opgave uden due_date (vises ikke) og lukkes ikke ved accept/afvisning | DONE — due_date sættes; lukkes ved accept/afvisning (portal + manuel status, lib/offers/follow-up-tasks.ts). UI U170 |
 | S-6 (S3) | Send på mail: statusskift uden CAS, aktivitet, audit, webhook og revalidering | TODO |
 | S-7 (S3) | Manuel mail→kunde-kobling kan fejle tavst (0 rækker) og kobler ikke resten af tråden | TODO |
 | S-8 (S3) | Indbakke viser tom liste/0-tællere ved DB-fejl | TODO |

@@ -1051,6 +1051,8 @@ export async function sendOfferEmail(
           priority: 'normal',
           assigned_to: userId,
           reminder_at: reminderDate.toISOString(),
+          // S-5 (pilot-review 2026-10-15): uden due_date viste cockpittet/opgavelisterne den aldrig
+          due_date: reminderDate.toISOString(),
           created_by: userId,
         })
       }

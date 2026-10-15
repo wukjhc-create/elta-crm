@@ -1,4 +1,5 @@
 'use server'
+import { closeOfferFollowUpTasks } from '@/lib/offers/follow-up-tasks'
 import { secretTokenReader, PORTAL_TOKEN_PUBLIC_COLUMNS } from '@/lib/portal/token-reader'
 
 import { revalidatePath } from 'next/cache'
@@ -667,6 +668,7 @@ export async function acceptOffer(
 
     // Webhook offer.accepted — kaster aldrig (tidligere: AUTH_REQUIRED -> kunden fik fejl efter gemt underskrift)
     await emitOfferEvent(admin, data.offer_id, 'offer.accepted')
+    await closeOfferFollowUpTasks(admin, data.offer_id) // S-5
 
     // Salgspipeline: tilknyttede leads → vundet (kaster aldrig)
     const { markLeadsWonForAcceptedOffer } = await import('@/lib/services/lead-won')
@@ -858,6 +860,7 @@ export async function rejectOffer(
 
     // Trigger webhooks for offer.rejected (best effort)
     await emitOfferEvent(admin, offerId, 'offer.rejected')
+    await closeOfferFollowUpTasks(admin, offerId) // S-5
 
     // Send email notification to CRM mailbox (non-critical)
     try {
