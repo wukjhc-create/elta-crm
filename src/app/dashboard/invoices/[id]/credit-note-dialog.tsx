@@ -244,7 +244,40 @@ export function CreditNoteDialog({
                 <span>Vælg linjer at kreditere</span>
                 <span>{selectedLineIds.size} valgt</span>
               </div>
-              <div className="overflow-x-auto max-h-64 overflow-y-auto">
+              {lines.length === 0 ? (
+                <p className="md:hidden px-3 py-4 text-center text-xs text-gray-400">Ingen linjer på fakturaen</p>
+              ) : (
+                <ul className="md:hidden max-h-64 overflow-y-auto space-y-2 p-2" data-testid="credit-lines-mobile">
+                  {lines.map((l) => (
+                    <li key={l.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedLineIds.has(l.id)}
+                          onChange={() => toggleLine(l.id)}
+                          disabled={submitting}
+                          aria-label="Vælg linje"
+                          className="mt-1"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="break-words text-gray-900">{l.description}</p>
+                            <p className="shrink-0 tabular-nums">{fmtKr(Number(l.total_price))}</p>
+                          </div>
+                          <p className="mt-1 text-xs tabular-nums text-gray-700">
+                            {Number(l.quantity).toLocaleString('da-DK', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{' '}
+                            {l.unit ?? '—'}
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="hidden md:block overflow-x-auto max-h-64 overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 text-left text-gray-600 sticky top-0">
                     <tr>
