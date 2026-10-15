@@ -616,11 +616,20 @@ export async function bookBesigtigelse(
     })
 
     // Fetch customer address + portal token
-    const { data: customer } = await supabase
+    const { data: customer, error: customerErr } = await supabase
       .from('customers')
       .select('billing_address, billing_city, billing_postal_code, shipping_address, shipping_city, shipping_postal_code')
       .eq('id', customerId)
       .single()
+    if (customerErr) {
+      logger.error('bookBesigtigelse customer read failed', { error: customerErr, entityId: customerId })
+      return {
+        success: false,
+        error: customerErr.code === 'PGRST116'
+          ? 'Kunde ikke fundet'
+          : 'Kunne ikke læse kundens adresse. Besigtigelsen er ikke booket.',
+      }
+    }
 
     const { data: portalTokens } = await (await secretTokenReader())
       .from('portal_access_tokens')
@@ -745,9 +754,13 @@ export async function bookBesigtigelse(
     // Mail-review 2026-10-08 (#7): opgaven oprettes FØR mailen og er kravet. Før: mail først → fejlede opgaven (eller
     // fik mailen timeout), bookede brugeren igen → kunden fik to bekræftelser med to kalenderinvitationer.
     const title = `Besigtigelse hos ${customerName}`
-    const { data: dup } = await supabase.from('customer_tasks').select('id')
+    const { data: dup, error: dupErr } = await supabase.from('customer_tasks').select('id')
       .eq('customer_id', customerId).eq('title', title).eq('due_date', date)
       .gte('created_at', new Date(Date.now() - 2 * 60_000).toISOString()).limit(1)
+    if (dupErr) {
+      logger.error('bookBesigtigelse duplicate check failed', { error: dupErr, entityId: customerId })
+      return { success: false, error: 'Kunne ikke tjekke om besigtigelsen allerede er booket. Der er ikke oprettet en ny.' }
+    }
     if ((dup ?? []).length > 0) {
       return { success: true } // dobbeltklik: allerede booket og mailet
     }
