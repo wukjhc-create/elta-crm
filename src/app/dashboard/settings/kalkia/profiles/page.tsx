@@ -14,6 +14,7 @@ export default async function BuildingProfilesPage() {
   return (
     <BuildingProfilesClient
       profiles={profilesResult.success && profilesResult.data ? profilesResult.data : []}
+      loadError={profilesResult.success ? null : profilesResult.error || 'Kunne ikke hente bygningsprofiler'}
     />
   )
 }

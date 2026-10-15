@@ -24,9 +24,10 @@ import type { KalkiaBuildingProfile } from '@/types/kalkia.types'
 
 interface BuildingProfilesClientProps {
   profiles: KalkiaBuildingProfile[]
+  loadError?: string | null
 }
 
-export default function BuildingProfilesClient({ profiles }: BuildingProfilesClientProps) {
+export default function BuildingProfilesClient({ profiles, loadError = null }: BuildingProfilesClientProps) {
   const formatMultiplier = (value: number) => {
     if (value === 1) return '1.00x'
     return `${value.toFixed(3)}x`
@@ -86,10 +87,17 @@ export default function BuildingProfilesClient({ profiles }: BuildingProfilesCli
         <CardHeader>
           <CardTitle>Alle profiler</CardTitle>
           <CardDescription>
-            {profiles.length} bygningsprofiler konfigureret
+            {loadError
+              ? 'Antallet kunne ikke hentes. Det tælles ikke som 0 profiler.'
+              : `${profiles.length} bygningsprofiler konfigureret`}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {loadError && (
+            <p className="text-sm text-red-700 mb-3" data-testid="building-profiles-load-error">
+              {loadError}. Det tælles ikke som ingen profiler.
+            </p>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
