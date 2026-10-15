@@ -187,6 +187,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
               e.target.value = ''
             }}
             disabled={isBulkActing}
+            aria-label="Skift status på valgte"
             className="text-sm border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
             defaultValue=""
           >
@@ -233,12 +234,12 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                 <div className="min-w-0 flex-1">
                   <Link href={`/dashboard/offers/${offer.id}`} className="block">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-gray-900 truncate">{offer.title}</p>
+                      <p className="font-semibold text-gray-900 break-words min-w-0">{offer.title}</p>
                       <OfferStatusBadge status={offer.status} />
                     </div>
                     <p className="text-xs font-mono text-gray-500">{offer.offer_number}</p>
                     {party && (
-                      <p className="text-sm text-gray-600 truncate">{party}{partyKind ? ` · ${partyKind}` : ''}</p>
+                      <p className="text-sm text-gray-600 break-words">{party}{partyKind ? ` · ${partyKind}` : ''}</p>
                     )}
                     <p className="text-sm font-medium text-gray-900 mt-1">{formatCurrency(offer.final_amount, currency)}</p>
                     <p className="text-xs text-gray-500">ekskl. moms: {formatCurrency(offer.total_amount - offer.discount_amount, currency)}</p>

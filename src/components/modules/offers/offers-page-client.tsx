@@ -149,14 +149,14 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
   return (
     <>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-3xl font-bold text-gray-900">Tilbud</h1>
-            <p className="text-gray-600 mt-1">
+            <p className="text-gray-600 mt-1 break-words">
               Opret og administrer salgstilbud ({pagination.totalItems} tilbud)
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ExportButton type="offers" filters={{ search: filters.search, status: filters.status }} />
             <button
               onClick={() => setShowForm(true)}
@@ -175,8 +175,8 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
         <div className="bg-white rounded-lg border p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Search */}
-            <div className="flex-1 flex gap-2">
-              <div className="relative flex-1">
+            <div className="flex-1 flex flex-wrap gap-2">
+              <div className="relative flex-1 min-w-[12rem]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
@@ -184,6 +184,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
                   onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   placeholder="Søg efter titel, tilbudsnummer..."
+                  aria-label="Søg tilbud"
                   className="w-full pl-10 pr-10 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {searchInput && (
@@ -208,6 +209,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
             <select
               value={filters.status || ''}
               onChange={(e) => handleStatusFilter(e.target.value)}
+              aria-label="Status"
               className="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">Alle statuser</option>
@@ -234,12 +236,12 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
 
           {/* Active filters display */}
           {hasActiveFilters && (
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
               <span className="text-sm text-gray-500">Aktive filtre:</span>
               {filters.search && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
-                  Søgning: {filters.search}
-                  <button onClick={handleClearSearch} aria-label="Ryd søgefilter" className="hover:text-red-600">
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm max-w-full">
+                  <span className="break-words">Søgning: {filters.search}</span>
+                  <button type="button" onClick={handleClearSearch} aria-label="Ryd søgefilter" className="hover:text-red-600 shrink-0">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
@@ -247,7 +249,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
               {filters.status && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
                   Status: {OFFER_STATUS_LABELS[filters.status]}
-                  <button onClick={() => handleStatusFilter('')} className="hover:text-red-600">
+                  <button type="button" onClick={() => handleStatusFilter('')} aria-label="Ryd status" className="hover:text-red-600">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
