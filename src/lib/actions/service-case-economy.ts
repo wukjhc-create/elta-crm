@@ -606,14 +606,16 @@ export async function getServiceCaseBillingStatus(
     // IDOR-sweep 2026-10-09 (#5): kun sager i brugerens scope (salg: egne) — kontraktsum/udestående er ellers åbne
     if (!(await userCanViewCase(caseId, { supabase, userId, role }))) return { success: false, error: 'Du har ikke adgang til denne sag' }
 
-    const { data: sag } = await supabase
+    const { data: sag, error: sagErr } = await supabase
       .from('service_cases')
       .select('id, contract_sum, revised_sum')
       .eq('id', caseId)
       .maybeSingle()
+    if (sagErr) return { success: false, error: 'Kunne ikke hente faktureringsstatus' }
     if (!sag) return { success: false, error: 'Sag ikke fundet' }
 
-    const { data: wos } = await supabase.from('work_orders').select('id').eq('case_id', caseId)
+    const { data: wos, error: woErr } = await supabase.from('work_orders').select('id').eq('case_id', caseId)
+    if (woErr) return { success: false, error: 'Kunne ikke hente faktureringsstatus' }
     const woIds = (wos ?? []).map((w) => w.id as string)
 
     const [tlRes, matRes, othRes, invRes] = await Promise.all([
@@ -625,6 +627,8 @@ export async function getServiceCaseBillingStatus(
       supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
       supabase.from('invoices').select('total_amount, status, invoice_type, voided_at').eq('case_id', caseId),
     ])
+
+    if (matRes.error || othRes.error || invRes.error) return { success: false, error: 'Kunne ikke hente faktureringsstatus' }
 
     // X1: samme optælling og prisregel som lukke-værnet og fakturaen (summarizeUnbilled → priceTimeLog)
     const { summarizeUnbilled } = await import('@/lib/invoices/unbilled')

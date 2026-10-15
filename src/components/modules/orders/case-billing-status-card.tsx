@@ -29,14 +29,29 @@ export function CaseBillingStatusCard({
 }) {
   const [data, setData] = useState<CaseBillingStatus | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
+    let alive = true
+    setData(null)
+    setLoaded(false)
+    setLoadError(null)
     getServiceCaseBillingStatus(caseId).then((r) => {
+      if (!alive) return
       if (r.success && r.data) setData(r.data)
+      else setLoadError('Faktureringsstatus kunne ikke hentes. Det tælles ikke som intet at fakturere.')
+      setLoaded(true)
+    }).catch(() => {
+      if (!alive) return
+      setLoadError('Faktureringsstatus kunne ikke hentes. Det tælles ikke som intet at fakturere.')
       setLoaded(true)
     })
+    return () => { alive = false }
   }, [caseId])
 
+  if (loadError) {
+    return <p className="text-xs text-red-700 break-words" data-testid="billing-status-load-error">{loadError}</p>
+  }
   if (!loaded || !data) return null
 
   const parts: string[] = []
