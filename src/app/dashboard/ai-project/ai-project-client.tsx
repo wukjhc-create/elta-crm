@@ -533,12 +533,10 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               <h4 className="font-medium mb-3">Komponenter</h4>
               <ul className="md:hidden space-y-2" data-testid="ai-components-mobile">
                 {result.calculation.components.map((comp, i) => (
-                  <li key={i} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="min-w-0 break-words font-medium text-gray-900">{comp.name}</p>
-                      <p className="shrink-0 tabular-nums font-medium">{formatCurrency(comp.total)}</p>
-                    </div>
-                    <p className="mt-1 text-xs tabular-nums text-gray-700">
+                  <li key={i} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm min-w-0">
+                    <p className="min-w-0 break-words font-medium text-gray-900">{comp.name}</p>
+                    <p className="mt-1 tabular-nums font-medium text-gray-900 break-words">{formatCurrency(comp.total)}</p>
+                    <p className="mt-1 text-xs tabular-nums text-gray-700 break-words">
                       {comp.quantity} {comp.unit} · {formatCurrency(comp.unit_price)}
                     </p>
                   </li>
