@@ -568,7 +568,11 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
 
       <Panel title={`Fakturalinjer (${detail.lines.length})`}>
         {detail.lines.length === 0 ? (
-          <p className="text-xs text-gray-500">Ingen linjer på fakturaen.</p>
+          <p className="text-xs text-gray-500">
+            {isDraft && canEditDraft
+              ? 'Ingen linjer på fakturaen. Tilføj linjer i kladden ovenfor.'
+              : 'Ingen linjer på fakturaen.'}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -589,7 +593,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
                   return (
                     <tr key={l.id}>
                       <td className="px-2 py-1.5 text-gray-500 tabular-nums">{l.position}</td>
-                      <td className="px-2 py-1.5">{l.description}</td>
+                      <td className="px-2 py-1.5 break-words max-w-[16rem]">{l.description}</td>
                       <td className="px-2 py-1.5">
                         <span
                           className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${src.color}`}
