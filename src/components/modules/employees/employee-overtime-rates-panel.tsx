@@ -45,25 +45,42 @@ export function EmployeeOvertimeRatesPanel({
   const [newCost, setNewCost] = useState('')
   const [newSale, setNewSale] = useState('')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<{ ok: boolean; data: EmployeeOvertimeRate[] }> => {
     setLoading(true)
-    const res = await listEmployeeOvertimeRates(employeeId)
-    if (res.success && res.data) setRates(res.data)
-    else setError(res.error ?? 'Kunne ikke hente satser')
-    setLoading(false)
-    return res.success && res.data ? res.data : []
+    setError(null)
+    try {
+      const res = await listEmployeeOvertimeRates(employeeId)
+      if (res.success && res.data) {
+        setRates(res.data)
+        return { ok: true, data: res.data }
+      }
+      setError(res.error ?? 'Kunne ikke hente satser')
+      return { ok: false, data: [] }
+    } catch {
+      setError('Kunne ikke hente satser')
+      return { ok: false, data: [] }
+    } finally {
+      setLoading(false)
+    }
   }, [employeeId])
 
   useEffect(() => {
+    let alive = true
     ;(async () => {
-      const data = await load()
-      // Seed standard-satser ved første åbning (kun hvis tom + redigeringsret).
-      if (data.length === 0 && canEdit && !seeded) {
-        setSeeded(true)
+      const result = await load()
+      // Seed kun når listen virkelig er tom. En fejl er ikke en tom liste.
+      if (!alive || !result.ok || result.data.length > 0 || !canEdit || seeded) return
+      setSeeded(true)
+      try {
         const r = await ensureDefaultOvertimeRates(employeeId)
+        if (!alive) return
         if (r.success && r.data) setRates(r.data)
+        else setError(r.error ?? 'Kunne ikke oprette standard-satser')
+      } catch {
+        if (alive) setError('Kunne ikke oprette standard-satser')
       }
     })()
+    return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId])
 
@@ -71,8 +88,8 @@ export function EmployeeOvertimeRatesPanel({
     setError(null)
     startTransition(async () => {
       const res = await fn()
-      if (!res.success) setError(res.error ?? 'Handlingen fejlede')
       await load()
+      if (!res.success) setError(res.error ?? 'Handlingen fejlede')
     })
   }
 
@@ -149,10 +166,12 @@ export function EmployeeOvertimeRatesPanel({
 
       {loading ? (
         <p className="text-sm text-gray-400">Henter…</p>
-      ) : rates.length === 0 ? (
+      ) : rates.length === 0 && !error ? (
         <p className="text-sm text-gray-500 py-2">
           Ingen satser endnu.{canEdit ? ' Standard-satser oprettes automatisk.' : ''}
         </p>
+      ) : rates.length === 0 ? (
+        <p className="text-sm text-gray-500 py-2">Det tælles ikke som ingen satser.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

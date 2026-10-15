@@ -79,11 +79,12 @@ export async function ensureDefaultOvertimeRates(
     }
     const admin = createAdminClient()
 
-    const { data: existing } = await admin
+    const { data: existing, error: existingErr } = await admin
       .from('employee_overtime_rates')
       .select('id')
       .eq('employee_id', employeeId)
       .limit(1)
+    if (existingErr) return { success: false, error: 'Kunne ikke hente satser' }
     if (existing && existing.length > 0) {
       return listEmployeeOvertimeRates(employeeId)
     }
