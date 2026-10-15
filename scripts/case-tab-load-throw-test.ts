@@ -20,12 +20,14 @@ eq('materialer fanger kast', materials.includes("setLoadError('Kunne ikke hente 
 eq('materialer siger det ikke er tomt', materials.includes('Det tælles ikke som en tom materialeliste.'), true)
 eq('tomme materialer bliver', materials.includes('Ingen materialer registreret'), true)
 eq('materiale-kost bliver', materials.includes('unit_cost'), true)
+eq('materialer beholdes ved fejl', !materials.includes('setRows([])'), true)
 
 const costs = fs.readFileSync('src/app/dashboard/orders/[id]/order-other-costs-tab.tsx', 'utf8')
 eq('omkostninger fanger kast', costs.includes("setLoadError('Kunne ikke hente øvrige omkostninger')"), true)
 eq('omkostninger siger det ikke er tomt', costs.includes('Det tælles ikke som en tom omkostningsliste.'), true)
 eq('tomme omkostninger bliver', costs.includes('Ingen øvrige omkostninger registreret'), true)
 eq('db-testid bliver', costs.includes('data-testid="other-costs-db-row"'), true)
+eq('omkostninger beholdes ved fejl', !costs.includes('setRows([])'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncase-tab-load-throw-test OK')
 process.exitCode = fail ? 1 : 0

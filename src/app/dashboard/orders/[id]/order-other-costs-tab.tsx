@@ -86,8 +86,6 @@ export function OrderOtherCostsTab({
       const res = await listCaseOtherCosts(caseId)
       if (!res.success) {
         setLoadError(res.error ?? 'Kunne ikke hente øvrige omkostninger')
-        setRows([])
-        setSummary(null)
         return
       }
       setRows(res.data?.rows ?? [])

@@ -89,8 +89,6 @@ export function OrderMaterialsTab({
       const res = await listCaseMaterials(caseId)
       if (!res.success) {
         setLoadError(res.error ?? 'Kunne ikke hente materialer')
-        setRows([])
-        setSummary(null)
         return
       }
       setRows(res.data?.rows ?? [])
