@@ -1079,8 +1079,9 @@ export async function updateLineItem(
         // S1: sale_price følger enhedsprisen (ellers fakturerede faktura-funktionen den gamle pris)
         ...(updateData.unit_price !== undefined ? { sale_price: updateData.unit_price } : {}),
         ...(costPrice !== undefined ? { cost_price: costPrice } : {}),
-        ...(mayTouchCost ? { supplier_margin_applied: supplierMargin } : {}),
-        ...(mayTouchCost ? { supplier_cost_price_at_creation: supplierCostAtCreation } : {}),
+        // S-2: kun felter klienten faktisk sender (før blev manglende felter skrevet som null)
+        ...(mayTouchCost && formData.has('supplier_margin_applied') ? { supplier_margin_applied: supplierMargin } : {}),
+        ...(mayTouchCost && formData.has('supplier_cost_price_at_creation') ? { supplier_cost_price_at_creation: supplierCostAtCreation } : {}),
         ...(imageUrl !== undefined ? { image_url: imageUrl } : {}),
       })
       .eq('id', lineItemId)

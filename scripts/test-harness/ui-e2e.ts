@@ -2424,6 +2424,24 @@ ${m.text()}`) })
         r.kost_gemt = Number(lines[0]?.supplier_cost_price_at_creation) === 40
         r.salgspris_over_kost = Number(lines[0]?.unit_price) > 40
         r.antal_3 = Number(lines[0]?.quantity) === 3
+        // S-2: inline-redigering (antal) må ikke overskrive leverandørens oprindelige kost med linjens kost (efter rabat)
+        if (lines.length === 1) {
+          await c.admin.from('offer_line_items').update({ cost_price: 35 }).eq('offer_id', u51.offerId ?? '')
+          await gotoSafe(a.page, `${base}/dashboard/offers/${u51.offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const d51 = a.page.locator('input[placeholder="Beskrivelse..."]').first()
+          await d51.waitFor({ timeout: 30_000 }).catch(() => {})
+          const row51 = d51.locator('xpath=ancestor::tr[1]')
+          await row51.locator('input[type="number"]').first().fill('5').catch(() => {})
+          await row51.locator('input[type="number"]').first().press('Tab').catch(() => {})
+          let l2: L | null = null
+          for (let i = 0; i < 20; i++) {
+            l2 = (await readL())[0] ?? null
+            if (l2 && Number(l2.quantity) === 5) break
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.redigeret_antal_5 = Number(l2?.quantity) === 5
+          r.oprindelig_kost_bevaret = Number(l2?.supplier_cost_price_at_creation) === 40
+        }
         out.push({ id: 'U51 tilbudslinje fra grossist', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · stk-pris=${lines[0]?.unit_price}` })
       }
 

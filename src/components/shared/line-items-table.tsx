@@ -160,7 +160,8 @@ function EditableRow({ item, idx, currency, showCostData = true, thresholds, onS
       unit,
       unit_price: parseFloat(unitPrice) || 0,
       cost_price: parseFloat(costPrice) || null,
-      supplier_margin_applied: parseFloat(marginPct) || null,
+      // S-2: avance 0 er en gyldig værdi (før blev 0/tom til null)
+      supplier_margin_applied: marginPct.trim() !== '' && Number.isFinite(parseFloat(marginPct.replace(',', '.'))) ? parseFloat(marginPct.replace(',', '.')) : null,
     })
     // M-17 (mobil-review 2026-10-14): kun markér som gemt når gem lykkedes — ellers viste feltet en værdi der aldrig
     // blev gemt, og der blev ikke forsøgt igen

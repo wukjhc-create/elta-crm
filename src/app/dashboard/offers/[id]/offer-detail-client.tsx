@@ -465,7 +465,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     formData.append('discount_percentage', String(data.discount_percentage || 0))
     if (data.cost_price != null) {
       formData.append('cost_price', String(data.cost_price))
-      formData.append('supplier_cost_price_at_creation', String(data.cost_price))
+      // S-2 (pilot-review 2026-10-15): leverandørens oprindelige kost sættes kun ved oprettelse — en senere redigering
+      // (fx antal) overskrev den med kost efter kunderabat og ødelagde prisændrings-/besparelsesberegningerne
+      if (!data.id) formData.append('supplier_cost_price_at_creation', String(data.cost_price))
     }
     if (data.supplier_margin_applied != null) {
       formData.append('supplier_margin_applied', String(data.supplier_margin_applied))

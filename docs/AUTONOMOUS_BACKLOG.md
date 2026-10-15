@@ -72,7 +72,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | B-10 (S3) | Dashboard henter alle rækker for at tælle; fejl → 0 uden advarsel | DELVIS — fundet under test: "klar til lukning" brugte .limit(200) uden rækkefølge (nye sager faldt ud ved >200 åbne) → alle åbne pagineret, nyeste først, arbejdsordrer i bidder. UI U67. Tælle-optimering = TODO |
 | B-11 (S3) | "+ Opret test-leverandørfaktura" synlig i prod og kobler til rigtig sag; forældet engelsk tekst | DONE — kun når TEST_SEED_ENABLED=true (knap + server-handling); tekst "bogføres i e-conomic via Bogfør". UI U28 |
 | S-1 (S2) | Tilbudsstatus-piller: ét klik "Sendt" (ingen mail) og irreversibel "Accepteret" (vinder lead + opretter sag) uden bekræftelse | DONE — kun nuværende + tilladte skift vises ("Set" sættes af portalen), alle skift bekræftes med konsekvens, låst mens det kører. UI U60 |
-| S-2 (S3) | Inline-redigering af leverandørlinje overskriver supplier_cost_price_at_creation; avance 0 → null | TODO |
+| S-2 (S3) | Inline-redigering af leverandørlinje overskriver supplier_cost_price_at_creation; avance 0 → null | DONE — oprindelig leverandørkost sendes kun ved oprettelse, serveren skriver kun felter der sendes, avance 0 bevares. UI U51 (rediger antal → kost 40 bevaret ved linjekost 35) |
 | S-3 (S3) | Dashboard "Samlet værdi" = 5 nyeste, før rabat — afviger fra stat-kortet | DONE — "Seneste N (ekskl. moms)", beløb efter rabat ekskl. moms (som stat-kortet). UI U70/U76 |
 | S-4 (S3) | Lead-kanban taber leads efter 500 (lukkede fylder) | TODO |
 | S-5 (S3) | Auto "Følg op: intet svar"-opgave uden due_date (vises ikke) og lukkes ikke ved accept/afvisning | DONE — due_date sættes; lukkes ved accept/afvisning (portal + manuel status, lib/offers/follow-up-tasks.ts). UI U170 |
