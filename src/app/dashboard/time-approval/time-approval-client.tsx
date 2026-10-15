@@ -94,7 +94,7 @@ export function TimeApprovalClient() {
         </p>
       </div>
 
-      <div className="flex gap-1 border-b">
+      <div className="flex flex-wrap gap-1 border-b">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -129,8 +129,8 @@ export function TimeApprovalClient() {
         const approvable = g.logs.filter((l) => !l.is_own && l.end_time && l.approval_status !== 'approved').map((l) => l.id)
         return (
           <div key={empId} className="bg-white rounded-lg ring-1 ring-gray-200" data-testid="time-approval-group">
-            <div className="flex items-center justify-between px-4 py-2 border-b bg-gray-50 rounded-t-lg">
-              <div className="font-medium text-gray-900">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-b bg-gray-50 rounded-t-lg">
+              <div className="font-medium text-gray-900 break-words min-w-0">
                 {g.name} <span className="text-sm text-gray-500 font-normal">· {g.logs.length} registrering(er) · {fmtHours(Math.round(g.total * 100) / 100)} t</span>
               </div>
               {tab !== 'approved' && approvable.length > 1 && (
@@ -138,7 +138,7 @@ export function TimeApprovalClient() {
                   type="button"
                   disabled={busy !== null}
                   onClick={() => approve(approvable, empId)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                  className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 text-xs rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
                   data-testid="time-approval-approve-all"
                 >
                   {busy === empId ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
@@ -160,7 +160,7 @@ export function TimeApprovalClient() {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500 truncate">
+                    <div className="text-xs text-gray-500 break-words">
                       {l.case_id ? (
                         <Link href={`/dashboard/orders/${l.case_id}`} className="text-emerald-700 hover:underline">{l.case_number ?? 'Sag'}</Link>
                       ) : '—'}
@@ -174,14 +174,15 @@ export function TimeApprovalClient() {
                       <div className="text-xs text-gray-500 mt-0.5">Godkendt{l.approved_by_name ? ` af ${l.approved_by_name}` : ''}</div>
                     )}
                     {rejecting?.id === l.id && (
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         <input
                           autoFocus
                           value={rejecting.reason}
                           onChange={(e) => setRejecting({ id: l.id, reason: e.target.value })}
                           placeholder="Begrundelse til montøren (fx forkert sag, tid passer ikke)"
                           maxLength={500}
-                          className="flex-1 border rounded px-2 py-1 text-sm"
+                          aria-label="Begrundelse"
+                          className="flex-1 min-w-[12rem] border rounded px-2 py-1 text-sm"
                           data-testid="time-approval-reason"
                         />
                         <button type="button" onClick={reject} disabled={busy !== null} className="px-2.5 py-1 text-xs rounded bg-red-600 text-white disabled:opacity-50" data-testid="time-approval-reject-confirm">Afvis</button>

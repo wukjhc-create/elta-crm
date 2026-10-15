@@ -99,13 +99,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Sagslisten ombryder titel og kunde. Søgefeltet fylder bredden. Tilbudt, revideret og fakturering er de samme. | DONE — `orders-list-mobile-test` |
 | Mine job ombryder titel og kunde. Status, tom dag og navigering er de samme. | DONE — `my-jobs-mobile-test` |
 | Opgavelisten viser kort på mobil. Udført, status og slet bruger de samme handlinger. Desktop-gitteret bliver. | DONE — `tasks-mobile-card-test` |
+| Godkend timer ombryder sag, beskrivelse og begrundelse. Timer, sats og løntekst er de samme. | DONE — `time-approval-mobile-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: tasks-mobile-card efter 3308cbb8
+LAST_COMMIT: time-approval-wrap efter 8bc965b1
 TESTS: inspection-list-test, offer-product-name-test, title-wrap-test, close-button-label-test, case-notes-empty-test, customer-notes-empty-test, messages-empty-test, invoices-empty-search-test, aftercalc-empty-filter-test, calendar-mobile-test, reports-empty-test, sync-jobs-mobile-test, activity-empty-test, missing-date-test, inspection-calendar-test, tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00224 GP-6 (migrationer, ikke kørt her). 00223 er kørt af Claude på main (bc5705a2) — køres ikke igen. 00225 ACL er Claudes (8f97e621). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: timegodkendelse ombryder sagstekst; kalenderchips bliver afkortet med vilje; indbakkens afsender ombrydes på mobil. Scan 2026-10-15 fortsat: tomme chats, tom plan og sagsopgaver forklarer allerede næste skridt. Scan 2026-10-15: tilbud og leads rydder allerede tom søgning; portal-chat og medarbejderchat forklarer tom samtale; planlægningens tomme dag forklarer næste skridt; sagsopgaver forklarer tjeklisten.
+NEXT_QUEUE: indbakkens afsender ombrydes på mobil; kalenderchips bliver afkortet med vilje; kundelisten ombryder langt firmanavn hvis det stadig klippes. Scan 2026-10-15 fortsat: tomme chats, tom plan og sagsopgaver forklarer allerede næste skridt. Scan 2026-10-15: tilbud og leads rydder allerede tom søgning; portal-chat og medarbejderchat forklarer tom samtale; planlægningens tomme dag forklarer næste skridt; sagsopgaver forklarer tjeklisten.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
