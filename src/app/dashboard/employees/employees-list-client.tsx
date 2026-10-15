@@ -114,6 +114,7 @@ export function EmployeesListClient({
             className="border rounded px-2 py-1.5 text-sm bg-white"
             value={filters.active ?? 'active'}
             onChange={(e) => updateParam('active', e.target.value)}
+            aria-label="Status"
           >
             <option value="active">Kun aktive</option>
             <option value="inactive">Kun inaktive</option>
@@ -127,6 +128,7 @@ export function EmployeesListClient({
             className="border rounded px-2 py-1.5 text-sm bg-white"
             value={filters.role ?? ''}
             onChange={(e) => updateParam('role', e.target.value || null)}
+            aria-label="Rolle"
           >
             <option value="">Alle</option>
             {EMPLOYEE_ROLE_OPTIONS.map((r) => (
@@ -139,6 +141,7 @@ export function EmployeesListClient({
 
         {(filters.q || (filters.active && filters.active !== 'active') || filters.role) && (
           <button
+            type="button"
             className="text-xs text-emerald-700 hover:underline pb-2"
             onClick={() => startTransition(() => router.push('/dashboard/employees'))}
           >
@@ -161,7 +164,7 @@ export function EmployeesListClient({
                       {e.name || '—'}
                     </Link>
                     {e.employee_number && (
-                      <span className="ml-2 text-xs text-gray-400 font-mono">{e.employee_number}</span>
+                      <span className="ml-2 text-xs text-gray-400 font-mono break-all">{e.employee_number}</span>
                     )}
                     <p className="text-sm text-gray-700">{roleLabel(e.role)}</p>
                   </div>
@@ -173,7 +176,7 @@ export function EmployeesListClient({
                   {e.email ? <a href={`mailto:${e.email}`} className="text-emerald-700 hover:underline break-all">{e.email}</a> : <span className="text-gray-400">—</span>}
                 </div>
                 <div className="text-sm">
-                  {e.phone ? <a href={`tel:${e.phone}`} className="text-emerald-700 hover:underline">{e.phone}</a> : <span className="text-gray-400">—</span>}
+                  {e.phone ? <a href={`tel:${e.phone}`} className="text-emerald-700 hover:underline break-all">{e.phone}</a> : <span className="text-gray-400">—</span>}
                 </div>
                 <p className="mt-2 text-xs text-gray-600">Ansat {fmtDate(e.hire_date)}</p>
                 {canSeePayroll && (
@@ -211,7 +214,7 @@ export function EmployeesListClient({
                         {e.name || '—'}
                       </Link>
                       {e.employee_number && (
-                        <span className="ml-2 text-xs text-gray-400 font-mono">
+                        <span className="ml-2 text-xs text-gray-400 font-mono break-all">
                           {e.employee_number}
                         </span>
                       )}
@@ -231,7 +234,7 @@ export function EmployeesListClient({
                     </td>
                     <td className="px-3 py-2">
                       {e.phone ? (
-                        <a href={`tel:${e.phone}`} className="text-emerald-700 hover:underline">
+                        <a href={`tel:${e.phone}`} className="text-emerald-700 hover:underline break-all">
                           {e.phone}
                         </a>
                       ) : (
