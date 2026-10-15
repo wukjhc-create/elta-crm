@@ -98,6 +98,7 @@ export function ProjectActivityTimeline({ tasks, timeEntries }: ProjectActivityT
   const grouped = new Map<string, ActivityItem[]>()
   for (const item of activities) {
     const dateKey = new Date(item.date).toLocaleDateString('da-DK', {
+      timeZone: 'Europe/Copenhagen',
       weekday: 'long',
       year: 'numeric',
       month: 'long',
