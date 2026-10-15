@@ -26,6 +26,9 @@ export interface WorkOrderRow {
   description: string | null
   status: WorkOrderStatus
   scheduled_date: string | null
+  /** 00227: valgfrit tidspunkt (lokal tid, 'HH:MM:SS') og estimeret varighed — NULL = heldag/ukendt */
+  start_time?: string | null
+  estimated_hours?: number | null
   assigned_employee_id: string | null
   source_offer_id: string | null
   auto_invoice_on_done: boolean

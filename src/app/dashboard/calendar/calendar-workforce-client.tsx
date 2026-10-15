@@ -14,6 +14,7 @@
  * Month view is rendered by the existing CalendarPageClient (preserved).
  */
 
+import { formatWorkOrderTime } from '@/lib/planning/work-order-time'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
 import Link from 'next/link'
@@ -752,6 +753,9 @@ function WorkOrderChip({
     >
       <div className="flex items-center gap-1 min-w-0">
         <Briefcase className="w-3 h-3 shrink-0" />
+        {(wo.start_time || wo.estimated_hours != null) && (
+          <span className="shrink-0 tabular-nums text-[10px] font-semibold opacity-80" data-testid="wo-chip-time">{formatWorkOrderTime(wo.start_time, wo.estimated_hours)}</span>
+        )}
         <span className="font-medium truncate">{wo.title}</span>
       </div>
       {!compact && projectLabel && projectLabel !== wo.title && (

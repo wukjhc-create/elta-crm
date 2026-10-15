@@ -36,6 +36,8 @@ export async function GET() {
       return {
         id: w.id,
         date: String(w.scheduled_date).slice(0, 10),
+        startTime: w.start_time ?? null,
+        estimatedHours: w.estimated_hours == null ? null : Number(w.estimated_hours),
         title: `${w.status === 'done' ? '✓ ' : ''}${w.title}${c?.customer_name ? ` — ${c.customer_name}` : ''}`,
         location: place || null,
         description: c?.case_number ? `Sag ${c.case_number}` : null,

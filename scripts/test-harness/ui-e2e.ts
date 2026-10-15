@@ -1866,7 +1866,7 @@ ${m.text()}`) })
         u43.woId = (wo?.data?.[0] as { id?: string } | undefined)?.id
         // fokus E 2026-10-15: Bente har allerede et job på d3 → dobbeltbooking-varsel i dialogen + "2 job samme dag" i ugevisning
         const busyTitle = `Optaget ${stamp}`
-        if (u43.caseId && empB) await c.admin.from('work_orders').insert([{ case_id: u43.caseId, title: busyTitle, status: 'planned', scheduled_date: d3, assigned_employee_id: empB }])
+        if (u43.caseId && empB) await c.admin.from('work_orders').insert([{ case_id: u43.caseId, title: busyTitle, status: 'planned', scheduled_date: d3, assigned_employee_id: empB, start_time: '08:00', estimated_hours: 4 }])
         const seedErr = u43.woId && empB ? '' : `SEED: ${wo?.error?.message ?? sc.error?.message ?? 'medarbejder'} · `
         await gotoSafe(a.page, `${base}/dashboard/calendar?date=${d1}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByText(woTitle).first().click({ timeout: 90_000 }).catch(() => {})
@@ -1876,6 +1876,11 @@ ${m.text()}`) })
         await dlg.locator('select').first().selectOption(empB ?? '').catch(() => {})
         await dlg.getByTestId('employee-day-load').waitFor({ timeout: 30_000 }).catch(() => {})
         r.dobbeltbooking_varsel = ((await dlg.getByTestId('employee-day-load').textContent().catch(() => '')) ?? '').includes(busyTitle)
+        // 00227: tidspunkt + varighed → ægte overlap-varsel (Bente 08–12, nyt 10–12)
+        await dlg.getByTestId('edit-start-time').fill('10:00').catch(() => {})
+        await dlg.getByTestId('edit-est-hours').fill('2').catch(() => {})
+        await dlg.getByTestId('employee-day-overlap').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.overlap_varsel = ((await dlg.getByTestId('employee-day-overlap').textContent().catch(() => '')) ?? '').includes(busyTitle)
         await dlg.getByRole('button', { name: /Gem ændringer/ }).click({ timeout: 30_000 }).catch(() => {})
         type W = { scheduled_date?: string; assigned_employee_id?: string; status?: string }
         const readW = async (): Promise<W | null> => ((await c.admin.from('work_orders').select('scheduled_date, assigned_employee_id, status').eq('id', u43.woId ?? '').maybeSingle()).data as W | null)
@@ -1883,9 +1888,12 @@ ${m.text()}`) })
         for (let i = 0; i < 20 && w?.scheduled_date !== d3; i++) { await new Promise((res) => setTimeout(res, 1000)); w = await readW() }
         r.ny_dato = w?.scheduled_date === d3
         r.ny_montoer = w?.assigned_employee_id === empB
+        const tw = ((await c.admin.from('work_orders').select('start_time, estimated_hours').eq('id', u43.woId ?? '').maybeSingle()).data as { start_time?: string | null; estimated_hours?: number | null } | null)
+        r.tid_gemt = String(tw?.start_time ?? '').startsWith('10:00') && Number(tw?.estimated_hours) === 2
         r.stadig_planlagt = w?.status === 'planned'
         await gotoSafe(a.page, `${base}/dashboard/calendar?date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.vist_paa_ny_dag = (await a.page.getByText(woTitle).count()) > 0
+        r.tid_paa_chip = (await a.page.getByTestId('wo-chip-time').filter({ hasText: '10:00–12:00' }).count()) > 0
         await gotoSafe(a.page, `${base}/dashboard/calendar?view=week&date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
         const bRow = a.page.locator('tr', { hasText: `Harness Bente ${stamp}` }).first()
         r.uge_belastning = (await bRow.getByTestId('week-day-overload').count()) === 1 && /2 aktive job denne uge/.test(((await bRow.getByTestId('week-employee-load').textContent().catch(() => '')) ?? ''))

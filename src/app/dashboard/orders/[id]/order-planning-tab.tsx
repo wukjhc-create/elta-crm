@@ -92,6 +92,8 @@ export function OrderPlanningTab({
   const showCost = canSeeCost && costOpen
   const [formTitle, setFormTitle] = useState('')
   const [formDate, setFormDate] = useState('')
+  const [formStart, setFormStart] = useState('')
+  const [formEst, setFormEst] = useState('')
   const [formEmployee, setFormEmployee] = useState<string>(caseDefaultEmployeeId ?? '')
   const [formDescription, setFormDescription] = useState('')
 
@@ -132,6 +134,8 @@ export function OrderPlanningTab({
   const resetForm = () => {
     setFormTitle('')
     setFormDate('')
+    setFormStart('')
+    setFormEst('')
     setFormEmployee(caseDefaultEmployeeId ?? '')
     setFormDescription('')
   }
@@ -148,6 +152,8 @@ export function OrderPlanningTab({
       title: formTitle.trim(),
       description: formDescription.trim() || null,
       scheduled_date: formDate || null,
+      start_time: formStart || null,
+      estimated_hours: formEst || null,
       assigned_employee_id: formEmployee || null,
     })
     setIsWorking(false)
@@ -256,7 +262,17 @@ export function OrderPlanningTab({
                 className="w-full px-3 py-2 border rounded-md text-sm"
                 disabled={isWorking}
               />
-              <EmployeeDayLoadHint employeeId={formEmployee} date={formDate} />
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <label className="text-xs text-gray-600">
+                  Starttid (valgfri)
+                  <input type="time" value={formStart} onChange={(e) => setFormStart(e.target.value)} disabled={isWorking} className="mt-0.5 w-full px-3 py-2 border rounded-md text-sm" />
+                </label>
+                <label className="text-xs text-gray-600">
+                  Estimeret (timer, valgfri)
+                  <input type="text" inputMode="decimal" value={formEst} onChange={(e) => setFormEst(e.target.value)} disabled={isWorking} placeholder="fx 3,5" className="mt-0.5 w-full px-3 py-2 border rounded-md text-sm" />
+                </label>
+              </div>
+              <EmployeeDayLoadHint employeeId={formEmployee} date={formDate} startTime={formStart || null} estimatedHours={formEst || null} />
             </div>
 
             <div className="space-y-1">

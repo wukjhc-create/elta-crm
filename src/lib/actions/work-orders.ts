@@ -1,4 +1,5 @@
 'use server'
+import { formatWorkOrderTime, parseEstimatedHours, parseStartTime, workOrdersOverlap } from '@/lib/planning/work-order-time'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 import { revalidatePath } from 'next/cache'
@@ -42,6 +43,10 @@ export interface CreateWorkOrderForCaseInput {
   title: string
   description?: string | null
   scheduled_date?: string | null            // YYYY-MM-DD
+  /** 00227: 'HH:MM' eller tom */
+  start_time?: string | null
+  /** 00227: 0 < x <= 24 eller tom */
+  estimated_hours?: string | number | null
   assigned_employee_id?: string | null
   status?: WorkOrderStatus
 }
@@ -97,7 +102,7 @@ export async function listWorkOrdersForCase(
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
-        scheduled_date, assigned_employee_id, source_offer_id,
+        scheduled_date, start_time, estimated_hours, assigned_employee_id, source_offer_id,
         auto_invoice_on_done, completed_at, created_at, updated_at
       `)
       .eq('case_id', caseId)
@@ -166,6 +171,10 @@ export async function createWorkOrderForCase(
     if (!input.title || !input.title.trim()) {
       return { success: false, error: 'Titel er påkrævet' }
     }
+    const startTime = parseStartTime(input.start_time)
+    if (!startTime.ok) return { success: false, error: startTime.error }
+    const estHours = parseEstimatedHours(input.estimated_hours)
+    if (!estHours.ok) return { success: false, error: estHours.error }
 
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('work_orders.plan')) {
@@ -208,6 +217,8 @@ export async function createWorkOrderForCase(
         title: input.title.trim(),
         description: input.description?.trim() || null,
         scheduled_date: input.scheduled_date || null,
+        start_time: startTime.value,
+        estimated_hours: estHours.value,
         assigned_employee_id: input.assigned_employee_id || null,
         // Planlægnings-review 2026-10-09 (#5): altid 'planned' — status ændres via changeWorkOrderStatus (overgange,
         // completed_at, done-snapshot, åben-timer-tjek); før kunne et kald indsætte 'done' direkte
@@ -257,6 +268,8 @@ export async function updateWorkOrderPlanning(
     title?: string
     description?: string | null
     scheduled_date?: string | null
+    start_time?: string | null
+    estimated_hours?: string | number | null
     assigned_employee_id?: string | null
   }
 ): Promise<ActionResult<WorkOrderRow>> {
@@ -278,6 +291,16 @@ export async function updateWorkOrderPlanning(
       patch.scheduled_date = input.scheduled_date || null
     if (input.assigned_employee_id !== undefined)
       patch.assigned_employee_id = input.assigned_employee_id || null
+    if (input.start_time !== undefined) {
+      const r = parseStartTime(input.start_time)
+      if (!r.ok) return { success: false, error: r.error }
+      patch.start_time = r.value
+    }
+    if (input.estimated_hours !== undefined) {
+      const r = parseEstimatedHours(input.estimated_hours)
+      if (!r.ok) return { success: false, error: r.error }
+      patch.estimated_hours = r.value
+    }
 
     if (Object.keys(patch).length === 0) {
       return { success: false, error: 'Ingen ændringer' }
@@ -533,7 +556,7 @@ export async function listWorkOrdersByDateRange(
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
-        scheduled_date, assigned_employee_id, source_offer_id,
+        scheduled_date, start_time, estimated_hours, assigned_employee_id, source_offer_id,
         auto_invoice_on_done, low_profit, completed_at, created_at, updated_at
       `)
     woQuery = withOpen
@@ -541,6 +564,8 @@ export async function listWorkOrdersByDateRange(
       : woQuery.gte('scheduled_date', startDate).lte('scheduled_date', endDate)
     woQuery = woQuery
       .order('scheduled_date', { ascending: true })
+      // 00227: inden for dagen efter tidspunkt (uden tidspunkt sidst)
+      .order('start_time', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
 
     const { data: rows, error } = await woQuery
@@ -634,25 +659,30 @@ function lowProfitVisible(hasPermission: (p: import('@/lib/auth/permissions').Pe
 // Planlægning — dobbeltbooking-varsel (fokus E 2026-10-15)
 // =====================================================
 
-export interface EmployeeDayLoad { count: number; titles: string[] }
+export interface EmployeeDayLoad { count: number; titles: string[]; overlaps: string[] }
 
 /**
  * Aktive arbejdsordrer (planlagt/i gang) for en medarbejder på en dato — vises som advarsel i planlægningsdialogerne
  * før gem (før kunne samme montør bookes flere gange uden besked). Blokerer ikke: flere små job på én dag er normalt.
  */
-export async function getEmployeeDayLoadAction(employeeId: string, date: string, excludeWorkOrderId?: string | null): Promise<ActionResult<EmployeeDayLoad>> {
+export async function getEmployeeDayLoadAction(employeeId: string, date: string, excludeWorkOrderId?: string | null, startTime?: string | null, estimatedHours?: string | number | null): Promise<ActionResult<EmployeeDayLoad>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('work_orders.plan')) return { success: false, error: 'Manglende tilladelse: work_orders.plan' }
     validateUUID(employeeId, 'medarbejder-ID')
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { success: false, error: 'Ugyldig dato' }
-    let q = supabase.from('work_orders').select('id, title')
+    let q = supabase.from('work_orders').select('id, title, start_time, estimated_hours')
       .eq('assigned_employee_id', employeeId).eq('scheduled_date', date).in('status', ['planned', 'in_progress'])
     if (excludeWorkOrderId) q = q.neq('id', excludeWorkOrderId)
     const { data, error } = await q.order('created_at').limit(20)
     if (error) throw error
-    const rows = (data ?? []) as Array<{ id: string; title: string | null }>
-    return { success: true, data: { count: rows.length, titles: rows.map((r) => r.title ?? 'Arbejdsordre') } }
+    const rows = (data ?? []) as Array<{ id: string; title: string | null; start_time: string | null; estimated_hours: number | null }>
+    // 00227: ægte overlap når både det nye og de eksisterende job har tidspunkt + varighed
+    const st = parseStartTime(startTime ?? null)
+    const eh = parseEstimatedHours(estimatedHours ?? null)
+    const mine = { start_time: st.ok ? st.value : null, estimated_hours: eh.ok ? eh.value : null }
+    const overlaps = rows.filter((r) => workOrdersOverlap(mine, r)).map((r) => `${r.title ?? 'Arbejdsordre'} (${formatWorkOrderTime(r.start_time, r.estimated_hours)})`)
+    return { success: true, data: { count: rows.length, titles: rows.map((r) => `${r.title ?? 'Arbejdsordre'}${r.start_time ? ` ${formatWorkOrderTime(r.start_time, r.estimated_hours)}` : ''}`), overlaps } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente medarbejderens dag') }
   }

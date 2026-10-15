@@ -8,17 +8,17 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { getEmployeeDayLoadAction, type EmployeeDayLoad } from '@/lib/actions/work-orders'
 
-export function EmployeeDayLoadHint({ employeeId, date, excludeWorkOrderId }: { employeeId: string; date: string; excludeWorkOrderId?: string | null }) {
+export function EmployeeDayLoadHint({ employeeId, date, excludeWorkOrderId, startTime, estimatedHours }: { employeeId: string; date: string; excludeWorkOrderId?: string | null; startTime?: string | null; estimatedHours?: string | number | null }) {
   const [load, setLoad] = useState<EmployeeDayLoad | null>(null)
 
   useEffect(() => {
     let alive = true
     if (!employeeId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { setLoad(null); return }
-    getEmployeeDayLoadAction(employeeId, date, excludeWorkOrderId ?? null)
+    getEmployeeDayLoadAction(employeeId, date, excludeWorkOrderId ?? null, startTime ?? null, estimatedHours ?? null)
       .then((r) => { if (alive) setLoad(r.success && r.data ? r.data : null) })
       .catch(() => { if (alive) setLoad(null) })
     return () => { alive = false }
-  }, [employeeId, date, excludeWorkOrderId])
+  }, [employeeId, date, excludeWorkOrderId, startTime, estimatedHours])
 
   if (!load || load.count === 0) return null
   return (
@@ -26,6 +26,9 @@ export function EmployeeDayLoadHint({ employeeId, date, excludeWorkOrderId }: { 
       <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
       <span>
         Medarbejderen har allerede {load.count} job denne dag: {load.titles.slice(0, 3).join(', ')}{load.count > 3 ? ` m.fl.` : ''}
+        {load.overlaps.length > 0 && (
+          <strong className="block text-red-700" data-testid="employee-day-overlap">Overlapper tidsmæssigt med: {load.overlaps.join(', ')}</strong>
+        )}
       </span>
     </div>
   )

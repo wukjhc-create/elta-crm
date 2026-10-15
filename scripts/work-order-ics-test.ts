@@ -20,6 +20,16 @@ ok(lines.includes('DTSTART;VALUE=DATE:20261031') && lines.includes('DTEND;VALUE=
 ok(lines.includes('SUMMARY:Tavle\\, ny\\; kunde') && lines.includes('LOCATION:Vej 1\\, 8000 Aarhus'), 'escaping af komma/semikolon')
 ok(!ics.includes('Springes over') && lines.filter((l) => l === 'BEGIN:VEVENT').length === 1, 'ugyldig dato springes over')
 ok(generateWorkOrdersICS([], now).split('\r\n').filter((l) => l === 'BEGIN:VEVENT').length === 0, 'tom liste = gyldig tom kalender')
+ok(!ics.includes('BEGIN:VTIMEZONE'), 'kun heldag → ingen tidszone-blok')
+
+// 00227: tidsbestemt begivenhed med varighed (lokal tid + tidszone), uden varighed ingen gættet sluttid
+const timed = generateWorkOrdersICS([
+  { id: 't1', date: '2026-10-31', title: 'Tavle', startTime: '22:30:00', estimatedHours: 3 },
+  { id: 't2', date: '2026-10-20', title: 'Besøg', startTime: '08:00', estimatedHours: null },
+], now).split('\r\n')
+ok(timed.includes('DTSTART;TZID=Europe/Copenhagen:20261031T223000') && timed.includes('DTEND;TZID=Europe/Copenhagen:20261101T013000'), 'start + varighed over midnat')
+ok(timed.includes('DTSTART;TZID=Europe/Copenhagen:20261020T080000') && timed.filter((l) => l.startsWith('DTEND')).length === 1, 'uden varighed: ingen DTEND')
+ok(timed.includes('BEGIN:VTIMEZONE') && timed.includes('TZID:Europe/Copenhagen'), 'tidszone-blok med')
 
 console.log(bad ? `\n${bad} FEJL` : '\nalle bestået')
 process.exitCode = bad ? 1 : 0

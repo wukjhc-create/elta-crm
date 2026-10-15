@@ -53,6 +53,9 @@ export function PlanWorkOrderDialog({
 
   const [employeeId, setEmployeeId] = useState<string>(defaultEmployeeId ?? '')
   const [date, setDate] = useState<string>(defaultDate)
+  // 00227: valgfrit tidspunkt + estimeret varighed (tom = heldag/ukendt)
+  const [startTime, setStartTime] = useState('')
+  const [estHours, setEstHours] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
 
@@ -87,6 +90,8 @@ export function PlanWorkOrderDialog({
     setCaseSearch('')
     setEmployeeId(defaultEmployeeId ?? '')
     setDate(defaultDate)
+    setStartTime('')
+    setEstHours('')
     setTitle('')
     setDescription('')
     setSubmitError(null)
@@ -145,6 +150,8 @@ export function PlanWorkOrderDialog({
       title: title.trim(),
       description: description.trim() || null,
       scheduled_date: date || null,
+      start_time: startTime || null,
+      estimated_hours: estHours || null,
       assigned_employee_id: employeeId || null,
       status: 'planned',
     })
@@ -297,7 +304,17 @@ export function PlanWorkOrderDialog({
               onChange={(e) => setDate(e.target.value)}
               className="w-full border rounded px-2 py-1.5 text-sm"
             />
-            <EmployeeDayLoadHint employeeId={employeeId} date={date} />
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <label className="text-xs text-gray-700">
+                Starttid (valgfri)
+                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="mt-0.5 w-full border rounded px-2 py-1.5 text-sm" data-testid="plan-start-time" />
+              </label>
+              <label className="text-xs text-gray-700">
+                Estimeret (timer, valgfri)
+                <input type="text" inputMode="decimal" value={estHours} onChange={(e) => setEstHours(e.target.value)} placeholder="fx 3,5" className="mt-0.5 w-full border rounded px-2 py-1.5 text-sm" data-testid="plan-est-hours" />
+              </label>
+            </div>
+            <EmployeeDayLoadHint employeeId={employeeId} date={date} startTime={startTime || null} estimatedHours={estHours || null} />
           </div>
 
           {/* Titel */}

@@ -75,6 +75,9 @@ export function EditWorkOrderDialog({
   const [description, setDescription] = useState('')
   const [date, setDate] = useState('')
   const [employeeId, setEmployeeId] = useState('')
+  // 00227
+  const [startTime, setStartTime] = useState('')
+  const [estHours, setEstHours] = useState('')
   const [currentStatus, setCurrentStatus] = useState<WorkOrderStatus>('planned')
   // PL-3: rettigheder til statusovergange og planlægningsfelter (hooks før enhver tidlig return)
   const [caps, setCaps] = useState<{ canStart: boolean; canComplete: boolean; canCancel: boolean; canDelete: boolean } | null>(null)
@@ -94,6 +97,8 @@ export function EditWorkOrderDialog({
     setDescription(workOrder.description ?? '')
     setDate(workOrder.scheduled_date ? workOrder.scheduled_date.slice(0, 10) : '')
     setEmployeeId(workOrder.assigned_employee_id ?? '')
+    setStartTime(workOrder.start_time ? workOrder.start_time.slice(0, 5) : '')
+    setEstHours(workOrder.estimated_hours != null ? String(workOrder.estimated_hours).replace('.', ',') : '')
     setCurrentStatus(workOrder.status as WorkOrderStatus)
     setError(null)
     setInfo(null)
@@ -118,13 +123,17 @@ export function EditWorkOrderDialog({
     description: workOrder.description ?? '',
     date: workOrder.scheduled_date ? workOrder.scheduled_date.slice(0, 10) : '',
     employeeId: workOrder.assigned_employee_id ?? '',
+    startTime: workOrder.start_time ? workOrder.start_time.slice(0, 5) : '',
+    estHours: workOrder.estimated_hours != null ? String(workOrder.estimated_hours).replace('.', ',') : '',
   }
 
   const isDirty =
     title.trim() !== initial.title.trim() ||
     (description ?? '').trim() !== (initial.description ?? '').trim() ||
     date !== initial.date ||
-    (employeeId || '') !== (initial.employeeId || '')
+    (employeeId || '') !== (initial.employeeId || '') ||
+    startTime !== initial.startTime ||
+    estHours.trim() !== initial.estHours
 
   const isTerminal = currentStatus === 'done' || currentStatus === 'cancelled'
 
@@ -148,6 +157,8 @@ export function EditWorkOrderDialog({
         (employeeId || '') !== (initial.employeeId || '')
           ? (employeeId || null)
           : undefined,
+      start_time: startTime !== initial.startTime ? (startTime || null) : undefined,
+      estimated_hours: estHours.trim() !== initial.estHours ? (estHours.trim() || null) : undefined,
     })
     setSavingPatch(false)
     if (!res.success) {
@@ -315,7 +326,17 @@ export function EditWorkOrderDialog({
                   onChange={(e) => setDate(e.target.value)}
                   className="w-full border rounded px-2 py-1.5 text-sm"
                 />
-                <EmployeeDayLoadHint employeeId={employeeId} date={date} excludeWorkOrderId={workOrder.id} />
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <label className="text-xs text-gray-700">
+                    Starttid
+                    <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} disabled={isTerminal} className="mt-0.5 w-full border rounded px-2 py-1.5 text-sm" data-testid="edit-start-time" />
+                  </label>
+                  <label className="text-xs text-gray-700">
+                    Estimeret (t)
+                    <input type="text" inputMode="decimal" value={estHours} onChange={(e) => setEstHours(e.target.value)} disabled={isTerminal} placeholder="fx 3,5" className="mt-0.5 w-full border rounded px-2 py-1.5 text-sm" data-testid="edit-est-hours" />
+                  </label>
+                </div>
+                <EmployeeDayLoadHint employeeId={employeeId} date={date} excludeWorkOrderId={workOrder.id} startTime={startTime || null} estimatedHours={estHours || null} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">

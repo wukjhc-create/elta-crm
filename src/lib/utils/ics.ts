@@ -137,6 +137,13 @@ export function icsUtcStamp(now: Date): string {
   return now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
 }
 
+const CPH_VTIMEZONE = [
+  'BEGIN:VTIMEZONE', 'TZID:Europe/Copenhagen',
+  'BEGIN:STANDARD', 'DTSTART:19701025T030000', 'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0100', 'TZNAME:CET', 'END:STANDARD',
+  'BEGIN:DAYLIGHT', 'DTSTART:19700329T020000', 'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200', 'TZNAME:CEST', 'END:DAYLIGHT',
+  'END:VTIMEZONE',
+]
+
 export interface WorkOrderICSEvent {
   id: string
   /** YYYY-MM-DD */
@@ -144,6 +151,10 @@ export interface WorkOrderICSEvent {
   title: string
   location?: string | null
   description?: string | null
+  /** 00227: 'HH:MM' lokal tid — giver en tidsbestemt begivenhed (ellers heldag) */
+  startTime?: string | null
+  /** 00227: varighed i timer — sluttid; uden varighed ingen gættet sluttid */
+  estimatedHours?: number | null
 }
 
 /**
@@ -157,11 +168,25 @@ export function generateWorkOrdersICS(events: WorkOrderICSEvent[], now: Date = n
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Elta Solar//Arbejdsordrer//DA', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:ELTA job']
   for (const e of events) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) continue
-    lines.push('BEGIN:VEVENT', `UID:wo-${e.id}@eltasolar.dk`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(e.date)}`, `DTEND;VALUE=DATE:${ymd(next(e.date))}`, `SUMMARY:${escapeICS(e.title)}`)
+    const st = e.startTime && /^\d{2}:\d{2}/.test(e.startTime) ? e.startTime.slice(0, 5) : null
+    if (st) {
+      const startLocal = `${ymd(e.date)}T${st.replace(':', '')}00`
+      lines.push('BEGIN:VEVENT', `UID:wo-${e.id}@eltasolar.dk`, `DTSTAMP:${stamp}`, `DTSTART;TZID=Europe/Copenhagen:${startLocal}`)
+      if (e.estimatedHours != null && Number.isFinite(e.estimatedHours) && e.estimatedHours > 0) {
+        const [h, m] = st.split(':').map(Number)
+        const wall = new Date(Date.UTC(Number(e.date.slice(0, 4)), Number(e.date.slice(5, 7)) - 1, Number(e.date.slice(8, 10)), h, m + Math.round(e.estimatedHours * 60)))
+        const p2 = (n: number) => String(n).padStart(2, '0')
+        lines.push(`DTEND;TZID=Europe/Copenhagen:${wall.getUTCFullYear()}${p2(wall.getUTCMonth() + 1)}${p2(wall.getUTCDate())}T${p2(wall.getUTCHours())}${p2(wall.getUTCMinutes())}00`)
+      }
+      lines.push(`SUMMARY:${escapeICS(e.title)}`)
+    } else {
+      lines.push('BEGIN:VEVENT', `UID:wo-${e.id}@eltasolar.dk`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(e.date)}`, `DTEND;VALUE=DATE:${ymd(next(e.date))}`, `SUMMARY:${escapeICS(e.title)}`)
+    }
     if (e.location) lines.push(`LOCATION:${escapeICS(e.location)}`)
     if (e.description) lines.push(`DESCRIPTION:${escapeICS(e.description)}`)
-    lines.push('TRANSP:TRANSPARENT', 'END:VEVENT')
+    lines.push(st ? 'TRANSP:OPAQUE' : 'TRANSP:TRANSPARENT', 'END:VEVENT')
   }
+  if (events.some((e) => e.startTime)) lines.push(...CPH_VTIMEZONE)
   lines.push('END:VCALENDAR')
   return lines.join('\r\n')
 }
