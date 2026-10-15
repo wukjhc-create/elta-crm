@@ -36,19 +36,33 @@ export function PricingDashboardClient() {
     criticalAlerts: number
   } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [alertsError, setAlertsError] = useState<string | null>(null)
+  const [affectedError, setAffectedError] = useState<string | null>(null)
+  const [suppliersError, setSuppliersError] = useState<string | null>(null)
+  const [trendsError, setTrendsError] = useState<string | null>(null)
   const [threshold, setThreshold] = useState(5)
   const [daysBack, setDaysBack] = useState(7)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
-    const [alertsRes, summaryRes] = await Promise.all([
-      getPriceChangeAlerts({ threshold, daysBack, limit: 50 }),
-      getPriceAlertSummary(),
-    ])
-
-    if (alertsRes.success && alertsRes.data) setAlerts(alertsRes.data)
-    if (summaryRes.success && summaryRes.data) setSummary(summaryRes.data)
-    setIsLoading(false)
+    setAlertsError(null)
+    try {
+      const [alertsRes, summaryRes] = await Promise.all([
+        getPriceChangeAlerts({ threshold, daysBack, limit: 50 }),
+        getPriceAlertSummary(),
+      ])
+      if (alertsRes.success) setAlerts(alertsRes.data ?? [])
+      else {
+        setAlerts([])
+        setAlertsError(alertsRes.error ?? 'Kunne ikke hente prisadvarsler')
+      }
+      if (summaryRes.success) setSummary(summaryRes.data ?? null)
+      else setAlertsError((prev) => prev ?? summaryRes.error ?? 'Kunne ikke hente prisadvarsler')
+    } catch {
+      setAlertsError('Kunne ikke hente prisadvarsler')
+    } finally {
+      setIsLoading(false)
+    }
   }, [threshold, daysBack])
 
   useEffect(() => {
@@ -58,23 +72,41 @@ export function PricingDashboardClient() {
   const loadTrends = useCallback(async (supplierId: string) => {
     if (!supplierId) return
     setIsLoadingTrends(true)
-    const res = await getPriceTrends(supplierId, { limit: 50 })
-    if (res.success && res.data) setTrends(res.data)
-    setIsLoadingTrends(false)
+    setTrendsError(null)
+    try {
+      const res = await getPriceTrends(supplierId, { limit: 50 })
+      if (res.success) setTrends(res.data ?? [])
+      else {
+        setTrends([])
+        setTrendsError(res.error ?? 'Kunne ikke hente pristendenser')
+      }
+    } catch {
+      setTrends([])
+      setTrendsError('Kunne ikke hente pristendenser')
+    } finally {
+      setIsLoadingTrends(false)
+    }
   }, [])
 
   const loadTabData = useCallback(async (tab: Tab) => {
-    if (tab === 'affected' && affectedOffers.length === 0) {
-      const res = await getAffectedOffers(undefined, { daysBack })
-      if (res.success && res.data) setAffectedOffers(res.data)
-    }
-    if (tab === 'suppliers' && supplierStats.length === 0) {
-      const res = await getSupplierPriceStats()
-      if (res.success && res.data) setSupplierStats(res.data)
-    }
-    if (tab === 'trends' && supplierStats.length === 0) {
-      const res = await getSupplierPriceStats()
-      if (res.success && res.data) setSupplierStats(res.data)
+    try {
+      if (tab === 'affected' && affectedOffers.length === 0) {
+        const res = await getAffectedOffers(undefined, { daysBack })
+        if (res.success) {
+          setAffectedOffers(res.data ?? [])
+          setAffectedError(null)
+        } else setAffectedError(res.error ?? 'Kunne ikke hente påvirkede tilbud')
+      }
+      if ((tab === 'suppliers' || tab === 'trends') && supplierStats.length === 0) {
+        const res = await getSupplierPriceStats()
+        if (res.success) {
+          setSupplierStats(res.data ?? [])
+          setSuppliersError(null)
+        } else setSuppliersError(res.error ?? 'Kunne ikke hente leverandørstatistik')
+      }
+    } catch {
+      if (tab === 'affected') setAffectedError('Kunne ikke hente påvirkede tilbud')
+      else setSuppliersError('Kunne ikke hente leverandørstatistik')
     }
   }, [affectedOffers.length, supplierStats.length, daysBack])
 
@@ -187,13 +219,14 @@ export function PricingDashboardClient() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'alerts' && <AlertsTab alerts={alerts} isLoading={isLoading} />}
-        {activeTab === 'affected' && <AffectedOffersTab offers={affectedOffers} />}
-        {activeTab === 'suppliers' && <SuppliersTab stats={supplierStats} />}
+        {activeTab === 'alerts' && <AlertsTab alerts={alerts} isLoading={isLoading} error={alertsError} />}
+        {activeTab === 'affected' && <AffectedOffersTab offers={affectedOffers} error={affectedError} />}
+        {activeTab === 'suppliers' && <SuppliersTab stats={supplierStats} error={suppliersError} />}
         {activeTab === 'trends' && (
           <TrendsTab
             trends={trends}
             isLoading={isLoadingTrends}
+            error={trendsError}
             suppliers={supplierStats}
             selectedSupplierId={trendsSupplierId}
             onSupplierChange={(id) => {
@@ -211,8 +244,9 @@ export function PricingDashboardClient() {
 // Tab Components
 // =====================================================
 
-function AlertsTab({ alerts, isLoading }: { alerts: PriceChangeAlert[]; isLoading: boolean }) {
+function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; isLoading: boolean; error: string | null }) {
   if (isLoading) return <LoadingState />
+  if (error) return <LoadFailed message={error} />
   if (alerts.length === 0) return <EmptyState message="Ingen prisadvarsler i den valgte periode" />
 
   return (
@@ -287,7 +321,8 @@ function AlertsTab({ alerts, isLoading }: { alerts: PriceChangeAlert[]; isLoadin
   )
 }
 
-function AffectedOffersTab({ offers }: { offers: AffectedOffer[] }) {
+function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: string | null }) {
+  if (error && offers.length === 0) return <LoadFailed message={error} />
   if (offers.length === 0) return <EmptyState message="Ingen tilbud er påvirket af nylige prisændringer" />
 
   return (
@@ -344,7 +379,8 @@ function AffectedOffersTab({ offers }: { offers: AffectedOffer[] }) {
   )
 }
 
-function SuppliersTab({ stats }: { stats: SupplierPriceStats[] }) {
+function SuppliersTab({ stats, error }: { stats: SupplierPriceStats[]; error: string | null }) {
+  if (error && stats.length === 0) return <LoadFailed message={error} />
   if (stats.length === 0) return <EmptyState message="Ingen leverandørstatistik tilgængelig" />
 
   return (
@@ -401,12 +437,14 @@ function SuppliersTab({ stats }: { stats: SupplierPriceStats[] }) {
 function TrendsTab({
   trends,
   isLoading,
+  error,
   suppliers,
   selectedSupplierId,
   onSupplierChange,
 }: {
   trends: PriceTrend[]
   isLoading: boolean
+  error: string | null
   suppliers: SupplierPriceStats[]
   selectedSupplierId: string
   onSupplierChange: (id: string) => void
@@ -442,6 +480,8 @@ function TrendsTab({
         <EmptyState message="Vælg en leverandør for at se pristendenser" />
       ) : isLoading ? (
         <LoadingState />
+      ) : error ? (
+        <LoadFailed message={error} />
       ) : trends.length === 0 ? (
         <EmptyState message="Ingen pristendenser fundet for denne leverandør" />
       ) : (
@@ -576,6 +616,15 @@ function EmptyState({ message }: { message: string }) {
     <div className="bg-white rounded-lg border p-8 text-center">
       <Package className="h-8 w-8 mx-auto text-gray-300 mb-2" />
       <p className="text-sm text-gray-500">{message}</p>
+    </div>
+  )
+}
+
+function LoadFailed({ message }: { message: string }) {
+  return (
+    <div className="bg-white rounded-lg border p-8 text-center" data-testid="pricing-load-error">
+      <AlertTriangle className="h-8 w-8 mx-auto text-red-400 mb-2" />
+      <p className="text-sm text-red-700">{message}. Det tælles ikke som ingen prisændringer.</p>
     </div>
   )
 }
