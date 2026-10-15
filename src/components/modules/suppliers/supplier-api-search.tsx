@@ -180,11 +180,12 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
           Vælg produkter og importer dem til dit produktbibliotek.
         </p>
 
-        <form onSubmit={handleSearch} className="flex gap-3">
+        <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
               placeholder="Søg efter produktnavn, SKU eller beskrivelse..."
+              aria-label="Søg i leverandørens katalog"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-10"
@@ -205,7 +206,7 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
       {hasSearched && (
         <div className="bg-white rounded-lg border">
           {/* Toolbar */}
-          <div className="px-6 py-3 border-b flex items-center justify-between">
+          <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2 sm:px-6">
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-500">
                 {results.length} {results.length === 1 ? 'resultat' : 'resultater'}
@@ -235,7 +236,88 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="md:hidden divide-y" data-testid="supplier-api-search-mobile">
+              {results.map((product) => (
+                <div key={product.sku} className="p-4 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(product.sku)}
+                      onChange={() => toggleSelect(product.sku)}
+                      aria-label={`Vælg ${product.sku}`}
+                      className="rounded border-gray-300 mt-1"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-xs text-gray-600 break-all">{product.sku}</p>
+                      <p className="font-medium break-words">{product.name}</p>
+                      {product.leadTimeDays != null && product.leadTimeDays > 0 && (
+                        <span className="text-xs text-gray-400">
+                          Leveringstid: {product.leadTimeDays} dage
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-start justify-between gap-2 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-500">Kostpris</p>
+                      <p className="font-medium">{formatCurrency(product.costPrice, 'DKK', 2)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500">Listepris</p>
+                      <p className="text-gray-500">
+                        {product.listPrice ? formatCurrency(product.listPrice, 'DKK', 2) : '-'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    {product.isAvailable ? (
+                      <Badge variant="default" className="bg-green-100 text-green-800">
+                        <Check className="w-3 h-3 mr-1" />
+                        På lager
+                        {product.stockQuantity != null && ` (${product.stockQuantity})`}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="bg-red-50 text-red-700">
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                        Ikke på lager
+                      </Badge>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRefreshPrice(product.sku)}
+                        disabled={refreshingSku === product.sku}
+                        title="Opdater pris"
+                        aria-label={`Opdater pris ${product.sku}`}
+                      >
+                        {refreshingSku === product.sku ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleCompare(product.name)}
+                        disabled={comparingProduct === product.name}
+                        title="Sammenlign priser"
+                        aria-label={`Sammenlign priser ${product.name}`}
+                      >
+                        {comparingProduct === product.name ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ArrowUpDown className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-gray-50">
@@ -244,6 +326,7 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
                         type="checkbox"
                         checked={selected.size === results.length && results.length > 0}
                         onChange={toggleSelectAll}
+                        aria-label="Vælg alle"
                         className="rounded border-gray-300"
                       />
                     </th>
@@ -269,14 +352,15 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
                           type="checkbox"
                           checked={selected.has(product.sku)}
                           onChange={() => toggleSelect(product.sku)}
+                          aria-label={`Vælg ${product.sku}`}
                           className="rounded border-gray-300"
                         />
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600 break-all">
                         {product.sku}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium">{product.name}</div>
+                        <div className="font-medium break-words">{product.name}</div>
                         {product.leadTimeDays != null && product.leadTimeDays > 0 && (
                           <span className="text-xs text-gray-400">
                             Leveringstid: {product.leadTimeDays} dage
@@ -314,6 +398,7 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
                             onClick={() => handleRefreshPrice(product.sku)}
                             disabled={refreshingSku === product.sku}
                             title="Opdater pris"
+                            aria-label={`Opdater pris ${product.sku}`}
                           >
                             {refreshingSku === product.sku ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -327,6 +412,7 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
                             onClick={() => handleCompare(product.name)}
                             disabled={comparingProduct === product.name}
                             title="Sammenlign priser"
+                            aria-label={`Sammenlign priser ${product.name}`}
                           >
                             {comparingProduct === product.name ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -341,6 +427,7 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
           {/* Price comparisons */}
@@ -349,7 +436,7 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
               <h4 className="font-semibold mb-3">Prissammenligninger</h4>
               {Object.entries(comparisons).map(([productName, comps]) => (
                 <div key={productName} className="mb-4 last:mb-0">
-                  <p className="text-sm font-medium text-gray-700 mb-2">
+                  <p className="text-sm font-medium text-gray-700 mb-2 break-words">
                     &quot;{productName}&quot;
                   </p>
                   {comps.length === 0 ? (
@@ -361,7 +448,7 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
                       {comps.map((comp, idx) => (
                         <div
                           key={comp.supplierId}
-                          className={`flex items-center justify-between px-3 py-2 rounded text-sm ${
+                          className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded text-sm ${
                             idx === 0 ? 'bg-green-50 border border-green-200' : 'bg-white border'
                           }`}
                         >
@@ -371,7 +458,7 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
                                 Bedste pris
                               </Badge>
                             )}
-                            <span className="font-medium">{comp.supplierName}</span>
+                            <span className="font-medium break-words">{comp.supplierName}</span>
                             {comp.supplierCode && (
                               <span className="text-gray-400">({comp.supplierCode})</span>
                             )}
