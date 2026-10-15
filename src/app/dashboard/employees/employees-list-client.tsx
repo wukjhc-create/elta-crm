@@ -156,7 +156,7 @@ export function EmployeesListClient({
       {loadError ? (
         <p className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900" data-testid="employees-list-load-error">{loadError}</p>
       ) : employees.length === 0 ? (
-        <EmptyState hasFilters={!!(filters.q || filters.role)} />
+        <EmptyState hasFilters={!!(filters.q || filters.role || (filters.active && filters.active !== 'active'))} />
       ) : (
         <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
           <div className="md:hidden divide-y" data-testid="employees-mobile-list">
