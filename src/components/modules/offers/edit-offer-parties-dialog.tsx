@@ -78,7 +78,9 @@ export function EditOfferPartiesDialog({
   const [activeSlot, setActiveSlot] = useState<Slot | null>(null)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<CustomerSearchResult[]>([])
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
+  const resultsQuery = useRef<string | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -95,13 +97,25 @@ export function EditOfferPartiesDialog({
 
   useEffect(() => {
     if (!activeSlot) return
+    let alive = true
+    const term = query
     const handle = setTimeout(async () => {
       setSearching(true)
-      const res = await searchCustomersForSite(query)
-      if (res.success) setResults(res.results)
+      const res = await searchCustomersForSite(term)
+      if (!alive) return
+      if (res.success) {
+        setResults(res.results)
+        resultsQuery.current = term
+        setSearchError(null)
+      } else if (resultsQuery.current === term) {
+        setSearchError(res.error || 'Søgning fejlede')
+      } else {
+        setResults([])
+        setSearchError(res.error || 'Søgning fejlede')
+      }
       setSearching(false)
     }, 250)
-    return () => clearTimeout(handle)
+    return () => { alive = false; clearTimeout(handle) }
   }, [query, activeSlot])
 
   const openSlot = (slot: Slot) => {
@@ -109,11 +123,13 @@ export function EditOfferPartiesDialog({
     setActiveSlot(slot)
     setQuery('')
     setResults([])
+    setSearchError(null)
   }
   const closeSlot = () => {
     setActiveSlot(null)
     setQuery('')
     setResults([])
+    setSearchError(null)
   }
 
   const selectFromSearch = (c: CustomerSearchResult) => {
@@ -257,6 +273,7 @@ export function EditOfferPartiesDialog({
             query={query}
             setQuery={setQuery}
             results={results}
+            searchError={searchError}
             searching={searching}
             saving={saving}
             onOpen={openSlot}
@@ -277,6 +294,7 @@ export function EditOfferPartiesDialog({
             query={query}
             setQuery={setQuery}
             results={results}
+            searchError={searchError}
             searching={searching}
             saving={saving}
             onOpen={openSlot}
@@ -297,6 +315,7 @@ export function EditOfferPartiesDialog({
             query={query}
             setQuery={setQuery}
             results={results}
+            searchError={searchError}
             searching={searching}
             saving={saving}
             onOpen={openSlot}
@@ -349,6 +368,7 @@ interface ChooserProps {
   query: string
   setQuery: (s: string) => void
   results: CustomerSearchResult[]
+  searchError: string | null
   searching: boolean
   saving: boolean
   onOpen: (slot: Slot) => void
@@ -388,6 +408,7 @@ function PartyChooser({
   query,
   setQuery,
   results,
+  searchError,
   searching,
   saving,
   onOpen,
@@ -455,27 +476,36 @@ function PartyChooser({
             <div className="text-xs text-gray-500 flex items-center gap-1">
               <Loader2 className="w-3 h-3 animate-spin" /> Søger…
             </div>
-          ) : results.length === 0 ? (
-            <div className="text-xs text-gray-500">Ingen resultater</div>
           ) : (
-            <ul className="border bg-white rounded divide-y max-h-48 overflow-y-auto">
-              {results.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(c)}
-                    className="w-full text-left px-2 py-1.5 text-xs hover:bg-emerald-50"
-                  >
-                    <div className="font-medium text-gray-900">{c.company_name}</div>
-                    <div className="text-gray-500">
-                      {c.customer_number}
-                      {c.contact_person ? ` · ${c.contact_person}` : ''}
-                      {c.email ? ` · ${c.email}` : ''}
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              {searchError && (
+                <div className="text-xs text-red-700 break-words" data-testid="offer-party-search-error">
+                  {searchError}{results.length === 0 ? '. Det tælles ikke som ingen kunder.' : '. De tidligere forslag bliver.'}
+                </div>
+              )}
+              {!searchError && results.length === 0 ? (
+                <div className="text-xs text-gray-500">Ingen resultater</div>
+              ) : results.length > 0 ? (
+                <ul className="border bg-white rounded divide-y max-h-48 overflow-y-auto">
+                  {results.map((c) => (
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        onClick={() => onSelect(c)}
+                        className="w-full text-left px-2 py-1.5 text-xs hover:bg-emerald-50"
+                      >
+                        <div className="font-medium text-gray-900">{c.company_name}</div>
+                        <div className="text-gray-500">
+                          {c.customer_number}
+                          {c.contact_person ? ` · ${c.contact_person}` : ''}
+                          {c.email ? ` · ${c.email}` : ''}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
           )}
         </div>
       )}
