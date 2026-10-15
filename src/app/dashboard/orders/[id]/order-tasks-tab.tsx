@@ -67,15 +67,21 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
         return (
           <div key={t.id} className="bg-gray-50 rounded ring-1 ring-gray-200 p-3 flex items-start gap-3">
             {canComplete && !done ? (
-              <button onClick={() => handleComplete(t.id)} disabled={busy} title="Markér som udført"
-                className="mt-0.5 text-gray-300 hover:text-emerald-600 disabled:opacity-50">
+              <button
+                type="button"
+                onClick={() => handleComplete(t.id)}
+                disabled={busy}
+                title="Markér som udført"
+                aria-label="Markér som udført"
+                className="mt-0.5 inline-flex items-center justify-center min-h-[44px] min-w-[44px] -my-2 text-gray-300 hover:text-emerald-600 disabled:opacity-50"
+              >
                 {busy && busyId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Circle className="w-4 h-4" />}
               </button>
             ) : (
               <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${done ? 'text-emerald-600' : 'text-gray-300'}`} />
             )}
             <div className="flex-1 min-w-0">
-              <div className={`text-sm font-medium ${done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+              <div className={`text-sm font-medium break-words ${done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                 {t.title}
                 {t.auto_generated && (
                   <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] text-blue-600 align-middle">
@@ -86,7 +92,7 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${status.bgColor} ${status.color}`}>{status.label}</span>
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${prio.bgColor} ${prio.color}`}>{prio.label}</span>
-                {t.assigned_profile?.full_name && <span className="text-xs text-gray-500">· {t.assigned_profile.full_name}</span>}
+                {t.assigned_profile?.full_name && <span className="text-xs text-gray-500 break-words">· {t.assigned_profile.full_name}</span>}
               </div>
             </div>
           </div>
