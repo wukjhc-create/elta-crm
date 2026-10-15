@@ -37,6 +37,8 @@ export function CustomerNotesTimeline({ customerId }: { customerId: string }) {
     if (r.success) { setText(''); await load() } else setError(r.error ?? 'Fejl')
   }
   const remove = async (id: string) => {
+    // U-11: bekræft — noteloggen er kundens historik
+    if (!window.confirm('Slet noten?')) return
     const r = await deleteCustomerNote(id)
     if (r.success) await load(); else setError(r.error ?? 'Fejl')
   }

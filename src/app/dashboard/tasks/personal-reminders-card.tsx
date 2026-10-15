@@ -43,6 +43,7 @@ export function PersonalRemindersCard() {
   if (!state?.available) return null
 
   const run = async (fn: () => Promise<{ success: boolean; error?: string }>) => {
+    if (busy) return false // U-7: ingen dobbeltklik (fx to gange "udsæt")
     setBusy(true)
     setError(null)
     const r = await fn()
@@ -82,10 +83,10 @@ export function PersonalRemindersCard() {
                   <p className="text-xs text-gray-500">{fmt(r.due_at)}{r.reminder_at && r.reminder_at !== r.due_at ? ` · påmindelse ${fmt(r.reminder_at)}` : ''}{SOURCE[r.source]}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button title="Udført" aria-label="Udført" onClick={() => run(() => completePersonalReminder(r.id))} className="p-1.5 text-green-600 hover:bg-green-50 rounded"><Check className="w-4 h-4" /></button>
-                  <button title="Udsæt 1 time" aria-label="Udsæt" onClick={() => run(() => snoozePersonalReminder(r.id))} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded"><Clock className="w-4 h-4" /></button>
+                  <button title="Udført" aria-label="Udført" onClick={() => run(() => completePersonalReminder(r.id))} disabled={busy} className="p-1.5 text-green-600 hover:bg-green-50 rounded"><Check className="w-4 h-4" /></button>
+                  <button title="Udsæt 1 time" aria-label="Udsæt" onClick={() => run(() => snoozePersonalReminder(r.id))} disabled={busy} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded"><Clock className="w-4 h-4" /></button>
                   <button title="Ret tidspunkt" aria-label="Ret tidspunkt" onClick={() => { const p = copenhagenParts(r.due_at); setEditId(r.id); setEditDate(p.date); setEditClock(p.clock) }} className="px-2 py-1 text-xs text-sky-700 hover:bg-sky-50 rounded">Ret</button>
-                  <button title="Slet" aria-label="Slet påmindelse" onClick={() => run(() => deletePersonalReminder(r.id))} className="p-1.5 text-gray-400 hover:text-red-600 rounded"><Trash2 className="w-4 h-4" /></button>
+                  <button title="Slet" aria-label="Slet påmindelse" onClick={() => { if (window.confirm('Slet påmindelsen?')) void run(() => deletePersonalReminder(r.id)) }} disabled={busy} className="p-1.5 text-gray-400 hover:text-red-600 rounded"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
               {editId === r.id && (

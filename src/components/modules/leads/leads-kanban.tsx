@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/ui/toast'
 import { GripVertical, User } from 'lucide-react'
 import { updateLeadStatus } from '@/lib/actions/leads'
 import type { LeadWithRelations, LeadStatus } from '@/types/leads.types'
@@ -20,6 +21,7 @@ const PIPELINE_STATUSES: LeadStatus[] = ['new', 'contacted', 'qualified', 'propo
 
 export function LeadsKanban({ leads }: LeadsKanbanProps) {
   const router = useRouter()
+  const toast = useToast()
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<LeadStatus | null>(null)
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
@@ -77,6 +79,9 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
 
     if (result.success) {
       router.refresh()
+    } else {
+      // U-2 (pilot-sweep 2026-10-15): før sprang kortet stille tilbage uden forklaring
+      toast.error('Lead kunne ikke flyttes', result.error)
     }
   }
 

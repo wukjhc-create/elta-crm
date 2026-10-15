@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useToast } from '@/components/ui/toast'
 import {
   Bell,
   CheckCircle2,
@@ -62,35 +63,49 @@ export function TaskReminderOverlay() {
     }
   }, [])
 
-  const handleComplete = async (taskId: string) => {
-    await completeCustomerTask(taskId)
-    setReminders((prev) => prev.filter((r) => r.id !== taskId))
+  // U-1 (pilot-sweep 2026-10-15): kortet fjernes kun når handlingen lykkedes — før forsvandt det også ved fejl, og
+  // opgaven var stadig åben (kom igen ved næste poll). Én handling ad gangen pr. kort (ingen dobbeltklik).
+  const toast = useToast()
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set())
+  const runFor = async (id: string, action: () => Promise<{ success: boolean; error?: string }>, onOk: () => void, failText: string) => {
+    if (busyIds.has(id)) return
+    setBusyIds((prev) => new Set(prev).add(id))
+    try {
+      const r = await action()
+      if (r.success) onOk()
+      else toast.error(failText, r.error)
+    } catch {
+      toast.error(failText)
+    } finally {
+      setBusyIds((prev) => { const n = new Set(prev); n.delete(id); return n })
+    }
   }
+  const removeReminder = (id: string) => setReminders((prev) => prev.filter((r) => r.id !== id))
 
-  const handleSnooze = async (taskId: string, minutes: number) => {
+  const handleComplete = (taskId: string) =>
+    runFor(taskId, () => completeCustomerTask(taskId), () => removeReminder(taskId), 'Opgaven kunne ikke markeres som udført')
+
+  const handleSnooze = (taskId: string, minutes: number) => {
     const until = new Date(Date.now() + minutes * 60_000).toISOString()
-    await snoozeTask(taskId, until)
-    setReminders((prev) => prev.filter((r) => r.id !== taskId))
+    return runFor(taskId, () => snoozeTask(taskId, until), () => removeReminder(taskId), 'Opgaven kunne ikke udsættes')
   }
 
-  const handleDismiss = async (id: string) => {
+  const handleDismiss = (id: string) => {
     // Snooze 7 days to persistently dismiss without completing
     const until = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
-    await snoozeTask(id, until)
-    setReminders((prev) => prev.filter((r) => r.id !== id))
+    return runFor(id, () => snoozeTask(id, until), () => removeReminder(id), 'Påmindelsen kunne ikke skjules')
   }
 
-  const handleDismissAlert = async (alertId: string) => {
-    await dismissPriceAlert(alertId)
-    setPriceAlerts((prev) => prev.filter((a) => a.id !== alertId))
-  }
+  const handleDismissAlert = (alertId: string) =>
+    runFor(alertId, () => dismissPriceAlert(alertId), () => setPriceAlerts((prev) => prev.filter((a) => a.id !== alertId)), 'Prisadvarslen kunne ikke afvises')
 
   const totalVisible = reminders.length + priceAlerts.length
 
   if (totalVisible === 0) return null
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2 max-w-sm">
+    // over mobilens bundnavigation (h-16) i stedet for oven på den
+    <div className="fixed bottom-20 md:bottom-4 right-4 z-50 flex flex-col items-end gap-2 max-w-sm">
       {/* Minimized badge */}
       {isMinimized ? (
         <motion.button

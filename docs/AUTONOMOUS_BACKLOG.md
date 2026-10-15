@@ -17,15 +17,15 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 Kilde: to opfølgende read-only sweeps til pilot-reviewet.
 | # | Fund | Status |
 |---|---|---|
-| U-1 (S2) | Opgavepåmindelses-popup (alle sider) ignorerer fejl, ingen pending → kort forsvinder, opgave stadig åben | TODO |
-| U-2 (S2) | Leads-kanban: mislykket træk giver ingen besked | TODO |
+| U-1 (S2) | Opgavepåmindelses-popup (alle sider) ignorerer fejl, ingen pending → kort forsvinder, opgave stadig åben | DONE — kort fjernes kun ved succes, fejltoast, ingen dobbeltklik; ligger over mobilens bundnavigation |
+| U-2 (S2) | Leads-kanban: mislykket træk giver ingen besked | DONE — fejltoast |
 | U-3 (S2) | Mail: arkivér/ignorér/læst er fire-and-forget uden tilbagerulning | TODO |
 | U-4 (S2) | Mail: "Kunde tildelt" vises selvom intet blev koblet (void-handling); cockpit-knap uden feedback | TODO |
 | U-5 (S3) | Mail-debugpanel på engelsk, vist for alle, "Fast-forward OK" ved fejl, "Spring til nye" uden bekræftelse | TODO |
 | U-6 (S3) | Mail-svar-fejl viser Graph/Azure-internals og env-navne for alle | TODO |
-| U-7 (S3) | Personlige påmindelser: slet uden bekræftelse, ingen pending | TODO |
+| U-7 (S3) | Personlige påmindelser: slet uden bekræftelse, ingen pending | DONE — bekræft slet, knapper låst mens der arbejdes |
 | U-8/9 (S3) | Arbejdsordre "Annullér"/"Afslut" (endelige) uden bekræftelse — kalender + planlægningsfane | TODO |
-| U-11 (S3) | Kundenoter: slet uden bekræftelse | TODO |
+| U-11 (S3) | Kundenoter: slet uden bekræftelse | DONE — bekræft |
 | U-12/13 (S3) | UUID-fragmenter vist til brugere (sag "Fra tilbud", fakturakladdens sprungne linjer med engelske koder) | TODO |
 | U-14 (S3) | Tilbud: masse-statusskift håndterer ikke lav-DB-bekræftelse, ingen årsag | TODO |
 | U-15/16 (S3) | Besigtigelsesrapport "se browser console"; kundedokument-upload/ZIP-fejl tavse | TODO |
