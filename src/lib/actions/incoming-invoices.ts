@@ -77,19 +77,23 @@ export interface ListFilter {
 async function notInvoiceFlagger(
   supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
   sourceEmailIds: Array<string | null | undefined>,
-) {
+): Promise<{ ok: boolean; mark: (r: { status: string; supplier_id: string | null; amount_incl_vat: number | string | null; source_email_id: string | null }) => boolean }> {
   const ids = Array.from(new Set(sourceEmailIds.filter((x): x is string => !!x)))
   const sender = new Map<string, string | null>()
   for (let i = 0; i < ids.length; i += 200) {
-    const { data: em } = await supabase.from('incoming_emails').select('id, sender_email').in('id', ids.slice(i, i + 200))
+    const { data: em, error } = await supabase.from('incoming_emails').select('id, sender_email').in('id', ids.slice(i, i + 200))
+    if (error) return { ok: false, mark: () => false }
     for (const e of (em ?? []) as Array<{ id: string; sender_email: string | null }>) sender.set(e.id, e.sender_email)
   }
   const { isProbablyNotSupplierInvoice } = await import('@/lib/invoice-control/sender-domain')
-  return (r: { status: string; supplier_id: string | null; amount_incl_vat: number | string | null; source_email_id: string | null }) =>
-    !['approved', 'posted', 'rejected', 'cancelled'].includes(r.status) && isProbablyNotSupplierInvoice({
-      senderEmail: r.source_email_id ? sender.get(r.source_email_id) ?? null : null,
-      supplierId: r.supplier_id, amountInclVat: r.amount_incl_vat != null ? Number(r.amount_incl_vat) : null,
-    })
+  return {
+    ok: true,
+    mark: (r) =>
+      !['approved', 'posted', 'rejected', 'cancelled'].includes(r.status) && isProbablyNotSupplierInvoice({
+        senderEmail: r.source_email_id ? sender.get(r.source_email_id) ?? null : null,
+        supplierId: r.supplier_id, amountInclVat: r.amount_incl_vat != null ? Number(r.amount_incl_vat) : null,
+      }),
+  }
 }
 
 export async function listIncomingInvoicesAction(
@@ -146,7 +150,9 @@ export async function listIncomingInvoicesAction(
     logger.error('listIncomingInvoicesAction failed', { error })
     return { rows: [], error: 'Kunne ikke hente fakturaer' }
   }
-  const notInvoice = await notInvoiceFlagger(supabase, (data ?? []).map((r) => (r as { source_email_id?: string | null }).source_email_id))
+  const flagged = await notInvoiceFlagger(supabase, (data ?? []).map((r) => (r as { source_email_id?: string | null }).source_email_id))
+  if (!flagged.ok && filter.status === 'not_invoice') return { rows: [], error: 'Kunne ikke hente afsendere' }
+  const notInvoice = flagged.mark
   const rows = (data ?? []).map((r) => {
     const supplierJoin = (r as { suppliers?: { name?: string } | { name?: string }[] }).suppliers
     const supplierName = Array.isArray(supplierJoin)
@@ -897,7 +903,8 @@ export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.view')) return []
   const rows = await getApprovalQueue(200)
-  const notInvoice = await notInvoiceFlagger(supabase, rows.map((r) => (r as { source_email_id?: string | null }).source_email_id))
+  const flagged = await notInvoiceFlagger(supabase, rows.map((r) => (r as { source_email_id?: string | null }).source_email_id))
+  const notInvoice = flagged.mark
   return rows.map((r) => ({
     id: r.id,
     supplier_id: r.supplier_id,
