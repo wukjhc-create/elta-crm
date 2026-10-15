@@ -47,9 +47,10 @@ export function Select({ value: controlledValue, defaultValue = '', onValueChang
 interface SelectTriggerProps {
   children: ReactNode
   className?: string
+  'aria-label'?: string
 }
 
-export function SelectTrigger({ children, className }: SelectTriggerProps) {
+export function SelectTrigger({ children, className, 'aria-label': ariaLabel }: SelectTriggerProps) {
   const context = useContext(SelectContext)
   if (!context) throw new Error('SelectTrigger must be used within Select')
 
@@ -73,6 +74,7 @@ export function SelectTrigger({ children, className }: SelectTriggerProps) {
     <button
       ref={ref}
       type="button"
+      aria-label={ariaLabel}
       onClick={() => setOpen(!open)}
       className={clsx(
         'flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm',

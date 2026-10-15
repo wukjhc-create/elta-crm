@@ -164,6 +164,7 @@ export default function ProductsClient({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
+              aria-label="Søg efter produkter"
               placeholder="Søg efter produkter..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -178,7 +179,7 @@ export default function ProductsClient({
             updateFilters({ category_id: value })
           }}
         >
-          <SelectTrigger className="w-full sm:w-[200px]">
+          <SelectTrigger className="w-full sm:w-[200px]" aria-label="Kategori">
             <SelectValue placeholder="Alle kategorier" />
           </SelectTrigger>
           <SelectContent>
