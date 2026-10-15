@@ -1790,6 +1790,14 @@ ${m.text()}`) })
         await gotoSafe(a.page, `${base}/dashboard/calendar?view=week&date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
         const bRow = a.page.locator('tr', { hasText: `Harness Bente ${stamp}` }).first()
         r.uge_belastning = (await bRow.getByTestId('week-day-overload').count()) === 1 && /2 aktive job denne uge/.test(((await bRow.getByTestId('week-employee-load').textContent().catch(() => '')) ?? ''))
+        // E-7: klik på Anders' tomme celle på d3 → planlæg-dialog med Anders + d3 udfyldt
+        const aRow = a.page.locator('tr', { hasText: `Harness Anders ${stamp}` }).first()
+        await aRow.getByRole('button', { name: new RegExp(`Planlæg .* ${d3}`) }).click({ timeout: 30_000 }).catch(() => {})
+        const pdlg = a.page.locator('[aria-labelledby="plan-wo-title"]')
+        await pdlg.waitFor({ timeout: 30_000 }).catch(() => {})
+        r.celle_planlaeg = (await pdlg.locator('input[type="date"]').inputValue().catch(() => '')) === d3
+          && (await pdlg.locator('select').first().inputValue().catch(() => '')) === (empA ?? '-')
+        await a.page.keyboard.press('Escape').catch(() => {})
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u43-omplanlaegning.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }

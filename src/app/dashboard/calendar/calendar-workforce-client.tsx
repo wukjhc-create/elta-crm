@@ -108,6 +108,9 @@ export function CalendarWorkforceClient({
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
   const [planDialogOpen, setPlanDialogOpen] = useState(false)
+  // E-7 (fokus E 2026-10-15): klik på en tom celle i ugevisningen → planlæg med medarbejder + dato udfyldt
+  const [planPreset, setPlanPreset] = useState<{ date: string; employeeId: string } | null>(null)
+  const openPlan = (preset: { date: string; employeeId: string } | null) => { setPlanPreset(preset); setPlanDialogOpen(true) }
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrderForCalendar | null>(null)
 
   const updateParam = (changes: Record<string, string | null | undefined>) => {
@@ -216,7 +219,7 @@ export function CalendarWorkforceClient({
           {canPlan && (
           <button
             type="button"
-            onClick={() => setPlanDialogOpen(true)}
+            onClick={() => openPlan(null)}
             className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
           >
             <Plus className="w-4 h-4" />
@@ -249,8 +252,8 @@ export function CalendarWorkforceClient({
       <PlanWorkOrderDialog
         open={planDialogOpen}
         onClose={() => setPlanDialogOpen(false)}
-        defaultDate={anchorDate}
-        defaultEmployeeId={filters.employee || null}
+        defaultDate={planPreset?.date ?? anchorDate}
+        defaultEmployeeId={planPreset?.employeeId ?? (filters.employee || null)}
         employees={employees}
       />
 
@@ -382,6 +385,7 @@ export function CalendarWorkforceClient({
           weekDates={weekDates}
           byDateThenEmployee={byDateThenEmployee}
           hasUnassigned={hasUnassigned}
+          onPlanCell={canPlan ? (employeeId, date) => openPlan({ employeeId, date }) : undefined}
         />
       )}
 
@@ -520,7 +524,9 @@ function WeekView({
   weekDates,
   byDateThenEmployee,
   hasUnassigned,
+  onPlanCell,
 }: {
+  onPlanCell?: (employeeId: string, date: string) => void
   employees: EmployeeRow[]
   weekDates: string[]
   byDateThenEmployee: Map<string, Map<string, WorkOrderForCalendar[]>>
@@ -588,6 +594,7 @@ function WeekView({
               employee={emp}
               weekDates={weekDates}
               byDateThenEmployee={byDateThenEmployee}
+              onPlanCell={onPlanCell}
             />
           ))}
           {hasUnassigned && (
@@ -607,7 +614,9 @@ function WeekEmployeeRow({
   employee,
   weekDates,
   byDateThenEmployee,
+  onPlanCell,
 }: {
+  onPlanCell?: (employeeId: string, date: string) => void
   employee: EmployeeRow
   weekDates: string[]
   byDateThenEmployee: Map<string, Map<string, WorkOrderForCalendar[]>>
@@ -641,7 +650,19 @@ function WeekEmployeeRow({
             }`}
           >
             {wos.length === 0 ? (
-              <span className="text-[10px] text-gray-300">—</span>
+              onPlanCell ? (
+                <button
+                  type="button"
+                  onClick={() => onPlanCell(employee.id, d)}
+                  className="w-full h-8 rounded border border-dashed border-transparent text-[11px] text-gray-300 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50/50"
+                  aria-label={`Planlæg ${employee.name || 'medarbejder'} ${d}`}
+                  data-testid="week-plan-cell"
+                >
+                  + Planlæg
+                </button>
+              ) : (
+                <span className="text-[10px] text-gray-300">—</span>
+              )
             ) : (
               <div className="space-y-1">
                 {dayActive >= 2 && (

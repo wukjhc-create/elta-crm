@@ -40,7 +40,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-4 | Arbejdsordrer har kun dato (ingen tidspunkt/varighed) → ingen dagsrækkefølge/overlap | BLOCKED_APPROVAL — forslag 00227 i docs/runbooks/planning-migrations-proposal.md |
 | E-5 | Fravær/ferie/helligdage findes ikke → planlægning på syge/ferierende montører | BLOCKED_APPROVAL — forslag 00228 (employee_absences + RLS) i planning-migrations-proposal.md; helligdage i kode |
 | E-6 | Kapacitet pr. uge (normtimer) | BLOCKED_APPROVAL — forslag 00229 i planning-migrations-proposal.md |
-| E-7 | Træk-og-slip omplanlægning, klik på tom celle for at planlægge | TODO |
+| E-7 | Træk-og-slip omplanlægning, klik på tom celle for at planlægge | DELVIS — klik på tom celle i ugevisningen ("+ Planlæg", kun planlæggere) åbner planlæg-dialog med medarbejder + dato udfyldt (UI U43). Træk-og-slip: TODO |
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
@@ -172,7 +172,7 @@ Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kon
 | G-2 | Pilotbrugere: navne + roller (afgør om 00186 skal køres først — bogholderi ser ellers hele postkassen) | [H] beslutning | BLOCKED |
 | G-3 | G11 montør #2 uden koblet medarbejder (målt 2026-10-14: 2 logins / 1 koblet) | [H] manuel | BLOCKED (`prod-montor-linkage.ts`) |
 | G-4 | G12 bankoplysninger på fakturaer (Vercel `INVOICE_BANK_*` eller Indstillinger → Firma) | [H] manuel | BLOCKED |
-| G-5 | Admin-alarmer når ingen: `ADMIN_ALERT_EMAIL` i Vercel eller branch `admin-alert-recipients-auth-email` / 00188 | [H] env/godkendelse | BLOCKED |
+| G-5 | Admin-alarmer når ingen: `ADMIN_ALERT_EMAIL` i Vercel eller branch `admin-alert-recipients-auth-email` / 00188 | DONE i kode 2026-10-15 (0ce27ce0): modtagere = aktive admin+serviceleder via Auth-login-mail (uafhængigt af tom profiles.email) — branch `admin-alert-recipients-auth-email` er dermed erstattet (ikke slettet; worktree C:\Dev\elta-alerts) | DONE |
 | G-6 | "Kør rykker-tjek nu" på go-live-siden sender rigtige rykkere uden bekræftelse/loft | dev | DONE eb94707c — bekræftelse + fælles loft `MAX_REMINDER_MAILS_PER_RUN` (3) |
 
 ### Pilot-uge-risici
