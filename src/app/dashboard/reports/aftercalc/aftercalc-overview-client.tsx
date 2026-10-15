@@ -32,7 +32,7 @@ const kr = (n: number | null) => (n == null ? '—' : formatCurrency(n, 'DKK', 0
 const pct = (n: number | null) => (n == null ? '—' : `${n.toLocaleString('da-DK', { maximumFractionDigits: 1 })} %`)
 
 function varianceText(amount: number | null, points: number | null) {
-  if (amount == null) return '—'
+  if (amount == null) return 'Kan ikke beregnes'
   const sign = amount > 0 ? '+' : ''
   const pointsText = points == null ? '' : ` (${sign}${points.toLocaleString('da-DK', { maximumFractionDigits: 1 })} pp)`
   return `${sign}${kr(amount)}${pointsText}`
