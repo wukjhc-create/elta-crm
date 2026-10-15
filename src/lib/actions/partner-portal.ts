@@ -81,7 +81,7 @@ export async function createPartnerToken(
       return { success: false, error: 'Kunne ikke oprette partner-adgang' }
     }
 
-    revalidatePath('/customers')
+    revalidatePath('/dashboard/customers')
     return { success: true, data: tokenData as PartnerAccessToken }
   } catch (error) {
     logger.error('Error in createPartnerToken', { error })
@@ -135,7 +135,7 @@ export async function deactivatePartnerToken(
       return { success: false, error: 'Kunne ikke deaktivere adgang' }
     }
 
-    revalidatePath('/customers')
+    revalidatePath('/dashboard/customers')
     return { success: true }
   } catch (error) {
     logger.error('Error in deactivatePartnerToken', { error })

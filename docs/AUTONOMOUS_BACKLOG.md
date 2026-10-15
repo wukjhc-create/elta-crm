@@ -31,7 +31,7 @@ Kilde: to opfølgende read-only sweeps til pilot-reviewet.
 | U-15/16 (S3) | Besigtigelsesrapport "se browser console"; kundedokument-upload/ZIP-fejl tavse | TODO |
 | U-17/18/19 (S3) | Team: deaktivér uden bekræftelse, gensend-invitation dobbelt; medarbejder-login deaktivér/rolleskift uden bekræftelse | DONE — bekræft deaktivering/rolleskift, gensend kun én ad gangen |
 | U-20 (S3) | Medarbejder-handlinger returnerer rå Postgres-fejl | DONE — dansk tekst via mapDatabaseError (nu uden "FK/unique violation") |
-| U-21 (S3) | revalidatePath uden /dashboard-præfiks (offers/customers/leads/messages/projects/calc) → forældede sider | TODO |
+| U-21 (S3) | revalidatePath uden /dashboard-præfiks (offers/customers/leads/messages/projects/calc) → forældede sider | DONE — 70 kald rettet til /dashboard/…; /calculator → /dashboard/calculations, solcelle → /dashboard/calc |
 | U-22 (S4) | Doc-drift: test-harness-architecture (gammel guard), system-map (GatewayAPI/src/lib/sms), data-model-risks (files.ts), 00191 vs 00199 | TODO |
 
 ## NEXT-12 (pilot readiness review 2026-10-15)

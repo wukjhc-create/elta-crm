@@ -72,7 +72,7 @@ export async function createTemplate(input: CreateTemplateInput): Promise<{
       return { success: false, error: `Database fejl: ${error.message}` }
     }
 
-    revalidatePath('/calc')
+    revalidatePath('/dashboard/calc')
     return { success: true, data: { id: data.id } }
   } catch (error) {
     logger.error('Error creating template', { error: error })
@@ -99,7 +99,7 @@ export async function deleteTemplate(id: string): Promise<{
       throw new Error('DATABASE_ERROR')
     }
 
-    revalidatePath('/calc')
+    revalidatePath('/dashboard/calc')
     return { success: true }
   } catch (error) {
     logger.error('Error deleting template', { error: error })

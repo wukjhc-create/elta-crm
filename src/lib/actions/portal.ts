@@ -108,7 +108,7 @@ export async function createPortalToken(
       return { success: false, error: 'Kunne ikke oprette portal-adgang' }
     }
 
-    revalidatePath('/customers')
+    revalidatePath('/dashboard/customers')
     return { success: true, data: { ...(tokenData as object), token } as PortalAccessToken }
   } catch (error) {
     logger.error('Error in createPortalToken', { error: error })
@@ -162,7 +162,7 @@ export async function deactivatePortalToken(
       return { success: false, error: 'Kunne ikke deaktivere adgang' }
     }
 
-    revalidatePath('/customers')
+    revalidatePath('/dashboard/customers')
     return { success: true }
   } catch (error) {
     logger.error('Error in deactivatePortalToken', { error: error })
@@ -736,8 +736,8 @@ ${link}`,
       logger.error('Autopilot offer_accepted failed (non-critical)', { error: invErr, entityId: data.offer_id })
     }
 
-    revalidatePath('/offers')
-    revalidatePath('/projects')
+    revalidatePath('/dashboard/offers')
+    revalidatePath('/dashboard/projects')
 
     return { success: true }
   } catch (error) {
@@ -910,7 +910,7 @@ export async function rejectOffer(
       logger.error('Failed to send rejection notification', { error: emailError })
     }
 
-    revalidatePath('/offers')
+    revalidatePath('/dashboard/offers')
 
     return { success: true }
   } catch (error) {
@@ -1341,8 +1341,8 @@ export async function sendEmployeeMessage(
       // Non-critical — message is saved, mail is best-effort.
     }
 
-    revalidatePath('/customers')
-    revalidatePath('/offers')
+    revalidatePath('/dashboard/customers')
+    revalidatePath('/dashboard/offers')
     return { success: true, data: messageData as PortalMessage }
   } catch (error) {
     logger.error('Error in sendEmployeeMessage', { error: error })

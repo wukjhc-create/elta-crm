@@ -280,7 +280,7 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
     // Henrik 2026-10-10: personlig notifikation når leadet tildeles en anden end opretteren
     if (data.assigned_to && data.assigned_to !== userId) await notifyLeadAssigned(data.assigned_to as string, data.id as string, String(data.company_name ?? ''))
 
-    revalidatePath('/leads')
+    revalidatePath('/dashboard/leads')
     return { success: true, data: data as Lead }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette lead') }
@@ -436,8 +436,8 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
     }
     await logUpdate('lead', leadId, data.company_name, changes)
 
-    revalidatePath('/leads')
-    revalidatePath(`/leads/${leadId}`)
+    revalidatePath('/dashboard/leads')
+    revalidatePath(`/dashboard/leads/${leadId}`)
     return { success: true, data: data as Lead }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere lead') }
@@ -473,7 +473,7 @@ export async function deleteLead(id: string): Promise<ActionResult> {
     // Audit log
     await logDelete('lead', id, lead?.company_name || 'Ukendt')
 
-    revalidatePath('/leads')
+    revalidatePath('/dashboard/leads')
     return { success: true }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke slette lead') }
@@ -539,8 +539,8 @@ export async function updateLeadStatus(
       await logStatusChange('lead', id, data.company_name, oldLead.status, status)
     }
 
-    revalidatePath('/leads')
-    revalidatePath(`/leads/${id}`)
+    revalidatePath('/dashboard/leads')
+    revalidatePath(`/dashboard/leads/${id}`)
     return { success: true, data: data as Lead }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere status') }
@@ -610,7 +610,7 @@ export async function addLeadActivity(
     // mail, note) rørte ikke leadet, så det blev ved med at stå som glemt. Best-effort.
     await supabase.from('leads').update({ updated_at: new Date().toISOString() }).eq('id', leadId)
 
-    revalidatePath(`/leads/${leadId}`)
+    revalidatePath(`/dashboard/leads/${leadId}`)
     return { success: true, data: data as LeadActivity }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke tilføje aktivitet') }

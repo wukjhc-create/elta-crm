@@ -493,7 +493,7 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       const { linkUnlinkedEmailsFromAddress } = await import('@/lib/mail/retro-link')
       await linkUnlinkedEmailsFromAddress(supabase, customer.id, customer.email)
     }
-    revalidatePath('/customers')
+    revalidatePath('/dashboard/customers')
     return { success: true, data: customer }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette kunde') }
@@ -726,13 +726,13 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
     })
     await logUpdate('customer', customerId, data.company_name, changes)
 
-    revalidatePath('/customers')
+    revalidatePath('/dashboard/customers')
     // N24a: ny/ændret mailadresse → kobl tidligere ukoblede mails fra adressen
     if ((data as Customer | null)?.email) {
       const { linkUnlinkedEmailsFromAddress } = await import('@/lib/mail/retro-link')
       await linkUnlinkedEmailsFromAddress(supabase, customerId, (data as Customer).email)
     }
-    revalidatePath(`/customers/${customerId}`)
+    revalidatePath(`/dashboard/customers/${customerId}`)
     return { success: true, data: data as Customer }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere kunde') }
@@ -831,7 +831,7 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
       customer_number: customer?.customer_number,
     })
 
-    revalidatePath('/customers')
+    revalidatePath('/dashboard/customers')
     return { success: true }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke slette kunde') }
@@ -874,8 +874,8 @@ export async function toggleCustomerActive(
       isActive ? 'active' : 'inactive'
     )
 
-    revalidatePath('/customers')
-    revalidatePath(`/customers/${id}`)
+    revalidatePath('/dashboard/customers')
+    revalidatePath(`/dashboard/customers/${id}`)
     return { success: true, data: data as Customer }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke ændre kundestatus') }
@@ -973,7 +973,7 @@ export async function createCustomerContact(
         .neq('id', (data as { id: string }).id)
     }
 
-    revalidatePath(`/customers/${validated.data.customer_id}`)
+    revalidatePath(`/dashboard/customers/${validated.data.customer_id}`)
     return { success: true, data: data as CustomerContact }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette kontakt') }
@@ -1051,7 +1051,7 @@ export async function updateCustomerContact(
       throw new Error('DATABASE_ERROR')
     }
 
-    revalidatePath(`/customers/${customerId}`)
+    revalidatePath(`/dashboard/customers/${customerId}`)
     return { success: true, data: data as CustomerContact }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere kontakt') }
@@ -1081,7 +1081,7 @@ export async function deleteCustomerContact(
       throw new Error('DATABASE_ERROR')
     }
 
-    revalidatePath(`/customers/${customerId}`)
+    revalidatePath(`/dashboard/customers/${customerId}`)
     return { success: true }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke slette kontakt') }

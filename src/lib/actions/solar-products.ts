@@ -257,7 +257,7 @@ export async function createSolarProduct(
     }
 
     revalidatePath('/dashboard/settings/solar')
-    revalidatePath('/dashboard/calculator')
+    revalidatePath('/dashboard/calc')
 
     return { success: true, data: data as SolarProduct }
   } catch (err) {
@@ -299,7 +299,7 @@ export async function updateSolarProduct(
     }
 
     revalidatePath('/dashboard/settings/solar')
-    revalidatePath('/dashboard/calculator')
+    revalidatePath('/dashboard/calc')
 
     return { success: true, data: data as SolarProduct }
   } catch (err) {
@@ -326,7 +326,7 @@ export async function deleteSolarProduct(id: string): Promise<ActionResult<void>
     }
 
     revalidatePath('/dashboard/settings/solar')
-    revalidatePath('/dashboard/calculator')
+    revalidatePath('/dashboard/calc')
 
     return { success: true, data: undefined }
   } catch (err) {
@@ -474,7 +474,7 @@ export async function updateSolarAssumption(
     }
 
     revalidatePath('/dashboard/settings/solar')
-    revalidatePath('/dashboard/calculator')
+    revalidatePath('/dashboard/calc')
 
     return { success: true, data: undefined }
   } catch (err) {

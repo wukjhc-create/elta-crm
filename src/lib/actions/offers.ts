@@ -333,7 +333,7 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       customer_id: data.customer_id,
     })
 
-    revalidatePath('/offers')
+    revalidatePath('/dashboard/offers')
     return { success: true, data: data as Offer }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette tilbud') }
@@ -471,8 +471,8 @@ export async function quickCreateCustomerAndOffer(
         .eq('id', input.sourceEmailId)
     }
 
-    revalidatePath('/offers')
-    revalidatePath('/customers')
+    revalidatePath('/dashboard/offers')
+    revalidatePath('/dashboard/customers')
     revalidatePath('/dashboard/mail')
 
     return {
@@ -611,8 +611,8 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
     // Audit log
     await logUpdate('offer', offerId, data.title, { updated: { old: false, new: true } })
 
-    revalidatePath('/offers')
-    revalidatePath(`/offers/${offerId}`)
+    revalidatePath('/dashboard/offers')
+    revalidatePath(`/dashboard/offers/${offerId}`)
     return { success: true, data: result }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere tilbud') }
@@ -651,7 +651,7 @@ export async function updateOfferField(
       return { success: false, error: 'Kunne ikke gemme' }
     }
 
-    revalidatePath(`/offers/${offerId}`)
+    revalidatePath(`/dashboard/offers/${offerId}`)
     return { success: true }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke gemme') }
@@ -701,7 +701,7 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
       offer_number: offer?.offer_number,
     })
 
-    revalidatePath('/offers')
+    revalidatePath('/dashboard/offers')
     return { success: true }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke slette tilbud') }
@@ -874,8 +874,8 @@ export async function updateOfferStatus(
       const { markLeadProposalForSentOffer } = await import('@/lib/services/lead-won')
       await markLeadProposalForSentOffer(createAdminClient(), id, userId)
     }
-    revalidatePath('/offers')
-    revalidatePath(`/offers/${id}`)
+    revalidatePath('/dashboard/offers')
+    revalidatePath(`/dashboard/offers/${id}`)
     return { success: true, data: data as Offer }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere status') }
@@ -990,7 +990,7 @@ export async function createLineItem(
       throw new Error('DATABASE_ERROR')
     }
 
-    revalidatePath(`/offers/${validated.data.offer_id}`)
+    revalidatePath(`/dashboard/offers/${validated.data.offer_id}`)
     return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette linje') }
@@ -1082,7 +1082,7 @@ export async function updateLineItem(
       throw new Error('DATABASE_ERROR')
     }
 
-    revalidatePath(`/offers/${offerId}`)
+    revalidatePath(`/dashboard/offers/${offerId}`)
     return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere linje') }
@@ -1115,7 +1115,7 @@ export async function deleteLineItem(
       throw new Error('DATABASE_ERROR')
     }
 
-    revalidatePath(`/offers/${offerId}`)
+    revalidatePath(`/dashboard/offers/${offerId}`)
     return { success: true }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke slette linje') }
@@ -1267,7 +1267,7 @@ export async function addProductToOffer(
       userId
     )
 
-    revalidatePath(`/offers/${offerId}`)
+    revalidatePath(`/dashboard/offers/${offerId}`)
     return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke tilføje produkt til tilbud') }
@@ -1431,7 +1431,7 @@ export async function importCalculationToOffer(
       userId
     )
 
-    revalidatePath(`/offers/${offerId}`)
+    revalidatePath(`/dashboard/offers/${offerId}`)
     return { success: true, data: { importedCount: lineItems.length } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke importere kalkulation') }
@@ -1587,7 +1587,7 @@ export async function createLineItemFromSupplierProduct(
       userId
     )
 
-    revalidatePath(`/offers/${offerId}`)
+    revalidatePath(`/dashboard/offers/${offerId}`)
     return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette linje fra leverandør produkt') }
@@ -2256,7 +2256,7 @@ export async function refreshLineItemPrice(
       userId
     )
 
-    revalidatePath(`/offers/${lineItem.offer_id}`)
+    revalidatePath(`/dashboard/offers/${lineItem.offer_id}`)
     return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere pris') }
@@ -2501,7 +2501,7 @@ export async function optimizeOfferPrices(
 
     const savings = oldTotalCost - newTotalCost
 
-    revalidatePath(`/offers/${offerId}`)
+    revalidatePath(`/dashboard/offers/${offerId}`)
 
     return {
       success: true,

@@ -734,8 +734,8 @@ export async function convertCalculationToOffer(
       .update({ status: 'converted' })
       .eq('id', calculationId)
 
-    revalidatePath('/offers')
-    revalidatePath('/calculator')
+    revalidatePath('/dashboard/offers')
+    revalidatePath('/dashboard/calculations')
 
     return { success: true, data: { offer_id: offer.id } }
   } catch (err) {

@@ -226,7 +226,7 @@ ${APP_URL}/dashboard/inbox`,
       })
     }
 
-    revalidatePath('/inbox')
+    revalidatePath('/dashboard/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
     logger.error('Error in sendMessage', { error: error })
@@ -257,7 +257,7 @@ export async function markAsRead(id: string): Promise<ActionResult<Message>> {
       return { success: false, error: 'Kunne ikke markere som læst' }
     }
 
-    revalidatePath('/inbox')
+    revalidatePath('/dashboard/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
     logger.error('Error in markAsRead', { error: error })
@@ -288,7 +288,7 @@ export async function markAsUnread(id: string): Promise<ActionResult<Message>> {
       return { success: false, error: 'Kunne ikke markere som ulæst' }
     }
 
-    revalidatePath('/inbox')
+    revalidatePath('/dashboard/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
     logger.error('Error in markAsUnread', { error: error })
@@ -319,7 +319,7 @@ export async function archiveMessage(id: string): Promise<ActionResult<Message>>
       return { success: false, error: 'Kunne ikke arkivere besked' }
     }
 
-    revalidatePath('/inbox')
+    revalidatePath('/dashboard/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
     logger.error('Error in archiveMessage', { error: error })
@@ -352,7 +352,7 @@ export async function unarchiveMessage(
       return { success: false, error: 'Kunne ikke gendanne besked' }
     }
 
-    revalidatePath('/inbox')
+    revalidatePath('/dashboard/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
     logger.error('Error in unarchiveMessage', { error: error })
@@ -377,7 +377,7 @@ export async function deleteMessage(id: string): Promise<ActionResult> {
       return { success: false, error: 'Kunne ikke slette besked' }
     }
 
-    revalidatePath('/inbox')
+    revalidatePath('/dashboard/inbox')
     return { success: true }
   } catch (error) {
     logger.error('Error in deleteMessage', { error: error })

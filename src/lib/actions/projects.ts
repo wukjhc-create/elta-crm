@@ -283,7 +283,7 @@ export async function createProject(formData: FormData): Promise<ActionResult<Pr
       })
     }
 
-    revalidatePath('/projects')
+    revalidatePath('/dashboard/projects')
     return { success: true, data: data as Project }
   } catch (error) {
     logger.error('Error in createProject', { error: error })
@@ -339,8 +339,8 @@ export async function updateProject(formData: FormData): Promise<ActionResult<Pr
       return { success: false, error: 'Kunne ikke opdatere projekt' }
     }
 
-    revalidatePath('/projects')
-    revalidatePath(`/projects/${projectId}`)
+    revalidatePath('/dashboard/projects')
+    revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true, data: data as Project }
   } catch (error) {
     logger.error('Error in updateProject', { error: error })
@@ -361,7 +361,7 @@ export async function deleteProject(id: string): Promise<ActionResult> {
       return { success: false, error: 'Kunne ikke slette projekt' }
     }
 
-    revalidatePath('/projects')
+    revalidatePath('/dashboard/projects')
     return { success: true }
   } catch (error) {
     logger.error('Error in deleteProject', { error: error })
@@ -430,8 +430,8 @@ export async function updateProjectStatus(
       }
     }
 
-    revalidatePath('/projects')
-    revalidatePath(`/projects/${id}`)
+    revalidatePath('/dashboard/projects')
+    revalidatePath(`/dashboard/projects/${id}`)
     return { success: true, data: data as Project }
   } catch (error) {
     logger.error('Error in updateProjectStatus', { error: error })
@@ -481,7 +481,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<Proje
       return { success: false, error: 'Kunne ikke oprette opgave' }
     }
 
-    revalidatePath(`/projects/${validated.data.project_id}`)
+    revalidatePath(`/dashboard/projects/${validated.data.project_id}`)
     return { success: true, data: data as ProjectTask }
   } catch (error) {
     logger.error('Error in createTask', { error: error })
@@ -542,7 +542,7 @@ export async function updateTask(formData: FormData): Promise<ActionResult<Proje
       return { success: false, error: 'Kunne ikke opdatere opgave' }
     }
 
-    revalidatePath(`/projects/${projectId}`)
+    revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true, data: data as ProjectTask }
   } catch (error) {
     logger.error('Error in updateTask', { error: error })
@@ -580,7 +580,7 @@ export async function updateTaskStatus(
       return { success: false, error: 'Kunne ikke opdatere status' }
     }
 
-    revalidatePath(`/projects/${projectId}`)
+    revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true, data: data as ProjectTask }
   } catch (error) {
     logger.error('Error in updateTaskStatus', { error: error })
@@ -602,7 +602,7 @@ export async function deleteTask(id: string, projectId: string): Promise<ActionR
       return { success: false, error: 'Kunne ikke slette opgave' }
     }
 
-    revalidatePath(`/projects/${projectId}`)
+    revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true }
   } catch (error) {
     logger.error('Error in deleteTask', { error: error })
@@ -649,7 +649,7 @@ export async function createTimeEntry(
       return { success: false, error: 'Kunne ikke oprette tidsregistrering' }
     }
 
-    revalidatePath(`/projects/${validated.data.project_id}`)
+    revalidatePath(`/dashboard/projects/${validated.data.project_id}`)
     return { success: true, data: data as TimeEntry }
   } catch (error) {
     logger.error('Error in createTimeEntry', { error: error })
@@ -698,7 +698,7 @@ export async function updateTimeEntry(
       return { success: false, error: 'Kunne ikke opdatere tidsregistrering' }
     }
 
-    revalidatePath(`/projects/${projectId}`)
+    revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true, data: data as TimeEntry }
   } catch (error) {
     logger.error('Error in updateTimeEntry', { error: error })
@@ -727,7 +727,7 @@ export async function deleteTimeEntry(
       return { success: false, error: 'Kunne ikke slette tidsregistrering' }
     }
 
-    revalidatePath(`/projects/${projectId}`)
+    revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true }
   } catch (error) {
     logger.error('Error in deleteTimeEntry', { error: error })
@@ -856,7 +856,7 @@ export async function createProjectFromOffer(
       })
     }
 
-    revalidatePath('/projects')
+    revalidatePath('/dashboard/projects')
     return { success: true, data: data as Project }
   } catch (error) {
     logger.error('Error in createProjectFromOffer', { error: error })
