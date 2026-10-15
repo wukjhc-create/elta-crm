@@ -108,9 +108,19 @@ export function OrderDetailClient({
 }) {
   // Deep-link ?tab=<id> (fx fra "Mine job" -> planlaegning)
   const tabParam = useSearchParams().get('tab')
-  const [active, setActive] = useState<TabId>(
+  const [active, setActiveState] = useState<TabId>(
     TABS.some((t) => t.id === tabParam) && (tabParam !== 'oekonomi' || canSeeCost) ? (tabParam as TabId) : 'overblik'
   )
+  // W-13 (pilot-review 2026-10-15): fanen skrives i URL'en (refresh/tilbage/del-link lander på samme fane)
+  const setActive = (t: TabId) => {
+    setActiveState(t)
+    try {
+      const url = new URL(window.location.href)
+      if (t === 'overblik') url.searchParams.delete('tab')
+      else url.searchParams.set('tab', t)
+      window.history.replaceState(window.history.state, '', url.toString())
+    } catch { /* ignore */ }
+  }
 
   const customerName =
     sag.customer?.company_name || sag.customer?.contact_person || '—'
@@ -169,7 +179,8 @@ export function OrderDetailClient({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t text-sm">
           <Stat label="Type" value={sag.type ? SERVICE_CASE_TYPE_LABELS[sag.type] : '—'} />
           <Stat label="Kunde" value={customerName} />
-          <Stat label="Ansvarlig" value={creator?.full_name ?? '—'} />
+          {/* W-14: "Ansvarlig" = den tildelte (som i sagslisten), ikke opretteren */}
+          <Stat label="Ansvarlig" value={sag.assignee?.full_name ?? creator?.full_name ?? '—'} />
           <Stat label="Formand" value={formand?.name ?? '—'} />
           <Stat label="Tilbudt beløb" value={fmtAmount(sag.contract_sum)} />
           <Stat label="Revideret" value={fmtAmount(sag.revised_sum)} />

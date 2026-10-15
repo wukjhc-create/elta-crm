@@ -60,8 +60,8 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | W-10 (S3) | Lead-statusknapper tillader ugyldige skift; Rediger ikke gated | DONE — kun tilladte skift klikbare (forklaring i tooltip), knapper + Rediger kræver leads.edit. UI U27 |
 | W-11 (S3) | Leverandørsøgning: hele sætningen som én ILIKE, sorteret efter pris, "bedste pris" på tværs af forskellige varer | TODO |
 | W-12 (S3) | Tilbudseditorens søgning: race, tavse fejl, antal låst til 1 | TODO |
-| W-13 (S3) | Sags-/kundefaner ikke i URL (refresh/tilbage → Overblik) | TODO |
-| W-14 (S3) | "Ansvarlig" = opretter i sagshovedet men tildelt i listen | TODO |
+| W-13 (S3) | Sags-/kundefaner ikke i URL (refresh/tilbage → Overblik) | DONE — ?tab= skrives ved fanevalg (sag + kunde) og læses ved indlæsning. UI U166 |
+| W-14 (S3) | "Ansvarlig" = opretter i sagshovedet men tildelt i listen | DONE — hovedet viser den tildelte (opretter kun som fallback) |
 | W-15 (S3) | Advarselsnoter gemt i Noter-fanen; noter tavst begrænset til 100; små tap-mål | TODO |
 | W-16 (S3) | Faktureringsfilter tavst begrænset til 500 sager | TODO (besked) |
 | W-17 (S3) | Dokumenter på sag kan ikke slettes | [H] (sletning af kundedata/fotos — rettighed + historik) |

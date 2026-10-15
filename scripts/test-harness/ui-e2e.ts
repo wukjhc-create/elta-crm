@@ -1980,6 +1980,25 @@ ${m.text()}`) })
         out.push({ id: 'U165 sagssøgning: kundenavn + adresse', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U166 W-13: fanen står i URL'en og overlever genindlæsning (sag + kunde)
+      if (want('U166') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] faner ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /Planlægning \/ Timer/ }).first().click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(500)
+        r.sag_url = a.page.url().includes('tab=planlaegning')
+        await a.page.reload({ waitUntil: 'networkidle' }).catch(() => {})
+        r.sag_efter_reload = (await a.page.getByRole('button', { name: /Planlæg medarbejder/ }).count()) > 0
+        await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /^Sager/ }).first().click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(500)
+        r.kunde_url = a.page.url().includes('tab=sager')
+        out.push({ id: 'U166 faner i URL (sag + kunde)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U164 00231 (Henrik 2026-10-15): momsmode på kunden — admin vælger "Omvendt betalingspligt" i kundeformularen → gemt
       // + mærkat på kundesiden; nyt tilbud arver mode og viser at fakturering er blokeret
       if (want('U164')) {
