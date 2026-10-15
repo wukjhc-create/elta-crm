@@ -16,6 +16,8 @@ export type CalendarPersonalReminder = { id: string; title: string; due_at: stri
 interface CalendarPageClientProps {
   tasks: CustomerTaskWithRelations[]
   personalReminders?: CalendarPersonalReminder[]
+  /** Sat når besigtigelser eller opkald ikke kunne hentes. Tom måned må ikke ligne ingen aftaler. */
+  tasksError?: string | null
 }
 
 const WEEKDAY_NAMES = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn']
@@ -34,7 +36,7 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return day === 0 ? 6 : day - 1
 }
 
-export function CalendarPageClient({ tasks: initialTasks, personalReminders = [] }: CalendarPageClientProps) {
+export function CalendarPageClient({ tasks: initialTasks, personalReminders = [], tasksError = null }: CalendarPageClientProps) {
   const [tasks, setTasks] = useState(initialTasks)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -76,6 +78,12 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
   }, [personalReminders])
 
   const today = copenhagenParts(new Date()).date
+
+  const loadNote = tasksError ? (
+    <p className="mb-3 text-sm text-red-700" data-testid="calendar-tasks-load-error">
+      {tasksError}. Det tælles ikke som ingen aftaler.
+    </p>
+  ) : null
 
   const prevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1))
@@ -122,6 +130,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
 
   return (
     <div className="space-y-6">
+      {loadNote}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

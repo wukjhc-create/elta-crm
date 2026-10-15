@@ -99,6 +99,7 @@ export function TasksPageClient({
   const [customerLoading, setCustomerLoading] = useState(false)
   const [customerTry, setCustomerTry] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [tasksError, setTasksError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
   const [priorityFilter, setPriorityFilter] = useState<FilterPriority>('all')
@@ -126,7 +127,11 @@ export function TasksPageClient({
       }),
       getActiveProfiles(),
     ])
-    setTasks(tasksData)
+    if (tasksData.error) setTasksError(tasksData.error)
+    else {
+      setTasksError(null)
+      setTasks(tasksData.tasks)
+    }
     setProfiles(profilesData)
     setIsLoading(false)
   }, [statusFilter, priorityFilter, assignedFilter, search])
@@ -496,12 +501,17 @@ export function TasksPageClient({
       {/* Task list */}
       {/* M-4: mobil viser kort. Desktop beholder det brede gitter med vandret scroll. */}
       <div className="bg-white rounded-lg border">
+        {tasksError && (
+          <p className="px-4 py-3 text-sm text-red-700" data-testid="tasks-list-load-error">
+            {tasksError}. Det tælles ikke som ingen opgaver.
+          </p>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
             Indlæser opgaver...
           </div>
-        ) : visibleTasks.length === 0 ? (
+        ) : tasksError && tasks.length === 0 ? null : visibleTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <ClipboardCheck className="w-12 h-12 mb-3 opacity-30" />
             <p className="font-medium">

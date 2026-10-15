@@ -75,11 +75,11 @@ async function loadAgenda(dates: string[]) {
     getAllTasks({ autoRules: ASSISTANT_RULES }),
     getMyPersonalReminders().catch(() => ({ available: false as const, reminders: [] })),
   ])
-  const inspections = allTasks.filter((task) => task.title.toLowerCase().includes('besigtigelse'))
+  const inspections = allTasks.error ? [] : allTasks.tasks.filter((task) => task.title.toLowerCase().includes('besigtigelse'))
   const seen = new Set(inspections.map((task) => task.id))
   const sources: AgendaSource[] = [
     ...inspections.map((task) => taskSource(task, 'inspection')),
-    ...assistantTasks.filter((task) => !seen.has(task.id)).map((task) => taskSource(task, 'callback')),
+    ...(assistantTasks.error ? [] : assistantTasks.tasks.filter((task) => !seen.has(task.id)).map((task) => taskSource(task, 'callback'))),
     ...mine.reminders.map((reminder) => ({
       id: reminder.id,
       title: reminder.title,
@@ -88,10 +88,13 @@ async function loadAgenda(dates: string[]) {
       kind: 'reminder' as const,
     })),
   ]
-  return agendaForDates(sources, dates)
+  return {
+    items: agendaForDates(sources, dates),
+    error: allTasks.error || assistantTasks.error,
+  }
 }
 
-function taskSource(task: Awaited<ReturnType<typeof getAllTasks>>[number], kind: 'inspection' | 'callback'): AgendaSource {
+function taskSource(task: { id: string; title: string; due_date: string | null; status: string; description?: string | null; customer?: { id: string; company_name: string | null } | null }, kind: 'inspection' | 'callback'): AgendaSource {
   return {
     id: task.id,
     title: task.title,
@@ -124,14 +127,14 @@ export default async function CalendarPage({ searchParams }: PageProps) {
       getAllTasks({ search: 'besigtigelse' }),
       getAllTasks({ autoRules: ASSISTANT_RULES }),
     ])
-    const besigtigelser = allTasks.filter((t) =>
+    const besigtigelser = allTasks.error ? [] : allTasks.tasks.filter((t) =>
       t.title.toLowerCase().includes('besigtigelse')
     )
     const seen = new Set(besigtigelser.map((t) => t.id))
     // Mine personlige påmindelser (00197; tom hvor tabellen ikke findes)
     const mine = await getMyPersonalReminders().catch(() => ({ available: false, reminders: [] }))
     const personalReminders = mine.reminders.map((r) => ({ id: r.id, title: r.title, due_at: r.due_at, status: r.status }))
-    return <CalendarPageClient tasks={[...besigtigelser, ...assistantTasks.filter((t) => !seen.has(t.id))]} personalReminders={personalReminders} />
+    return <CalendarPageClient tasks={[...besigtigelser, ...(assistantTasks.error ? [] : assistantTasks.tasks.filter((t) => !seen.has(t.id)))]} personalReminders={personalReminders} tasksError={allTasks.error || assistantTasks.error} />
   }
 
   // ----- Day or Week view (work_orders × employees) -----
@@ -185,7 +188,8 @@ export default async function CalendarPage({ searchParams }: PageProps) {
         status: params.status ?? '',
       }}
       loadError={!workOrdersRes.success ? workOrdersRes.error ?? null : null}
-      agenda={agenda}
+      agenda={agenda.items}
+      agendaError={agenda.error}
     />
     </>
   )

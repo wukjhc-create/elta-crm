@@ -174,7 +174,7 @@ export async function getAllTasks(options?: {
   search?: string
   /** Kun opgaver med disse auto_rule-værdier (fx ELTA Assistant-opkald i kalenderen) */
   autoRules?: string[]
-}): Promise<CustomerTaskWithRelations[]> {
+}): Promise<{ tasks: CustomerTaskWithRelations[]; error: string | null }> {
   // Sprint 7E fix — scope tasks per rolle.
   // Montor maa kun se tasks tildelt til egen profile.id (assigned_to).
   // Andre roller (admin/serviceleder/salg/bogholderi) ser alle tasks.
@@ -187,8 +187,7 @@ export async function getAllTasks(options?: {
     userId = ctx.userId
     supabase = ctx.supabase
   } catch {
-    // Ikke logget ind — returnér tom liste.
-    return []
+    return { tasks: [], error: 'Kunne ikke hente opgaver' }
   }
 
   let query = supabase
@@ -216,7 +215,7 @@ export async function getAllTasks(options?: {
 
   // Sprint 7E — montor scope
   if (role === 'montør') {
-    if (!userId) return []
+    if (!userId) return { tasks: [], error: null }
     query = query.eq('assigned_to', userId)
   }
 
@@ -241,10 +240,10 @@ export async function getAllTasks(options?: {
 
   if (error) {
     logger.error('Failed to fetch all tasks', { error })
-    return []
+    return { tasks: [], error: 'Kunne ikke hente opgaver' }
   }
 
-  return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
+  return { tasks: await enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[]), error: null }
 }
 
 /**

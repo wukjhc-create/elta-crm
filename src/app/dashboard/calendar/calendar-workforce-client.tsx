@@ -96,6 +96,7 @@ export function CalendarWorkforceClient({
   filters,
   loadError,
   agenda,
+  agendaError = null,
 }: {
   view: CalendarView
   anchorDate: string
@@ -106,6 +107,7 @@ export function CalendarWorkforceClient({
   filters: FiltersState
   loadError: string | null
   agenda: AgendaDay[]
+  agendaError?: string | null
 }) {
   const router = useRouter()
   const { role } = useUserRole()
@@ -297,6 +299,11 @@ export function CalendarWorkforceClient({
         </button>
       </div>
 
+      {agendaError && (
+        <p className="text-sm text-red-700" data-testid="calendar-agenda-load-error">
+          {agendaError}. Det tælles ikke som ingen aftaler.
+        </p>
+      )}
       <CalendarAgenda days={agenda} />
 
       {/* Filters */}

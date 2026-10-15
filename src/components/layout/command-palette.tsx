@@ -137,8 +137,8 @@ export function CommandPalette() {
       ])
 
       // Tasks
-      if (tasksRes.status === 'fulfilled') {
-        setTaskResults(tasksRes.value.slice(0, 5).map((t: any) => ({
+      if (tasksRes.status === 'fulfilled' && !tasksRes.value.error) {
+        setTaskResults(tasksRes.value.tasks.slice(0, 5).map((t: any) => ({
           id: `task-${t.id}`,
           label: t.title,
           section: 'Opgaver',
@@ -146,6 +146,15 @@ export function CommandPalette() {
           action: () => navigate(`/dashboard/customers/${t.customer_id}`),
           keywords: [],
         })))
+      } else if (tasksRes.status === 'fulfilled' && tasksRes.value.error) {
+        setTaskResults([{
+          id: 'tasks-load-error',
+          label: `${tasksRes.value.error}. Det tælles ikke som ingen træffere.`,
+          section: 'Opgaver',
+          icon: <Circle className="w-4 h-4 text-red-500" />,
+          action: () => {},
+          keywords: [],
+        }])
       } else { setTaskResults([]) }
 
       // Customers
