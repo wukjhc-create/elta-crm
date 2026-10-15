@@ -733,8 +733,8 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
 
             {/* N25: linjer uden kostpris → DB overvurderet; hurtig-udfyld (kun kostpris-roller, ingen beløb vist) */}
             {showFinancials && offerDB.linesWithoutCost > 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between gap-3" data-testid="offer-missing-cost-banner">
-                <p className="text-sm text-blue-900">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3" data-testid="offer-missing-cost-banner">
+                <p className="text-sm text-blue-900 break-words min-w-[12rem] flex-1">
                   {offerDB.linesWithoutCost} linje{offerDB.linesWithoutCost === 1 ? '' : 'r'} uden kostpris — tælles som 0 kr, så DB er overvurderet.
                 </p>
                 {offer.status === 'draft' && (
@@ -762,15 +762,15 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
 
             {/* DB Warning Banner */}
             {isOfferRed && (
-              <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-center gap-3" data-testid="offer-lowdb-banner">
-                <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-amber-900">
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-start gap-3" data-testid="offer-lowdb-banner">
+                <div className="w-3 h-3 rounded-full bg-red-500 shrink-0 mt-1" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-amber-900 break-words">
                     {showCostDetails
                       ? `Advarsel: dækningsbidrag er ${offerDBPct}% — under minimum ${thresholds.red}%`
                       : 'Advarsel: dækningsbidraget er under minimum (vis kost/DB for detaljer)'}
                   </p>
-                  <p className="text-xs text-amber-800 mt-0.5">
+                  <p className="text-xs text-amber-800 mt-0.5 break-words">
                     Tilbuddet kan sendes, men du skal bekræfte advarslen. Tjek salgs- og indkøbspriser (linjer uden kostpris
                     tæller som 0 kr). Minimum DB ændres under Indstillinger → Kalkulation → Trafiklys.
                   </p>
@@ -780,9 +780,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
 
             {/* Line items */}
             <div className="bg-white rounded-lg border p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h2 className="text-lg font-semibold">Linjer</h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {showFinancials && <CostRevealToggle open={costOpen} onToggle={toggleCost} />}
                   <button
                     onClick={() => setShowPackagePicker(true)}
@@ -966,7 +966,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                       {optimizationResult.changes.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {optimizationResult.changes.map((c) => (
-                            <div key={c.line_id} className="text-xs text-green-600 flex items-center gap-2">
+                            <div key={c.line_id} className="text-xs text-green-600 flex flex-wrap items-center gap-2">
                               <span className={`inline-flex px-1 py-0 rounded font-bold uppercase ${
                                 c.old_supplier === 'AO' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
                               }`} style={{ fontSize: '9px' }}>{c.old_supplier}</span>
@@ -974,7 +974,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                               <span className={`inline-flex px-1 py-0 rounded font-bold uppercase ${
                                 c.new_supplier === 'AO' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
                               }`} style={{ fontSize: '9px' }}>{c.new_supplier}</span>
-                              <span className="truncate">{c.description}</span>
+                              <span className="break-words min-w-0">{c.description}</span>
                               <span className="text-green-700 font-medium ml-auto shrink-0">
                                 -{formatCurrency(c.saving, currency, 2)}
                               </span>
@@ -985,6 +985,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     </div>
                     <button
                       onClick={() => setOptimizationResult(null)}
+                      aria-label="Luk prisoptimering"
                       className="text-green-400 hover:text-green-600 shrink-0"
                     >
                       <XCircle className="w-4 h-4" />
