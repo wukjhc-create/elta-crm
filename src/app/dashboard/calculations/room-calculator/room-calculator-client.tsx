@@ -633,61 +633,61 @@ export function RoomCalculatorClient() {
           </div>
 
           {/* Time and Material Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg border p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
+            <div className="bg-white rounded-lg border p-4 min-w-0">
               <h4 className="text-sm font-semibold mb-2">Tid</h4>
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Arbejdstimer:</span>
                   <span className="font-medium">{estimate.total_labor_hours.toFixed(1)} timer</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Arbejdsdage (8t):</span>
                   <span>{Math.ceil(estimate.total_labor_hours / 8)} dage</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Arbejde (salg):</span>
-                  <span>{formatCurrency(estimate.total_labor_sale)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(estimate.total_labor_sale)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Arbejde (kost):</span>
-                  <span>{formatCurrency(estimate.total_labor_cost)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(estimate.total_labor_cost)}</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg border p-4">
+            <div className="bg-white rounded-lg border p-4 min-w-0">
               <h4 className="text-sm font-semibold mb-2">Materialer</h4>
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Materialekostpris:</span>
-                  <span className="font-medium">{formatCurrency(estimate.total_material_cost)}</span>
+                  <span className="font-medium min-w-0 break-words">{formatCurrency(estimate.total_material_cost)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Kabel (total):</span>
                   <span>{Math.round(estimate.total_cable_meters)} m</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Overhead:</span>
-                  <span>{formatCurrency(estimate.overhead_amount)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(estimate.overhead_amount)}</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg border p-4">
+            <div className="bg-white rounded-lg border p-4 min-w-0">
               <h4 className="text-sm font-semibold mb-2">El-tavle</h4>
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Grupper:</span>
                   <span className="font-medium">{estimate.panel_requirements.total_groups_needed}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">HPFI grupper:</span>
                   <span>{estimate.panel_requirements.rcd_groups_needed}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Tavleomk.:</span>
-                  <span>{formatCurrency(estimate.panel_requirements.estimated_panel_cost)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(estimate.panel_requirements.estimated_panel_cost)}</span>
                 </div>
               </div>
             </div>
