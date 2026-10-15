@@ -171,8 +171,12 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Aktive Leads"
-          value={stats.leads.total - stats.leads.won - stats.leads.lost}
-          subtitle={stats.leads.total === 0 ? 'Ingen leads endnu' : `${stats.leads.conversionRate}% konvertering`}
+          value={stats.loadErrors.leads ? '—' : (stats.leads.total - stats.leads.won - stats.leads.lost)}
+          subtitle={
+            stats.loadErrors.leads
+              ? 'Kunne ikke hente leads. Det tælles ikke som 0.'
+              : stats.leads.total === 0 ? 'Ingen leads endnu' : `${stats.leads.conversionRate}% konvertering`
+          }
           icon={Users}
           iconColor="text-blue-600"
           iconBgColor="bg-blue-100"
@@ -180,8 +184,12 @@ export default async function DashboardPage() {
         />
         <StatCard
           title="Kunder"
-          value={stats.customers.active}
-          subtitle={stats.customers.active === 0 && stats.customers.new_this_month === 0 ? 'Ingen kunder endnu' : `${stats.customers.new_this_month} nye denne måned`}
+          value={stats.loadErrors.customers ? '—' : stats.customers.active}
+          subtitle={
+            stats.loadErrors.customers
+              ? 'Kunne ikke hente kunder. Det tælles ikke som 0.'
+              : stats.customers.active === 0 && stats.customers.new_this_month === 0 ? 'Ingen kunder endnu' : `${stats.customers.new_this_month} nye denne måned`
+          }
           icon={Building2}
           iconColor="text-green-600"
           iconBgColor="bg-green-100"
@@ -189,8 +197,12 @@ export default async function DashboardPage() {
         />
         <StatCard
           title="Afventende Tilbud"
-          value={stats.offers.sent + stats.offers.viewed}
-          subtitle={stats.offers.sent + stats.offers.viewed === 0 && stats.offers.pending_value === 0 ? 'Ingen tilbud afventer svar' : formatCurrency(stats.offers.pending_value)}
+          value={stats.loadErrors.offers ? '—' : (stats.offers.sent + stats.offers.viewed)}
+          subtitle={
+            stats.loadErrors.offers
+              ? 'Kunne ikke hente tilbud. Det tælles ikke som 0.'
+              : stats.offers.sent + stats.offers.viewed === 0 && stats.offers.pending_value === 0 ? 'Ingen tilbud afventer svar' : formatCurrency(stats.offers.pending_value)
+          }
           icon={FileText}
           iconColor="text-purple-600"
           iconBgColor="bg-purple-100"
@@ -198,8 +210,14 @@ export default async function DashboardPage() {
         />
         <StatCard
           title="Aktive Sager"
-          value={stats.cases.active}
-          subtitle={stats.cases.active === 0 && stats.cases.total_hours === 0 ? 'Ingen aktive sager' : `${stats.cases.total_hours}t registreret`}
+          value={stats.loadErrors.cases ? '—' : stats.cases.active}
+          subtitle={
+            stats.loadErrors.cases
+              ? 'Kunne ikke hente sager. Det tælles ikke som 0.'
+              : stats.loadErrors.hours
+              ? 'Kunne ikke hente timer. Det tælles ikke som 0.'
+              : stats.cases.active === 0 && stats.cases.total_hours === 0 ? 'Ingen aktive sager' : `${stats.cases.total_hours}t registreret`
+          }
           icon={FolderKanban}
           iconColor="text-orange-600"
           iconBgColor="bg-orange-100"
@@ -211,24 +229,38 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
           title="Accepterede Tilbud"
-          value={stats.offers.accepted}
-          subtitle={stats.offers.accepted === 0 && stats.offers.accepted_value === 0 ? 'Ingen accepterede tilbud' : formatCurrency(stats.offers.accepted_value)}
+          value={stats.loadErrors.offers ? '—' : stats.offers.accepted}
+          subtitle={
+            stats.loadErrors.offers
+              ? 'Kunne ikke hente tilbud. Det tælles ikke som 0.'
+              : stats.offers.accepted === 0 && stats.offers.accepted_value === 0 ? 'Ingen accepterede tilbud' : formatCurrency(stats.offers.accepted_value)
+          }
           icon={TrendingUp}
           iconColor="text-green-600"
           iconBgColor="bg-green-100"
         />
         <StatCard
           title="Fakturerbare Timer"
-          value={`${stats.cases.billable_hours}t`}
-          subtitle={`af ${stats.cases.total_hours}t total`}
+          value={stats.loadErrors.hours ? '—' : `${stats.cases.billable_hours}t`}
+          subtitle={
+            stats.loadErrors.hours
+              ? 'Kunne ikke hente timer. Det tælles ikke som 0.'
+              : `af ${stats.cases.total_hours}t total`
+          }
           icon={Clock}
           iconColor="text-cyan-600"
           iconBgColor="bg-cyan-100"
         />
         <StatCard
           title="Ulæste Kundemails"
-          value={stats.customerEmails.unread}
-          subtitle={stats.messages.unread > 0 ? `+ ${stats.messages.unread} interne` : undefined}
+          value={stats.loadErrors.emails ? '—' : stats.customerEmails.unread}
+          subtitle={
+            stats.loadErrors.emails
+              ? 'Kunne ikke hente mails. Det tælles ikke som 0.'
+              : stats.loadErrors.messages
+              ? 'Kunne ikke hente beskeder. Det tælles ikke som 0.'
+              : stats.messages.unread > 0 ? `+ ${stats.messages.unread} interne` : undefined
+          }
           icon={Mail}
           iconColor="text-blue-600"
           iconBgColor="bg-blue-100"
@@ -319,6 +351,7 @@ export default async function DashboardPage() {
               lost: stats.leads.lost,
             }}
             conversionRate={stats.leads.conversionRate}
+            loadError={stats.loadErrors.leads ? 'Kunne ikke hente leads' : null}
           />
         </div>
 

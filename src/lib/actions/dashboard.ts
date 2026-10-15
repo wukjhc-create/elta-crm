@@ -47,6 +47,16 @@ export interface DashboardStats {
   customerEmails: {
     unread: number
   }
+  /** Sand når den tilhørende forespørgsel fejlede. Tallene er da ikke et rigtigt 0. */
+  loadErrors: {
+    leads: boolean
+    customers: boolean
+    offers: boolean
+    cases: boolean
+    hours: boolean
+    messages: boolean
+    emails: boolean
+  }
 }
 
 export interface RecentActivity {
@@ -64,6 +74,15 @@ function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] 
   return fetchAllRows(page).catch(() => [] as T[])
 }
 
+/** Samme sidevisning som allRows, men fejlen skjules ikke som en tom liste. */
+async function rowsOrFail<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<{ rows: T[]; failed: boolean }> {
+  try {
+    return { rows: await fetchAllRows(page), failed: false }
+  } catch {
+    return { rows: [], failed: true }
+  }
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   const { supabase, userId } = await getAuthenticatedClient()
 
@@ -78,15 +97,15 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     customerEmailsResult,
   ] = await Promise.all([
     // Rækker hentes side for side — PostgREST giver højst 1.000 pr. kald (N36-rest: tallene stod stille ved 1.000)
-    allRows<{ status: string }>((f, t) => supabase.from('leads').select('id, status').order('id').range(f, t)),
-    allRows<{ is_active: boolean; created_at: string }>((f, t) => supabase.from('customers').select('id, is_active, created_at').order('id').range(f, t)),
+    rowsOrFail<{ status: string }>((f, t) => supabase.from('leads').select('id, status').order('id').range(f, t)),
+    rowsOrFail<{ is_active: boolean; created_at: string }>((f, t) => supabase.from('customers').select('id, is_active, created_at').order('id').range(f, t)),
     // Rapport-review 2026-10-09 (#2): værdi ekskl. moms efter rabat (final − tax) — total_amount er subtotal før rabat
-    allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).order('id').range(f, t)),
+    rowsOrFail<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).order('id').range(f, t)),
     // N36: sager (ikke gamle projekter)
     // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
     supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")'),
     // N36: afsluttede timeregistreringer (time_logs — ikke gamle time_entries)
-    allRows<{ hours: number | string | null; billable: boolean | null }>((f, t) => supabase.from('time_logs').select('id, hours, billable').not('end_time', 'is', null).neq('approval_status', 'rejected').order('id').range(f, t)),
+    rowsOrFail<{ hours: number | string | null; billable: boolean | null }>((f, t) => supabase.from('time_logs').select('id, hours, billable').not('end_time', 'is', null).neq('approval_status', 'rejected').order('id').range(f, t)),
     // Unread messages for current user
     supabase
       .from('messages')
@@ -103,11 +122,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .not('customer_id', 'is', null),
   ])
 
-  const leads = leadsResult
-  const customers = customersResult
-  const offers = offersResult
-  const activeCases = projectsResult.count || 0
-  const timeEntries = timeEntriesResult
+  const leads = leadsResult.rows
+  const customers = customersResult.rows
+  const offers = offersResult.rows
+  const casesFailed = !!projectsResult.error
+  const activeCases = casesFailed ? 0 : (projectsResult.count || 0)
+  const timeEntries = timeEntriesResult.rows
+  const messagesFailed = !!messagesResult.error
+  const emailsFailed = !!customerEmailsResult.error
 
   // Calculate leads stats
   const leadsByStatus = leads.reduce(
@@ -194,10 +216,19 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       billable_hours: billableHours,
     },
     messages: {
-      unread: messagesResult.count || 0,
+      unread: messagesFailed ? 0 : (messagesResult.count || 0),
     },
     customerEmails: {
-      unread: customerEmailsResult.count || 0,
+      unread: emailsFailed ? 0 : (customerEmailsResult.count || 0),
+    },
+    loadErrors: {
+      leads: leadsResult.failed,
+      customers: customersResult.failed,
+      offers: offersResult.failed,
+      cases: casesFailed,
+      hours: timeEntriesResult.failed,
+      messages: messagesFailed,
+      emails: emailsFailed,
     },
   }
 }

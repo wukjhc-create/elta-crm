@@ -12,6 +12,8 @@ interface LeadsPipelineProps {
     lost: number
   }
   conversionRate: number
+  /** Sat når lead-hentningen fejlede. 0 % må ikke ligne en rigtig rate. */
+  loadError?: string | null
 }
 
 const STAGES = [
@@ -24,7 +26,15 @@ const STAGES = [
   { key: 'lost', label: 'Tabt', color: 'bg-red-500' },
 ] as const
 
-export function LeadsPipeline({ data, conversionRate }: LeadsPipelineProps) {
+export function LeadsPipeline({ data, conversionRate, loadError = null }: LeadsPipelineProps) {
+  if (loadError) {
+    return (
+      <p className="text-sm text-red-700" data-testid="leads-pipeline-load-error">
+        {loadError}. Det tælles ikke som 0.
+      </p>
+    )
+  }
+
   const total = Object.values(data).reduce((sum, val) => sum + val, 0)
   const maxValue = Math.max(...Object.values(data), 1)
 
