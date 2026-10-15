@@ -174,6 +174,8 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
 
   const handleSend = () => {
     if (!isDraft) return
+    // B-1 (pilot-review 2026-10-15): statusskift uden mail bekræftes (sætter forfaldsdato og låser kladden)
+    if (!window.confirm(`Markér faktura ${inv.invoice_number} som sendt UDEN at sende mail?\n\nKunden får ikke fakturaen fra CRM'et — send den selv.`)) return
     setBusy('send')
     startTransition(async () => {
       const r = await markInvoiceSentAction(inv.id)
@@ -185,10 +187,15 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
 
   const handlePay = () => {
     if (!isSent) return
-    const reference = window.prompt('Betalingsreference (valgfri)') ?? null
+    // B-1 (pilot-review 2026-10-15): "Annuller" afbryder — før blev fakturaen alligevel markeret betalt (kan ikke fortrydes)
+    const reference = window.prompt(
+      `Markér faktura ${inv.invoice_number} (${fmtKr(inv.final_amount, inv.currency)}) som betalt? Kan ikke fortrydes.\n\nBetalingsreference (valgfri) — tryk OK for at registrere, Annuller for at afbryde:`,
+      '',
+    )
+    if (reference === null) return
     setBusy('pay')
     startTransition(async () => {
-      const r = await markInvoicePaidAction(inv.id, reference || null)
+      const r = await markInvoicePaidAction(inv.id, reference.trim() || null)
       setBusy(null)
       flash(r.ok, r.message)
       if (r.ok) await refresh()

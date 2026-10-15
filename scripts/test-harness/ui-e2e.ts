@@ -1394,6 +1394,11 @@ ${m.text()}`) })
           total_amount: 800, tax_amount: 200, final_amount: 1000, due_date: new Date().toISOString().slice(0, 10) }]).select('id')
         u29InvoiceId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
         await gotoSafe(a.page, `${base}/dashboard/invoices/${u29InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        // B-1: "Annuller" i prompten må IKKE markere betalt
+        a.page.once('dialog', (d) => d.dismiss().catch(() => {}))
+        await a.page.getByRole('button', { name: /Markér som betalt/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.waitForTimeout(2000)
+        r.annuller_ikke_betalt = ((await c.admin.from('invoices').select('status').eq('id', u29InvoiceId ?? '').maybeSingle()).data as { status?: string } | null)?.status === 'sent'
         a.page.once('dialog', (d) => d.accept(`REF-${stamp}`).catch(() => {}))
         await a.page.getByRole('button', { name: /Markér som betalt/ }).first().click({ timeout: 60_000 }).catch(() => {})
         type InvRow = { status?: string; payment_status?: string }
@@ -2454,10 +2459,13 @@ ${m.text()}`) })
         await new Promise((res) => setTimeout(res, 4000))
         r.annulleret_forbliver_kladde = (await readStatus()) === 'draft'
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
-        a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+        // S-1: "Sendt" bekræftes først ("uden at sende"), derefter lav-DB-bekræftelsen — begge accepteres
+        const acceptAll = (d: { accept: () => Promise<void> }) => { d.accept().catch(() => {}) }
+        a.page.on('dialog', acceptAll)
         await a.page.getByRole('button', { name: 'Sendt', exact: true }).first().click({ timeout: 30_000 }).catch(() => {})
         let st: string | undefined
         for (let i = 0; i < 20; i++) { st = await readStatus(); if (st === 'sent') break; await new Promise((res) => setTimeout(res, 1000)) }
+        a.page.off('dialog', acceptAll)
         r.bekraeftet_markeret_sendt = st === 'sent'
         // audit skrives efter statusopdateringen — poll
         let audOk = false
@@ -2943,6 +2951,15 @@ ${m.text()}`) })
           if (!photoOk) await new Promise((res) => setTimeout(res, 1000))
         }
         r.aflevering_foto = photoOk
+        // M-1: tryk på slet + "Annuller" må ikke slette fotoet (før: ét tryk på fotoet slettede uden bekræftelse)
+        if (photoOk) {
+          await m.page.waitForLoadState('networkidle').catch(() => {})
+          m.page.once('dialog', (d) => { d.dismiss().catch(() => {}) })
+          await hov.getByTestId('checklist-photo-delete').first().click({ timeout: 30_000 }).catch(() => {})
+          await new Promise((res) => setTimeout(res, 2000))
+          const att2 = (await c.admin.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', jobCaseId).eq('category', 'inverter_photo')).count ?? 0
+          r.foto_slet_kraever_bekraeftelse = att2 === 1
+        }
         await m.page.getByTestId('handover-open-signature').click({ timeout: 30_000 }).catch(() => {})
         await m.page.getByPlaceholder('Fulde navn').fill('Kunde Harness').catch(() => {})
         // Tegn på lærredet: rul det i visning og læs positionen lige før (under last flyttede layoutet sig,

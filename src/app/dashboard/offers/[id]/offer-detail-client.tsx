@@ -79,6 +79,7 @@ import { getOfferActivities } from '@/lib/actions/offer-activities'
 import { useToast } from '@/components/ui/toast'
 import {
   OFFER_STATUSES,
+  isValidOfferTransition,
   OFFER_STATUS_LABELS,
   type OfferWithRelations,
   type OfferLineItem,
@@ -259,7 +260,28 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     }
   }
 
+  // S-1 (pilot-review 2026-10-15): statusskift bekræftes — "Sendt" sender ingen mail, "Accepteret" er endeligt (vinder
+  // leadet og opretter sag), og der kan ikke dobbeltklikkes
+  const [statusBusy, setStatusBusy] = useState(false)
+  const STATUS_CONFIRM: Partial<Record<OfferStatus, string>> = {
+    sent: 'Markér tilbuddet som sendt UDEN at sende det?\n\nKunden får intet — brug "Send Tilbud" for at sende på mail/portal.',
+    accepted: 'Markér tilbuddet som accepteret?\n\nDet er endeligt: leadet markeres vundet, og der oprettes en sag. Ændringer kræver et nyt tilbud.',
+    rejected: 'Markér tilbuddet som afvist?',
+    expired: 'Markér tilbuddet som udløbet?',
+    draft: 'Sæt tilbuddet tilbage til kladde?',
+  }
   const handleStatusChange = async (newStatus: OfferStatus) => {
+    if (statusBusy) return
+    const question = STATUS_CONFIRM[newStatus]
+    if (question && !window.confirm(question)) return
+    setStatusBusy(true)
+    try {
+      await doStatusChange(newStatus)
+    } finally {
+      setStatusBusy(false)
+    }
+  }
+  const doStatusChange = async (newStatus: OfferStatus) => {
     let result = await updateOfferStatus(offer.id, newStatus)
     // N8a: lav DB er en advarsel — bekræft og prøv igen
     if (!result.success && result.error?.startsWith(LOW_DB_ACK_REQUIRED)) {
@@ -746,11 +768,12 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 Opdater status
               </h3>
               <div className="flex flex-wrap gap-2">
-                {OFFER_STATUSES.map((status) => (
+                {/* S-1: kun nuværende + tilladte skift (før: alle — ugyldige fejlede først efter klik); "Set" sættes af portalen */}
+                {OFFER_STATUSES.filter((status) => status === offer.status || (status !== 'viewed' && isValidOfferTransition(offer.status as OfferStatus, status))).map((status) => (
                   <button
                     key={status}
                     onClick={() => handleStatusChange(status)}
-                    disabled={offer.status === status}
+                    disabled={offer.status === status || statusBusy}
                     className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
                       offer.status === status
                         ? 'bg-primary text-primary-foreground border-primary'

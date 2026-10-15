@@ -99,7 +99,8 @@ export function CompletionChecklist({
                   type="button"
                   onClick={() => onToggle(item.key, !item.completed)}
                   disabled={disabled || (isPhoto && itemAttachments.length === 0)}
-                  className="shrink-0"
+                  className="shrink-0 -m-2 p-2"
+                  aria-label={item.completed ? `Fjern flueben: ${item.label}` : `Markér udført: ${item.label}`}
                 >
                   {item.completed ? (
                     <CheckCircle className="w-5 h-5 text-green-500" />
@@ -121,7 +122,6 @@ export function CompletionChecklist({
                       ref={(el) => { fileInputRefs.current[item.key] = el }}
                       type="file"
                       accept="image/*"
-                      capture="environment"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0]
@@ -140,7 +140,7 @@ export function CompletionChecklist({
                       ) : (
                         <Camera className="w-3.5 h-3.5" />
                       )}
-                      {isUploading ? 'Uploader...' : 'Tag foto'}
+                      {isUploading ? 'Uploader...' : 'Foto'}
                     </button>
                   </>
                 )}
@@ -150,15 +150,21 @@ export function CompletionChecklist({
               {itemAttachments.length > 0 && (
                 <div className="mt-2 ml-8 flex gap-2 flex-wrap">
                   {itemAttachments.map((att) => (
-                    <div key={att.id} className="relative group w-16 h-16 rounded-md overflow-hidden border">
-                      <img src={att.file_url} alt={att.file_name} className="w-full h-full object-cover" />
+                    <div key={att.id} className="relative w-16 h-16 rounded-md overflow-hidden border">
+                      {/* M-1 (pilot-review 2026-10-15): tryk på fotoet åbner det — før slettede et tryk fotoet uden
+                          bekræftelse (skraldespanden var kun synlig ved hover, som ikke findes på telefon) */}
+                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+                        <img src={att.file_url} alt={att.file_name} className="w-full h-full object-cover" />
+                      </a>
                       {onDeleteAttachment && !disabled && (
                         <button
                           type="button"
-                          onClick={() => onDeleteAttachment(att.id)}
-                          className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-colors"
+                          onClick={() => { if (window.confirm('Slet foto?')) onDeleteAttachment(att.id) }}
+                          className="absolute top-0 right-0 w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-bl-md"
+                          aria-label="Slet foto"
+                          data-testid="checklist-photo-delete"
                         >
-                          <Trash2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -189,7 +195,8 @@ export function CompletionChecklist({
                       type="button"
                       onClick={() => onToggle(item.key, !item.completed)}
                       disabled={disabled}
-                      className="shrink-0"
+                      className="shrink-0 -m-2 p-2"
+                      aria-label={item.completed ? `Fjern flueben: ${item.label}` : `Markér udført: ${item.label}`}
                     >
                       {item.completed ? (
                         <CheckCircle className="w-5 h-5 text-green-500" />
@@ -206,7 +213,6 @@ export function CompletionChecklist({
                           ref={(el) => { fileInputRefs.current[item.key] = el }}
                           type="file"
                           accept="image/*"
-                          capture="environment"
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0]
@@ -229,9 +235,9 @@ export function CompletionChecklist({
                   {itemAttachments.length > 0 && (
                     <div className="mt-2 ml-8 flex gap-2 flex-wrap">
                       {itemAttachments.map((att) => (
-                        <div key={att.id} className="relative group w-16 h-16 rounded-md overflow-hidden border">
+                        <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer" className="relative block w-16 h-16 rounded-md overflow-hidden border">
                           <img src={att.file_url} alt={att.file_name} className="w-full h-full object-cover" />
-                        </div>
+                        </a>
                       ))}
                     </div>
                   )}

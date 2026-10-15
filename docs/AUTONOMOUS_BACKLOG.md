@@ -48,7 +48,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-17 (pilot-review-bølge 2026-10-15 nat — montør/serviceleder, kontor/bogholderi, salg)
 | # | Fund | Status |
 |---|---|---|
-| M-1 (S1) | Tryk på afleveringsfoto sletter det uden bekræftelse (hover-skraldespand findes ikke på telefon) | TODO |
+| M-1 (S1) | Tryk på afleveringsfoto sletter det uden bekræftelse (hover-skraldespand findes ikke på telefon) | DONE — tryk åbner fotoet; synlig 32 px slet-knap med "Slet foto?". UI U11 (annuller → foto bevaret) |
 | M-2 (S2) | Fejlet underskrift lukker paden (tegningen tabt); canvas skaleres ikke ved rotation | TODO |
 | M-3 (S2) | Timeformularen beholder gårsdagens dato når fanen står åben natten over | TODO |
 | M-4 (S2) | Anden "kun timer"-registrering samme dag fejler som overlap (start altid 08:00) | TODO |
@@ -58,9 +58,9 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | M-8 (S3) | Montøren ser ikke starttid/estimat på sine job | TODO |
 | M-9 (S3) | N+1: hver arbejdsordre henter egne timer + medarbejderliste; fejl på medarbejderliste tavs | TODO |
 | M-10 (S3) | Små tap-mål (Start/Afslut/Annullér, Registrér timer, Ret/Slet, tjekliste-flueben) | TODO |
-| M-11 (S3) | Tjeklistefoto kun via kamera (capture) — kan ikke vælge fra galleri | TODO |
+| M-11 (S3) | Tjeklistefoto kun via kamera (capture) — kan ikke vælge fra galleri | DONE — capture fjernet (telefonen tilbyder kamera eller galleri); knap "Foto" |
 | M-12 (S4) | Kalender: fravær-hentefejl tavs; tidsgodkendelse 500-loft uden besked | TODO |
-| B-1 (S1) | "Annuller" på betalingsreference-prompten markerer alligevel fakturaen betalt (irreversibelt); send uden mail uden bekræftelse | TODO |
+| B-1 (S1) | "Annuller" på betalingsreference-prompten markerer alligevel fakturaen betalt (irreversibelt); send uden mail uden bekræftelse | DONE — Annuller afbryder (prompten viser nr./beløb og "kan ikke fortrydes"); "Markér som sendt (uden mail)" bekræftes. UI U29 (annuller → stadig sendt) |
 | B-2 (S2) | Fakturaoversigten henter kun 500 nyeste uden besked; summeringskort regnes på det beskårne udsnit | TODO |
 | B-3 (S2) | Tre forskellige "udestående" (widget trækker indbetalt/kreditnota fra, oversigt/kundekort/badge gør ikke); kundeoversigt loft 200, badge 500 uden order | TODO |
 | B-4 (S3) | "Betalt denne måned" på browserens måned vs. UTC paid_at | TODO |
@@ -71,7 +71,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | B-9 (S2) | Rapporter: "Omsætning" og "Top kunder" er accepterede tilbud, ikke fakturering | TODO |
 | B-10 (S3) | Dashboard henter alle rækker for at tælle; fejl → 0 uden advarsel | TODO |
 | B-11 (S3) | "+ Opret test-leverandørfaktura" synlig i prod og kobler til rigtig sag; forældet engelsk tekst | TODO |
-| S-1 (S2) | Tilbudsstatus-piller: ét klik "Sendt" (ingen mail) og irreversibel "Accepteret" (vinder lead + opretter sag) uden bekræftelse | TODO |
+| S-1 (S2) | Tilbudsstatus-piller: ét klik "Sendt" (ingen mail) og irreversibel "Accepteret" (vinder lead + opretter sag) uden bekræftelse | DONE — kun nuværende + tilladte skift vises ("Set" sættes af portalen), alle skift bekræftes med konsekvens, låst mens det kører. UI U60 |
 | S-2 (S3) | Inline-redigering af leverandørlinje overskriver supplier_cost_price_at_creation; avance 0 → null | TODO |
 | S-3 (S3) | Dashboard "Samlet værdi" = 5 nyeste, før rabat — afviger fra stat-kortet | TODO |
 | S-4 (S3) | Lead-kanban taber leads efter 500 (lukkede fylder) | TODO |
