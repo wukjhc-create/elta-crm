@@ -1,7 +1,7 @@
 'use client'
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   CalendarCheck,
   CheckCircle,
@@ -34,16 +34,35 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
   const [bookings, setBookings] = useState<PortalBesigtigelse[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const bookingsKey = useRef<string | null>(null)
+  const requestId = useRef(0)
 
   const loadBookings = () => {
+    const term = token
+    const id = ++requestId.current
     setLoading(true)
     setLoadError(null)
-    getPortalBesigtigelser(token).then((res) => {
-      if (res.success) setBookings(res.data ?? [])
-      else setLoadError(res.error ?? 'Kunne ikke hente besigtigelser')
+    getPortalBesigtigelser(term).then((res) => {
+      if (requestId.current !== id) return
+      if (res.success) {
+        setBookings(res.data ?? [])
+        bookingsKey.current = term
+        setLoadError(null)
+      } else if (bookingsKey.current === term) {
+        setLoadError(res.error ?? 'Kunne ikke hente besigtigelser')
+      } else {
+        setBookings([])
+        setLoadError(res.error ?? 'Kunne ikke hente besigtigelser')
+      }
       setLoading(false)
     }).catch(() => {
-      setLoadError('Kunne ikke hente besigtigelser')
+      if (requestId.current !== id) return
+      if (bookingsKey.current === term) {
+        setLoadError('Kunne ikke hente besigtigelser')
+      } else {
+        setBookings([])
+        setLoadError('Kunne ikke hente besigtigelser')
+      }
       setLoading(false)
     })
   }
@@ -129,8 +148,8 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
 
       <div className="p-6 space-y-4">
         {loadError && (
-          <p className="text-sm text-red-700" data-testid="portal-besigtigelse-load-error">
-            {loadError}. Det tælles ikke som ingen besigtigelser.{' '}
+          <p className="text-sm text-red-700 break-words" data-testid="portal-besigtigelse-stale-error">
+            {loadError}. De tidligere besigtigelser bliver.{' '}
             <button type="button" onClick={loadBookings} className="min-h-[44px] px-3 font-medium underline">
               Prøv igen
             </button>
