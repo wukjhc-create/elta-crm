@@ -317,7 +317,7 @@ export function AuditLogClient() {
                       <div className="min-w-0">
                         <span className="text-xs text-gray-500">{getEntityLabel(entry.entity_type)}</span>
                         {entry.entity_name && (
-                          <p className="text-sm font-medium text-gray-900 truncate">{entry.entity_name}</p>
+                          <p className="text-sm font-medium text-gray-900 line-clamp-2 break-words">{entry.entity_name}</p>
                         )}
                       </div>
                     </div>
@@ -325,7 +325,7 @@ export function AuditLogClient() {
                     {/* User */}
                     <div className="col-span-2 flex items-center gap-2 min-w-0">
                       <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                      <span className="text-sm text-gray-700 truncate">
+                      <span className="text-sm text-gray-700 line-clamp-2 break-words">
                         {entry.user_name || entry.user_email || 'System'}
                       </span>
                     </div>
@@ -357,7 +357,7 @@ export function AuditLogClient() {
                       {entry.action_description && (
                         <div>
                           <h4 className="text-xs font-medium text-gray-500 mb-1">Beskrivelse</h4>
-                          <p className="text-sm text-gray-700">{entry.action_description}</p>
+                          <p className="text-sm text-gray-700 break-words">{entry.action_description}</p>
                         </div>
                       )}
 
