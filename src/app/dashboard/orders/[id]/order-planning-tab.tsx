@@ -18,6 +18,7 @@ import { getCaseLaborCostTotal, listTimeLogsForCase } from '@/lib/actions/time-l
 import type { WorkOrderStatus } from '@/types/workforce.types'
 import { WorkOrderTimeLogs } from './work-order-time-logs'
 import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
+import { planningLoadView } from '@/lib/planning/planning-load-view'
 
 const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   planned: 'Planlagt',
@@ -96,6 +97,7 @@ export function OrderPlanningTab({
   const [formDescription, setFormDescription] = useState('')
 
   const reload = async () => {
+    try {
     const [woRes, empRes, logsRes, costRes] = await Promise.all([
       listWorkOrdersForCase(caseId),
       getEmployeesForOrderSelect(),
@@ -103,8 +105,10 @@ export function OrderPlanningTab({
       // D50: aggregeret kost fra serveren (rækkerne har ingen kost uden løn-adgang)
       canSeeCost ? getCaseLaborCostTotal(caseId) : Promise.resolve(null),
     ])
-    if (woRes.success && woRes.data) setWorkOrders(woRes.data)
-    else setError(woRes.error || 'Kunne ikke hente arbejdsordrer')
+    if (woRes.success && woRes.data) {
+      setWorkOrders(woRes.data)
+      setError(null)
+    } else setError(woRes.error || 'Kunne ikke hente arbejdsordrer')
     if (empRes.success && empRes.data) setEmployees(empRes.data)
     if (logsRes.success && logsRes.data) {
       const logs = logsRes.data
@@ -121,6 +125,9 @@ export function OrderPlanningTab({
           0
         ),
       })
+    }
+    } catch {
+      setError('Kunne ikke hente arbejdsordrer')
     }
   }
 
@@ -202,6 +209,21 @@ export function OrderPlanningTab({
     startTransition(() => router.refresh())
   }
 
+  const loadView = planningLoadView(workOrders !== null, error)
+  if (loadView === 'failed') {
+    return (
+      <div className="py-6 text-center">
+        <p className="text-sm text-red-800">Kunne ikke hente arbejdsordrer. Det tælles ikke som en tom plan.</p>
+        <button
+          type="button"
+          onClick={() => void reload()}
+          className="mt-3 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+        >
+          Prøv igen
+        </button>
+      </div>
+    )
+  }
   if (workOrders === null) {
     return <div className="text-sm text-gray-500 py-6 text-center">Henter planlagte arbejdsordrer…</div>
   }
