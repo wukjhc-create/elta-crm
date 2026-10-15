@@ -94,7 +94,8 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
     return (
       <div className="bg-white rounded-lg border p-6">
         <h2 className="text-lg font-semibold mb-4">Aktivitetsoversigt</h2>
-        <p className="text-gray-500 text-center py-4">Ingen aktivitet endnu</p>
+        <p className="text-gray-700 text-center py-2">Ingen tilbud, sager eller leads på kunden endnu</p>
+        <p className="text-xs text-gray-500 text-center">De vises her, når de oprettes på kunden.</p>
       </div>
     )
   }

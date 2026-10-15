@@ -411,9 +411,10 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Aktivitetslog</h2>
               {activities.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">
-                  Ingen aktiviteter endnu
-                </p>
+                <>
+                  <p className="text-gray-700 text-center py-2">Ingen aktiviteter endnu</p>
+                  <p className="text-xs text-gray-500 text-center">Noter og statusskift lander her.</p>
+                </>
               ) : (
                 <div className="space-y-4">
                   {activities.map((activity) => (
