@@ -260,14 +260,14 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
             )}
 
             {/* Progress Cards */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 min-w-0">
               {/* Hours */}
-              <div className="bg-white border rounded-lg p-4">
+              <div className="bg-white border rounded-lg p-4 min-w-0">
                 <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                  <Clock className="w-4 h-4" />
+                  <Clock className="w-4 h-4 shrink-0" />
                   <span className="text-sm font-medium">Timer</span>
                 </div>
-                <div className={`text-2xl font-bold ${isOverTime ? 'text-red-600' : ''}`}>
+                <div className={`text-2xl font-bold break-words ${isOverTime ? 'text-red-600' : ''}`}>
                   {project.actual_hours}t
                   {project.estimated_hours && (
                     <span className="text-muted-foreground font-normal">
@@ -293,12 +293,12 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
               </div>
 
               {/* Budget */}
-              <div className="bg-white border rounded-lg p-4">
+              <div className="bg-white border rounded-lg p-4 min-w-0">
                 <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                  <DollarSign className="w-4 h-4" />
+                  <DollarSign className="w-4 h-4 shrink-0" />
                   <span className="text-sm font-medium">Budget</span>
                 </div>
-                <div className={`text-2xl font-bold ${isOverBudget ? 'text-red-600' : ''}`}>
+                <div className={`text-2xl font-bold break-words ${isOverBudget ? 'text-red-600' : ''}`}>
                   {formatBudget(project.actual_cost)}
                   {project.budget && (
                     <span className="text-muted-foreground font-normal">
