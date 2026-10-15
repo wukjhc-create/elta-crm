@@ -1,6 +1,6 @@
 /** Mobilkort på leverandørfaktura-listen. Kør: npx tsx scripts/incoming-invoices-mobile-test.ts */
 import fs from 'fs'
-import { incomingInvoiceStatusLabel } from '../src/lib/invoices/incoming-invoice-status'
+import { incomingInvoiceParseStatusLabel, incomingInvoiceSourceLabel, incomingInvoiceStatusLabel } from '../src/lib/invoices/incoming-invoice-status'
 
 let fail = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -44,6 +44,15 @@ eq('kraever gennemgang bliver', text.includes('Kræver gennemgang'), true)
 const detail = fs.readFileSync('src/app/dashboard/incoming-invoices/[id]/detail-client.tsx', 'utf8')
 eq('detaljen viser etiketten', detail.includes('incomingInvoiceStatusLabel(value)'), true)
 eq('handlingsteksten er dansk', detail.includes("incomingInvoiceStatusLabel(inv.status).toLocaleLowerCase('da-DK')"), true)
+eq('laesning er dansk', incomingInvoiceParseStatusLabel('needs_review'), 'Kræver gennemgang')
+eq('laest er dansk', incomingInvoiceParseStatusLabel('parsed'), 'Læst')
+eq('fejlet laesning er dansk', incomingInvoiceParseStatusLabel('failed'), 'Fejlede')
+eq('ukendt laesning bliver raa', incomingInvoiceParseStatusLabel('mystery'), 'mystery')
+eq('kilde er dansk', incomingInvoiceSourceLabel('email'), 'Mail')
+eq('ukendt kilde bliver raa', incomingInvoiceSourceLabel('mystery'), 'mystery')
+eq('detaljen viser laesningen', detail.includes('incomingInvoiceParseStatusLabel(inv.parse_status)'), true)
+eq('detaljen viser kilden', detail.includes('incomingInvoiceSourceLabel(inv.source)'), true)
+eq('raa parse-status vises ikke', detail.includes('value={inv.parse_status}'), false)
 
 console.log(fail ? `\n${fail} fejl` : '\nincoming-invoices-mobile-test OK')
 process.exitCode = fail ? 1 : 0

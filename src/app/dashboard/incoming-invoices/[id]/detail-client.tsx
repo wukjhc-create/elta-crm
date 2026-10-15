@@ -17,7 +17,7 @@ import {
   type IncomingInvoiceDetail,
 } from '@/lib/actions/incoming-invoices'
 import { useUserRole } from '@/lib/hooks/use-user-role'
-import { incomingInvoiceStatusLabel } from '@/lib/invoices/incoming-invoice-status'
+import { incomingInvoiceParseStatusLabel, incomingInvoiceSourceLabel, incomingInvoiceStatusLabel } from '@/lib/invoices/incoming-invoice-status'
 
 const TEST_INVOICE_PREFIX = 'TEST-'
 const TEST_SUPPLIER_NAME = 'TEST Leverandør ApS'
@@ -287,7 +287,7 @@ export function IncomingInvoiceDetailClient({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Panel title="Status">
           <Row label="Status"           value={<StatusBadge value={inv.status} />} />
-          <Row label="Parse status"     value={inv.parse_status} />
+          <Row label="Læsning"          value={incomingInvoiceParseStatusLabel(inv.parse_status)} />
           <Row label="Parse konfidens"  value={fmtPct(inv.parse_confidence)} />
           <Row label="Match konfidens"  value={fmtPct(inv.match_confidence)} />
           <Row label="Kræver review"    value={review ? 'JA' : 'nej'} />
@@ -564,7 +564,7 @@ export function IncomingInvoiceDetailClient({
           </div>
         ) : (
           <div className="space-y-2">
-            <p className="text-xs text-gray-400">Ingen fil tilknyttet (kilde: {inv.source}).</p>
+            <p className="text-xs text-gray-400">Ingen fil tilknyttet (kilde: {incomingInvoiceSourceLabel(inv.source)}).</p>
             {!terminal && <AttachInvoiceFile invoiceId={inv.id} />}
           </div>
         )}
