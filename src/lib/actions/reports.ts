@@ -408,7 +408,7 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
 
     // N26b: bygger på sager (service_cases + time_logs). Før: den gamle projects/time_entries-model, som ikke bruges
     // længere → rapporten var tom/forkert for alle rigtige sager.
-    const { data: cases } = await supabase
+    const { data: cases, error: casesError } = await supabase
       .from('service_cases')
       .select('id, case_number, title, status, budget, planned_hours, source_offer_id, customer:customers!service_cases_customer_id_fkey(company_name)')
       .neq('status', 'converted')
@@ -416,6 +416,7 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
       .order('created_at', { ascending: false })
       .limit(50)
 
+    if (casesError) return { success: false, error: 'Kunne ikke hente sager' }
     if (!cases || cases.length === 0) {
       return { success: true, data: [] }
     }
