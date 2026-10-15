@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus,
   Trash2,
@@ -52,6 +52,8 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
     price_source: string
   }>>([])
   const [priceSearchDone, setPriceSearchDone] = useState(false)
+  const [priceLookupError, setPriceLookupError] = useState<string | null>(null)
+  const priceLookupSeq = useRef(0)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -82,17 +84,35 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
   }
 
   const handlePriceLookup = async () => {
-    if (!priceLookupSku.trim()) return
+    const sku = priceLookupSku.trim()
+    if (!sku) return
+    const seq = ++priceLookupSeq.current
     setIsSearchingPrice(true)
     setPriceSearchDone(false)
-    const result = await getBestPriceForCustomer(customerId, priceLookupSku.trim())
-    if (result.success && result.data) {
-      setPriceResults(result.data)
-    } else {
+    setPriceLookupError(null)
+    try {
+      const result = await getBestPriceForCustomer(customerId, sku)
+      if (seq !== priceLookupSeq.current) return
+      if (result.success && result.data) {
+        setPriceResults(result.data)
+        setPriceLookupError(null)
+      } else if (!result.success) {
+        setPriceResults([])
+        setPriceLookupError(result.error || 'Kunne ikke slå prisen op')
+      } else {
+        setPriceResults([])
+        setPriceLookupError(null)
+      }
+    } catch {
+      if (seq !== priceLookupSeq.current) return
       setPriceResults([])
+      setPriceLookupError('Kunne ikke slå prisen op')
+    } finally {
+      if (seq === priceLookupSeq.current) {
+        setPriceSearchDone(true)
+        setIsSearchingPrice(false)
+      }
     }
-    setPriceSearchDone(true)
-    setIsSearchingPrice(false)
   }
 
   const handleFormSuccess = () => {
@@ -252,11 +272,17 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
 
         {priceSearchDone && (
           <div className="mt-3">
-            {priceResults.length === 0 ? (
+            {priceLookupError && (
+              <p className="text-sm text-red-700 break-words text-center py-2" data-testid="customer-price-lookup-error">
+                {priceLookupError}. Det tælles ikke som ingen priser.
+              </p>
+            )}
+            {!priceLookupError && priceResults.length === 0 && (
               <p className="text-sm text-gray-500 text-center py-2">
                 Ingen priser fundet for &quot;{priceLookupSku}&quot;
               </p>
-            ) : (
+            )}
+            {!priceLookupError && priceResults.length > 0 && (
               <div className="space-y-2">
                 {priceResults.map((r, i) => (
                   <div
