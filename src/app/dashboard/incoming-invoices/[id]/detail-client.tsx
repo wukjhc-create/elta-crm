@@ -245,7 +245,7 @@ export function IncomingInvoiceDetailClient({
             {inv.due_date && <> · forfald {fmtDate(inv.due_date)}</>}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           {isTestInvoice && isAdmin && (
             <Button
               variant="outline"
@@ -257,7 +257,7 @@ export function IncomingInvoiceDetailClient({
               {deletingTest ? 'Sletter…' : 'Slet test-faktura'}
             </Button>
           )}
-          <div className="text-right">
+          <div className="text-right shrink-0">
             <div className="text-2xl font-semibold">{fmtAmount(inv.amount_incl_vat, inv.currency)}</div>
             <div className="text-xs text-gray-500">incl. moms</div>
           </div>
