@@ -391,11 +391,11 @@ export interface SupplierProductPickerRow {
 export async function searchSupplierProductsForBinding(
   query: string,
   options: { supplierId?: string; limit?: number } = {}
-): Promise<SupplierProductPickerRow[]> {
+): Promise<{ rows: SupplierProductPickerRow[]; error: string | null }> {
   const denied = await requireMaterialsEdit()
-  if (denied) return []
+  if (denied) return { rows: [], error: null }
   const trimmed = (query || '').trim()
-  if (trimmed.length < 2) return []
+  if (trimmed.length < 2) return { rows: [], error: null }
 
   const supabase = createAdminClient()
   const limit = Math.max(1, Math.min(options.limit ?? 25, 100))
@@ -416,10 +416,10 @@ export async function searchSupplierProductsForBinding(
   const { data, error } = await q
   if (error) {
     logger.warn('searchSupplierProductsForBinding failed', { error })
-    return []
+    return { rows: [], error: 'Kunne ikke søge i leverandørprodukter' }
   }
 
-  return (data || []).map((r) => {
+  return { rows: (data || []).map((r) => {
     const supplierMeta = (r as { suppliers?: { name?: string; code?: string } }).suppliers || {}
     return {
       id: r.id,
@@ -433,5 +433,5 @@ export async function searchSupplierProductsForBinding(
       supplier_label: supplierMeta.name || '',
       supplier_code: supplierMeta.code || '',
     }
-  })
+  }), error: null }
 }
