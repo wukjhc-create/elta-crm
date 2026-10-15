@@ -1318,7 +1318,7 @@ ${m.text()}`) })
         const r: Record<string, boolean> = {}
         let u162Txt = ''
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] fastpris ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
-          priority: 'medium', source: 'manual', created_by: adminUser.id, contract_sum: 10000 }]).select('id')
+          priority: 'medium', source: 'manual', created_by: adminUser.id, contract_sum: 10000, billing_model: 'fixed_price' }]).select('id')
         const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
         const invIds: string[] = []
         if (caseId) {
@@ -1481,7 +1481,7 @@ ${m.text()}`) })
         const emp = await c.admin.from('employees').insert([{ name: `Harness Slut ${stamp}`, email: `slut-${stamp}@harness.test`, role: 'montør', active: true, cost_rate: 300, hourly_rate: 500 }]).select('id')
         u32.employeeId = (emp.data?.[0] as { id?: string } | undefined)?.id
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] slutfaktura ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
-          priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId }]).select('id')
+          priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId, billing_model: 'time_and_materials' }]).select('id')
         u32.caseId = (sc.data?.[0] as { id?: string } | undefined)?.id
         const wo = u32.caseId ? await c.admin.from('work_orders').insert([{ case_id: u32.caseId, title: `Slut ${stamp}`, status: 'done', assigned_employee_id: u32.employeeId }]).select('id') : null
         u32.woId = (wo?.data?.[0] as { id?: string } | undefined)?.id

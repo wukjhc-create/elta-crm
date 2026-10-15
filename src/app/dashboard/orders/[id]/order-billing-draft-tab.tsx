@@ -22,6 +22,7 @@ import {
 import {
   createFinalInvoiceAction,
   getContractFinalPreviewAction,
+  setCaseBillingModelAction,
   type ContractFinalPreview,
   createInvoiceDraftFromCaseAction,
   createStageInvoiceAction,
@@ -935,6 +936,7 @@ function BillingFinalMode({
   const [includeLines, setIncludeLines] = useState(true)
   // PR-6 (Henrik 2026-10-15): fastprissag → restbeløb af kontraktsum (samme plan som serveren)
   const [contract, setContract] = useState<ContractFinalPreview | null>(null)
+  const [modelBusy, setModelBusy] = useState(false)
   const [dueDays, setDueDays] = useState(14)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -1003,6 +1005,20 @@ function BillingFinalMode({
   const finalAmount = r2(subtotal + vat)
 
   const isContract = !!contract?.is_contract
+  // 00232: afregningsform skal være valgt (fast pris / regning) — ingen gæt ud fra kontraktsummen
+  const modelMissing = !!contract && contract.billing_model == null
+  const chooseModel = async (m: 'fixed_price' | 'time_and_materials') => {
+    if (contract?.billing_model && !window.confirm(`Skift afregningsform til ${m === 'fixed_price' ? 'fast pris' : 'regning'}? Slutfakturaen beregnes derefter anderledes.`)) return
+    setModelBusy(true)
+    try {
+      const r = await setCaseBillingModelAction(caseId, m)
+      if (!r.ok) { setSubmitError(r.message); return }
+      setSubmitError(null)
+      setContract(await getContractFinalPreviewAction(caseId))
+    } finally {
+      setModelBusy(false)
+    }
+  }
   const noLines =
     !isContract && !includeLines && predecessors.length === 0 && positiveSubtotal === 0
   const onlyDeductions = !isContract && positiveSubtotal === 0 && deductionTotal > 0
@@ -1134,6 +1150,18 @@ function BillingFinalMode({
 
       {/* Form */}
       <div className="rounded-lg ring-1 ring-gray-200 bg-white p-4 space-y-3">
+        {contract && (
+          <div className={`rounded px-3 py-2 text-sm flex items-center gap-2 flex-wrap ${modelMissing ? 'ring-1 ring-amber-300 bg-amber-50 text-amber-900' : 'bg-gray-50 text-gray-700'}`} data-testid="billing-model-panel">
+            <span className="font-medium">Afregningsform:</span>
+            <span data-testid="billing-model-current">{contract.billing_model === 'fixed_price' ? 'Fast pris' : contract.billing_model === 'time_and_materials' ? 'Regning (timer og materialer)' : 'Ikke valgt'}</span>
+            {!existingFinal && canCreate && (
+              <span className="ml-auto flex gap-1">
+                <button type="button" disabled={modelBusy || contract.billing_model === 'fixed_price'} onClick={() => chooseModel('fixed_price')} className="px-2 py-1 text-xs rounded ring-1 ring-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50" data-testid="billing-model-fixed">Fast pris</button>
+                <button type="button" disabled={modelBusy || contract.billing_model === 'time_and_materials'} onClick={() => chooseModel('time_and_materials')} className="px-2 py-1 text-xs rounded ring-1 ring-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50" data-testid="billing-model-tm">Regning</button>
+              </span>
+            )}
+          </div>
+        )}
         {isContract && contract && (
           <div className="space-y-2" data-testid="contract-final-preview">
             <div className="rounded ring-1 ring-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
@@ -1154,7 +1182,7 @@ function BillingFinalMode({
             )}
           </div>
         )}
-        {!isContract && (
+        {!isContract && !modelMissing && (
         <label className="flex items-start gap-2 text-sm cursor-pointer">
           <input
             type="checkbox"
@@ -1248,6 +1276,8 @@ function BillingFinalMode({
               ? 'Der findes en åben timer — luk den først'
               : existingFinal
                 ? 'Sagen er allerede afsluttet med en slutfaktura'
+                : modelMissing
+                  ? 'Vælg afregningsform først'
                 : isContract && contract && !contract.ok
                   ? 'Se beskeden ovenfor'
                   : noLines

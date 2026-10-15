@@ -26,7 +26,8 @@ import { netStageAmount, netStagePercentage } from '@/lib/invoices/stage-net'
 import type { InvoiceRow, InvoiceLineRow } from '@/types/invoice.types'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { CONTRACT_PRIOR_TYPES, contractBasis, contractTypeLabel, planContractRemainder, type ContractRemainderPlan } from '@/lib/invoices/contract-remainder'
+import { CONTRACT_PRIOR_TYPES, contractTypeLabel, planContractRemainder, type ContractRemainderPlan } from '@/lib/invoices/contract-remainder'
+import { finalInvoicePlanKind } from '@/lib/invoices/billing-model'
 
 export type InvoiceType = 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
 export type AmountBasis = 'contract_sum' | 'revised_sum' | 'lines'
@@ -400,14 +401,14 @@ export async function createFinalInvoiceForCase(
     }
   }
 
-  // PR-6 (Henrik 2026-10-15): fastprissag → slutfaktura = restbeløb af kontraktsummen (timer/materialer lægges ikke oveni)
+  // 00232 (Henrik 2026-10-15): slutfakturaen følger sagens VALGTE afregningsform — ikke kontraktsummen alene.
+  //   fast pris → restbeløb af kontraktsum (PR-6) · regning → linjebaseret (nedenfor) · ikke valgt → blokeret
   {
-    const { data: sums } = await supabase.from('service_cases').select('contract_sum, revised_sum').eq('id', sag.id).maybeSingle()
-    const s0 = (sums ?? {}) as { contract_sum?: number | string | null; revised_sum?: number | string | null }
-    const basis = contractBasis(s0)
-    if (basis != null) {
-      const kind = s0.revised_sum != null && Number(s0.revised_sum) > 0 ? 'revised_sum' : 'contract_sum'
-      return createContractFinalInvoice(supabase, sag as { id: string; case_number: string | null; customer_id: string; payer_customer_id: string | null }, kind, basis, input, approverId, empty)
+    const { data: sums } = await supabase.from('service_cases').select('contract_sum, revised_sum, billing_model').eq('id', sag.id).maybeSingle()
+    const plan = finalInvoicePlanKind((sums ?? {}) as { billing_model?: string | null; contract_sum?: number | string | null; revised_sum?: number | string | null })
+    if (plan.kind === 'blocked') return { ...empty, message: plan.message }
+    if (plan.kind === 'contract_remainder') {
+      return createContractFinalInvoice(supabase, sag as { id: string; case_number: string | null; customer_id: string; payer_customer_id: string | null }, plan.basisKind, plan.basis, input, approverId, empty)
     }
   }
 
