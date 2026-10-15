@@ -197,7 +197,7 @@ export function ApprovePreviewDialog({
         {/* Body */}
         <div className="px-4 py-3 space-y-4">
           {/* Faktura-header summary */}
-          <div className="rounded ring-1 ring-gray-200 bg-gray-50 p-3 grid grid-cols-2 sm:grid-cols-3 gap-y-2 gap-x-4 text-xs">
+          <div className="rounded ring-1 ring-gray-200 bg-gray-50 p-3 grid grid-cols-2 sm:grid-cols-3 gap-y-2 gap-x-4 text-xs min-w-0">
             <Field label="Leverandør">
               {detail.supplier?.name ?? inv.supplier_name_extracted ?? '—'}
             </Field>
@@ -538,8 +538,8 @@ export function ApprovePreviewDialog({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-gray-500">{label}</div>
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wide text-gray-500 break-words">{label}</div>
       <div className="text-gray-900 break-words">{children}</div>
     </div>
   )
