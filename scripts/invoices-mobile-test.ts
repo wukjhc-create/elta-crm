@@ -24,6 +24,9 @@ eq('faktura-kort kan stadig påminde efter klik', office.includes('handleReminde
 eq('påmind-knappen ligger ikke i faktura-linket', office.indexOf('</Link>') < office.indexOf('Påmind'), true)
 eq('faktura-kort har pdf ved siden af linket', office.includes('/api/invoices/') && office.includes('pdf?view=1'), true)
 eq('faktura-kort viser ikke kost', /cost_price|margin|contribution|dækningsbidrag/.test(office), false)
+eq('kunden ombrydes', office.includes('text-sm text-gray-800 break-words">{r.customer_name'), true)
+eq('fakturanummer ombrydes', office.includes('font-mono text-emerald-700 hover:underline break-all'), true)
+eq('beloeb bliver inkl moms', office.includes('kr(r.final_amount, r.currency)'), true)
 
 eq('kundekortets fakturaer findes', customer.length > 0, true)
 eq('kundekortet viser beløb inkl. moms', customer.includes('final_amount'), true)

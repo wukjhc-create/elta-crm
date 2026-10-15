@@ -428,7 +428,7 @@ export function InvoicesOverviewClient({
                 <div key={r.id} className={`p-4 ${r.is_overdue ? 'bg-rose-50/40' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-emerald-700 hover:underline">
+                      <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-emerald-700 hover:underline break-all">
                         {r.invoice_number ?? '—'}
                       </Link>
                       {pill && (
@@ -442,9 +442,9 @@ export function InvoicesOverviewClient({
                       {sb.label}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-800">{r.customer_name ?? '—'}</p>
+                  <p className="mt-1 text-sm text-gray-800 break-words">{r.customer_name ?? '—'}</p>
                   {r.case_number && (
-                    <Link href={`/dashboard/orders/${r.case_number}`} className="font-mono text-xs text-emerald-700 hover:underline">
+                    <Link href={`/dashboard/orders/${r.case_number}`} className="font-mono text-xs text-emerald-700 hover:underline break-all">
                       {r.case_number}
                     </Link>
                   )}
@@ -547,7 +547,7 @@ export function InvoicesOverviewClient({
                         </td>
                       )}
                       <td className="px-3 py-2">
-                        <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-emerald-700 hover:underline">
+                        <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-emerald-700 hover:underline break-all">
                           {r.invoice_number ?? '—'}
                         </Link>
                         {pill && (
@@ -557,12 +557,12 @@ export function InvoicesOverviewClient({
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        <div className="text-gray-800">{r.customer_name ?? '—'}</div>
-                        {r.customer_email && <div className="text-[11px] text-gray-400">{r.customer_email}</div>}
+                        <div className="text-gray-800 break-words">{r.customer_name ?? '—'}</div>
+                        {r.customer_email && <div className="text-[11px] text-gray-400 break-all">{r.customer_email}</div>}
                       </td>
                       <td className="px-3 py-2">
                         {r.case_number ? (
-                          <Link href={`/dashboard/orders/${r.case_number}`} className="font-mono text-xs text-emerald-700 hover:underline">
+                          <Link href={`/dashboard/orders/${r.case_number}`} className="font-mono text-xs text-emerald-700 hover:underline break-all">
                             {r.case_number}
                           </Link>
                         ) : (
