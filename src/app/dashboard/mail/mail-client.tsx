@@ -536,7 +536,8 @@ export function MailClient() {
   const handleSelectEmail = async (email: IncomingEmailWithCustomer) => {
     setSelectedEmail(email)
     if (!email.is_read) {
-      await markEmailAsRead(email.id)
+      const r = await markEmailAsRead(email.id).catch(() => ({ success: false as const }))
+      if (!r.success) return // forbliver ulæst i listen (ingen falsk "læst")
       setEmails((prev) =>
         prev.map((e) => (e.id === email.id ? { ...e, is_read: true } : e))
       )
@@ -551,9 +552,14 @@ export function MailClient() {
     setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, is_read: newRead } : e)))
     setSelectedEmail((prev) => prev?.id === id ? { ...prev, is_read: newRead } : prev)
     setStats((prev) => ({ ...prev, unread: newRead ? Math.max(0, prev.unread - 1) : prev.unread + 1 }))
-    // Fire and forget
-    if (newRead) markEmailAsRead(id).catch(() => {})
-    else markEmailAsUnread(id).catch(() => {})
+    // U-3 (pilot-sweep 2026-10-15): optimistisk, men rul tilbage + besked hvis serveren afviser (før fire-and-forget)
+    const r = await (newRead ? markEmailAsRead(id) : markEmailAsUnread(id)).catch(() => ({ success: false as const, error: undefined }))
+    if (!r.success) {
+      setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, is_read: currentlyRead } : e)))
+      setSelectedEmail((prev) => prev?.id === id ? { ...prev, is_read: currentlyRead } : prev)
+      setStats((prev) => ({ ...prev, unread: newRead ? prev.unread + 1 : Math.max(0, prev.unread - 1) }))
+      toast.error('Kunne ikke ændre læst/ulæst', r.error)
+    }
   }
 
   const handleUnarchive = async (id: string) => {
@@ -566,29 +572,43 @@ export function MailClient() {
   }
 
   const handleArchive = async (id: string) => {
-    // Optimistic: remove from list immediately
+    // Optimistic: remove from list immediately — U-3: rul tilbage + besked ved fejl (før forsvandt mailen stille og
+    // kom igen ved næste opdatering)
+    const prevEmails = emails
+    const prevSelected = selectedEmail
     setEmails((prev) => prev.filter((e) => e.id !== id))
     if (selectedEmail?.id === id) setSelectedEmail(null)
-    archiveEmail(id).catch(() => {})
+    const r = await archiveEmail(id).catch(() => ({ success: false as const, error: undefined }))
+    if (!r.success) {
+      setEmails(prevEmails)
+      setSelectedEmail(prevSelected)
+      toast.error('Kunne ikke arkivere', r.error)
+    }
   }
 
   const handleIgnore = async (id: string) => {
-    // Optimistic: update status immediately
+    // Optimistic: update status immediately — U-3: rul tilbage + besked ved fejl
+    const prevEmails = emails
+    const prevSelected = selectedEmail
     setEmails((prev) => prev.map((e) => e.id === id ? { ...e, link_status: 'ignored' as const } : e))
     if (selectedEmail?.id === id) setSelectedEmail(null)
-    ignoreIncomingEmail(id).catch(() => {})
+    const r = await ignoreIncomingEmail(id).catch(() => ({ success: false as const, error: undefined }))
+    if (!r.success) {
+      setEmails(prevEmails)
+      setSelectedEmail(prevSelected)
+      toast.error('Kunne ikke ignorere mailen', r.error)
+    }
   }
 
   const handleManualLink = async (
     emailId: string,
     customerId: string
   ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      await linkEmailToCustomer(emailId, customerId)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Kunne ikke koble mailen'
-      toast.error('Fejl', msg)
-      return { success: false, error: msg }
+    // U-4: "Kunde tildelt" kun når koblingen faktisk lykkedes (før også ved manglende rettighed / rå DB-fejl)
+    const linked = await linkEmailToCustomer(emailId, customerId).catch(() => ({ success: false as const, error: 'Kunne ikke koble mailen' }))
+    if (!linked.success) {
+      toast.error('Fejl', linked.error ?? 'Kunne ikke koble mailen')
+      return { success: false, error: linked.error }
     }
     setShowLinkModal(false)
 
@@ -642,7 +662,8 @@ export function MailClient() {
     })
 
     try {
-      await unlinkEmailFromCustomer(emailId)
+      const r = await unlinkEmailFromCustomer(emailId)
+      if (!r.success) throw new Error(r.error)
       toast.success('Kobling fjernet', 'Mailen er nu uidentificeret')
     } catch {
       // Rul tilbage

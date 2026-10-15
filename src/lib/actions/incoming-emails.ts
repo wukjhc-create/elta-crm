@@ -341,17 +341,22 @@ export async function getLeadsForEmails(
 // WRITE operations
 // =====================================================
 
-export async function markEmailAsRead(id: string): Promise<void> {
+// U-3/U-4 (pilot-sweep 2026-10-15): enkelt-handlingerne returnerede void (stille ved manglende rettighed, kastede rå
+// DB-fejl) — UI'et kunne ikke se om de lykkedes. Nu { success, error } med dansk tekst.
+export type MailActionResult = { success: boolean; error?: string }
+
+export async function markEmailAsRead(id: string): Promise<MailActionResult> {
   const denied = await gateDenied('inbox.view')
-  if (denied) return // RBAC: stille afvisning (void)
+  if (denied) return { success: false, error: denied }
   const supabase = await createClient()
   const { error } = await supabase
     .from('incoming_emails')
     .update({ is_read: true })
     .eq('id', id)
 
-  if (error) throw new Error(`Kunne ikke markere som læst: ${error.message}`)
+  if (error) { logger.error('markEmailAsRead failed', { error, entityId: id }); return { success: false, error: 'Kunne ikke markere som læst' } }
   revalidatePath('/dashboard/mail')
+  return { success: true }
 }
 
 /**
@@ -375,30 +380,33 @@ export async function markEmailsAsRead(ids: string[]): Promise<{ success: boolea
   return { success: true, updated: (data ?? []).length }
 }
 
-export async function markEmailAsUnread(id: string): Promise<void> {
+export async function markEmailAsUnread(id: string): Promise<MailActionResult> {
   const denied = await gateDenied('inbox.view')
-  if (denied) return // RBAC: stille afvisning (void)
+  if (denied) return { success: false, error: denied }
   const supabase = await createClient()
   const { error } = await supabase
     .from('incoming_emails')
     .update({ is_read: false })
     .eq('id', id)
 
-  if (error) throw new Error(`Kunne ikke markere som ulæst: ${error.message}`)
+  if (error) { logger.error('markEmailAsUnread failed', { error, entityId: id }); return { success: false, error: 'Kunne ikke markere som ulæst' } }
   revalidatePath('/dashboard/mail')
+  return { success: true }
 }
 
-export async function archiveEmail(id: string): Promise<void> {
+export async function archiveEmail(id: string): Promise<MailActionResult> {
   const denied = await gateDenied('inbox.view')
-  if (denied) return // RBAC: stille afvisning (void)
+  if (denied) return { success: false, error: denied }
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('incoming_emails')
     .update({ is_archived: true })
     .eq('id', id)
+    .select('id')
 
-  if (error) throw new Error(`Kunne ikke arkivere: ${error.message}`)
+  if (error || !(data ?? []).length) { if (error) logger.error('archiveEmail failed', { error, entityId: id }); return { success: false, error: 'Kunne ikke arkivere mailen' } }
   revalidatePath('/dashboard/mail')
+  return { success: true }
 }
 
 /** N63: arkivér flere mails (fx alle viste uidentificerede) — ikke-destruktivt, kan gendannes fra "Arkiveret". */
@@ -429,11 +437,18 @@ export async function unarchiveEmail(id: string): Promise<{ success: boolean; er
 export async function linkEmailToCustomer(
   emailId: string,
   customerId: string
-): Promise<void> {
-  if (await gateDenied('inbox.view')) return
-  const { manuallyLinkEmail } = await import('@/lib/services/email-linker')
-  await manuallyLinkEmail(emailId, customerId)
+): Promise<MailActionResult> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { success: false, error: denied }
+  try {
+    const { manuallyLinkEmail } = await import('@/lib/services/email-linker')
+    await manuallyLinkEmail(emailId, customerId)
+  } catch (err) {
+    logger.error('linkEmailToCustomer failed', { error: err, entityId: emailId })
+    return { success: false, error: 'Mailen kunne ikke kobles til kunden' }
+  }
   revalidatePath('/dashboard/mail')
+  return { success: true }
 }
 
 // =====================================================
@@ -532,18 +547,32 @@ export async function quickCreateCustomerFromEmail(
   }
 }
 
-export async function unlinkEmailFromCustomer(emailId: string): Promise<void> {
-  if (await gateDenied('inbox.view')) return
-  const { unlinkEmail } = await import('@/lib/services/email-linker')
-  await unlinkEmail(emailId)
+export async function unlinkEmailFromCustomer(emailId: string): Promise<MailActionResult> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { success: false, error: denied }
+  try {
+    const { unlinkEmail } = await import('@/lib/services/email-linker')
+    await unlinkEmail(emailId)
+  } catch (err) {
+    logger.error('unlinkEmailFromCustomer failed', { error: err, entityId: emailId })
+    return { success: false, error: 'Koblingen kunne ikke fjernes' }
+  }
   revalidatePath('/dashboard/mail')
+  return { success: true }
 }
 
-export async function ignoreIncomingEmail(emailId: string): Promise<void> {
-  if (await gateDenied('inbox.view')) return
-  const { ignoreEmail } = await import('@/lib/services/email-linker')
-  await ignoreEmail(emailId)
+export async function ignoreIncomingEmail(emailId: string): Promise<MailActionResult> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { success: false, error: denied }
+  try {
+    const { ignoreEmail } = await import('@/lib/services/email-linker')
+    await ignoreEmail(emailId)
+  } catch (err) {
+    logger.error('ignoreIncomingEmail failed', { error: err, entityId: emailId })
+    return { success: false, error: 'Mailen kunne ikke markeres som ignoreret' }
+  }
   revalidatePath('/dashboard/mail')
+  return { success: true }
 }
 
 // =====================================================
