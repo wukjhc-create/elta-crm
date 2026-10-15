@@ -54,7 +54,7 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
   }
   if (error || !data) {
     return (
-      <div className="bg-white rounded-lg border p-6 text-sm text-muted-foreground break-words">Lønsomhed: {error ?? 'kunne ikke hentes. Åbn tilbuddet igen.'}</div>
+      <div className="bg-white rounded-lg border p-6 text-sm text-red-800 break-words" data-testid="offer-profit-load-error">Lønsomhed: {error ?? 'kunne ikke hentes. Åbn tilbuddet igen.'}</div>
     )
   }
   if (data.lines.length === 0) return null

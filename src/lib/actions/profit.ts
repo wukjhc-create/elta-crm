@@ -20,8 +20,9 @@ export interface OfferProfitResult extends OfferProfitAnalysis {
   targetDbPct: number | null
 }
 
-async function resolveHourlyCost(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']): Promise<{ cost: number | null; source: string }> {
-  const { data: cs } = await supabase.from('company_settings').select('time_cost_basis, time_cost_rate').maybeSingle()
+async function resolveHourlyCost(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']): Promise<{ cost: number | null; source: string; failed?: boolean }> {
+  const { data: cs, error: csError } = await supabase.from('company_settings').select('time_cost_basis, time_cost_rate').maybeSingle()
+  if (csError) return { cost: null, source: 'Kunne ikke læse timekost. Det tælles ikke som at den ikke er sat.', failed: true }
   const basis = (cs?.time_cost_basis as string | null) ?? 'real_hourly_cost'
   if (basis === 'fixed_standard_rate') {
     const rate = Number(cs?.time_cost_rate ?? 0)
@@ -30,17 +31,19 @@ async function resolveHourlyCost(supabase: Awaited<ReturnType<typeof getAuthenti
   // Aggregat over aktive medarbejdere — service-role (employee_compensation er admin-only), kun gennemsnittet returneres.
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const col = basis === 'internal_cost_rate' ? 'internal_cost_rate' : 'real_hourly_cost'
-  const { data } = await createAdminClient().from('employee_compensation').select(`${col}, employees!inner(active)`).eq('employees.active', true)
+  const { data, error } = await createAdminClient().from('employee_compensation').select(`${col}, employees!inner(active)`).eq('employees.active', true)
+  if (error) return { cost: null, source: 'Kunne ikke læse timekost. Det tælles ikke som at den ikke er sat.', failed: true }
   const values = ((data ?? []) as Array<Record<string, unknown>>).map((r) => Number(r[col] ?? 0)).filter((v) => v > 0)
   if (!values.length) return { cost: null, source: basis === 'internal_cost_rate' ? 'intern kostpris ikke sat' : 'reel timekost ikke sat' }
   const avg = Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 100) / 100
   return { cost: avg, source: `${basis === 'internal_cost_rate' ? 'intern kostpris' : 'reel timekost'} (gns. af ${values.length} medarbejdere)` }
 }
 
-async function settingPct(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'], key: string): Promise<number | null> {
-  const { data } = await supabase.from('calculation_settings').select('setting_value').eq('setting_key', key).maybeSingle()
+async function settingPct(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'], key: string): Promise<{ pct: number | null; failed: boolean }> {
+  const { data, error } = await supabase.from('calculation_settings').select('setting_value').eq('setting_key', key).maybeSingle()
+  if (error) return { pct: null, failed: true }
   const v = (data?.setting_value as { percentage?: number } | null)?.percentage
-  return typeof v === 'number' ? v : null
+  return { pct: typeof v === 'number' ? v : null, failed: false }
 }
 
 export async function getOfferProfitAnalysis(offerId: string): Promise<ActionResult<OfferProfitResult>> {
@@ -57,16 +60,18 @@ export async function getOfferProfitAnalysis(offerId: string): Promise<ActionRes
       .select('description, quantity, unit, total, cost_price, supplier_cost_price_at_creation').eq('offer_id', offerId).order('position')
     if (itemsErr) return { success: false, error: 'Kunne ikke hente tilbudslinjer' }
 
-    const [hourly, minimumDbPct, targetDbPct] = await Promise.all([resolveHourlyCost(supabase), settingPct(supabase, 'minimum_db'), settingPct(supabase, 'default_db_target')])
+    const [hourly, minimumDb, targetDb] = await Promise.all([resolveHourlyCost(supabase), settingPct(supabase, 'minimum_db'), settingPct(supabase, 'default_db_target')])
+    if (hourly.failed) return { success: false, error: hourly.source }
+    if (minimumDb.failed || targetDb.failed) return { success: false, error: 'Kunne ikke læse DB-mål. Det tælles ikke som at målet ikke er sat.' }
     const analysis = analyzeOfferProfit({
       lines: (items ?? []).map((i) => ({
         description: String(i.description ?? ''), quantity: Number(i.quantity ?? 0), unit: (i.unit as string | null) ?? null, total: Number(i.total ?? 0),
         unitCost: Number(i.cost_price ?? 0) > 0 ? Number(i.cost_price) : Number(i.supplier_cost_price_at_creation ?? 0) > 0 ? Number(i.supplier_cost_price_at_creation) : null,
       })),
       offerDiscountPct: Number(offer.discount_percentage ?? 0),
-      hourlyCost: hourly.cost, minimumDbPct, targetDbPct,
+      hourlyCost: hourly.cost, minimumDbPct: minimumDb.pct, targetDbPct: targetDb.pct,
     })
-    return { success: true, data: { ...analysis, hourlyCost: hourly.cost, hourlyCostSource: hourly.source, minimumDbPct, targetDbPct } }
+    return { success: true, data: { ...analysis, hourlyCost: hourly.cost, hourlyCostSource: hourly.source, minimumDbPct: minimumDb.pct, targetDbPct: targetDb.pct } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke beregne lønsomhed') }
   }
