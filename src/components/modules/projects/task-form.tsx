@@ -110,8 +110,8 @@ export function TaskForm({ projectId, task, onClose, onSuccess }: TaskFormProps)
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div role="dialog" aria-modal="true" aria-labelledby="task-form-title" className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white">
-          <h2 id="task-form-title" className="text-xl font-semibold">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white">
+          <h2 id="task-form-title" className="text-xl font-semibold break-words min-w-0">
             {isEditing ? 'Rediger Opgave' : 'Opret Ny Opgave'}
           </h2>
           <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded-full">
@@ -161,7 +161,7 @@ export function TaskForm({ projectId, task, onClose, onSuccess }: TaskFormProps)
           </div>
 
           {/* Status & Priority */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label htmlFor="status" className="text-sm font-medium">
                 Status
@@ -220,7 +220,7 @@ export function TaskForm({ projectId, task, onClose, onSuccess }: TaskFormProps)
           </div>
 
           {/* Due Date & Estimated Hours */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label htmlFor="due_date" className="text-sm font-medium">
                 Deadline
@@ -251,7 +251,7 @@ export function TaskForm({ projectId, task, onClose, onSuccess }: TaskFormProps)
           </div>
 
           {/* Buttons */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="flex flex-wrap justify-end gap-3 pt-4 border-t">
             <button
               type="button"
               onClick={onClose}

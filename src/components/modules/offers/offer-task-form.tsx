@@ -66,7 +66,7 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <h3 className="text-lg font-semibold">Opret opgave til tilbud</h3>
           <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded">
             <X className="w-5 h-5" />
@@ -106,7 +106,7 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Prioritet</label>
                 <select
@@ -137,7 +137,7 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Forfaldsdato</label>
                 <input
@@ -158,7 +158,7 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={onClose}
