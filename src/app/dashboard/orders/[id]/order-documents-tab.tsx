@@ -11,8 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { FileText, Mail, Download, Loader2, FolderOpen, Camera } from 'lucide-react'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { copenhagenDateLabel } from '@/lib/utils/copenhagen-time'
 import { getDocumentsForCase, type CaseDocument } from '@/lib/actions/service-cases'
 import { RoofDrawingCaseCard } from '@/components/modules/customers/roof-drawing/roof-drawing-case-card'
 import { uploadCaseDocument } from '@/lib/actions/customer-documents'
@@ -201,7 +200,7 @@ function DocumentRow({ doc, fromMail }: { doc: CaseDocument; fromMail: boolean }
           <p className="text-sm font-medium break-all">{doc.file_name}</p>
           <div className="flex items-center gap-2 flex-wrap mt-0.5">
             <p className="text-xs text-gray-500">
-              {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: da })}
+              {copenhagenDateLabel(doc.created_at)}
               {doc.file_size ? ` — ${formatSize(doc.file_size)}` : ''}
               {doc.mime_type ? ` — ${doc.mime_type.split('/')[1]?.toUpperCase() || doc.mime_type}` : ''}
             </p>
