@@ -441,6 +441,7 @@ async function executeFtpSyncSchedule(
   let updatedProducts = 0
   let newProducts = 0
   let priceChanges = 0
+  let needsReview = 0
   const errors: string[] = []
   const priceHistoryBatch: Array<Record<string, unknown>> = []
   const batchSize = BATCH_CONFIG.SUPPLIER_SYNC_BATCH_SIZE
@@ -462,7 +463,9 @@ async function executeFtpSyncSchedule(
       const updateFns: Array<() => Promise<unknown>> = []
 
       for (const row of batch) {
-        if (!row.parsed.sku || row.errors.length > 0) continue
+        if (!row.parsed.sku) continue
+        // GP-13: tvetydig/ugyldig pris o.l. → kræver kontrol (før sprunget stille over)
+        if (row.errors.length > 0) { needsReview++; continue }
 
         const existing = productsBySku.get(row.parsed.sku)
 
@@ -507,6 +510,9 @@ async function executeFtpSyncSchedule(
             })
             priceChanges++
           }
+        } else if (!(row.parsed.cost_price != null && row.parsed.cost_price > 0)) {
+          // GP-13: opret aldrig en ny vare uden gyldig kostpris (før cost_price || 0 → "0 kr"-varer fra parsefejl/tomme felter)
+          needsReview++
         } else {
           // Insert new product
           updateFns.push(async () => {
@@ -516,7 +522,7 @@ async function executeFtpSyncSchedule(
                 supplier_id: schedule.supplier_id,
                 supplier_sku: row.parsed.sku,
                 supplier_name: row.parsed.name || row.parsed.sku,
-                cost_price: row.parsed.cost_price || 0,
+                cost_price: row.parsed.cost_price,
                 list_price: row.parsed.list_price,
                 unit: row.parsed.unit || 'stk',
                 category: row.parsed.category || null,
@@ -546,6 +552,10 @@ async function executeFtpSyncSchedule(
   if (priceHistoryBatch.length > 0) {
     const { error: historyError } = await supabase.from('price_history').insert(priceHistoryBatch)
     if (historyError) logger.error('Price history insert error (FTP)', { error: historyError })
+  }
+  if (needsReview > 0) {
+    // Synligt i sync-loggen (status "partial") — rækkerne er hverken oprettet eller opdateret
+    errors.push(`${needsReview} række(r) kræver kontrol (tvetydig/ugyldig pris eller ingen kostpris) — ikke importeret`)
   }
 
   const durationMs = Date.now() - syncStartTime

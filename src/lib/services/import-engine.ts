@@ -3,6 +3,7 @@
  * Supports CSV and XML formats with configurable column mappings
  */
 
+import { parsePrice, detectDecimalSeparator, priceIssueText, type DecimalSeparator } from '@/lib/import/price-parse'
 import type {
   ImportConfig,
   ParsedRow,
@@ -18,33 +19,14 @@ import type {
 // =====================================================
 
 /**
- * Parse Danish number format (1.234,56) to JavaScript number
+ * Parse Danish number format (1.234,56) to JavaScript number.
+ * GP-13 (2026-10-15): via den deterministiske parser med dansk decimaltegn — "1.234" = 1234 (dansk tusindtal),
+ * og ugyldig tekst giver null (før gav parseFloat fx "12abc" → 12). Prisfiler bruger parsePrice med filens eget
+ * decimaltegn (ImportEngine.parseCSV), så tvetydige værdier går til kontrol i stedet for at blive gættet.
  */
 export function parseDanishNumber(value: string): number | null {
-  if (!value || value.trim() === '') return null
-
-  // Remove whitespace
-  let cleaned = value.trim()
-
-  // Leverandør-review: mellemrum/hårdt mellemrum som tusindtalsseparator ("1 234,56") gav 1 — fjernes mellem cifre
-  cleaned = cleaned.replace(/(\d)[\s  ]+(?=\d)/g, '$1')
-  // Flere punktummer uden komma ("1.234.567") er altid tusindtalsseparatorer (gav før 1.234). Ét punktum uden komma
-  // ("1.234" / "12.50") er tvetydigt og behandles som før (decimalpunktum).
-  if (!cleaned.includes(',') && /^-?\d{1,3}(\.\d{3}){2,}$/.test(cleaned)) {
-    cleaned = cleaned.replace(/\./g, '')
-  }
-
-  // Handle Danish format: replace dots (thousands sep) and commas (decimal)
-  // Check if the format looks Danish (has comma as decimal separator)
-  if (cleaned.includes(',')) {
-    // Remove thousand separators (dots before comma)
-    cleaned = cleaned.replace(/\./g, '')
-    // Replace comma with dot for decimal
-    cleaned = cleaned.replace(',', '.')
-  }
-
-  const parsed = parseFloat(cleaned)
-  return isNaN(parsed) ? null : parsed
+  const r = parsePrice(value, ',')
+  return r.ok ? r.value : null
 }
 
 /**
@@ -246,6 +228,17 @@ export class ImportEngine {
     // Normalize column mappings to use indices
     const mappings = this.normalizeColumnMappings(headers)
 
+    // GP-13: filens decimaltegn ud fra priskolonnerne (entydige værdier som "12,50"/"12.50") — tvetydige værdier
+    // ("1.234") afgøres af det; uden entydige værdier sendes de til kontrol i stedet for at blive gættet
+    const priceCols = ['cost_price', 'list_price', 'gross_price'].map((k) => mappings[k]).filter((x): x is number => typeof x === 'number')
+    const samples: string[] = []
+    for (let i = skipRows + 1; i < lines.length && samples.length < 2000; i++) {
+      if (!lines[i].trim()) continue
+      const vals = parseCSVLine(lines[i], delimiter)
+      for (const c of priceCols) samples.push(vals[c] ?? '')
+    }
+    const decimalHint = detectDecimalSeparator(samples)
+
     // Parse data rows
     const rows: ParsedRow[] = []
 
@@ -254,8 +247,9 @@ export class ImportEngine {
       if (!line.trim()) continue
 
       const values = parseCSVLine(line, delimiter)
-      const parsed = this.parseRowValues(values, mappings)
-      const errors = this.validateParsedRow(parsed)
+      const priceIssues: string[] = []
+      const parsed = this.parseRowValues(values, mappings, decimalHint, priceIssues)
+      const errors = [...priceIssues, ...this.validateParsedRow(parsed)]
 
       rows.push({
         rowNumber: i + 1,
@@ -297,7 +291,9 @@ export class ImportEngine {
    */
   private parseRowValues(
     values: string[],
-    mappings: ColumnMappings
+    mappings: ColumnMappings,
+    decimalHint: DecimalSeparator | null = ',',
+    priceIssues: string[] = [],
   ): ParsedRow['parsed'] {
     const getValue = (key: string): string => {
       const index = mappings[key]
@@ -320,9 +316,16 @@ export class ImportEngine {
     const ean = getValue('ean').trim() || undefined
     const minQtyStr = getValue('min_order_quantity')
 
-    const grossPrice = parseDanishNumber(grossPriceStr)
-    const discountPct = parseDanishNumber(discountPctStr)
-    let costPrice = parseDanishNumber(costPriceStr)
+    // GP-13: tom = ikke angivet (null); tvetydig/ugyldig = rækkefejl (kontrol), aldrig et gættet tal eller 0
+    const num = (raw: string, field: string): number | null => {
+      const r = parsePrice(raw, decimalHint)
+      if (r.ok) return r.value
+      if (r.reason !== 'empty') priceIssues.push(priceIssueText(field, r))
+      return null
+    }
+    const grossPrice = num(grossPriceStr, 'bruttopris')
+    const discountPct = num(discountPctStr, 'rabatprocent')
+    let costPrice = num(costPriceStr, 'kostpris')
 
     // If cost_price is missing but gross_price + discount are available, derive it
     if (costPrice === null && grossPrice !== null && grossPrice > 0 && discountPct !== null) {
@@ -333,7 +336,7 @@ export class ImportEngine {
       sku,
       name,
       cost_price: costPrice,
-      list_price: parseDanishNumber(listPriceStr),
+      list_price: num(listPriceStr, 'listepris'),
       gross_price: grossPrice,
       discount_pct: discountPct,
       unit,

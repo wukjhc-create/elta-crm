@@ -89,7 +89,7 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | GP-10 (S3) | 1.000-rækkers-afkortning i prisændringer fra import og kategoriliste | DONE (fetchAllRows) |
 | GP-11 (S3) | getAffectedOffers tager højeste nye kost i vinduet, ikke seneste | DONE — første gamle → seneste nye |
 | GP-12 (S3) | Manuel kostændring skriver ingen price_history | DONE for leverandørvarer (change_source manual); product_catalog: LATER |
-| GP-13 (S3) | parseDanishNumber("1.234") = 1,234; FTP-insert kost 0; søgning sorterer 0-kr øverst | DELVIS — søgning udelader kost 0; "1.234"-tvetydighed + FTP-insert 0: TODO |
+| GP-13 (S3) | parseDanishNumber("1.234") = 1,234; FTP-insert kost 0; søgning sorterer 0-kr øverst | DONE 2026-10-15 — deterministisk `parsePrice` (lib/import/price-parse): filens decimaltegn detekteres, tvetydige ("1.234" uden entydigt format) og ugyldige priser → rækkefejl/kontrol, aldrig gæt; `parseDanishNumber` streng ("12abc" → null); FTP opretter aldrig nye varer uden kost > 0 og logger "N rækker kræver kontrol" (`price-parse-test` 37/37, UI U17) |
 | GP-14 (S4) | Død line-item-form.tsx, ubrugt forespørgsel, maybeSingle i setDefaultSupplierMargin | DONE |
 
 ## NEXT-9 (backlog-wave 2026-10-14 — go-live/pilot, leverandørfakturaer, Profit Engine)
