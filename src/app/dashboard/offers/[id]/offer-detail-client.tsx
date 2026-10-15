@@ -1144,11 +1144,11 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     <div className="p-2 bg-gray-100 rounded-lg">
                       <Building className="w-5 h-5 text-gray-600" />
                     </div>
-                    <div>
+                    <div className="min-w-0 break-words">
                       <p className="text-sm text-gray-500">Kunde</p>
                       <Link
                         href={`/dashboard/customers/${offer.customer.id}`}
-                        className="font-medium text-primary hover:underline"
+                        className="font-medium text-primary hover:underline break-words"
                       >
                         {offer.customer.company_name}
                       </Link>
@@ -1161,12 +1161,12 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     <div className="p-2 bg-gray-100 rounded-lg">
                       <User className="w-5 h-5 text-gray-600" />
                     </div>
-                    <div>
+                    <div className="min-w-0 break-words">
                       <p className="text-sm text-gray-500">Kontakt</p>
-                      <p className="font-medium">
+                      <p className="font-medium break-words">
                         {offer.customer.contact_person}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 break-all">
                         {offer.customer.email}
                       </p>
                     </div>
@@ -1177,11 +1177,11 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                   <div className="p-2 bg-gray-100 rounded-lg">
                     <Building className="w-5 h-5 text-gray-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0 break-words">
                     <p className="text-sm text-gray-500">Lead</p>
                     <Link
                       href={`/dashboard/leads/${offer.lead.id}`}
-                      className="font-medium text-primary hover:underline"
+                      className="font-medium text-primary hover:underline break-words"
                     >
                       {offer.lead.company_name}
                     </Link>
@@ -1650,14 +1650,14 @@ function OfferPdfView({
       </div>
 
       {/* PDF Content */}
-      <div id="offer-pdf-content" className="max-w-4xl mx-auto p-8 bg-white min-h-screen">
+      <div id="offer-pdf-content" className="max-w-4xl mx-auto p-4 sm:p-8 bg-white min-h-screen">
         {/* Header */}
-        <div className="flex justify-between items-start mb-8">
+        <div className="flex flex-wrap justify-between items-start gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">TILBUD</h1>
             <p className="text-gray-600 mt-1">{offer.offer_number}</p>
           </div>
-          <div className="text-right">
+          <div className="min-w-0 break-words text-left sm:text-right">
             <h2 className="text-xl font-bold text-gray-900">{companyName}</h2>
             {companyVat && <p className="text-gray-600">CVR: {companyVat}</p>}
             {companyAddress && <p className="text-gray-600">{companyAddress}</p>}
@@ -1671,7 +1671,7 @@ function OfferPdfView({
 
         {/* Customer info */}
         {offer.customer && (
-          <div className="mb-8 p-4 bg-gray-50 rounded-lg">
+          <div className="mb-8 p-4 bg-gray-50 rounded-lg break-words">
             <h3 className="font-semibold text-gray-700 mb-2">Til:</h3>
             <p className="font-medium">{offer.customer.company_name}</p>
             <p>{offer.customer.contact_person}</p>
@@ -1683,7 +1683,7 @@ function OfferPdfView({
                 </p>
               </>
             )}
-            <p>{offer.customer.email}</p>
+            <p className="break-all">{offer.customer.email}</p>
           </div>
         )}
 
@@ -1755,24 +1755,24 @@ function OfferPdfView({
 
         {/* Totals */}
         <div className="flex justify-end mb-8">
-          <div className="w-64 space-y-2">
-            <div className="flex justify-between">
+          <div className="w-full sm:w-64 space-y-2">
+            <div className="flex justify-between gap-3">
               <span>Subtotal:</span>
-              <span>{formatCurrency(offer.total_amount, currency, 2)}</span>
+              <span className="shrink-0 tabular-nums">{formatCurrency(offer.total_amount, currency, 2)}</span>
             </div>
             {offer.discount_percentage > 0 && (
-              <div className="flex justify-between text-red-600">
+              <div className="flex justify-between gap-3 text-red-600">
                 <span>Rabat ({offer.discount_percentage}%):</span>
-                <span>-{formatCurrency(offer.discount_amount, currency, 2)}</span>
+                <span className="shrink-0 tabular-nums">-{formatCurrency(offer.discount_amount, currency, 2)}</span>
               </div>
             )}
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-3">
               <span>Moms ({offer.tax_percentage}%):</span>
-              <span>{formatCurrency(offer.tax_amount, currency, 2)}</span>
+              <span className="shrink-0 tabular-nums">{formatCurrency(offer.tax_amount, currency, 2)}</span>
             </div>
-            <div className="flex justify-between text-lg font-bold pt-2 border-t-2">
+            <div className="flex justify-between gap-3 text-lg font-bold pt-2 border-t-2">
               <span>Total:</span>
-              <span>{formatCurrency(offer.final_amount, currency, 2)}</span>
+              <span className="shrink-0 tabular-nums">{formatCurrency(offer.final_amount, currency, 2)}</span>
             </div>
           </div>
         </div>
