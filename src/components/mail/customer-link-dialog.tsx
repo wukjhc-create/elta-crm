@@ -52,6 +52,7 @@ export function CustomerLinkDialog({
   onClose,
 }: CustomerLinkDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const resultsQuery = useRef<string | null>(null)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<CustomerRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -81,8 +82,17 @@ export function CustomerLinkDialog({
             .order('updated_at', { ascending: false })
             .limit(PAGE_SIZE)
           if (!cancelled) {
-            if (e) setError('Kunne ikke hente kunder')
-            else setResults((data || []) as CustomerRow[])
+            if (e) {
+              if (resultsQuery.current === trimmed) setError('Kunne ikke hente kunder')
+              else {
+                setResults([])
+                setError('Kunne ikke hente kunder')
+              }
+            } else {
+              setResults((data || []) as CustomerRow[])
+              resultsQuery.current = trimmed
+              setError(null)
+            }
           }
         } else {
           // Sanitér så bruger ikke kan injecte ',()' i .or()
@@ -96,12 +106,27 @@ export function CustomerLinkDialog({
             )
             .limit(PAGE_SIZE)
           if (!cancelled) {
-            if (e) setError('Søgning fejlede')
-            else setResults((data || []) as CustomerRow[])
+            if (e) {
+              if (resultsQuery.current === trimmed) setError('Søgning fejlede')
+              else {
+                setResults([])
+                setError('Søgning fejlede')
+              }
+            } else {
+              setResults((data || []) as CustomerRow[])
+              resultsQuery.current = trimmed
+              setError(null)
+            }
           }
         }
       } catch {
-        if (!cancelled) setError('Søgning fejlede')
+        if (!cancelled) {
+          if (resultsQuery.current === query.trim()) setError('Søgning fejlede')
+          else {
+            setResults([])
+            setError('Søgning fejlede')
+          }
+        }
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -240,7 +265,11 @@ export function CustomerLinkDialog({
 
         {/* Resultatliste */}
         <div className="flex-1 overflow-y-auto">
-          {orderedResults.length === 0 && !loading ? (
+          {orderedResults.length === 0 && !loading && error ? (
+            <div className="p-6 text-center" data-testid="customer-link-search-error">
+              <p className="text-sm text-red-700">{error}. Det tælles ikke som ingen kunder.</p>
+            </div>
+          ) : orderedResults.length === 0 && !loading ? (
             <div className="p-6 text-center space-y-3">
               <AlertCircle className="w-8 h-8 text-gray-300 mx-auto" />
               <p className="text-sm text-gray-500">Ingen kunder fundet.</p>
@@ -312,6 +341,7 @@ export function CustomerLinkDialog({
               <p className="text-xs text-red-600 flex items-start gap-1">
                 <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
                 <span className="break-words min-w-0">{error}</span>
+                {orderedResults.length > 0 && <span>De tidligere forslag bliver.</span>}
               </p>
             )}
             {!error && orderedResults.length > 0 && (
