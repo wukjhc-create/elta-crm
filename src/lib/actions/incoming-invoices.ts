@@ -925,7 +925,7 @@ export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem
 
 export interface PostEconomicOutcome {
   ok: boolean
-  status: 'posted' | 'not_configured' | 'already_posted' | 'not_eligible' | 'failed' | 'denied'
+  status: 'posted' | 'not_configured' | 'already_posted' | 'in_progress' | 'not_eligible' | 'failed' | 'denied'
   message: string
   external_id?: string | null
 }
@@ -959,7 +959,8 @@ export async function postIncomingInvoiceToEconomicAction(id: string): Promise<P
     .eq('id', id)
     .maybeSingle()
   if (!inv) return { ok: false, status: 'not_eligible', message: 'Faktura ikke fundet' }
-  if (inv.external_invoice_id && inv.external_provider === 'economic') {
+  const claimPending = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith('pending-')
+  if (inv.external_invoice_id && !claimPending && inv.external_provider === 'economic') {
     return { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført i e-conomic.', external_id: inv.external_invoice_id as string }
   }
   if (inv.status !== 'approved') {
@@ -989,9 +990,11 @@ export async function postIncomingInvoiceToEconomicAction(id: string): Promise<P
   }
   if (econ.status === 'skipped') {
     const notConfigured = (econ.reason ?? '').includes('NOT_CONFIGURED')
-    return notConfigured
-      ? { ok: false, status: 'not_configured', message: 'e-conomic er ikke opsat endnu.' }
-      : { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført.', external_id: econ.externalId ?? null }
+    if (notConfigured) return { ok: false, status: 'not_configured', message: 'e-conomic er ikke opsat endnu.' }
+    if ((econ.reason ?? '') === 'export in progress') {
+      return { ok: false, status: 'in_progress', message: 'Bogføring er i gang — prøv igen om lidt (et hængt forsøg kan genoptages efter 15 min.).' }
+    }
+    return { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført.', external_id: econ.externalId ?? null }
   }
   await audit(false, `Manuel bogføring fejlede: ${econ.error ?? 'ukendt'}`, { reason: econ.reason ?? null })
   return { ok: false, status: 'failed', message: `Bogføring fejlede: ${econ.error ?? 'ukendt fejl'}` }

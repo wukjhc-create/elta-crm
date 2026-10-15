@@ -61,10 +61,10 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | M-11 (S3) | Tjeklistefoto kun via kamera (capture) — kan ikke vælge fra galleri | DONE — capture fjernet (telefonen tilbyder kamera eller galleri); knap "Foto" |
 | M-12 (S4) | Kalender: fravær-hentefejl tavs; tidsgodkendelse 500-loft uden besked | TODO |
 | B-1 (S1) | "Annuller" på betalingsreference-prompten markerer alligevel fakturaen betalt (irreversibelt); send uden mail uden bekræftelse | DONE — Annuller afbryder (prompten viser nr./beløb og "kan ikke fortrydes"); "Markér som sendt (uden mail)" bekræftes. UI U29 (annuller → stadig sendt) |
-| B-2 (S2) | Fakturaoversigten henter kun 500 nyeste uden besked; summeringskort regnes på det beskårne udsnit | TODO |
+| B-2 (S2) | Fakturaoversigten henter kun 500 nyeste uden besked; summeringskort regnes på det beskårne udsnit | DELVIS — tydelig besked når loftet rammes (summerne dækker kun de viste; fulde tal på Dashboard). Server-side summer = TODO (sammen med B-3) |
 | B-3 (S2) | Tre forskellige "udestående" (widget trækker indbetalt/kreditnota fra, oversigt/kundekort/badge gør ikke); kundeoversigt loft 200, badge 500 uden order | TODO |
-| B-4 (S3) | "Betalt denne måned" på browserens måned vs. UTC paid_at | TODO |
-| B-5 (S2) | Bogføring i gang/hængt claim vises som "allerede bogført" (pending-…) og skjuler Bogfør | TODO |
+| B-4 (S3) | "Betalt denne måned" på browserens måned vs. UTC paid_at | DONE — Københavnsmåned på begge sider. UI U169 |
+| B-5 (S2) | Bogføring i gang/hængt claim vises som "allerede bogført" (pending-…) og skjuler Bogfør | DONE — pending-krav ≠ bogført (Bogfør vises, "Bogføring i gang"), handlingen returnerer in_progress og et hængt krav kan genoptages efter 15 min. UI U169 |
 | B-6 (S2) | Forfaldne leverandørfakturaer: klientfilter på 200 nyeste → færre end widgetten | TODO |
 | B-7 (S3) | Forfaldsoversigt: fejl → "0 forfaldne", valutaer lægges sammen | TODO |
 | B-8 (S3) | Leverandørfaktura-fane/tællere og rapportfiltre ikke i URL / opdateres ikke efter handling | TODO |

@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -2007,6 +2007,25 @@ ${m.text()}`) })
         await a.page.waitForTimeout(500)
         r.kunde_url = a.page.url().includes('tab=sager')
         out.push({ id: 'U166 faner i URL (sag + kunde)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U169 B-5/B-4: et bogføringskrav ('pending-…') vises som "i gang", ikke som bogført; fakturaoverblikket indlæses
+      if (want('U169')) {
+        const r: Record<string, boolean> = {}
+        const ins = await c.admin.from('incoming_invoices').insert([{ source: 'manual', invoice_number: `UI-E2E-PEND-${stamp}`, parse_status: 'parsed',
+          status: 'approved', amount_excl_vat: 100, external_invoice_id: `pending-${Date.now()}`, external_provider: 'economic' }]).select('id')
+        const invId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${invId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('posting-pending').waitFor({ timeout: 60_000 }).catch(() => {})
+          r.vist_som_i_gang = (await a.page.getByTestId('posting-pending').count()) > 0
+          r.ikke_allerede_bogfoert = (await a.page.getByText('e-conomic ID').count()) === 0
+          await gotoSafe(a.page, `${base}/dashboard/invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.overblik_indlaest = (await a.page.getByText('Betalt denne måned').count()) > 0
+        } finally {
+          if (invId) await c.admin.from('incoming_invoices').delete().eq('id', invId)
+        }
+        out.push({ id: 'U169 bogføringskrav i gang + fakturaoverblik', ok: !!invId && Object.values(r).every(Boolean), note: `${ins.error ? `SEED: ${ins.error.message} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
       // U168 W-18: "Kun mine" på tilbudslisten (egne vs. andres) + ukendt ?sortBy= giver ikke fejlside

@@ -1431,7 +1431,11 @@ export interface InvoiceOverviewResult {
   rows: InvoiceOverviewRow[]
   /** Sprint Ø6.1 — er e-conomic-integrationen opsat (styrer bulk-knap). */
   accounting_ready: boolean
+  /** B-2 (pilot-review 2026-10-15): listen er begrænset til de nyeste OVERVIEW_LIMIT — summerne dækker kun dem */
+  capped?: boolean
 }
+
+const OVERVIEW_LIMIT = 500
 
 export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResult> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -1445,7 +1449,7 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
       'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, reminder_count, last_reminder_at, customer_id, case_id, external_invoice_id, external_provider'
     )
     .order('created_at', { ascending: false })
-    .limit(500)
+    .limit(OVERVIEW_LIMIT)
 
   if (error) {
     logger.error('listInvoicesOverviewAction: query failed', { error })
@@ -1555,7 +1559,7 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
     }
   })
 
-  return { ok: true, rows, accounting_ready: accountingReady }
+  return { ok: true, rows, accounting_ready: accountingReady, capped: list.length >= OVERVIEW_LIMIT }
 }
 
 // =====================================================

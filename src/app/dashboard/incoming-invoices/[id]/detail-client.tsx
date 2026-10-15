@@ -100,7 +100,9 @@ export function IncomingInvoiceDetailClient({
   }
 
   // Sprint Ø9.0 — manuel e-conomic-bogføring (godkendt + ikke bogført).
-  const alreadyPosted = !!inv.external_invoice_id
+  // B-5: 'pending-…' er et igangværende/hængt bogføringskrav — ikke bogført
+  const postingPending = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith('pending-')
+  const alreadyPosted = !!inv.external_invoice_id && !postingPending
   const canShowPost = canPost && inv.status === 'approved' && !alreadyPosted
   const handlePost = async () => {
     setMsg(null)
@@ -296,7 +298,9 @@ export function IncomingInvoiceDetailClient({
           <Row label="Kræver review"    value={review ? 'JA' : 'nej'} />
           <Row label="Modtaget"         value={fmtDate(inv.created_at)} />
           {inv.posted_at && <Row label="Bogført" value={fmtDate(inv.posted_at)} />}
-          {inv.external_invoice_id && <Row label="e-conomic ID" value={<code className="text-xs">{inv.external_invoice_id}</code>} />}
+          {inv.external_invoice_id && (postingPending
+            ? <Row label="e-conomic" value={<span className="text-xs text-amber-700" data-testid="posting-pending">Bogføring i gang (eller afbrudt) — prøv Bogfør igen om lidt</span>} />
+            : <Row label="e-conomic ID" value={<code className="text-xs">{inv.external_invoice_id}</code>} />)}
           {canPost && !alreadyPosted && inv.status !== 'rejected' && inv.status !== 'cancelled' && (
             <SupplierEconomicPreview invoiceId={inv.id} />
           )}

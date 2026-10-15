@@ -24,6 +24,7 @@ import {
 } from '@/lib/actions/invoices'
 import { bulkExportInvoicesToEconomicAction } from '@/lib/actions/accounting'
 import { formatCurrency } from '@/lib/utils/format'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import {
   FILTERS,
   FILTER_TO_URL,
@@ -101,11 +102,13 @@ export function InvoicesOverviewClient({
   canSend,
   canExportAccounting = false,
   accountingReady = false,
+  capped = false,
 }: {
   rows: InvoiceOverviewRow[]
   canSend: boolean
   canExportAccounting?: boolean
   accountingReady?: boolean
+  capped?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -150,8 +153,8 @@ export function InvoicesOverviewClient({
 
   // ---- Summary (cost-free, kun salgsbeløb) ----
   const summary = useMemo(() => {
-    const now = new Date()
-    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    // B-4 (pilot-review 2026-10-15): måned i dansk tid på begge sider (før browserens måned mod UTC-tidsstempel)
+    const ym = copenhagenParts(new Date()).date.slice(0, 7)
     let draftCount = 0
     let sentUnpaid = 0
     let overdueCount = 0
@@ -169,7 +172,7 @@ export function InvoicesOverviewClient({
         overdueCount += 1
         overdueSum += r.final_amount
       }
-      if (r.status === 'paid' && r.paid_at && r.paid_at.slice(0, 7) === ym) {
+      if (r.status === 'paid' && r.paid_at && copenhagenParts(r.paid_at).date.slice(0, 7) === ym) {
         paidThisMonth += r.final_amount
       }
     }
@@ -258,6 +261,11 @@ export function InvoicesOverviewClient({
         </p>
       </div>
 
+      {capped && (
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" role="status" data-testid="invoices-overview-capped">
+          Viser de 500 nyeste fakturaer — tallene nedenfor dækker kun dem. Fulde udeståender: se Dashboard.
+        </div>
+      )}
       {/* Summary-cards — kun salgsbeløb */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <SummaryCard label="Kladder" value={String(summary.draftCount)} tone="gray" icon={<FileText className="w-4 h-4" />} />

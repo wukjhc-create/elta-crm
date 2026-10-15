@@ -41,6 +41,7 @@ export default async function InvoicesPage() {
         canSend={canSend}
         canExportAccounting={canExportAccounting}
         accountingReady={res.accounting_ready}
+        capped={!!res.capped}
       />
     </Suspense>
   )
