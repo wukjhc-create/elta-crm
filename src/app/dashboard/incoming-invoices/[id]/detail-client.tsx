@@ -572,16 +572,16 @@ export function IncomingInvoiceDetailClient({
 
       <Panel title="Bilag">
         {detail.has_file ? (
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             <button
               type="button"
               onClick={handleOpenFile}
               disabled={openingFile}
-              className="text-emerald-700 hover:underline disabled:opacity-50"
+              className="text-emerald-700 hover:underline disabled:opacity-50 break-words text-left min-w-0"
             >
               {openingFile ? 'Åbner…' : `Åbn ${inv.file_name ?? 'bilag'} (${inv.mime_type ?? 'ukendt'})`}
             </button>
-            <span className="text-[11px] text-gray-400">Sikkert link genereres ved klik</span>
+            <span className="text-[11px] text-gray-400 break-words">Sikkert link genereres ved klik</span>
           </div>
         ) : (
           <div className="space-y-2">
