@@ -164,13 +164,15 @@ export function EmployeesListClient({
               <div key={e.id} className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <Link href={`/dashboard/employees/${e.id}`} className="font-medium text-gray-900 hover:text-emerald-700 hover:underline break-words">
-                      {e.name || '—'}
-                    </Link>
-                    {e.employee_number && (
-                      <span className="ml-2 text-xs text-gray-400 font-mono break-all">{e.employee_number}</span>
-                    )}
-                    <p className="text-sm text-gray-700">{roleLabel(e.role)}</p>
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <Link href={`/dashboard/employees/${e.id}`} className="font-medium text-gray-900 hover:text-emerald-700 hover:underline break-words">
+                        {e.name || '—'}
+                      </Link>
+                      {e.employee_number && (
+                        <span className="text-xs text-gray-400 font-mono break-all">{e.employee_number}</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-700 break-words">{roleLabel(e.role)}</p>
                   </div>
                   <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${e.active ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
                     {e.active ? 'Aktiv' : 'Inaktiv'}
