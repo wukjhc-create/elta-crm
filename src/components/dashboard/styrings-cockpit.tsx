@@ -124,11 +124,11 @@ function MailsCard({ overview }: { overview: DashboardOverview }) {
                   mailen og fjerner emailId fra URL'en bagefter. */}
               <Link
                 href={`${MAIL_HREF}&emailId=${m.id}`}
-                className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
+                className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
               >
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{m.subject || '(uden emne)'}</div>
-                  <div className="truncate text-gray-500">
+                  <div className="line-clamp-2 break-words font-medium">{m.subject || '(uden emne)'}</div>
+                  <div className="line-clamp-2 break-words text-gray-500">
                     {m.sender_name || m.sender_email || 'Ukendt afsender'}
                   </div>
                 </div>
@@ -174,11 +174,11 @@ function TasksCard({ overview }: { overview: DashboardOverview }) {
                   og scroller rowen ind i viewport. */}
               <Link
                 href={`${TASKS_HREF}?taskId=${t.id}`}
-                className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
+                className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
               >
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{t.title}</div>
-                  <div className="truncate text-gray-500">
+                  <div className="line-clamp-2 break-words font-medium">{t.title}</div>
+                  <div className="line-clamp-2 break-words text-gray-500">
                     {t.customer_name || '—'}
                     {t.auto_generated && (
                       <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700">
@@ -266,13 +266,13 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
             <li key={o.id}>
               <Link
                 href={`/dashboard/offers/${o.id}`}
-                className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
+                className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
               >
                 <div className="min-w-0">
-                  <div className="truncate font-medium">
+                  <div className="line-clamp-2 break-words font-medium">
                     {o.offer_number} · {o.title}
                   </div>
-                  <div className="truncate text-gray-500">
+                  <div className="line-clamp-2 break-words text-gray-500">
                     {o.customer_name || '—'}
                     {/* N65: åbnet (portal-visning) eller ej — afgør om sælger skal ringe eller gensende */}
                     {o.status === 'viewed'
@@ -317,10 +317,10 @@ function UnbilledCard({ overview }: { overview: DashboardOverview }) {
         <ul className="text-xs divide-y" data-testid="cockpit-unbilled">
           {cases.map((c) => (
             <li key={c.id}>
-              <Link href={`/dashboard/orders/${c.id}?tab=fakturakladde`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+              <Link href={`/dashboard/orders/${c.id}?tab=fakturakladde`} className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{c.case_number ? `${c.case_number} · ` : ''}{c.title}</div>
-                  <div className="truncate text-gray-500">{c.customer_name ?? '—'} · {c.lines} linje{c.lines === 1 ? '' : 'r'}</div>
+                  <div className="line-clamp-2 break-words font-medium">{c.case_number ? `${c.case_number} · ` : ''}{c.title}</div>
+                  <div className="line-clamp-2 break-words text-gray-500">{c.customer_name ?? '—'} · {c.lines} linje{c.lines === 1 ? '' : 'r'}</div>
                 </div>
                 <span className="shrink-0 tabular-nums font-medium">{kr(c.sale)}</span>
               </Link>
@@ -356,10 +356,10 @@ function WebInquiriesCard({ overview }: { overview: DashboardOverview }) {
         <ul className="text-xs divide-y" data-testid="cockpit-web-inquiries">
           {items.map((m) => (
             <li key={m.id} className="flex items-center gap-2">
-              <Link href={`/dashboard/mail?filter=webform&emailId=${m.id}`} className="flex-1 min-w-0 py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+              <Link href={`/dashboard/mail?filter=webform&emailId=${m.id}`} className="flex-1 min-w-0 py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
                 <div className="min-w-0">
-                  <div className={`truncate ${m.unread ? 'font-semibold' : 'font-medium'}`} data-testid="cockpit-web-inquiry-title">{m.contact || m.subject || 'Henvendelse'}</div>
-                  <div className="truncate text-gray-500">
+                  <div className={`line-clamp-2 break-words ${m.unread ? 'font-semibold' : 'font-medium'}`} data-testid="cockpit-web-inquiry-title">{m.contact || m.subject || 'Henvendelse'}</div>
+                  <div className="line-clamp-2 break-words text-gray-500">
                     {fmtDateDK(m.received_at)}{m.unread ? ' · ulæst' : ''}
                     {m.existingCustomer && <span className="text-blue-700" data-testid="cockpit-web-existing"> · findes som kunde: {m.existingCustomer.name}</span>}
                   </div>
@@ -401,10 +401,10 @@ function StaleLeadsCard({ overview }: { overview: DashboardOverview }) {
       <ul className="text-xs divide-y" data-testid="cockpit-stale-leads">
         {items.map((l) => (
           <li key={l.id}>
-            <Link href={`/dashboard/leads/${l.id}`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+            <Link href={`/dashboard/leads/${l.id}`} className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
               <div className="min-w-0">
-                <div className="truncate font-medium">{l.name}</div>
-                <div className="truncate text-gray-500">{LEAD_STATUS_DA[l.status] ?? l.status}</div>
+                <div className="line-clamp-2 break-words font-medium">{l.name}</div>
+                <div className="line-clamp-2 break-words text-gray-500">{LEAD_STATUS_DA[l.status] ?? l.status}</div>
               </div>
               <span className={`shrink-0 text-[11px] flex items-center gap-1 ${ageBadge(l.ageDays, 14)}`}>
                 {l.ageDays}d
@@ -442,10 +442,10 @@ function OverdueInvoicesCard({ overview }: { overview: DashboardOverview }) {
         <ul className="text-xs divide-y" data-testid="cockpit-overdue-invoices">
           {items.map((i) => (
             <li key={i.id}>
-              <Link href={`/dashboard/invoices/${i.id}`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+              <Link href={`/dashboard/invoices/${i.id}`} className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{i.invoice_number ?? 'Faktura'} · {i.customer_name ?? '—'}</div>
-                  <div className="truncate text-gray-500">
+                  <div className="line-clamp-2 break-words font-medium">{i.invoice_number ?? 'Faktura'} · {i.customer_name ?? '—'}</div>
+                  <div className="line-clamp-2 break-words text-gray-500">
                     {i.daysOverdue} dage over forfald{i.reminders > 0 ? ` · ${i.reminders} rykker${i.reminders === 1 ? '' : 'e'}` : ' · ingen rykker'}
                     <span className="block" data-testid="cockpit-overdue-next">{
                       i.next.kind === 'done' ? 'alle rykkere brugt — følg op manuelt'
@@ -487,8 +487,8 @@ function PortalMessagesCard({ overview }: { overview: DashboardOverview }) {
         <ul className="text-xs divide-y" data-testid="cockpit-portal-unread">
           {customers.map((c) => (
             <li key={c.id}>
-              <Link href={`/dashboard/customers/${c.id}#chat`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
-                <span className="truncate font-medium">{c.name}</span>
+              <Link href={`/dashboard/customers/${c.id}#chat`} className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+                <span className="line-clamp-2 break-words font-medium">{c.name}</span>
                 <span className={`shrink-0 text-[11px] ${ageBadge(c.oldestDays)}`}>{c.unread} · {c.oldestDays}d</span>
               </Link>
             </li>
@@ -521,8 +521,8 @@ function NewCustomersCard({ overview }: { overview: DashboardOverview }) {
       ) : (
         <ul className="text-xs divide-y" data-testid="cockpit-new-customers">
           {items.map((c) => (
-            <li key={c.id} className="py-1.5 flex items-center justify-between gap-2">
-              <Link href={`/dashboard/customers/${c.id}`} className="min-w-0 truncate font-medium hover:underline">{c.name}</Link>
+            <li key={c.id} className="py-1.5 flex items-start justify-between gap-2">
+              <Link href={`/dashboard/customers/${c.id}`} className="min-w-0 line-clamp-2 break-words font-medium hover:underline">{c.name}</Link>
               <span className="shrink-0 flex items-center gap-2">
                 <Link href={`/dashboard/customers/${c.id}?nytilbud=1`} className="text-emerald-700 hover:underline" data-testid="cockpit-new-customer-offer">Opret tilbud</Link>
                 <span className={`text-[11px] ${ageBadge(c.ageDays)}`}>{c.ageDays}d</span>
@@ -561,11 +561,11 @@ function VisitsCard({ overview }: { overview: DashboardOverview }) {
               {/* Sprint 9B: besigtigelser er customer_tasks — brug taskId-deeplink. */}
               <Link
                 href={`/dashboard/tasks?taskId=${v.id}`}
-                className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
+                className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
               >
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{v.title}</div>
-                  <div className="truncate text-gray-500">{v.customer_name || '—'}</div>
+                  <div className="line-clamp-2 break-words font-medium">{v.title}</div>
+                  <div className="line-clamp-2 break-words text-gray-500">{v.customer_name || '—'}</div>
                 </div>
                 <span className="shrink-0 text-[11px] flex items-center gap-1 text-gray-600">
                   {fmtDateDK(v.due_date)}
