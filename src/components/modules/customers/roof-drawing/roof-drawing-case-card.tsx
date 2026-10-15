@@ -19,16 +19,26 @@ interface RoofDrawingCaseCardProps {
 export function RoofDrawingCaseCard({ customerId, serviceCaseId }: RoofDrawingCaseCardProps) {
   const [drawings, setDrawings] = useState<RoofDrawingWithUrl[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [tryKey, setTryKey] = useState(0)
 
   useEffect(() => {
     if (!customerId && !serviceCaseId) {
       setLoading(false)
+      setLoadError(null)
       return
     }
     let active = true
+    setLoading(true)
+    setLoadError(null)
     listRoofDrawings({ customerId: customerId ?? null, serviceCaseId: serviceCaseId ?? null })
       .then((res) => {
-        if (active && res.success && res.data) setDrawings(res.data)
+        if (!active) return
+        if (res.success) setDrawings(res.data ?? [])
+        else setLoadError(res.error ?? 'Kunne ikke hente tagtegninger')
+      })
+      .catch(() => {
+        if (active) setLoadError('Kunne ikke hente tagtegninger')
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -36,12 +46,27 @@ export function RoofDrawingCaseCard({ customerId, serviceCaseId }: RoofDrawingCa
     return () => {
       active = false
     }
-  }, [customerId, serviceCaseId])
+  }, [customerId, serviceCaseId, tryKey])
 
   if (loading) {
     return (
       <div className="bg-white rounded-lg border p-6 flex items-center justify-center">
         <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  if (loadError && drawings.length === 0) {
+    return (
+      <div className="bg-white rounded-lg border p-4" data-testid="roof-drawing-load-error">
+        <p className="text-sm text-red-700">{loadError}. Det tælles ikke som ingen tagtegninger.</p>
+        <button
+          type="button"
+          onClick={() => setTryKey((n) => n + 1)}
+          className="mt-2 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800"
+        >
+          Prøv igen
+        </button>
       </div>
     )
   }

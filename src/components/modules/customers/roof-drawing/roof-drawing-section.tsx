@@ -57,25 +57,35 @@ export function RoofDrawingSection({ customerId, serviceCaseId }: RoofDrawingSec
   const [panels, setPanels] = useState<PanelProduct[]>([])
   const [drawings, setDrawings] = useState<RoofDrawingWithUrl[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [tryKey, setTryKey] = useState(0)
   const [uploading, setUploading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
+    setLoading(true)
+    setLoadError(null)
     ;(async () => {
-      const [panelsRes, drawingsRes] = await Promise.all([
-        getSolarProductsByType(),
-        listRoofDrawings({ serviceCaseId: serviceCaseId ?? null, customerId }),
-      ])
-      if (!active) return
-      if (panelsRes.success && panelsRes.data) setPanels(panelsRes.data.panels)
-      if (drawingsRes.success && drawingsRes.data) setDrawings(drawingsRes.data)
-      setLoading(false)
+      try {
+        const [panelsRes, drawingsRes] = await Promise.all([
+          getSolarProductsByType(),
+          listRoofDrawings({ serviceCaseId: serviceCaseId ?? null, customerId }),
+        ])
+        if (!active) return
+        if (panelsRes.success && panelsRes.data) setPanels(panelsRes.data.panels)
+        if (drawingsRes.success) setDrawings(drawingsRes.data ?? [])
+        else setLoadError(drawingsRes.error ?? 'Kunne ikke hente tagtegninger')
+      } catch {
+        if (active) setLoadError('Kunne ikke hente tagtegninger')
+      } finally {
+        if (active) setLoading(false)
+      }
     })()
     return () => {
       active = false
     }
-  }, [customerId, serviceCaseId])
+  }, [customerId, serviceCaseId, tryKey])
 
   const totalPanels = drawings.reduce((sum, d) => sum + (d.panel_count || 0), 0)
 
@@ -168,6 +178,17 @@ export function RoofDrawingSection({ customerId, serviceCaseId }: RoofDrawingSec
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-500 py-6">
           <Loader2 className="w-4 h-4 animate-spin" /> Henter tegninger…
+        </div>
+      ) : loadError && drawings.length === 0 ? (
+        <div className="text-center py-8 text-sm text-red-700 border border-dashed rounded-lg" data-testid="roof-section-load-error">
+          {loadError}. Det tælles ikke som ingen tagtegninger.
+          <button
+            type="button"
+            onClick={() => setTryKey((n) => n + 1)}
+            className="block mx-auto mt-2 min-h-[44px] px-3 font-medium underline"
+          >
+            Prøv igen
+          </button>
         </div>
       ) : drawings.length === 0 ? (
         <div className="text-center py-8 text-sm text-gray-500 border border-dashed rounded-lg">
