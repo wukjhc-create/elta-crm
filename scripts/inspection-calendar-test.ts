@@ -14,6 +14,10 @@ const nav = src.slice(src.indexOf('Month Navigation'), src.indexOf('Weekday head
 eq('forrige maaned har et navn', nav.includes('aria-label="Forrige måned"') && nav.includes('prevMonth'), true)
 eq('naeste maaned har et navn', nav.includes('aria-label="Næste måned"') && nav.includes('nextMonth'), true)
 eq('overskriften ombrydes', src.includes('flex flex-wrap items-center justify-between gap-3'), true)
+const upcoming = src.slice(src.indexOf('Kommende besigtigelser'))
+eq('kommende navn ombrydes', upcoming.includes('break-words">'), true)
+eq('tom kommende siger naeste skridt', upcoming.includes('Book dem fra kunden eller sagen.'), true)
+eq('dagens adresse ombrydes', src.includes('break-words min-w-0">{info.address}'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ninspection-calendar-test OK')
 process.exitCode = fail ? 1 : 0

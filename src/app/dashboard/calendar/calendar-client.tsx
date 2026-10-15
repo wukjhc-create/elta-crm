@@ -278,7 +278,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                   return (
                     <div key={task.id} className="border rounded-lg p-3 space-y-2">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-sm text-gray-900 leading-tight">
+                        <p className="font-medium text-sm text-gray-900 leading-tight break-words min-w-0">
                           {task.customer?.company_name || task.title}
                         </p>
                         <span className={`shrink-0 px-2 py-0.5 text-xs font-medium rounded-full ${statusConf.bgColor} ${statusConf.color}`}>
@@ -294,9 +294,9 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                       )}
 
                       {info.address && (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <MapPin className="w-3.5 h-3.5" />
-                          {info.address}
+                        <div className="flex items-start gap-1.5 text-xs text-gray-600">
+                          <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span className="break-words min-w-0">{info.address}</span>
                         </div>
                       )}
 
@@ -374,7 +374,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                         </div>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className="text-sm font-medium text-gray-900 break-words">
                           {task.customer?.company_name || task.title}
                         </p>
                         {info.time && (
@@ -385,7 +385,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                   )
                 })}
               {upcomingCount === 0 && (
-                <p className="text-xs text-gray-400 text-center py-4">Ingen kommende besigtigelser</p>
+                <p className="text-xs text-gray-400 text-center py-4">Ingen kommende besigtigelser. Book dem fra kunden eller sagen.</p>
               )}
             </div>
           </div>
