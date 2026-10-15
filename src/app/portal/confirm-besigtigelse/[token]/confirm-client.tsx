@@ -13,6 +13,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { submitConfirmation } from '@/lib/actions/document-confirmations'
+import { copenhagenDateLabel, copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import type { PublicConfirmationContext } from '@/types/document-confirmations.types'
 
 interface Props {
@@ -484,28 +485,14 @@ function Field({
 // =====================================================
 function formatDateLong(iso: string): string {
   if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleDateString('da-DK', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  } catch {
-    return ''
-  }
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return copenhagenDateLabel(iso, 'long')
 }
 
 function formatDateTimeLong(iso: string): string {
   if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleString('da-DK', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return ''
-  }
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return copenhagenDateTimeLabel(iso, 'long')
 }

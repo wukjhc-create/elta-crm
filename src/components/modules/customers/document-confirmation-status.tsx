@@ -26,6 +26,7 @@ import {
   RECIPIENT_ROLE_LABELS,
   type ConfirmationListItem,
 } from '@/types/document-confirmations.types'
+import { copenhagenDateLabel, copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 interface Props {
   documentId: string
@@ -366,28 +367,14 @@ function KV({
 
 function formatDate(iso: string | null): string {
   if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleDateString('da-DK', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    })
-  } catch {
-    return ''
-  }
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return copenhagenDateLabel(iso)
 }
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleString('da-DK', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return ''
-  }
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return copenhagenDateTimeLabel(iso)
 }
