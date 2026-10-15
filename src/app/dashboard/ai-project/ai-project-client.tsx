@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { formatCurrency } from '@/lib/utils/format'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import {
   Loader2,
   Sparkles,
@@ -610,13 +611,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-700 break-words line-clamp-2">{analysis.description}</p>
                   <p className="text-xs text-gray-400">
-                    {new Date(analysis.created_at).toLocaleDateString('da-DK', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {copenhagenDateTimeLabel(analysis.created_at)}
                   </p>
                 </div>
                 <span className="text-sm font-medium text-gray-900 shrink-0">
