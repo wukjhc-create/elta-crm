@@ -14,7 +14,7 @@
  *  "—" and a footer note.
  */
 
-import { useEffect, useState, useTransition } from 'react'
+import { Fragment, useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
@@ -22,8 +22,10 @@ import {
   listTimeLogsForWorkOrder,
   createTimeLog,
   updateTimeLog,
+  deleteRejectedTimeLogAction,
   type TimeLogWithEmployee,
 } from '@/lib/actions/time-logs'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
 import { PAY_RATE_TYPE_OPTIONS, PAY_RATE_TYPE_LABEL, type PayRateType } from '@/types/workforce.types'
 import { toNumberDa } from '@/lib/utils/danish-number'
@@ -164,6 +166,47 @@ export function WorkOrderTimeLogs({
     }
     setShowForm(false)
     resetForm()
+    await reload()
+    onChange?.()
+    startTransition(() => router.refresh())
+  }
+
+  // Henrik 2026-10-15: egen AFVIST registrering kan rettes (→ afventer ny godkendelse) eller slettes. Serveren håndhæver
+  // egen/afvist/ufaktureret; godkendte kan kun rettes af en godkender.
+  const canEditOwn = !!role && hasPermission(role, 'time_logs.edit.own')
+  const canApprove = !!role && hasPermission(role, 'time_logs.approve')
+  const [fixId, setFixId] = useState<string | null>(null)
+  const [fixDate, setFixDate] = useState('')
+  const [fixStart, setFixStart] = useState('')
+  const [fixEnd, setFixEnd] = useState('')
+  const [fixDesc, setFixDesc] = useState('')
+  const startFix = (l: TimeLogWithEmployee) => {
+    const st = copenhagenParts(l.start_time)
+    setFixId(l.id)
+    setFixDate(st.date)
+    setFixStart(st.clock)
+    setFixEnd(l.end_time ? copenhagenParts(l.end_time).clock : '')
+    setFixDesc(l.description ?? '')
+    setError(null)
+  }
+  const saveFix = async (l: TimeLogWithEmployee) => {
+    setError(null)
+    setIsWorking(true)
+    const res = await updateTimeLog(l.id, { date: fixDate, start_clock: fixStart, end_clock: fixEnd || undefined, description: fixDesc })
+    setIsWorking(false)
+    if (!res.success) { setError(res.error || 'Kunne ikke rette timeregistreringen'); return }
+    setFixId(null)
+    await reload()
+    onChange?.()
+    startTransition(() => router.refresh())
+  }
+  const deleteRejected = async (l: TimeLogWithEmployee) => {
+    if (!window.confirm('Slet den afviste timeregistrering? (Afvisningen og registreringen gemmes i historikken)')) return
+    setError(null)
+    setIsWorking(true)
+    const res = await deleteRejectedTimeLogAction(l.id)
+    setIsWorking(false)
+    if (!res.success) { setError(res.error || 'Kunne ikke slette'); return }
     await reload()
     onChange?.()
     startTransition(() => router.refresh())
@@ -489,8 +532,11 @@ export function WorkOrderTimeLogs({
               {logs.map((l) => {
                 const sale = saleFor(l)
                 const db = dbFor(l)
+                const approval = (l as { approval_status?: string }).approval_status
+                const isRejected = approval === 'rejected' && !l.invoice_line_id
                 return (
-                  <tr key={l.id} className="hover:bg-gray-50">
+                  <Fragment key={l.id}>
+                  <tr className={isRejected ? 'bg-red-50/40' : 'hover:bg-gray-50'} data-testid={isRejected ? 'time-log-rejected-row' : undefined}>
                     <td className="py-1 pr-2 whitespace-nowrap">{fmtDate(l.start_time)}</td>
                     <td className="py-1 pr-2 whitespace-nowrap">
                       {l.employee?.name ?? <span className="text-gray-400">—</span>}
@@ -504,10 +550,11 @@ export function WorkOrderTimeLogs({
                     </td>
                     <td className="py-1 pr-2 text-right tabular-nums">{fmtHours(l.hours)}</td>
                     <td className="py-1 pr-2 whitespace-nowrap">
-                      {l.invoice_line_id ? (
+                      {l.invoice_line_id || (approval === 'approved' && !canApprove) ? (
                         <span
                           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-medium"
-                          title="Fakturalåst — kan ikke ændres"
+                          title={l.invoice_line_id ? 'Fakturalåst — kan ikke ændres' : 'Godkendt — kun en godkender kan ændre den'}
+                          data-testid={l.invoice_line_id ? undefined : 'time-log-approved-locked'}
                         >
                           {PAY_RATE_TYPE_LABEL.get(l.pay_rate_type) ?? 'Normal'} 🔒
                         </span>
@@ -572,8 +619,33 @@ export function WorkOrderTimeLogs({
                           F
                         </span>
                       )}
+                      {isRejected && canEditOwn && fixId !== l.id && (
+                        <span className="ml-2 inline-flex gap-1">
+                          <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-300 hover:bg-white" data-testid="time-log-fix">Ret</button>
+                          <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-red-200 text-red-700 hover:bg-red-50" data-testid="time-log-delete-rejected">Slet</button>
+                        </span>
+                      )}
                     </td>
                   </tr>
+                  {isRejected && (
+                    <tr className="bg-red-50/40">
+                      <td colSpan={20} className="pb-2 pr-2 text-xs text-red-800">
+                        <span className="uppercase text-[10px] bg-red-100 px-1.5 py-0.5 rounded mr-1">Afvist</span>
+                        {(l as { rejection_reason?: string | null }).rejection_reason ?? 'Ingen begrundelse'}
+                        {fixId === l.id && (
+                          <div className="mt-2 flex flex-wrap items-end gap-2 text-gray-800" data-testid="time-log-fix-form">
+                            <label className="flex flex-col">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-1 py-0.5" /></label>
+                            <label className="flex flex-col">Start<input type="time" value={fixStart} onChange={(e) => setFixStart(e.target.value)} className="border rounded px-1 py-0.5" data-testid="time-log-fix-start" /></label>
+                            <label className="flex flex-col">Slut<input type="time" value={fixEnd} onChange={(e) => setFixEnd(e.target.value)} className="border rounded px-1 py-0.5" data-testid="time-log-fix-end" /></label>
+                            <label className="flex flex-col flex-1 min-w-[10rem]">Beskrivelse<input value={fixDesc} onChange={(e) => setFixDesc(e.target.value)} className="border rounded px-1 py-0.5" /></label>
+                            <button type="button" onClick={() => saveFix(l)} disabled={isWorking} className="px-2 py-1 rounded bg-emerald-600 text-white disabled:opacity-50" data-testid="time-log-fix-save">Gem — send til godkendelse</button>
+                            <button type="button" onClick={() => setFixId(null)} className="px-2 py-1 rounded border">Annullér</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 )
               })}
             </tbody>
