@@ -71,16 +71,23 @@ export default async function OrderDetailPage({
   let formand: { id: string; name: string } | null = null
   let creator: { id: string; full_name: string | null } | null = null
   let plannedCount = 0
+  let plannedCountError: string | null = null
+  let plannedCountResolved = false
   try {
     const { supabase } = await getAuthenticatedClient()
 
     // Planlagte work_orders count for header badge
-    const { count } = await supabase
+    const { count, error: countError } = await supabase
       .from('work_orders')
       .select('id', { count: 'exact', head: true })
       .eq('case_id', sag.id)
       .in('status', ['planned', 'in_progress'])
-    plannedCount = count ?? 0
+    if (countError) {
+      plannedCountError = 'Kunne ikke tælle arbejdsordrer'
+    } else {
+      plannedCount = count ?? 0
+      plannedCountResolved = true
+    }
 
     if (sag.formand_id) {
       const { data: emp } = await supabase
@@ -109,7 +116,7 @@ export default async function OrderDetailPage({
       }
     }
   } catch {
-    /* enrichment is best-effort */
+    if (!plannedCountResolved) plannedCountError = 'Kunne ikke tælle arbejdsordrer'
   }
 
   const canSeeCost = await pageHasPermission('economy.cost_prices')
@@ -136,6 +143,7 @@ export default async function OrderDetailPage({
       formand={formand}
       creator={creator}
       plannedWorkOrderCount={plannedCount}
+      plannedCountError={plannedCountError}
       canSeeCost={canSeeCost}
       canSeeLaborCostDetail={canSeeLaborCostDetail}
       canSeeBilling={canSeeBilling}

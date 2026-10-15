@@ -78,6 +78,7 @@ export function OrderDetailClient({
   formand,
   creator,
   plannedWorkOrderCount = 0,
+  plannedCountError = null,
   canSeeCost = false,
   canSeeLaborCostDetail = false,
   canSeeBilling = false,
@@ -91,6 +92,7 @@ export function OrderDetailClient({
   formand: { id: string; name: string } | null
   creator: { id: string; full_name: string | null } | null
   plannedWorkOrderCount?: number
+  plannedCountError?: string | null
   /** Sprint Ø2.10 — economy.cost_prices: gate til intern kost / DB. */
   canSeeCost?: boolean
   /** D50 — employees.payroll.view: kost pr. timeregistrering (ellers kun aggregeret). */
@@ -182,7 +184,11 @@ export function OrderDetailClient({
           <Stat
             label="Arbejdsordrer (åbne)"
             value={
-              plannedWorkOrderCount > 0 ? (
+              plannedCountError ? (
+                <span className="text-sm font-normal text-red-700" data-testid="order-planned-count-error">
+                  {plannedCountError}. Det tælles ikke som 0.
+                </span>
+              ) : plannedWorkOrderCount > 0 ? (
                 <button
                   type="button"
                   onClick={() => setActive('planlaegning')}
