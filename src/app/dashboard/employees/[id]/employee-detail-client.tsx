@@ -22,13 +22,14 @@ import {
   EmployeeHistoryView,
 } from '@/components/modules/employees/employee-profile-sections'
 import { EmployeeTabBar, EmployeeEconomyTab, EmployeeJobTab, useEmployeeTab, type EmployeeTab } from './employee-tabs'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 const fmtDate = (s: string | null | undefined) => (s ? s.slice(0, 10) : '—')
 const fmtDateLong = (s: string | null | undefined) => {
   if (!s) return '—'
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleString('da-DK', { year: 'numeric', month: 'short', day: '2-digit' })
+  return copenhagenDateTimeLabel(s)
 }
 
 const ROLE_LABEL = new Map(EMPLOYEE_ROLE_OPTIONS.map((r) => [r.value, r.label]))
