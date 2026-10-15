@@ -204,7 +204,7 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
         </div>
       </div>
       {data.length === 0 ? (
-        <p className="text-sm text-gray-500 py-8 text-center">Ingen sager i overblikket endnu.</p>
+        <p className="text-sm text-gray-500 py-8 text-center">Ingen sager i overblikket endnu. Opret en sag fra kunden, så den vises her.</p>
       ) : (
         <>
         <div className="md:hidden space-y-2" data-testid="report-profit-mobile">
