@@ -65,16 +65,16 @@ export function CustomerImportDialog({ onClose }: { onClose: () => void }) {
             kontaktperson, telefon, CVR, adresse, postnr., by og kundenr. bruges hvis de findes. Kunder der allerede findes (samme
             e-mail, CVR eller telefon) springes over.
           </p>
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <input ref={input} type="file" accept=".csv,text/csv,text/plain" className="hidden" data-testid="customer-import-input" onChange={(e) => void pick(e.target.files?.[0])} />
             <button type="button" onClick={() => input.current?.click()} disabled={busy}
               className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50">
               <Upload className="w-4 h-4" /> Vælg CSV-fil
             </button>
-            {fileName && <span className="text-sm text-gray-600 truncate">{fileName}</span>}
+            {fileName && <span className="text-sm text-gray-600 break-all min-w-0">{fileName}</span>}
             {busy && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
           </div>
-          {error && <p className="text-sm text-red-700" data-testid="customer-import-error">{error}</p>}
+          {error && <p className="text-sm text-red-700 break-words" data-testid="customer-import-error">{error}</p>}
 
           {preview && !result && (
             <>
