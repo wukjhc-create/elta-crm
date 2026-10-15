@@ -245,21 +245,21 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
               className={`flex ${message.sender_type === 'customer' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-xl px-4 py-2 ${
+                className={`max-w-[80%] min-w-0 rounded-xl px-4 py-2 ${
                   message.sender_type === 'customer'
                     ? 'bg-primary text-white rounded-br-none'
                     : 'bg-gray-100 text-gray-900 rounded-bl-none'
                 }`}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium opacity-75">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-1">
+                  <span className="text-xs font-medium opacity-75 break-words">
                     {message.sender_type === 'customer' ? 'Dig' : message.sender_name || 'Sælger'}
                   </span>
                   <span className="text-xs opacity-50">{formatTime(message.created_at)}</span>
                 </div>
                 {message.offer && (
                   <span
-                    className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded mb-1 ${
+                    className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded mb-1 break-words ${
                       message.sender_type === 'customer'
                         ? 'bg-white/20 text-white/90'
                         : 'bg-gray-200 text-gray-600'

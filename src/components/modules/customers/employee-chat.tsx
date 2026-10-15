@@ -315,14 +315,14 @@ export function EmployeeChat({
               }`}
             >
               <div
-                className={`max-w-[80%] rounded-xl px-4 py-2 ${
+                className={`max-w-[80%] min-w-0 rounded-xl px-4 py-2 ${
                   message.sender_type === 'employee'
                     ? 'bg-primary text-white rounded-br-none'
                     : 'bg-gray-100 text-gray-900 rounded-bl-none'
                 }`}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium opacity-75">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-1">
+                  <span className="text-xs font-medium opacity-75 break-words">
                     {message.sender_type === 'employee'
                       ? message.sender_name || 'Dig'
                       : message.sender_name || customerName}

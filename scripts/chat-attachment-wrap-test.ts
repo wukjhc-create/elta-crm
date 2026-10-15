@@ -20,5 +20,11 @@ function check(file: string, sizeFn: string) {
 check('src/components/modules/customers/employee-chat.tsx', 'formatFileSize')
 check('src/components/modules/portal/portal-chat.tsx', 'formatBytes')
 
+const employee = fs.readFileSync('src/components/modules/customers/employee-chat.tsx', 'utf8')
+const portal = fs.readFileSync('src/components/modules/portal/portal-chat.tsx', 'utf8')
+eq('afsender ombrydes hos medarbejder', employee.includes('flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-1') && employee.includes('opacity-75 break-words'), true)
+eq('afsender ombrydes i portalen', portal.includes('flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-1') && portal.includes('opacity-75 break-words'), true)
+eq('beskedtekst bliver', employee.includes('whitespace-pre-wrap break-words') && portal.includes('whitespace-pre-wrap break-words'), true)
+
 console.log(fail ? `\n${fail} fejl` : '\nchat-attachment-wrap-test OK')
 process.exitCode = fail ? 1 : 0
