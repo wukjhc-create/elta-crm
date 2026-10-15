@@ -17,6 +17,7 @@ eq('timer bliver', src.includes('fmtH(e.hoursNum)'), true)
 eq('status-testid bliver', src.includes('data-testid="my-hours-rejected"') && src.includes('data-testid="my-hours-pending"') && src.includes('data-testid="my-hours-approved"'), true)
 eq('ugen viser hoejst 12', src.includes('week.entries.slice(0, 12)'), true)
 eq('tom uge bliver', src.includes('Ingen timer registreret i denne uge.'), true)
+eq('tom uge siger naeste skridt', src.includes('Registrér tiden på sagen under Planlægning.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nmy-hours-wrap-test OK')
 process.exitCode = fail ? 1 : 0

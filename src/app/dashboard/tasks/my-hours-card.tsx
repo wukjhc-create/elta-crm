@@ -42,7 +42,7 @@ export async function MyHoursCard() {
         </p>
       )}
       {week.entries.length === 0 ? (
-        <p className="text-sm text-gray-500">Ingen timer registreret i denne uge.</p>
+        <p className="text-sm text-gray-500">Ingen timer registreret i denne uge. Registrér tiden på sagen under Planlægning.</p>
       ) : (
         <ul className="divide-y text-sm">
           {week.entries.slice(0, 12).map((e) => (
