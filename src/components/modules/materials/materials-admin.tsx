@@ -332,16 +332,16 @@ function BindDialog({
           ) : (
             <ul className="divide-y">
               {results.map((sp) => (
-                <li key={sp.id} className="p-3 hover:bg-gray-50 flex items-center gap-3">
+                <li key={sp.id} className="p-3 hover:bg-gray-50 flex items-start gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{sp.supplier_name}</div>
-                    <div className="text-xs text-gray-500 truncate">
+                    <div className="font-medium break-words">{sp.supplier_name}</div>
+                    <div className="text-xs text-gray-500 break-words">
                       {sp.supplier_label} · {sp.supplier_sku}
                       {sp.category ? ` · ${sp.category}` : ''}
                       {sp.sub_category ? ` / ${sp.sub_category}` : ''}
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <div className="text-sm font-medium">{formatCurrency(sp.cost_price)}</div>
                     <div className="text-xs text-gray-500">
                       {sp.is_available ? 'På lager' : 'Ikke ledig'}
