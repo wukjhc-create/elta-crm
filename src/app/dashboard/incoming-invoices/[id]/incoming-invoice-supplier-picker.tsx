@@ -53,7 +53,11 @@ export function IncomingInvoiceSupplierPicker({ invoiceId }: { invoiceId: string
     if (!r.success) { setMsg({ ok: false, text: r.error ?? 'Kunne ikke gemme' }); return }
     const also = r.data?.alsoLinked ?? 0
     setCtx({ ...ctx, supplierId: choice || null, sameDomainOpen: Math.max(0, ctx.sameDomainOpen - also) })
-    setMsg({ ok: true, text: choice ? `Leverandør koblet${also ? ` (+ ${also} andre fakturaer fra ${ctx.senderDomain})` : ''}` : 'Leverandør fjernet' })
+    if (r.data?.sameDomainFailed) {
+      setMsg({ ok: false, text: 'Leverandøren er koblet, men andre fakturaer fra afsenderen kunne ikke tjekkes.' })
+    } else {
+      setMsg({ ok: true, text: choice ? `Leverandør koblet${also ? ` (+ ${also} andre fakturaer fra ${ctx.senderDomain})` : ''}` : 'Leverandør fjernet' })
+    }
     router.refresh()
   }
 
@@ -66,7 +70,11 @@ export function IncomingInvoiceSupplierPicker({ invoiceId }: { invoiceId: string
     setCtx({ ...ctx, supplierId: id, options: [...ctx.options, { id, name: name.trim(), code: null }].sort((a, b) => a.name.localeCompare(b.name, 'da')) })
     setChoice(id); setCreating(false)
     const also = r.data.alsoLinked
-    setMsg({ ok: true, text: `Leverandør oprettet og koblet${also ? ` (+ ${also} andre fakturaer fra ${ctx.senderDomain})` : ''}` })
+    if (r.data.sameDomainFailed) {
+      setMsg({ ok: false, text: 'Leverandøren er oprettet, men andre fakturaer fra afsenderen kunne ikke tjekkes.' })
+    } else {
+      setMsg({ ok: true, text: `Leverandør oprettet og koblet${also ? ` (+ ${also} andre fakturaer fra ${ctx.senderDomain})` : ''}` })
+    }
     router.refresh()
   }
 
@@ -100,9 +108,11 @@ export function IncomingInvoiceSupplierPicker({ invoiceId }: { invoiceId: string
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Leverandørens navn" data-testid="invoice-supplier-name"
             className="w-full rounded-md border border-gray-300 px-2 py-1" />
           <p className="text-xs text-gray-500">
-            {ctx.senderDomain
-              ? <>Afsenderdomænet <strong>{ctx.senderDomain}</strong> gemmes som website — næste faktura herfra kobles automatisk.</>
-              : 'Ingen firma-afsender på mailen (fx gmail) — fremtidige fakturaer kobles via CVR/navn.'}
+            {ctx.sender_failed
+              ? <span className="text-red-800" data-testid="invoice-supplier-sender-error">Afsenderen kunne ikke læses. Det tælles ikke som en privat mail.</span>
+              : ctx.senderDomain
+                ? <>Afsenderdomænet <strong>{ctx.senderDomain}</strong> gemmes som website — næste faktura herfra kobles automatisk.</>
+                : 'Ingen firma-afsender på mailen (fx gmail) — fremtidige fakturaer kobles via CVR/navn.'}
           </p>
           <div className="flex gap-2">
             <button type="button" onClick={() => void create()} disabled={busy || name.trim().length < 2} data-testid="invoice-supplier-create"
