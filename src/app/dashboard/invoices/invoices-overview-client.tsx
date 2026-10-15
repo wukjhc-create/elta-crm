@@ -59,8 +59,12 @@ const TYPE_PILL: Record<string, { label: string; cls: string }> = {
   credit: { label: 'Kreditnota', cls: 'bg-red-100 text-red-800' },
 }
 
-function emptyInvoiceText(search: string, onlyOutstanding: boolean, filter: FilterKey): string {
+function emptyInvoiceText(search: string, onlyOutstanding: boolean, filter: FilterKey, acc: AccKey): string {
   if (search.trim()) return `Ingen fakturaer matcher søgningen "${search.trim()}".`
+  if (acc !== 'all') {
+    const label = ACC_FILTERS.find((f) => f.key === acc)?.label ?? acc
+    return `Ingen fakturaer med regnskabsstatus "${label}". Vælg Alle under regnskab, eller en anden status.`
+  }
   if (onlyOutstanding && filter === 'sent') return 'Der er ingen sendte udestående fakturaer lige nu.'
   if (onlyOutstanding) return 'Der er ingen udestående fakturaer lige nu.'
   return EMPTY_TEXT[filter]
@@ -431,7 +435,7 @@ export function InvoicesOverviewClient({
       <div className="border rounded-lg overflow-hidden bg-white">
         {filtered.length === 0 && (
           <p className="md:hidden px-3 py-8 text-center text-gray-400 text-xs">
-            {emptyInvoiceText(search, onlyOutstanding, filter)}
+            {emptyInvoiceText(search, onlyOutstanding, filter, acc)}
           </p>
         )}
         {filtered.length > 0 && (
@@ -540,7 +544,7 @@ export function InvoicesOverviewClient({
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={canExportAccounting ? 9 : 8} className="px-3 py-8 text-center text-gray-400 text-xs">
-                    {emptyInvoiceText(search, onlyOutstanding, filter)}
+                    {emptyInvoiceText(search, onlyOutstanding, filter, acc)}
                   </td>
                 </tr>
               ) : (
