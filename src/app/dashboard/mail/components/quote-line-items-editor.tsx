@@ -169,7 +169,7 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
                 />
                 {item.supplierSku && (
                   <div className="flex items-center gap-2 mt-0.5 px-1">
-                    <span className="text-[10px] text-gray-400 truncate">
+                    <span className="text-[10px] text-gray-400 break-words">
                       {item.supplierSku} | {item.supplierName}
                       {item.costPrice ? ` | Netto: ${formatCurrency(item.costPrice, 'DKK', 2)}` : ''}
                     </span>
@@ -413,8 +413,8 @@ function DescriptionInput({
 
                   {/* Product info */}
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{product.product_name}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
+                    <p className="text-sm font-medium text-gray-900 break-words">{product.product_name}</p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                       <span className="text-[10px] font-medium text-gray-500">{product.supplier_sku}</span>
                       <span className="text-[10px] text-gray-300">|</span>
                       <span className={`text-[10px] font-semibold ${

@@ -637,7 +637,7 @@ export function MailDetail({
               {detectedCustomer && (
                 <div className="flex items-center gap-2 bg-white rounded px-2.5 py-2 border border-blue-100">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{detectedCustomer.company_name}</p>
+                    <p className="text-sm font-medium text-gray-900 break-words">{detectedCustomer.company_name}</p>
                     <p className="text-xs text-gray-500">{detectedCustomer.customer_number} — email-match</p>
                   </div>
                   <button
@@ -655,7 +655,7 @@ export function MailDetail({
                 .map((s) => (
                   <div key={s.id} className="flex items-center gap-2 bg-white rounded px-2.5 py-2 border border-gray-100">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{s.company_name}</p>
+                      <p className="text-sm font-medium text-gray-900 break-words">{s.company_name}</p>
                       <p className="text-xs text-gray-500">{s.customer_number} — {s.matchReason}</p>
                     </div>
                     <button
