@@ -168,9 +168,11 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     price_updated_at?: string | null
   }>>([])
   const [isSearchingSupplier, setIsSearchingSupplier] = useState(false)
+  const [supplierSearchError, setSupplierSearchError] = useState<string | null>(null)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
   const [isAddingSupplierProduct, setIsAddingSupplierProduct] = useState<string | null>(null)
   const supplierSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const supplierSearchSeq = useRef(0)
 
   // Price optimization state
   const [isOptimizing, setIsOptimizing] = useState(false)
@@ -373,20 +375,36 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   const handleSupplierSearch = (query: string) => {
     setSupplierSearchQuery(query)
     if (supplierSearchTimer.current) clearTimeout(supplierSearchTimer.current)
+    const seq = ++supplierSearchSeq.current
     if (!query || query.length < 2) {
       setSupplierSearchResults([])
+      setSupplierSearchError(null)
+      setIsSearchingSupplier(false)
       return
     }
     supplierSearchTimer.current = setTimeout(async () => {
       setIsSearchingSupplier(true)
-      const result = await searchSupplierProductsForOffer(query, {
-        customerId: offer.customer_id || undefined,
-        limit: 15,
-      })
-      if (result.success && result.data) {
-        setSupplierSearchResults(result.data)
+      setSupplierSearchError(null)
+      try {
+        const result = await searchSupplierProductsForOffer(query, {
+          customerId: offer.customer_id || undefined,
+          limit: 15,
+        })
+        if (seq !== supplierSearchSeq.current) return
+        if (result.success && result.data) {
+          setSupplierSearchResults(result.data)
+          setSupplierSearchError(null)
+        } else {
+          setSupplierSearchResults([])
+          setSupplierSearchError(result.success ? null : (result.error || 'Kunne ikke søge produkter'))
+        }
+      } catch {
+        if (seq !== supplierSearchSeq.current) return
+        setSupplierSearchResults([])
+        setSupplierSearchError('Kunne ikke søge produkter')
+      } finally {
+        if (seq === supplierSearchSeq.current) setIsSearchingSupplier(false)
       }
-      setIsSearchingSupplier(false)
     }, 400)
   }
 
@@ -959,7 +977,12 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     )
                   })()}
 
-                  {supplierSearchQuery.length >= 2 && !isSearchingSupplier && supplierSearchResults.length === 0 && (
+                  {supplierSearchError && !isSearchingSupplier && (
+                    <p className="mt-3 text-sm text-red-700 break-words text-center py-4" data-testid="offer-supplier-search-error">
+                      {supplierSearchError}. Det tælles ikke som ingen produkter.
+                    </p>
+                  )}
+                  {!supplierSearchError && supplierSearchQuery.length >= 2 && !isSearchingSupplier && supplierSearchResults.length === 0 && (
                     <p className="mt-3 text-sm text-gray-500 text-center py-4">
                       Ingen produkter fundet for &quot;{supplierSearchQuery}&quot;. Prøv et andet varenummer eller navn.
                     </p>
