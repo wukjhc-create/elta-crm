@@ -118,7 +118,7 @@ function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
 
 function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
   return (
-    <div className="bg-white rounded-lg border p-6">
+    <div className="bg-white rounded-lg border p-4 md:p-6">
       <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
         <Building2 className="w-5 h-5 text-gray-400" />
         Top kunder (omsætning)
@@ -126,7 +126,18 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
       {data.length === 0 ? (
         <p className="text-sm text-gray-400 py-8 text-center">Ingen data endnu</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="md:hidden space-y-2" data-testid="report-customers-mobile">
+          {data.map((c) => (
+            <article key={c.customer_id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+              <p className="font-medium text-gray-900">{c.customer_name}</p>
+              <p className="text-xs text-gray-600">{c.total_offers} tilbud</p>
+              <p className={`text-sm font-medium ${c.acceptance_rate >= 50 ? 'text-green-600' : 'text-amber-600'}`}>Accept {c.acceptance_rate.toFixed(0)}%</p>
+              <p className="tabular-nums font-medium text-gray-900">{formatCurrency(c.total_revenue)}</p>
+            </article>
+          ))}
+        </div>
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left">
@@ -158,6 +169,7 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
@@ -194,7 +206,30 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
       {data.length === 0 ? (
         <p className="text-sm text-gray-400 py-8 text-center">Ingen sager endnu</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="md:hidden space-y-2" data-testid="report-profit-mobile">
+          {rows.slice(0, 15).map((p) => {
+            const utilization = p.estimated_hours && p.estimated_hours > 0 ? (p.actual_hours / p.estimated_hours) * 100 : null
+            return (
+              <article key={p.project_id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                <p className="font-medium text-gray-900">{p.project_name}</p>
+                <p className="text-xs text-gray-500">{p.project_number} · {p.customer_name || '—'}</p>
+                <p className="mt-1 text-xs text-gray-600">Est. {p.estimated_hours != null ? `${p.estimated_hours}t` : '—'} · Faktisk {p.actual_hours}t · Udnyttelse {utilization !== null ? `${utilization.toFixed(0)}%` : '—'}</p>
+                {costOpen && (
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    <div><dt className="text-gray-500">Budget</dt><dd>{p.budget ? formatCurrency(p.budget) : '—'}</dd></div>
+                    <div><dt className="text-gray-500">Tilbudt kost</dt><dd>{p.offered_cost != null ? formatCurrency(p.offered_cost) : '—'}</dd></div>
+                    <div><dt className="text-gray-500">Faktisk kost</dt><dd>{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</dd></div>
+                    <div><dt className="text-gray-500">Afvigelse</dt><dd className={p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}>{p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : '—'}</dd></div>
+                    <div><dt className="text-gray-500">Faktureret netto</dt><dd>{p.net_invoiced ? formatCurrency(p.net_invoiced) : '—'}</dd></div>
+                    <div><dt className="text-gray-500">Realiseret DB</dt><dd className={p.realized_db == null ? 'text-gray-400' : p.realized_db >= 0 ? 'text-green-700' : 'text-red-600'}>{p.realized_db == null ? '—' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${p.realized_db_pct.toFixed(1)} %)` : ''}`}</dd></div>
+                  </dl>
+                )}
+              </article>
+            )
+          })}
+        </div>
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left">
@@ -271,6 +306,7 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
@@ -282,7 +318,7 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
 
 function TeamTable({ data }: { data: TeamProductivity[] }) {
   return (
-    <div className="bg-white rounded-lg border p-6">
+    <div className="bg-white rounded-lg border p-4 md:p-6">
       <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
         <Users className="w-5 h-5 text-gray-400" />
         Team-produktivitet (seneste 30 dage)
@@ -290,7 +326,17 @@ function TeamTable({ data }: { data: TeamProductivity[] }) {
       {data.length === 0 ? (
         <p className="text-sm text-gray-400 py-8 text-center">Ingen tidsregistreringer endnu</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="md:hidden space-y-2" data-testid="report-team-mobile">
+          {data.map((t) => (
+            <article key={t.user_id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+              <p className="font-medium text-gray-900">{t.full_name}</p>
+              <p className="text-xs text-gray-600">{t.total_hours}t i alt · {t.billable_hours}t fakturerbare · {t.projects_count} sager</p>
+              <p className={`font-medium ${t.billable_percentage >= 70 ? 'text-green-600' : t.billable_percentage >= 50 ? 'text-amber-600' : 'text-red-600'}`}>Udnyttelse {t.billable_percentage}%</p>
+            </article>
+          ))}
+        </div>
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left">
@@ -326,6 +372,7 @@ function TeamTable({ data }: { data: TeamProductivity[] }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
