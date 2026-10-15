@@ -106,3 +106,13 @@ export function agendaForDates(sources: readonly AgendaSource[], dates: readonly
     }
   })
 }
+
+/** Kommende besigtigelser efter dansk dato. Samme regel som tælleren. */
+export function upcomingInspections<T extends { due_date: string | null; status: string }>(
+  tasks: readonly T[],
+  today: string,
+): T[] {
+  return tasks
+    .filter((t) => Boolean(t.due_date) && copenhagenParts(t.due_date as string).date >= today && t.status !== 'done')
+    .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
+}

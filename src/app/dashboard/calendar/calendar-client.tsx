@@ -1,6 +1,7 @@
 'use client'
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { upcomingInspections } from '@/lib/calendar/agenda'
 import { ASSISTANT_RULE } from '@/lib/assistant/rules'
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, CalendarCheck, MapPin, Clock, User, Navigation, CheckCircle } from 'lucide-react'
@@ -112,9 +113,11 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
     }
   }
 
-  // Count total upcoming
+  // Count total upcoming. Listen bruger samme danske dato som tælleren.
   const dayOf = (iso: string) => copenhagenParts(iso).date
-  const upcomingCount = tasks.filter((t) => t.due_date && dayOf(t.due_date) >= today && t.status !== 'done').length
+  const upcomingTasks = upcomingInspections(tasks, today)
+  const upcomingCount = upcomingTasks.length
+  const shownUpcoming = upcomingTasks.slice(0, 10)
   const overdueCount = tasks.filter((t) => t.due_date && dayOf(t.due_date) < today && t.status !== 'done').length
 
   return (
@@ -355,11 +358,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
           <div className="border-t p-4">
             <h4 className="text-sm font-semibold text-gray-700 mb-3">Kommende besigtigelser</h4>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {tasks
-                .filter((t) => t.due_date && t.due_date >= today && t.status !== 'done')
-                .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
-                .slice(0, 10)
-                .map((task) => {
+              {shownUpcoming.map((task) => {
                   const info = extractInfo(task.description)
                   return (
                     <div
@@ -396,6 +395,11 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                 })}
               {upcomingCount === 0 && (
                 <p className="text-xs text-gray-400 text-center py-4">Ingen kommende besigtigelser. Book dem fra kunden eller sagen.</p>
+              )}
+              {upcomingTasks.length > shownUpcoming.length && (
+                <p className="text-xs text-gray-500 text-center pt-2">
+                  Viser {shownUpcoming.length} af {upcomingTasks.length}. Resten ligger i månedskalenderen.
+                </p>
               )}
             </div>
           </div>
