@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function BankPage() {
-  const rows = await listUnmatchedBankTransactions(200)
-  return <BankTransactionsClient initialRows={rows} />
+  const result = await listUnmatchedBankTransactions(200)
+  return <BankTransactionsClient initialRows={result.error ? [] : result.rows} initialError={result.error} />
 }

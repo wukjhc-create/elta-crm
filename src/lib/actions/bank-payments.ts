@@ -4,6 +4,7 @@
  * Bank payment server actions for the minimal UI.
  */
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/utils/logger'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
@@ -37,7 +38,7 @@ export interface BankTxListRow {
   created_at: string
 }
 
-export async function listUnmatchedBankTransactions(limit = 200): Promise<BankTxListRow[]> {
+export async function listUnmatchedBankTransactions(limit = 200): Promise<{ rows: BankTxListRow[]; error: string | null }> {
   const { supabase } = await requireGate('bank.view')
   const { data, error } = await supabase
     .from('bank_transactions')
@@ -45,8 +46,11 @@ export async function listUnmatchedBankTransactions(limit = 200): Promise<BankTx
     .in('match_status', ['unmatched', 'ambiguous'])
     .order('date', { ascending: false })
     .limit(limit)
-  if (error) return []
-  return (data ?? []) as BankTxListRow[]
+  if (error) {
+    logger.error('listUnmatchedBankTransactions failed', { error })
+    return { rows: [], error: 'Kunne ikke hente banktransaktioner' }
+  }
+  return { rows: (data ?? []) as BankTxListRow[], error: null }
 }
 
 export async function importBankCsvAction(csv: string): Promise<ImportResult> {

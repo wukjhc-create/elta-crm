@@ -31,8 +31,15 @@ const STATUS_LABEL: Record<string, string> = {
   matched: 'Matchet',
 }
 
-export function BankTransactionsClient({ initialRows }: { initialRows: BankTxListRow[] }) {
+export function BankTransactionsClient({
+  initialRows,
+  initialError = null,
+}: {
+  initialRows: BankTxListRow[]
+  initialError?: string | null
+}) {
   const [rows, setRows] = useState<BankTxListRow[]>(initialRows)
+  const [loadError, setLoadError] = useState<string | null>(initialError)
   const [busy, startTransition] = useTransition()
   const [csvOpen, setCsvOpen] = useState(false)
   const [csvText, setCsvText] = useState('')
@@ -41,8 +48,16 @@ export function BankTransactionsClient({ initialRows }: { initialRows: BankTxLis
 
   const refresh = async () => {
     const { listUnmatchedBankTransactions } = await import('@/lib/actions/bank-payments')
-    const next = await listUnmatchedBankTransactions(200)
-    setRows(next)
+    try {
+      const next = await listUnmatchedBankTransactions(200)
+      if (next.error) setLoadError(next.error)
+      else {
+        setLoadError(null)
+        setRows(next.rows)
+      }
+    } catch {
+      setLoadError('Kunne ikke hente banktransaktioner')
+    }
   }
 
   return (
@@ -102,7 +117,12 @@ export function BankTransactionsClient({ initialRows }: { initialRows: BankTxLis
       {importMsg && <div className="text-sm text-gray-700">{importMsg}</div>}
       {matchMsg && <div className="text-sm text-gray-700">{matchMsg}</div>}
 
-      {rows.length === 0 && (
+      {loadError && (
+        <p className="text-sm text-red-700" data-testid="bank-tx-load-error">
+          {loadError}. Det tælles ikke som ingen transaktioner.
+        </p>
+      )}
+      {!loadError && rows.length === 0 && (
         <p className="text-sm text-gray-500">Ingen umatchede transaktioner. Importér en CSV, når banken har sendt nye linjer.</p>
       )}
 
