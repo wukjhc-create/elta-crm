@@ -144,7 +144,7 @@ function IdentitySection({ employee }: { employee: EmployeeWithCompensation }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
         <Field label="Fornavn *" error={fieldError('first_name')}>
           <input {...register('first_name')} type="text" disabled={isSubmitting} className={input} />
         </Field>
@@ -180,7 +180,7 @@ function IdentitySection({ employee }: { employee: EmployeeWithCompensation }) {
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
         <Field label="E-mail *" error={fieldError('email')}>
           <input {...register('email')} type="email" disabled={isSubmitting} className={input} />
         </Field>
@@ -193,7 +193,7 @@ function IdentitySection({ employee }: { employee: EmployeeWithCompensation }) {
         <input {...register('address')} type="text" disabled={isSubmitting} className={input} />
       </Field>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
         <Field label="Postnummer" error={fieldError('postal_code')}>
           <input {...register('postal_code')} type="text" disabled={isSubmitting} className={input} />
         </Field>
@@ -202,12 +202,12 @@ function IdentitySection({ employee }: { employee: EmployeeWithCompensation }) {
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
         <Field label="Ansættelsesdato" error={fieldError('hire_date')}>
-          <input {...register('hire_date')} type="date" disabled={isSubmitting} className={input} />
+          <input {...register('hire_date')} type="date" disabled={isSubmitting} className={`${input} min-w-0 max-w-full`} />
         </Field>
         <Field label="Fratrædelsesdato" error={fieldError('termination_date')}>
-          <input {...register('termination_date')} type="date" disabled={isSubmitting} className={input} />
+          <input {...register('termination_date')} type="date" disabled={isSubmitting} className={`${input} min-w-0 max-w-full`} />
         </Field>
       </div>
 
@@ -436,8 +436,8 @@ function Field({
   error?: string
 }) {
   return (
-    <div className="space-y-1">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+    <div className="space-y-1 min-w-0">
+      <label className="text-sm font-medium text-gray-700 break-words">{label}</label>
       {children}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
