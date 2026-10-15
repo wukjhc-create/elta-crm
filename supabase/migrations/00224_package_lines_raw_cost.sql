@@ -15,7 +15,7 @@
 --
 -- Data: ingen rækker ændres (prod: 0 pakkelinjer, 14 pakker — scripts/prod-package-lines-usage.ts).
 -- Pre/post (read-only): scripts/prod-fn-def.ts apply_package_to_offer (diff = de tre punkter) + prod-package-lines-usage
--- Rollback: genkør definitionen fra 00079 + GRANT EXECUTE ... TO anon, PUBLIC
+-- Rollback: genkør definitionen fra 00079 (UDEN at genåbne anon/PUBLIC — Henrik 2026-10-15: kræver særskilt vurdering)
 -- =====================================================
 
 BEGIN;

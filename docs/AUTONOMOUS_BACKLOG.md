@@ -38,9 +38,7 @@ Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 - **I prod (push = deploy):** L-7 ret fakturahoved · PE-6 kontraktsum-DB · PE-7 fælles DB-tærskler · arbejdskost trin 2 (adfærdsneutralt)
   · F-1 (S1) kreditering af fratrukket forskud blokeret · F-2/F-3 slutfaktura-vagter · F-8/F-9/F-10/F-12 · F-7 overbetaling
   · PL-1–PL-8 (montør/planlægning) · GP-1 app-vej · GP-2/3/5/7/8/9/10/11/12/13/14 · 3 små audit-punkter
-- **Udkast BLOCKED_APPROVAL (branches, staging-testet):** 00221 L-10 (`l10-rejected-dup-00221`, rejected-dup 5/5) · 00222 PE-1/PE-2
-  (`profit-engine-00222`, wo-profit 7/7, erstatter 00205) · 00223 GP-1 RLS (`calc-settings-rls-00223`, calc-settings-rls 3/3).
-  · 00224 GP-6 (`package-pricing-00224`, package-pricing-check 3/3). Staging har 00221–00224 anvendt.
+- **00221–00224 (+00225) kørt i prod 2026-10-15** — se DEVELOPMENT_STATUS "Prod-kørsel 2026-10-15".
 - **Nye beslutninger** i HENRIK-DECISIONS: lav-DB 20 vs 10, GP-1, GP-4, F-3 kontrakt-rest, F-4, F-5, PL-10.
 
 ## NEXT-10 (backlog-wave 2026-10-14 aften — planlægning/montør, kundefaktura, grossist/prissætning)
@@ -79,12 +77,12 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 ### Grossist / prissætning (GP)
 | # | Fund | Status |
 |---|---|---|
-| GP-1 (S1→S2) | Salg kan regne nettoindkøbspris baglæns: estimeret salgspris = kost × (1 + global avance), og avancen er læsbar for alle (calculation_settings RLS USING(true), ugated action) | DELVIS — app-vejen lukket: getCalculationSettings/getAllSettings udleverer ikke indkøbsavancer til roller uden kostadgang; server-beregning via lib/settings/product-margin (uændrede priser). Rest: RLS = udkast 00223 på branch `calc-settings-rls-00223` (staging `cli.ts calc-settings-rls` 3/3) BLOCKED_APPROVAL |
+| GP-1 (S1→S2) | Salg kan regne nettoindkøbspris baglæns: estimeret salgspris = kost × (1 + global avance), og avancen er læsbar for alle (calculation_settings RLS USING(true), ugated action) | DELVIS — app-vejen lukket: getCalculationSettings/getAllSettings udleverer ikke indkøbsavancer til roller uden kostadgang; server-beregning via lib/settings/product-margin (uændrede priser). RLS: 00223 i prod 2026-10-15 — DONE |
 | GP-2 (S2) | Produktspecifikke kundepriser og aftalers gyldighedsdatoer ignoreres ved linjeoprettelse/-opdatering | DELVIS — gyldighedsdatoer håndhæves ved linjeoprettelse/-opdatering (`supplier-line-pricing-check`); gyldighed nu også i søgning, optimering og Kalkia (fælles `onlyValidAgreements`); produktspecifikke kundepriser går nu foran leverandøraftalen ved linjeoprettelse/-opdatering/optimering (som DB-funktionen) — DONE |
 | GP-3 (S2) | Kategori-/underkategori-avanceregler bruges aldrig på manuelle linjer (p_category null) | DONE — kategori/underkategori sendes med (`supplier-line-pricing-check`) |
 | GP-4 (S2) | Avance-fallback og forrang forskellig på hver sti (20/25 %/indstilling; regel slår kundeaftale) | [H] forrang + én resolver |
 | GP-5 (S2) | optimizeOfferPrices: egen matematik, skriver bruttokost, navne-match på tværs af enheder, ukontrollerede fejl | DONE — supplierLinePricing, kun EAN + samme enhed, effektiv kost, fejl tjekkes (UI U152) |
-| GP-6 (S2) | Pakke-/auto-tilbud: rabatteret kost gemt som leverandørkost (falsk "pris ændret"), avance gemt som 0, ROUND vs ceil | BLOCKED_APPROVAL — udkast 00224 på branch `package-pricing-00224` (rå kost + faktisk avance; staging `cli.ts package-pricing-check` 3/3; latent: 0 pakkelinjer i prod). Afrunding ROUND vs ceil: LATER |
+| GP-6 (S2) | Pakke-/auto-tilbud: rabatteret kost gemt som leverandørkost (falsk "pris ændret"), avance gemt som 0, ROUND vs ceil | DONE 2026-10-15 — 00224 i prod (anon kan ikke kalde; package-pricing-check 5/5). Afrunding ROUND vs ceil: LATER |
 | GP-7 (S2) | LM "API-sync" læser egne rækker og stempler last_synced_at → gamle priser ser friske ud | DONE — `readsLocalCatalog`: cron/manuel API-sync springer LM Classic over (ingen last_synced_at-stempel); live-søgning mærker LM-rækker "cache" (`supplier-client-catalog-test`) |
 | GP-8 (S2) | Kalkia-materialesync skriver vejl. udsalgspris som salgspris, 0-kost, upagineret/uchunket | DONE — kun kostprisen synkroniseres (aldrig 0, salgspris urørt), "synk alle" pagineret + chunket med fejltjek (`material-price-plan-test` 7/7) |
 | GP-9 (S3) | import: supplier_settings.upsert uden onConflict → last_import_at opdateres aldrig efter 1. import | DONE (onConflict) |
@@ -131,15 +129,15 @@ Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kon
 | L-7 (S2) | Fakturahoved (nr., dato, beløb, valuta) kan ikke rettes i UI'et | DONE — "Ret fakturahoved" på detaljesiden (`editIncomingInvoiceHeaderAction`, `incoming_invoices.edit`, kun ikke-afsluttede, audit `header_edited`, samme beløbsregel som parseren; `invoice-header-edit-test` 15/15, UI U149) |
 | L-8 (S3) | Priskontrol overså merbetaling på lave enhedspriser | DONE — linje-tolerance (25 kr) ud over enhedstolerance (`invoice-control-test`) |
 | L-9 (S3) | price_history uden paginering (forkert "gammel" pris) | DONE — fetchAllRows sorteret |
-| L-10 (S3) | Gensendt rettet faktura (samme nr. som en afvist) annulleres som dublet (unik-indeks inkl. afviste) | BLOCKED_APPROVAL — udkast 00221 på branch `l10-rejected-dup-00221` (indeks uden rejected/cancelled + matcher: samme nr. som afvist → manuel kontrol). Staging `cli.ts rejected-dup` 5/5 (negativ kontrol ok). Prod read-only `prod-check-00221.ts`: latent (0 tilfælde) |
+| L-10 (S3) | Gensendt rettet faktura (samme nr. som en afvist) annulleres som dublet (unik-indeks inkl. afviste) | DONE 2026-10-15 — 00221 i prod (+ annulleret nr. → manuel kontrol; rejected-dup 8/8) |
 | L-11 | Konvertér+godkend kræver både `incoming_invoices.approve` og `materials.add_to_case` → kun admin; bogholderi kan ikke | [H] beslutning (rettighedsmodel) |
 | L-12 | RLS lader admin/bogholderi ændre status/external_invoice_id direkte via REST (ingen overgangs-trigger); backfill-kandidater upagineret | LATER |
 
 ### Profit Engine (review 2026-10-14)
 | # | Fund | Status |
 |---|---|---|
-| PE-1 (S1) | `calculate_work_order_profit` tæller kun timer (materialer kun via work_orders.source_offer_id, som aldrig sættes) og prissætter timer med live sats i stedet for sale_amount → forkert low_profit / AI-indsigter | BLOCKED_APPROVAL — udkast 00222 på branch `profit-engine-00222` (erstatter 00205): kost = timer + materialer/øvrige på ordren, omsætning = netto faktureret (kreditnotaer via original; kladder aldrig) ellers frossen timesalg + fakturerbare linjer. Staging `cli.ts wo-profit` 7/7 (negativ kontrol: 6 fejl før). Prod: latent (3 arbejdsordrer, 0 snapshots) |
-| PE-2 (S2) | Profit-snapshots forældes (kreditnotaer når dem aldrig; timer/materialer efter "udført" opdaterer ikke) | BLOCKED_APPROVAL — i 00222: snapshot ved kreditnota/statusskift og ved kost-linjer på udført ordre; uændrede tal giver intet nyt snapshot |
+| PE-1 (S1) | `calculate_work_order_profit` tæller kun timer (materialer kun via work_orders.source_offer_id, som aldrig sættes) og prissætter timer med live sats i stedet for sale_amount → forkert low_profit / AI-indsigter | DONE 2026-10-15 — 00222 i prod (wo-profit 8/8; 00205 ikke kørt) |
+| PE-2 (S2) | Profit-snapshots forældes (kreditnotaer når dem aldrig; timer/materialer efter "udført" opdaterer ikke) | DONE 2026-10-15 — 00222 i prod |
 | PE-3 (S2) | Tilbudt-vs-faktisk: arbejdslinjer uden kost tæller 0 på tilbudssiden men fuldt på faktisk-siden | TODO — afhænger af arbejdskost-modellen (P-8) |
 | PE-4 (S2) | Lav-DB-afsendelsesværn tæller manglende arbejdskost som 0 og bruger anden tærskel end profitkortet | TODO — afhænger af P-8 + én tærskel |
 | PE-5 (S2) | Medarbejderøkonomi talte salg på ikke-fakturerbare timer | DONE |

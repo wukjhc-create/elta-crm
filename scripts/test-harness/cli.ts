@@ -2147,6 +2147,13 @@ async function main() {
       check('rå leverandørkost i supplier_cost_price_at_creation (ingen falsk "pris ændret")', Number(l?.supplier_cost_price_at_creation) === 100 && Number(l?.cost_price) === 90, JSON.stringify(l))
       const expected = l && Number(l.cost_price) > 0 ? Math.round(((Number(l.unit_price) / Number(l.cost_price)) - 1) * 10000) / 100 : NaN
       check('faktisk avance gemt (ikke 0 uden regel)', !!l && Number(l.margin_percentage) > 0 && Math.abs(Number(l.margin_percentage) - expected) < 0.02 && Number(l.supplier_margin_applied) === Number(l.margin_percentage), `${l?.margin_percentage} vs ${expected}`)
+      // ingen falsk "pris ændret": getOfferSupplierPriceChanges sammenligner supplier_cost_price_at_creation med varens kost
+      const cur = ((await admin.from('supplier_products').select('cost_price').eq('id', prod).single()).data as { cost_price: number }).cost_price
+      check('ingen falsk "pris ændret" (rå kost = varens aktuelle kost)', Number(l?.supplier_cost_price_at_creation) === Number(cur), `${l?.supplier_cost_price_at_creation} vs ${cur}`)
+      // anon kan ikke kalde funktionen
+      const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
+      const an = await anonClient.rpc('apply_package_to_offer', { p_offer_id: off, p_package_id: pkg, p_customer_id: null, p_lines: [] })
+      check('anon kan ikke kalde apply_package_to_offer', !!an.error, an.error ? (an.error.code ?? an.error.message.slice(0, 40)) : 'TILLADT')
     } finally {
       await admin.from('offer_line_items').delete().eq('offer_id', off)
       await admin.from('offers').delete().eq('id', off)

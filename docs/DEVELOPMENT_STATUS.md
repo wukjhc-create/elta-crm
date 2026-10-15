@@ -1,8 +1,18 @@
 # Development status — checkpoint til næste session
 
-**Opdateret:** 2026-09-27 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
+**Opdateret:** 2026-10-15 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
 
-## Overnight run 2026-10-01 → (løbende checkpoint)
+## Prod-kørsel 2026-10-15 — 00221–00225 (Henrik: "Alle fire migrationer er GODKENDT TIL PROD")
+Kontrolleret én ad gangen: pre-check → migration → post-check → målrettet regression → prod-DB-audit (0/0/0 efter hver).
+| Nr | Resultat |
+|---|---|
+| 00221 (L-10) | Indeks kun blandt aktive; checksum incoming_invoices n=60 identisk før/efter. Matcher: samme nr. som afvist/annulleret → manuel kontrol, aktiv dublet afvises stadig (staging rejected-dup 8/8 inkl. end-to-end parseAndMatch). |
+| 00222 (PE-1/PE-2) | 00205 IKKE kørt (erstattet). Fakturaer/timer/materialer/øvrige checksums identiske, 0 snapshots/flag, de 3 arbejdsordrer uændrede tal. Staging wo-profit 8/8 (kladde, udstedt/betalt, kreditnota, frossen sats, materialer, øvrige, ingen dublet-snapshot, lav-avance-flag). |
+| 00225 | ACL-rettelse til 00222: Supabase default privileges gav anon EXECUTE på den nye trigger-funktion (DB-audit HØJ=1) → fjernet; audit 0/0/0. |
+| 00223 (GP-1) | Før: montør læste 3 avance-rækker; efter: montør 26/26 øvrige + 0 avance, admin 29/29; data uændret. Salg/serviceleder/bogholderi verificeret på staging (calc-settings-rls 3/3) — prod har kun aktive admin/montør. |
+| 00224 (GP-6) | Kode + migration samlet. Diff = rå kost, faktisk avance, ACL uden anon/PUBLIC; anon-kald → 42501; ingen falsk "pris ændret" (staging package-pricing-check 5/5); 0 pakkelinjer i prod. Rollback må ikke genåbne anon. |
+
+ → (løbende checkpoint)
 **Start:** 2026-10-01 20:18 dansk (18:18 UTC) · start-commit `4606dde`
 
 | Tid (dansk) | Checkpoint |
