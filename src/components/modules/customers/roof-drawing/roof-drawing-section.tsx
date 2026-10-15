@@ -129,12 +129,12 @@ export function RoofDrawingSection({ customerId, serviceCaseId }: RoofDrawingSec
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <LayoutGrid className="w-5 h-5 text-primary" />
-          <h3 className="text-base font-semibold text-gray-900">Tagtegning & panellayout</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <LayoutGrid className="w-5 h-5 text-primary shrink-0" />
+          <h3 className="text-base font-semibold text-gray-900 break-words">Tagtegning & panellayout</h3>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {totalPanels > 0 && (
             <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700">
               <Sun className="w-4 h-4 text-amber-500" />
@@ -171,7 +171,7 @@ export function RoofDrawingSection({ customerId, serviceCaseId }: RoofDrawingSec
         </div>
       ) : drawings.length === 0 ? (
         <div className="text-center py-8 text-sm text-gray-500 border border-dashed rounded-lg">
-          Ingen tagtegninger endnu.
+          Ingen tagtegninger endnu. Brug Tilføj tagflade ovenfor.
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

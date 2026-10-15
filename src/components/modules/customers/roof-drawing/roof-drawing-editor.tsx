@@ -1273,14 +1273,14 @@ export function RoofDrawingEditor({
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-0 sm:p-4">
       <div className="bg-white shadow-xl flex flex-col w-full h-full max-h-full sm:h-auto sm:max-w-5xl sm:max-h-[95vh] sm:rounded-lg">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center justify-between gap-2 p-4 border-b">
           <input
             value={title}
             onChange={(e) => {
               setTitle(e.target.value)
               setDirty(true)
             }}
-            className="text-lg font-semibold border-b border-transparent hover:border-gray-300 focus:border-primary outline-none"
+            className="min-w-0 flex-1 text-lg font-semibold border-b border-transparent hover:border-gray-300 focus:border-primary outline-none"
           />
           <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded-full">
             <X className="w-5 h-5" />
@@ -1290,7 +1290,7 @@ export function RoofDrawingEditor({
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2 p-3 border-b bg-gray-50">
           {/* Værktøjsvælger — vælg ét værktøj ad gangen (touch-venligt) */}
-          <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-300 p-1">
+          <div className="flex flex-wrap items-center gap-1 bg-white rounded-xl border border-gray-300 p-1">
             <ToolButton
               active={mode === 'view'}
               onClick={() => selectTool('view')}
@@ -1330,7 +1330,7 @@ export function RoofDrawingEditor({
           <select
             value={panelCode ?? ''}
             onChange={(e) => handlePanelChange(e.target.value)}
-            className="px-3 py-2 rounded-lg text-sm border border-gray-300 bg-white"
+            className="px-3 py-2 rounded-lg text-sm border border-gray-300 bg-white max-w-full"
           >
             <option value="">Vælg panel…</option>
             {panels.map((p) => (
@@ -1340,7 +1340,7 @@ export function RoofDrawingEditor({
             ))}
           </select>
 
-          <div className="ml-auto flex items-center gap-3 text-sm">
+          <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
             <span className="font-medium text-gray-900">
               {data.panels.length} paneler
             </span>
