@@ -47,17 +47,17 @@ export function ConversionPreviewPanel({ invoiceId }: { invoiceId: string }) {
         <p className="text-sm text-red-800 break-words py-2" data-testid="conversion-preview-load-error">{error || 'Kunne ikke hente preview. Det tælles ikke som 0 linjer.'}</p>
       ) : (
         <div className="space-y-2 text-sm">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <div className="break-words"><span className="text-gray-500">Leverandør:</span> {data.supplier_name ?? (data.supplier_failed ? '' : '—')}{data.supplier_failed && <span className="text-red-800" data-testid="conversion-preview-supplier-error"> Navnet kunne ikke hentes. Det tælles ikke som ingen leverandør.</span>}</div>
-            <div className="break-words"><span className="text-gray-500">Faktura:</span> {data.invoice_number ?? '—'}</div>
-            <div><span className="text-gray-500">Sag:</span>{' '}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs min-w-0">
+            <div className="break-words min-w-0"><span className="text-gray-500">Leverandør:</span> {data.supplier_name ?? (data.supplier_failed ? '' : '—')}{data.supplier_failed && <span className="text-red-800" data-testid="conversion-preview-supplier-error"> Navnet kunne ikke hentes. Det tælles ikke som ingen leverandør.</span>}</div>
+            <div className="break-words min-w-0"><span className="text-gray-500">Faktura:</span> {data.invoice_number ?? '—'}</div>
+            <div className="break-words min-w-0"><span className="text-gray-500">Sag:</span>{' '}
               {data.case ? (
                 <Link href={`/dashboard/orders/${data.case.case_number}`} className="text-emerald-700 hover:underline font-mono">{data.case.case_number}</Link>
               ) : data.case_failed ? (
                 <span className="text-red-800" data-testid="conversion-preview-case-error">Sagen kunne ikke hentes. Det tælles ikke som ikke matchet.</span>
               ) : <span className="text-amber-700">ikke matchet</span>}
             </div>
-            <div><span className="text-gray-500">Beløb (inkl. moms):</span> {kr(data.amount_incl_vat)}</div>
+            <div className="break-words min-w-0"><span className="text-gray-500">Beløb (inkl. moms):</span> {kr(data.amount_incl_vat)}</div>
           </div>
 
           {data.requires_case_match && (
