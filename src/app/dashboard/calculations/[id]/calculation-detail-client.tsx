@@ -432,18 +432,18 @@ export default function CalculationDetailClient({
               )}
 
               {calculation.customer && (
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Kunde</span>
-                  <span>{calculation.customer.company_name}</span>
+                  <span className="min-w-0 break-words">{calculation.customer.company_name}</span>
                 </div>
               )}
 
               {/* Electrician mode settings */}
               {calculation.calculation_mode === 'electrician' && showInternalView && (
                 <>
-                  <div className="flex justify-between border-t pt-2">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2">
                     <span className="text-gray-500">Standard timepris</span>
-                    <span>{formatCurrency(calculation.default_hourly_rate || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN)}</span>
+                    <span className="min-w-0 break-words">{formatCurrency(calculation.default_hourly_rate || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Materialemarkup</span>
