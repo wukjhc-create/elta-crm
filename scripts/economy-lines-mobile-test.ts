@@ -30,6 +30,11 @@ eq('hoejdepunkt ombryder beskrivelse', fs.readFileSync(afterFile, 'utf8').includ
 eq('hoejdepunkt klipper ikke', fs.readFileSync(afterFile, 'utf8').includes('truncate'), false)
 eq('ens tekst staar stadig som ikke matchet', fs.readFileSync(afterFile, 'utf8').includes('Ens tekst alene står som ikke matchet.'), true)
 eq('tomt merkost bliver', fs.readFileSync(afterFile, 'utf8').includes('Ingen linje er dyrere end tilbudt.'), true)
+const summary = between(afterFile, 'data-testid="aftercalc-summary-mobile"', 'hidden md:block')
+eq('noegletal-kort findes', summary.includes('Tilbudt {r.quoted}') && summary.includes('Faktisk {r.actual}') && summary.includes('<DevCell value={r.variance} kind={r.kind} />'), true)
+eq('noegletal-kort bruger ikke raekke-testid', summary.includes('aftercalc-row'), false)
+eq('noegletal-raekke bliver paa bordet', fs.readFileSync(afterFile, 'utf8').includes('data-testid="aftercalc-row"'), true)
+eq('manglende kost ombrydes', fs.readFileSync(afterFile, 'utf8').includes('className="break-words">{r.description}</li>'), true)
 
 eq('linje-kort findes', ova.length > 0, true)
 eq('linje-kort ombryder beskrivelse', ova.includes('text-gray-900 break-words">{r.description}'), true)

@@ -120,7 +120,17 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                 {data.data_quality === 'warning' ? ' DB vises kun, hvor kostgrundlaget er komplet.' : ''}
               </p>
 
-              <div className="overflow-x-auto">
+              <div className="md:hidden space-y-2" data-testid="aftercalc-summary-mobile">
+                {rows.map((r) => (
+                  <div key={r.label} className="rounded ring-1 ring-gray-200 p-3">
+                    <p className="text-sm font-medium text-gray-900">{r.label}</p>
+                    <p className="mt-1 text-xs text-gray-600">Tilbudt {r.quoted}</p>
+                    <p className="text-xs text-gray-700">Faktisk {r.actual}</p>
+                    <p className="text-xs text-gray-800">Afvigelse <DevCell value={r.variance} kind={r.kind} /></p>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-xs text-gray-600">
                     <tr>
@@ -154,7 +164,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-orange-800 mb-1">Mangler kostdata</h4>
                   <ul className="text-sm text-gray-700 space-y-0.5">
-                    {data.missing_cost_lines.map((r) => <li key={r.key}>{r.description}</li>)}
+                    {data.missing_cost_lines.map((r) => <li key={r.key} className="break-words">{r.description}</li>)}
                   </ul>
                 </div>
               )}
