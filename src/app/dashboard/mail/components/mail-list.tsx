@@ -205,7 +205,7 @@ export function MailList({
             {search && (
               <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
                 Søgning: {search}
-                <button onClick={() => { onSearchChange(''); onSearchSubmit() }} className="hover:text-red-600">
+                <button type="button" onClick={() => { onSearchChange(''); onSearchSubmit() }} className="hover:text-red-600" aria-label="Ryd søgning">
                   <X className="w-3 h-3" />
                 </button>
               </span>
@@ -254,7 +254,16 @@ export function MailList({
           ) : emails.length === 0 ? (
             <div className="p-8 text-center text-gray-400">
               <Mail className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <p className="font-medium">Ingen emails fundet</p>
+              <p className="font-medium">{search ? 'Ingen emails matcher søgningen' : 'Ingen emails fundet'}</p>
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { onSearchChange(''); onSearchSubmit() }}
+                  className="mt-2 text-sm text-blue-600 hover:underline"
+                >
+                  Ryd søgning
+                </button>
+              )}
               {readFilter !== 'all' && (
                 <button
                   onClick={() => onReadFilterChange('all')}
