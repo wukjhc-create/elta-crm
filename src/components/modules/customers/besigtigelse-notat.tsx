@@ -318,6 +318,7 @@ function Select({ label, value, field, options }: {
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
       <select
+        aria-label={label}
         value={value}
         onChange={(e) => set(field, e.target.value)}
         className="w-full px-3 py-3 sm:py-2.5 min-h-[50px] sm:min-h-0 border rounded-xl sm:rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white appearance-none"
@@ -340,6 +341,7 @@ function Input({ label, field, placeholder, inputMode, autoComplete }: {
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
       <input
         type="text"
+        aria-label={label}
         inputMode={inputMode || 'text'}
         autoComplete={autoComplete || 'off'}
         value={form[field] as string}
@@ -837,7 +839,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">AC Kabelføring</h3>
             <CameraBtn category="ac-foering" label="Tag billede af AC-vej" />
           </div>
-          <textarea value={form.acKabelvej} onChange={(e) => set('acKabelvej', e.target.value)}
+          <textarea aria-label="AC kabelføring" value={form.acKabelvej} onChange={(e) => set('acKabelvej', e.target.value)}
             placeholder="Beskriv AC-kabelvejen fra inverter til eltavle..."
             rows={3} className="w-full px-3 py-3 sm:py-2.5 min-h-[50px] border rounded-xl sm:rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none" />
           <ImageThumbs category="ac-foering" />
@@ -849,7 +851,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">DC Kabelføring</h3>
             <CameraBtn category="dc-foering" label="Tag billede af DC-vej" />
           </div>
-          <textarea value={form.dcKabelvej} onChange={(e) => set('dcKabelvej', e.target.value)}
+          <textarea aria-label="DC kabelføring" value={form.dcKabelvej} onChange={(e) => set('dcKabelvej', e.target.value)}
             placeholder="Beskriv DC-kabelvejen fra solceller til inverter..."
             rows={3} className="w-full px-3 py-3 sm:py-2.5 min-h-[50px] border rounded-xl sm:rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none" />
           <ImageThumbs category="dc-foering" />
@@ -885,7 +887,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
         {/* SÆRLIGE AFTALER */}
         <section>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Særlige aftaler & noter</h3>
-          <textarea value={form.saerligeAftaler} onChange={(e) => set('saerligeAftaler', e.target.value)}
+          <textarea aria-label="Særlige aftaler" value={form.saerligeAftaler} onChange={(e) => set('saerligeAftaler', e.target.value)}
             placeholder="Eventuelle aftaler, krav, adgangsforhold, tidsplaner..."
             rows={4} className="w-full px-3 py-3 sm:py-2.5 min-h-[50px] border rounded-xl sm:rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none" />
         </section>
