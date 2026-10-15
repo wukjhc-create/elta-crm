@@ -351,7 +351,7 @@ export default function CalculationDetailClient({
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label="Rediger"
+                              aria-label={`Rediger ${row.description}`}
                               onClick={() => setEditingRow(row)}
                             >
                               <Pencil className="w-4 h-4" />
@@ -359,7 +359,7 @@ export default function CalculationDetailClient({
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label="Slet"
+                              aria-label={`Slet ${row.description}`}
                               onClick={() => handleDeleteRow(row)}
                               className="text-red-600"
                             >
