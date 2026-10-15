@@ -80,7 +80,27 @@ export function EmployeeEconomyClient({
 
       {/* Tabel */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        {employees.length === 0 ? (
+          <p className="px-4 py-8 text-center text-gray-400 text-sm">Ingen lukkede timeregistreringer.</p>
+        ) : (
+        <>
+        <div className="md:hidden space-y-2 p-2" data-testid="employee-economy-mobile">
+          {employees.map((e) => (
+            <article key={e.employee_id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+              <p className="font-medium text-gray-900">{e.employee_name}</p>
+              <p className="text-xs text-gray-600">{formatNumber(e.hours, 2)} t · Salg {formatCurrency(e.labor_sale)}</p>
+              {showRowCost && (
+                <p className="mt-1 text-xs text-gray-700">
+                  Kost {formatCurrency(e.labor_cost ?? 0)} · DB {formatCurrency(e.db_amount ?? 0)} · {formatPercent(e.db_percentage ?? 0, 1)}
+                </p>
+              )}
+              {e.missing_snapshot_count > 0 && (
+                <p className="mt-1 text-xs text-amber-700">{e.missing_snapshot_count} mangler snapshot</p>
+              )}
+            </article>
+          ))}
+        </div>
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-left">
@@ -98,14 +118,7 @@ export function EmployeeEconomyClient({
               </tr>
             </thead>
             <tbody className="divide-y">
-              {employees.length === 0 ? (
-                <tr>
-                  <td colSpan={showRowCost ? 7 : 4} className="px-4 py-8 text-center text-gray-400">
-                    Ingen lukkede timeregistreringer.
-                  </td>
-                </tr>
-              ) : (
-                employees.map((e) => (
+              {employees.map((e) => (
                   <tr key={e.employee_id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 font-medium">{e.employee_name}</td>
                     <td className="px-4 py-2 text-right tabular-nums">
@@ -141,11 +154,12 @@ export function EmployeeEconomyClient({
                       )}
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
+        </>
+        )}
       </div>
     </div>
   )
