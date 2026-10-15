@@ -1,4 +1,5 @@
 /** Dag/uge-kalender: aftaler følger dansk dato, samme regel som måneden. Kør: npx tsx scripts/calendar-agenda-test.ts */
+import fs from 'fs'
 import { agendaClock, agendaForDates, type AgendaSource } from '../src/lib/calendar/agenda'
 
 let fail = 0
@@ -64,6 +65,10 @@ const textOrder = agendaForDates([
   src({ id: 'ni', kind: 'inspection', at: '2026-10-14', description: 'kl. 9:00', title: 'Ni' }),
 ], ['2026-10-14'])
 eq('kl. 9:00 kommer før kl. 10:00', textOrder[0].items.map((i) => i.id), ['ni', 'ti'])
+
+const view = fs.readFileSync('src/app/dashboard/calendar/calendar-agenda.tsx', 'utf8')
+eq('agendatitel ombrydes', view.includes('text-xs text-gray-500 break-words">{item.title}'), true)
+eq('tom dag bliver', view.includes('Ingen besigtigelser, opkald eller påmindelser denne dag.'), true)
 
 if (fail) {
   console.log(`${fail} FAIL`)

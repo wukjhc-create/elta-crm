@@ -65,7 +65,7 @@ export function CalendarAgenda({ days }: { days: AgendaDay[] }) {
                             ) : label}
                           </p>
                           {item.customerName && item.customerName !== item.title && (
-                            <p className="text-xs text-gray-500 truncate">{item.title}</p>
+                            <p className="text-xs text-gray-500 break-words">{item.title}</p>
                           )}
                         </div>
                       </div>
