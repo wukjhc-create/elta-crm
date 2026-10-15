@@ -8,6 +8,13 @@ const eq = (name: string, got: unknown, want: unknown) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : `  fik=${JSON.stringify(got)}`}`)
 }
 
+const action = fs.readFileSync('src/lib/actions/dashboard-overview.ts', 'utf8')
+eq('portal siger fejl', action.includes("throw new Error('Kunne ikke hente kundebeskeder')"), true)
+eq('nye kunder siger fejl', action.includes("throw new Error('Kunne ikke hente nye kunder')"), true)
+eq('tilbud og sager siger fejl', action.includes("throw new Error('Kunne ikke tjekke tilbud og sager')"), true)
+eq('besigtigelse siger fejl', action.includes("throw new Error('Kunne ikke hente besigtigelser')"), true)
+eq('besigtigelse-filter bliver', action.includes(".ilike('title', '%esigtigelse%')"), true)
+
 const src = fs.readFileSync('src/components/dashboard/styrings-cockpit.tsx', 'utf8')
 eq('ufaktureret er ikke groent nul', src.includes("headline={err ? '—' : caseCount}"), true)
 eq('ufaktureret beloeb bliver', src.includes('kr(c.sale)') && src.includes('data-testid="cockpit-unbilled"'), true)

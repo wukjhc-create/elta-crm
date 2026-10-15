@@ -612,8 +612,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       try {
         const ctx = roleCtx
         if (!ctx.hasPermission('customers.edit')) return
-        const { data } = await supabase.from('portal_messages').select('customer_id, created_at, customer:customers(company_name)')
+        const { data, error } = await supabase.from('portal_messages').select('customer_id, created_at, customer:customers(company_name)')
           .eq('sender_type', 'customer').is('read_at', null).order('created_at', { ascending: true }).limit(500)
+        if (error) throw new Error('Kunne ikke hente kundebeskeder')
         const rows = (data ?? []) as Array<{ customer_id: string; created_at: string; customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>
         const byCustomer = new Map<string, { id: string; name: string; unread: number; oldestDays: number }>()
         for (const m of rows) {
@@ -635,8 +636,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const ctx = roleCtx
         if (!ctx.hasPermission('offers.create')) return
         const since = new Date(now - NEW_CUSTOMER_DAYS * 86_400_000).toISOString()
-        const { data: custs } = await supabase.from('customers').select('id, company_name, created_at, email')
+        const { data: custs, error: custError } = await supabase.from('customers').select('id, company_name, created_at, email')
           .gte('created_at', since).eq('is_active', true).order('created_at', { ascending: false }).limit(200)
+        if (custError) throw new Error('Kunne ikke hente nye kunder')
         let list = (custs ?? []) as Array<{ id: string; company_name: string | null; created_at: string; email: string | null }>
         if (!list.length) return
         // N75: "kunder" hvis e-maildomæne tilhører en kendt leverandør (fx oprettet af mail-automatikken ud fra en
@@ -651,6 +653,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           supabase.from('offers').select('customer_id').in('customer_id', ids),
           supabase.from('service_cases').select('customer_id').in('customer_id', ids),
         ])
+        if (offRes.error || caseRes.error) throw new Error('Kunne ikke tjekke tilbud og sager')
         const handled = new Set<string>([
           ...((offRes.data ?? []) as Array<{ customer_id: string | null }>).map((r) => r.customer_id ?? ''),
           ...((caseRes.data ?? []) as Array<{ customer_id: string | null }>).map((r) => r.customer_id ?? ''),
@@ -670,7 +673,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     (async () => {
       try {
         const nowIso = new Date().toISOString()
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('customer_tasks')
           .select(`
             id, title, customer_id, due_date,
@@ -681,6 +684,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           .ilike('title', '%esigtigelse%')
           .order('due_date', { ascending: true })
           .limit(TOP_N)
+        if (error) throw new Error('Kunne ikke hente besigtigelser')
         const rows = (data || []) as Array<{
           id: string
           title: string
