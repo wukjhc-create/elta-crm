@@ -48,6 +48,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
       <div className="text-center py-12 text-muted-foreground">
         <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
         <p>Ingen aktivitet endnu</p>
+        <p className="text-sm mt-1">Leads, kunder, tilbud og sager vises her, når de oprettes.</p>
       </div>
     )
   }
@@ -68,7 +69,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
                 <Icon className={`w-4 h-4 ${config.color}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{activity.action}</p>
+                <p className="text-sm font-medium break-words">{activity.action}</p>
                 <p className="text-sm text-muted-foreground break-words">
                   {activity.title}
                   {activity.description && ` - ${activity.description}`}

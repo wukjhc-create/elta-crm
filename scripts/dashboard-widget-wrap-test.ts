@@ -52,7 +52,9 @@ eq('opgave klipper ikke', tasks.includes('truncate'), false)
 eq('tilbud ombryder kunde', offers.includes('text-xs text-muted-foreground break-words') && offers.includes('offer.customer_name'), true)
 eq('tilbud viser beløb', offers.includes('formatCurrency(offer.total_amount)'), true)
 eq('aktivitet ombryder titel', activity.includes('text-sm text-muted-foreground break-words'), true)
+eq('aktivitet ombryder handling', activity.includes('text-sm font-medium break-words">{activity.action}'), true)
 eq('aktivitet klipper ikke', activity.includes('truncate'), false)
+eq('tom aktivitet siger naeste skridt', activity.includes('Leads, kunder, tilbud og sager vises her, når de oprettes.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ndashboard-widget-wrap-test OK')
 process.exitCode = fail ? 1 : 0
