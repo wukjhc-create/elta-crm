@@ -52,6 +52,7 @@ interface OfferTextFormData {
 
 interface OfferTextsClientProps {
   initialTemplates: OfferTextTemplate[]
+  loadError?: string | null
 }
 
 const textTypeOptions: { value: TextType; label: string; icon: React.ElementType; color: string }[] = [
@@ -68,7 +69,7 @@ const scopeTypeOptions: { value: ScopeType; label: string; icon: React.ElementTy
   { value: 'global', label: 'Global', icon: Globe },
 ]
 
-export function OfferTextsClient({ initialTemplates }: OfferTextsClientProps) {
+export function OfferTextsClient({ initialTemplates, loadError = null }: OfferTextsClientProps) {
   const toast = useToast()
   const [templates, setTemplates] = useState<OfferTextTemplate[]>(initialTemplates)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -537,7 +538,11 @@ export function OfferTextsClient({ initialTemplates }: OfferTextsClientProps) {
           )
         })}
 
-        {filteredTemplates.length === 0 && !showCreateForm && (
+        {loadError ? (
+          <p className="text-sm text-red-700 py-8 text-center" data-testid="offer-texts-load-error">
+            {loadError}. Det tælles ikke som ingen tekstskabeloner.
+          </p>
+        ) : filteredTemplates.length === 0 && !showCreateForm && (
           <Card className="py-12 text-center text-gray-500">
             <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
             <p>
