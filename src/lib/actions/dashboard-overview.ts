@@ -78,8 +78,12 @@ export interface DashboardOverview {
     total: number
     /** N27: sager hvor alle job er udført og intet er ufaktureret (kun for cases.close; ellers 0). */
     readyToClose: number
+    /** Sat når klar-til-lukning ikke kunne tælles. 0 er da ikke et rigtigt nul. */
+    readyToCloseFailed?: boolean
     /** N28: afsluttede timeregistreringer der afventer godkendelse (kun for time_logs.approve; ellers 0). */
     timesPendingApproval: number
+    /** Sat når timetallet ikke kunne tælles. 0 er da ikke et rigtigt nul. */
+    timesPendingFailed?: boolean
   }
   offers: {
     followupCount: number
@@ -301,30 +305,54 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         overview.cases.total = totalRes.count || 0
         // N27: klar til lukning — kandidater (≥1 job udført, ingen åbne job) i én forespørgsel, fuld vurdering
         // (inkl. ufaktureret/kørende timer) kun for kandidaterne. Kræver cases.close (ellers null → 0).
-        const { data: open } = await supabase.from('service_cases').select('id').in('status', ['new', 'in_progress', 'pending']).eq('is_proposal', false).limit(200)
-        const ids = ((open ?? []) as Array<{ id: string }>).map((x) => x.id)
-        if (ids.length) {
-          const { data: wos } = await supabase.from('work_orders').select('case_id, status').in('case_id', ids)
-          const agg = new Map<string, { done: number; open: number }>()
-          for (const w of (wos ?? []) as Array<{ case_id: string; status: string }>) {
-            const a = agg.get(w.case_id) ?? { done: 0, open: 0 }
-            if (w.status === 'done') a.done++
-            else if (w.status === 'planned' || w.status === 'in_progress') a.open++
-            agg.set(w.case_id, a)
+        // Fejl her må ikke skjule sagstallene ovenfor og må ikke ligne 0 klar til lukning.
+        try {
+          const { data: open, error: openError } = await supabase.from('service_cases').select('id').in('status', ['new', 'in_progress', 'pending']).eq('is_proposal', false).limit(200)
+          if (openError) {
+            overview.cases.readyToCloseFailed = true
+          } else {
+            const ids = ((open ?? []) as Array<{ id: string }>).map((x) => x.id)
+            if (ids.length) {
+              const { data: wos, error: wosError } = await supabase.from('work_orders').select('case_id, status').in('case_id', ids)
+              if (wosError) {
+                overview.cases.readyToCloseFailed = true
+              } else {
+                const agg = new Map<string, { done: number; open: number }>()
+                for (const w of (wos ?? []) as Array<{ case_id: string; status: string }>) {
+                  const a = agg.get(w.case_id) ?? { done: 0, open: 0 }
+                  if (w.status === 'done') a.done++
+                  else if (w.status === 'planned' || w.status === 'in_progress') a.open++
+                  agg.set(w.case_id, a)
+                }
+                const candidates = [...agg.entries()].filter(([, a]) => a.done > 0 && a.open === 0).map(([id]) => id).slice(0, 25)
+                if (candidates.length) {
+                  const { getCaseCloseReadinessAction } = await import('@/lib/actions/service-cases')
+                  const rs = await Promise.all(candidates.map((id) => getCaseCloseReadinessAction(id)))
+                  overview.cases.readyToClose = rs.filter((r) => r.success && r.data?.ready).length
+                  if (rs.some((r) => !r.success)) overview.cases.readyToCloseFailed = true
+                }
+              }
+            }
           }
-          const candidates = [...agg.entries()].filter(([, a]) => a.done > 0 && a.open === 0).map(([id]) => id).slice(0, 25)
-          if (candidates.length) {
-            const { getCaseCloseReadinessAction } = await import('@/lib/actions/service-cases')
-            const rs = await Promise.all(candidates.map((id) => getCaseCloseReadinessAction(id)))
-            overview.cases.readyToClose = rs.filter((r) => r.success && r.data?.ready).length
-          }
+        } catch (closeErr) {
+          logger.error('getDashboardOverview: ready to close failed', { error: closeErr })
+          overview.cases.readyToCloseFailed = true
         }
         // N28: timer der afventer godkendelse (montør registrerer → serviceleder/admin godkender)
         const ctx = roleCtx
         if (ctx.hasPermission('time_logs.approve')) {
-          const { count } = await supabase.from('time_logs').select('id', { count: 'exact', head: true })
-            .eq('approval_status', 'pending').not('end_time', 'is', null)
-          overview.cases.timesPendingApproval = count || 0
+          try {
+            const { count, error: pendingError } = await supabase.from('time_logs').select('id', { count: 'exact', head: true })
+              .eq('approval_status', 'pending').not('end_time', 'is', null)
+            if (pendingError) {
+              overview.cases.timesPendingFailed = true
+            } else {
+              overview.cases.timesPendingApproval = count ?? 0
+            }
+          } catch (pendingErr) {
+            logger.error('getDashboardOverview: pending times failed', { error: pendingErr })
+            overview.cases.timesPendingFailed = true
+          }
         }
       } catch (err) {
         logger.error('getDashboardOverview: cases failed', { error: err })

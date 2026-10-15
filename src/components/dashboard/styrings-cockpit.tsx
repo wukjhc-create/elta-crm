@@ -231,10 +231,20 @@ function CasesCard({ overview }: { overview: DashboardOverview }) {
           {readyToClose} sag{readyToClose === 1 ? '' : 'er'} klar til lukning (alle job udført, alt faktureret)
         </p>
       )}
+      {!err && overview.cases.readyToCloseFailed && (
+        <p className="mt-2 text-xs text-amber-800" data-testid="cockpit-ready-to-close-error">
+          Klar til lukning kunne ikke tælles. Det tælles ikke som 0.
+        </p>
+      )}
       {timesPendingApproval > 0 && (
         <a href="/dashboard/time-approval" className="mt-1 block text-xs text-amber-800 hover:underline" data-testid="cockpit-times-pending">
           {timesPendingApproval} timeregistrering{timesPendingApproval === 1 ? '' : 'er'} afventer godkendelse →
         </a>
+      )}
+      {!err && overview.cases.timesPendingFailed && (
+        <p className="mt-1 text-xs text-amber-800" data-testid="cockpit-times-pending-error">
+          Timer til godkendelse kunne ikke tælles. Det tælles ikke som 0.
+        </p>
       )}
     </Card>
   )
