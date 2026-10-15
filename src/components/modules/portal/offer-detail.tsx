@@ -137,12 +137,10 @@ export function OfferDetail({
 
             <ul className="md:hidden space-y-2 p-4" data-testid="portal-offer-lines-mobile">
               {(offer.line_items || []).map((item) => (
-                <li key={item.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 break-words text-gray-900">{item.description}</p>
-                    <p className="shrink-0 tabular-nums font-medium">{formatCurrency(item.total, currency, 2)}</p>
-                  </div>
-                  <p className="mt-1 text-xs tabular-nums text-gray-600">
+                <li key={item.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm min-w-0">
+                  <p className="min-w-0 break-words text-gray-900">{item.description}</p>
+                  <p className="mt-1 tabular-nums font-medium text-gray-900 break-words">{formatCurrency(item.total, currency, 2)}</p>
+                  <p className="mt-1 text-xs tabular-nums text-gray-600 break-words">
                     {item.quantity} {item.unit} · {formatCurrency(item.unit_price, currency, 2)}
                   </p>
                 </li>
@@ -188,34 +186,34 @@ export function OfferDetail({
             </div>
 
             {/* Totals */}
-            <div className="bg-gray-50 p-6 space-y-2">
-              <div className="flex justify-between text-sm">
+            <div className="bg-gray-50 p-6 space-y-2 min-w-0">
+              <div className="flex flex-wrap justify-between gap-3 text-sm min-w-0">
                 <span className="text-gray-600">Subtotal</span>
-                <span className="text-gray-900">
+                <span className="min-w-0 text-gray-900 break-words">
                   {formatCurrency(offer.total_amount, currency, 2)}
                 </span>
               </div>
               {offer.discount_amount > 0 && (
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-wrap justify-between gap-3 text-sm min-w-0">
                   <span className="text-gray-600">
                     Rabat ({offer.discount_percentage}%)
                   </span>
-                  <span className="text-green-600">
+                  <span className="min-w-0 text-green-600 break-words">
                     -{formatCurrency(offer.discount_amount, currency, 2)}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-wrap justify-between gap-3 text-sm min-w-0">
                 <span className="text-gray-600">
                   Moms ({offer.tax_percentage}%)
                 </span>
-                <span className="text-gray-900">
+                <span className="min-w-0 text-gray-900 break-words">
                   {formatCurrency(offer.tax_amount, currency, 2)}
                 </span>
               </div>
-              <div className="flex justify-between text-lg font-bold pt-2 border-t">
+              <div className="flex flex-wrap justify-between gap-3 text-lg font-bold pt-2 border-t min-w-0">
                 <span>Total</span>
-                <span className="text-primary">
+                <span className="min-w-0 text-primary break-words">
                   {formatCurrency(offer.final_amount, currency, 2)}
                 </span>
               </div>
