@@ -311,12 +311,19 @@ export async function getCustomersWithPaymentState(
       }
     }
 
+    const counted = (res: { count: number | null; error: unknown }): number | null => {
+      if (res.error) {
+        logger.error('getCustomersWithPaymentState: count failed', { error: res.error })
+        return null
+      }
+      return res.count ?? 0
+    }
     const counts: PaymentCounts = {
-      overdue: cOverdue.count || 0,
-      outstanding: cOutstanding.count || 0,
-      late_payer: cLate.count || 0,
-      on_time: cOnTime.count || 0,
-      no_data: cNoData.count || 0,
+      overdue: counted(cOverdue),
+      outstanding: counted(cOutstanding),
+      late_payer: counted(cLate),
+      on_time: counted(cOnTime),
+      no_data: counted(cNoData),
     }
 
     return {

@@ -61,8 +61,8 @@ export function parsePaymentSort(raw: string | null | undefined): PaymentSortKey
   return raw && VALID_SORTS.has(raw as PaymentSortKey) ? (raw as PaymentSortKey) : 'default'
 }
 
-/** Tællere pr. betalingsfilter (fra samme aggregat som sortering). */
+/** Tællere pr. betalingsfilter (fra samme aggregat som sortering). null = tællingen fejlede og er ikke 0. */
 export type PaymentCounts = Record<
   'overdue' | 'outstanding' | 'late_payer' | 'on_time' | 'no_data',
-  number
+  number | null
 >
