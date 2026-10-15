@@ -63,7 +63,7 @@ export function LeadCustomerCandidates({ leadId }: { leadId: string }) {
         ))}
       </ul>
       <p className="text-xs text-blue-700">Ellers: &quot;Opret som kunde&quot; opretter en ny kunde.</p>
-      {error && <p className="text-xs text-red-700">{error}</p>}
+      {error && <p className="text-xs text-red-700 break-words" data-testid="lead-link-error">{error}</p>}
     </div>
   )
 }
