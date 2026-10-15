@@ -159,6 +159,7 @@ export function SupplierProductsTable({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Søg varenummer, navn, EAN..."
+            aria-label="Søg leverandørprodukter"
             className="pl-10"
           />
         </div>

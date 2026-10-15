@@ -115,6 +115,7 @@ export function GlobalSearch() {
           onKeyDown={handleKeyDown}
           onFocus={() => results.length > 0 && setIsOpen(true)}
           placeholder="Søg leads, kunder, tilbud, projekter..."
+          aria-label="Søg i ELTA"
           className="w-full pl-10 pr-10 py-2 border rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors text-sm"
         />
         {query ? (

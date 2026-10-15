@@ -190,6 +190,7 @@ export function CustomersPageClient({
                   onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   placeholder="Søg efter navn, email, kundenummer..."
+                  aria-label="Søg kunder"
                   className="w-full pl-10 pr-10 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {searchInput && (

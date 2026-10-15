@@ -100,6 +100,7 @@ export function SuppliersList() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Søg leverandører..."
+          aria-label="Søg leverandører"
           className="pl-10"
         />
       </div>

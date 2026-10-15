@@ -203,6 +203,7 @@ export function ProjectsPageClient() {
           <input
             type="text"
             placeholder="Søg efter projektnummer, navn eller kunde..."
+            aria-label="Søg projekter"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
