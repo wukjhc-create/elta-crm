@@ -198,6 +198,8 @@ export interface IncomingInvoiceDetail {
   work_order_failed: boolean
   /** Revisionsloggen kunne ikke læses. Det er ikke "ingen poster". */
   audit_failed: boolean
+  /** Navne på logposter kunne ikke læses. Posterne bliver. */
+  audit_names_failed: boolean
   supplier: { id: string; name: string; code: string | null } | null
   workOrder: { id: string; title: string; status: string; case_id: string | null } | null
   case: {
@@ -280,13 +282,19 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
     new Set((auditRes.data ?? []).map((a) => a.actor_id).filter((x): x is string => !!x))
   )
   const actorMap = new Map<string, string>()
+  let auditNamesFailed = false
   if (actorIds.length > 0) {
-    const { data: profiles } = await supabase
+    const { data: profiles, error: profileErr } = await supabase
       .from('profiles')
       .select('id, full_name, email')
       .in('id', actorIds)
-    for (const p of profiles ?? []) {
-      actorMap.set(p.id, p.full_name || p.email || p.id)
+    if (profileErr) {
+      auditNamesFailed = true
+      logger.error('getIncomingInvoiceDetailAction actor names failed', { error: profileErr })
+    } else {
+      for (const p of profiles ?? []) {
+        actorMap.set(p.id, p.full_name || p.email || p.id)
+      }
     }
   }
 
@@ -326,6 +334,7 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
     case_failed: !!caseRes.error,
     work_order_failed: !!woRes.error,
     audit_failed: !!auditRes.error,
+    audit_names_failed: auditNamesFailed,
     supplier: (supplierRes.error ? null : (supplierRes.data ?? null)) as IncomingInvoiceDetail['supplier'],
     workOrder: (woRes.error ? null : (woRes.data ?? null)) as IncomingInvoiceDetail['workOrder'],
     case: caseDetail,
