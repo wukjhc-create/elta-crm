@@ -1,6 +1,7 @@
 'use client'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
+import { FloatingMenu } from '@/components/shared/floating-menu'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -86,6 +87,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
   const [editingCustomer, setEditingCustomer] = useState<CustomerWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkActing, setIsBulkActing] = useState(false)
 
@@ -394,9 +396,10 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="relative">
                       <button
-                        onClick={() =>
+                        onClick={(e) => {
+                          setMenuAnchor(e.currentTarget)
                           setOpenMenuId(openMenuId === customer.id ? null : customer.id)
-                        }
+                        }}
                         className="p-1 hover:bg-gray-100 rounded-full"
                         aria-label="Flere handlinger"
                       >
@@ -404,12 +407,8 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                       </button>
 
                       {openMenuId === customer.id && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-10"
-                            onClick={() => setOpenMenuId(null)}
-                          />
-                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-20">
+                        // M-8: portal + fixed position — klippes ikke af tabellens overflow eller skærmkanten
+                        <FloatingMenu anchor={menuAnchor} onClose={() => setOpenMenuId(null)} className="w-48 text-left" testId="row-menu">
                             <div className="py-1">
                               <Link
                                 href={`/dashboard/customers/${customer.id}`}
@@ -462,8 +461,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                               </button>
                               )}
                             </div>
-                          </div>
-                        </>
+                        </FloatingMenu>
                       )}
                     </div>
                   </td>

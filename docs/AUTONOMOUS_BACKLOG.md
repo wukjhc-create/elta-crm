@@ -42,7 +42,7 @@ Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | M-4 (S2) | Opgavelisten: 8-kolonne-grid i overflow-hidden, handlinger kun ved hover | DONE (UI U153) |
 | M-5 (S2) | Usynlige slet-knapper (hover) uden bekræftelse: tilbudslinjer, kundeopgaver | DONE (UI U153) |
 | M-6/7 (S3) | Tilbuds-/lead-hoved med 8/4 knapper uden ombrydning | DONE (UI U153) |
-| M-8 (S3) | Rækkemenuer/statusdropdown klippes i tabeller (overflow) | LATER (portal/fixed-positionering af menuer) |
+| M-8 (S3) | Rækkemenuer/statusdropdown klippes i tabeller (overflow) | DONE — fælles `FloatingMenu` (portal, fixed, vendes opad, inden for skærmen, Esc): tilbud/kunder/leads/beskeder + statusdropdowns (tilbud, lead, sag) (UI U154) |
 | M-9 (S3) | Tilbudslisten viser ikke kunden på mobil | DONE (UI U153) |
 | M-10/11 (S3) | Knapper vises uden rettighed (kundekort, slet-knapper for salg) | DONE (UI U153) |
 | M-12 (S3) | "Eksporter" på tilbud kræver settings.economic → fejltoast for salg/serviceleder | DONE (UI U153) |

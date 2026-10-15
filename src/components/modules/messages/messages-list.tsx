@@ -1,5 +1,6 @@
 'use client'
 
+import { FloatingMenu } from '@/components/shared/floating-menu'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -44,6 +45,7 @@ export function MessagesList({
 }: MessagesListProps) {
   const router = useRouter()
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [replyingTo, setReplyingTo] = useState<MessageWithRelations | null>(null)
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
 
@@ -195,6 +197,7 @@ export function MessagesList({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
+                    setMenuAnchor(e.currentTarget)
                     setOpenMenuId(openMenuId === message.id ? null : message.id)
                   }}
                   className="p-1 hover:bg-muted rounded"
@@ -205,15 +208,9 @@ export function MessagesList({
                 </button>
 
                 {openMenuId === message.id && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setOpenMenuId(null)
-                      }}
-                    />
-                    <div className="absolute right-0 mt-1 w-48 bg-white border rounded-md shadow-lg z-20">
+                  // M-8: portal + fixed position; klik i menuen bobler ikke til rækken (onClick stopper propagation)
+                  <FloatingMenu anchor={menuAnchor} onClose={() => setOpenMenuId(null)} className="w-48" testId="row-menu">
+                    <div onClick={(e) => e.stopPropagation()}>
                       {folder === 'inbox' && (
                         <button
                           onClick={(e) => {
@@ -294,7 +291,7 @@ export function MessagesList({
                         Slet
                       </button>
                     </div>
-                  </>
+                  </FloatingMenu>
                 )}
               </div>
             </div>
