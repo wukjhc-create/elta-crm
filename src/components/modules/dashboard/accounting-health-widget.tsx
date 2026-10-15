@@ -18,11 +18,9 @@ import {
 } from 'lucide-react'
 import { getAccountingHealthSummaryAction } from '@/lib/actions/accounting'
 import type { AccountingHealthSummary } from '@/lib/services/accounting-health'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
-const fmtDateTime = (s: string) =>
-  new Intl.DateTimeFormat('da-DK', {
-    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-  }).format(new Date(s))
+const fmtDateTime = (s: string) => copenhagenDateTimeLabel(s, 'short', false)
 
 export function AccountingHealthWidget() {
   const [data, setData] = useState<AccountingHealthSummary | null>(null)
@@ -103,8 +101,8 @@ export function AccountingHealthWidget() {
             </Link>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-gray-500 px-0.5">
-            <span className="inline-flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs text-gray-500 px-0.5">
+            <span className="inline-flex flex-wrap items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
               Eksporteret: {data.exported_7d} (7 dage) · {data.exported_30d} (30 dage)
             </span>
@@ -115,17 +113,17 @@ export function AccountingHealthWidget() {
               href={data.latest_error.invoice_id ? `/dashboard/invoices/${data.latest_error.invoice_id}` : '/dashboard/settings/economic/log?status=failed'}
               className="block rounded-lg ring-1 ring-red-200 bg-red-50 px-3 py-2 text-sm hover:bg-red-100"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-red-800">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                <span className="font-medium text-red-800 break-words">
                   Seneste fejl{data.latest_error.invoice_number ? ` · ${data.latest_error.invoice_number}` : ''}
                 </span>
-                <span className="text-xs text-red-500">{fmtDateTime(data.latest_error.at)}</span>
+                <span className="text-xs text-red-500 whitespace-nowrap">{fmtDateTime(data.latest_error.at)}</span>
               </div>
-              <p className="text-red-700 mt-0.5">{data.latest_error.message}</p>
+              <p className="text-red-700 mt-0.5 break-words">{data.latest_error.message}</p>
             </Link>
           )}
 
-          <div className="flex items-center gap-3 pt-1 text-sm">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-sm">
             <Link href="/dashboard/settings/economic/log" className="inline-flex items-center gap-1 text-emerald-700 hover:underline">
               Synklog <ArrowRight className="w-3.5 h-3.5" />
             </Link>
