@@ -251,7 +251,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-gray-900 truncate">{customer.company_name}</p>
+                  <p className="font-semibold text-gray-900 break-words min-w-0">{customer.company_name}</p>
                   <AutoCreatedChip customer={customer} />
                   {customer.is_active ? (
                     <span className="shrink-0 w-2 h-2 bg-green-500 rounded-full" />
@@ -260,13 +260,13 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                   )}
                   <PaymentListChip badge={paymentBadges?.[customer.id]} />
                 </div>
-                <p className="text-sm text-gray-500 mt-0.5 truncate">{customer.contact_person || customer.email}</p>
+                <p className="text-sm text-gray-500 mt-0.5 break-words">{customer.contact_person || customer.email}</p>
               </div>
               <svg className="w-5 h-5 text-gray-300 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>
-            <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-400">
               {customer.phone && (
                 <span className="flex items-center gap-1">
                   <Phone className="w-3 h-3" />
@@ -275,7 +275,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
               )}
               <span className="flex items-center gap-1">
                 <Mail className="w-3 h-3" />
-                <span className="truncate max-w-[150px]">{customer.email}</span>
+                <span className="break-all min-w-0">{customer.email}</span>
               </span>
               {customer.billing_city && (
                 <span className="ml-auto text-gray-400">{customer.billing_city}</span>
