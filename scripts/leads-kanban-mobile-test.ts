@@ -20,6 +20,7 @@ eq('desktopnavn ombrydes', src.includes('text-sm font-semibold text-gray-900 bre
 eq('vaerdi bliver', src.includes('formatCurrency(lead.value)'), true)
 eq('traek bliver', src.includes('handleDragStart(e, lead.id)'), true)
 eq('tom fase bliver', src.includes('Ingen leads i denne fase.'), true)
+eq('tom fase siger naeste skridt', mobile.includes('Vælg en anden fase, eller brug Ny Lead.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nleads-kanban-mobile-test OK')
 process.exitCode = fail ? 1 : 0

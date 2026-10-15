@@ -105,7 +105,7 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
         </select>
       </label>
       {mobileItems.length === 0 ? (
-        <p className="text-sm text-gray-500">Ingen leads i denne fase.</p>
+        <p className="text-sm text-gray-500">Ingen leads i denne fase. Vælg en anden fase, eller brug Ny Lead.</p>
       ) : (
         mobileItems.map((lead) => {
           const next = LEAD_STATUS_TRANSITIONS[lead.status] ?? []
