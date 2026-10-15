@@ -23,22 +23,48 @@ export function OfferFollowupCard() {
   const [items, setItems] = useState<OfferFollowupItem[] | null>(null)
   const [scope, setScope] = useState<'own' | 'all'>('own')
   const [showWaiting, setShowWaiting] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
     getOfferFollowupsAction().then((r) => {
       if (!alive) return
-      if (r.success && r.data) { setItems(r.data.items); setScope(r.data.scope) } else setItems([])
+      if (r.success && r.data) {
+        setLoadError(null)
+        setItems(r.data.items)
+        setScope(r.data.scope)
+        return
+      }
+      if (r.error?.includes('Manglende tilladelse')) {
+        setLoadError(null)
+        setItems([])
+        return
+      }
+      setLoadError(r.error ?? 'Kunne ikke hente opfølgning')
+    }).catch(() => {
+      if (alive) setLoadError('Kunne ikke hente opfølgning')
     })
     return () => { alive = false }
   }, [])
 
+  if (loadError && (!items || items.length === 0)) {
+    return (
+      <section className="bg-white rounded-lg border p-4 sm:p-5 mb-4" data-testid="offer-followup-load-error">
+        <p className="text-sm text-red-700">{loadError}. Det tælles ikke som ingen opfølgning.</p>
+      </section>
+    )
+  }
   if (!items || items.length === 0) return null
   const actionable = items.filter((i) => i.stage !== 'waiting')
   const waiting = items.filter((i) => i.stage === 'waiting')
 
   return (
     <section className="bg-white rounded-lg border p-4 sm:p-5 mb-4" data-testid="offer-followup-card">
+      {loadError && (
+        <p className="text-sm text-red-700 mb-3" data-testid="offer-followup-load-error">
+          {loadError}. Det tælles ikke som ingen opfølgning.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
         <BellRing className="w-5 h-5 text-amber-600 shrink-0" />
         <h2 className="font-semibold">Opfølgning</h2>

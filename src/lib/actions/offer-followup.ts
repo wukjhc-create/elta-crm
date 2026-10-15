@@ -37,7 +37,8 @@ export async function getOfferFollowupsAction(): Promise<ActionResult<{ items: O
     const ids = rows.map((r) => r.id as string)
     const openTask = new Set<string>()
     for (let k = 0; k < ids.length; k += 200) {
-      const { data: tasks } = await supabase.from('customer_tasks').select('offer_id').in('offer_id', ids.slice(k, k + 200)).in('status', ['pending', 'in_progress'])
+      const { data: tasks, error: taskError } = await supabase.from('customer_tasks').select('offer_id').in('offer_id', ids.slice(k, k + 200)).in('status', ['pending', 'in_progress'])
+      if (taskError) return { success: false, error: 'Kunne ikke hente opfølgning' }
       for (const t of (tasks ?? []) as Array<{ offer_id: string | null }>) if (t.offer_id) openTask.add(t.offer_id)
     }
 
