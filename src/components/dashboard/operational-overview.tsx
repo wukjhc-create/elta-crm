@@ -219,13 +219,22 @@ function AiInsightsPanel() {
     severity: 'info' | 'warning' | 'critical'
   }>>([])
   const [loaded, setLoaded] = useState(false)
+  const [insightsFailed, setInsightsFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     fetch('/api/dashboard/ai-insights', { cache: 'no-store' })
       .then((r) => r.json())
-      .then((j) => { if (!cancelled) setInsights(j?.insights ?? []) })
-      .catch(() => { /* ignore */ })
+      .then((j) => {
+        if (cancelled) return
+        if (j?.error) {
+          setInsightsFailed(true)
+          return
+        }
+        setInsightsFailed(false)
+        setInsights(j?.insights ?? [])
+      })
+      .catch(() => { if (!cancelled) setInsightsFailed(true) })
       .finally(() => { if (!cancelled) setLoaded(true) })
     return () => { cancelled = true }
   }, [])
@@ -237,7 +246,10 @@ function AiInsightsPanel() {
         <span className="text-[11px] text-gray-400">forslag — anvend manuelt</span>
       </div>
       {!loaded && <p className="text-xs text-gray-400">Henter…</p>}
-      {loaded && insights.length === 0 && (
+      {insightsFailed && (
+        <p className="text-xs text-red-700 break-words" data-testid="ai-insights-load-error">Anbefalinger kunne ikke hentes. Det tælles ikke som ingen anbefalinger.</p>
+      )}
+      {loaded && !insightsFailed && insights.length === 0 && (
         <p className="text-xs text-gray-400">Ingen aktuelle anbefalinger. De vises her, når der er et forslag.</p>
       )}
       <div className="space-y-2">
