@@ -62,13 +62,13 @@ export function CustomerNotesTimeline({ customerId }: { customerId: string }) {
       )}
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
       {state.notes.length === 0 ? (
-        <p className="text-sm text-gray-500">Ingen noter endnu.</p>
+        <p className="text-sm text-gray-500">{state.canWrite ? 'Ingen noter endnu. Skriv en note ovenfor.' : 'Ingen noter endnu.'}</p>
       ) : (
         <ul className="space-y-3">
           {state.notes.map((n) => (
             <li key={n.id} className="border-l-2 border-amber-300 pl-3">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">{n.content}</p>
+                <p className="text-sm text-gray-800 whitespace-pre-wrap break-words min-w-0">{n.content}</p>
                 {n.canDelete && (
                   <button onClick={() => remove(n.id)} title="Slet note" aria-label="Slet note" className="shrink-0 p-1 text-gray-400 hover:text-red-600">
                     <Trash2 className="w-4 h-4" />
