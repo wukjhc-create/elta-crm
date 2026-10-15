@@ -410,24 +410,24 @@ export default function CalculationDetailClient({
               <CardTitle>Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex justify-between">
+              <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                 <span className="text-gray-500">Tilstand</span>
-                <Badge variant="outline">
+                <Badge variant="outline" className="min-w-0 break-words">
                   {CALCULATION_MODE_LABELS[(calculation.calculation_mode || 'standard') as CalculationMode]}
                 </Badge>
               </div>
 
-              <div className="flex justify-between">
+              <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                 <span className="text-gray-500">Type</span>
-                <Badge variant="outline">
+                <Badge variant="outline" className="min-w-0 break-words">
                   {CALCULATION_TYPE_LABELS[calculation.calculation_type as CalculationType]}
                 </Badge>
               </div>
 
               {calculation.is_template && (
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span className="text-gray-500">Status</span>
-                  <Badge variant="secondary">Skabelon</Badge>
+                  <Badge variant="secondary" className="min-w-0 break-words">Skabelon</Badge>
                 </div>
               )}
 
@@ -445,9 +445,9 @@ export default function CalculationDetailClient({
                     <span className="text-gray-500">Standard timepris</span>
                     <span className="min-w-0 break-words">{formatCurrency(calculation.default_hourly_rate || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN)}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <span className="text-gray-500">Materialemarkup</span>
-                    <span>{calculation.materials_markup_percentage || CALC_DEFAULTS.MARGINS.MATERIALS}%</span>
+                    <span className="min-w-0 break-words">{calculation.materials_markup_percentage || CALC_DEFAULTS.MARGINS.MATERIALS}%</span>
                   </div>
                 </>
               )}
