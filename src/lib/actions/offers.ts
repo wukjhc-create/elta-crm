@@ -46,6 +46,7 @@ import { logger } from '@/lib/utils/logger'
 import type { Permission } from '@/lib/auth/permissions'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { isOfferExpired } from '@/lib/offers/validity'
+import { rankBy, searchWords } from '@/lib/products/search-rank'
 
 // Get all offers with optional filtering and pagination
 export async function getOffers(filters?: {
@@ -1666,11 +1667,18 @@ export async function searchSupplierProductsForOffer(
         )
       `)
       .eq('suppliers.is_active', true)
-      .or(`supplier_sku.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},supplier_name.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},ean.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)}`)
       // GP-13: varer uden kostpris (0 = ingen prisaftale) fyldte toppen og fejlede ved "tilføj" ("ingen kostpris")
       .gt('cost_price', 0)
       .order('cost_price', { ascending: true })
-      .limit(searchLimit)
+      // W-11: hentes bredere og rangeres efter relevans nedenfor (før: de billigste vilkårlige træffere)
+      .limit(Math.max(searchLimit, 100))
+    // W-11 (pilot-review 2026-10-15): hvert ord skal matche varenr., navn eller EAN (AND mellem ord) — før skulle hele
+    // sætningen stå ordret i navnet ("kabel 3g1,5" fandt ikke "Kabel PVIK 3G1,5")
+    const words = searchWords(query)
+    for (const w of words.length ? words : [query]) {
+      const term = pgQuote(`%${sanitizeSearchTerm(w)}%`)
+      dbQuery = dbQuery.or(`supplier_sku.ilike.${term},supplier_name.ilike.${term},ean.ilike.${term}`)
+    }
 
     if (options?.supplierId) {
       validateUUID(options.supplierId, 'leverandør ID')
@@ -1905,20 +1913,14 @@ export async function searchSupplierProductsForOffer(
       }
     }
 
-    // Also mark cheapest among all results when no EAN grouping
-    // Simple: mark cheapest cost_price per product_name similarity
-    if (results.length > 0) {
-      // For ungrouped results, mark the overall cheapest
-      const minCost = Math.min(...results.filter(r => r.cost_price > 0).map(r => r.cost_price))
-      for (const r of results) {
-        if (r.is_cheapest === undefined) {
-          r.is_cheapest = r.cost_price === minCost && r.cost_price > 0
-        }
-      }
-    }
-
-    // Sort: cheapest cost_price first
-    results.sort((a, b) => (a.cost_price || Infinity) - (b.cost_price || Infinity))
+    // W-11: "Billigst" kun inden for samme vare (EAN-gruppe ovenfor) — før blev den billigste af ALLE træffere markeret,
+    // også når det var en helt anden vare. Rækkefølge: præcist varenr./EAN, navn der starter med søgningen, alle ord i
+    // navnet, resten — pris kun som tie-breaker
+    const ranked = rankBy(results, query, (r) => ({
+      sku: r.supplier_sku, name: r.product_name, ean: (r as Record<string, unknown>)._ean as string | undefined, cost: r.cost_price,
+    })).slice(0, searchLimit)
+    results.length = 0
+    results.push(...ranked)
 
     // D44 (privacy/RBAC): netto-/kostpris og avance kun for offers.view.cost_prices — salg ser salgspris (rækkefølge
     // og "billigst"-markering bevares)

@@ -58,7 +58,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | W-8 (S2) | Salg/bogholderi kan oprette opgaver men ikke se en opgaveliste; getAllTasks uden rettighedstjek | DELVIS — guard DONE: uden tasks.view ses kun egne oprettede/tildelte opgaver (liste + tællere; før så alle indloggede alle opgaver). Rettighedsudvidelse (opgavemenu for salg/bogholderi) = [H] |
 | W-9 (S2) | Ingen genkald/opfølgning på leads | TODO (interim "Påmind mig"); felt next_follow_up_at = [H] migration |
 | W-10 (S3) | Lead-statusknapper tillader ugyldige skift; Rediger ikke gated | DONE — kun tilladte skift klikbare (forklaring i tooltip), knapper + Rediger kræver leads.edit. UI U27 |
-| W-11 (S3) | Leverandørsøgning: hele sætningen som én ILIKE, sorteret efter pris, "bedste pris" på tværs af forskellige varer | TODO |
+| W-11 (S3) | Leverandørsøgning: hele sætningen som én ILIKE, sorteret efter pris, "bedste pris" på tværs af forskellige varer | DONE — hvert ord skal matche varenr./navn/EAN, rangering: præcist varenr./EAN → navn starter med → alle ord i navnet → resten (pris som tie-breaker); "billigst" kun inden for samme EAN. Unit search-rank-test 9/9, UI U51/U77/U84 |
 | W-12 (S3) | Tilbudseditorens søgning: race, tavse fejl, antal låst til 1 | TODO |
 | W-13 (S3) | Sags-/kundefaner ikke i URL (refresh/tilbage → Overblik) | DONE — ?tab= skrives ved fanevalg (sag + kunde) og læses ved indlæsning. UI U166 |
 | W-14 (S3) | "Ansvarlig" = opretter i sagshovedet men tildelt i listen | DONE — hovedet viser den tildelte (opretter kun som fallback) |
