@@ -27,6 +27,15 @@ export default async function CalculationDetailPage({ params }: PageProps) {
   ])
 
   if (!calculationResult.success || !calculationResult.data) {
+    if (!calculationResult.success && calculationResult.error && calculationResult.error !== 'Kalkulationen blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="calculation-detail-load-error">
+            {calculationResult.error}. Det tælles ikke som at kalkulationen mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
 

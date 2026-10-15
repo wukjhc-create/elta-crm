@@ -28,6 +28,15 @@ export default async function PackageDetailPage({ params }: PageProps) {
   ])
 
   if (!packageResult.success || !packageResult.data) {
+    if (!packageResult.success && packageResult.error && packageResult.error !== 'Pakken blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="package-detail-load-error">
+            {packageResult.error}. Det tælles ikke som at pakken mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
 
