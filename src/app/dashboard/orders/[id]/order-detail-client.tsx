@@ -835,8 +835,8 @@ function Panel({
 }) {
   return (
     <div className={`bg-gray-50 rounded ring-1 ring-gray-200 p-4 ${full ? 'lg:col-span-2' : ''}`}>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h3 className="text-sm font-semibold break-words min-w-0">{title}</h3>
         {action && <div className="shrink-0">{action}</div>}
       </div>
       <div className="space-y-1">{children}</div>
@@ -849,7 +849,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     <div className="flex justify-between gap-3 py-1 text-sm border-b border-gray-100 last:border-b-0">
       <span className="text-gray-500 shrink-0">{label}</span>
       <span
-        className="text-right text-gray-900 max-w-[65%] truncate"
+        className="text-right text-gray-900 min-w-0 break-words"
         title={typeof value === 'string' ? value : undefined}
       >
         {value}
