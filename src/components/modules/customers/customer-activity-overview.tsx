@@ -28,6 +28,7 @@ import type {
 } from '@/lib/actions/customer-relations'
 import type { ServiceCase } from '@/types/service-cases.types'
 import { SERVICE_CASE_STATUS_LABELS, SERVICE_CASE_PRIORITY_LABELS } from '@/types/service-cases.types'
+import { activityLoadNote, takenRows } from '@/lib/data/rows-or-throw'
 
 interface CustomerActivityOverviewProps {
   customerId: string
@@ -41,26 +42,35 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
   const [sentQuotes, setSentQuotes] = useState<CustomerSentQuote[]>([])
   const [serviceCases, setServiceCases] = useState<ServiceCase[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadNote, setLoadNote] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
+    let cancelled = false
     async function loadAll() {
       setIsLoading(true)
-      const [o, p, l, sq, sc] = await Promise.all([
+      const results = await Promise.allSettled([
         getCustomerOffers(customerId),
         getCustomerProjects(customerId),
         getCustomerLeads(customerId, customerEmail),
         getCustomerSentQuotes(customerId),
         getCustomerServiceCases(customerId),
       ])
-      setOffers(o)
-      setProjects(p)
-      setLeads(l)
-      setSentQuotes(sq)
-      setServiceCases(sc)
+      if (cancelled) return
+      const failed: string[] = []
+      setOffers(takenRows(results[0], 'Tilbud', failed))
+      setProjects(takenRows(results[1], 'Projekter', failed))
+      setLeads(takenRows(results[2], 'Leads', failed))
+      setSentQuotes(takenRows(results[3], 'Sendte tilbud', failed))
+      setServiceCases(takenRows(results[4], 'Sager', failed))
+      setLoadNote(activityLoadNote(failed))
       setIsLoading(false)
     }
-    loadAll()
-  }, [customerId, customerEmail])
+    void loadAll()
+    return () => {
+      cancelled = true
+    }
+  }, [customerId, customerEmail, reloadKey])
 
   if (isLoading) {
     return (
@@ -89,7 +99,24 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
   }
 
   const totalItems = offers.length + projects.length + leads.length + sentQuotes.length + serviceCases.length
-  if (totalItems === 0) {
+  if (loadNote && totalItems === 0) {
+    return (
+      <div className="bg-white rounded-lg border p-6">
+        <h2 className="text-lg font-semibold mb-4">Aktivitetsoversigt</h2>
+        <p className="text-gray-700 text-center py-2">{loadNote}</p>
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setReloadKey((key) => key + 1)}
+            className="mt-3 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+          >
+            Prøv igen
+          </button>
+        </div>
+      </div>
+    )
+  }
+  if (totalItems === 0 && !loadNote) {
     return (
       <div className="bg-white rounded-lg border p-6">
         <h2 className="text-lg font-semibold mb-4">Aktivitetsoversigt</h2>
@@ -102,6 +129,9 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
   return (
     <div className="bg-white rounded-lg border p-6">
       <h2 className="text-lg font-semibold mb-4">Aktivitetsoversigt</h2>
+      {loadNote && (
+        <p className="text-sm text-red-700 mb-3">{loadNote}</p>
+      )}
       <div className="space-y-3">
         <ActivitySection
           icon={<BarChart3 className="w-4 h-4" />}

@@ -15,6 +15,7 @@ import { createAnonClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { CASE_MAIL_LOAD_ERROR, caseEmailsOrThrow } from '@/lib/mail/case-mail-load'
+import { rowsOrThrow } from '@/lib/data/rows-or-throw'
 import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
@@ -647,11 +648,12 @@ export async function getCustomerServiceCases(customerId: string): Promise<Servi
 
     if (error) {
       logger.error('Failed to fetch customer service cases', { error })
-      return []
+      return rowsOrThrow(error, null)
     }
 
-    return (data || []) as ServiceCase[]
-  } catch {
+    return rowsOrThrow(null, (data || []) as ServiceCase[])
+  } catch (err) {
+    if (err instanceof Error && err.message === 'Kunne ikke hente rækker') throw err
     return []
   }
 }

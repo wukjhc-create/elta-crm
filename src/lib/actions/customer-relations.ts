@@ -19,6 +19,7 @@ import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import { rowsOrThrow } from '@/lib/data/rows-or-throw'
 
 export interface CustomerOffer {
   id: string
@@ -65,10 +66,10 @@ export async function getCustomerOffers(customerId: string): Promise<CustomerOff
 
   if (error) {
     logger.error('Failed to fetch customer offers', { error, entityId: customerId })
-    return []
+    return rowsOrThrow(error, null)
   }
 
-  return (data || []) as CustomerOffer[]
+  return rowsOrThrow(null, (data || []) as CustomerOffer[])
 }
 
 export async function getCustomerProjects(customerId: string): Promise<CustomerProject[]> {
@@ -84,10 +85,10 @@ export async function getCustomerProjects(customerId: string): Promise<CustomerP
 
   if (error) {
     logger.error('Failed to fetch customer projects', { error, entityId: customerId })
-    return []
+    return rowsOrThrow(error, null)
   }
 
-  return (data || []) as CustomerProject[]
+  return rowsOrThrow(null, (data || []) as CustomerProject[])
 }
 
 /**
@@ -106,7 +107,7 @@ export async function getCustomerLeads(customerId: string, customerEmail: string
   ])
   if (byId.error || byEmail.error) {
     logger.error('Failed to fetch customer leads', { error: byId.error ?? byEmail.error, entityId: customerId })
-    return []
+    return rowsOrThrow(byId.error ?? byEmail.error, null)
   }
   const seen = new Map<string, CustomerLead>()
   for (const l of [...(byId.data ?? []), ...(byEmail.data ?? [])] as CustomerLead[]) seen.set(l.id, l)
@@ -126,10 +127,10 @@ export async function getCustomerSentQuotes(customerId: string): Promise<Custome
 
   if (error) {
     logger.error('Failed to fetch customer sent quotes', { error, entityId: customerId })
-    return []
+    return rowsOrThrow(error, null)
   }
 
-  return (data || []) as CustomerSentQuote[]
+  return rowsOrThrow(null, (data || []) as CustomerSentQuote[])
 }
 
 export interface CustomerEmail {
