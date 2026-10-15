@@ -8,6 +8,7 @@
  * transaction.
  */
 
+import { caseVatBlock } from '@/lib/invoices/vat-guard'
 import { MIN_DAYS_BETWEEN_REMINDERS, pickReminderLevel } from '@/lib/invoices/reminder-plan' // regler delt med cockpittet (N89)
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -1457,6 +1458,13 @@ export async function createInvoiceFromWorkOrder(
     .not('approval_status', 'in', '(approved,rejected)')
   if ((pending ?? 0) > 0) {
     throw new Error(`createInvoiceFromWorkOrder: ${pending} timer afventer godkendelse — godkend dem før fakturering`)
+  }
+  // PR-10: SQL-funktionen fakturerer med 25 % — sager hvis tilbud har en anden momssats blokeres
+  {
+    const { data: woCase } = await supabase.from('work_orders').select('case_id').eq('id', workOrderId).maybeSingle()
+    const cid = (woCase as { case_id?: string | null } | null)?.case_id
+    const vatErr = cid ? await caseVatBlock(supabase, cid) : null
+    if (vatErr) throw new Error(`createInvoiceFromWorkOrder: ${vatErr}`)
   }
 
   const { data, error } = await supabase.rpc('create_invoice_from_work_order', {

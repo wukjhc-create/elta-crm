@@ -2168,6 +2168,13 @@ async function main() {
     process.exitCode = fails ? 2 : 0
     return
   }
+  if (SUB === 'vat-guard-check') {
+    const { runVatGuardCheck, formatVatGuardCheck } = await import('./vat-guard-check')
+    const checks = await runVatGuardCheck({ admin })
+    log(formatVatGuardCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'contract-final-check') {
     const { runContractFinalCheck, formatContractFinalCheck } = await import('./contract-final-check')
     const checks = await runContractFinalCheck({ admin })

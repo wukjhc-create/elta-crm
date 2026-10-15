@@ -24,6 +24,7 @@
  *     was excluded.
  */
 
+import { caseVatBlock, STANDARD_VAT_PERCENT } from '@/lib/invoices/vat-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
@@ -115,7 +116,10 @@ export async function createInvoiceDraftFromCase(
     }
   }
 
-  const vatRate = (options.vat_rate ?? 25) / 100
+  // PR-10 (Henrik 2026-10-15): momssatsen styres ikke af kalderen (før kunne et direkte kald sætte 0 %) — 25 %, og sager
+  // med anden sats på tilbuddet blokeres nedenfor, til momsmodellen er bygget
+  void options.vat_rate
+  const vatRate = STANDARD_VAT_PERCENT / 100
   const defaultHourlyRate = options.default_hourly_rate ?? 650
   const dueDays = options.due_days ?? 14
 
@@ -146,6 +150,10 @@ export async function createInvoiceDraftFromCase(
       skipped_lines: [],
       totals: null,
     }
+  }
+  {
+    const vatErr = await caseVatBlock(supabase, sag.id as string)
+    if (vatErr) return { ok: false, message: vatErr, invoice_id: null, invoice_number: null, created_lines: [], skipped_lines: [], totals: null }
   }
 
   // ---- 2. Allocate invoice number ----

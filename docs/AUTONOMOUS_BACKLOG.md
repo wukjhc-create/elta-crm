@@ -57,7 +57,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | PR-7 (S3) | Nattevagt 22–02 kunne ikke registreres | DONE — sluttid før starttid = næste dag (`endDateForClocks`, 16-t-grænsen gælder), opret + ret. Unit |
 | PR-8 (S3) | Tilbud uden kunde kunne gøres til sag i kernen | DONE — kernen afviser med dansk besked (UI U13) |
 | PR-9 (S3) | Timer/arbejdsordre-status kunne ændres på lukket sag | DONE — samme lås som ved oprettelse ("Sagen er lukket — genåbn den først"). UI U11/U155/U48 |
-| PR-10 (S4) | Rate-/slutfaktura lægger altid 25 % moms på, også hvis tilbuddet var 0 % (omvendt betalingspligt) | [H] lav sandsynlighed — afklar om 0 %-kunder findes |
+| PR-10 (S4) | Rate-/slutfaktura lægger altid 25 % moms på, også hvis tilbuddet var 0 % (omvendt betalingspligt) | MIDLERTIDIGT VÆRN DONE — sager hvis tilbud ≠ 25 % blokeres i alle automatiske fakturastier (kladde, forskud/rate, slutfaktura, arbejdsordre); kalderens vat_rate ignoreres. Prod: 15/15 tilbud og 5/5 fakturaer er 25 %. Staging vat-guard-check 6/6. Momsmodel (25 %/0 %/omvendt betalingspligt) = forslag 00231 i docs/runbooks/vat-model-proposal.md → BLOCKED_APPROVAL |
 
 ## NEXT-13 (2026-10-15 — tavse fejl/feedback + døde revalidateringer + doc-drift)
 Kilde: to opfølgende read-only sweeps til pilot-reviewet.

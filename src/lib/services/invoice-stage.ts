@@ -18,6 +18,7 @@
  * No e-conomic. No PDF render. No mail send. Pure compose.
  */
 
+import { caseVatBlock } from '@/lib/invoices/vat-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
@@ -98,6 +99,11 @@ export async function createStageInvoiceForCase(
     .maybeSingle()
   if (!sag) return { ...empty, message: 'Sag ikke fundet' }
   if (!sag.customer_id) return { ...empty, message: 'Sagen mangler en kunde' }
+  {
+    // PR-10: kun 25 % moms automatisk — sager hvis tilbud har en anden sats blokeres (ingen gæt)
+    const vatErr = await caseVatBlock(supabase, sag.id as string)
+    if (vatErr) return { ...empty, message: vatErr }
+  }
 
   const basisValue =
     input.amount_basis === 'contract_sum'
@@ -374,6 +380,11 @@ export async function createFinalInvoiceForCase(
     .maybeSingle()
   if (!sag) return { ...empty, message: 'Sag ikke fundet' }
   if (!sag.customer_id) return { ...empty, message: 'Sagen mangler en kunde' }
+  {
+    // PR-10: kun 25 % moms automatisk — sager hvis tilbud har en anden sats blokeres (ingen gæt)
+    const vatErr = await caseVatBlock(supabase, sag.id as string)
+    if (vatErr) return { ...empty, message: vatErr }
+  }
 
   // 2. Slut-gate (UNIQUE-index er autoritativ men vi giver pænere fejl)
   const { data: existingFinal } = await supabase
