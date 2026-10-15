@@ -4,6 +4,7 @@
  * Fokus E 2026-10-15: dobbeltbooking-varsel i planlægningsdialogerne — viser hvor mange aktive job montøren allerede
  * har på datoen, før der gemmes. Kun information (blokerer ikke).
  */
+import { holidayName } from '@/lib/planning/danish-holidays'
 import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { getEmployeeDayLoadAction, type EmployeeDayLoad } from '@/lib/actions/work-orders'
@@ -20,7 +21,15 @@ export function EmployeeDayLoadHint({ employeeId, date, excludeWorkOrderId, star
     return () => { alive = false }
   }, [employeeId, date, excludeWorkOrderId, startTime, estimatedHours])
 
-  if (!load || (load.count === 0 && !load.absence)) return null
+  // Helligdag: ren kode-beregning — vises uanset belastning (advarsel, ikke blokering)
+  const holiday = holidayName(date)
+  if (!load || (load.count === 0 && !load.absence)) {
+    return holiday ? (
+      <div className="mt-1 rounded bg-amber-50 ring-1 ring-amber-200 px-2 py-1.5 text-xs text-amber-900" role="status" data-testid="employee-day-holiday">
+        {holiday} — helligdag
+      </div>
+    ) : null
+  }
   if (load.count === 0 && load.absence) {
     return (
       <div className="mt-1 rounded bg-red-50 ring-1 ring-red-200 px-2 py-1.5 text-xs text-red-900 flex gap-1.5" role="status" data-testid="employee-day-absence">
@@ -33,6 +42,7 @@ export function EmployeeDayLoadHint({ employeeId, date, excludeWorkOrderId, star
     <div className="mt-1 rounded bg-amber-50 ring-1 ring-amber-200 px-2 py-1.5 text-xs text-amber-900 flex gap-1.5" role="status" data-testid="employee-day-load">
       <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
       <span>
+        {holiday && <strong className="block" data-testid="employee-day-holiday">{holiday} — helligdag</strong>}
         Medarbejderen har allerede {load.count} job denne dag: {load.titles.slice(0, 3).join(', ')}{load.count > 3 ? ` m.fl.` : ''}
         {load.absence && <strong className="block text-red-700" data-testid="employee-day-absence">Fravær: {load.absence}</strong>}
         {load.overlaps.length > 0 && (

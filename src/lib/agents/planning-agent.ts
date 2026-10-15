@@ -12,6 +12,7 @@
  * og ét aktivt forslag pr. sag (generations-noegle som tilbudsagenten).
  */
 
+import { holidayName } from '@/lib/planning/danish-holidays'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { logger } from '@/lib/utils/logger'
@@ -53,14 +54,15 @@ export function copenhagenToday(now = new Date()): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(now)
 }
 
-/** De naeste n hverdage (man–fre) EFTER `today`. Ren funktion paa dato-strenge. */
+/** De naeste n hverdage (man–fre, ikke danske helligdage) EFTER `today`. Ren funktion paa dato-strenge. */
 export function nextWorkingDays(today: string, n: number): string[] {
   const out: string[] = []
   const d = new Date(`${today}T12:00:00Z`)
   while (out.length < n) {
     d.setUTCDate(d.getUTCDate() + 1)
     const dow = d.getUTCDay()
-    if (dow !== 0 && dow !== 6) out.push(d.toISOString().slice(0, 10))
+    const iso = d.toISOString().slice(0, 10)
+    if (dow !== 0 && dow !== 6 && !holidayName(iso)) out.push(iso)
   }
   return out
 }

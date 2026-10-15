@@ -586,6 +586,9 @@ ${m.text()}`) })
         await s.page.setViewportSize({ width: 1400, height: 1000 })
         await s.page.waitForTimeout(300)
         r.desktop_tabel = !(await s.page.getByTestId('week-agenda').isVisible().catch(() => true))
+        // danske helligdage i ugehovedet (juleugen 2026)
+        await gotoSafe(s.page, `${base}/dashboard/calendar?view=week&date=2026-12-25`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.helligdag_vist = (await s.page.getByTestId('calendar-holiday').filter({ hasText: 'Juledag' }).count()) >= 1
       } finally { await s.ctx.close().catch(() => {}) }
       out.push({ id: 'U160 kalender-uge på mobil = agenda', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
     }

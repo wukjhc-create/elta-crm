@@ -36,6 +36,17 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 | 7c775e9e | PR-6 slutfaktura på fastprissag = restbeløb af kontraktsum |
 | 287f1202 | PR-10 midlertidigt momsværn + forslag 00231; beslutningstabel 00227–00230 |
 
+## Long-run 2026-10-15 aften — migrationer 00227–00231 + planlægning
+| Commit | Indhold |
+|---|---|
+| 7e894f6f | 00227 tidspunkt/varighed på arbejdsordrer (i prod) |
+| ede447b0 | 00228 fravær (i prod) — advarsel + override + audit, bogholderi læser |
+| 431fde91 | 00229 normtimer (i prod) — kapacitet i ugevisning, ingen 37-fallback |
+| 5a9a62cd | 00230 sats-motor uden 495/400 (i prod) + "Mangler timepris/kostpris" i medarbejder-UI |
+| 0e2e5b20 | 00231 momsmode (i prod) — 0 %/omvendt blokeret for automatisk fakturering |
+| eca48f6d / branch billing-model-00232 | Eksplicit afregningsform — BLOCKED_APPROVAL (forslag + staging 5/5) |
+| c91cea90 | Træk-og-slip i ugevisning |
+
 **Manuelle blokere (Henrik):** selvregistrering OFF i Supabase · "Email OTP expiry" = 86400 s. Arbejdet fortsætter uden at vente.
 
  → (løbende checkpoint)

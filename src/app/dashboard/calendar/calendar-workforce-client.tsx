@@ -14,6 +14,7 @@
  * Month view is rendered by the existing CalendarPageClient (preserved).
  */
 
+import { holidayName } from '@/lib/planning/danish-holidays'
 import { ABSENCE_CONFLICT_PREFIX, absenceLabel, absenceOn, isAbsenceConflict, type AbsenceRow } from '@/lib/planning/absence'
 import { updateWorkOrderPlanning } from '@/lib/actions/work-orders'
 import { formatWorkOrderTime } from '@/lib/planning/work-order-time'
@@ -234,6 +235,7 @@ export function CalendarWorkforceClient({
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             {view === 'day' && fmtDate(anchorDate)}
+            {view === 'day' && holidayName(anchorDate) && <span className="ml-2 text-red-700 font-medium" data-testid="calendar-holiday">· {holidayName(anchorDate)}</span>}
             {view === 'week' && (
               <>
                 Uge: {fmtShortDate(rangeStart)} – {fmtShortDate(rangeEnd)}
@@ -584,6 +586,7 @@ function WeekView({
           <div key={d} className={`bg-white rounded-lg ring-1 ring-gray-200 p-3 ${d === today ? 'ring-emerald-300' : ''}`}>
             <div className={`text-sm font-medium mb-1.5 ${d === today ? 'text-emerald-800' : 'text-gray-800'}`}>
               {WEEKDAY_NAMES[i]} <span className="text-xs text-gray-500 font-normal">{fmtShortDate(d)}</span>
+              {holidayName(d) && <span className="ml-1 text-[10px] font-semibold uppercase text-red-700" data-testid="calendar-holiday">{holidayName(d)}</span>}
             </div>
             {entries.length === 0 ? (
               <p className="text-xs text-gray-400">Intet planlagt</p>
@@ -620,6 +623,7 @@ function WeekView({
                   <div className="font-medium">{WEEKDAY_NAMES[i]}</div>
                   <div className="text-[11px] text-gray-500 font-normal">
                     {fmtShortDate(d)}
+                    {holidayName(d) && <div className="text-[10px] font-semibold text-red-700 truncate" data-testid="calendar-holiday">{holidayName(d)}</div>}
                   </div>
                 </th>
               )
