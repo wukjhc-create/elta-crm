@@ -220,9 +220,9 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
                     <div><dt className="text-gray-500">Budget</dt><dd>{p.budget ? formatCurrency(p.budget) : '—'}</dd></div>
                     <div><dt className="text-gray-500">Tilbudt kost</dt><dd>{p.offered_cost != null ? formatCurrency(p.offered_cost) : '—'}</dd></div>
                     <div><dt className="text-gray-500">Faktisk kost</dt><dd>{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</dd></div>
-                    <div><dt className="text-gray-500">Afvigelse</dt><dd className={p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}>{p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : '—'}</dd></div>
+                    <div><dt className="text-gray-500">Afvigelse</dt><dd className={p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}>{p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : 'Kan ikke beregnes'}</dd></div>
                     <div><dt className="text-gray-500">Faktureret netto</dt><dd>{p.net_invoiced ? formatCurrency(p.net_invoiced) : '—'}</dd></div>
-                    <div><dt className="text-gray-500">Realiseret DB</dt><dd className={p.realized_db == null ? 'text-gray-400' : p.realized_db >= 0 ? 'text-green-700' : 'text-red-600'}>{p.realized_db == null ? '—' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${p.realized_db_pct.toFixed(1)} %)` : ''}`}</dd></div>
+                    <div><dt className="text-gray-500">Realiseret DB</dt><dd className={p.realized_db == null ? 'text-gray-400' : p.realized_db >= 0 ? 'text-green-700' : 'text-red-600'}>{p.realized_db == null ? 'Kan ikke beregnes' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${p.realized_db_pct.toFixed(1)} %)` : ''}`}</dd></div>
                   </dl>
                 )}
               </article>
@@ -271,11 +271,11 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
                         <td className="py-2.5 text-right text-gray-600">{p.offered_cost != null ? formatCurrency(p.offered_cost) : '—'}</td>
                         <td className="py-2.5 text-right text-gray-600">{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</td>
                         <td className={`py-2.5 text-right font-medium ${p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}`} data-testid="report-case-deviation">
-                          {p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : '—'}
+                          {p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : 'Kan ikke beregnes'}
                         </td>
                         <td className="py-2.5 text-right text-gray-600">{p.net_invoiced ? formatCurrency(p.net_invoiced) : '—'}</td>
                         <td className={`py-2.5 text-right font-medium ${p.realized_db == null ? 'text-gray-400' : p.realized_db >= 0 ? 'text-green-700' : 'text-red-600'}`} data-testid="report-case-realized">
-                          {p.realized_db == null ? '—' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${p.realized_db_pct.toFixed(1)} %)` : ''}`}
+                          {p.realized_db == null ? 'Kan ikke beregnes' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${p.realized_db_pct.toFixed(1)} %)` : ''}`}
                         </td>
                       </>
                     )}
