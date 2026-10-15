@@ -40,6 +40,7 @@ export function OrderNotesTab({
   canManageAllNotes?: boolean
 }) {
   const [notes, setNotes] = useState<CaseNoteEntry[] | null>(null)
+  const [namesFailed, setNamesFailed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -63,6 +64,7 @@ export function OrderNotesTab({
       if (!res.success) { setError(res.error || 'Kunne ikke hente noter'); return }
       setError(null)
       setNotes(res.data ?? [])
+      setNamesFailed(!!res.names_failed)
     }).catch(() => {
       if (cancelled) return
       setError('Kunne ikke hente noter')
@@ -140,6 +142,11 @@ export function OrderNotesTab({
 
       {rowError && <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{rowError}</div>}
 
+      {namesFailed && !error && (
+        <p className="mb-3 text-sm text-red-700" data-testid="case-note-author-names-error">
+          Forfatternavne kunne ikke hentes. Det tælles ikke som noter uden forfatter.
+        </p>
+      )}
       {error && (
         <div className="text-center">
           <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}. Det tælles ikke som en tom note-liste.</div>

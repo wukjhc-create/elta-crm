@@ -1875,7 +1875,7 @@ export interface CaseNoteEntry {
  * cases.view (all eller assigned), aldrig kundevendt portal. Beriger
  * forfatternavn via profiles (separat batch — ingen FK-antagelse).
  */
-export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNoteEntry[]>> {
+export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNoteEntry[]> & { names_failed?: boolean }> {
   try {
     if (!caseId) return { success: false, error: 'caseId mangler' }
     const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
@@ -1903,16 +1903,23 @@ export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNot
     // Berig forfatternavn (batch — ét opslag, ingen N+1).
     const authorIds = Array.from(new Set(rows.map((r) => r.created_by).filter(Boolean))) as string[]
     const nameById = new Map<string, string>()
+    let namesFailed = false
     if (authorIds.length) {
-      const { data: profs } = await supabase
+      const { data: profs, error: profErr } = await supabase
         .from('profiles')
         .select('id, full_name')
         .in('id', authorIds)
-      for (const p of profs ?? []) nameById.set(p.id as string, (p.full_name as string | null) || '')
+      if (profErr) {
+        logger.warn('getCaseNotes profile read failed', { error: profErr })
+        namesFailed = true
+      } else {
+        for (const p of profs ?? []) nameById.set(p.id as string, (p.full_name as string | null) || '')
+      }
     }
 
     return {
       success: true,
+      names_failed: namesFailed,
       data: rows.map((r) => ({
         id: r.id as string,
         content: (r.content as string | null) ?? '',
