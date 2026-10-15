@@ -358,7 +358,29 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
   if (offers.length === 0) return <EmptyState message="Ingen tilbud er påvirket af nylige prisændringer" />
 
   return (
-    <div className="bg-white rounded-lg border overflow-hidden">
+    <>
+    <ul className="md:hidden space-y-2" data-testid="price-offers-mobile">
+      {offers.map((offer) => (
+        <li key={offer.offer_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
+          <a
+            href={`/dashboard/offers/${offer.offer_id}`}
+            className="font-medium text-blue-600 hover:underline break-all"
+          >
+            {offer.offer_number}
+          </a>
+          <p className="text-xs text-gray-600 break-words">{offer.offer_title}</p>
+          <p className="mt-1 text-xs text-gray-700 break-words">{offer.customer_name}</p>
+          <div className="mt-1"><StatusBadge status={offer.status} /></div>
+          <p className="mt-1 tabular-nums font-medium">{formatCurrency(offer.total_amount)}</p>
+          <p className="text-xs text-gray-600">Berørte linjer {offer.affected_items}</p>
+          <p className={`text-xs tabular-nums font-medium ${offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'}`}>
+            {offer.potential_loss > 0 ? '-' : '+'}{formatCurrency(Math.abs(offer.potential_loss))}
+          </p>
+          <p className="text-xs text-gray-500">{formatDateUtil(offer.created_at)}</p>
+        </li>
+      ))}
+    </ul>
+    <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -408,6 +430,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
         </table>
       </div>
     </div>
+    </>
   )
 }
 
