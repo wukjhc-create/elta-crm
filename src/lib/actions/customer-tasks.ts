@@ -1,4 +1,5 @@
 'use server'
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { secretTokenReader } from '@/lib/portal/token-reader'
 import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
 
@@ -178,12 +179,16 @@ export async function getAllTasks(options?: {
   // Andre roller (admin/serviceleder/salg/bogholderi) ser alle tasks.
   let role: string = 'montør'
   let userId: string | null = null
+  let canViewAll = false
   let supabase: Awaited<ReturnType<typeof createClient>>
   try {
     const ctx = await getAuthenticatedClientWithRole()
     role = ctx.role
     userId = ctx.userId
     supabase = ctx.supabase
+    // W-8 (pilot-review 2026-10-15): før ingen rettighedskontrol — alle indloggede så alle opgaver. Fuld liste kræver
+    // tasks.view; andre (salg/bogholderi) ser kun opgaver de har oprettet eller er tildelt
+    canViewAll = ctx.hasPermission('tasks.view')
   } catch {
     // Ikke logget ind — returnér tom liste.
     return []
@@ -216,6 +221,9 @@ export async function getAllTasks(options?: {
   if (role === 'montør') {
     if (!userId) return []
     query = query.eq('assigned_to', userId)
+  } else if (!canViewAll) {
+    if (!userId) return []
+    query = query.or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
   }
 
   if (options?.status && options.status !== 'all') {
@@ -229,13 +237,15 @@ export async function getAllTasks(options?: {
     query = query.eq('assigned_to', options.assignedTo)
   }
   if (options?.search) {
-    query = query.ilike('title', `%${options.search}%`)
+    // W-7: escapes (% og _ i søgningen matchede alt)
+    query = query.ilike('title', `%${escapeLike(options.search)}%`)
   }
   if (options?.autoRules?.length) {
     query = query.in('auto_rule', options.autoRules)
   }
 
-  const { data, error } = await query
+  // W-7: loft (listen voksede ubegrænset med alle udførte opgaver)
+  const { data, error } = await query.limit(1000)
 
   if (error) {
     logger.error('Failed to fetch all tasks', { error })
@@ -258,12 +268,14 @@ export async function getAllTasks(options?: {
 export async function getTaskCounts(): Promise<{ active: number; overdue: number }> {
   let role: string = 'montør'
   let userId: string | null = null
+  let canViewAll = false
   let supabase: Awaited<ReturnType<typeof createClient>>
   try {
     const ctx = await getAuthenticatedClientWithRole()
     role = ctx.role
     userId = ctx.userId
     supabase = ctx.supabase
+    canViewAll = ctx.hasPermission('tasks.view')
   } catch {
     return { active: 0, overdue: 0 }
   }
@@ -287,6 +299,11 @@ export async function getTaskCounts(): Promise<{ active: number; overdue: number
     if (!userId) return { active: 0, overdue: 0 }
     activeQuery = activeQuery.eq('assigned_to', userId)
     overdueQuery = overdueQuery.eq('assigned_to', userId)
+  } else if (!canViewAll) {
+    // W-8: samme afgrænsning som getAllTasks (egne oprettede/tildelte)
+    if (!userId) return { active: 0, overdue: 0 }
+    activeQuery = activeQuery.or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
+    overdueQuery = overdueQuery.or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
   }
 
   const [activeRes, overdueRes] = await Promise.all([activeQuery, overdueQuery])

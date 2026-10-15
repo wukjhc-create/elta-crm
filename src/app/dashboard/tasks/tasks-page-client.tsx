@@ -112,21 +112,26 @@ export function TasksPageClient({
   // Sprint 8C-1 — send-mail-dialog state
   const [mailTask, setMailTask] = useState<CustomerTaskWithRelations | null>(null)
 
+  // W-7 (pilot-review 2026-10-15): søgning debounces (før: fuld genindlæsning pr. tastetryk) og profiler hentes én gang
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(t)
+  }, [search])
+  useEffect(() => {
+    getActiveProfiles().then(setProfiles).catch(() => {})
+  }, [])
   const loadData = useCallback(async () => {
     setIsLoading(true)
-    const [tasksData, profilesData] = await Promise.all([
-      getAllTasks({
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        priority: priorityFilter !== 'all' ? priorityFilter : undefined,
-        assignedTo: assignedFilter !== 'all' ? assignedFilter : undefined,
-        search: search || undefined,
-      }),
-      getActiveProfiles(),
-    ])
+    const tasksData = await getAllTasks({
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+      assignedTo: assignedFilter !== 'all' ? assignedFilter : undefined,
+      search: debouncedSearch || undefined,
+    })
     setTasks(tasksData)
-    setProfiles(profilesData)
     setIsLoading(false)
-  }, [statusFilter, priorityFilter, assignedFilter, search])
+  }, [statusFilter, priorityFilter, assignedFilter, debouncedSearch])
 
   useEffect(() => {
     loadData()

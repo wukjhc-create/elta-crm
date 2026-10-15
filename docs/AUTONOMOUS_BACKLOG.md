@@ -54,8 +54,8 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | W-4 (S2) | Sagslisten 13 kolonner på mobil — montørens bundnav går dertil | DONE — kortliste under md (nr., status, haster, titel, kunde, adresse, datoer), tabellen fra md; søgefelt fuld bredde. UI U160 (375 px uden scroll) + U20/U165/U12 |
 | W-5 (S2) | Montør ser statusskift/Rediger på sag han ikke må bruge | DONE — statusskift + Rediger (hoved, sagsoplysninger, sagspartnere, adresse) kun med cases.edit; ellers statusmærke. UI U40/U12/U11 |
 | W-6 (S2) | "Manglende tilladelse: x.y"-literaler | DELVIS — vises allerede dansk via humanizeErrorText i toast/action-helpers (R-12); resterende direkte visninger tjekkes |
-| W-7 (S2) | Opgaver genindlæser alt pr. tastetryk; getAllTasks uden limit/guard | TODO |
-| W-8 (S2) | Salg/bogholderi kan oprette opgaver men ikke se en opgaveliste; getAllTasks uden rettighedstjek | DELVIS — guard = TODO (kode); rettighedsudvidelse (tasks.view for salg/bogholderi) = [H] |
+| W-7 (S2) | Opgaver genindlæser alt pr. tastetryk; getAllTasks uden limit/guard | DONE — søgning debounces (300 ms), profiler hentes én gang, loft 1.000, escapeLike. UI U151/U140/U101/U102 |
+| W-8 (S2) | Salg/bogholderi kan oprette opgaver men ikke se en opgaveliste; getAllTasks uden rettighedstjek | DELVIS — guard DONE: uden tasks.view ses kun egne oprettede/tildelte opgaver (liste + tællere; før så alle indloggede alle opgaver). Rettighedsudvidelse (opgavemenu for salg/bogholderi) = [H] |
 | W-9 (S2) | Ingen genkald/opfølgning på leads | TODO (interim "Påmind mig"); felt next_follow_up_at = [H] migration |
 | W-10 (S3) | Lead-statusknapper tillader ugyldige skift; Rediger ikke gated | TODO |
 | W-11 (S3) | Leverandørsøgning: hele sætningen som én ILIKE, sorteret efter pris, "bedste pris" på tværs af forskellige varer | TODO |
