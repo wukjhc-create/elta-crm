@@ -11,6 +11,7 @@ const eq = (name: string, got: unknown, want: unknown) => {
 const action = fs.readFileSync('src/lib/actions/dashboard-overview.ts', 'utf8')
 eq('portal siger fejl', action.includes("throw new Error('Kunne ikke hente kundebeskeder')"), true)
 eq('nye kunder siger fejl', action.includes("throw new Error('Kunne ikke hente nye kunder')"), true)
+eq('leverandorer siger fejl', action.includes("throw new Error('Kunne ikke tjekke leverandører. De tælles ikke som ingen.')"), true)
 eq('tilbud og sager siger fejl', action.includes("throw new Error('Kunne ikke tjekke tilbud og sager')"), true)
 eq('besigtigelse siger fejl', action.includes("throw new Error('Kunne ikke hente besigtigelser')"), true)
 eq('besigtigelse-filter bliver', action.includes(".ilike('title', '%esigtigelse%')"), true)

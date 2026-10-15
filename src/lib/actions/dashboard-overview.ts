@@ -649,7 +649,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         // N75: "kunder" hvis e-maildomæne tilhører en kendt leverandør (fx oprettet af mail-automatikken ud fra en
         // leverandørs signatur, N74) er ikke salgsemner — vises ikke her. Deterministisk via suppliers.website/kontakt.
         const { senderDomain, suppliersForDomain } = await import('@/lib/invoice-control/sender-domain')
-        const { data: sups } = await supabase.from('suppliers').select('id, website, contact_email').limit(1000)
+        const { data: sups, error: supError } = await supabase.from('suppliers').select('id, website, contact_email').limit(1000)
+        if (supError) throw new Error('Kunne ikke tjekke leverandører. De tælles ikke som ingen.')
         const supplierList = (sups ?? []) as Array<{ id: string; website: string | null; contact_email: string | null }>
         if (supplierList.length) list = list.filter((c) => { const d = senderDomain(c.email); return !d || suppliersForDomain(d, supplierList).length === 0 })
         if (!list.length) return
