@@ -947,14 +947,14 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                             )}
                           </div>
                           {showFinancials && (
-                          <div className="text-right shrink-0">
+                          <div className="text-right min-w-0">
                             <div className="text-xs text-gray-400">Netto</div>
-                            <div className={`text-sm font-medium ${isCheapest ? 'text-green-700' : ''}`}>{formatCurrency(p.cost_price, currency, 2)}</div>
+                            <div className={`text-sm font-medium break-words ${isCheapest ? 'text-green-700' : ''}`}>{formatCurrency(p.cost_price, currency, 2)}</div>
                           </div>
                           )}
-                          <div className="text-right shrink-0">
+                          <div className="text-right min-w-0">
                             <div className="text-xs text-gray-400">Salgspris</div>
-                            <div className="text-sm font-semibold text-green-700">{formatCurrency(p.estimated_sale_price, currency, 2)}</div>
+                            <div className="text-sm font-semibold text-green-700 break-words">{formatCurrency(p.estimated_sale_price, currency, 2)}</div>
                           </div>
                           <button
                             onClick={() => handleAddSupplierProduct(p.id)}
