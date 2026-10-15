@@ -120,6 +120,7 @@ export function OrderNotesTab({
           {formError && <div className="text-sm text-red-700">⚠ {formError}</div>}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <select value={kind} onChange={(e) => setKind(e.target.value as CaseNoteKind)} disabled={saving}
+              aria-label="Notetype"
               className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
               {CASE_NOTE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k] ?? k}</option>)}
             </select>
@@ -160,12 +161,12 @@ export function OrderNotesTab({
                     </span>
                   )}
                   <span className="text-xs text-gray-500 font-mono">{fmtDateTime(n.created_at)}</span>
-                  {n.author_name && <span className="text-xs text-gray-500">· {n.author_name}</span>}
+                  {n.author_name && <span className="text-xs text-gray-500 break-words">· {n.author_name}</span>}
                   {canManageNote(n) && editingId !== n.id && (
                     <span className="ml-auto flex items-center gap-1">
-                      <button onClick={() => startEdit(n)} disabled={rowBusy} title="Rediger"
+                      <button type="button" onClick={() => startEdit(n)} disabled={rowBusy} title="Rediger" aria-label="Rediger note"
                         className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-50"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDelete(n.id)} disabled={rowBusy} title="Slet"
+                      <button type="button" onClick={() => handleDelete(n.id)} disabled={rowBusy} title="Slet" aria-label="Slet note"
                         className="p-1 text-gray-400 hover:text-red-600 disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /></button>
                     </span>
                   )}
@@ -174,9 +175,11 @@ export function OrderNotesTab({
                 {editingId === n.id ? (
                   <div className="mt-2 space-y-2">
                     <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={3} maxLength={4000} disabled={rowBusy}
+                      aria-label="Rediger note"
                       className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
                     <div className="flex items-center gap-2">
                       <select value={editKind} onChange={(e) => setEditKind(e.target.value as CaseNoteKind)} disabled={rowBusy}
+                        aria-label="Notetype"
                         className="rounded-md border border-gray-300 px-2 py-1 text-sm">
                         {CASE_NOTE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k] ?? k}</option>)}
                       </select>
@@ -191,7 +194,7 @@ export function OrderNotesTab({
                     </div>
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">{n.content}</div>
+                  <div className="text-sm text-gray-800 mt-1 whitespace-pre-wrap break-words">{n.content}</div>
                 )}
               </div>
             </div>
