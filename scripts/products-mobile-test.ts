@@ -23,6 +23,11 @@ eq('kortet er ikke en tabel', mobile.includes('<Table') || mobile.includes('<th'
 eq('tom tekst er der stadig', src.includes('Ingen produkter fundet'), true)
 eq('handlinger har et navn', src.includes('aria-label="Flere handlinger"'), true)
 eq('paging ligger uden for kortet', mobile.includes('Pagination'), false)
+const desk = src.slice(end)
+eq('desktop-navn ombrydes', desk.includes('hover:text-blue-600 break-words'), true)
+eq('desktop-sku ombrydes', desk.includes('text-gray-500 break-all'), true)
+eq('listepris bliver', desk.includes('formatCurrency(product.list_price)'), true)
+eq('kost-kolonne kraever canSeeCost', desk.includes('{canSeeCost && <TableHead className="text-right">Kostpris</TableHead>}'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nproducts-mobile-test OK')
 process.exitCode = fail ? 1 : 0

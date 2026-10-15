@@ -273,7 +273,7 @@ export default function ProductsClient({
                   <TableCell>
                     <Link
                       href={`/dashboard/products/${product.id}`}
-                      className="font-medium hover:text-blue-600"
+                      className="font-medium hover:text-blue-600 break-words"
                     >
                       {product.name}
                     </Link>
@@ -283,7 +283,7 @@ export default function ProductsClient({
                       </p>
                     )}
                   </TableCell>
-                  <TableCell className="text-gray-500">
+                  <TableCell className="text-gray-500 break-all">
                     {product.sku || '-'}
                   </TableCell>
                   <TableCell>
