@@ -141,6 +141,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   const [showPackagePicker, setShowPackagePicker] = useState(false)
   const [products, setProducts] = useState<{ id: string; name: string; sku: string | null; list_price: number }[]>([])
   const [calculations, setCalculations] = useState<{ id: string; name: string; final_amount: number }[]>([])
+  const [calculationsError, setCalculationsError] = useState<string | null>(null)
   const [isAddingProduct, setIsAddingProduct] = useState(false)
   const [isImportingCalculation, setIsImportingCalculation] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -284,6 +285,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     const result = await getCalculationsForSelect()
     if (result.success && result.data) {
       setCalculations(result.data)
+      setCalculationsError(null)
+    } else if (!result.success) {
+      setCalculationsError(result.error || 'Kunne ikke hente kalkulationer')
     }
     setShowCalculationPicker(true)
   }
@@ -1427,12 +1431,19 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {calculations.length === 0 ? (
+              {calculationsError && (
+                <p className="text-sm text-red-700 text-center" data-testid="offer-calculations-load-error">
+                  {calculationsError}. {calculations.length === 0
+                    ? 'Det tælles ikke som ingen kalkulationer.'
+                    : 'Allerede hentede kalkulationer bliver.'}
+                </p>
+              )}
+              {!calculationsError && calculations.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Calculator className="w-12 h-12 mx-auto mb-2 text-gray-400" />
                   <p>Ingen kalkulationer fundet</p>
                 </div>
-              ) : (
+              ) : calculations.length > 0 ? (
                 calculations.map((calc) => (
                   <button
                     key={calc.id}
@@ -1448,7 +1459,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     </div>
                   </button>
                 ))
-              )}
+              ) : null}
             </div>
             <div className="flex justify-end p-4 border-t">
               <button
