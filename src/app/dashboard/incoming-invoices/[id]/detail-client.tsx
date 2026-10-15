@@ -355,6 +355,8 @@ export function IncomingInvoiceDetailClient({
           <Row label="Leverandør"
             value={detail.supplier ? (
               <span>{detail.supplier.name} <span className="text-gray-400">({detail.supplier.code ?? '—'})</span></span>
+            ) : detail.supplier_failed ? (
+              <span className="text-red-800" data-testid="incoming-invoice-supplier-error">Leverandøren kunne ikke hentes. Det tælles ikke som ikke matchet.</span>
             ) : <span className="text-amber-700">Ikke matchet</span>}
           />
           <Row label="Vælg leverandør" value={<IncomingInvoiceSupplierPicker invoiceId={inv.id} />} />
@@ -373,6 +375,8 @@ export function IncomingInvoiceDetailClient({
                         <span className="text-gray-500 ml-1">· {detail.case.customer_name}</span>
                       )}
                     </Link>
+                  ) : detail.case_failed ? (
+                    <span className="text-red-800" data-testid="incoming-invoice-case-error">Sagen kunne ikke hentes. Det tælles ikke som ikke matchet.</span>
                   ) : (
                     <span className="text-amber-700">Ikke matchet</span>
                   )}
@@ -388,7 +392,7 @@ export function IncomingInvoiceDetailClient({
                       disabled={busy || casePickerBusy || clearingCase}
                       className="text-[11px] px-2 py-0.5 rounded ring-1 ring-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
                     >
-                      {detail.case ? 'Skift sag' : 'Match til sag'}
+                      {detail.case || inv.matched_case_id ? 'Skift sag' : 'Match til sag'}
                     </button>
                     {detail.case && (
                       <button
@@ -417,6 +421,8 @@ export function IncomingInvoiceDetailClient({
               ) : (
                 <span className="text-gray-700">{detail.workOrder.title}</span>
               )
+            ) : detail.work_order_failed ? (
+              <span className="text-red-800" data-testid="incoming-invoice-work-order-error">Arbejdsordren kunne ikke hentes. Det tælles ikke som ingen.</span>
             ) : <span className="text-gray-400">Ingen specifik WO</span>}
           />
           {inv.duplicate_of_id && (
@@ -609,7 +615,7 @@ export function IncomingInvoiceDetailClient({
                 </span>
               </div>
             )}
-            {!detail.case && (
+            {!detail.case && !detail.case_failed && (
               <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 Match fakturaen til en sag før du forhåndsviser godkendelse.
               </div>
@@ -639,7 +645,9 @@ export function IncomingInvoiceDetailClient({
       </Panel>
 
       <Panel title={`Revisionslog (${detail.audit.length})`}>
-        {detail.audit.length === 0 ? (
+        {detail.audit_failed ? (
+          <p className="text-xs text-red-800" data-testid="incoming-invoice-audit-error">Historikken kunne ikke hentes. Det tælles ikke som ingen poster.</p>
+        ) : detail.audit.length === 0 ? (
           <p className="text-xs text-gray-400">Ingen log-poster endnu. De vises her, når fakturaen ændres.</p>
         ) : (
           <div className="space-y-2">

@@ -190,6 +190,14 @@ export interface IncomingInvoiceDetail {
   lines: IncomingInvoiceLineRow[]
   /** Linjeopslaget fejlede. En tom liste er så ikke "ingen linjer". */
   lines_failed: boolean
+  /** Katalog-leverandøren kunne ikke læses. Det er ikke "ikke matchet". */
+  supplier_failed: boolean
+  /** Sagen kunne ikke læses. Det er ikke "ikke matchet". */
+  case_failed: boolean
+  /** Arbejdsordren kunne ikke læses. Det er ikke "ingen WO". */
+  work_order_failed: boolean
+  /** Revisionsloggen kunne ikke læses. Det er ikke "ingen poster". */
+  audit_failed: boolean
   supplier: { id: string; name: string; code: string | null } | null
   workOrder: { id: string; title: string; status: string; case_id: string | null } | null
   case: {
@@ -241,14 +249,14 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
           .select('id, name, code')
           .eq('id', invoice.supplier_id)
           .maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
     invoice.matched_work_order_id
       ? supabase
           .from('work_orders')
           .select('id, title, status, case_id')
           .eq('id', invoice.matched_work_order_id)
           .maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
     invoice.matched_case_id
       ? supabase
           .from('service_cases')
@@ -258,7 +266,7 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
           `)
           .eq('id', invoice.matched_case_id)
           .maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
     supabase
       .from('incoming_invoice_audit_log')
       .select('id, action, actor_id, previous_value, new_value, ok, message, created_at')
@@ -291,7 +299,7 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
         customer: { company_name: string | null } | { company_name: string | null }[] | null
       }
     | null
-  const caseDetail = caseRow
+  const caseDetail = !caseRes.error && caseRow
     ? {
         id: caseRow.id,
         case_number: caseRow.case_number,
@@ -304,16 +312,24 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
     : null
 
   if (linesRes.error) logger.error('getIncomingInvoiceDetailAction lines failed', { error: linesRes.error })
+  if (supplierRes.error) logger.error('getIncomingInvoiceDetailAction supplier failed', { error: supplierRes.error })
+  if (woRes.error) logger.error('getIncomingInvoiceDetailAction work order failed', { error: woRes.error })
+  if (caseRes.error) logger.error('getIncomingInvoiceDetailAction case failed', { error: caseRes.error })
+  if (auditRes.error) logger.error('getIncomingInvoiceDetailAction audit failed', { error: auditRes.error })
 
   return {
     invoice,
     has_file: hasFile,
     lines: (linesRes.error ? [] : (linesRes.data ?? [])) as IncomingInvoiceLineRow[],
     lines_failed: !!linesRes.error,
-    supplier: (supplierRes.data ?? null) as IncomingInvoiceDetail['supplier'],
-    workOrder: (woRes.data ?? null) as IncomingInvoiceDetail['workOrder'],
+    supplier_failed: !!supplierRes.error,
+    case_failed: !!caseRes.error,
+    work_order_failed: !!woRes.error,
+    audit_failed: !!auditRes.error,
+    supplier: (supplierRes.error ? null : (supplierRes.data ?? null)) as IncomingInvoiceDetail['supplier'],
+    workOrder: (woRes.error ? null : (woRes.data ?? null)) as IncomingInvoiceDetail['workOrder'],
     case: caseDetail,
-    audit: (auditRes.data ?? []).map((a) => ({
+    audit: (auditRes.error ? [] : (auditRes.data ?? [])).map((a) => ({
       id: a.id,
       action: a.action,
       actor_id: a.actor_id,
