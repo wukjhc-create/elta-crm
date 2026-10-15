@@ -91,11 +91,16 @@ export function MessagesList({
   }
 
   if (messages.length === 0) {
+    const empty = {
+      inbox: { title: 'Ingen beskeder i indbakken.', hint: 'Nye beskeder vises her.' },
+      sent: { title: 'Ingen sendte beskeder.', hint: 'Beskeder du sender, vises her.' },
+      archived: { title: 'Ingen arkiverede beskeder.', hint: 'Arkiverede beskeder vises her.' },
+    }[folder]
     return (
-      <div className="bg-white rounded-lg border p-12 text-center text-muted-foreground">
+      <div className="bg-white rounded-lg border p-12 text-center text-muted-foreground" data-testid="messages-empty">
         <Mail className="w-12 h-12 mx-auto mb-3 opacity-30" />
-        <p className="font-medium">Ingen beskeder i denne mappe.</p>
-        <p className="text-sm mt-1">Nye beskeder vises her.</p>
+        <p className="font-medium">{empty.title}</p>
+        <p className="text-sm mt-1">{empty.hint}</p>
       </div>
     )
   }
