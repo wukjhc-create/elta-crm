@@ -260,11 +260,11 @@ export function CreditNoteDialog({
                           className="mt-1"
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="break-words text-gray-900">{l.description}</p>
-                            <p className="shrink-0 tabular-nums">{fmtKr(Number(l.total_price))}</p>
+                          <div className="flex flex-wrap items-start justify-between gap-2 min-w-0">
+                            <p className="min-w-0 break-words text-gray-900">{l.description}</p>
+                            <p className="min-w-0 tabular-nums break-words">{fmtKr(Number(l.total_price))}</p>
                           </div>
-                          <p className="mt-1 text-xs tabular-nums text-gray-700">
+                          <p className="mt-1 text-xs tabular-nums text-gray-700 break-words">
                             {Number(l.quantity).toLocaleString('da-DK', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
