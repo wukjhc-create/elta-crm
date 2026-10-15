@@ -61,7 +61,7 @@ function KpiCard({
           <Icon className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-xs text-gray-500 truncate">{label}</p>
+          <p className="text-xs text-gray-500 break-words">{label}</p>
           <p className="text-lg font-bold text-gray-900">{value}</p>
           {sublabel && <p className="text-xs text-gray-400">{sublabel}</p>}
         </div>
@@ -193,7 +193,7 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
           <Briefcase className="w-5 h-5 text-gray-400" />
           Sagsrentabilitet
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {costOpen && (
             <label className="text-xs text-gray-600 flex items-center gap-1">
               <input type="checkbox" checked={byDeviation} onChange={(e) => setByDeviation(e.target.checked)} data-testid="report-sort-deviation" />
@@ -212,8 +212,8 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
             const utilization = p.estimated_hours && p.estimated_hours > 0 ? (p.actual_hours / p.estimated_hours) * 100 : null
             return (
               <article key={p.project_id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-                <p className="font-medium text-gray-900">{p.project_name}</p>
-                <p className="text-xs text-gray-500">{p.project_number} · {p.customer_name || '—'}</p>
+                <p className="font-medium text-gray-900 break-words">{p.project_name}</p>
+                <p className="text-xs text-gray-500 break-words">{p.project_number} · {p.customer_name || '—'}</p>
                 <p className="mt-1 text-xs text-gray-600">Est. {p.estimated_hours != null ? `${p.estimated_hours}t` : '—'} · Faktisk {p.actual_hours}t · Udnyttelse {utilization !== null ? `${utilization.toFixed(0)}%` : '—'}</p>
                 {costOpen && (
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">

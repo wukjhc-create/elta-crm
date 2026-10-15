@@ -27,6 +27,9 @@ eq('U88-testid ligger ikke paa kortet', profit.text.includes('report-case-deviat
 eq('desktop-raekken beholder afvigelse og realiseret db', src.includes('data-testid="report-case-deviation"') && src.includes('data-testid="report-case-realized"'), true)
 eq('sortering har ét testid', src.split('data-testid="report-sort-deviation"').length - 1, 1)
 eq('teamkort viser timer og udnyttelse', team.text.includes('total_hours') && team.text.includes('billable_percentage'), true)
+eq('sagsnavn ombrydes', profit.text.includes('break-words">{p.project_name}'), true)
+eq('afvigelse-filter ombrydes', src.includes('flex flex-wrap items-center gap-2') && src.includes('data-testid="report-sort-deviation"'), true)
+eq('noegletal ombrydes', src.includes('text-xs text-gray-500 break-words">{label}'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nreports-mobile-test OK')
 process.exitCode = fail ? 1 : 0
