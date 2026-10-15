@@ -116,14 +116,18 @@ function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
 // Top Customers Table
 // =====================================================
 
-function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
+function TopCustomersTable({ data, error }: { data: RevenueByCustomer[]; error: boolean }) {
   return (
     <div className="bg-white rounded-lg border p-4 md:p-6">
       <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
         <Building2 className="w-5 h-5 text-gray-400" />
         Top kunder (omsætning)
       </h3>
-      {data.length === 0 ? (
+      {error ? (
+        <p className="text-sm text-red-700 py-8 text-center" data-testid="report-customers-load-error">
+          Kunne ikke hente topkunder. Det tælles ikke som ingen tilbud.
+        </p>
+      ) : data.length === 0 ? (
         <p className="text-sm text-gray-500 py-8 text-center">Ingen tilbud ud over kladder med en kunde endnu.</p>
       ) : (
         <>
@@ -179,7 +183,7 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
 // Project Profitability Table
 // =====================================================
 
-function ProjectTable({ data }: { data: ProjectProfitability[] }) {
+function ProjectTable({ data, error }: { data: ProjectProfitability[]; error: boolean }) {
   // PV8/N26d: budget og tilbudt/faktisk kost er interne tal → sammenfoldet som standard (shoulder-surfing)
   const [costOpen, toggleCost] = useCostReveal()
   const [byDeviation, setByDeviation] = useState(false)
@@ -203,7 +207,11 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
           <CostRevealToggle open={costOpen} onToggle={toggleCost} />
         </div>
       </div>
-      {data.length === 0 ? (
+      {error ? (
+        <p className="text-sm text-red-700 py-8 text-center" data-testid="report-cases-load-error">
+          Kunne ikke hente sagsrentabilitet. Det tælles ikke som ingen sager.
+        </p>
+      ) : data.length === 0 ? (
         <p className="text-sm text-gray-500 py-8 text-center">Ingen sager i overblikket endnu. Opret en sag fra kunden, så den vises her.</p>
       ) : (
         <>
@@ -480,7 +488,9 @@ export default function ReportsClient() {
   const [summary, setSummary] = useState<ReportsSummary | null>(null)
   const [revenue, setRevenue] = useState<RevenueByPeriod[]>([])
   const [customers, setCustomers] = useState<RevenueByCustomer[]>([])
+  const [customersError, setCustomersError] = useState(false)
   const [projects, setProjects] = useState<ProjectProfitability[]>([])
+  const [projectsError, setProjectsError] = useState(false)
   const [team, setTeam] = useState<TeamProductivity[]>([])
   const [teamError, setTeamError] = useState(false)
   const [rejections, setRejections] = useState<RejectionStats | null>(null)
@@ -510,10 +520,12 @@ export default function ReportsClient() {
       }
       if (customersRes.status === 'fulfilled' && customersRes.value.success) {
         setCustomers(customersRes.value.data || [])
-      }
+        setCustomersError(false)
+      } else setCustomersError(true)
       if (projectsRes.status === 'fulfilled' && projectsRes.value.success) {
         setProjects(projectsRes.value.data || [])
-      }
+        setProjectsError(false)
+      } else setProjectsError(true)
       if (teamRes.status === 'fulfilled' && teamRes.value.success) {
         setTeam(teamRes.value.data || [])
         setTeamError(false)
@@ -601,7 +613,7 @@ export default function ReportsClient() {
       {/* Revenue Chart + Top Customers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <RevenueChart data={revenue} />
-        <TopCustomersTable data={customers} />
+        <TopCustomersTable data={customers} error={customersError} />
       </div>
 
       {/* Phase 12A — Afvisningsårsager */}
@@ -611,7 +623,7 @@ export default function ReportsClient() {
       {/* N53: salgstragt pr. måned */}
       <SalesFunnelTable data={funnel} error={funnelError} />
 
-      <ProjectTable data={projects} />
+      <ProjectTable data={projects} error={projectsError} />
 
       {/* Team Productivity */}
       <TeamTable data={team} error={teamError} />
