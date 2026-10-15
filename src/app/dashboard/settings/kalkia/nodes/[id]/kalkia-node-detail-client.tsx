@@ -644,11 +644,11 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
               {supplierOptions.map((option) => (
                 <div
                   key={option.supplier_product_id}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                  className="flex items-start justify-between p-3 border rounded-lg hover:bg-gray-50"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm truncate">
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium text-sm break-words min-w-0">
                         {option.supplier_name}
                       </span>
                       {option.is_preferred && (
@@ -658,7 +658,7 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                       <span>{option.supplier_code || 'Leverandør'}</span>
                       <span>·</span>
-                      <span className="font-mono">{option.supplier_sku}</span>
+                      <span className="font-mono break-all">{option.supplier_sku}</span>
                     </div>
                     <div className="text-xs mt-1">
                       <span className="text-gray-600">
