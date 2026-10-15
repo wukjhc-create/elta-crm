@@ -202,7 +202,7 @@ export function CustomerDetailClient({ customer, portalTokens, portalTokensError
         <div className="space-y-3">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 max-w-full break-words">
                 {customer.company_name}
               </h1>
               {customer.is_active ? (

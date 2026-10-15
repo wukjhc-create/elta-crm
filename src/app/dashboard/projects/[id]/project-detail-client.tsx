@@ -159,17 +159,17 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold inline-flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold inline-flex items-center gap-2 break-words">
               {project.project_number}
               <CopyButton value={project.project_number} label="projektnummer" />
             </h1>
             <ProjectStatusBadge status={project.status} />
             <ProjectPriorityBadge priority={project.priority} />
           </div>
-          <p className="text-lg text-muted-foreground">{project.name}</p>
+          <p className="text-lg text-muted-foreground break-words">{project.name}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowEditForm(true)}
             className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-muted"
