@@ -17,6 +17,11 @@ eq('noegletallets tekst ombrydes', src.includes('break-words">{label}'), true)
 eq('fejltekst ombrydes', src.includes('text-red-700 break-words" title={s.lastErrorMessage}'), true)
 eq('tom mail bliver', src.includes('Ingen e-mails endnu.'), true)
 eq('tal felterne er de samme', src.includes('new_emails_last_24h') && src.includes('invoices_overdue'), true)
+eq('fakturastatus er dansk', src.includes("status === 'sent' ? 'Sendt'") && src.includes('invoiceStateLabel(r.status, r.payment_status)'), true)
+eq('ukendt status bliver raa', src.includes(": status"), true)
+eq('fakturanummer ombrydes', src.includes('font-medium break-all">{r.invoice_number}'), true)
+eq('tom faktura siger naeste skridt', src.includes('når en faktura er oprettet'), true)
+eq('beloebsformat bliver', src.includes("style: 'currency'"), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ndashboard-overview-mobile-test OK')
 process.exitCode = fail ? 1 : 0

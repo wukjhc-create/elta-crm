@@ -62,6 +62,12 @@ interface DashboardPayload {
   }
 }
 
+function invoiceStateLabel(status: string, payment: string): string {
+  const statusLabel = status === 'draft' ? 'Kladde' : status === 'sent' ? 'Sendt' : status === 'paid' ? 'Betalt' : status
+  const payLabel = payment === 'pending' ? 'Afventer' : payment === 'partial' ? 'Delvist betalt' : payment === 'paid' ? 'Betalt' : payment
+  return `${statusLabel} / ${payLabel}`
+}
+
 const fmtAmount = (n: number, currency = 'DKK') =>
   new Intl.NumberFormat('da-DK', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n)
 
@@ -122,6 +128,7 @@ export function OperationalOverview() {
           </p>
         </div>
         <button
+          type="button"
           onClick={load}
           className="text-xs px-3 py-1 border rounded hover:bg-gray-50"
           disabled={loading}
@@ -135,7 +142,7 @@ export function OperationalOverview() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <ListCard
           title="Seneste e-mails"
-          empty="Ingen e-mails endnu."
+          empty="Ingen e-mails endnu. De vises her, når mailen er synket."
           rows={data?.latest_emails ?? []}
           render={(r) => (
             <div key={r.id} className="py-2 border-b last:border-b-0 text-sm">
@@ -151,13 +158,13 @@ export function OperationalOverview() {
         />
         <ListCard
           title="Seneste fakturaer"
-          empty="Ingen fakturaer endnu."
+          empty="Ingen fakturaer endnu. De vises her, når en faktura er oprettet."
           rows={data?.latest_invoices ?? []}
           render={(r) => (
             <div key={r.id} className="py-2 border-b last:border-b-0 text-sm flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="font-medium">{r.invoice_number}</div>
-                <div className="text-xs text-gray-500">{r.status} / {r.payment_status}</div>
+                <div className="font-medium break-all">{r.invoice_number}</div>
+                <div className="text-xs text-gray-500">{invoiceStateLabel(r.status, r.payment_status)}</div>
               </div>
               <div className="text-right">
                 <div className="font-medium">{fmtAmount(r.final_amount, r.currency)}</div>
@@ -173,7 +180,7 @@ export function OperationalOverview() {
           render={(r) => (
             <div key={r.id} className="py-2 border-b last:border-b-0 text-sm flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="font-medium">{r.invoice_number}</div>
+                <div className="font-medium break-all">{r.invoice_number}</div>
                 <div className="text-xs text-red-600">{r.days_overdue} dage forfalden</div>
               </div>
               <div className="text-right font-medium">{fmtAmount(r.final_amount, r.currency)}</div>
@@ -214,7 +221,7 @@ function AiInsightsPanel() {
       </div>
       {!loaded && <p className="text-xs text-gray-400">Henter…</p>}
       {loaded && insights.length === 0 && (
-        <p className="text-xs text-gray-400">Ingen aktuelle anbefalinger.</p>
+        <p className="text-xs text-gray-400">Ingen aktuelle anbefalinger. De vises her, når der er et forslag.</p>
       )}
       <div className="space-y-2">
         {insights.map((i) => {
@@ -224,7 +231,7 @@ function AiInsightsPanel() {
             : 'bg-emerald-50 ring-emerald-200 text-emerald-900'
           return (
             <div key={i.id} className={`p-3 rounded ring-1 ${tone}`}>
-              <div className="text-sm font-medium">{i.message}</div>
+              <div className="text-sm font-medium break-words">{i.message}</div>
               {i.detail && <div className="text-xs opacity-80 mt-1">{i.detail}</div>}
             </div>
           )
