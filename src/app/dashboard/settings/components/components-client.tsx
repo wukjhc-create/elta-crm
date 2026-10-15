@@ -66,7 +66,7 @@ export default function ComponentsClient({ components, categories }: ComponentsC
 
       {/* Filters */}
       <div className="flex gap-4 flex-wrap">
-        <div className="relative flex-1 min-w-[250px]">
+        <div className="relative flex-1 min-w-0 w-full sm:min-w-[250px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
             placeholder="Søg efter komponenter..."
@@ -77,7 +77,7 @@ export default function ComponentsClient({ components, categories }: ComponentsC
         </div>
 
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[200px]">
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue placeholder="Alle kategorier" />
           </SelectTrigger>
@@ -98,7 +98,9 @@ export default function ComponentsClient({ components, categories }: ComponentsC
           <CardContent className="py-12 text-center text-gray-500">
             <Zap className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>Ingen komponenter fundet</p>
-            {search && <p className="text-sm">Prøv en anden søgning</p>}
+            {(search.trim() || categoryFilter !== 'all') && (
+              <p className="text-sm">Prøv en anden søgning eller kategori.</p>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -120,14 +122,14 @@ export default function ComponentsClient({ components, categories }: ComponentsC
                   >
                     <Card className="hover:shadow-md transition-shadow cursor-pointer">
                       <CardContent className="py-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
                               <Zap className="w-5 h-5 text-yellow-600" />
                             </div>
-                            <div>
-                              <h3 className="font-medium text-gray-900">{comp.name}</h3>
-                              <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                            <div className="min-w-0">
+                              <h3 className="font-medium text-gray-900 break-words">{comp.name}</h3>
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 mt-1">
                                 {comp.code && (
                                   <Badge variant="outline" className="text-xs">
                                     {comp.code}
@@ -146,7 +148,7 @@ export default function ComponentsClient({ components, categories }: ComponentsC
                               </div>
                             </div>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-gray-400" />
+                          <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" />
                         </div>
                       </CardContent>
                     </Card>
