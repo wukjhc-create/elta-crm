@@ -290,14 +290,19 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
               setIsInviting(true)
               const result = await inviteTeamMember(inviteEmail.trim(), inviteRole)
               if (result.success) {
-                toast.success(`Invitation sendt til ${inviteEmail}`)
+                if (result.data?.warning) toast.error(result.data.warning)
+                else toast.success(`Invitation sendt til ${inviteEmail}`)
                 setInviteEmail('')
                 setInviteRole('montør')
                 // Refresh invitations list
-                setInvitationsList(prev => [
-                  { id: result.data?.id ?? crypto.randomUUID(), email: inviteEmail.toLowerCase(), role: inviteRole, invited_by: currentUserId, invited_by_name: null, created_at: new Date().toISOString(), status: 'pending' },
-                  ...prev,
-                ])
+                const now = new Date().toISOString()
+                if (result.data?.id) {
+                  const sent = result.data.mail_sent
+                  setInvitationsList(prev => [
+                    { id: result.data!.id as string, email: inviteEmail.toLowerCase(), role: inviteRole, invited_by: currentUserId, invited_by_name: null, created_at: now, last_sent_at: now, send_count: sent ? 1 : 0, status: sent ? 'pending' : 'expired' },
+                    ...prev.filter(i => i.id !== result.data!.id),
+                  ])
+                }
               } else {
                 toast.error(result.error || 'Kunne ikke sende invitation')
               }
@@ -347,17 +352,17 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
       )}
 
       {/* Pending invitations */}
-      {invitationsList.filter(i => i.status === 'pending').length > 0 && (
+      {invitationsList.filter(i => i.status !== 'accepted').length > 0 && (
         <div className="bg-white rounded-lg border">
           <div className="p-4 border-b">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <Clock className="w-5 h-5 text-amber-500" />
-              Afventende invitationer ({invitationsList.filter(i => i.status === 'pending').length})
+              Afventende invitationer ({invitationsList.filter(i => i.status !== 'accepted').length})
             </h3>
           </div>
           <div className="divide-y">
             {invitationsList
-              .filter(i => i.status === 'pending')
+              .filter(i => i.status !== 'accepted')
               .map(inv => (
                 <div key={inv.id} className="p-4 flex items-center gap-4">
                   <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
@@ -366,8 +371,14 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-900">{inv.email}</div>
                     <div className="text-sm text-gray-500">
-                      Rolle: {ROLES.find(r => r.value === inv.role)?.label || inv.role} &middot; Sendt {formatTimeAgo(inv.created_at)}
+                      Rolle: {ROLES.find(r => r.value === inv.role)?.label || inv.role} &middot;{' '}
+                      {inv.send_count === 0 ? 'Ikke sendt' : `${inv.send_count > 1 ? 'Gensendt' : 'Sendt'} ${formatTimeAgo(inv.last_sent_at)}`}
                     </div>
+                    {inv.status === 'expired' && (
+                      <div className="text-xs font-medium text-red-600" data-testid="invite-expired">
+                        {inv.send_count === 0 ? 'Mailen blev ikke sendt — gensend' : 'Udløbet (linket gælder 24 t) — gensend'}
+                      </div>
+                    )}
                   </div>
                   {isAdmin && (
                     <div className="flex items-center gap-2">
@@ -379,7 +390,9 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
                           try {
                             const result = await resendInvitation(inv.id)
                             if (result.success) {
-                              toast.success('Invitation gensendt')
+                              toast.success('Invitation gensendt — det tidligere link virker ikke længere')
+                              const now = new Date().toISOString()
+                              setInvitationsList(prev => prev.map(i => i.id === inv.id ? { ...i, last_sent_at: now, send_count: i.send_count + 1, status: 'pending' } : i))
                             } else {
                               toast.error(result.error || 'Kunne ikke gensende')
                             }
@@ -390,6 +403,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
                         disabled={resendingId === inv.id}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-md disabled:opacity-50"
                         title="Gensend invitation"
+                        aria-label="Gensend invitation"
                       >
                         <RotateCw className="w-4 h-4" />
                       </button>

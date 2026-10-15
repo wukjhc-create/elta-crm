@@ -13,6 +13,23 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## ⛔ MANUEL GO-LIVE-BLOCKER — selvregistrering (P1, Henrik 2026-10-15)
+Prod: `disable_signup=false` (`scripts/prod-auth-signup-status.ts`, 2026-10-15). Henrik slår "Allow new users to sign up" fra i
+Supabase (Authentication → Sign In / Providers). Derefter (read-only): `disable_signup=true` · `/register` giver ingen offentlig
+oprettelse · invitation/onboarding virker stadig (admin-genererede links påvirkes ikke af signup-flaget). Først da: P1 CLOSED.
+Status: **BLOCKED_MANUAL (Henrik)**
+
+## NEXT-14 (beslutninger 2026-10-15 efter NEXT-12/13)
+| # | Opgave | Status |
+|---|---|---|
+| D-1 | Selvregistrering → se blokeren øverst | BLOCKED_MANUAL |
+| D-2 | 00225 bliver i prod; hver ny prod-migration kræver egen godkendelse (nr./formål/risiko/pre-post) | DONE (regel) |
+| D-3/D-4 | Invitationer: Team/Brugerstyring er den officielle vej; Supabase genererer linket, **Graph sender** (Supabase-SMTP kun som fallback hvis Graph ikke er sat op). Gensend = nyt link (gamle token ugyldigt), audit `user_invitation_resent`, status i Team (Sendt/Gensendt/Udløbet efter 24 t/Mail ikke sendt). Medarbejder-invitation samme model; navnet i adgangsmailen HTML-escapes nu. Ingen migration (status i auth user_metadata) | DONE — staging invite-link-check 7/7 (gammelt link → otp_expired), UI U157 · [H] Supabase "Email OTP expiry" = 86400 s (24 t) skal bekræftes i dashboardet |
+| D-5 | Alarmer: kritiske straks til admin + serviceleder; ikke-kritiske til Pilot Health/klokken; daglig digest senere; ingen spam | TODO |
+| D-6 | Pilotfejl-flow: Pilot Health, S1/S2/S3-klassifikation, checkpoint pr. fejl (runbook) | TODO |
+| D-7 | 00191-branchen: IKKE fuldt erstattet af 00199 — `offers.customer_id` CASCADE → RESTRICT kom aldrig i prod → udkast **00226** (branch `offers-customer-restrict-00226`, staging-testet) | BLOCKED_APPROVAL (00226) — branch `fk-delete-safety` slettes når 00226 er afgjort |
+| D-8 | U135 = testfejl, accepteret; ingen ny fuld regression | DONE |
+
 ## NEXT-13 (2026-10-15 — tavse fejl/feedback + døde revalidateringer + doc-drift)
 Kilde: to opfølgende read-only sweeps til pilot-reviewet.
 | # | Fund | Status |

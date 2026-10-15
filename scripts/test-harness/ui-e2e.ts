@@ -537,6 +537,40 @@ ${m.text()}`) })
       out.push({ id: 'U156 login: deep link + ingen fritekst (R-5/R-6)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
     }
 
+    // U157 Henrik 2026-10-15: Team viser invitationsstatus — en invitation sendt for >24 t siden står som "Udløbet —
+    // gensend", en frisk som "Sendt". Seedes med generateLink (ingen mail); der klikkes IKKE på Gensend (ingen mail).
+    if (want('U157')) {
+      const r: Record<string, boolean> = {}
+      const seeded: string[] = []
+      const mk = async (tag: string, sentAt: string) => {
+        const email = `ui-e2e-inv-${tag}-${stamp}@example.com`
+        const { data } = await c.admin.auth.admin.generateLink({ type: 'invite', email, options: { data: { role: 'montør' } } })
+        const id = data?.user?.id
+        if (id) {
+          seeded.push(id)
+          await c.admin.auth.admin.updateUserById(id, { user_metadata: { role: 'montør', invite_sent_at: sentAt, invite_send_count: 2, invite_channel: 'graph' } })
+        }
+        return email
+      }
+      const oldMail = await mk('old', new Date(Date.now() - 30 * 3_600_000).toISOString())
+      const newMail = await mk('new', new Date(Date.now() - 3_600_000).toISOString())
+      const s = await login(adminUser)
+      try {
+        await s.page.goto(`${base}/dashboard/settings/team`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const oldRow = s.page.locator('div.p-4', { hasText: oldMail }).last()
+        const newRow = s.page.locator('div.p-4', { hasText: newMail }).last()
+        r.gammel_vises = (await oldRow.count()) > 0
+        r.gammel_udloebet = (await oldRow.getByTestId('invite-expired').count()) === 1
+        r.ny_aktiv = (await newRow.count()) > 0 && (await newRow.getByTestId('invite-expired').count()) === 0
+        r.gensendt_tekst = (await newRow.getByText(/Gensendt/).count()) > 0
+        r.gensend_knap = (await oldRow.getByRole('button', { name: 'Gensend invitation' }).count()) === 1
+      } finally {
+        await s.ctx.close().catch(() => {})
+        for (const id of seeded) await c.admin.auth.admin.deleteUser(id).catch(() => {})
+      }
+      out.push({ id: 'U157 team: invitationsstatus (udløbet/gensendt)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+    }
+
     // U22 — S2: login-formularen før hydrering. JS slået fra = værste fald; hverken klik eller Enter må give GET med adgangskoden.
     if (want('U22')) {
       const nojs = await browser.newContext({ viewport: { width: 1400, height: 1000 }, javaScriptEnabled: false })

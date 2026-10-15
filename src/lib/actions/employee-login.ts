@@ -16,10 +16,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { setProfileLoginActive } from '@/lib/auth/login-access'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
-import { sendEmailViaGraph, isGraphConfigured } from '@/lib/services/microsoft-graph'
+import { isGraphConfigured } from '@/lib/services/microsoft-graph'
 import { resetPasswordRedirect, buildSetPasswordLink } from '@/lib/auth/set-password-link'
 import { logger } from '@/lib/utils/logger'
 import { authErrorText } from '@/lib/auth/auth-error-text'
+import { createInviteLink, markInviteSent, sendAccessMail } from '@/lib/auth/access-mail'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type { UserRole } from '@/types/auth.types'
@@ -151,19 +152,31 @@ export async function inviteEmployeeLogin(
       [emp.first_name, emp.last_name].filter(Boolean).join(' ').trim() ||
       undefined
 
-    const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(
-      emp.email as string,
-      {
-        data: { role, full_name: fullName, invited_by: ctx.userId },
-        redirectTo: resetPasswordRedirect(),
+    // Henrik 2026-10-15: Graph er primær mailkanal — Supabase genererer kun linket; Supabase-SMTP kun som fallback
+    const viaGraph = isGraphConfigured()
+    const inviteData = { role, full_name: fullName, invited_by: ctx.userId }
+    let newUserId: string
+    let inviteLink: string | null = null
+    if (viaGraph) {
+      const gen = await createInviteLink(admin, emp.email as string, inviteData)
+      if (gen.error || !gen.userId || !gen.link) {
+        logger.error('inviteEmployeeLogin: invite link failed', { error: gen.error, entityId: employeeId })
+        return { success: false, error: authErrorText(gen.error, 'Invitationen kunne ikke oprettes. Prøv igen om lidt.') }
       }
-    )
-    if (invErr || !invited?.user) {
-      logger.error('inviteEmployeeLogin: invite failed', { error: invErr, entityId: employeeId })
-      // R-3: dansk tekst (fx "findes allerede" / mail-rate-limit) i stedet for rå Supabase-engelsk
-      return { success: false, error: authErrorText(invErr, 'Invitationen kunne ikke sendes. Prøv igen om lidt.') }
+      newUserId = gen.userId
+      inviteLink = gen.link
+    } else {
+      const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(
+        emp.email as string,
+        { data: inviteData, redirectTo: resetPasswordRedirect() }
+      )
+      if (invErr || !invited?.user) {
+        logger.error('inviteEmployeeLogin: invite failed', { error: invErr, entityId: employeeId })
+        // R-3: dansk tekst (fx "findes allerede" / mail-rate-limit) i stedet for rå Supabase-engelsk
+        return { success: false, error: authErrorText(invErr, 'Invitationen kunne ikke sendes. Prøv igen om lidt.') }
+      }
+      newUserId = invited.user.id
     }
-    const newUserId = invited.user.id
 
     // Trigger handle_new_user opretter profilen; sæt rolle eksplicit + knyt.
     const { error: roleErr } = await admin
@@ -182,6 +195,15 @@ export async function inviteEmployeeLogin(
     }
 
     revalidatePath(`/dashboard/employees/${employeeId}`)
+    if (inviteLink) {
+      const sent = await sendAccessMail({ email: emp.email as string, name: fullName ?? null, link: inviteLink, mode: 'invite' })
+      if (!sent.success) {
+        await admin.auth.admin.updateUserById(newUserId, { user_metadata: { ...inviteData, invite_mail_failed: true } })
+        return { success: false, error: 'Login er oprettet og knyttet, men invitationsmailen kunne ikke sendes — brug "Send invitation igen".' }
+      }
+    }
+    const { error: metaErr } = await markInviteSent(admin, newUserId, inviteData, ctx.userId, viaGraph ? 'graph' : 'supabase')
+    if (metaErr) logger.warn('inviteEmployeeLogin: invite_sent_at kunne ikke gemmes', { error: metaErr, entityId: employeeId })
     return { success: true, data: { profile_id: newUserId } }
   } catch (e) {
     return { success: false, error: formatError(e, 'Kunne ikke invitere bruger') }
@@ -350,7 +372,26 @@ export async function sendEmployeeAccessEmail(
     const email = await authEmailForProfile(admin, emp.profile_id as string) ?? (emp.email as string | null)
     if (!email) return { success: false, error: 'Medarbejderen mangler e-mail' }
 
-    const { link, error: linkErr } = await buildSetPasswordLink(admin, email)
+    // Gensend til en inviteret, endnu ikke bekræftet bruger: nyt invitationstoken erstatter det gamle (det tidligere
+    // link er ikke længere aktivt). Kun for en auth-bruger der faktisk findes — aldrig oprettelse herfra.
+    let link: string | null = null
+    let linkErr: string | undefined
+    let authMeta: Record<string, unknown> | undefined
+    if (mode === 'invite') {
+      const { data: au } = await admin.auth.admin.getUserById(emp.profile_id as string)
+      const authUser = au?.user as { email?: string; email_confirmed_at?: string | null; user_metadata?: Record<string, unknown> } | undefined
+      if (authUser?.email && !authUser.email_confirmed_at) {
+        authMeta = authUser.user_metadata ?? {}
+        const gen = await createInviteLink(admin, authUser.email, authMeta)
+        link = gen.link
+        if (!link) linkErr = gen.error?.message
+      }
+    }
+    if (!link) {
+      const built = await buildSetPasswordLink(admin, email)
+      link = built.link
+      linkErr = built.error
+    }
     if (!link) return { success: false, error: linkErr ?? 'Kunne ikke generere link' }
 
     const fullName =
@@ -363,30 +404,15 @@ export async function sendEmployeeAccessEmail(
       return { success: true, data: { sent: false, link } }
     }
 
-    const subject =
-      mode === 'invite'
-        ? 'Aktivér din adgang til ELTA Drift'
-        : 'Nulstil din adgangskode til ELTA Drift'
-    const intro =
-      mode === 'invite'
-        ? 'Du er oprettet som bruger i ELTA Drift. Klik på knappen for at sætte din adgangskode og logge ind.'
-        : 'Der er anmodet om nulstilling af din adgangskode til ELTA Drift. Klik på knappen for at sætte en ny adgangskode.'
-    const html = `
-      <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;color:#111827">
-        <h2 style="font-size:18px;margin:0 0 12px">${subject}</h2>
-        <p style="color:#374151">Hej ${fullName},</p>
-        <p style="color:#374151">${intro}</p>
-        <p style="margin:24px 0">
-          <a href="${link}" style="background:#166534;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block">Sæt adgangskode</a>
-        </p>
-        <p style="color:#6b7280;font-size:13px">Linket er personligt og udløber efter kort tid. Virker knappen ikke, så kopiér denne adresse ind i browseren:</p>
-        <p style="color:#6b7280;font-size:12px;word-break:break-all">${link}</p>
-      </div>`
-
-    const res = await sendEmailViaGraph({ to: email, subject, html })
+    // Fælles, HTML-escapet skabelon (navnet escapes — det var før indsat rå)
+    const res = await sendAccessMail({ email, name: fullName, link, mode })
     if (!res.success) {
       // Mail fejlede — giv admin linket som fallback frem for en blind fejl.
       return { success: true, data: { sent: false, link } }
+    }
+    if (authMeta) {
+      const { error: metaErr } = await markInviteSent(admin, emp.profile_id as string, authMeta, ctx.userId, 'graph')
+      if (metaErr) logger.warn('sendEmployeeAccessEmail: invite_sent_at kunne ikke gemmes', { error: metaErr, entityId: employeeId })
     }
 
     await logEmployeeEvent({

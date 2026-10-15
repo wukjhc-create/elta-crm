@@ -2121,6 +2121,13 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'invite-link-check') {
+    const { runInviteLinkCheck, formatInviteLinkCheck } = await import('./invite-link-check')
+    const checks = await runInviteLinkCheck({ admin, url: runtime.url, anonKey: runtime.anonKey })
+    log(formatInviteLinkCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'calc-settings-rls') {
     const { runCalcSettingsRls, formatCalcSettingsRls } = await import('./calc-settings-rls')
     const checks = await runCalcSettingsRls({ admin, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })

@@ -20,6 +20,8 @@ import { MAX_IMAGE_SIZE, APP_URL } from '@/lib/constants'
 import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
 import { logger } from '@/lib/utils/logger'
 import { authErrorText } from '@/lib/auth/auth-error-text'
+import { createInviteLink, inviteExpired, isGraphConfigured, markInviteSent, sendAccessMail } from '@/lib/auth/access-mail'
+import { resetPasswordRedirect } from '@/lib/auth/set-password-link'
 import { validateUUID } from '@/lib/validations/common'
 import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { setProfileLoginActive } from '@/lib/auth/login-access'
@@ -1160,7 +1162,7 @@ async function listPendingInviteUsers(admin: ReturnType<typeof createAdminClient
 export async function inviteTeamMember(
   email: string,
   role: string = 'montør',
-): Promise<ActionResult<{ email: string; id: string | null }>> {
+): Promise<ActionResult<{ email: string; id: string | null; mail_sent: boolean; warning: string | null }>> {
   try {
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('users.create')) {
@@ -1179,35 +1181,73 @@ export async function inviteTeamMember(
       return { success: false, error: 'Denne email er allerede registreret eller inviteret' }
     }
 
-    // Send invite via Supabase Auth Admin
+    // Henrik 2026-10-15: Supabase genererer linket, Graph sender mailen (ingen afhængighed af Supabase-SMTP).
+    // Kun hvis Graph ikke er sat op, falder vi tilbage til Supabases egen invitationsmail.
     const admin = createAdminClient()
-    const inviteRedirectTo = `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/reset-password`
-    const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email.toLowerCase(), {
-      data: { role, invited_by: userId },
-      redirectTo: inviteRedirectTo,
-    })
-
-    if (inviteError) {
-      logger.error('Error inviting user', { error: inviteError })
-      // R-3: rigtig årsag på dansk (fx mail-rate-limit) i stedet for altid "tjek e-mail"
-      return { success: false, error: authErrorText(inviteError, 'Kunne ikke sende invitation. Tjek at email er gyldig.') }
+    const lower = email.toLowerCase()
+    const viaGraph = isGraphConfigured()
+    let newId: string | null = null
+    let link: string | null = null
+    if (viaGraph) {
+      const gen = await createInviteLink(admin, lower, { role, invited_by: userId })
+      if (gen.error || !gen.link) {
+        logger.error('Error generating invite link', { error: gen.error })
+        return { success: false, error: authErrorText(gen.error, 'Kunne ikke oprette invitation. Tjek at email er gyldig.') }
+      }
+      newId = gen.userId
+      link = gen.link
+    } else {
+      const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(lower, {
+        data: { role, invited_by: userId },
+        redirectTo: resetPasswordRedirect(),
+      })
+      if (inviteError) {
+        logger.error('Error inviting user', { error: inviteError })
+        // R-3: rigtig årsag på dansk (fx mail-rate-limit) i stedet for altid "tjek e-mail"
+        return { success: false, error: authErrorText(inviteError, 'Kunne ikke sende invitation. Tjek at email er gyldig.') }
+      }
+      newId = invited?.user?.id ?? null
     }
 
     // handle_new_user opretter profilen som montør; den valgte rolle sættes her (kræver users.edit som rolleskift i øvrigt)
-    const newId = invited?.user?.id ?? null
-    if (newId && role !== 'montør') {
-      if (!hasPermission('users.edit')) {
-        return { success: true, data: { email: email.toLowerCase(), id: newId } }
-      }
+    let roleWarning: string | null = null
+    if (newId && role !== 'montør' && hasPermission('users.edit')) {
       const { error: roleErr } = await admin.from('profiles').update({ role, updated_at: new Date().toISOString() }).eq('id', newId)
       if (roleErr) {
-        logger.error('Invitation sendt, men rollen kunne ikke sættes', { error: roleErr, entityId: newId })
-        return { success: false, error: 'Invitation sendt, men rollen kunne ikke sættes — ret den under brugerlisten' }
+        logger.error('Invitation oprettet, men rollen kunne ikke sættes', { error: roleErr, entityId: newId })
+        roleWarning = 'rollen kunne ikke sættes — ret den under brugerlisten'
       }
     }
 
+    let mailError: string | null = null
+    if (viaGraph && link) {
+      const sent = await sendAccessMail({ email: lower, name: null, link, mode: 'invite' })
+      if (!sent.success) mailError = sent.error ?? 'Mailen kunne ikke sendes'
+    }
+    if (newId && mailError) {
+      // Markér at mailen ikke blev sendt, så Team viser "Mailen blev ikke sendt — gensend" (også efter genindlæsning)
+      await admin.auth.admin.updateUserById(newId, { user_metadata: { role, invited_by: userId, invite_mail_failed: true } })
+    }
+    if (newId && !mailError) {
+      const { error: metaErr } = await markInviteSent(admin, newId, { role, invited_by: userId }, userId, viaGraph ? 'graph' : 'supabase')
+      if (metaErr) logger.warn('invite_sent_at kunne ikke gemmes', { error: metaErr, entityId: newId })
+    }
+    await insertAuditRow({
+      user_id: userId,
+      entity_type: 'user',
+      entity_id: newId,
+      entity_name: lower,
+      action: 'user_invited',
+      action_description: mailError ? 'Bruger oprettet via invitation — mailen kunne ikke sendes' : 'Invitation sendt',
+      changes: { role, channel: viaGraph ? 'graph' : 'supabase', mail_sent: !mailError },
+    })
+
     revalidatePath('/dashboard/settings/team')
-    return { success: true, data: { email: email.toLowerCase(), id: newId } }
+    // Brugeren findes nu uanset mailfejl — returnér den, så Team-listen kan vise "Ikke sendt — gensend"
+    const warning = mailError
+      ? `Brugeren er oprettet, men invitationsmailen kunne ikke sendes (${mailError}). Brug "Gensend".`
+      : roleWarning ? `Invitation sendt, men ${roleWarning}` : null
+    return { success: true, data: { email: lower, id: newId, mail_sent: !mailError, warning } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke sende invitation') }
   }
@@ -1238,7 +1278,9 @@ export async function getTeamInvitations(): Promise<ActionResult<TeamInvitation[
           invited_by: invitedBy,
           invited_by_name: byId.get(invitedBy)?.full_name ?? null,
           created_at: u.invited_at as string,
-          status: 'pending' as const,
+          last_sent_at: String(u.user_metadata?.invite_sent_at ?? u.invited_at),
+          send_count: u.user_metadata?.invite_mail_failed === true ? 0 : Number(u.user_metadata?.invite_send_count ?? 1) || 1,
+          status: u.user_metadata?.invite_mail_failed === true || inviteExpired(String(u.user_metadata?.invite_sent_at ?? u.invited_at)) ? 'expired' as const : 'pending' as const,
         }
       })
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -1326,16 +1368,42 @@ export async function resendInvitation(invitationId: string): Promise<ActionResu
       return { success: false, error: 'Invitation ikke fundet (brugeren er måske allerede logget ind)' }
     }
 
-    const resendRedirectTo = `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/reset-password`
-    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(u.email, {
-      data: { ...(u.user_metadata ?? {}), invited_by: userId },
-      redirectTo: resendRedirectTo,
-    })
-
-    if (inviteError) {
-      logger.error('Error resending invitation', { error: inviteError })
-      return { success: false, error: 'Kunne ikke gensende invitation' }
+    // Nyt link erstatter det gamle token (det tidligere link er ikke længere aktivt); Graph sender, Supabase-SMTP kun som fallback
+    const meta = (u.user_metadata ?? {}) as Record<string, unknown>
+    const viaGraph = isGraphConfigured()
+    if (viaGraph) {
+      const gen = await createInviteLink(admin, u.email, { ...meta, invited_by: meta.invited_by ?? userId })
+      if (gen.error || !gen.link) {
+        logger.error('Error generating resend link', { error: gen.error })
+        return { success: false, error: authErrorText(gen.error, 'Kunne ikke gensende invitation') }
+      }
+      const { data: prof } = await admin.from('profiles').select('full_name').eq('id', u.id).maybeSingle()
+      const sent = await sendAccessMail({ email: u.email, name: (prof as { full_name?: string | null } | null)?.full_name ?? null, link: gen.link, mode: 'invite' })
+      if (!sent.success) {
+        return { success: false, error: `Nyt link er lavet, men mailen kunne ikke sendes (${sent.error ?? 'ukendt fejl'}). Prøv igen.` }
+      }
+    } else {
+      const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(u.email, {
+        data: { ...meta, invited_by: meta.invited_by ?? userId },
+        redirectTo: resetPasswordRedirect(),
+      })
+      if (inviteError) {
+        logger.error('Error resending invitation', { error: inviteError })
+        return { success: false, error: authErrorText(inviteError, 'Kunne ikke gensende invitation') }
+      }
     }
+
+    const { error: metaErr, meta: newMeta } = await markInviteSent(admin, u.id, meta, userId, viaGraph ? 'graph' : 'supabase')
+    if (metaErr) logger.warn('invite_sent_at kunne ikke gemmes', { error: metaErr, entityId: u.id })
+    await insertAuditRow({
+      user_id: userId,
+      entity_type: 'user',
+      entity_id: u.id,
+      entity_name: u.email,
+      action: 'user_invitation_resent',
+      action_description: 'Invitation gensendt — nyt link, det tidligere link er ikke længere aktivt',
+      changes: { channel: viaGraph ? 'graph' : 'supabase', send_count: newMeta.invite_send_count, previous_sent_at: meta.invite_sent_at ?? u.invited_at ?? null },
+    })
 
     revalidatePath('/dashboard/settings/team')
     return { success: true, data: null }

@@ -33,6 +33,9 @@ export interface TeamInvitation {
   invited_by: string
   invited_by_name: string | null
   created_at: string
+  /** seneste afsendelse (gensend opdaterer) — udløber efter 24 t */
+  last_sent_at: string
+  send_count: number
   status: 'pending' | 'accepted' | 'expired'
 }
 

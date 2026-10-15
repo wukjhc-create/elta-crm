@@ -66,5 +66,16 @@ Kør altid pre → `npm run prod:apply-migration -- <nr> --approved-by-henrik` (
 - **Bankimport-dublet** (F-5): to ægte betalinger med samme dato/beløb/reference registreres som én (dedup-nøgle). Kræver migration (dedup på bankens id/rækkehash)
 - **Slutfaktura på kontraktsager** (F-3): i dag fakturerer slutfakturaen timer/materialer; skal der være en "rest af kontraktsum"-tilstand?
 - **Montør og kontraktsum** (PL-10): montøren ser sagens kontraktsum i Økonomi-panelet (salg, ikke kost) — skjules efter D42?
-- **customers.created_by: 00191 eller 00199?** (doc-sweep 2026-10-15) Samme ændring (CASCADE → SET NULL) findes som 00191 på branch `fk-delete-safety` og som 00199 på main; 00199 er kørt i prod 2026-10-07 (CLAUDE.md) → 00191-branchen bør lukkes, og runbooks der nævner 00191 opdateres. Bekræft.
+- ~~customers.created_by: 00191 eller 00199?~~ BESLUTTET 2026-10-15: luk 00191, 00199 gælder — MEN 00191 indeholder også `offers.customer_id` CASCADE → RESTRICT, som ikke er i prod → udkast 00226 afventer særskilt godkendelse. (doc-sweep 2026-10-15) Samme ændring (CASCADE → SET NULL) findes som 00191 på branch `fk-delete-safety` og som 00199 på main; 00199 er kørt i prod 2026-10-07 (CLAUDE.md) → 00191-branchen bør lukkes, og runbooks der nævner 00191 opdateres. Bekræft.
 - **Lav DB — én grænse eller to?** (PE-7, 2026-10-14) Tilbuddets profitkort advarer under *Minimum DB* (20 % i prod), men afsendelse kræver først bekræftelse under *Trafiklys rød* (10 %, kodestandard — ikke sat i prod). Sagens DB-farve/"lav DB"-flag og AI-risiko bruger nu samme indstillinger (`lib/profit/db-thresholds.ts`, uændrede tal). Skal afsendelsesværnet bruge 20 %? Arbejdsordre-triggeren (SQL, 15 %) samles med PE-1-migrationen
+
+
+## Beslutninger 2026-10-15 (efter NEXT-12/NEXT-13)
+1. **Selvregistrering** er GO-LIVE-blocker. Henrik slår signup fra manuelt; derefter read-only verifikation (disable_signup, /register, invitation virker) → P1 CLOSED.
+2. **00225** bliver i prod. Fremover: hver ny prod-migration kræver migrationsnr., formål, risiko, pre/post-check og eksplicit godkendelse — aldrig "under" en anden migration. Undtagelse: code-only S1/S2-fix uden schema/data/forretningsændring. Rollback må aldrig automatisk genåbne anon-adgang.
+3. **Invitationer**: oprettes fra Team/Brugerstyring; ingen offentlig signup, ingen manuel Supabase-oprettelse som normalvej. Graph er primær mailkanal; Supabase Auth genererer linket.
+4. **Linkudløb 24 t**. Gensend: nyt link, audit-log, gammelt link ikke aktivt, tydelig status i Team.
+5. **Alarmer (pilot)**: kritiske → admin + serviceleder straks; ikke-kritiske → Pilot Health/notifikationscenter; daglig digest senere; ingen spam.
+6. **Pilotfejl**: Pilot Health; S1 (sikkerhed/datatab/forretningskritisk), S2 (større workflow/økonomisk korrekthed), S3 (brugervenlighed). Code-only S1/S2 må rettes direkte; migration/data/forretningsregel kræver godkendelse; audit/checkpoint pr. fejl.
+7. **00191** lukkes når det er bekræftet erstattet (se ovenfor: 00226).
+8. **U135** var testfejl — accepteret.
