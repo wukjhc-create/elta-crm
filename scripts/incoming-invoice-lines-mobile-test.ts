@@ -19,6 +19,12 @@ eq('kortet viser antal, pris og total', mobile.includes('l.quantity') && mobile.
 eq('konvertering staar som tekst', mobile.includes('Materiale') && mobile.includes('Øvrig') && mobile.includes('Ikke konverteret'), true)
 eq('kortet er ikke tabellen', mobile.includes('<table'), false)
 eq('tom tekst er der stadig', src.includes('Ingen linjer ekstraheret.'), true)
+eq('leverandør ombrydes', src.includes('break-words min-w-0">{detail.supplier?.name'), true)
+eq('feltvaerdi ombrydes', src.includes('text-right text-gray-900 min-w-0 break-words'), true)
+eq('match-label kan blive smal', src.includes('w-28 sm:w-44 shrink-0 text-gray-500 break-words'), true)
+eq('score er den samme', src.includes('score.toFixed(2)') && src.includes('Math.min(100, score * 100)'), true)
+eq('beløb incl moms bliver', src.includes('fmtAmount(inv.amount_incl_vat, inv.currency)'), true)
+eq('bogfør-knappen bliver', src.includes('Bogfør til e-conomic'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nincoming-invoice-lines-mobile-test OK')
 process.exitCode = fail ? 1 : 0

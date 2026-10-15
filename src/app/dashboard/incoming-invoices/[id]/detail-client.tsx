@@ -224,20 +224,20 @@ export function IncomingInvoiceDetailClient({
   })
 
   return (
-    <div className="p-6 space-y-4 max-w-6xl">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
+    <div className="p-4 md:p-6 space-y-4 max-w-6xl">
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div className="min-w-0">
           <Link href="/dashboard/incoming-invoices" className="text-xs text-emerald-700 hover:underline">← Indgående fakturaer</Link>
-          <h1 className="text-2xl font-semibold mt-1 flex items-center gap-2">
-            {detail.supplier?.name ?? inv.supplier_name_extracted ?? 'Ukendt leverandør'}
+          <h1 className="text-2xl font-semibold mt-1 flex flex-wrap items-start gap-2">
+            <span className="break-words min-w-0">{detail.supplier?.name ?? inv.supplier_name_extracted ?? 'Ukendt leverandør'}</span>
             {isTestInvoice && (
               <span className="text-[11px] uppercase tracking-wide bg-amber-200 text-amber-900 px-2 py-0.5 rounded">
                 TEST
               </span>
             )}
           </h1>
-          <p className="text-xs text-gray-500">
-            Faktura nr <span className="font-mono">{inv.invoice_number ?? '—'}</span>
+          <p className="text-xs text-gray-500 break-words">
+            Faktura nr <span className="font-mono break-all">{inv.invoice_number ?? '—'}</span>
             {inv.invoice_date && <> · {fmtDate(inv.invoice_date)}</>}
             {inv.due_date && <> · forfald {fmtDate(inv.due_date)}</>}
           </p>
@@ -364,7 +364,7 @@ export function IncomingInvoiceDetailClient({
                   {detail.case ? (
                     <Link
                       href={`/dashboard/orders/${detail.case.case_number}`}
-                      className="text-emerald-700 hover:underline"
+                      className="text-emerald-700 hover:underline break-words"
                     >
                       <span className="font-mono text-xs">{detail.case.case_number}</span>
                       <span className="ml-2">{detail.case.project_name || detail.case.title}</span>
@@ -433,24 +433,24 @@ export function IncomingInvoiceDetailClient({
               if (k === 'reasons' || k === 'total') return null
               const score = Number(v) || 0
               return (
-                <div key={k} className="flex items-center gap-2 text-xs">
-                  <span className="w-44 text-gray-500">{SIGNAL_LABEL[k] ?? k}</span>
+                <div key={k} className="flex items-center gap-2 text-xs min-w-0">
+                  <span className="w-28 sm:w-44 shrink-0 text-gray-500 break-words">{SIGNAL_LABEL[k] ?? k}</span>
                   <div className="flex-1 h-2 bg-gray-100 rounded overflow-hidden">
                     <div className={`h-2 ${score > 0 ? 'bg-emerald-500' : 'bg-gray-200'}`} style={{ width: `${Math.min(100, score * 100)}%` }} />
                   </div>
-                  <span className="w-12 text-right font-mono">{score.toFixed(2)}</span>
+                  <span className="w-12 shrink-0 text-right font-mono">{score.toFixed(2)}</span>
                 </div>
               )
             })}
-            <div className="flex items-center gap-2 text-xs pt-1 border-t">
-              <span className="w-44 font-medium">Total</span>
+            <div className="flex items-center gap-2 text-xs pt-1 border-t min-w-0">
+              <span className="w-28 sm:w-44 shrink-0 font-medium">Total</span>
               <div className="flex-1 h-2 bg-gray-100 rounded overflow-hidden">
                 <div className="h-2 bg-blue-500" style={{ width: `${Math.min(100, Number(breakdown.total ?? 0) * 100)}%` }} />
               </div>
-              <span className="w-12 text-right font-mono font-medium">{Number(breakdown.total ?? 0).toFixed(2)}</span>
+              <span className="w-12 shrink-0 text-right font-mono font-medium">{Number(breakdown.total ?? 0).toFixed(2)}</span>
             </div>
             {Array.isArray(breakdown.reasons) && breakdown.reasons.length > 0 && (
-              <div className="text-xs text-gray-500 mt-2">
+              <div className="text-xs text-gray-500 mt-2 break-words">
                 <span className="font-medium">Årsager:</span> {(breakdown.reasons as string[]).map((r) => (
                   <code key={r} className="ml-2 bg-gray-100 px-1 rounded">{r}</code>
                 ))}
@@ -720,9 +720,9 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-2 py-1 text-sm border-b last:border-b-0">
-      <span className="text-gray-500">{label}</span>
-      <span className="text-right text-gray-900">{value}</span>
+    <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 py-1 text-sm border-b last:border-b-0">
+      <span className="text-gray-500 shrink-0">{label}</span>
+      <span className="text-right text-gray-900 min-w-0 break-words">{value}</span>
     </div>
   )
 }
