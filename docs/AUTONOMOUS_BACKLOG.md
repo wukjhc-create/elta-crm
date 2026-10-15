@@ -41,13 +41,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Rapporter: top-kunder, sagsrentabilitet og team er kort under `md`. Kost på sagen kræver at kost er foldet ud. U88-testid bliver i tabellen. | DONE — `reports-mobile-test` |
 | Indkøbsdrift viser kort under `md`. Beløb kræver `canAmt`. Linjer foldes ud med samme komponent. Paging er fælles. | DONE — `purchase-ops-mobile-test` |
 | Medarbejderøkonomi viser kort under `md`. Kost og DB pr. medarbejder kræver `showRowCost`. Tom liste er uændret. | DONE — `employee-economy-mobile-test` |
+| Leverandørprisliste viser kort under `md`. Kost følger `products.view.cost_prices` på hentningen. Fejl er en alert, ikke en tom liste. | DONE — `supplier-products-mobile-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: employee-economy-mobile efter e4c833aa
-TESTS: oioubl-test, aftercalc-overview-mobile-test, case-supplier-invoices-mobile-test, other-costs-mobile-test, time-logs-mobile-test, case-invoices-mobile-test, bank-mobile-test, reports-mobile-test, purchase-ops-mobile-test, tsc --noEmit
+LAST_COMMIT: supplier-products-mobile efter 4a65af92
+TESTS: oioubl-test, aftercalc-overview-mobile-test, case-supplier-invoices-mobile-test, other-costs-mobile-test, time-logs-mobile-test, case-invoices-mobile-test, bank-mobile-test, reports-mobile-test, purchase-ops-mobile-test, employee-economy-mobile-test, supplier-products-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00223 GP-1 RLS, 00224 GP-6 (migrationer, ikke kørt). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: prisliste kort med kost-gate; tilbuds-profit manglende kost som tekst; fakturakontrol fragt/gebyr-tekst; kundeopgaver tom tilstand; planlægningsfiltre på 375px; lead næste handling; tilbudstom tilstand; dashboard tomme nøgletal; leverandørfaktura-linjer kort; kalenderuge ansvarlig; aria-label på ikonknapper; afvisningsanalyse på mobil; tomme filterresultater i rapporter; sagsdokumenter som kort; produktsøgning uden træf.
+NEXT_QUEUE: tilbuds-profit manglende kost som tekst; fakturakontrol fragt/gebyr-tekst; kundeopgaver tom tilstand; planlægningsfiltre på 375px; lead næste handling; tilbudstom tilstand; dashboard tomme nøgletal; leverandørfaktura-linjer kort; kalenderuge ansvarlig; aria-label på ikonknapper; afvisningsanalyse på mobil; tomme filterresultater i rapporter; sagsdokumenter som kort; produktsøgning uden træf; indstillinger leverandørliste kort.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.

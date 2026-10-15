@@ -68,6 +68,7 @@ export function SupplierProductsTable({
   const [total, setTotal] = useState(0)
   const [sortBy, setSortBy] = useState<SortColumn>('supplier_name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [loadError, setLoadError] = useState<string | null>(null)
   const pageSize = 25
 
   useEffect(() => {
@@ -108,9 +109,15 @@ export function SupplierProductsTable({
       pageSize,
     })
     if (result.success && result.data) {
+      setLoadError(null)
       setProducts(result.data.data)
       setTotalPages(result.data.totalPages)
       setTotal(result.data.total)
+    } else {
+      setProducts([])
+      setTotalPages(1)
+      setTotal(0)
+      setLoadError(result.success ? 'Kunne ikke hente produkter' : (result.error || 'Kunne ikke hente produkter'))
     }
     setLoading(false)
   }
@@ -141,9 +148,9 @@ export function SupplierProductsTable({
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <Filter className="w-4 h-4 mr-2" />
               <SelectValue placeholder="Alle kategorier" />
             </SelectTrigger>
@@ -168,111 +175,154 @@ export function SupplierProductsTable({
         </span>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg border overflow-hidden overflow-x-auto">
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-gray-50">
-            <TableRow>
-              <TableHead className={`w-[150px] ${sortableHeaderClass}`} onClick={() => handleSort('supplier_sku')}>
-                <div className="flex items-center gap-1">
-                  Varenummer
-                  <SortIcon column="supplier_sku" currentSort={sortBy} currentOrder={sortOrder} />
-                </div>
-              </TableHead>
-              <TableHead className={sortableHeaderClass} onClick={() => handleSort('supplier_name')}>
-                <div className="flex items-center gap-1">
-                  Navn
-                  <SortIcon column="supplier_name" currentSort={sortBy} currentOrder={sortOrder} />
-                </div>
-              </TableHead>
-              <TableHead className={`w-[120px] ${sortableHeaderClass}`} onClick={() => handleSort('category')}>
-                <div className="flex items-center gap-1">
-                  Kategori
-                  <SortIcon column="category" currentSort={sortBy} currentOrder={sortOrder} />
-                </div>
-              </TableHead>
-              <TableHead className={`w-[100px] text-right ${sortableHeaderClass}`} onClick={() => handleSort('cost_price')}>
-                <div className="flex items-center gap-1 justify-end">
-                  Kostpris
-                  <SortIcon column="cost_price" currentSort={sortBy} currentOrder={sortOrder} />
-                </div>
-              </TableHead>
-              <TableHead className="w-[100px] text-right">Listepris</TableHead>
-              <TableHead className="w-[100px] text-right">Salgspris</TableHead>
-              <TableHead className="w-[80px]">Status</TableHead>
-              <TableHead className={`w-[100px] ${sortableHeaderClass}`} onClick={() => handleSort('updated_at')}>
-                <div className="flex items-center gap-1">
-                  Opdateret
-                  <SortIcon column="updated_at" currentSort={sortBy} currentOrder={sortOrder} />
-                </div>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center">
-                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
-                </TableCell>
-              </TableRow>
-            ) : products.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-gray-500">
-                  <Package className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>Ingen produkter fundet</p>
-                  {search && (
-                    <p className="text-sm">Prøv at ændre din søgning</p>
-                  )}
-                </TableCell>
-              </TableRow>
-            ) : (
-              products.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-mono text-sm">
-                    {product.supplier_sku}
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium line-clamp-1">{product.supplier_name}</p>
-                      {product.manufacturer && (
-                        <p className="text-xs text-gray-500">{product.manufacturer}</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {product.category && (
-                      <Badge variant="secondary" className="text-xs">
-                        {product.category}
-                      </Badge>
+      {loadError && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2" role="alert">
+          {loadError}
+        </p>
+      )}
+
+      {loading ? (
+        <div className="h-32 flex items-center justify-center bg-white rounded-lg border">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      ) : loadError ? null : products.length === 0 ? (
+        <div className="h-32 flex flex-col items-center justify-center text-center text-gray-500 bg-white rounded-lg border">
+          <Package className="w-12 h-12 mb-2 text-gray-300" />
+          <p>Ingen produkter fundet</p>
+          {search && (
+            <p className="text-sm">Prøv at ændre din søgning</p>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Kost vises fordi getSupplierProducts allerede kraever products.view.cost_prices. */}
+          <div className="md:hidden space-y-3" data-testid="supplier-products-mobile">
+            {products.map((product) => (
+              <article key={product.id} className="rounded-lg border bg-white p-3 space-y-2 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-gray-500">{product.supplier_sku}</p>
+                    <p className="font-medium break-words">{product.supplier_name}</p>
+                    {product.manufacturer && (
+                      <p className="text-xs text-gray-500">{product.manufacturer}</p>
                     )}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {product.cost_price !== null ? formatCurrency(product.cost_price) : '-'}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {product.list_price !== null ? formatCurrency(product.list_price) : '-'}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm text-blue-600">
-                    {product.effective_sale_price !== null ? formatCurrency(product.effective_sale_price) : '-'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={product.is_available ? 'default' : 'secondary'}>
-                      {product.is_available ? 'Aktiv' : 'Inaktiv'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-gray-500">
-                    {(product.last_synced_at || product.updated_at) ? formatDateUtil(product.last_synced_at || product.updated_at) : '-'}
-                  </TableCell>
+                  </div>
+                  <Badge variant={product.is_available ? 'default' : 'secondary'}>
+                    {product.is_available ? 'Aktiv' : 'Inaktiv'}
+                  </Badge>
+                </div>
+                {product.category && (
+                  <Badge variant="secondary" className="text-xs">{product.category}</Badge>
+                )}
+                <dl className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <dt className="text-gray-500">Kostpris</dt>
+                    <dd className="font-mono">{product.cost_price !== null ? formatCurrency(product.cost_price) : '-'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500">Listepris</dt>
+                    <dd className="font-mono">{product.list_price !== null ? formatCurrency(product.list_price) : '-'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500">Salgspris</dt>
+                    <dd className="font-mono text-blue-600">{product.effective_sale_price !== null ? formatCurrency(product.effective_sale_price) : '-'}</dd>
+                  </div>
+                </dl>
+                <p className="text-xs text-gray-500">
+                  Opdateret {(product.last_synced_at || product.updated_at) ? formatDateUtil(product.last_synced_at || product.updated_at) : '-'}
+                </p>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden md:block bg-white rounded-lg border overflow-hidden overflow-x-auto">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-gray-50">
+                <TableRow>
+                  <TableHead className={`w-[150px] ${sortableHeaderClass}`} onClick={() => handleSort('supplier_sku')}>
+                    <div className="flex items-center gap-1">
+                      Varenummer
+                      <SortIcon column="supplier_sku" currentSort={sortBy} currentOrder={sortOrder} />
+                    </div>
+                  </TableHead>
+                  <TableHead className={sortableHeaderClass} onClick={() => handleSort('supplier_name')}>
+                    <div className="flex items-center gap-1">
+                      Navn
+                      <SortIcon column="supplier_name" currentSort={sortBy} currentOrder={sortOrder} />
+                    </div>
+                  </TableHead>
+                  <TableHead className={`w-[120px] ${sortableHeaderClass}`} onClick={() => handleSort('category')}>
+                    <div className="flex items-center gap-1">
+                      Kategori
+                      <SortIcon column="category" currentSort={sortBy} currentOrder={sortOrder} />
+                    </div>
+                  </TableHead>
+                  <TableHead className={`w-[100px] text-right ${sortableHeaderClass}`} onClick={() => handleSort('cost_price')}>
+                    <div className="flex items-center gap-1 justify-end">
+                      Kostpris
+                      <SortIcon column="cost_price" currentSort={sortBy} currentOrder={sortOrder} />
+                    </div>
+                  </TableHead>
+                  <TableHead className="w-[100px] text-right">Listepris</TableHead>
+                  <TableHead className="w-[100px] text-right">Salgspris</TableHead>
+                  <TableHead className="w-[80px]">Status</TableHead>
+                  <TableHead className={`w-[100px] ${sortableHeaderClass}`} onClick={() => handleSort('updated_at')}>
+                    <div className="flex items-center gap-1">
+                      Opdateret
+                      <SortIcon column="updated_at" currentSort={sortBy} currentOrder={sortOrder} />
+                    </div>
+                  </TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {products.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell className="font-mono text-sm">
+                      {product.supplier_sku}
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium line-clamp-1">{product.supplier_name}</p>
+                        {product.manufacturer && (
+                          <p className="text-xs text-gray-500">{product.manufacturer}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {product.category && (
+                        <Badge variant="secondary" className="text-xs">
+                          {product.category}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {product.cost_price !== null ? formatCurrency(product.cost_price) : '-'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {product.list_price !== null ? formatCurrency(product.list_price) : '-'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm text-blue-600">
+                      {product.effective_sale_price !== null ? formatCurrency(product.effective_sale_price) : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={product.is_available ? 'default' : 'secondary'}>
+                        {product.is_available ? 'Aktiv' : 'Inaktiv'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-gray-500">
+                      {(product.last_synced_at || product.updated_at) ? formatDateUtil(product.last_synced_at || product.updated_at) : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-gray-500">
             Side {page} af {totalPages}
           </p>
