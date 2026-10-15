@@ -138,6 +138,11 @@ export function InvoicesOverviewClient({
     [router, pathname, searchParams]
   )
 
+  const clearSearch = () => {
+    setSearch('')
+    updateParams({ q: null })
+  }
+
   const [pending, startTransition] = useTransition()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null)
@@ -310,7 +315,7 @@ export function InvoicesOverviewClient({
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:ml-auto">
           <label className="flex items-center gap-1.5 text-xs text-gray-600">
             <input
               type="checkbox"
@@ -319,7 +324,7 @@ export function InvoicesOverviewClient({
             />
             Kun udestående
           </label>
-          <div className="relative">
+          <div className="relative w-full sm:w-56">
             <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -329,7 +334,8 @@ export function InvoicesOverviewClient({
                 updateParams({ q: e.target.value || null })
               }}
               placeholder="Søg fakturanr / kunde / sag"
-              className="pl-7 pr-2 py-1.5 text-xs border rounded-lg w-56"
+              aria-label="Søg fakturaer"
+              className="pl-7 pr-2 py-1.5 text-xs border rounded-lg w-full"
             />
           </div>
         </div>
@@ -398,6 +404,12 @@ export function InvoicesOverviewClient({
             ))}
           </ul>
         </div>
+      )}
+
+      {filtered.length === 0 && search.trim() && (
+        <button type="button" onClick={clearSearch} className="text-sm text-blue-700 hover:underline" data-testid="invoices-clear-search">
+          Ryd søgning
+        </button>
       )}
 
       {/* Tabel */}
