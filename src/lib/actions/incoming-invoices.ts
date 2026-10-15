@@ -1120,11 +1120,16 @@ export async function getIncomingInvoiceDueSummaryAction(): Promise<IncomingDueS
   const todayIso = copenhagenParts(new Date()).date
 
   // Ét cost-bounded query: godkendte fakturaer (afventer bogføring/betaling).
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('incoming_invoices')
     .select('id, invoice_number, supplier_name_extracted, due_date, amount_incl_vat, currency, status, supplier:supplier_id ( name )')
     .eq('status', 'approved')
     .limit(1000)
+
+  if (error) {
+    logger.error('getIncomingInvoiceDueSummaryAction failed', { error })
+    return { ...empty, message: 'Kunne ikke hente forfaldsoverblik. Det tælles ikke som 0.' }
+  }
 
   const rows = (data ?? []) as Array<{
     id: string; invoice_number: string | null; supplier_name_extracted: string | null
