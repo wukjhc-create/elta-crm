@@ -347,6 +347,13 @@ export function TasksPageClient({
 
   // Filter: hide done tasks unless showDone is true
   const visibleTasks = showDone ? tasks : tasks.filter((t) => t.status !== 'done')
+  const hasTaskFilter = search.trim() !== '' || statusFilter !== 'all' || priorityFilter !== 'all' || assignedFilter !== 'all'
+  const clearTaskFilters = () => {
+    setSearch('')
+    setStatusFilter('all')
+    setPriorityFilter('all')
+    setAssignedFilter('all')
+  }
 
   // Stats (based on unfiltered tasks)
   const pending = tasks.filter((t) => t.status === 'pending').length
@@ -359,7 +366,7 @@ export function TasksPageClient({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">{isMontor ? 'Mine opgaver' : 'Opgaver'}</h1>
           <p className="text-gray-500">
@@ -380,7 +387,7 @@ export function TasksPageClient({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <button
           onClick={() => setStatusFilter('all')}
           className={`rounded-lg p-3 text-left transition-colors ${statusFilter === 'all' ? 'ring-2 ring-blue-500' : ''} bg-gray-100 text-gray-800`}
@@ -410,7 +417,7 @@ export function TasksPageClient({
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-[12rem] w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -421,12 +428,12 @@ export function TasksPageClient({
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <Filter className="w-4 h-4 text-gray-400 shrink-0" />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as FilterStatus)}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="w-full sm:w-auto px-3 py-2 border rounded-md text-sm"
           >
             <option value="all">Alle status</option>
             {Object.entries(TASK_STATUS_CONFIG).map(([key, cfg]) => (
@@ -437,7 +444,7 @@ export function TasksPageClient({
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value as FilterPriority)}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="w-full sm:w-auto px-3 py-2 border rounded-md text-sm"
           >
             <option value="all">Alle prioriteter</option>
             {Object.entries(TASK_PRIORITY_CONFIG).map(([key, cfg]) => (
@@ -449,7 +456,7 @@ export function TasksPageClient({
             <select
               value={assignedFilter}
               onChange={(e) => setAssignedFilter(e.target.value)}
-              className="px-3 py-2 border rounded-md text-sm"
+              className="w-full sm:w-auto px-3 py-2 border rounded-md text-sm"
             >
               <option value="all">Alle ansvarlige</option>
               {profiles.map((p) => (
@@ -483,13 +490,21 @@ export function TasksPageClient({
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <ClipboardCheck className="w-12 h-12 mb-3 opacity-30" />
             <p className="font-medium">
-              {isMontor ? 'Ingen tildelte opgaver' : 'Ingen opgaver fundet'}
+              {hasTaskFilter
+                ? 'Ingen opgaver matcher filteret'
+                : isMontor ? 'Ingen tildelte opgaver' : 'Ingen opgaver fundet'}
             </p>
-            <p className="text-sm mt-1">
-              {isMontor
-                ? 'Du har ikke nogen tildelte opgaver lige nu'
-                : 'Klik "Ny opgave" for at oprette en'}
-            </p>
+            {hasTaskFilter ? (
+              <button type="button" onClick={clearTaskFilters} className="mt-2 text-sm text-blue-600 hover:underline" data-testid="tasks-clear-filters">
+                Ryd filter
+              </button>
+            ) : (
+              <p className="text-sm mt-1">
+                {isMontor
+                  ? 'Du har ikke nogen tildelte opgaver lige nu'
+                  : 'Klik "Ny opgave" for at oprette en'}
+              </p>
+            )}
           </div>
         ) : (
           <div className="divide-y min-w-[900px]">

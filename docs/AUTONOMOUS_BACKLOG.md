@@ -61,13 +61,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Sagsoverblikket viser den tildelte. Mangler den, står der ikke tildelt. Opretteren bliver sælger i ansvar-panelet. | DONE — `case-assignee-test` |
 | Sagsdokumenter er kort. Filnavnet ombrydes. Den tomme liste siger stadig at man tilføjer filer. | DONE — `document-name-test` |
 | Leverandørkort ombryder navn, mail og knapper. Tom søgning kan ryddes. Tom liste siger stadig opret. | DONE — `suppliers-list-mobile-test` |
+| Opgavefiltre og nøgletal ombrydes. Et filter uden træf kan ryddes. Tom liste uden filter er den samme. | DONE — `tasks-filter-mobile-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: suppliers-list-mobile efter 7a453e76
-TESTS: suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, calendar-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
+LAST_COMMIT: tasks-filter-mobile efter e732afd7
+TESTS: tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, calendar-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00223 GP-1 RLS, 00224 GP-6 (migrationer, ikke kørt). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: aria-label på ikonknapper; tomme filterresultater i rapporter; påmindelse uden dato; kundehistorik tom tekst; sync-log kort; opgavefilter ombrydes; kalender forrige/næste navn; opgavestatistik to kolonner; personlig påmindelse ombrydes; lead-aktivitet tom tekst; rapporter tom sektion forklarer; kundeopgave uden forfald; planlægning tom uge; tilbudsliste tom søgning.
+NEXT_QUEUE: aria-label på ikonknapper; tomme filterresultater i rapporter; påmindelse uden dato; kundehistorik tom tekst; sync-log kort; kalender forrige/næste navn; personlig påmindelse ombrydes; lead-aktivitet tom tekst; rapporter tom sektion forklarer; kundeopgave uden forfald; planlægning tom uge; tilbudsliste tom søgning.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
