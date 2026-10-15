@@ -110,7 +110,7 @@ export function UserActivityPanel({ users }: UserActivityPanelProps) {
               {/* Name and role */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900 truncate">
+                  <span className="font-medium text-gray-900 break-words">
                     {user.full_name || 'Ikke angivet'}
                   </span>
                   {getRoleBadge(user.role)}
@@ -122,8 +122,8 @@ export function UserActivityPanel({ users }: UserActivityPanelProps) {
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                   {user.email && (
-                    <span className="flex items-center gap-1 truncate">
-                      <Mail className="w-3 h-3" />
+                    <span className="flex items-center gap-1 break-all min-w-0">
+                      <Mail className="w-3 h-3 shrink-0" />
                       {user.email}
                     </span>
                   )}

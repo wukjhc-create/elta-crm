@@ -165,7 +165,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
             return (
               <div
                 key={member.id}
-                className={`p-4 flex items-center gap-4 ${
+                className={`p-4 flex items-start gap-4 ${
                   !member.is_active ? 'bg-gray-50 opacity-75' : ''
                 }`}
               >
@@ -184,8 +184,8 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900 truncate">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span className="font-medium text-gray-900 break-words">
                       {member.full_name || 'Ikke angivet'}
                     </span>
                     {isCurrentUser && (
@@ -199,7 +199,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-500 truncate">{member.email}</div>
+                  <div className="text-sm text-gray-500 break-all">{member.email}</div>
                   {member.department && (
                     <div className="text-xs text-gray-400 flex items-center gap-1 mt-1">
                       <Building2 className="w-3 h-3" />
