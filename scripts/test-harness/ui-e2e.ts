@@ -2479,13 +2479,16 @@ ${m.text()}`) })
 
         // Afslut jobbet
         await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 }) // tilbage til egen sag
+        // U-8/U-9: "Afslut" er endelig og kræver bekræftelse — testen accepterer, og tjekker at dialogen kom
+        let afslutBekraeftet = false
+        m.page.once('dialog', (d) => { afslutBekraeftet = /Afslut arbejdsordren/.test(d.message()); d.accept().catch(() => {}) })
         await m.page.getByRole('button', { name: '✓ Afslut' }).first().click({ timeout: 30_000 }).catch(() => {})
         let woStatus = ''
         for (let i = 0; i < 15 && woStatus !== 'done'; i++) {
           woStatus = String(((await c.admin.from('work_orders').select('status').eq('id', woId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
           if (woStatus !== 'done') await new Promise((res) => setTimeout(res, 1000))
         }
-        r.afsluttet = woStatus === 'done'
+        r.afsluttet = woStatus === 'done' && afslutBekraeftet
         if (!r.afsluttet) {
           await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-afslut.png'), fullPage: true }).catch(() => {})
           const errTxt = await m.page.locator('.text-red-700, .text-red-600, .bg-red-50').allInnerTexts().catch(() => [] as string[])

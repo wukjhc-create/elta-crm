@@ -46,6 +46,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
   const [editingMember, setEditingMember] = useState<string | null>(null)
   const [membersList, setMembersList] = useState(members)
   const [invitationsList, setInvitationsList] = useState(invitations)
+  const [resendingId, setResendingId] = useState<string | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('montør')
   const [isInviting, setIsInviting] = useState(false)
@@ -73,6 +74,8 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
 
   const handleToggleActive = (memberId: string, currentActive: boolean) => {
     if (!isAdmin || memberId === currentUserId) return
+    // U-17: deaktivering fjerner brugerens adgang med ét klik på et lille ikon — bekræft
+    if (currentActive && !window.confirm('Deaktivér brugeren? Personen kan ikke længere logge ind.')) return
 
     startTransition(async () => {
       const result = await updateTeamMember(memberId, { is_active: !currentActive })
@@ -370,14 +373,22 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
                     <div className="flex items-center gap-2">
                       <button
                         onClick={async () => {
-                          const result = await resendInvitation(inv.id)
-                          if (result.success) {
-                            toast.success('Invitation gensendt')
-                          } else {
-                            toast.error(result.error || 'Kunne ikke gensende')
+                          // U-18: én gensendelse ad gangen (før sendte hvert klik en ny mail)
+                          if (resendingId) return
+                          setResendingId(inv.id)
+                          try {
+                            const result = await resendInvitation(inv.id)
+                            if (result.success) {
+                              toast.success('Invitation gensendt')
+                            } else {
+                              toast.error(result.error || 'Kunne ikke gensende')
+                            }
+                          } finally {
+                            setResendingId(null)
                           }
                         }}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
+                        disabled={resendingId === inv.id}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-md disabled:opacity-50"
                         title="Gensend invitation"
                       >
                         <RotateCw className="w-4 h-4" />

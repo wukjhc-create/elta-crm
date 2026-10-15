@@ -163,9 +163,13 @@ export function EmployeeLoginPanel({
               className="text-sm border rounded px-2 py-1"
               value={status.auth_role ?? 'montør'}
               disabled={pending}
-              onChange={(e) =>
-                run(() => setEmployeeAuthRole(employeeId, e.target.value as UserRole), 'Adgangsrolle opdateret')
-              }
+              onChange={(e) => {
+                // U-19: rolleskift ændrer rettigheder med det samme — bekræft
+                const next = e.target.value as UserRole
+                const label = ROLE_OPTIONS.find((o) => o.value === next)?.label ?? next
+                if (!window.confirm(`Skift adgangsrolle til ${label}? Rettighederne ændres med det samme.`)) { e.target.value = status.auth_role ?? 'montør'; return }
+                run(() => setEmployeeAuthRole(employeeId, next), 'Adgangsrolle opdateret')
+              }}
             >
               {ROLE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -177,7 +181,7 @@ export function EmployeeLoginPanel({
           <div>
             {status.is_active ? (
               <button
-                onClick={() => run(() => setEmployeeLoginActive(employeeId, false), 'Login deaktiveret')}
+                onClick={() => { if (window.confirm('Deaktivér login? Medarbejderen kan ikke længere logge ind.')) run(() => setEmployeeLoginActive(employeeId, false), 'Login deaktiveret') }}
                 disabled={pending}
                 className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
               >

@@ -159,6 +159,9 @@ export function EditWorkOrderDialog({
 
   const handleStatus = async (next: WorkOrderStatus) => {
     if (!workOrder) return
+    // U-8/U-9 (pilot-sweep 2026-10-15): "Annullér" og "Afslut" er endelige — bekræft først
+    if (next === 'cancelled' && !window.confirm('Annullér arbejdsordren? Det kan ikke fortrydes.')) return
+    if (next === 'done' && !window.confirm('Afslut arbejdsordren? Den kan ikke genåbnes.')) return
     setError(null)
     setInfo(null)
     setStatusBusy(next)

@@ -18,6 +18,7 @@ import {
   getAuthenticatedClientWithRole,
 } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
+import { mapDatabaseError } from '@/lib/actions/action-helpers'
 import {
   EmployeeCompensationSchema,
   EmployeeIdentitySchema,
@@ -243,7 +244,7 @@ export async function createEmployeeAction(
     .single()
   if (error || !ins) {
     logger.error('createEmployee insert failed', { error })
-    return { ok: false, message: error?.message ?? 'Insert fejlede.' }
+    return { ok: false, message: mapDatabaseError(error, 'Medarbejderen kunne ikke oprettes') }
   }
 
   revalidatePath('/dashboard/employees')
@@ -296,7 +297,7 @@ export async function updateEmployeeAction(
   if (error || !upd) {
     logger.error('updateEmployee failed', { entityId: id, error })
     if (deactivatingLogin) await setLoginWithEmployee(prevRow!.profile_id as string, true)
-    return { ok: false, message: error?.message ?? 'Opdatering fejlede.' }
+    return { ok: false, message: mapDatabaseError(error, 'Medarbejderen kunne ikke opdateres') }
   }
   if (deactivatingLogin) {
     await logEmployeeEvent({ employeeId: id, eventType: 'employee_deactivated', title: 'Medarbejder deaktiveret', createdBy: ctx.userId })
@@ -370,7 +371,7 @@ export async function setEmployeeActiveAction(
   if (error) {
     // rul login-ændringen tilbage, så medarbejder og login ikke ender i uoverensstemmelse
     if (touchLogin) await setLoginWithEmployee(profileId as string, !active)
-    return { ok: false, message: error.message }
+    return { ok: false, message: mapDatabaseError(error, 'Status kunne ikke ændres') }
   }
   await logEmployeeEvent({
     employeeId: id,
@@ -415,7 +416,7 @@ export async function setEmployeeCompensationAction(
     .single()
   if (error || !upserted) {
     logger.error('setEmployeeCompensation upsert failed', { entityId: employeeId, error })
-    return { ok: false, message: error?.message ?? 'Gem af satser fejlede.' }
+    return { ok: false, message: mapDatabaseError(error, 'Satserne kunne ikke gemmes') }
   }
 
   // Snapshot into history for audit/payroll back-calc.

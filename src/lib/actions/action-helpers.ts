@@ -160,21 +160,24 @@ export function formatError(err: unknown, defaultMessage: string): string {
 /**
  * Map Supabase error codes to user-friendly Danish messages
  */
-export function mapDatabaseError(error: { code: string; message?: string }, context?: string): string {
-  switch (error.code) {
+export function mapDatabaseError(error: { code?: string | null; message?: string } | null | undefined, context?: string): string {
+  if (!error) return context ? `${context} — prøv igen` : 'Der opstod en fejl — prøv igen'
+  switch (error.code ?? '') {
+    case '23514':
+      return 'En værdi er uden for det tilladte (tjek felterne)'
     case 'PGRST116':
       return context ? `${context} blev ikke fundet` : 'Ressourcen blev ikke fundet'
     case '23503':
-      return 'Den tilknyttede reference findes ikke (FK violation)'
+      return 'Den tilknyttede post findes ikke (længere)'
     case '23505':
-      return 'En post med disse data eksisterer allerede (unique violation)'
+      return 'Der findes allerede en post med disse oplysninger (fx samme e-mail eller nummer)'
     case '42501':
       return 'Du har ikke rettigheder til denne handling'
     case '23502':
-      return 'Obligatoriske felter mangler'
+      return 'Et påkrævet felt mangler'
     case '22P02':
       return 'Ugyldigt dataformat'
     default:
-      return context ? `Databasefejl: ${context}` : 'Der opstod en databasefejl'
+      return context ? `${context} — prøv igen` : 'Der opstod en fejl — prøv igen'
   }
 }
