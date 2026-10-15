@@ -47,7 +47,7 @@ export async function runWoProfit(c: { admin: SupabaseClient }): Promise<WoProfi
     const owner = ((await a.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
     ids.cust = ((await a.from('customers').insert({ customer_number: `P222-${stamp}`, company_name: `[HARNESS] 00222 ${stamp}`, contact_person: 'X', email: `p222-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
     ids.caseId = ((await a.from('service_cases').insert({ case_number: `SVC-5${String(stamp).slice(-6)}`, customer_id: ids.cust, title: '[HARNESS] 00222', status: 'in_progress', created_by: owner }).select('id').single()).data as { id: string }).id
-    ids.emp = ((await a.from('employees').insert({ name: '[HARNESS] 00222', email: `p222e-${stamp}@harness.test`, role: 'montør', active: true }).select('id').single()).data as { id: string }).id
+    ids.emp = ((await a.from('employees').insert({ name: '[HARNESS] 00222', email: `p222e-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300 }).select('id').single()).data as { id: string }).id
     ids.wo = ((await a.from('work_orders').insert({ case_id: ids.caseId, customer_id: ids.cust, title: '[HARNESS] 00222', status: 'in_progress', scheduled_date: '2026-10-01', assigned_employee_id: ids.emp }).select('id').single()).data as { id: string }).id
     const tl = await a.from('time_logs').insert({ work_order_id: ids.wo, employee_id: ids.emp, start_time: '2026-10-01T06:00:00Z', end_time: '2026-10-01T10:00:00Z', billable: true }).select('id, cost_amount, sale_amount').single()
     if (tl.error) throw new Error(`time_log: ${tl.error.message}`)

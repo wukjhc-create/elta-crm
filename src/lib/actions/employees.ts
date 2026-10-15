@@ -580,3 +580,28 @@ export async function getEmployeeWorkSummaryAction(id: string): Promise<{ jobs: 
   for (const l of (logs ?? []) as Array<{ hours: number | string | null; billable: boolean | null }>) { const x = Number(l.hours) || 0; h += x; if (l.billable !== false) b += x }
   return { jobs, hours30: r1(h), billable30: r1(b) }
 }
+
+/**
+ * 00230 (Henrik 2026-10-15): medarbejdere der ikke kan registrere tid fordi en sats mangler — kun ja/nej pr. medarbejder
+ * (ingen beløb). Satserne læses med admin-klienten bag employees.view (samme regel som DB-sats-motoren).
+ */
+export async function getEmployeeRateGapsAction(): Promise<Record<string, { missingSale: boolean; missingCost: boolean }>> {
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('employees.view')) return {}
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { employeeRateGap } = await import('@/lib/employees/rate-gaps')
+  const admin = createAdminClient()
+  const [{ data: emps }, { data: comp }, { data: cs }] = await Promise.all([
+    admin.from('employees').select('id, hourly_rate, cost_rate').eq('active', true).limit(1000),
+    admin.from('employee_compensation').select('employee_id, real_hourly_cost').limit(1000),
+    admin.from('company_settings').select('time_cost_basis, time_cost_rate').order('created_at', { ascending: true, nullsFirst: false }).limit(1),
+  ])
+  const rhc = new Map(((comp ?? []) as Array<{ employee_id: string; real_hourly_cost: number | null }>).map((c) => [c.employee_id, c.real_hourly_cost]))
+  const s0 = ((cs ?? [])[0] ?? {}) as { time_cost_basis?: string | null; time_cost_rate?: number | null }
+  const out: Record<string, { missingSale: boolean; missingCost: boolean }> = {}
+  for (const e of (emps ?? []) as Array<{ id: string; hourly_rate: number | null; cost_rate: number | null }>) {
+    const g = employeeRateGap({ hourly_rate: e.hourly_rate, cost_rate: e.cost_rate, real_hourly_cost: rhc.get(e.id) ?? null }, s0.time_cost_basis ?? null, s0.time_cost_rate ?? null)
+    if (g.missingSale || g.missingCost) out[e.id] = g
+  }
+  return out
+}

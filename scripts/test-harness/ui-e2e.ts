@@ -1387,7 +1387,7 @@ ${m.text()}`) })
       // U30 planlægning fra kalenderen
       if (want('U30') && profitCustomerId) {
         const r: Record<string, boolean> = {}
-        const emp = await c.admin.from('employees').insert([{ name: `Harness Planlagt ${stamp}`, email: `plan-${stamp}@harness.test`, role: 'montør', active: true }]).select('id')
+        const emp = await c.admin.from('employees').insert([{ name: `Harness Planlagt ${stamp}`, email: `plan-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300 }]).select('id')
         u30.employeeId = (emp.data?.[0] as { id?: string } | undefined)?.id
         const caseTitle = `[HARNESS] planlægning ${stamp}`
         const sc = await c.admin.from('service_cases').insert([{ title: caseTitle, customer_id: profitCustomerId, status: 'new', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id, case_number')
@@ -1418,7 +1418,7 @@ ${m.text()}`) })
       // U31 timer → faktura (faktura, GO-LIVE)
       if (want('U31') && profitCustomerId) {
         const r: Record<string, boolean> = {}
-        const emp = await c.admin.from('employees').insert([{ name: `Harness Timer ${stamp}`, email: `timer-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 500 }]).select('id')
+        const emp = await c.admin.from('employees').insert([{ name: `Harness Timer ${stamp}`, email: `timer-${stamp}@harness.test`, role: 'montør', active: true, cost_rate: 300, hourly_rate: 500 }]).select('id')
         u31.employeeId = (emp.data?.[0] as { id?: string } | undefined)?.id
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] timer ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
           priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId }]).select('id')
@@ -1478,7 +1478,7 @@ ${m.text()}`) })
       // U32 slutfaktura med forskudsfradrag og frosset timesats (faktura, GO-LIVE)
       if (want('U32') && profitCustomerId) {
         const r: Record<string, boolean> = {}
-        const emp = await c.admin.from('employees').insert([{ name: `Harness Slut ${stamp}`, email: `slut-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 500 }]).select('id')
+        const emp = await c.admin.from('employees').insert([{ name: `Harness Slut ${stamp}`, email: `slut-${stamp}@harness.test`, role: 'montør', active: true, cost_rate: 300, hourly_rate: 500 }]).select('id')
         u32.employeeId = (emp.data?.[0] as { id?: string } | undefined)?.id
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] slutfaktura ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
           priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId }]).select('id')
@@ -1854,7 +1854,7 @@ ${m.text()}`) })
       // U43 omplanlægning fra kalenderen (montør/planlægning)
       if (want('U43') && profitCustomerId) {
         const r: Record<string, boolean> = {}
-        const mkEmp = async (n: string) => ((await c.admin.from('employees').insert([{ name: `Harness ${n} ${stamp}`, email: `${n.toLowerCase()}-${stamp}@harness.test`, role: 'montør', active: true }]).select('id')).data?.[0] as { id?: string } | undefined)?.id
+        const mkEmp = async (n: string) => ((await c.admin.from('employees').insert([{ name: `Harness ${n} ${stamp}`, email: `${n.toLowerCase()}-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300 }]).select('id')).data?.[0] as { id?: string } | undefined)?.id
         const empA = await mkEmp('Anders'), empB = await mkEmp('Bente')
         u43.employeeIds = [empA, empB].filter((x): x is string => !!x)
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] omplan ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
@@ -1921,7 +1921,7 @@ ${m.text()}`) })
         const dayKey = (offset: number) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() + offset * 86400_000))
         const d = dayKey(4)
         const empName = `Harness Fravær ${stamp}`
-        const emp = await c.admin.from('employees').insert([{ name: empName, email: `fravaer-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495 }]).select('id')
+        const emp = await c.admin.from('employees').insert([{ name: empName, email: `fravaer-${stamp}@harness.test`, role: 'montør', active: true, cost_rate: 300, hourly_rate: 495 }]).select('id')
         const empId = (emp.data?.[0] as { id?: string } | undefined)?.id ?? null
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] fravær ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
         const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
@@ -2696,8 +2696,13 @@ ${m.text()}`) })
           await m.page.getByText(/mangler en timepris/).first().waitFor({ timeout: 20_000 }).catch(() => {})
           r.uden_timepris_blokeret = (await m.page.getByText(/mangler en timepris/).count()) > 0
             && (((await c.admin.from('time_logs').select('id').eq('work_order_id', woId)).data ?? []).length === 0)
+          // 00230: medarbejderen er markeret i medarbejder-UI'et (admin) før satsen sættes
+          await gotoSafe(a.page, `${base}/dashboard/employees/${jobEmployeeId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.mangler_sats_vist = /Mangler timepris/.test(((await a.page.getByTestId('employee-rate-gap-banner').textContent().catch(() => '')) ?? ''))
+          await gotoSafe(a.page, `${base}/dashboard/employees`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.mangler_sats_liste = (await a.page.locator('tr', { hasText: 'Harness Montør' }).first().getByTestId('employee-rate-gap').count()) === 1
           // admin/serviceleder sætter satsen → montøren kan registrere
-          if (jobEmployeeId) await c.admin.from('employees').update({ hourly_rate: 495 }).eq('id', jobEmployeeId)
+          if (jobEmployeeId) await c.admin.from('employees').update({ hourly_rate: 495, cost_rate: 300 }).eq('id', jobEmployeeId)
           await m.page.getByRole('button', { name: 'Gem timer' }).click({ timeout: 30_000 }).catch(() => {})
           type TL = { start_time?: string; end_time?: string; hours?: number; employee_id?: string }
           let tl = null as TL | null
@@ -2918,7 +2923,7 @@ ${m.text()}`) })
       if (want('U155') && jobCaseId && jobEmployeeId) {
         const r: Record<string, boolean> = {}
         // PR-4b: rettelse fryser satsen igen → montøren skal have en timepris (sættes også af U11; her uafhængigt)
-        await c.admin.from('employees').update({ hourly_rate: 495 }).eq('id', jobEmployeeId)
+        await c.admin.from('employees').update({ hourly_rate: 495, cost_rate: 300 }).eq('id', jobEmployeeId)
         const wo = ((await c.admin.from('work_orders').select('id').eq('case_id', jobCaseId).limit(1).maybeSingle()).data as { id?: string } | null)?.id ?? null
         const mk = async (day: string, status: 'rejected' | 'approved') => {
           const ins = await c.admin.from('time_logs').insert([{ work_order_id: wo, employee_id: jobEmployeeId, start_time: `${day}T06:00:00Z`, end_time: `${day}T10:00:00Z`, billable: true, description: `[HARNESS] U155 ${status} ${stamp}` }]).select('id')
@@ -3493,7 +3498,7 @@ ${m.text()}`) })
       if (want('U145')) {
         const r: Record<string, boolean> = {}
         const u = await mkUser('montør')
-        const emp = await c.admin.from('employees').insert([{ name: `U145 Harness ${stamp}`, first_name: 'U145', last_name: `Harness ${stamp}`, email: `u145-${stamp}@harness.test`, role: 'montør', active: true, profile_id: u.id }]).select('id')
+        const emp = await c.admin.from('employees').insert([{ name: `U145 Harness ${stamp}`, first_name: 'U145', last_name: `Harness ${stamp}`, email: `u145-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300, profile_id: u.id }]).select('id')
         const empId = (emp.data?.[0] as { id?: string } | undefined)?.id ?? null
         let dialogText = ''
         const onDialog = async (d: { message(): string; accept(): Promise<void> }) => { dialogText = d.message(); await d.accept() }

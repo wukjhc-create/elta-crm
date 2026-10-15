@@ -84,3 +84,16 @@ export function missingSaleRateError(hourlyRate: number | string | null | undefi
   if (hourlyRate === null || hourlyRate === undefined || hourlyRate === '') return MISSING_SALE_RATE_TEXT
   return Number.isFinite(Number(hourlyRate)) ? null : MISSING_SALE_RATE_TEXT
 }
+
+
+/**
+ * 00230: DB-sats-motoren kaster en dansk fejl (P0001, HINT missing_sale_rate/missing_cost_rate) når en sats mangler —
+ * den vises som den er (indeholder medarbejderens navn og hvilken sats); andre DB-fejl får den generelle tekst.
+ */
+export function rateEngineErrorText(error: { code?: string | null; message?: string | null; hint?: string | null } | null | undefined): string | null {
+  if (!error) return null
+  const hint = error.hint ?? ''
+  const msg = error.message ?? ''
+  if (error.code === 'P0001' && (/missing_(sale|cost)_rate/.test(hint) || /mangler (timepris|kostpris)/.test(msg))) return msg
+  return null
+}

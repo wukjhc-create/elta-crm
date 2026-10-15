@@ -22,7 +22,7 @@
  */
 
 import type { Permission } from '@/lib/auth/permissions'
-import { endDateForClocks, findOverlappingTimeLog, missingSaleRateError, rateBelongsToEmployee, timeLogSpanError } from '@/lib/time-logs/guards'
+import { endDateForClocks, findOverlappingTimeLog, missingSaleRateError, rateBelongsToEmployee, rateEngineErrorText, timeLogSpanError } from '@/lib/time-logs/guards'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import {
@@ -309,7 +309,8 @@ export async function createTimeLog(
 
     if (error || !data) {
       logger.error('createTimeLog failed', { error })
-      return { success: false, error: 'Kunne ikke gemme timeregistrering' }
+      // 00230: manglende sats → DB'ens danske besked (navn + hvilken sats)
+      return { success: false, error: rateEngineErrorText(error) ?? 'Kunne ikke gemme timeregistrering' }
     }
 
     if (wo.case_id) {
@@ -499,7 +500,7 @@ export async function updateTimeLog(
     }
     if (error || !data) {
       logger.error('updateTimeLog failed', { error })
-      return { success: false, error: 'Kunne ikke opdatere timeregistrering' }
+      return { success: false, error: rateEngineErrorText(error) ?? 'Kunne ikke opdatere timeregistrering' }
     }
 
     // Henrik 2026-10-15: rettelse af en AFVIST registrering — DB-triggeren (00185) sætter den til "afventer" igen; spor

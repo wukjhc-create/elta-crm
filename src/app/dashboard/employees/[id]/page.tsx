@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { getEmployeeAction } from '@/lib/actions/employees'
+import { getEmployeeAction, getEmployeeRateGapsAction } from '@/lib/actions/employees'
 import { EmployeeDetailClient } from './employee-detail-client'
 import { getPageRoleContext } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
@@ -41,6 +41,7 @@ export default async function EmployeeDetailPage({
       canEditPayroll={canEditPayroll}
       canEditEmployee={canEditEmployee}
       canManageLogin={canManageLogin}
+      rateGap={(await getEmployeeRateGapsAction())[employee.id] ?? null}
     />
   )
 }

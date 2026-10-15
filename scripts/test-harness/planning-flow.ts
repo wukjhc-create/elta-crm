@@ -28,7 +28,7 @@ export async function runPlanningFlow(c: { admin: SupabaseClient; sql: Sql; owne
   if (cases.length < 3) return [{ id: 'setup', ok: false, note: 'mangler 3 uplanlagte harness-sager' }]
   const [A, B, D] = cases
   const runIds = new Set<string>()
-  const { data: emp } = await c.admin.from('employees').insert([{ name: '[HARNESS] Planlægningsmontør', email: `plan-${Date.now()}@harness.test`, role: 'montør', active: true }]).select('id').single()
+  const { data: emp } = await c.admin.from('employees').insert([{ name: '[HARNESS] Planlægningsmontør', email: `plan-${Date.now()}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300 }]).select('id').single()
   const empId = (emp as { id: string } | null)?.id
   if (!empId) return [{ id: 'setup', ok: false, note: 'probe-montør kunne ikke oprettes' }]
   const woFor = async (caseId: string) => (await c.sql(`SELECT id, scheduled_date::text d, assigned_employee_id e, description FROM work_orders WHERE case_id=${lit(caseId)}`)) as Array<{ id: string; d: string; e: string; description: string | null }>

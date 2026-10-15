@@ -630,7 +630,7 @@ async function main() {
     let empId = (existingEmp as { id: string } | null)?.id ?? null
     let createdEmp = false
     if (!empId) {
-      const { data: e, error } = await admin.from('employees').insert({ name: '[HARNESS] montør-persona', email: `wg-${stamp}@harness.test`, role: 'montør', active: true, profile_id: montorId }).select('id').single()
+      const { data: e, error } = await admin.from('employees').insert({ name: '[HARNESS] montør-persona', email: `wg-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300, profile_id: montorId }).select('id').single()
       if (error) throw new Error(`employee: ${error.message}`)
       empId = (e as { id: string }).id; createdEmp = true
     }
@@ -685,11 +685,11 @@ async function main() {
     let empId = (existingEmp as { id: string } | null)?.id ?? null
     let createdEmp = false
     if (!empId) {
-      const { data: e, error } = await admin.from('employees').insert({ name: '[HARNESS] montør-persona', email: `tg-${stamp}@harness.test`, role: 'montør', active: true, profile_id: montorId }).select('id').single()
+      const { data: e, error } = await admin.from('employees').insert({ name: '[HARNESS] montør-persona', email: `tg-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300, profile_id: montorId }).select('id').single()
       if (error) throw new Error(`employee: ${error.message}`)
       empId = (e as { id: string }).id; createdEmp = true
     }
-    const { data: other } = await admin.from('employees').insert({ name: '[HARNESS] kollega', email: `tgk-${stamp}@harness.test`, role: 'montør', active: true }).select('id').single()
+    const { data: other } = await admin.from('employees').insert({ name: '[HARNESS] kollega', email: `tgk-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300 }).select('id').single()
     const otherId = (other as { id: string }).id
     const { data: rate } = await admin.from('employee_overtime_rates').insert({ employee_id: otherId, name: 'Kollega 100%', code: `h${stamp % 100000}`, multiplier: 2 }).select('id').single()
     const cust = ((await admin.from('customers').insert({ customer_number: `TG-${stamp}`, company_name: `[HARNESS] tg ${stamp}`, contact_person: 'X', email: `tg-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
@@ -1627,7 +1627,7 @@ async function main() {
     try {
       ids.cust = await ins('customers', { customer_number: `RH-${stamp}`, company_name: `[HARNESS] rh ${stamp}`, contact_person: 'X', email: `rh-${stamp}@harness.test`, created_by: owner })
       ids.case = await ins('service_cases', { case_number: `SVC-6${String(stamp).slice(-6)}`, customer_id: ids.cust, title: '[HARNESS] afviste timer', status: 'in_progress', created_by: owner })
-      ids.emp = await ins('employees', { name: `[HARNESS] rh ${stamp}`, email: `rhe-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 500 })
+      ids.emp = await ins('employees', { name: `[HARNESS] rh ${stamp}`, email: `rhe-${stamp}@harness.test`, role: 'montør', active: true, cost_rate: 300, hourly_rate: 500 })
       ids.wo = await ins('work_orders', { title: '[HARNESS] rh', case_id: ids.case, customer_id: ids.cust, status: 'done', assigned_employee_id: ids.emp })
       const day = new Date(Date.now() - 2 * 86_400_000)
       const at = (h: number) => new Date(day.getTime() + h * 3_600_000).toISOString()
@@ -2066,7 +2066,7 @@ async function main() {
     let fails = 0
     const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
     const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
-    const emp = ((await admin.from('employees').insert({ name: '[HARNESS] overlap', email: `ov-${stamp}@harness.test`, role: 'montør', active: true }).select('id').single()).data as { id: string }).id
+    const emp = ((await admin.from('employees').insert({ name: '[HARNESS] overlap', email: `ov-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300 }).select('id').single()).data as { id: string }).id
     const cust = ((await admin.from('customers').insert({ customer_number: `OV-${stamp}`, company_name: `[HARNESS] overlap ${stamp}`, contact_person: 'X', email: `ov-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
     const caseId = ((await admin.from('service_cases').insert({ case_number: `SVC-7${String(stamp).slice(-6)}`, customer_id: cust, title: '[HARNESS] overlap', status: 'in_progress', created_by: owner }).select('id').single()).data as { id: string }).id
     const wo = ((await admin.from('work_orders').insert({ case_id: caseId, customer_id: cust, title: '[HARNESS] overlap', status: 'in_progress', scheduled_date: '2026-10-01', assigned_employee_id: emp }).select('id').single()).data as { id: string }).id
@@ -2166,6 +2166,13 @@ async function main() {
     const gone = await admin.from('customers').select('id').eq('id', cust).maybeSingle()
     check('R4 kunde UDEN tilbud kan stadig slettes', !gone.data)
     process.exitCode = fails ? 2 : 0
+    return
+  }
+  if (SUB === 'rate-engine-check') {
+    const { runRateEngineCheck, formatRateEngineCheck } = await import('./rate-engine-check')
+    const checks = await runRateEngineCheck({ admin, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })
+    log(formatRateEngineCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
   if (SUB === 'absence-rls-check') {

@@ -112,7 +112,7 @@ export async function runConcurrency(c: { admin: SupabaseClient; sql: Sql; owner
     // C7/C8 — samtidig fakturering af samme sag
     const billCustomer = [...customerIds][0]
     const seedBillCase = async (tag: string) => {
-      const { data: emp } = await c.admin.from('employees').insert([{ name: `[HARNESS] race-${tag}`, email: `race-${tag}-${Date.now()}@harness.test`, role: 'montør', active: true, hourly_rate: 500 }]).select('id').single()
+      const { data: emp } = await c.admin.from('employees').insert([{ name: `[HARNESS] race-${tag}`, email: `race-${tag}-${Date.now()}@harness.test`, role: 'montør', active: true, cost_rate: 300, hourly_rate: 500 }]).select('id').single()
       const { data: sc } = await c.admin.from('service_cases').insert([{ title: `[HARNESS] race-faktura ${tag}`, customer_id: billCustomer, status: 'in_progress', priority: 'medium', source: 'manual', created_by: c.ownerUid }]).select('id').single()
       const { data: wo } = await c.admin.from('work_orders').insert([{ case_id: sc!.id, title: 'race', status: 'done', assigned_employee_id: emp!.id }]).select('id').single()
       billCases.push({ caseId: sc!.id, woId: wo!.id, empId: emp!.id })

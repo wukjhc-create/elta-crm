@@ -1,5 +1,6 @@
 'use client'
 
+import { rateGapText, type RateGap } from '@/lib/employees/rate-gaps'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition } from 'react'
@@ -32,7 +33,9 @@ export function EmployeesListClient({
   employees,
   filters,
   canSeePayroll = false,
+  rateGaps = {},
 }: {
+  rateGaps?: Record<string, RateGap>
   employees: EmployeeRow[]
   filters: FiltersState
   /** Sprint 7D — gate til hourly_rate / cost_rate kolonner i listen.
@@ -182,6 +185,11 @@ export function EmployeesListClient({
                       {e.employee_number && (
                         <span className="ml-2 text-xs text-gray-400 font-mono">
                           {e.employee_number}
+                        </span>
+                      )}
+                      {rateGaps[e.id] && (
+                        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide rounded bg-red-100 text-red-800 px-1.5 py-0.5" data-testid="employee-rate-gap" title="Kan ikke registrere tid, før satsen er sat">
+                          {rateGapText(rateGaps[e.id])}
                         </span>
                       )}
                     </td>

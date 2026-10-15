@@ -8,6 +8,7 @@
  * medarbejder-siden. Læse-sektioner er selv-hentende komponenter.
  */
 
+import { rateGapText, type RateGap } from '@/lib/employees/rate-gaps'
 import Link from 'next/link'
 import {
   EMPLOYEE_ROLE_OPTIONS,
@@ -45,7 +46,9 @@ export function EmployeeDetailClient({
   canSeePayroll = false,
   canEditEmployee = false,
   canManageLogin = false,
+  rateGap = null,
 }: {
+  rateGap?: RateGap | null
   employee: EmployeeWithCompensation
   canSeePayroll?: boolean
   canEditPayroll?: boolean
@@ -60,6 +63,13 @@ export function EmployeeDetailClient({
 
   return (
     <div className="p-6 space-y-4 max-w-[1400px]">
+      {/* 00230: uden gyldig sats kan der ikke registreres tid (ingen standardpris) */}
+      {rateGap && (
+        <div className="rounded-lg ring-1 ring-red-300 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert" data-testid="employee-rate-gap-banner">
+          <strong>{rateGapText(rateGap)}.</strong> Medarbejderen kan ikke registrere tid, før satsen er sat
+          {canSeePayroll ? ' under fanen "Økonomi & løn".' : ' — kontakt en administrator.'} Der bruges ikke en standardpris.
+        </div>
+      )}
       <nav className="text-sm text-gray-500 flex items-center gap-2">
         <Link href="/dashboard" className="hover:text-gray-700">Dashboard</Link>
         <span>/</span>

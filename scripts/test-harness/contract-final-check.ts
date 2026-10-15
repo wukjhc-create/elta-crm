@@ -40,7 +40,7 @@ export async function runContractFinalCheck(c: { admin: SupabaseClient }): Promi
   }
   try {
     created.cust = await ins('customers', { customer_number: `HCF-${stamp}`, company_name: `[HARNESS] fastpris ${stamp}`, contact_person: 'X', email: `hcf-${stamp}@harness.test`, created_by: owner })
-    const emp = await ins('employees', { name: `[HARNESS] cf ${stamp}`, email: `hcfe-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 500 })
+    const emp = await ins('employees', { name: `[HARNESS] cf ${stamp}`, email: `hcfe-${stamp}@harness.test`, role: 'montør', active: true, cost_rate: 300, hourly_rate: 500 })
     created.emps.push(emp)
     const day = new Date(Date.now() - 2 * 86_400_000)
     const at = (h: number) => new Date(day.getTime() + h * 3_600_000).toISOString()

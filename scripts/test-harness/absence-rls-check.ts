@@ -23,7 +23,7 @@ export async function runAbsenceRlsCheck(c: { admin: SupabaseClient; url: string
   const emps: string[] = []
   try {
     const mkEmp = async (name: string, profileId: string | null) => {
-      const { data, error } = await c.admin.from('employees').insert([{ name: `[HARNESS] fravær ${name} ${stamp}`, email: `fr-${name}-${stamp}@harness.test`, role: 'montør', active: true, profile_id: profileId }]).select('id').single()
+      const { data, error } = await c.admin.from('employees').insert([{ name: `[HARNESS] fravær ${name} ${stamp}`, email: `fr-${name}-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300, profile_id: profileId }]).select('id').single()
       if (error) throw new Error(`seed employee: ${error.message}`)
       emps.push((data as { id: string }).id)
       return (data as { id: string }).id

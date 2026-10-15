@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { listEmployeesAction } from '@/lib/actions/employees'
+import { getEmployeeRateGapsAction, listEmployeesAction } from '@/lib/actions/employees'
 import { EmployeesListClient } from './employees-list-client'
 import { getPageRoleContext } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
@@ -31,6 +31,8 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
   const roleFilter = params.role ?? ''
   const search = params.q ?? ''
 
+  // 00230: medarbejdere uden gyldig sats kan ikke registrere tid → markeres i listen (kun ja/nej)
+  const rateGaps = await getEmployeeRateGapsAction()
   const all = await listEmployeesAction({
     active: activeFilter,
     q: search,
@@ -46,6 +48,7 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
   return (
     <EmployeesListClient
       employees={filtered}
+      rateGaps={rateGaps}
       filters={{ q: search, active: activeFilter, role: roleFilter }}
     />
   )
