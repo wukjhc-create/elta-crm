@@ -72,7 +72,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
       } else setDocsError(docsResult.error || 'Kunne ikke hente dokumenter')
       if (imgsResult.success) {
         setImages(imgsResult.data || [])
-        setImagesError(null)
+        setImagesError(imgsResult.urls_failed ? 'Nogle billeder kunne ikke vises' : null)
       } else setImagesError(imgsResult.error || 'Kunne ikke hente billeder')
     } catch {
       setDocsError('Kunne ikke hente dokumenter')

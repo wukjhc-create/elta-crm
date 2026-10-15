@@ -167,7 +167,7 @@ export async function getCustomerDocuments(
  */
 export async function getCustomerImages(
   customerId: string
-): Promise<ActionResult<CustomerImage[]>> {
+): Promise<ActionResult<CustomerImage[]> & { urls_failed?: boolean }> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
@@ -186,13 +186,19 @@ export async function getCustomerImages(
     }
 
     const images: CustomerImage[] = []
+    let urlsFailed = false
     for (const file of files) {
       if (!file.name || file.name === '.emptyFolderPlaceholder') continue
 
       const filePath = `${folderPath}/${file.name}`
-      const { data: urlData } = await storageClient().storage
+      const { data: urlData, error: urlErr } = await storageClient().storage
         .from('attachments')
         .createSignedUrl(filePath, 3600)
+      if (urlErr || !urlData?.signedUrl) {
+        if (urlErr) logger.error('getCustomerImages signed url failed', { error: urlErr })
+        urlsFailed = true
+        continue
+      }
 
       if (urlData?.signedUrl) {
         // Parse category from filename: besigtigelse-{category}-{timestamp}.ext
@@ -208,7 +214,7 @@ export async function getCustomerImages(
       }
     }
 
-    return { success: true, data: images }
+    return { success: true, data: images, urls_failed: urlsFailed }
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
   }
