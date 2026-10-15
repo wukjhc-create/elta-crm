@@ -218,18 +218,35 @@ async function integrationItems(admin: Admin): Promise<HealthItem[]> {
     admin.from('supplier_credentials').select('id, is_active, last_test_status'),
   ])
   const items: HealthItem[] = []
-  for (const m of (graph.data ?? []) as Array<{ mailbox: string; last_sync_at: string | null; last_sync_status: string | null }>) {
-    const h = m.last_sync_at ? (Date.now() - new Date(m.last_sync_at).getTime()) / HOUR : Infinity
-    items.push({ label: `Mail: ${m.mailbox}`, level: m.last_sync_status !== 'success' ? 'red' : h > 26 ? 'yellow' : 'green', detail: `${m.last_sync_status ?? '?'} ${ago(m.last_sync_at)}` })
+  const missed = 'Kunne ikke læses. Det tælles ikke som ingen.'
+  if (graph.error) {
+    items.push({ label: 'Mail (Graph)', level: 'unknown', detail: missed })
+  } else {
+    for (const m of (graph.data ?? []) as Array<{ mailbox: string; last_sync_at: string | null; last_sync_status: string | null }>) {
+      const h = m.last_sync_at ? (Date.now() - new Date(m.last_sync_at).getTime()) / HOUR : Infinity
+      items.push({ label: `Mail: ${m.mailbox}`, level: m.last_sync_status !== 'success' ? 'red' : h > 26 ? 'yellow' : 'green', detail: `${m.last_sync_status ?? '?'} ${ago(m.last_sync_at)}` })
+    }
+    if (!(graph.data ?? []).length) items.push({ label: 'Mail (Graph)', level: 'yellow', detail: 'ingen postkasser synkroniseret' })
   }
-  if (!(graph.data ?? []).length) items.push({ label: 'Mail (Graph)', level: 'yellow', detail: 'ingen postkasser synkroniseret' })
-  const econRows = (econ.data ?? []) as Array<{ provider: string; active: boolean }>
-  items.push({ label: 'Regnskab (e-conomic)', level: econRows.some((r) => r.active) ? 'green' : 'yellow', detail: econRows.length ? econRows.map((r) => `${r.provider} ${r.active ? 'aktiv' : 'inaktiv'}`).join(', ') : 'ikke konfigureret' })
-  const lastBank = (bank.data?.[0] as { created_at?: string } | undefined)?.created_at ?? null
-  items.push({ label: 'Bankimport', level: lastBank && Date.now() - new Date(lastBank).getTime() < 7 * 24 * HOUR ? 'green' : 'yellow', detail: `seneste postering importeret ${ago(lastBank)}` })
-  const l = lemu.data?.[0] as { job_type?: string; status?: string; created_at?: string } | undefined
-  items.push({ label: 'Leverandørsync (seneste)', level: !l ? 'yellow' : l.status === 'failed' ? 'red' : 'green', detail: l ? `${l.job_type} ${l.status} ${ago(l.created_at)}` : 'ingen sync-log' })
-  const c = (creds.data ?? []) as Array<{ is_active: boolean; last_test_status: string | null }>
+  if (econ.error) {
+    items.push({ label: 'Regnskab (e-conomic)', level: 'unknown', detail: missed })
+  } else {
+    const econRows = (econ.data ?? []) as Array<{ provider: string; active: boolean }>
+    items.push({ label: 'Regnskab (e-conomic)', level: econRows.some((r) => r.active) ? 'green' : 'yellow', detail: econRows.length ? econRows.map((r) => `${r.provider} ${r.active ? 'aktiv' : 'inaktiv'}`).join(', ') : 'ikke konfigureret' })
+  }
+  if (bank.error) {
+    items.push({ label: 'Bankimport', level: 'unknown', detail: missed })
+  } else {
+    const lastBank = (bank.data?.[0] as { created_at?: string } | undefined)?.created_at ?? null
+    items.push({ label: 'Bankimport', level: lastBank && Date.now() - new Date(lastBank).getTime() < 7 * 24 * HOUR ? 'green' : 'yellow', detail: `seneste postering importeret ${ago(lastBank)}` })
+  }
+  if (lemu.error) {
+    items.push({ label: 'Leverandørsync (seneste)', level: 'unknown', detail: missed })
+  } else {
+    const l = lemu.data?.[0] as { job_type?: string; status?: string; created_at?: string } | undefined
+    items.push({ label: 'Leverandørsync (seneste)', level: !l ? 'yellow' : l.status === 'failed' ? 'red' : 'green', detail: l ? `${l.job_type} ${l.status} ${ago(l.created_at)}` : 'ingen sync-log' })
+  }
+  const c = (creds.error ? [] : (creds.data ?? [])) as Array<{ is_active: boolean; last_test_status: string | null }>
   try {
     const { loadAndMeasureCoverage } = await import('@/lib/invoice-control/coverage')
     const cov = await loadAndMeasureCoverage(admin)
@@ -238,7 +255,9 @@ async function integrationItems(admin: Admin): Promise<HealthItem[]> {
   } catch (err) {
     items.push({ label: 'Fakturakontrol-dækning', level: 'unknown', detail: `kunne ikke måles: ${err instanceof Error ? err.message.slice(0, 80) : 'fejl'}` })
   }
-  items.push({ label: 'Leverandør-credentials', level: c.some((x) => x.is_active && x.last_test_status === 'failed') ? 'yellow' : 'green', detail: `${c.filter((x) => x.is_active).length} aktive · ${c.filter((x) => x.last_test_status === 'failed').length} med fejlet test (værdier vises aldrig)` })
+  items.push(creds.error
+    ? { label: 'Leverandør-credentials', level: 'unknown', detail: missed }
+    : { label: 'Leverandør-credentials', level: c.some((x) => x.is_active && x.last_test_status === 'failed') ? 'yellow' : 'green', detail: `${c.filter((x) => x.is_active).length} aktive · ${c.filter((x) => x.last_test_status === 'failed').length} med fejlet test (værdier vises aldrig)` })
   return items
 }
 
