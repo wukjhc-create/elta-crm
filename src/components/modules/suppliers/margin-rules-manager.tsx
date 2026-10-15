@@ -239,7 +239,7 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
                         disabled={actingRuleId === rule.id}
                         className="shrink-0 disabled:opacity-50"
                         title={rule.is_active ? 'Deaktiver' : 'Aktiver'}
-                        aria-label={rule.is_active ? 'Deaktiver regel' : 'Aktiver regel'}
+                        aria-label={rule.is_active ? `Deaktiver regel ${rule.margin_percentage} procent` : `Aktiver regel ${rule.margin_percentage} procent`}
                       >
                         {rule.is_active
                           ? <ToggleRight className="h-5 w-5 text-green-500" />
@@ -280,7 +280,7 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
-                          aria-label="Rediger regel"
+                          aria-label={`Rediger regel ${rule.margin_percentage} procent`}
                           onClick={() => handleEdit(rule)}
                           className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
                           title="Rediger"
@@ -289,7 +289,7 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
                         </button>
                         <button
                           type="button"
-                          aria-label="Slet regel"
+                          aria-label={`Slet regel ${rule.margin_percentage} procent`}
                           onClick={() => handleDelete(rule)}
                           disabled={actingRuleId === rule.id}
                           className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 disabled:opacity-50"
@@ -412,8 +412,9 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
         {/* Rule Type */}
         {!editingRule && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Regeltype</label>
+            <label htmlFor="margin-rule-type" className="block text-sm font-medium text-gray-700 mb-1">Regeltype</label>
             <select
+              id="margin-rule-type"
               value={ruleType}
               onChange={(e) => setRuleType(e.target.value as MarginRuleType)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
@@ -428,11 +429,12 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
 
         {/* Margin Percentage */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="margin-rule-percent" className="block text-sm font-medium text-gray-700 mb-1">
             Marginprocent <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <input
+              id="margin-rule-percent"
               type="number"
               step="0.1"
               value={marginPercentage}
@@ -447,8 +449,9 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
 
         {/* Fixed Markup */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Fast tillæg (kr)</label>
+          <label htmlFor="margin-rule-markup" className="block text-sm font-medium text-gray-700 mb-1">Fast tillæg (kr)</label>
           <input
+            id="margin-rule-markup"
             type="number"
             step="0.01"
             value={fixedMarkup}
@@ -460,8 +463,9 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
 
         {/* Round To */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Afrund til</label>
+          <label htmlFor="margin-rule-round" className="block text-sm font-medium text-gray-700 mb-1">Afrund til</label>
           <input
+            id="margin-rule-round"
             type="number"
             step="1"
             value={roundTo}
@@ -473,8 +477,9 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
 
         {/* Min Margin */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Min. margin (%)</label>
+          <label htmlFor="margin-rule-min" className="block text-sm font-medium text-gray-700 mb-1">Min. margin (%)</label>
           <input
+            id="margin-rule-min"
             type="number"
             step="0.1"
             value={minMargin}
@@ -486,8 +491,9 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
 
         {/* Max Margin */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Maks. margin (%)</label>
+          <label htmlFor="margin-rule-max" className="block text-sm font-medium text-gray-700 mb-1">Maks. margin (%)</label>
           <input
+            id="margin-rule-max"
             type="number"
             step="0.1"
             value={maxMargin}
@@ -500,10 +506,11 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
         {/* Category (for category/subcategory rules) */}
         {(ruleType === 'category' || ruleType === 'subcategory') && !editingRule && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="margin-rule-category" className="block text-sm font-medium text-gray-700 mb-1">
               Kategori <span className="text-red-500">*</span>
             </label>
             <input
+              id="margin-rule-category"
               type="text"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
@@ -517,10 +524,11 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
         {/* Sub Category (for subcategory rules) */}
         {ruleType === 'subcategory' && !editingRule && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="margin-rule-subcategory" className="block text-sm font-medium text-gray-700 mb-1">
               Underkategori <span className="text-red-500">*</span>
             </label>
             <input
+              id="margin-rule-subcategory"
               type="text"
               value={subCategory}
               onChange={(e) => setSubCategory(e.target.value)}
@@ -533,8 +541,9 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
 
         {/* Priority */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Prioritet</label>
+          <label htmlFor="margin-rule-priority" className="block text-sm font-medium text-gray-700 mb-1">Prioritet</label>
           <input
+            id="margin-rule-priority"
             type="number"
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
@@ -546,8 +555,9 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
 
         {/* Valid From */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Gyldig fra</label>
+          <label htmlFor="margin-rule-from" className="block text-sm font-medium text-gray-700 mb-1">Gyldig fra</label>
           <input
+            id="margin-rule-from"
             type="date"
             value={validFrom}
             onChange={(e) => setValidFrom(e.target.value)}
@@ -557,8 +567,9 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
 
         {/* Valid To */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Gyldig til</label>
+          <label htmlFor="margin-rule-to" className="block text-sm font-medium text-gray-700 mb-1">Gyldig til</label>
           <input
+            id="margin-rule-to"
             type="date"
             value={validTo}
             onChange={(e) => setValidTo(e.target.value)}
@@ -568,8 +579,9 @@ function MarginRuleForm({ supplierId, editingRule, onSuccess, onCancel }: Margin
 
         {/* Notes */}
         <div className="md:col-span-2 lg:col-span-3">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Noter</label>
+          <label htmlFor="margin-rule-notes" className="block text-sm font-medium text-gray-700 mb-1">Noter</label>
           <input
+            id="margin-rule-notes"
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

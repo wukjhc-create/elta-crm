@@ -11,8 +11,10 @@ const eq = (name: string, got: unknown, want: unknown) => {
 const src = fs.readFileSync('src/components/modules/suppliers/margin-rules-manager.tsx', 'utf8')
 
 eq('raekken ombrydes', src.includes('flex flex-wrap items-center gap-3'), true)
-eq('rediger har et navn', src.includes('aria-label="Rediger regel"') && src.includes('handleEdit(rule)'), true)
-eq('slet har et navn', src.includes('aria-label="Slet regel"') && src.includes('handleDelete(rule)'), true)
+eq('rediger har et navn', src.includes('aria-label={`Rediger regel ${rule.margin_percentage} procent`}') && src.includes('handleEdit(rule)'), true)
+eq('slet har et navn', src.includes('aria-label={`Slet regel ${rule.margin_percentage} procent`}') && src.includes('handleDelete(rule)'), true)
+eq('marginfeltet er koblet til etiketten', src.includes('htmlFor="margin-rule-percent"') && src.includes('id="margin-rule-percent"'), true)
+eq('gyldig-fra er koblet og stadig en datovaelger', src.includes('htmlFor="margin-rule-from"') && src.includes('id="margin-rule-from"') && src.includes('type="date"'), true)
 eq('toggle har et navn', src.includes('Deaktiver regel') && src.includes('handleToggle(rule.id)'), true)
 eq('margin bliver', src.includes('{rule.margin_percentage}% margin'), true)
 eq('fast tillaeg bliver', src.includes('{rule.fixed_markup} kr fast tillæg'), true)
