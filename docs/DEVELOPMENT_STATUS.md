@@ -14,6 +14,18 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 
 | 00226 | offers.customer_id CASCADE → RESTRICT (rest af 00191; særskilt godkendt). Pre CASCADE → post RESTRICT; offers 15, signaturer 3, checksum identisk; DB-audit 0/0/0; staging offers-restrict-check 4/4; appens sletning giver dansk besked ("…kan ikke slettes — deaktivér kunden i stedet"). |
 
+## Long-run 2026-10-15 eftermiddag (efter beslutninger)
+| Commit | Indhold |
+|---|---|
+| 7f16427d / 0ab3df6d | Invitationer via Graph (nyt link ved gensend, gammelt ugyldigt, status i Team, audit med kanal); Graph-fejl → Pilot Health + kritisk alarm; Supabase-nødfallback logges |
+| 0ce27ce0 | Alarm-politik: kritiske → admin+serviceleder straks (1/service/time); advarsler kun klokken |
+| d1394d06 | Pilotfejl-flow + register |
+| efa632f2 | 00226 i prod (RESTRICT) |
+| c064ca8f | Efterkalkulation tilbudt vs. faktisk (500 sager, filtre, tilbudt vs. realiseret DB, timeafvigelse) |
+| 171165dc | Prisafvigelser på tværs af leverandørfakturaer |
+| 3ee44583 | DB pr. kunde / pr. lukkemåned |
+| 1f7ea1c6 | Dashboard "Sager over estimat" |
+
 **Manuelle blokere (Henrik):** selvregistrering OFF i Supabase · "Email OTP expiry" = 86400 s. Arbejdet fortsætter uden at vente.
 
  → (løbende checkpoint)
