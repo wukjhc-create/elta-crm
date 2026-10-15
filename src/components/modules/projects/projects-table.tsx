@@ -166,12 +166,12 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
     <>
       {/* Bulk action bar */}
       {someSelected && (
-        <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
+        <div className="flex flex-wrap items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
           <span className="text-sm font-medium text-blue-800 flex items-center gap-2">
             {isBulkActing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             {selectedIds.size} valgt
           </span>
-          <div className="flex gap-2 ml-auto">
+          <div className="flex flex-wrap gap-2 ml-auto">
             {PROJECT_STATUSES.map((status) => (
               <button
                 key={status}
@@ -193,7 +193,152 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <ul className="md:hidden space-y-2" data-testid="projects-mobile-list">
+        {projects.map((project) => {
+          const progress = calculateProgress(project.actual_hours, project.estimated_hours)
+          const isOverBudget = project.budget && project.actual_cost > project.budget
+          const isOverTime = progress !== null && progress > 100
+          return (
+            <li key={project.id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(project.id)}
+                  onChange={() => toggleOne(project.id)}
+                  className="mt-1 rounded border-gray-300"
+                  aria-label={`Vælg ${project.name}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <Link
+                        href={`/dashboard/projects/${project.id}`}
+                        className="font-medium text-primary hover:underline break-all"
+                      >
+                        {project.project_number}
+                      </Link>
+                      <p className="text-sm text-muted-foreground break-words">
+                        {project.name}
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      <ProjectStatusBadge
+                        status={project.status}
+                        onStatusChange={(newStatus) => handleStatusChange(project.id, newStatus)}
+                      />
+                    </div>
+                  </div>
+                  {project.customer ? (
+                    <div className="mt-2 min-w-0">
+                      <Link
+                        href={`/dashboard/customers/${project.customer.id}`}
+                        className="text-sm hover:underline break-words"
+                      >
+                        {project.customer.company_name}
+                      </Link>
+                      <p className="text-xs text-muted-foreground">
+                        {project.customer.customer_number}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-muted-foreground">-</p>
+                  )}
+                  <div className="mt-2">
+                    <ProjectPriorityBadge priority={project.priority} />
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {project.start_date ? formatDate(project.start_date) : '-'}
+                    {project.end_date && (
+                      <>
+                        {' → '}
+                        {formatDate(project.end_date)}
+                      </>
+                    )}
+                  </p>
+                  <p className={`mt-1 text-xs tabular-nums ${isOverTime ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
+                    {formatHours(project.actual_hours)}
+                    {project.estimated_hours && (
+                      <span className="text-muted-foreground">
+                        {' / '}
+                        {formatHours(project.estimated_hours)}
+                      </span>
+                    )}
+                    {progress !== null && (
+                      <span className={isOverTime ? 'text-red-600' : 'text-muted-foreground'}>
+                        {' '}({progress}%)
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs tabular-nums">
+                    <span className={isOverBudget ? 'text-red-600 font-medium' : ''}>
+                      {formatBudget(project.actual_cost)}
+                    </span>
+                    {project.budget && (
+                      <span className="text-muted-foreground">
+                        {' / '}
+                        {formatBudget(project.budget)}
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-1 break-words text-xs text-muted-foreground">
+                    {project.project_manager
+                      ? (project.project_manager.full_name || project.project_manager.email)
+                      : '-'}
+                  </p>
+                </div>
+                <div className="relative shrink-0">
+                  <button
+                    onClick={() => setOpenMenuId(openMenuId === project.id ? null : project.id)}
+                    className="p-1 hover:bg-muted rounded"
+                    disabled={deletingId === project.id}
+                    aria-label="Flere handlinger"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                  {openMenuId === project.id && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
+                      <div className="absolute right-0 mt-1 w-48 bg-white border rounded-md shadow-lg z-20">
+                        <Link
+                          href={`/dashboard/projects/${project.id}`}
+                          className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted"
+                          onClick={() => setOpenMenuId(null)}
+                        >
+                          <Eye className="w-4 h-4" />
+                          Se detaljer
+                        </Link>
+                        <button
+                          onClick={() => {
+                            setEditingProject(project)
+                            setOpenMenuId(null)
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Rediger
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleDelete(project.id)
+                            setOpenMenuId(null)
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                          disabled={deletingId === project.id}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          {deletingId === project.id ? 'Sletter...' : 'Slet'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
           <thead className="sticky top-0 z-10 bg-gray-50">
             <tr className="border-b text-left text-sm text-muted-foreground">
