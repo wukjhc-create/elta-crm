@@ -110,16 +110,16 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                           </div>
                           <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${shown.cls}`}>{shown.label}</span>
                         </div>
-                        <p className="mt-2 text-xs text-gray-600">Tilbudt antal {qty(r.offered_qty)} · faktisk antal {qty(r.actual_qty)}</p>
-                        <p className="text-xs text-gray-700">Tilbudt kost {kr(r.offered_cost)} · faktisk kost {kr(r.actual_cost)}</p>
-                        <p className="text-xs">Afvigelse {r.cost_deviation == null ? 'Kan ikke beregnes' : `${r.cost_deviation > 0 ? '+' : ''}${kr(r.cost_deviation)}`}</p>
+                        <p className="mt-2 text-xs text-gray-600 break-words">Tilbudt antal {qty(r.offered_qty)} · faktisk antal {qty(r.actual_qty)}</p>
+                        <p className="text-xs text-gray-700 break-words">Tilbudt kost {kr(r.offered_cost)} · faktisk kost {kr(r.actual_cost)}</p>
+                        <p className="text-xs break-words">Afvigelse {r.cost_deviation == null ? 'Kan ikke beregnes' : `${r.cost_deviation > 0 ? '+' : ''}${kr(r.cost_deviation)}`}</p>
                       </div>
                     )
                   })}
                   <div className="p-3 text-sm">
                     <p className="text-xs uppercase tracking-wide text-gray-600">I alt</p>
-                    <p className="text-gray-800">Tilbudt kost {kr(figures.offered_cost)} · faktisk kost {kr(figures.actual_cost)}</p>
-                    <p>Afvigelse {figures.cost_deviation == null ? 'Kan ikke beregnes' : `${figures.cost_deviation > 0 ? '+' : ''}${kr(figures.cost_deviation)}`}</p>
+                    <p className="text-gray-800 break-words">Tilbudt kost {kr(figures.offered_cost)} · faktisk kost {kr(figures.actual_cost)}</p>
+                    <p className="break-words">Afvigelse {figures.cost_deviation == null ? 'Kan ikke beregnes' : `${figures.cost_deviation > 0 ? '+' : ''}${kr(figures.cost_deviation)}`}</p>
                   </div>
                 </div>
                 <div className="hidden md:block overflow-x-auto">
