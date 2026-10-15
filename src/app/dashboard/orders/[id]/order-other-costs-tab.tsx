@@ -238,24 +238,24 @@ export function OrderOtherCostsTab({
                     <span className="inline-block text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{SOURCE_LABEL[r.source] ?? r.source}</span>
                   )}
                 </div>
-                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <div>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0">
+                  <div className="min-w-0">
                     <dt className="text-gray-500">Salgspris</dt>
-                    <dd className="tabular-nums text-gray-900">{formatCurrency(r.unit_sales_price, 'DKK', 2)}</dd>
+                    <dd className="tabular-nums text-gray-900 break-words">{formatCurrency(r.unit_sales_price, 'DKK', 2)}</dd>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <dt className="text-gray-500">Sum salg</dt>
-                    <dd className="tabular-nums font-medium text-gray-900">{formatCurrency(r.total_sales_price, 'DKK', 2)}</dd>
+                    <dd className="tabular-nums font-medium text-gray-900 break-words">{formatCurrency(r.total_sales_price, 'DKK', 2)}</dd>
                   </div>
                   {showCost && (
                     <>
-                      <div>
+                      <div className="min-w-0">
                         <dt className="text-gray-500">Kostpris</dt>
-                        <dd className="tabular-nums text-gray-900">{formatCurrency(r.unit_cost, 'DKK', 2)}</dd>
+                        <dd className="tabular-nums text-gray-900 break-words">{formatCurrency(r.unit_cost, 'DKK', 2)}</dd>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <dt className="text-gray-500">Sum kost</dt>
-                        <dd className="tabular-nums text-gray-900">{formatCurrency(r.total_cost, 'DKK', 2)}</dd>
+                        <dd className="tabular-nums text-gray-900 break-words">{formatCurrency(r.total_cost, 'DKK', 2)}</dd>
                       </div>
                     </>
                   )}
@@ -273,13 +273,13 @@ export function OrderOtherCostsTab({
           })}
           {summary && canSeeCost && (
             <div className="bg-white rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-              <p className="flex justify-between gap-2"><span className="text-gray-600">Sum salg</span><span className="tabular-nums font-semibold">{formatCurrency(summary.total_sales_price, 'DKK', 2)}</span></p>
+              <p className="flex justify-between gap-2 min-w-0"><span className="text-gray-600 shrink-0">Sum salg</span><span className="tabular-nums font-semibold min-w-0 break-words text-right">{formatCurrency(summary.total_sales_price, 'DKK', 2)}</span></p>
               {showCost && (
                 <>
-                  <p className="flex justify-between gap-2 mt-1"><span className="text-gray-600">Sum kost</span><span className="tabular-nums font-semibold">{formatCurrency(summary.total_cost, 'DKK', 2)}</span></p>
-                  <p className="flex justify-between gap-2 mt-1">
-                    <span className="text-gray-600">Foreløbig DB</span>
-                    <span className={`tabular-nums font-semibold ${summary.contribution_margin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <p className="flex justify-between gap-2 mt-1 min-w-0"><span className="text-gray-600 shrink-0">Sum kost</span><span className="tabular-nums font-semibold min-w-0 break-words text-right">{formatCurrency(summary.total_cost, 'DKK', 2)}</span></p>
+                  <p className="flex justify-between gap-2 mt-1 min-w-0">
+                    <span className="text-gray-600 shrink-0">Foreløbig DB</span>
+                    <span className={`tabular-nums font-semibold min-w-0 break-words text-right ${summary.contribution_margin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                       {formatCurrency(summary.contribution_margin, 'DKK', 2)} ({fmtPct(summary.margin_percentage)})
                     </span>
                   </p>
