@@ -77,23 +77,23 @@ export default function ProductDetailClient({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
               <span className="text-gray-500">Status</span>
-              <Badge variant={product.is_active ? 'default' : 'secondary'}>
+              <Badge variant={product.is_active ? 'default' : 'secondary'} className="min-w-0 break-words">
                 {product.is_active ? 'Aktiv' : 'Inaktiv'}
               </Badge>
             </div>
 
             {product.category && (
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
                 <span className="text-gray-500">Kategori</span>
-                <Badge variant="outline">{product.category.name}</Badge>
+                <Badge variant="outline" className="min-w-0 break-words">{product.category.name}</Badge>
               </div>
             )}
 
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
               <span className="text-gray-500">Enhed</span>
-              <span>{product.unit}</span>
+              <span className="min-w-0 break-words">{product.unit}</span>
             </div>
 
             {product.description && (
@@ -111,24 +111,24 @@ export default function ProductDetailClient({
             <CardTitle>Priser</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
               <span className="text-gray-500">Listepris</span>
-              <span className="text-xl font-bold">
+              <span className="text-xl font-bold min-w-0 break-words">
                 {formatCurrency(product.list_price)}
               </span>
             </div>
 
             {product.cost_price && (
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
                 <span className="text-gray-500">Kostpris</span>
-                <span>{formatCurrency(product.cost_price)}</span>
+                <span className="min-w-0 break-words">{formatCurrency(product.cost_price)}</span>
               </div>
             )}
 
             {margin !== null && (
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
                 <span className="text-gray-500">Avance</span>
-                <span className={margin >= 0 ? 'text-green-600' : 'text-red-600'}>
+                <span className={`min-w-0 break-words ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {margin.toFixed(1)}%
                 </span>
               </div>
@@ -145,11 +145,11 @@ export default function ProductDetailClient({
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                 {Object.entries(product.specifications).map(([key, value]) => (
-                  <div key={key} className="flex justify-between">
-                    <span className="text-gray-500 capitalize">
+                  <div key={key} className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                    <span className="text-gray-500 capitalize min-w-0 break-words">
                       {key.replace(/_/g, ' ')}
                     </span>
-                    <span>{String(value)}</span>
+                    <span className="min-w-0 break-words">{String(value)}</span>
                   </div>
                 ))}
               </div>
