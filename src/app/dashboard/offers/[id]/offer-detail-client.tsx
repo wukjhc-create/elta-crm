@@ -887,7 +887,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
                                 p.supplier_code === 'AO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
                               }`}>
@@ -901,7 +901,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                                 <span className="text-[10px] text-red-500 font-medium">Ikke på lager</span>
                               )}
                             </div>
-                            <p className="text-sm font-medium text-gray-900 truncate mt-0.5">{p.product_name}</p>
+                            <p className="text-sm font-medium text-gray-900 break-words mt-0.5">{p.product_name}</p>
                             {/* N57: forældet prisliste (fx AO opdateret for måneder siden) — tjek prisen før den bruges */}
                             {p.price_updated_at && Date.now() - new Date(p.price_updated_at).getTime() > 60 * 86_400_000 && (
                               <p className="text-[11px] text-amber-700 mt-0.5" data-testid="supplier-price-stale">
