@@ -337,7 +337,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       <div>
                         <Link
                           href={`/dashboard/customers/${offer.customer.id}`}
-                          className="text-sm font-medium text-gray-900 hover:text-primary"
+                          className="text-sm font-medium text-gray-900 hover:text-primary break-words"
                         >
                           {offer.customer.company_name}
                         </Link>
@@ -349,7 +349,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       <div>
                         <Link
                           href={`/dashboard/leads/${offer.lead.id}`}
-                          className="text-sm font-medium text-gray-900 hover:text-primary"
+                          className="text-sm font-medium text-gray-900 hover:text-primary break-words"
                         >
                           {offer.lead.company_name}
                         </Link>

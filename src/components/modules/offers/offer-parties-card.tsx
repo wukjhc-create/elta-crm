@@ -50,7 +50,7 @@ function PartyRow({
         <div className="p-2 bg-gray-50 rounded-lg">{icon}</div>
         <div className="min-w-0">
           <p className="text-sm text-gray-500">{label}</p>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-gray-700 break-words">
             Samme som primær kunde
             {primaryCustomer?.company_name ? ` (${primaryCustomer.company_name})` : ''}
           </p>
