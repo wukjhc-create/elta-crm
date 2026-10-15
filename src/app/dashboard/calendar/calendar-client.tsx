@@ -120,7 +120,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <CalendarCheck className="w-7 h-7 text-blue-600" />
@@ -143,13 +143,13 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
         <div className="lg:col-span-2 bg-white rounded-xl border shadow-sm">
           {/* Month Navigation */}
           <div className="flex items-center justify-between p-4 border-b">
-            <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <button type="button" onClick={prevMonth} aria-label="Forrige måned" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <ChevronLeft className="w-5 h-5" />
             </button>
             <h2 className="text-lg font-semibold">
               {MONTH_NAMES[month]} {year}
             </h2>
-            <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <button type="button" onClick={nextMonth} aria-label="Næste måned" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
