@@ -45,6 +45,12 @@ export interface AccountingHealthSummary {
   ok: boolean
   message?: string
   integration_ready: boolean
+  /** Sat når opslaget kaster. integration_ready er da false, men det er ikke "ikke opsat". */
+  integration_error?: string | null
+  /** Sat når optællingen fejler. Tallet er da 0, men det er ikke et ægte nul. */
+  not_exported_error?: string | null
+  exported_error?: string | null
+  failed_error?: string | null
   /** Fejlede fakturaer der stadig kan handles på (ikke eksporteret endnu). */
   failed_count: number
   /** Sendte/betalte fakturaer der endnu ikke er eksporteret. */
@@ -69,11 +75,13 @@ export async function computeAccountingHealthSummary(
   supabase: SupabaseClient
 ): Promise<AccountingHealthSummary> {
   let integrationReady = false
+  let integrationError: string | null = null
   try {
     const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
     integrationReady = isEconomicReady(await getEconomicSettings())
   } catch (e) {
     logger.error('computeAccountingHealthSummary: settings read failed', { error: e })
+    integrationError = 'Kunne ikke tjekke e-conomic'
   }
 
   const now = Date.now()
@@ -81,62 +89,74 @@ export async function computeAccountingHealthSummary(
   const since30 = new Date(now - 30 * 86400_000).toISOString()
 
   let notExported = 0
+  let notExportedError: string | null = null
   try {
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from('invoices')
       .select('id', { count: 'exact', head: true })
       .in('status', ['sent', 'paid'])
       .is('voided_at', null)
       .neq('invoice_type', 'credit')
       .is('external_invoice_id', null)
-    notExported = count ?? 0
+    if (error) notExportedError = 'Kunne ikke tælle ventende fakturaer'
+    else notExported = count ?? 0
   } catch (e) {
     logger.error('computeAccountingHealthSummary: not_exported count failed', { error: e })
+    notExportedError = 'Kunne ikke tælle ventende fakturaer'
   }
 
-  const exportedSince = async (sinceIso: string): Promise<number> => {
+  const exportedSince = async (sinceIso: string): Promise<{ n: number; failed: boolean }> => {
     try {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('accounting_sync_log')
         .select('id', { count: 'exact', head: true })
         .eq('entity_type', 'invoice')
         .eq('action', 'create')
         .eq('status', 'success')
         .gte('created_at', sinceIso)
-      return count ?? 0
+      if (error) return { n: 0, failed: true }
+      return { n: count ?? 0, failed: false }
     } catch {
-      return 0
+      return { n: 0, failed: true }
     }
   }
-  const [exported7d, exported30d] = await Promise.all([exportedSince(since7), exportedSince(since30)])
+  const [exported7, exported30] = await Promise.all([exportedSince(since7), exportedSince(since30)])
+  const exported7d = exported7.n
+  const exported30d = exported30.n
+  const exportedError = exported7.failed || exported30.failed ? 'Kunne ikke tælle eksporterede fakturaer' : null
 
   let failedCount = 0
+  let failedError: string | null = null
   let latestError: AccountingHealthSummary['latest_error'] = null
   try {
-    const { data: failedLogs } = await supabase
+    const { data: failedLogs, error: failedQueryError } = await supabase
       .from('accounting_sync_log')
       .select('entity_id, error_message, created_at')
       .eq('entity_type', 'invoice')
       .eq('status', 'failed')
       .order('created_at', { ascending: false })
       .limit(300)
-    const failedRows = failedLogs ?? []
+    if (failedQueryError) {
+      failedError = 'Kunne ikke tælle fejlede eksporter'
+    }
+    const failedRows = failedQueryError ? [] : (failedLogs ?? [])
     const failedInvoiceIds = Array.from(new Set(failedRows.map((r) => r.entity_id as string)))
 
     const stillOpen = new Set<string>()
     const numberById = new Map<string, string | null>()
     if (failedInvoiceIds.length) {
-      const { data: invs } = await supabase
+      const { data: invs, error: invErr } = await supabase
         .from('invoices')
         .select('id, invoice_number, external_invoice_id, external_provider, voided_at')
         .in('id', failedInvoiceIds)
-      for (const i of invs ?? []) {
+      if (invErr) failedError = 'Kunne ikke tælle fejlede eksporter'
+      for (const i of invErr ? [] : (invs ?? [])) {
         numberById.set(i.id as string, (i.invoice_number as string | null) ?? null)
         const exported = !!i.external_invoice_id && i.external_provider === PROVIDER
         if (!exported && !i.voided_at) stillOpen.add(i.id as string)
       }
     }
-    failedCount = stillOpen.size
+    failedCount = failedError ? 0 : stillOpen.size
 
     const newestOpen = failedRows.find((r) => stillOpen.has(r.entity_id as string)) ?? failedRows[0]
     if (newestOpen) {
@@ -149,11 +169,16 @@ export async function computeAccountingHealthSummary(
     }
   } catch (e) {
     logger.error('computeAccountingHealthSummary: failed summary failed', { error: e })
+    failedError = 'Kunne ikke tælle fejlede eksporter'
   }
 
   return {
     ok: true,
     integration_ready: integrationReady,
+    integration_error: integrationError,
+    not_exported_error: notExportedError,
+    exported_error: exportedError,
+    failed_error: failedError,
     failed_count: failedCount,
     not_exported_count: notExported,
     exported_7d: exported7d,

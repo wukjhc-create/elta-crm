@@ -35,6 +35,15 @@ export function AccountingHealthWidget() {
     return () => { alive = false }
   }, [])
 
+  const countsFailed = !!(data?.failed_error || data?.not_exported_error || data?.exported_error)
+  const showGreen = !!data?.ok
+    && !!data.integration_ready
+    && !data.integration_error
+    && !countsFailed
+    && data.failed_count === 0
+    && data.not_exported_count === 0
+  const showCards = !!data?.ok && (!!data.integration_error || !!data.integration_ready) && !showGreen
+
   return (
     <div className="bg-white p-6 rounded-lg border">
       <div className="flex items-center justify-between mb-4">
@@ -53,26 +62,42 @@ export function AccountingHealthWidget() {
         </div>
       ) : !data || !data.ok ? (
         <p className="text-sm text-gray-400 py-4">Kunne ikke hente regnskabsstatus.</p>
-      ) : !data.integration_ready ? (
-        // Pæn not-configured-state med link til opsætning.
-        <div className="rounded-lg ring-1 ring-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900">
-          <strong>e-conomic er ikke opsat endnu.</strong>
-          <p className="mt-0.5 text-amber-800">
-            {data.not_exported_count > 0
-              ? `${data.not_exported_count} sendte/betalte faktura(er) afventer eksport.`
-              : 'Aktivér integrationen for at eksportere fakturaer.'}
-          </p>
-          <Link href="/dashboard/settings/economic" className="mt-2 inline-flex items-center gap-1 font-medium underline">
-            <Settings className="w-3.5 h-3.5" /> Opsæt integration
-          </Link>
-        </div>
-      ) : data.failed_count === 0 && data.not_exported_count === 0 ? (
-        // Positiv tom-state.
-        <div className="rounded-lg ring-1 ring-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 flex items-center gap-2">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-          <span>Alt eksporteret — ingen fejl eller ventende fakturaer.</span>
-        </div>
       ) : (
+        <div className="space-y-3">
+          {data.integration_error && (
+            <div className="rounded-lg ring-1 ring-red-300 bg-red-50 px-3 py-3 text-sm text-red-800" data-testid="accounting-health-ready-error">
+              {data.integration_error}. Det tælles ikke som at e-conomic mangler.
+            </div>
+          )}
+          {!data.integration_error && !data.integration_ready && (
+            <div className="rounded-lg ring-1 ring-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+              <strong>e-conomic er ikke opsat endnu.</strong>
+              <p className="mt-0.5 text-amber-800">
+                {data.not_exported_error && (
+                  <span data-testid="accounting-health-waiting-error">{data.not_exported_error}. Det tælles ikke som 0.</span>
+                )}
+                {!data.not_exported_error && data.not_exported_count > 0 && (
+                  <>{data.not_exported_count} sendte/betalte faktura(er) afventer eksport.</>
+                )}
+                {!data.not_exported_error && data.not_exported_count === 0 && (
+                  <>Aktivér integrationen for at eksportere fakturaer.</>
+                )}
+              </p>
+              <Link href="/dashboard/settings/economic" className="mt-2 inline-flex items-center gap-1 font-medium underline">
+                <Settings className="w-3.5 h-3.5" /> Opsæt integration
+              </Link>
+            </div>
+          )}
+          {countsFailed && (data.integration_error || data.integration_ready) && (
+            <p className="text-xs text-red-700" data-testid="accounting-health-counts-error">En optælling fejlede. Det tælles ikke som 0.</p>
+          )}
+          {showGreen && (
+            <div className="rounded-lg ring-1 ring-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <span>Alt eksporteret — ingen fejl eller ventende fakturaer.</span>
+            </div>
+          )}
+          {showCards && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Link
@@ -84,7 +109,7 @@ export function AccountingHealthWidget() {
                 Fejlede eksporter
               </div>
               <div className={`text-2xl font-bold mt-0.5 ${data.failed_count > 0 ? 'text-red-700' : 'text-gray-700'}`}>
-                {data.failed_count}
+                {data.failed_error ? '—' : data.failed_count}
               </div>
             </Link>
             <Link
@@ -96,7 +121,7 @@ export function AccountingHealthWidget() {
                 Ikke eksporteret
               </div>
               <div className={`text-2xl font-bold mt-0.5 ${data.not_exported_count > 0 ? 'text-amber-700' : 'text-gray-700'}`}>
-                {data.not_exported_count}
+                {data.not_exported_error ? '—' : data.not_exported_count}
               </div>
             </Link>
           </div>
@@ -104,7 +129,7 @@ export function AccountingHealthWidget() {
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs text-gray-500 px-0.5">
             <span className="inline-flex flex-wrap items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              Eksporteret: {data.exported_7d} (7 dage) · {data.exported_30d} (30 dage)
+              Eksporteret: {data.exported_error ? 'kunne ikke tælles. Det tælles ikke som 0.' : `${data.exported_7d} (7 dage) · ${data.exported_30d} (30 dage)`}
             </span>
           </div>
 
@@ -131,6 +156,8 @@ export function AccountingHealthWidget() {
               Fakturaoverblik <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
+        </div>
+          )}
         </div>
       )}
 
