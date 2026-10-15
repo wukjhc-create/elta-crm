@@ -156,10 +156,9 @@ export function TasksPageClient({
       setHighlightedTaskId(targetId)
       // Scroll efter render
       requestAnimationFrame(() => {
-        const el = document.getElementById(`task-${targetId}`)
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
+        const nodes = Array.from(document.querySelectorAll(`[data-task-anchor="${CSS.escape(targetId)}"]`))
+        const el = nodes.find((n) => (n as HTMLElement).getClientRects().length > 0) ?? nodes[0]
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       })
       // Ryd taskId fra URL — auto-clear af highlight haandteres af
       // den separate useEffect nedenfor.
@@ -479,8 +478,8 @@ export function TasksPageClient({
       </div>
 
       {/* Task list */}
-      {/* M-4 (mobil-review 2026-10-14): tabellen er ~900 px — vandret scroll i stedet for afskårne kolonner */}
-      <div className="bg-white rounded-lg border overflow-x-auto">
+      {/* M-4: mobil viser kort. Desktop beholder det brede gitter med vandret scroll. */}
+      <div className="bg-white rounded-lg border">
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -507,40 +506,66 @@ export function TasksPageClient({
             )}
           </div>
         ) : (
-          <div className="divide-y min-w-[900px]">
-            {/* Table header */}
-            <div className="grid grid-cols-[40px_1fr_160px_110px_100px_140px_140px_80px] gap-3 px-4 py-2.5 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-              <div></div>
-              <div>Opgave</div>
-              <div>Kunde</div>
-              <div>Status</div>
-              <div>Prioritet</div>
-              <div>Ansvarlig</div>
-              <div>Forfaldsdato</div>
-              <div></div>
+          <>
+            <div className="md:hidden divide-y" data-testid="tasks-mobile-list">
+              {visibleTasks.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  layout="card"
+                  task={task}
+                  deleteConfirm={deleteConfirm}
+                  highlighted={highlightedTaskId === task.id}
+                  onComplete={() =>
+                    task.status === 'done'
+                      ? handleReopen(task.id)
+                      : handleComplete(task.id)
+                  }
+                  onStatusChange={(status) => handleStatusChange(task.id, status)}
+                  onEdit={() => openEditDialog(task)}
+                  onDeleteConfirm={() => setDeleteConfirm(task.id)}
+                  onDeleteCancel={() => setDeleteConfirm(null)}
+                  onDelete={() => handleDelete(task.id)}
+                  onMailClick={() => setMailTask(task)}
+                  canManage={canManage}
+                />
+              ))}
             </div>
+            <div className="hidden md:block overflow-x-auto">
+              <div className="divide-y min-w-[900px]">
+                <div className="grid grid-cols-[40px_1fr_160px_110px_100px_140px_140px_80px] gap-3 px-4 py-2.5 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div></div>
+                  <div>Opgave</div>
+                  <div>Kunde</div>
+                  <div>Status</div>
+                  <div>Prioritet</div>
+                  <div>Ansvarlig</div>
+                  <div>Forfaldsdato</div>
+                  <div></div>
+                </div>
 
-            {visibleTasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                deleteConfirm={deleteConfirm}
-                highlighted={highlightedTaskId === task.id}
-                onComplete={() =>
-                  task.status === 'done'
-                    ? handleReopen(task.id)
-                    : handleComplete(task.id)
-                }
-                onStatusChange={(status) => handleStatusChange(task.id, status)}
-                onEdit={() => openEditDialog(task)}
-                onDeleteConfirm={() => setDeleteConfirm(task.id)}
-                onDeleteCancel={() => setDeleteConfirm(null)}
-                onDelete={() => handleDelete(task.id)}
-                onMailClick={() => setMailTask(task)}
-                canManage={canManage}
-              />
-            ))}
-          </div>
+                {visibleTasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    deleteConfirm={deleteConfirm}
+                    highlighted={highlightedTaskId === task.id}
+                    onComplete={() =>
+                      task.status === 'done'
+                        ? handleReopen(task.id)
+                        : handleComplete(task.id)
+                    }
+                    onStatusChange={(status) => handleStatusChange(task.id, status)}
+                    onEdit={() => openEditDialog(task)}
+                    onDeleteConfirm={() => setDeleteConfirm(task.id)}
+                    onDeleteCancel={() => setDeleteConfirm(null)}
+                    onDelete={() => handleDelete(task.id)}
+                    onMailClick={() => setMailTask(task)}
+                    canManage={canManage}
+                  />
+                ))}
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -668,6 +693,7 @@ function TaskRow({
   onDelete,
   onMailClick,
   canManage = true,
+  layout = 'row',
 }: {
   task: CustomerTaskWithRelations
   deleteConfirm: string | null
@@ -686,16 +712,125 @@ function TaskRow({
   /** Sprint 7E fix — gates Edit/Delete-knapper. Montor kan complete + status,
    *  men ikke redigere eller slette tasks. */
   canManage?: boolean
+  layout?: 'row' | 'card'
 }) {
   const statusCfg = TASK_STATUS_CONFIG[task.status]
   const priorityCfg = TASK_PRIORITY_CONFIG[task.priority]
   const isDone = task.status === 'done'
   const isOverdue = task.due_date && !isDone && new Date(task.due_date) < new Date()
   const isDeleting = deleteConfirm === task.id
+  const assignee = task.assigned_profile?.full_name || task.assigned_profile?.email || 'Ikke tildelt'
+
+  if (layout === 'card') {
+    return (
+      <div
+        data-testid="task-mobile-card"
+        data-task-anchor={task.id}
+        className={`p-4 space-y-2 ${isDone ? 'opacity-60' : ''} ${highlighted ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}
+      >
+        <div className="flex items-start gap-2">
+          <button
+            type="button"
+            onClick={onComplete}
+            className="shrink-0 mt-0.5"
+            aria-label={isDone ? 'Genåbn opgave' : 'Marker som udført'}
+          >
+            {isDone ? (
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+            ) : (
+              <Circle className="w-5 h-5 text-gray-300" />
+            )}
+          </button>
+          <div className="min-w-0 flex-1">
+            <button type="button" onClick={onEdit} className="text-left w-full">
+              <p className={`text-sm font-medium break-words ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                {task.title}
+              </p>
+            </button>
+            {task.auto_generated && (
+              <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-800 border border-orange-300">
+                Auto
+              </span>
+            )}
+            {task.offer && (
+              <Link
+                href={`/dashboard/offers/${task.offer.id}`}
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-0.5"
+              >
+                <FileText className="w-3 h-3" />
+                {task.offer.offer_number}
+              </Link>
+            )}
+            {task.description && !task.offer && (
+              <p className="text-xs text-gray-500 break-words mt-0.5">{task.description}</p>
+            )}
+            {task.customer ? (
+              <div className="mt-1">
+                <Link
+                  href={`/dashboard/customers/${task.customer.id}`}
+                  className="text-sm text-blue-600 hover:underline break-words"
+                >
+                  {task.customer.company_name}
+                </Link>
+                <CustomerQuickActions customer={task.customer} onMailClick={onMailClick} />
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 mt-1">—</p>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={task.status}
+            onChange={(e) => onStatusChange(e.target.value as TaskStatus)}
+            aria-label="Status"
+            className={`text-xs font-medium rounded px-2 py-0.5 border-0 cursor-pointer ${statusCfg.bgColor} ${statusCfg.color}`}
+          >
+            {Object.entries(TASK_STATUS_CONFIG).map(([key, cfg]) => (
+              <option key={key} value={key}>{cfg.label}</option>
+            ))}
+          </select>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${priorityCfg.bgColor} ${priorityCfg.color}`}>
+            {priorityCfg.label}
+          </span>
+          <span className="text-sm text-gray-600 break-words">{assignee}</span>
+          {task.due_date ? (
+            <span className={`inline-flex items-center gap-1 text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+              {isOverdue && <AlertTriangle className="w-3.5 h-3.5" />}
+              <Clock className="w-3.5 h-3.5" />
+              {format(new Date(task.due_date), 'd. MMM yyyy', { locale: da })}
+            </span>
+          ) : (
+            <span className="text-sm text-gray-400">—</span>
+          )}
+          {canManage && isDeleting ? (
+            <>
+              <button type="button" onClick={onDelete} className="p-1 text-red-600 hover:bg-red-50 rounded" aria-label="Bekræft sletning">
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button type="button" onClick={onDeleteCancel} className="p-1 text-gray-400 hover:bg-gray-100 rounded" aria-label="Annuller sletning">
+                <X className="w-4 h-4" />
+              </button>
+            </>
+          ) : canManage ? (
+            <>
+              <button type="button" onClick={onEdit} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" aria-label="Rediger opgave">
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button type="button" onClick={onDeleteConfirm} className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" aria-label="Slet opgave">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
       id={`task-${task.id}`}
+      data-task-anchor={task.id}
       className={`grid grid-cols-[40px_1fr_160px_110px_100px_140px_140px_80px] gap-3 px-4 py-3 items-center hover:bg-gray-50 transition-colors group ${isDone ? 'opacity-60' : ''} ${highlighted ? 'ring-2 ring-blue-400 bg-blue-50 rounded' : ''}`}>
       {/* Checkbox */}
       <div>
