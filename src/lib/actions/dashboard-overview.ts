@@ -513,13 +513,15 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         if (shown.length) {
           const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
           const { escapeLike } = await import('@/lib/validations/postgrest-filter')
-          const { data: bodies } = await supabase.from('incoming_emails').select('id, body_text, body_html').in('id', shown.map((r) => r.id))
+          const { data: bodies, error: bodyError } = await supabase.from('incoming_emails').select('id, body_text, body_html').in('id', shown.map((r) => r.id))
+          if (bodyError) throw new Error('Kunne ikke læse henvendelsen. Det tælles ikke som uden kontakt.')
           for (const b of (bodies ?? []) as Array<{ id: string; body_text: string | null; body_html: string | null }>) {
             const p = parseCustomerFromEmail(b.body_text, b.body_html, null)
             contactById.set(b.id, [p.name, p.city || p.postalCode].filter(Boolean).join(' · ') || null)
             const em = (p.email ?? '').trim().toLowerCase()
             if (em.includes('@')) {
-              const { data: cust } = await supabase.from('customers').select('id, company_name').eq('is_active', true).ilike('email', escapeLike(em)).limit(1).maybeSingle()
+              const { data: cust, error: custLookupError } = await supabase.from('customers').select('id, company_name').eq('is_active', true).ilike('email', escapeLike(em)).limit(1).maybeSingle()
+              if (custLookupError) throw new Error('Kunne ikke tjekke om afsenderen allerede er kunde')
               if (cust) existingById.set(b.id, { id: (cust as { id: string }).id, name: (cust as { company_name: string }).company_name })
             }
           }
