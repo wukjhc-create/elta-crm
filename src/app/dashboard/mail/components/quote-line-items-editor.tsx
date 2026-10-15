@@ -429,7 +429,7 @@ function DescriptionInput({
                 onClick={() => handleSelect(product)}
                 className="w-full text-left px-3 py-2.5 hover:bg-blue-50 border-b last:border-b-0 transition-colors"
               >
-                <div className="flex items-start gap-2.5">
+                <div className="flex flex-wrap items-start gap-2.5 min-w-0">
                   {/* Product image placeholder / icon */}
                   {product.image_url ? (
                     <img
@@ -484,15 +484,15 @@ function DescriptionInput({
                   </div>
 
                   {/* Prices */}
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-gray-400">
+                  <div className="text-right min-w-0">
+                    <p className="text-xs text-gray-400 break-words">
                       Netto: {formatCurrency(product.cost_price, 'DKK', 2)}
                     </p>
-                    <p className="text-sm font-semibold text-green-700">
+                    <p className="text-sm font-semibold text-green-700 break-words">
                       {formatCurrency(product.estimated_sale_price, 'DKK', 2)}
                     </p>
                     {product.list_price && product.list_price !== product.estimated_sale_price && (
-                      <p className="text-[10px] text-gray-400">
+                      <p className="text-[10px] text-gray-400 break-words">
                         Vejl: {formatCurrency(product.list_price, 'DKK', 0)}
                       </p>
                     )}
