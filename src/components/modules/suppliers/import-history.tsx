@@ -325,7 +325,7 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
                         <TableBody>
                           {priceChanges.slice(0, 10).map((change, i) => (
                             <TableRow key={i}>
-                              <TableCell className="max-w-[150px] truncate">
+                              <TableCell className="max-w-[150px] break-words">
                                 {change.product_name}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm">

@@ -306,8 +306,8 @@ export function ImportWizard({
                     {preview.sampleRows.map((row) => (
                       <TableRow key={row.rowNumber}>
                         <TableCell className="text-gray-500">{row.rowNumber}</TableCell>
-                        <TableCell className="font-mono text-sm">{row.parsed.sku}</TableCell>
-                        <TableCell className="max-w-[300px] truncate">{row.parsed.name}</TableCell>
+                        <TableCell className="font-mono text-sm break-all">{row.parsed.sku}</TableCell>
+                        <TableCell className="max-w-[300px] break-words">{row.parsed.name}</TableCell>
                         <TableCell className="text-right font-mono text-sm">
                           {row.parsed.cost_price !== null ? formatCurrency(row.parsed.cost_price, 'DKK', 2) : '-'}
                         </TableCell>
@@ -441,8 +441,8 @@ export function ImportWizard({
                   <TableBody>
                     {result.price_changes.slice(0, 20).map((change, i) => (
                       <TableRow key={i}>
-                        <TableCell className="font-mono text-sm">{change.supplier_sku}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{change.product_name}</TableCell>
+                        <TableCell className="font-mono text-sm break-all">{change.supplier_sku}</TableCell>
+                        <TableCell className="max-w-[200px] break-words">{change.product_name}</TableCell>
                         <TableCell className="text-right font-mono text-sm">
                           {change.old_cost_price !== null ? formatCurrency(change.old_cost_price, 'DKK', 2) : '-'}
                         </TableCell>
