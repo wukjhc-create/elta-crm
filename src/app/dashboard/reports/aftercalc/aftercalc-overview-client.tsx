@@ -101,13 +101,13 @@ export function AftercalcOverviewClient() {
 
         {open && (
           <div className="mt-3 space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
               <label className="block">
-                <span className="text-xs text-gray-500">Fra</span>
+                <span className="text-xs text-gray-500">Fra dato</span>
                 <input type="date" value={filters.from ?? ''} onChange={(e) => setFilter({ from: e.target.value || null })} className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1" />
               </label>
               <label className="block">
-                <span className="text-xs text-gray-500">Til</span>
+                <span className="text-xs text-gray-500">Til dato</span>
                 <input type="date" value={filters.to ?? ''} onChange={(e) => setFilter({ to: e.target.value || null })} className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1" />
               </label>
               <label className="block">

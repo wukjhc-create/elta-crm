@@ -29,6 +29,11 @@ const table = src.slice(tableStart)
 eq('desktop-advarsel staar som tekst', table.includes('text-[11px] text-amber-900 break-words max-w-[12rem]'), true)
 eq('desktop-titel-attribut bliver', table.includes('title={r.warning_codes.map'), true)
 eq('sagsnummer ombrydes', mobile.includes('hover:underline break-words') && table.includes('hover:underline break-words'), true)
+eq('filtre stables paa mobil', src.includes('grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm'), true)
+eq('datofiltre siger fra og til', src.includes('Fra dato') && src.includes('Til dato'), true)
+eq('fra-vaerdi bliver', src.includes("value={filters.from ?? ''}"), true)
+eq('til-vaerdi bliver', src.includes("value={filters.to ?? ''}"), true)
+eq('vinduet er ikke udvidet her', src.includes('AFTERCALC_CASE_WINDOW') === false, true)
 
 console.log(fail ? `\n${fail} fejl` : '\naftercalc-overview-mobile-test OK')
 process.exitCode = fail ? 1 : 0
