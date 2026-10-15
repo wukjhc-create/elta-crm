@@ -15,7 +15,7 @@ const list = action.slice(listStart, listEnd)
 eq('query siger fejl', list.includes("return { rows: [], error: 'Kunne ikke hente fakturaer' }"), true)
 eq('manglende tilladelse bliver tom', list.includes("if (!hasPermission('incoming_invoices.view')) return { rows: [], error: null }"), true)
 eq('statusfiltre bliver', list.includes("case 'needs_review':") && list.includes("case 'not_invoice':") && list.includes("case 'missing_file':"), true)
-eq('succes returnerer raekker', list.includes('return { rows: visible, error: null }'), true)
+eq('succes returnerer raekker', list.includes('return { rows: visible, error: null, senders_failed: !flagged.ok }'), true)
 
 const countsStart = action.indexOf('export async function getApprovalQueueCountsAction')
 const countsEnd = action.indexOf('export async function getInitialApprovalQueue')

@@ -98,7 +98,7 @@ async function notInvoiceFlagger(
 
 export async function listIncomingInvoicesAction(
   filter: ListFilter = {}
-): Promise<{ rows: IncomingInvoiceListItem[]; error: string | null }> {
+): Promise<{ rows: IncomingInvoiceListItem[]; error: string | null; senders_failed?: boolean }> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.view')) return { rows: [], error: null }
   const limit = filter.limit ?? 200
@@ -151,6 +151,7 @@ export async function listIncomingInvoicesAction(
     return { rows: [], error: 'Kunne ikke hente fakturaer' }
   }
   const flagged = await notInvoiceFlagger(supabase, (data ?? []).map((r) => (r as { source_email_id?: string | null }).source_email_id))
+  if (!flagged.ok) logger.error('listIncomingInvoicesAction sender lookup failed')
   if (!flagged.ok && filter.status === 'not_invoice') return { rows: [], error: 'Kunne ikke hente afsendere' }
   const notInvoice = flagged.mark
   const rows = (data ?? []).map((r) => {
@@ -180,7 +181,7 @@ export async function listIncomingInvoicesAction(
     }
   })
   const visible = filter.status === 'not_invoice' ? rows.filter((r) => r.probably_not_invoice) : rows
-  return { rows: visible, error: null }
+  return { rows: visible, error: null, senders_failed: !flagged.ok }
 }
 
 export interface IncomingInvoiceDetail {

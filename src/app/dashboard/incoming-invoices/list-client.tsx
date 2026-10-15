@@ -75,11 +75,13 @@ export function IncomingInvoicesListClient({
   initialCounts,
   initialListError = null,
   initialCountsError = null,
+  initialSendersFailed = false,
 }: {
   initialRows: IncomingInvoiceListItem[]
   initialCounts: CountMap
   initialListError?: string | null
   initialCountsError?: string | null
+  initialSendersFailed?: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -97,6 +99,7 @@ export function IncomingInvoicesListClient({
 
   const [rows, setRows] = useState<IncomingInvoiceListItem[]>(initialRows)
   const [listError, setListError] = useState<string | null>(initialListError)
+  const [sendersFailed, setSendersFailed] = useState(initialSendersFailed)
   const [filter, setFilter] = useState<FilterKey>('needs_review')
   const [busy, startTransition] = useTransition()
   const [counts] = useState<CountMap>(initialCounts)
@@ -116,10 +119,13 @@ export function IncomingInvoicesListClient({
       // Refresh the current view in case it just appeared at top
       try {
         const next = await listIncomingInvoicesAction({ status: filter })
-        if (next.error) setListError(next.error)
-        else {
+        if (next.error) {
+          setListError(next.error)
+          setSendersFailed(false)
+        } else {
           setListError(null)
           setRows(next.rows)
+          setSendersFailed(!!next.senders_failed)
         }
       } catch {
         setListError('Kunne ikke hente fakturaer')
@@ -134,10 +140,13 @@ export function IncomingInvoicesListClient({
     startTransition(async () => {
       try {
         const next = await listIncomingInvoicesAction({ status: due ? 'approved' : filter })
-        if (next.error) setListError(next.error)
-        else {
+        if (next.error) {
+          setListError(next.error)
+          setSendersFailed(false)
+        } else {
           setListError(null)
           setRows(next.rows)
+          setSendersFailed(!!next.senders_failed)
         }
       } catch {
         setListError('Kunne ikke hente fakturaer')
@@ -251,6 +260,11 @@ export function IncomingInvoicesListClient({
       {listError && (
         <p className="text-sm text-red-700" data-testid="incoming-invoices-load-error">
           {listError}. Det tælles ikke som ingen fakturaer.
+        </p>
+      )}
+      {!listError && sendersFailed && (
+        <p className="text-sm text-red-700" data-testid="incoming-invoices-senders-error">
+          Afsendere kunne ikke hentes. Det tælles ikke som rigtige fakturaer.
         </p>
       )}
 

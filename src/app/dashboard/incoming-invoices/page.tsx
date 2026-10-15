@@ -29,13 +29,17 @@ export default async function IncomingInvoicesPage() {
 
   let rows: IncomingInvoiceListItem[] = []
   let listError: string | null = null
+  let sendersFailed = false
   let counts: Awaited<ReturnType<typeof getApprovalQueueCountsAction>> = EMPTY_COUNTS
   let countsError: string | null = null
 
   try {
     const result = await listIncomingInvoicesAction({ status: 'needs_review' })
     if (result.error) listError = result.error
-    else rows = result.rows
+    else {
+      rows = result.rows
+      sendersFailed = !!result.senders_failed
+    }
   } catch (err) {
     console.error('INCOMING INVOICES list fetch failed:', err)
     listError = 'Kunne ikke hente fakturaer'
@@ -55,6 +59,7 @@ export default async function IncomingInvoicesPage() {
       initialCounts={counts}
       initialListError={listError}
       initialCountsError={countsError}
+      initialSendersFailed={sendersFailed}
     />
   )
 }
