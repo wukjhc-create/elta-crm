@@ -55,7 +55,7 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
         </p>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
             <Stat label="Kontraktsum" value={data.has_contract_sum ? kr(data.contract_sum) : '—'} />
             <Stat label="Faktureret (netto)" value={kr(data.net_invoiced)} />
             <Stat label="Betalt" value={kr(data.paid_total)} tone="emerald" />
@@ -70,7 +70,7 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
           ) : (
             <div className="rounded-md bg-blue-50 ring-1 ring-blue-100 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-gray-600">Rest at fakturere</span>
-              <span className={`text-sm font-semibold ${(data.remaining_to_invoice ?? 0) > 0 ? 'text-blue-700' : 'text-gray-700'}`}>
+              <span className={`text-sm font-semibold break-words ${(data.remaining_to_invoice ?? 0) > 0 ? 'text-blue-700' : 'text-gray-700'}`}>
                 {kr(data.remaining_to_invoice)}
               </span>
             </div>
@@ -102,9 +102,9 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'emerald' | 'amber' }) {
   const color = tone === 'emerald' ? 'text-emerald-700' : tone === 'amber' ? 'text-amber-700' : 'text-gray-900'
   return (
-    <div>
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`text-base font-semibold ${color}`}>{value}</div>
+    <div className="min-w-0">
+      <div className="text-xs text-gray-500 break-words">{label}</div>
+      <div className={`text-base font-semibold break-words ${color}`}>{value}</div>
     </div>
   )
 }
