@@ -887,6 +887,51 @@ export async function createStageInvoiceAction(
   return result
 }
 
+export interface ContractFinalPreview {
+  is_contract: boolean
+  basis: number | null
+  basis_kind: 'contract_sum' | 'revised_sum' | null
+  ok: boolean
+  message: string | null
+  deductions: Array<{ invoice_number: string; invoice_type: string; amount: number; credited: number }>
+  deducted: number
+  remainder: number
+}
+
+/**
+ * PR-6 (Henrik 2026-10-15): forhåndsvisning af slutfakturaen på en fastprissag — samme plan som serveren bruger ved
+ * oprettelse (kontraktsum − tidligere faktureret = restbeløb). is_contract=false → almindelig linjebaseret slutfaktura.
+ */
+export async function getContractFinalPreviewAction(caseId: string): Promise<ContractFinalPreview> {
+  const none: ContractFinalPreview = { is_contract: false, basis: null, basis_kind: null, ok: false, message: null, deductions: [], deducted: 0, remainder: 0 }
+  try {
+    validateUUID(caseId, 'case_id')
+  } catch {
+    return { ...none, message: 'Ugyldigt case_id' }
+  }
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.create')) return { ...none, message: 'Manglende tilladelse: invoices.create' }
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { contractBasis } = await import('@/lib/invoices/contract-remainder')
+  const { loadContractRemainderPlan } = await import('@/lib/services/invoice-stage')
+  const admin = createAdminClient()
+  const { data: sums } = await admin.from('service_cases').select('contract_sum, revised_sum').eq('id', caseId).maybeSingle()
+  const s0 = (sums ?? {}) as { contract_sum?: number | string | null; revised_sum?: number | string | null }
+  const basis = contractBasis(s0)
+  if (basis == null) return none
+  const plan = await loadContractRemainderPlan(admin, caseId, basis)
+  return {
+    is_contract: true,
+    basis,
+    basis_kind: s0.revised_sum != null && Number(s0.revised_sum) > 0 ? 'revised_sum' : 'contract_sum',
+    ok: plan.ok,
+    message: plan.ok ? null : plan.message,
+    deductions: plan.ok ? plan.deductions.map(({ invoice_number, invoice_type, amount, credited }) => ({ invoice_number, invoice_type, amount, credited })) : [],
+    deducted: plan.deducted,
+    remainder: plan.remainder,
+  }
+}
+
 export async function createFinalInvoiceAction(
   input: CreateFinalInvoiceInput
 ): Promise<CreateFinalInvoiceResult> {

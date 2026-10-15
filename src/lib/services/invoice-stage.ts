@@ -25,6 +25,7 @@ import { netStageAmount, netStagePercentage } from '@/lib/invoices/stage-net'
 import type { InvoiceRow, InvoiceLineRow } from '@/types/invoice.types'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { CONTRACT_PRIOR_TYPES, contractBasis, contractTypeLabel, planContractRemainder, type ContractRemainderPlan } from '@/lib/invoices/contract-remainder'
 
 export type InvoiceType = 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
 export type AmountBasis = 'contract_sum' | 'revised_sum' | 'lines'
@@ -385,6 +386,17 @@ export async function createFinalInvoiceForCase(
     return {
       ...empty,
       message: `Slutfaktura findes allerede på sagen (${existingFinal.invoice_number})`,
+    }
+  }
+
+  // PR-6 (Henrik 2026-10-15): fastprissag → slutfaktura = restbeløb af kontraktsummen (timer/materialer lægges ikke oveni)
+  {
+    const { data: sums } = await supabase.from('service_cases').select('contract_sum, revised_sum').eq('id', sag.id).maybeSingle()
+    const s0 = (sums ?? {}) as { contract_sum?: number | string | null; revised_sum?: number | string | null }
+    const basis = contractBasis(s0)
+    if (basis != null) {
+      const kind = s0.revised_sum != null && Number(s0.revised_sum) > 0 ? 'revised_sum' : 'contract_sum'
+      return createContractFinalInvoice(supabase, sag as { id: string; case_number: string | null; customer_id: string; payer_customer_id: string | null }, kind, basis, input, approverId, empty)
     }
   }
 
@@ -847,6 +859,176 @@ export async function createFinalInvoiceForCase(
     tax_amount: tax,
     final_amount: final,
   }
+}
+
+// =====================================================
+// PR-6 (Henrik 2026-10-15) — slutfaktura på fastprissag
+// =====================================================
+
+/**
+ * Kontraktsag: slutfaktura = kontraktsum − tidligere faktureret (netto) = restbeløb (lib/invoices/contract-remainder).
+ * Timer/materialer/øvrige lægges IKKE oveni; de godkendte, fakturerbare og ufakturerede poster DÆKKES af kontraktlinjen
+ * (bindes til den, så de er låst og sagen kan lukkes). Afventende timer og kørende timere blokerer (som PR-3).
+ */
+async function createContractFinalInvoice(
+  supabase: ReturnType<typeof createAdminClient>,
+  sag: { id: string; case_number: string | null; customer_id: string; payer_customer_id: string | null },
+  basisKind: 'contract_sum' | 'revised_sum',
+  basis: number,
+  input: CreateFinalInvoiceInput,
+  approverId: string,
+  empty: CreateFinalInvoiceResult,
+): Promise<CreateFinalInvoiceResult> {
+  const plan = await loadContractRemainderPlan(supabase, sag.id, basis)
+  if (!plan.ok) return { ...empty, message: plan.message, deduction_total: plan.deducted }
+
+  // Arbejde på sagen der dækkes af kontrakten
+  const { data: wos } = await supabase.from('work_orders').select('id').eq('case_id', sag.id)
+  const woIds = (wos ?? []).map((w) => w.id as string)
+  type TlRow = { id: string; end_time: string | null; billable: boolean; approval_status: string | null; hours: number | string | null }
+  const tls: TlRow[] = woIds.length
+    ? await fetchAllRows<TlRow>((from, to) => supabase
+        .from('time_logs').select('id, end_time, billable, approval_status, hours')
+        .in('work_order_id', woIds).is('invoice_line_id', null).neq('approval_status', 'rejected')
+        .order('id').range(from, to) as never)
+    : []
+  if (tls.some((t) => t.end_time === null)) return { ...empty, message: 'Der kører en timer på sagen — stop den før slutfakturaen oprettes' }
+  const pending = tls.filter((t) => t.billable && t.approval_status !== 'approved')
+  if (pending.length) {
+    const h = pending.reduce((a, t) => a + (Number(t.hours ?? 0) || 0), 0)
+    return { ...empty, message: `${h.toLocaleString('da-DK', { maximumFractionDigits: 2 })} timer afventer godkendelse — godkend eller afvis dem under Timegodkendelse før slutfakturaen oprettes` }
+  }
+  const coverTl = tls.filter((t) => t.billable && t.approval_status === 'approved').map((t) => t.id)
+  const coverMat = (await fetchAllRows<{ id: string }>((from, to) => supabase.from('case_materials').select('id')
+    .eq('case_id', sag.id).is('invoice_line_id', null).eq('billable', true).order('id').range(from, to))).map((r) => r.id)
+  const coverOc = (await fetchAllRows<{ id: string }>((from, to) => supabase.from('case_other_costs').select('id')
+    .eq('case_id', sag.id).is('invoice_line_id', null).eq('billable', true).order('id').range(from, to))).map((r) => r.id)
+
+  const { data: numData, error: numErr } = await supabase.rpc('allocate_invoice_number')
+  if (numErr || !numData) return { ...empty, message: `Kunne ikke allokere fakturanummer: ${numErr?.message ?? 'ukendt'}` }
+  const subtotal = plan.remainder
+  const tax = r2(subtotal * VAT_RATE)
+  const final = r2(subtotal + tax)
+  const { data: header, error: hdrErr } = await supabase
+    .from('invoices')
+    .insert({
+      invoice_number: String(numData),
+      customer_id: sag.payer_customer_id ?? sag.customer_id,
+      case_id: sag.id,
+      status: 'draft' as const,
+      payment_status: 'pending' as const,
+      invoice_type: 'final' as const,
+      amount_basis: basisKind,
+      amount_basis_value: basis,
+      is_final_invoice: true,
+      stage_label: 'Slutfaktura (restbeløb af kontraktsum)',
+      total_amount: subtotal,
+      tax_amount: tax,
+      final_amount: final,
+      amount_paid: 0,
+      currency: 'DKK',
+      due_date: copenhagenDatePlusDays(input.due_days ?? 14),
+      reminder_count: 0,
+      notes: input.notes?.trim() || null,
+    })
+    .select('id, invoice_number')
+    .single()
+  if (hdrErr || !header) {
+    if ((hdrErr as { code?: string } | null)?.code === '23505') return { ...empty, message: 'Slutfaktura findes allerede på sagen (race detected)' }
+    return { ...empty, message: `Kunne ikke oprette slutfaktura-header: ${hdrErr?.message ?? 'ukendt'}` }
+  }
+
+  const lineRows = [
+    { invoice_id: header.id, position: 1, description: basisKind === 'revised_sum' ? 'Kontraktsum (revideret), ekskl. moms' : 'Kontraktsum, ekskl. moms', quantity: 1, unit: 'stk', unit_price: basis, total_price: basis },
+    ...plan.deductions.map((d, i) => ({
+      invoice_id: header.id,
+      position: i + 2,
+      description: `Fradrag: ${d.invoice_number} (${contractTypeLabel(d.invoice_type)}${d.credited > 0 ? ', efter kreditnota' : ''})`,
+      quantity: 1, unit: 'stk', unit_price: -d.amount, total_price: -d.amount,
+    })),
+  ]
+  const rollback = async () => {
+    const { data: ls } = await supabase.from('invoice_lines').select('id').eq('invoice_id', header.id)
+    const ids = (ls ?? []).map((l) => (l as { id: string }).id)
+    if (ids.length) for (const t of ['time_logs', 'case_materials', 'case_other_costs'] as const) await supabase.from(t).update({ invoice_line_id: null }).in('invoice_line_id', ids)
+    await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
+    await supabase.from('invoices').delete().eq('id', header.id)
+  }
+  const { error: linesErr } = await supabase.from('invoice_lines').insert(lineRows)
+  if (linesErr) {
+    await rollback()
+    return { ...empty, message: `Linje-INSERT fejlede (faktura rullet tilbage): ${linesErr.message}` }
+  }
+  const { data: contractLine } = await supabase.from('invoice_lines').select('id').eq('invoice_id', header.id).eq('position', 1).single()
+  const contractLineId = (contractLine as { id: string } | null)?.id
+  if (!contractLineId) { await rollback(); return { ...empty, message: 'Kontraktlinjen kunne ikke læses — slutfakturaen er ikke oprettet' } }
+
+  // Dæk sagens poster af kontraktlinjen (race-safe: hver binding skal ramme præcis 1 ufaktureret række)
+  let lost = 0
+  const groups: Array<['time_logs' | 'case_materials' | 'case_other_costs', string[]]> = [['time_logs', coverTl], ['case_materials', coverMat], ['case_other_costs', coverOc]]
+  for (const [table, ids] of groups) {
+    for (let k = 0; k < ids.length; k += 200) {
+      const chunk = ids.slice(k, k + 200)
+      const { data: bound } = await supabase.from(table).update({ invoice_line_id: contractLineId }).in('id', chunk).is('invoice_line_id', null).select('id')
+      lost += chunk.length - (bound ?? []).length
+    }
+  }
+  if (lost > 0) {
+    await rollback()
+    return { ...empty, message: 'Nogle poster blev faktureret samtidig på en anden faktura — slutfakturaen er ikke oprettet. Genindlæs og prøv igen.' }
+  }
+
+  if (plan.deductions.length) {
+    const { error: predErr } = await supabase.from('invoice_predecessors').insert(plan.deductions.map((d) => ({ invoice_id: header.id, predecessor_invoice_id: d.id, deduction_amount: d.amount })))
+    if (predErr) logger.warn('predecessor link insert failed (contract final still created)', { entityId: header.id, error: predErr })
+  }
+  const covered = coverTl.length + coverMat.length + coverOc.length
+  try {
+    await supabase.from('audit_logs').insert({
+      user_id: approverId,
+      entity_type: 'invoice',
+      entity_id: header.id,
+      entity_name: header.invoice_number,
+      action: 'final_invoice_created_from_case',
+      action_description: `Slutfaktura ${header.invoice_number} (restbeløb af kontraktsum ${basis} kr): ${plan.deductions.length} fradrag i alt ${plan.deducted} kr, ${covered} poster dækket af kontrakten`,
+      changes: { mode: 'contract_remainder', basis_kind: basisKind, basis, deducted: plan.deducted, remainder: plan.remainder, covered_time_logs: coverTl.length, covered_materials: coverMat.length, covered_other_costs: coverOc.length },
+      metadata: { case_id: sag.id },
+    })
+  } catch (e) {
+    logger.error('audit contract final failed', { error: e, entityId: header.id })
+  }
+  return {
+    ok: true,
+    message: `Slutfaktura ${header.invoice_number} oprettet: restbeløb ${plan.remainder.toLocaleString('da-DK', { minimumFractionDigits: 2 })} kr ekskl. moms (kontraktsum − ${plan.deductions.length} tidligere faktura${plan.deductions.length === 1 ? '' : 'er'}); ${covered} poster dækket af kontrakten`,
+    invoice_id: header.id,
+    invoice_number: header.invoice_number,
+    predecessor_count: plan.deductions.length,
+    deduction_total: plan.deducted,
+    unbilled_lines_count: covered,
+    total_amount: subtotal,
+    tax_amount: tax,
+    final_amount: final,
+  }
+}
+
+/** Plan for restbeløb (bruges af slutfakturaen og forhåndsvisningen) — læser forgængere + udstedte kreditnotaer */
+export async function loadContractRemainderPlan(
+  supabase: ReturnType<typeof createAdminClient>,
+  caseId: string,
+  basis: number,
+): Promise<ContractRemainderPlan> {
+  const { data: priors } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, invoice_type, status, total_amount')
+    .eq('case_id', caseId)
+    .in('invoice_type', [...CONTRACT_PRIOR_TYPES])
+  const rows = (priors ?? []) as Array<{ id: string; invoice_number: string; invoice_type: string; status: string; total_amount: number | string | null }>
+  const ids = rows.map((r) => r.id)
+  const credited = await creditedByInvoice(supabase, ids)
+  const { data: draftCredits } = ids.length
+    ? await supabase.from('invoices').select('id').in('credit_of_invoice_id', ids).eq('invoice_type', 'credit').eq('status', 'draft')
+    : { data: [] as Array<{ id: string }> }
+  return planContractRemainder(basis, rows.map((r) => ({ ...r, credited: credited.get(r.id) ?? 0 })), (draftCredits ?? []).length > 0)
 }
 
 // =====================================================

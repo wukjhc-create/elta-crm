@@ -1312,6 +1312,55 @@ ${m.text()}`) })
         out.push({ id: 'U28 leverandørfaktura → sag', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U162 PR-6 (Henrik 2026-10-15): fastprissag — slutfakturaen viser og opretter RESTBELØBET af kontraktsummen
+      // (10.000 − forskud 3.000 = 7.000 ekskl. moms), ikke timer/materialer oveni
+      if (want('U162') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        let u162Txt = ''
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] fastpris ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, contract_sum: 10000 }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const invIds: string[] = []
+        if (caseId) {
+          listCaseIds.push(caseId)
+          const dep = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-FP-${stamp}`, customer_id: profitCustomerId, case_id: caseId,
+            invoice_type: 'deposit', status: 'sent', total_amount: 3000, tax_amount: 750, final_amount: 3750 }]).select('id')
+          const depId = (dep.data?.[0] as { id?: string } | undefined)?.id
+          if (depId) invIds.push(depId)
+          await c.admin.from('case_materials').insert([{ case_id: caseId, description: `fp kabel ${stamp}`, quantity: 10, unit: 'm', unit_cost: 10, unit_sales_price: 15, billable: true, source: 'manual', created_by: adminUser.id }])
+        }
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: /Slutfaktura/ }).first().click({ timeout: 90_000 }).catch(() => {})
+          const prev = a.page.getByTestId('contract-final-totals')
+          await prev.waitFor({ timeout: 60_000 }).catch(() => {})
+          const txt = ((await prev.innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ')
+          u162Txt = txt
+          r.preview_restbeloeb = /Restbeløb/i.test(txt) && /7\.000/.test(txt) && /10\.000/.test(txt)
+          r.forklaring = (await a.page.getByTestId('contract-final-preview').count()) === 1
+          await a.page.getByRole('button', { name: /Opret slutfaktura/ }).click({ timeout: 60_000 }).catch(() => {})
+          let fin: { id?: string; total_amount?: number } | null = null
+          for (let i = 0; i < 20 && !(Number(fin?.total_amount) > 0); i++) {
+            fin = ((await c.admin.from('invoices').select('id, total_amount').eq('case_id', caseId ?? '').eq('invoice_type', 'final').maybeSingle()).data as typeof fin)
+            if (!(Number(fin?.total_amount) > 0)) await new Promise((res) => setTimeout(res, 1000))
+          }
+          if (fin?.id) invIds.push(fin.id)
+          r.oprettet_7000 = Number(fin?.total_amount) === 7000
+          const mat = ((await c.admin.from('case_materials').select('invoice_line_id').eq('case_id', caseId ?? '')).data ?? []) as Array<{ invoice_line_id: string | null }>
+          r.materiale_daekket = mat.length === 1 && !!mat[0].invoice_line_id
+        } finally {
+          if (invIds.length) {
+            const lineIds = (((await c.admin.from('invoice_lines').select('id').in('invoice_id', invIds)).data ?? []) as Array<{ id: string }>).map((l) => l.id)
+            if (lineIds.length) await c.admin.from('case_materials').update({ invoice_line_id: null }).in('invoice_line_id', lineIds)
+            await c.admin.from('invoice_predecessors').delete().in('invoice_id', invIds)
+            await c.admin.from('invoice_lines').delete().in('invoice_id', invIds)
+            await c.admin.from('invoices').delete().in('id', invIds)
+          }
+          if (caseId) await c.admin.from('case_materials').delete().eq('case_id', caseId)
+        }
+        out.push({ id: 'U162 fastprissag: slutfaktura = restbeløb af kontraktsum', ok: !!caseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · "${u162Txt.slice(0, 160)}"` })
+      }
+
       // U29 betaling registreret på kundefaktura
       if (want('U29') && profitCustomerId) {
         const r: Record<string, boolean> = {}

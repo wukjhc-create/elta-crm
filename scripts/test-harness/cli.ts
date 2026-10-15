@@ -2168,6 +2168,13 @@ async function main() {
     process.exitCode = fails ? 2 : 0
     return
   }
+  if (SUB === 'contract-final-check') {
+    const { runContractFinalCheck, formatContractFinalCheck } = await import('./contract-final-check')
+    const checks = await runContractFinalCheck({ admin })
+    log(formatContractFinalCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'economic-killswitch-check') {
     // PR-2 (Henrik 2026-10-15): med ECONOMIC_PUSH_ENABLED fra må INTET skrivende kald nå e-conomic — fetch tælles
     let fails = 0

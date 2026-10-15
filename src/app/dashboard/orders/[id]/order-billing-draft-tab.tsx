@@ -21,6 +21,8 @@ import {
 } from 'lucide-react'
 import {
   createFinalInvoiceAction,
+  getContractFinalPreviewAction,
+  type ContractFinalPreview,
   createInvoiceDraftFromCaseAction,
   createStageInvoiceAction,
   listStageInvoicesForCaseAction,
@@ -931,6 +933,8 @@ function BillingFinalMode({
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const [includeLines, setIncludeLines] = useState(true)
+  // PR-6 (Henrik 2026-10-15): fastprissag → restbeløb af kontraktsum (samme plan som serveren)
+  const [contract, setContract] = useState<ContractFinalPreview | null>(null)
   const [dueDays, setDueDays] = useState(14)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -942,9 +946,11 @@ function BillingFinalMode({
     Promise.all([
       listStageInvoicesForCaseAction(caseId),
       listUnbilledForCaseAction(caseId),
-    ]).then(([sRes, uRes]) => {
+      getContractFinalPreviewAction(caseId),
+    ]).then(([sRes, uRes, cRes]) => {
       if (cancelled) return
       setLoading(false)
+      setContract(cRes)
       if (!sRes.ok) {
         setLoadError(sRes.message ?? 'Kunne ikke hente stage-fakturaer')
         return
@@ -996,9 +1002,10 @@ function BillingFinalMode({
   const vat = r2(subtotal * VAT_RATE)
   const finalAmount = r2(subtotal + vat)
 
+  const isContract = !!contract?.is_contract
   const noLines =
-    !includeLines && predecessors.length === 0 && positiveSubtotal === 0
-  const onlyDeductions = positiveSubtotal === 0 && deductionTotal > 0
+    !isContract && !includeLines && predecessors.length === 0 && positiveSubtotal === 0
+  const onlyDeductions = !isContract && positiveSubtotal === 0 && deductionTotal > 0
 
   const handleSubmit = async () => {
     setSubmitError(null)
@@ -1127,6 +1134,27 @@ function BillingFinalMode({
 
       {/* Form */}
       <div className="rounded-lg ring-1 ring-gray-200 bg-white p-4 space-y-3">
+        {isContract && contract && (
+          <div className="space-y-2" data-testid="contract-final-preview">
+            <div className="rounded ring-1 ring-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+              <strong>Fastprissag.</strong> Slutfakturaen er restbeløbet af {contract.basis_kind === 'revised_sum' ? 'den reviderede kontraktsum' : 'kontraktsummen'} minus det der allerede er faktureret (forskud, rater, del-fakturaer — efter kreditnotaer). Timer og materialer faktureres ikke oveni; de dækkes af kontrakten.
+            </div>
+            {contract.deductions.length > 0 && (
+              <ul className="text-xs text-gray-700 space-y-0.5">
+                {contract.deductions.map((d) => (
+                  <li key={d.invoice_number} className="flex justify-between gap-2">
+                    <span>Fradrag: {d.invoice_number} ({d.invoice_type === 'deposit' ? 'forskud' : d.invoice_type === 'progress' ? 'rate' : 'del-faktura'}{d.credited > 0 ? ', efter kreditnota' : ''})</span>
+                    <span className="tabular-nums text-red-700">−{fmtKr(d.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!contract.ok && contract.message && (
+              <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="contract-final-blocked">{contract.message}</div>
+            )}
+          </div>
+        )}
+        {!isContract && (
         <label className="flex items-start gap-2 text-sm cursor-pointer">
           <input
             type="checkbox"
@@ -1146,6 +1174,7 @@ function BillingFinalMode({
             )}
           </span>
         </label>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -1181,12 +1210,21 @@ function BillingFinalMode({
         </div>
 
         {/* Live preview */}
+        {isContract && contract ? (
+          <div className="rounded ring-1 ring-gray-200 bg-gray-50 p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm" data-testid="contract-final-totals">
+            <Total label="Kontraktsum" value={fmtKr(contract.basis ?? 0)} />
+            <Total label="Tidligere faktureret" value={`−${fmtKr(contract.deducted)}`} />
+            <Total label="Restbeløb (ekskl. moms)" value={fmtKr(contract.remainder)} />
+            <Total label="Total inkl. moms" value={fmtKr(contract.ok ? r2(contract.remainder * (1 + VAT_RATE)) : 0)} emphasis />
+          </div>
+        ) : (
         <div className="rounded ring-1 ring-gray-200 bg-gray-50 p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <Total label="Linjer" value={fmtKr(positiveSubtotal)} />
           <Total label="Fradrag" value={`−${fmtKr(deductionTotal)}`} />
           <Total label="Subtotal" value={fmtKr(subtotal)} />
           <Total label="Total inkl. moms" value={fmtKr(finalAmount)} emphasis />
         </div>
+        )}
 
         {onlyDeductions && (
           <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -1210,9 +1248,11 @@ function BillingFinalMode({
               ? 'Der findes en åben timer — luk den først'
               : existingFinal
                 ? 'Sagen er allerede afsluttet med en slutfaktura'
-                : noLines
-                  ? 'Ingen linjer at fakturere'
-                  : null
+                : isContract && contract && !contract.ok
+                  ? 'Se beskeden ovenfor'
+                  : noLines
+                    ? 'Ingen linjer at fakturere'
+                    : null
           return (
             <div className="flex items-center justify-end gap-2 flex-wrap border-t pt-3">
               {reason && !submitting && (
