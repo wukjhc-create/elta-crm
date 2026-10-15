@@ -256,13 +256,13 @@ export function QuickJobsPicker({
                   key={job.id}
                   onClick={() => handleSelectJob(job)}
                   disabled={loadingJob === job.id}
-                  className="flex items-center gap-2 p-2 bg-white rounded-lg border border-yellow-200 hover:border-yellow-400 hover:bg-yellow-50 transition-colors text-left disabled:opacity-50"
+                  className="flex items-start gap-2 p-2 bg-white rounded-lg border border-yellow-200 hover:border-yellow-400 hover:bg-yellow-50 transition-colors text-left disabled:opacity-50"
                 >
                   <div className="w-8 h-8 rounded bg-yellow-100 text-yellow-600 flex items-center justify-center flex-shrink-0">
                     <Icon className="w-4 h-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{job.name}</p>
+                    <p className="text-sm font-medium break-words">{job.name}</p>
                     <p className="text-xs text-gray-500">{formatTimeMinutes(job.estimated_time_minutes)}</p>
                   </div>
                 </button>
@@ -289,7 +289,7 @@ export function QuickJobsPicker({
                   key={job.id}
                   onClick={() => handleSelectJob(job)}
                   disabled={loadingJob === job.id}
-                  className="w-full p-3 hover:bg-gray-50 transition-colors flex items-center gap-3 text-left disabled:opacity-50"
+                  className="w-full p-3 hover:bg-gray-50 transition-colors flex items-start gap-3 text-left disabled:opacity-50"
                 >
                   <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
                     {loadingJob === job.id ? (
@@ -300,8 +300,8 @@ export function QuickJobsPicker({
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">{job.name}</span>
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium break-words min-w-0">{job.name}</span>
                       {job.is_featured && (
                         <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />
                       )}
@@ -317,7 +317,7 @@ export function QuickJobsPicker({
                       </Badge>
                     </div>
                     {job.description && (
-                      <p className="text-xs text-gray-400 mt-1 truncate">
+                      <p className="text-xs text-gray-400 mt-1 break-words line-clamp-2">
                         {job.description}
                       </p>
                     )}
