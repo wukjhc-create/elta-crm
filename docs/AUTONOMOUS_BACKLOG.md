@@ -68,17 +68,17 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | B-6 (S2) | Forfaldne leverandørfakturaer: klientfilter på 200 nyeste → færre end widgetten | TODO |
 | B-7 (S3) | Forfaldsoversigt: fejl → "0 forfaldne", valutaer lægges sammen | TODO |
 | B-8 (S3) | Leverandørfaktura-fane/tællere og rapportfiltre ikke i URL / opdateres ikke efter handling | TODO |
-| B-9 (S2) | Rapporter: "Omsætning" og "Top kunder" er accepterede tilbud, ikke fakturering | TODO |
-| B-10 (S3) | Dashboard henter alle rækker for at tælle; fejl → 0 uden advarsel | TODO |
+| B-9 (S2) | Rapporter: "Omsætning" og "Top kunder" er accepterede tilbud, ikke fakturering | DELVIS — omdøbt til "Ordreindgang (accepterede tilbud)"; faktureret serie = TODO. UI U88/U91 |
+| B-10 (S3) | Dashboard henter alle rækker for at tælle; fejl → 0 uden advarsel | DELVIS — fundet under test: "klar til lukning" brugte .limit(200) uden rækkefølge (nye sager faldt ud ved >200 åbne) → alle åbne pagineret, nyeste først, arbejdsordrer i bidder. UI U67. Tælle-optimering = TODO |
 | B-11 (S3) | "+ Opret test-leverandørfaktura" synlig i prod og kobler til rigtig sag; forældet engelsk tekst | DONE — kun når TEST_SEED_ENABLED=true (knap + server-handling); tekst "bogføres i e-conomic via Bogfør". UI U28 |
 | S-1 (S2) | Tilbudsstatus-piller: ét klik "Sendt" (ingen mail) og irreversibel "Accepteret" (vinder lead + opretter sag) uden bekræftelse | DONE — kun nuværende + tilladte skift vises ("Set" sættes af portalen), alle skift bekræftes med konsekvens, låst mens det kører. UI U60 |
 | S-2 (S3) | Inline-redigering af leverandørlinje overskriver supplier_cost_price_at_creation; avance 0 → null | TODO |
-| S-3 (S3) | Dashboard "Samlet værdi" = 5 nyeste, før rabat — afviger fra stat-kortet | TODO |
+| S-3 (S3) | Dashboard "Samlet værdi" = 5 nyeste, før rabat — afviger fra stat-kortet | DONE — "Seneste N (ekskl. moms)", beløb efter rabat ekskl. moms (som stat-kortet). UI U70/U76 |
 | S-4 (S3) | Lead-kanban taber leads efter 500 (lukkede fylder) | TODO |
 | S-5 (S3) | Auto "Følg op: intet svar"-opgave uden due_date (vises ikke) og lukkes ikke ved accept/afvisning | DONE — due_date sættes; lukkes ved accept/afvisning (portal + manuel status, lib/offers/follow-up-tasks.ts). UI U170 |
 | S-6 (S3) | Send på mail: statusskift uden CAS, aktivitet, audit, webhook og revalidering | TODO |
 | S-7 (S3) | Manuel mail→kunde-kobling kan fejle tavst (0 rækker) og kobler ikke resten af tråden | DONE — 0 rækker → fejl; trådens øvrige mails uden kunde kobles med. UI U171 |
-| S-8 (S3) | Indbakke viser tom liste/0-tællere ved DB-fejl | TODO |
+| S-8 (S3) | Indbakke viser tom liste/0-tællere ved DB-fejl | DELVIS — listefejl vises som fejlbanner, baggrundsopdatering tømmer ikke listen ved fejl. Tællere (stats) = TODO |
 | S-9 (S3) | createCustomerFromEmail kun gated på inbox.view (opretter kunder/leads); quickCreateCustomerFromEmail død men kaldbar | DONE — kræver også customers.create; død action fjernet. UI U68/U52 |
 | S-10 (S4) | Lead-tidslinje viser engelske statuskoder | DONE — nye aktiviteter med danske navne, gamle oversættes ved visning. UI U27 |
 | S-11 (S4) | Accept/afvis-notifikationsmail linker til listen, mangler tilbudsnr./kunde | DELVIS — linker direkte til tilbuddet; tilbudsnr./kunde i teksten = TODO |

@@ -63,7 +63,7 @@ export async function getIncomingEmails(options?: {
   search?: string
   page?: number
   pageSize?: number
-}): Promise<{ data: IncomingEmailWithCustomer[]; count: number }> {
+}): Promise<{ data: IncomingEmailWithCustomer[]; count: number; error?: string }> {
   const supabase = await createClient()
   const filter = options?.filter || 'all'
   const readFilter = options?.readFilter || 'all'
@@ -167,7 +167,8 @@ export async function getIncomingEmails(options?: {
 
   if (error) {
     logger.error('Failed to fetch incoming emails', { error })
-    return { data: [], count: 0 }
+    // S-8 (pilot-review 2026-10-15): fejl meldes — før lignede en DB-timeout en tom indbakke ("ingen mail")
+    return { data: [], count: 0, error: 'Kunne ikke hente mails lige nu — prøv igen om lidt' }
   }
 
   const rows = (data || []) as unknown as IncomingEmailWithCustomer[] // body_html/body_text er undefined (hentes ved åbning)

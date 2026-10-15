@@ -82,7 +82,9 @@ function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
     <div className="bg-white rounded-lg border p-6">
       <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
         <BarChart3 className="w-5 h-5 text-gray-400" />
-        Omsætning pr. måned
+        {/* B-9 (pilot-review 2026-10-15): tallene er accepterede tilbud (ordreindgang), ikke fakturering — kunne ikke
+            afstemmes med e-conomic under navnet "omsætning" */}
+        Ordreindgang pr. måned (accepterede tilbud)
       </h3>
       <div className="flex items-end gap-3 h-48">
         {data.map((d) => {
@@ -106,7 +108,7 @@ function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
       </div>
       <div className="flex items-center gap-4 mt-4 pt-3 border-t text-xs text-gray-500">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-primary/80" /> Accepteret omsætning
+          <span className="w-3 h-3 rounded bg-primary/80" /> Accepterede tilbud
         </span>
       </div>
     </div>
@@ -122,7 +124,7 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
     <div className="bg-white rounded-lg border p-6">
       <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
         <Building2 className="w-5 h-5 text-gray-400" />
-        Top kunder (omsætning)
+        Top kunder (ordreindgang)
       </h3>
       {data.length === 0 ? (
         <p className="text-sm text-gray-400 py-8 text-center">Ingen data endnu</p>
@@ -134,7 +136,7 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
                 <th className="pb-2 font-medium text-gray-500">Kunde</th>
                 <th className="pb-2 font-medium text-gray-500 text-right">Tilbud</th>
                 <th className="pb-2 font-medium text-gray-500 text-right">Accept %</th>
-                <th className="pb-2 font-medium text-gray-500 text-right">Omsætning</th>
+                <th className="pb-2 font-medium text-gray-500 text-right">Ordreindgang</th>
               </tr>
             </thead>
             <tbody>
@@ -478,7 +480,7 @@ function RejectionAnalyticsSection({ stats }: { stats: RejectionStats | null }) 
           color="bg-red-100 text-red-600"
         />
         <KpiCard
-          label="Tabt omsætning"
+          label="Tabt ordreværdi"
           value={formatCurrency(stats.lostRevenue)}
           sublabel="Fra afviste tilbud"
           icon={TrendingDown}
@@ -606,16 +608,16 @@ export default function ReportsClient() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Rapporter</h1>
-        <p className="text-gray-500">Omsætning, projekt-rentabilitet og team-produktivitet</p>
+        <p className="text-gray-500">Ordreindgang, projekt-rentabilitet og team-produktivitet</p>
       </div>
 
       {/* KPI Cards */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KpiCard
-            label="Total omsætning"
+            label="Ordreindgang"
             value={formatCurrency(summary.total_revenue)}
-            sublabel="Accepterede tilbud"
+            sublabel="Accepterede tilbud (ikke faktureret)"
             icon={DollarSign}
             color="bg-green-100 text-green-600"
           />

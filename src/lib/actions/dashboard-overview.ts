@@ -289,18 +289,26 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         overview.cases.total = totalRes.count || 0
         // N27: klar til lukning — kandidater (≥1 job udført, ingen åbne job) i én forespørgsel, fuld vurdering
         // (inkl. ufaktureret/kørende timer) kun for kandidaterne. Kræver cases.close (ellers null → 0).
-        const { data: open } = await supabase.from('service_cases').select('id').in('status', ['new', 'in_progress', 'pending']).eq('is_proposal', false).limit(200)
-        const ids = ((open ?? []) as Array<{ id: string }>).map((x) => x.id)
+        // M-12/B-10 (pilot-review 2026-10-15): før .limit(200) uden rækkefølge → med >200 åbne sager forsvandt vilkårlige
+        // (også nye) sager fra tællingen; nu alle åbne (pagineret, nyeste først) og arbejdsordrer i bidder
+        const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+        const { selectInChunks } = await import('@/lib/supabase/in-chunks')
+        const open = await fetchAllRows<{ id: string }>((f, t) => supabase.from('service_cases').select('id')
+          .in('status', ['new', 'in_progress', 'pending']).eq('is_proposal', false)
+          .order('created_at', { ascending: false }).order('id').range(f, t))
+        const ids = open.map((x) => x.id)
         if (ids.length) {
-          const { data: wos } = await supabase.from('work_orders').select('case_id, status').in('case_id', ids)
+          const wos = await selectInChunks<{ case_id: string; status: string }>(ids,
+            (chunk) => supabase.from('work_orders').select('case_id, status').in('case_id', chunk), 100)
           const agg = new Map<string, { done: number; open: number }>()
-          for (const w of (wos ?? []) as Array<{ case_id: string; status: string }>) {
+          for (const w of wos) {
             const a = agg.get(w.case_id) ?? { done: 0, open: 0 }
             if (w.status === 'done') a.done++
             else if (w.status === 'planned' || w.status === 'in_progress') a.open++
             agg.set(w.case_id, a)
           }
-          const candidates = [...agg.entries()].filter(([, a]) => a.done > 0 && a.open === 0).map(([id]) => id).slice(0, 25)
+          // nyeste sager først (ids er sorteret efter oprettelse); loft 200 kandidater til den samlede vurdering
+          const candidates = ids.filter((id) => { const a = agg.get(id); return !!a && a.done > 0 && a.open === 0 }).slice(0, 200)
           if (candidates.length && roleCtx.hasPermission('cases.close')) {
             // R-10: samlet vurdering (5 forespørgsler) i stedet for ≈5 pr. kandidat
             const { batchCaseCloseReadiness } = await import('@/lib/cases/close-readiness-batch')
