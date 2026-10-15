@@ -1854,6 +1854,7 @@ ${m.text()}`) })
       // U43 omplanlægning fra kalenderen (montør/planlægning)
       if (want('U43') && profitCustomerId) {
         const r: Record<string, boolean> = {}
+        let dndDiag = ''
         const mkEmp = async (n: string) => ((await c.admin.from('employees').insert([{ name: `Harness ${n} ${stamp}`, email: `${n.toLowerCase()}-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300 }]).select('id')).data?.[0] as { id?: string } | undefined)?.id
         const empA = await mkEmp('Anders'), empB = await mkEmp('Bente')
         u43.employeeIds = [empA, empB].filter((x): x is string => !!x)
@@ -1901,6 +1902,26 @@ ${m.text()}`) })
         r.kapacitet_norm = /Planlagt 6 t af norm 5 t/.test(((await bRow.getByTestId('week-employee-capacity').textContent().catch(() => '')) ?? ''))
         r.kapacitet_ikke_sat = /Norm ikke sat/.test(((await a.page.locator('tr', { hasText: `Harness Anders ${stamp}` }).first().getByTestId('week-employee-capacity').textContent().catch(() => '')) ?? ''))
         r.uge_belastning = (await bRow.getByTestId('week-day-overload').count()) === 1 && /2 aktive job denne uge/.test(((await bRow.getByTestId('week-employee-load').textContent().catch(() => '')) ?? ''))
+        // E-7: træk jobbet fra Bente til Anders samme dag (træk-og-slip i ugevisningen)
+        {
+          const chip = a.page.locator(`[data-testid="wo-chip"][data-wo-id="${u43.woId}"]`).first()
+          const target = a.page.locator(`[data-testid="week-cell"][data-employee-id="${empA}"][data-date="${d3}"]`).first()
+          // HTML5-træk: fælles DataTransfer (Playwrights musebaserede dragTo udløser ikke altid drop)
+          const dt = await a.page.evaluateHandle(() => new DataTransfer())
+          await chip.dispatchEvent('dragstart', { dataTransfer: dt }).catch(() => {})
+          await target.dispatchEvent('dragover', { dataTransfer: dt }).catch(() => {})
+          await target.dispatchEvent('drop', { dataTransfer: dt }).catch(() => {})
+          let moved = ''
+          for (let i = 0; i < 15 && moved !== empA; i++) {
+            moved = String(((await c.admin.from('work_orders').select('assigned_employee_id').eq('id', u43.woId ?? '').maybeSingle()).data as { assigned_employee_id?: string } | null)?.assigned_employee_id ?? '')
+            if (moved !== empA) await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.traek_og_slip = moved === empA
+          if (!r.traek_og_slip) dndDiag = `msg="${((await a.page.getByTestId('calendar-drop-msg').textContent().catch(() => '')) ?? '').slice(0, 120)}" chips=${await chip.count()} celler=${await target.count()} draggable=${await chip.getAttribute('draggable').catch(() => '?')}`
+          // tilbage til Bente (så resten af testen er uændret)
+          if (u43.woId && empB) await c.admin.from('work_orders').update({ assigned_employee_id: empB }).eq('id', u43.woId)
+          await gotoSafe(a.page, `${base}/dashboard/calendar?view=week&date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        }
         // E-7: klik på Anders' tomme celle på d3 → planlæg-dialog med Anders + d3 udfyldt
         const aRow = a.page.locator('tr', { hasText: `Harness Anders ${stamp}` }).first()
         await aRow.getByRole('button', { name: new RegExp(`Planlæg .* ${d3}`) }).click({ timeout: 30_000 }).catch(() => {})
@@ -1910,7 +1931,7 @@ ${m.text()}`) })
           && (await pdlg.locator('select').first().inputValue().catch(() => '')) === (empA ?? '-')
         await a.page.keyboard.press('Escape').catch(() => {})
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u43-omplanlaegning.png'), fullPage: true }).catch(() => {})
-        out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+        out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${dndDiag ? ` · ${dndDiag}` : ''}` })
       }
 
       // U164 00231 (Henrik 2026-10-15): momsmode på kunden — admin vælger "Omvendt betalingspligt" i kundeformularen → gemt
