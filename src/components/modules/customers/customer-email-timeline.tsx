@@ -71,7 +71,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
   // N80: pladsholder fra mail-automatikken (@elta-crm.local) — ingen afsendelse/søgning på adressen
   const noRealEmail = (customerEmail ?? '').toLowerCase().endsWith('@elta-crm.local')
   // N24a: tidligere mails fra kundens adresse, der ikke er koblet til kunden
-  const [unlinked, setUnlinked] = useState(0)
+  const [unlinked, setUnlinked] = useState<number | null>(0)
   const [linking, setLinking] = useState(false)
   const linkOld = async () => {
     setLinking(true)
@@ -94,6 +94,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
       setEmails([])
       setConversations([])
       setUnreadCount(0)
+      setUnlinked(0)
       setLoadError(false)
     }
     setLoading(true)
@@ -112,7 +113,13 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
     setUnreadCount(result.unreadCount)
     setCanReply(result.canReply)
     setLoading(false)
-    if (result.canReply) setUnlinked(await getUnlinkedCustomerEmailCountAction(customerId))
+    if (result.canReply) {
+      try {
+        setUnlinked(await getUnlinkedCustomerEmailCountAction(customerId))
+      } catch {
+        setUnlinked(null)
+      }
+    }
   }
 
   useEffect(() => { load() }, [customerId, customerEmail])
@@ -226,7 +233,12 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
         <p className="text-xs text-gray-400 mt-1">
           {noRealEmail ? <span data-testid="customer-mails-no-email">Kunden mangler e-mail — kun mails der er koblet til kunden vises</span>
             : canReply ? <>Kun mails til/fra {customerEmail}</> : <span data-testid="customer-mails-readonly">Mails koblet til kunden (kun læsning)</span>}
-          {canReply && !noRealEmail && unlinked > 0 && (
+          {canReply && !noRealEmail && unlinked == null && (
+            <span className="ml-2 text-red-700" data-testid="customer-mails-unlinked-error">
+              Tidligere mails kunne ikke tælles. Det tælles ikke som 0.
+            </span>
+          )}
+          {canReply && !noRealEmail && (unlinked ?? 0) > 0 && (
             <button type="button" onClick={linkOld} disabled={linking} className="ml-2 text-emerald-700 hover:underline disabled:opacity-50" data-testid="customer-mails-link-old">
               {linking ? 'Kobler…' : `Kobl ${unlinked} tidligere mail(s) fra adressen til kunden`}
             </button>

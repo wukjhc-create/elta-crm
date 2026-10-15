@@ -574,10 +574,11 @@ export async function getUnreadCustomerEmailCount(): Promise<number> {
  * N24a: ukoblede mails fra kundens adresse (fx modtaget før kunden blev oprettet) — antal og ét-klik kobling på
  * kundekortet. Kræver customers.edit (samme som at svare kunden); skriver med bruger-sessionen (RLS).
  */
-export async function getUnlinkedCustomerEmailCountAction(customerId: string): Promise<number> {
+export async function getUnlinkedCustomerEmailCountAction(customerId: string): Promise<number | null> {
   if (await gateDenied('customers.edit')) return 0
   const supabase = await createClient()
-  const { data: cust } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+  const { data: cust, error: custError } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+  if (custError) return null
   const { countUnlinkedEmailsFromAddress } = await import('@/lib/mail/retro-link')
   return countUnlinkedEmailsFromAddress(supabase, (cust as { email?: string | null } | null)?.email)
 }

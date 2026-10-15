@@ -30,14 +30,18 @@ function addressFilter(email: string): string {
   return `sender_email.ilike.${q},original_sender_email.ilike.${q}`
 }
 
-export async function countUnlinkedEmailsFromAddress(supabase: Client, email: string | null | undefined): Promise<number> {
+export async function countUnlinkedEmailsFromAddress(supabase: Client, email: string | null | undefined): Promise<number | null> {
   if (!email || !email.includes('@') || !retroLinkable(email)) return 0
-  const { count } = await supabase
+  const { count, error } = await supabase
     .from('incoming_emails')
     .select('id', { count: 'exact', head: true })
     .is('customer_id', null)
     .neq('link_status', 'ignored')
     .or(addressFilter(email))
+  if (error) {
+    logger.warn('kunne ikke taelle ukoblede mails', { error })
+    return null
+  }
   return count ?? 0
 }
 
