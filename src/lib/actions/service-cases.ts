@@ -89,6 +89,21 @@ export async function getServiceCases(filters?: {
         customer:customers!service_cases_customer_id_fkey(id, company_name, contact_person, email, phone),
         assignee:profiles!service_cases_assigned_to_fkey(id, full_name)
       `
+    // W-1 (pilot-review 2026-10-15): søgningen matcher også kundenavn/-nr., projektnavn, adresse, postnr./by og reference
+    // (label lovede "titel · kunde · case nr"). Kunde-id'er slås op først (PostgREST kan ikke OR'e på relationer).
+    let searchOr: string | null = null
+    if (filters?.search) {
+      const term = pgQuote(`%${escapeLike(filters.search)}%`)
+      const { data: matchingCustomers } = await supabase
+        .from('customers')
+        .select('id')
+        .or(`company_name.ilike.${term},customer_number.ilike.${term},contact_person.ilike.${term}`)
+        .limit(100)
+      const parts = ['title', 'case_number', 'description', 'project_name', 'address', 'postal_code', 'city', 'reference'].map((c) => `${c}.ilike.${term}`)
+      const ids = ((matchingCustomers ?? []) as Array<{ id: string }>).map((c) => c.id)
+      if (ids.length) parts.push(`customer_id.in.(${ids.join(',')})`)
+      searchOr = parts.join(',')
+    }
     // Filtre som funktion, så et stort sags-scope (montør/salg) kan pagineres i bidder (X4n: én .in() med alle
     // scope-id'er sprængte URL-grænsen ~350 → tom sagsliste for en montør efter 1–2 års sager)
     const applyFilters = (q: any): any => {
@@ -102,8 +117,8 @@ export async function getServiceCases(filters?: {
       if (filters?.type) {
         q = q.eq('type', filters.type)
       }
-      if (filters?.search) {
-        q = q.or(`title.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},case_number.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},description.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)}`)
+      if (searchOr) {
+        q = q.or(searchOr)
       }
       return q
     }

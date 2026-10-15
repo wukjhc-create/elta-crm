@@ -725,9 +725,20 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
       if (linkErr) logger.warn('convertLeadToCustomer: kildemail ikke koblet', { error: linkErr, entityId: leadId })
       else revalidatePath('/dashboard/mail')
     }
+    // W-2 (pilot-review 2026-10-15): leadets tilbud uden kunde får kunden (og parti-roller) — før stod de uden Send-knap
+    // og kunne ikke blive sag. Kun tilbud UDEN kunde; best-effort (konverteringen lykkes uanset).
+    let offersLinked = 0
+    if (hasPermission('offers.edit')) {
+      const { data: linked, error: offerErr } = await supabase.from('offers')
+        .update({ customer_id: customerId, orderer_customer_id: customerId, end_customer_id: customerId, payer_customer_id: customerId })
+        .eq('lead_id', leadId).is('customer_id', null).select('id')
+      if (offerErr) logger.warn('convertLeadToCustomer: tilbud ikke koblet', { error: offerErr, entityId: leadId })
+      offersLinked = (linked ?? []).length
+      if (offersLinked) revalidatePath('/dashboard/offers')
+    }
     await supabase.from('lead_activities').insert({
       lead_id: leadId, activity_type: 'note', performed_by: userId,
-      description: created ? 'Kunde oprettet fra lead' : 'Lead koblet til eksisterende kunde (samme e-mail)',
+      description: `${created ? 'Kunde oprettet fra lead' : 'Lead koblet til eksisterende kunde (samme e-mail)'}${offersLinked ? ` — ${offersLinked} tilbud koblet til kunden` : ''}`,
     })
     revalidatePath(`/dashboard/leads/${leadId}`)
     revalidatePath('/dashboard/customers')

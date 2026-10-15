@@ -1225,6 +1225,13 @@ ${m.text()}`) })
           const id = (ins.data?.[0] as { id?: string } | undefined)?.id
           if (id) u27LeadIds.push(id)
         }
+        // W-2: et tilbud på lead 1 uden kunde → får kunden ved konvertering; før: tilbudssiden siger at kunden mangler
+        const lo = u27LeadIds[0] ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-LO-${stamp}`, title: `[HARNESS] leadtilbud ${stamp}`, lead_id: u27LeadIds[0], status: 'draft', created_by: adminUser.id }]).select('id') : null
+        const leadOfferId = (lo?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (leadOfferId) {
+          await gotoSafe(a.page, `${base}/dashboard/offers/${leadOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.mangler_kunde_vist = (await a.page.getByTestId('offer-missing-customer').count()) === 1
+        }
         const convert = async (leadId: string) => {
           await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByTestId('lead-convert').click({ timeout: 60_000 }).catch(() => {})
@@ -1237,6 +1244,11 @@ ${m.text()}`) })
         r.kunde_oprettet = !!cust && cust.email === mail && !!cust.customer_number
         const l1 = ((await c.admin.from('leads').select('custom_fields').eq('id', u27LeadIds[0]).maybeSingle()).data as { custom_fields?: Record<string, unknown> } | null)
         r.lead_koblet = l1?.custom_fields?.customer_id === c1
+        if (leadOfferId) {
+          const lof = (await c.admin.from('offers').select('customer_id, payer_customer_id').eq('id', leadOfferId).maybeSingle()).data as { customer_id?: string | null; payer_customer_id?: string | null } | null
+          r.tilbud_koblet = !!c1 && lof?.customer_id === c1 && lof?.payer_customer_id === c1
+          await c.admin.from('offers').delete().eq('id', leadOfferId)
+        }
         await gotoSafe(a.page, `${base}/dashboard/leads/${u27LeadIds[0]}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.gaa_til_kunde = (await a.page.getByTestId('lead-go-customer').count()) === 1
         const c2 = u27LeadIds[1] ? await convert(u27LeadIds[1]) : null
@@ -1935,6 +1947,26 @@ ${m.text()}`) })
         await a.page.keyboard.press('Escape').catch(() => {})
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u43-omplanlaegning.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${dndDiag ? ` · ${dndDiag}` : ''}` })
+      }
+
+      // U165 W-1: sagssøgning finder sagen via kundenavn og adresse (ikke kun titel/nr.)
+      if (want('U165')) {
+        const r: Record<string, boolean> = {}
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-SRCH-${stamp}`, company_name: `Søgekunde ${stamp}`, contact_person: 'X', email: `srch-${stamp}@harness.test`, created_by: adminUser.id }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const title = `[HARNESS] søg ${stamp}`
+        const sc = custId ? await c.admin.from('service_cases').insert([{ title, customer_id: custId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id, address: `Søgevej ${stamp}` }]).select('id') : null
+        const caseId = (sc?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        try {
+          for (const [k, term] of [['kundenavn', `Søgekunde ${stamp}`], ['adresse', `Søgevej ${stamp}`]] as const) {
+            await gotoSafe(a.page, `${base}/dashboard/orders?search=${encodeURIComponent(term)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            r[k] = (await a.page.getByText(title).count()) > 0
+          }
+        } finally {
+          if (custId && !caseId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        out.push({ id: 'U165 sagssøgning: kundenavn + adresse', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U164 00231 (Henrik 2026-10-15): momsmode på kunden — admin vælger "Omvendt betalingspligt" i kundeformularen → gemt

@@ -48,8 +48,8 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-16 (pilot-review-bølge 2026-10-15 aften — "hvad irriterer brugerne i morgen?")
 | # | Fund | Status |
 |---|---|---|
-| W-1 (S2) | Sagssøgning ignorerer kunde/adresse trods label "titel · kunde · case nr" | TODO |
-| W-2 (S2) | Lead → kunde efterlader leadets tilbud uden kunde (ingen Send, kan ikke blive sag) | TODO |
+| W-1 (S2) | Sagssøgning ignorerer kunde/adresse trods label "titel · kunde · case nr" | DONE — søger også kundenavn/-nr./kontakt, projektnavn, adresse, postnr., by, reference. UI U165/U20 |
+| W-2 (S2) | Lead → kunde efterlader leadets tilbud uden kunde (ingen Send, kan ikke blive sag) | DONE — konvertering kobler leadets tilbud uden kunde (+ parti-roller), aktivitetslog; tilbudssiden siger "mangler kunde". UI U27 |
 | W-3 (S2) | Materiale på sag: kun manuel indtastning (ingen leverandørsøgning) → pris 0 | TODO |
 | W-4 (S2) | Sagslisten 13 kolonner på mobil — montørens bundnav går dertil | TODO |
 | W-5 (S2) | Montør ser statusskift/Rediger på sag han ikke må bruge | TODO |

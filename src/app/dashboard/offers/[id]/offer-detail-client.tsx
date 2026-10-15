@@ -613,6 +613,12 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 </button>
               </>
             )}
+            {/* W-2: uden kunde kan tilbuddet hverken sendes eller blive sag — sig det i stedet for at skjule knappen tavst */}
+            {(offer.status === 'draft' || offer.status === 'sent' || offer.status === 'viewed') && !offer.customer && (
+              <span className="text-xs rounded bg-amber-50 ring-1 ring-amber-200 text-amber-900 px-2 py-1" data-testid="offer-missing-customer">
+                Tilbuddet mangler kunde{offer.lead ? ' — opret kunden fra leadet' : ''} før det kan sendes
+              </span>
+            )}
             <button
               onClick={handleDownloadPdf}
               disabled={isDownloadingPdf}
