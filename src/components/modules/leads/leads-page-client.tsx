@@ -292,7 +292,16 @@ export function LeadsPageClient({ leads, pagination, filters, sort, initialView 
             </div>
           </>
         ) : (
-          <LeadsKanban leads={leads} />
+          <>
+            {/* S-4 (pilot-review 2026-10-15): tavlen viser højst de 500 nyeste — sig det (før forsvandt ældre åbne leads
+                og kolonnetællingerne var for lave uden besked) */}
+            {pagination.totalItems > leads.length && (
+              <div className="mb-3 rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" role="status" data-testid="leads-kanban-capped">
+                Tavlen viser de {leads.length} nyeste af {pagination.totalItems} leads — brug tabelvisningen eller et filter for at se resten.
+              </div>
+            )}
+            <LeadsKanban leads={leads} />
+          </>
         )}
       </div>
 

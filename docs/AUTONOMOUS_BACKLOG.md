@@ -57,7 +57,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | M-7 (S3) | Mine job henter alle åbne arbejdsordrer uden loft og filtrerer i JS (1.000-loft kan skjule egne) | DELVIS — pagineret (intet 1.000-loft, frisk forespørgsel pr. side), så egne job ikke skæres fra. DB-filter på montørens job = TODO (scope er arbejdsordre-id'er; .in()-grænse). UI U151/U43/U11/U160 |
 | M-8 (S3) | Montøren ser ikke starttid/estimat på sine job | DONE — Mine job + sagens Planlægning-fane. UI U11/U151 |
 | M-9 (S3) | N+1: hver arbejdsordre henter egne timer + medarbejderliste; fejl på medarbejderliste tavs | TODO |
-| M-10 (S3) | Små tap-mål (Start/Afslut/Annullér, Registrér timer, Ret/Slet, tjekliste-flueben) | TODO |
+| M-10 (S3) | Små tap-mål (Start/Afslut/Annullér, Registrér timer, Ret/Slet, tjekliste-flueben) | DONE — større knapper og afstand under sm (desktop uændret); flueben havde fået større trykflade i M-1. UI U11/U160/U40 |
 | M-11 (S3) | Tjeklistefoto kun via kamera (capture) — kan ikke vælge fra galleri | DONE — capture fjernet (telefonen tilbyder kamera eller galleri); knap "Foto" |
 | M-12 (S4) | Kalender: fravær-hentefejl tavs; tidsgodkendelse 500-loft uden besked | DONE — advarselsbanner til planlæggere når fravær ikke kan hentes; "Viser de 500 …" i tidsgodkendelse. UI U43/U72 |
 | B-1 (S1) | "Annuller" på betalingsreference-prompten markerer alligevel fakturaen betalt (irreversibelt); send uden mail uden bekræftelse | DONE — Annuller afbryder (prompten viser nr./beløb og "kan ikke fortrydes"); "Markér som sendt (uden mail)" bekræftes. UI U29 (annuller → stadig sendt) |
@@ -74,7 +74,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | S-1 (S2) | Tilbudsstatus-piller: ét klik "Sendt" (ingen mail) og irreversibel "Accepteret" (vinder lead + opretter sag) uden bekræftelse | DONE — kun nuværende + tilladte skift vises ("Set" sættes af portalen), alle skift bekræftes med konsekvens, låst mens det kører. UI U60 |
 | S-2 (S3) | Inline-redigering af leverandørlinje overskriver supplier_cost_price_at_creation; avance 0 → null | DONE — oprindelig leverandørkost sendes kun ved oprettelse, serveren skriver kun felter der sendes, avance 0 bevares. UI U51 (rediger antal → kost 40 bevaret ved linjekost 35) |
 | S-3 (S3) | Dashboard "Samlet værdi" = 5 nyeste, før rabat — afviger fra stat-kortet | DONE — "Seneste N (ekskl. moms)", beløb efter rabat ekskl. moms (som stat-kortet). UI U70/U76 |
-| S-4 (S3) | Lead-kanban taber leads efter 500 (lukkede fylder) | TODO |
+| S-4 (S3) | Lead-kanban taber leads efter 500 (lukkede fylder) | DELVIS — tydelig besked når tavlen ikke viser alle ("de 500 nyeste af N"). Kun åbne statusser på tavlen = TODO. UI U27 |
 | S-5 (S3) | Auto "Følg op: intet svar"-opgave uden due_date (vises ikke) og lukkes ikke ved accept/afvisning | DONE — due_date sættes; lukkes ved accept/afvisning (portal + manuel status, lib/offers/follow-up-tasks.ts). UI U170 |
 | S-6 (S3) | Send på mail: statusskift uden CAS, aktivitet, audit, webhook og revalidering | DONE (kode) — kun kladde→sendt (CAS), fejl logges, statusaktivitet + offer.sent-webhook, liste/dashboard revalideres. Ikke UI-testet: kræver afsendelse (ingen live mail) — gates grønne |
 | S-7 (S3) | Manuel mail→kunde-kobling kan fejle tavst (0 rækker) og kobler ikke resten af tråden | DONE — 0 rækker → fejl; trådens øvrige mails uden kunde kobles med. UI U171 |

@@ -530,15 +530,15 @@ function WorkOrderRow({
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-col gap-1 shrink-0">
+        {/* Actions — M-10 (pilot-review 2026-10-15): større tap-mål og afstand på telefon (før ~24 px tæt stablet) */}
+        <div className="flex flex-col gap-2 sm:gap-1 shrink-0">
           {transitions.map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => onChangeStatus(wo.id, t)}
               disabled={disabled}
-              className={`px-2 py-1 text-xs rounded border whitespace-nowrap ${
+              className={`px-3 py-2.5 sm:px-2 sm:py-1 text-sm sm:text-xs rounded border whitespace-nowrap ${
                 t === 'done'
                   ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800'
                   : t === 'cancelled'

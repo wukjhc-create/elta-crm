@@ -309,7 +309,7 @@ export function WorkOrderTimeLogs({
           <button
             type="button"
             onClick={openForm}
-            className="text-xs px-2 py-1 border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50"
+            className="text-sm px-3 py-2 sm:text-xs sm:px-2 sm:py-1 border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50"
           >
             + Registrér timer
           </button>
@@ -570,8 +570,8 @@ export function WorkOrderTimeLogs({
                       )}
                       {isRejected && canEditOwn && fixId !== l.id && (
                         <span className="ml-2 inline-flex gap-1">
-                          <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-300 hover:bg-white" data-testid="time-log-fix">Ret</button>
-                          <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-red-200 text-red-700 hover:bg-red-50" data-testid="time-log-delete-rejected">Slet</button>
+                          <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-xs px-3 py-2 sm:text-[11px] sm:px-1.5 sm:py-0.5 rounded border border-gray-300 hover:bg-white" data-testid="time-log-fix">Ret</button>
+                          <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-xs px-3 py-2 sm:text-[11px] sm:px-1.5 sm:py-0.5 rounded border border-red-200 text-red-700 hover:bg-red-50" data-testid="time-log-delete-rejected">Slet</button>
                         </span>
                       )}
                     </td>
