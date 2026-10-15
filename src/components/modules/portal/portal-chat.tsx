@@ -55,6 +55,7 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
   const [isSending, setIsSending] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [messagesError, setMessagesError] = useState<string | null>(null)
   const [pendingAttachments, setPendingAttachments] = useState<PortalAttachment[]>([])
 
   // Fetch messages from server. Sprint 12B — chat-feed er ALTID samlet
@@ -63,19 +64,24 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
   const loadMessages = useCallback(async () => {
     try {
       const result = await getPortalMessages(token)
-      if (result.success && result.data) {
-        setMessages(result.data)
+      if (result.success) {
+        const rows = result.data || []
+        setMessages(rows)
+        setMessagesError(null)
 
         // Mark unread employee messages as read
-        const unreadIds = result.data
+        const unreadIds = rows
           .filter((m) => m.sender_type === 'employee' && !m.read_at)
           .map((m) => m.id)
         if (unreadIds.length > 0) {
           await markPortalMessagesAsRead(token, unreadIds)
         }
+      } else {
+        setMessagesError(result.error || 'Kunne ikke hente beskeder')
       }
     } catch (err) {
       console.error('Error loading portal messages:', err)
+      setMessagesError('Kunne ikke hente beskeder')
     } finally {
       setIsLoadingMessages(false)
     }
@@ -229,6 +235,12 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
             <Loader2 className="w-8 h-8 animate-spin mb-2" />
             <p>Indlæser beskeder...</p>
           </div>
+        ) : messagesError && messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+            <p className="text-center text-sm text-red-700" data-testid="portal-chat-load-error">
+              {messagesError}. Det tælles ikke som ingen beskeder.
+            </p>
+          </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <User className="w-12 h-12 mb-2 opacity-50" />
@@ -238,7 +250,13 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
             </p>
           </div>
         ) : (
-          messages.map((message) => (
+          <>
+          {messagesError && (
+            <p className="text-sm text-red-700" data-testid="portal-chat-load-error">
+              {messagesError}. Beskederne der allerede er hentet bliver.
+            </p>
+          )}
+          {messages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.sender_type === 'customer' ? 'justify-end' : 'justify-start'}`}
@@ -278,7 +296,8 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
                 )}
               </div>
             </div>
-          ))
+          ))}
+          </>
         )}
         <div ref={messagesEndRef} />
       </div>
