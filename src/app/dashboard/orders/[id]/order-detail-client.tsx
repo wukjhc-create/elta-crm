@@ -143,7 +143,7 @@ export function OrderDetailClient({
               <p className="text-sm text-gray-500">{sag.title}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* N9c: "Foreslå tilbud (agent)" — før kun i Service-modulet; knappen viser sig selv kun for admin */}
             <OfferAgentButton caseId={sag.id} />
             <InlineStatusChanger caseId={sag.id} current={sag.status} />
@@ -165,7 +165,7 @@ export function OrderDetailClient({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t text-sm">
           <Stat label="Type" value={sag.type ? SERVICE_CASE_TYPE_LABELS[sag.type] : '—'} />
           <Stat label="Kunde" value={customerName} />
-          <Stat label="Ansvarlig" value={creator?.full_name ?? '—'} />
+          <Stat label="Tildelt" value={sag.assignee?.full_name?.trim() || 'Ikke tildelt'} />
           <Stat label="Formand" value={formand?.name ?? '—'} />
           <Stat label="Tilbudt beløb" value={fmtAmount(sag.contract_sum)} />
           <Stat label="Revideret" value={fmtAmount(sag.revised_sum)} />
@@ -652,7 +652,7 @@ function OverblikTab({
       {/* Ansvar */}
       <Panel title="Ansvar">
         <Row label="Ansvarlig (sælger)" value={creator?.full_name ?? '—'} />
-        <Row label="Tildelt" value={sag.assignee?.full_name ?? '—'} />
+        <Row label="Tildelt" value={sag.assignee?.full_name?.trim() || 'Ikke tildelt'} />
         <Row label="Formand" value={formand?.name ?? '—'} />
         <Row label="Auto-faktura ved afsluttet" value={sag.auto_invoice_on_done ? 'JA' : 'nej'} />
       </Panel>
