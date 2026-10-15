@@ -134,7 +134,9 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     // Mine personlige påmindelser (00197; tom hvor tabellen ikke findes)
     const mine = await getMyPersonalReminders().catch(() => ({ available: false, reminders: [] }))
     const personalReminders = mine.reminders.map((r) => ({ id: r.id, title: r.title, due_at: r.due_at, status: r.status }))
-    return <CalendarPageClient tasks={[...besigtigelser, ...(assistantTasks.error ? [] : assistantTasks.tasks.filter((t) => !seen.has(t.id)))]} personalReminders={personalReminders} tasksError={allTasks.error || assistantTasks.error} />
+    const tasksError = allTasks.error || assistantTasks.error
+    const namesFailed = !tasksError && (!!allTasks.names_failed || !!assistantTasks.names_failed)
+    return <CalendarPageClient tasks={[...besigtigelser, ...(assistantTasks.error ? [] : assistantTasks.tasks.filter((t) => !seen.has(t.id)))]} personalReminders={personalReminders} tasksError={tasksError} namesFailed={namesFailed} />
   }
 
   // ----- Day or Week view (work_orders × employees) -----

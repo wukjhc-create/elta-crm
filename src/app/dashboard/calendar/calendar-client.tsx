@@ -18,6 +18,8 @@ interface CalendarPageClientProps {
   personalReminders?: CalendarPersonalReminder[]
   /** Sat når besigtigelser eller opkald ikke kunne hentes. Tom måned må ikke ligne ingen aftaler. */
   tasksError?: string | null
+  /** Profilopslaget fejlede. En aftale med ansvarlig må ikke ligne en uden navn. */
+  namesFailed?: boolean
 }
 
 const WEEKDAY_NAMES = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn']
@@ -36,7 +38,7 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return day === 0 ? 6 : day - 1
 }
 
-export function CalendarPageClient({ tasks: initialTasks, personalReminders = [], tasksError = null }: CalendarPageClientProps) {
+export function CalendarPageClient({ tasks: initialTasks, personalReminders = [], tasksError = null, namesFailed = false }: CalendarPageClientProps) {
   const [tasks, setTasks] = useState(initialTasks)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -82,6 +84,10 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
   const loadNote = tasksError ? (
     <p className="mb-3 text-sm text-red-700" data-testid="calendar-tasks-load-error">
       {tasksError}. Det tælles ikke som ingen aftaler.
+    </p>
+  ) : namesFailed ? (
+    <p className="mb-3 text-sm text-red-700" data-testid="calendar-assignee-names-error">
+      Ansvarlige kunne ikke hentes. Det tælles ikke som ikke tildelt.
     </p>
   ) : null
 
@@ -341,12 +347,17 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                         </div>
                       )}
 
-                      {task.assigned_profile && (
+                      {task.assigned_profile ? (
                         <div className="flex items-center gap-1.5 text-xs text-gray-600">
                           <User className="w-3.5 h-3.5" />
                           {task.assigned_profile.full_name || task.assigned_profile.email}
                         </div>
-                      )}
+                      ) : namesFailed && task.assigned_to ? (
+                        <div className="flex items-center gap-1.5 text-xs text-red-700">
+                          <User className="w-3.5 h-3.5" />
+                          Navn kunne ikke hentes
+                        </div>
+                      ) : null}
 
                       {task.customer && (
                         <Link
