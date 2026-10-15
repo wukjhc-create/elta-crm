@@ -305,10 +305,10 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                             if (r.success && r.data) { if (win) win.location.href = r.data.url; else window.location.href = r.data.url }
                             else { win?.close(); alert(r.error ?? 'Kunne ikke hente filen') }
                           }}
-                          className="group flex items-center gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                          className="group flex items-start gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors"
                         >
                           <Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0" />
-                          <span className="truncate flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium">{att.filename}</span>
+                          <span className="break-all min-w-0 flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium">{att.filename}</span>
                           {sizeStr && <span className="text-xs text-gray-400 shrink-0">{sizeStr}</span>}
                           <Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0" />
                         </a>
