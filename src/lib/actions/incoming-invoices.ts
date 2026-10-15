@@ -974,11 +974,15 @@ export async function postIncomingInvoiceToEconomicAction(id: string): Promise<P
     return { ok: false, status: 'denied', message: 'Manglende tilladelse: incoming_invoices.approve' }
   }
 
-  const { data: inv } = await supabase
+  const { data: inv, error: readErr } = await supabase
     .from('incoming_invoices')
     .select('id, status, external_invoice_id, external_provider')
     .eq('id', id)
     .maybeSingle()
+  if (readErr) {
+    logger.error('postIncomingInvoiceToEconomicAction read failed', { error: readErr })
+    return { ok: false, status: 'failed', message: 'Kunne ikke læse fakturaen. Det tælles ikke som at den ikke findes.' }
+  }
   if (!inv) return { ok: false, status: 'not_eligible', message: 'Faktura ikke fundet' }
   if (inv.external_invoice_id && inv.external_provider === 'economic') {
     return { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført i e-conomic.', external_id: inv.external_invoice_id as string }
