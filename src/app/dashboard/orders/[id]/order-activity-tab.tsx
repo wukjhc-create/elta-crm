@@ -28,22 +28,19 @@ export function OrderActivityTab({ caseId }: { caseId: string }) {
 
   useEffect(() => {
     let cancelled = false
-    setEntries(null)
-    setError(null)
     async function load() {
       try {
         const res = await getServiceCaseActivity(caseId)
         if (cancelled) return
         if (!res.success) {
           setError(res.error || 'Kunne ikke hente aktivitet')
-          setEntries([])
           return
         }
+        setError(null)
         setEntries(res.data ?? [])
       } catch {
         if (cancelled) return
         setError('Kunne ikke hente aktivitet')
-        setEntries([])
       }
     }
     load()
@@ -52,13 +49,24 @@ export function OrderActivityTab({ caseId }: { caseId: string }) {
     }
   }, [caseId, reloadKey])
 
-  if (entries === null) {
+  if (entries === null && !error) {
     return (
       <div className="text-sm text-gray-500 py-6 text-center">Henter aktivitet…</div>
     )
   }
 
-  if (error) {
+  if (!entries || entries.length === 0) {
+    if (!error) {
+      return (
+        <div className="text-center py-12">
+          <h3 className="text-base font-medium text-gray-700">Ingen aktivitet endnu</h3>
+          <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+            Når sagen ændrer status, opdateres eller får andre handlinger, dukker
+            de op her.
+          </p>
+        </div>
+      )
+    }
     return (
       <div className="text-center py-6">
         <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">
@@ -75,20 +83,22 @@ export function OrderActivityTab({ caseId }: { caseId: string }) {
     )
   }
 
-  if (entries.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <h3 className="text-base font-medium text-gray-700">Ingen aktivitet endnu</h3>
-        <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-          Når sagen ændrer status, opdateres eller får andre handlinger, dukker
-          de op her.
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-2">
+      {error && (
+        <div className="text-center py-2">
+          <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">
+            {error}. Det tælles ikke som ingen aktivitet.
+          </div>
+          <button
+            type="button"
+            onClick={() => setReloadKey((key) => key + 1)}
+            className="mt-3 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+          >
+            Prøv igen
+          </button>
+        </div>
+      )}
       {entries.map((e) => (
         <div
           key={e.id}

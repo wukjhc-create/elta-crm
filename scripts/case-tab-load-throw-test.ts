@@ -14,6 +14,7 @@ eq('noter siger det ikke er tomt', notes.includes('Det tælles ikke som en tom n
 eq('noter kan proeves igen', notes.includes('setReloadKey((key) => key + 1)'), true)
 eq('tom note bliver', notes.includes('Skriv en note i feltet ovenfor. Noter fra tilbud vises også her.'), true)
 eq('slet bliver', notes.includes('Slet denne note? Handlingen kan ikke fortrydes.'), true)
+eq('noter beholdes ved fejl', !notes.includes('setNotes([])'), true)
 
 const materials = fs.readFileSync('src/app/dashboard/orders/[id]/order-materials-tab.tsx', 'utf8')
 eq('materialer fanger kast', materials.includes("setLoadError('Kunne ikke hente materialer')"), true)

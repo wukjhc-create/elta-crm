@@ -60,13 +60,12 @@ export function OrderNotesTab({
     let cancelled = false
     getCaseNotes(caseId).then((res) => {
       if (cancelled) return
-      if (!res.success) { setError(res.error || 'Kunne ikke hente noter'); setNotes([]); return }
+      if (!res.success) { setError(res.error || 'Kunne ikke hente noter'); return }
       setError(null)
       setNotes(res.data ?? [])
     }).catch(() => {
       if (cancelled) return
       setError('Kunne ikke hente noter')
-      setNotes([])
     })
     return () => { cancelled = true }
   }, [caseId, reloadKey])
@@ -141,9 +140,7 @@ export function OrderNotesTab({
 
       {rowError && <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{rowError}</div>}
 
-      {notes === null ? (
-        <div className="text-sm text-gray-500 py-6 text-center">Henter noter…</div>
-      ) : error ? (
+      {error && (
         <div className="text-center">
           <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}. Det tælles ikke som en tom note-liste.</div>
           <button
@@ -154,7 +151,12 @@ export function OrderNotesTab({
             Prøv igen
           </button>
         </div>
-      ) : notes.length === 0 ? (
+      )}
+
+      {notes === null && !error && (
+        <div className="text-sm text-gray-500 py-6 text-center">Henter noter…</div>
+      )}
+      {notes !== null && notes.length === 0 && !error && (
         <div className="text-center py-12">
           <StickyNote className="w-8 h-8 text-gray-300 mx-auto mb-2" />
           <h3 className="text-base font-medium text-gray-700">Ingen noter endnu</h3>
@@ -164,7 +166,8 @@ export function OrderNotesTab({
               : 'Noter på sagen — fx når den oprettes fra et tilbud — vises her.'}
           </p>
         </div>
-      ) : (
+      )}
+      {notes !== null && notes.length > 0 && (
         <div className="space-y-2">
           {notes.map((n) => (
             <div key={n.id} className="bg-gray-50 rounded ring-1 ring-gray-200 p-3 flex items-start gap-3">

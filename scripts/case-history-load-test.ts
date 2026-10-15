@@ -28,6 +28,7 @@ eq('rigtige noter bliver', notesFn.includes('const rows = data || []'), true)
 
 const tab = fs.readFileSync('src/app/dashboard/orders/[id]/order-activity-tab.tsx', 'utf8')
 eq('fanen siger fejl', tab.includes('Det tælles ikke som ingen aktivitet.'), true)
+eq('aktivitet beholdes ved fejl', !tab.includes('setEntries([])'), true)
 eq('fanen kan proeves igen', tab.includes('setReloadKey((key) => key + 1)'), true)
 eq('tom aktivitet bliver', tab.includes('Ingen aktivitet endnu'), true)
 eq('koebenhavn bliver', tab.includes('return copenhagenDateTimeLabel(s)'), true)
