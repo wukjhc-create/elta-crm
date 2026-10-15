@@ -31,8 +31,10 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
   return (
     <CustomerDetailClient
       customer={customerResult.data}
-      portalTokens={tokensResult.data || []}
-      partnerTokens={partnerTokensResult.data || []}
+      portalTokens={tokensResult.success ? tokensResult.data || [] : []}
+      portalTokensError={tokensResult.success ? null : tokensResult.error || 'Kunne ikke hente portal-adgange'}
+      partnerTokens={partnerTokensResult.success ? partnerTokensResult.data || [] : []}
+      partnerTokensError={partnerTokensResult.success ? null : partnerTokensResult.error || 'Kunne ikke hente partner-adgange'}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
       canManagePricing={canManagePricing}
     />

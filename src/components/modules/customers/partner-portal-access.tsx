@@ -23,12 +23,14 @@ interface PartnerPortalAccessProps {
   customerId: string
   customerEmail: string
   tokens: PartnerAccessToken[]
+  tokensError?: string | null
 }
 
 export function PartnerPortalAccess({
   customerId,
   customerEmail,
   tokens,
+  tokensError = null,
 }: PartnerPortalAccessProps) {
   const router = useRouter()
   const toast = useToast()
@@ -107,7 +109,7 @@ export function PartnerPortalAccess({
         </div>
         <button
           onClick={handleCreateToken}
-          disabled={isCreating}
+          disabled={isCreating || !!tokensError}
           className="inline-flex items-center gap-1 text-sm text-primary hover:underline disabled:opacity-50"
         >
           <Plus className="w-4 h-4" />
@@ -115,7 +117,13 @@ export function PartnerPortalAccess({
         </button>
       </div>
 
-      {activeTokens.length === 0 ? (
+      {tokensError && (
+        <p className="text-sm text-red-700" data-testid="partner-tokens-load-error">
+          {tokensError}. Det tælles ikke som ingen partner-adgang. Opret er slået fra, så der ikke laves et ekstra link.
+        </p>
+      )}
+
+      {!tokensError && activeTokens.length === 0 && (
         <div className="text-center py-6">
           <Handshake className="w-10 h-10 mx-auto text-gray-300 mb-2" />
           <p className="text-gray-500 text-sm">
@@ -126,7 +134,8 @@ export function PartnerPortalAccess({
             hente dokumentation
           </p>
         </div>
-      ) : (
+      )}
+      {activeTokens.length > 0 && (
         <div className="space-y-3">
           {activeTokens.map((token) => (
             <div

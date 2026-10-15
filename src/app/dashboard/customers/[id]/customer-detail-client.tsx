@@ -72,13 +72,15 @@ import { useToast } from '@/components/ui/toast'
 interface CustomerDetailClientProps {
   customer: CustomerWithRelations
   portalTokens: PortalAccessToken[]
+  portalTokensError?: string | null
   partnerTokens: PartnerAccessToken[]
+  partnerTokensError?: string | null
   companySettings?: CompanySettings | null
   /** D48 — tools.pricing: kundespecifikke aftaler (kost/avance/rabat) */
   canManagePricing?: boolean
 }
 
-export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false }: CustomerDetailClientProps) {
+export function CustomerDetailClient({ customer, portalTokens, portalTokensError = null, partnerTokens, partnerTokensError = null, companySettings, canManagePricing = false }: CustomerDetailClientProps) {
   const router = useRouter()
   // M-10 (mobil-review 2026-10-14): kun handlinger brugeren har ret til (bogholderi/salg fik knapper der altid fejlede)
   const { role } = useUserRole()
@@ -765,6 +767,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               customerId={customer.id}
               customerEmail={customer.email}
               tokens={portalTokens}
+              tokensError={portalTokensError}
             />
 
             {/* Partner Portal Access */}
@@ -772,6 +775,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               customerId={customer.id}
               customerEmail={customer.email}
               tokens={partnerTokens}
+              tokensError={partnerTokensError}
             />
 
             {/* Portal Chat */}
