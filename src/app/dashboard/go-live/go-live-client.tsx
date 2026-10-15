@@ -97,8 +97,10 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
 
         <StatusCard
           title="Autopilot regler"
-          tone={status.autopilot.live_count > 0 ? 'warning' : 'ok'}
-          lines={[
+          tone={status.autopilot.rules_error || (status.autopilot.live_count ?? 0) > 0 ? 'warning' : 'ok'}
+          lines={status.autopilot.rules_error ? [
+            'Kunne ikke hente autopilot-regler. Det tælles ikke som 0.',
+          ] : [
             `${status.autopilot.dry_run_count} dry_run · ${status.autopilot.live_count} LIVE`,
             `Total regler: ${status.autopilot.rules.length}`,
           ]}
@@ -107,16 +109,22 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
         <StatusCard
           title="Bank import"
           tone={
-            status.bank.total_transactions === 0
+            status.bank.total_transactions == null || status.bank.unmatched_count == null || status.bank.ambiguous_count == null
+              ? 'warning'
+              : status.bank.total_transactions === 0
               ? 'warning'
               : status.bank.unmatched_count + status.bank.ambiguous_count > 0
               ? 'warning'
               : 'ok'
           }
           lines={[
-            `Total: ${status.bank.total_transactions}`,
+            status.bank.total_transactions == null
+              ? 'Total kunne ikke tælles. Det tælles ikke som 0.'
+              : `Total: ${status.bank.total_transactions}`,
             `Sidst importeret: ${fmtTime(status.bank.last_imported_at)}`,
-            `Umatchede: ${status.bank.unmatched_count} · ambiguous: ${status.bank.ambiguous_count}`,
+            status.bank.unmatched_count == null || status.bank.ambiguous_count == null
+              ? 'Umatchede kunne ikke tælles. Det tælles ikke som 0.'
+              : `Umatchede: ${status.bank.unmatched_count} · ambiguous: ${status.bank.ambiguous_count}`,
           ]}
           actions={
             <Button size="sm" variant="outline"
@@ -136,7 +144,9 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
               : 'warning'
           }
           lines={[
-            `Mailboxes: ${status.email_sync.mailbox_count}`,
+            status.email_sync.mailbox_count == null
+              ? 'Mail-sync kunne ikke hentes. Det tælles ikke som 0.'
+              : `Mailboxes: ${status.email_sync.mailbox_count}`,
             `Status: ${status.email_sync.last_status ?? '—'}`,
             `Sidste sync: ${fmtTime(status.email_sync.last_sync_at)}`,
           ]}
@@ -152,7 +162,9 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
           tone={status.invoice_reminder_cron.last_run_at ? 'ok' : 'warning'}
           lines={[
             `Sidste kørsel: ${fmtTime(status.invoice_reminder_cron.last_run_at)}`,
-            `Sendt sidste 24 t: ${status.invoice_reminder_cron.last_24h_sent}`,
+            status.invoice_reminder_cron.last_24h_sent == null
+              ? 'Sendt sidste 24 t kunne ikke tælles. Det tælles ikke som 0.'
+              : `Sendt sidste 24 t: ${status.invoice_reminder_cron.last_24h_sent}`,
           ]}
           actions={
             <Button
@@ -171,13 +183,17 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
         <StatusCard
           title="System fejl (24t)"
           tone={
-            status.system_errors_last_24h > 5
+            status.system_errors_last_24h == null
+              ? 'warning'
+              : status.system_errors_last_24h > 5
               ? 'error'
               : status.system_errors_last_24h > 0
               ? 'warning'
               : 'ok'
           }
-          lines={[`${status.system_errors_last_24h} fejl-rækker i system_health_log`]}
+          lines={[status.system_errors_last_24h == null
+            ? 'Kunne ikke tælle fejl. Det tælles ikke som 0.'
+            : `${status.system_errors_last_24h} fejl-rækker i system_health_log`]}
         />
       </div>
 
@@ -197,7 +213,9 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
               </tr>
             </thead>
             <tbody>
-              {status.autopilot.rules.length === 0 && (
+              {status.autopilot.rules_error ? (
+                <tr><td colSpan={6} className="py-3 text-center text-amber-800" data-testid="golive-rules-load-error">Kunne ikke hente autopilot-regler. Det tælles ikke som ingen regler.</td></tr>
+              ) : status.autopilot.rules.length === 0 && (
                 <tr><td colSpan={6} className="py-3 text-center text-gray-400">Ingen regler.</td></tr>
               )}
               {status.autopilot.rules.map((r) => (
