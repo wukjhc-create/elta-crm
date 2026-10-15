@@ -1711,30 +1711,46 @@ function OfferPdfView({
 
         {/* Line items table */}
         {lineItems.length > 0 && (
-          <table className="w-full mb-6">
-            <thead>
-              <tr className="border-b-2 border-gray-300">
-                <th className="text-left py-2">#</th>
-                <th className="text-left py-2">Beskrivelse</th>
-                <th className="text-right py-2">Antal</th>
-                <th className="text-right py-2">Enhedspris</th>
-                <th className="text-right py-2">Total</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            <ul className="md:hidden divide-y mb-6" data-testid="offer-lines-mobile">
               {lineItems.map((item) => (
-                <tr key={item.id} className="border-b">
-                  <td className="py-2">{item.position}</td>
-                  <td className="py-2">{item.description}</td>
-                  <td className="py-2 text-right">
-                    {item.quantity} {item.unit}
-                  </td>
-                  <td className="py-2 text-right">{formatCurrency(item.unit_price, currency, 2)}</td>
-                  <td className="py-2 text-right">{formatCurrency(item.total, currency, 2)}</td>
-                </tr>
+                <li key={item.id} className="py-2">
+                  <p className="text-xs text-gray-500">#{item.position}</p>
+                  <p className="break-words">{item.description}</p>
+                  <p className="text-sm text-gray-600">
+                    {item.quantity} {item.unit} · {formatCurrency(item.unit_price, currency, 2)}
+                  </p>
+                  <p className="text-sm font-medium tabular-nums">{formatCurrency(item.total, currency, 2)}</p>
+                </li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+            <div className="hidden md:block overflow-x-auto mb-6">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b-2 border-gray-300">
+                    <th className="text-left py-2">#</th>
+                    <th className="text-left py-2">Beskrivelse</th>
+                    <th className="text-right py-2">Antal</th>
+                    <th className="text-right py-2">Enhedspris</th>
+                    <th className="text-right py-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.map((item) => (
+                    <tr key={item.id} className="border-b">
+                      <td className="py-2">{item.position}</td>
+                      <td className="py-2 break-words">{item.description}</td>
+                      <td className="py-2 text-right">
+                        {item.quantity} {item.unit}
+                      </td>
+                      <td className="py-2 text-right">{formatCurrency(item.unit_price, currency, 2)}</td>
+                      <td className="py-2 text-right">{formatCurrency(item.total, currency, 2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {/* Totals */}
