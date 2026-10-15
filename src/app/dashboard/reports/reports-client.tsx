@@ -74,7 +74,7 @@ function KpiCard({
 // Revenue Bar Chart (CSS-only)
 // =====================================================
 
-function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
+function RevenueChart({ data, error }: { data: RevenueByPeriod[]; error: boolean }) {
   const maxValue = Math.max(...data.map((d) => d.accepted_revenue), 1)
 
   return (
@@ -83,6 +83,12 @@ function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
         <BarChart3 className="w-5 h-5 text-gray-400" />
         Omsætning pr. måned
       </h3>
+      {error ? (
+        <p className="text-sm text-red-700 py-8 text-center" data-testid="report-revenue-load-error">
+          Kunne ikke hente omsætning. Det tælles ikke som 0 kr.
+        </p>
+      ) : (
+      <>
       <div className="flex items-end gap-3 h-48">
         {data.map((d) => {
           const height = maxValue > 0 ? (d.accepted_revenue / maxValue) * 100 : 0
@@ -108,6 +114,8 @@ function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
           <span className="w-3 h-3 rounded bg-primary/80" /> Accepteret omsætning
         </span>
       </div>
+      </>
+      )}
     </div>
   )
 }
@@ -486,7 +494,9 @@ function RejectionAnalyticsSection({ stats }: { stats: RejectionStats | null }) 
 
 export default function ReportsClient() {
   const [summary, setSummary] = useState<ReportsSummary | null>(null)
+  const [summaryError, setSummaryError] = useState(false)
   const [revenue, setRevenue] = useState<RevenueByPeriod[]>([])
+  const [revenueError, setRevenueError] = useState(false)
   const [customers, setCustomers] = useState<RevenueByCustomer[]>([])
   const [customersError, setCustomersError] = useState(false)
   const [projects, setProjects] = useState<ProjectProfitability[]>([])
@@ -514,10 +524,12 @@ export default function ReportsClient() {
 
       if (summaryRes.status === 'fulfilled' && summaryRes.value.success) {
         setSummary(summaryRes.value.data || null)
-      }
+        setSummaryError(false)
+      } else setSummaryError(true)
       if (revenueRes.status === 'fulfilled' && revenueRes.value.success) {
         setRevenue(revenueRes.value.data || [])
-      }
+        setRevenueError(false)
+      } else setRevenueError(true)
       if (customersRes.status === 'fulfilled' && customersRes.value.success) {
         setCustomers(customersRes.value.data || [])
         setCustomersError(false)
@@ -577,7 +589,11 @@ export default function ReportsClient() {
       </div>
 
       {/* KPI Cards */}
-      {summary && (
+      {summaryError ? (
+        <p className="text-sm text-red-700" data-testid="report-summary-load-error">
+          Kunne ikke hente nøgletal. Det tælles ikke som 0 kr.
+        </p>
+      ) : summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KpiCard
             label="Total omsætning"
@@ -612,7 +628,7 @@ export default function ReportsClient() {
 
       {/* Revenue Chart + Top Customers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RevenueChart data={revenue} />
+        <RevenueChart data={revenue} error={revenueError} />
         <TopCustomersTable data={customers} error={customersError} />
       </div>
 
