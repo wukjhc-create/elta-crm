@@ -84,7 +84,7 @@ export function ActivityTimeline({ activities, className = '' }: ActivityTimelin
 
               {/* Content */}
               <div className="bg-white border rounded-lg p-3">
-                <p className="text-sm text-gray-900">{activity.description}</p>
+                <p className="text-sm text-gray-900 break-words">{activity.description}</p>
                 <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                   <time>
                     {format(new Date(activity.created_at), 'd. MMM yyyy HH:mm', {
@@ -94,7 +94,7 @@ export function ActivityTimeline({ activities, className = '' }: ActivityTimelin
                   {activity.performed_by_profile && (
                     <>
                       <span>&middot;</span>
-                      <span>
+                      <span className="break-words">
                         {activity.performed_by_profile.full_name ||
                           activity.performed_by_profile.email}
                       </span>
@@ -137,7 +137,7 @@ export function ActivityList({
           <span className="text-gray-400 flex-shrink-0">
             {format(new Date(activity.created_at), 'd/M', { locale: da })}
           </span>
-          <span className="text-gray-700 truncate">{activity.description}</span>
+          <span className="text-gray-700 break-words min-w-0">{activity.description}</span>
         </li>
       ))}
       {activities.length > limit && (
