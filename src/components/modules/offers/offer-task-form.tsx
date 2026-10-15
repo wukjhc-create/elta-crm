@@ -67,18 +67,18 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <h3 className="text-lg font-semibold">Opret opgave til tilbud</h3>
-          <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
+        <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
+          <h3 className="text-lg font-semibold break-words min-w-0">Opret opgave til tilbud</h3>
+          <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {!customerId ? (
           <div className="text-center py-6">
-            <p className="text-gray-500">Tilbuddet skal have en tilknyttet kunde for at oprette en opgave.</p>
+            <p className="text-gray-500 break-words">Tilbuddet skal have en tilknyttet kunde for at oprette en opgave.</p>
             <button onClick={onClose} className="mt-4 px-4 py-2 text-sm border rounded-md hover:bg-gray-50">
               Luk
             </button>
@@ -138,7 +138,7 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
                   ))}
                 </select>
                 {profilesError && (
-                  <p className="mt-1 text-xs text-red-700" data-testid="offer-task-profiles-error">{profilesError}</p>
+                  <p className="mt-1 text-xs text-red-700 break-words" data-testid="offer-task-profiles-error">{profilesError}</p>
                 )}
               </div>
             </div>
