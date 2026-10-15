@@ -67,6 +67,7 @@ const APPROVED: Record<string, string> = {
   '00220': '2026-10-14', // profiles.notification_preferences + kolonne-grant, godkendt af Henrik i chat 2026-10-14 ("00220 NOTIFICATION PREFERENCES GODKENDT TIL PROD")
   '00221': '2026-10-15', // leverandørfaktura-nr. unikt kun blandt aktive (L-10), godkendt af Henrik i chat 2026-10-15 ("Alle fire migrationer er GODKENDT TIL PROD")
   '00222': '2026-10-15', // arbejdsordre-avance fra samme kilder som sags-økonomien + friske snapshots (PE-1/PE-2; ERSTATTER 00205 — 00205 må ikke køres), godkendt af Henrik i chat 2026-10-15
+  '00225': '2026-10-15', // ACL-rettelse til 00222: trg_cost_rows_snapshot_profit uden anon/authenticated EXECUTE (DB-audit HØJ) — del af Henriks 00222-godkendelse 2026-10-15
 }
 
 async function main() {
