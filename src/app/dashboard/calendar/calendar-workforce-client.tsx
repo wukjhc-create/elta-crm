@@ -474,15 +474,18 @@ function DayView({
     <div className="md:hidden space-y-2" data-testid="calendar-day-mobile">
       {employees.map((emp) => {
         const wos = empMap.get(emp.id) ?? []
-        if (wos.length === 0) return null
         return (
           <section key={emp.id} className="bg-white rounded-lg ring-1 ring-gray-200 p-3">
             <p className="text-sm font-medium text-gray-900">{emp.name || '—'}</p>
-            <div className="mt-2 space-y-1">
-              {wos.map((wo) => (
-                <WorkOrderChip key={wo.id} wo={wo} />
-              ))}
-            </div>
+            {wos.length === 0 ? (
+              <p className="text-xs italic text-gray-400 mt-1">Ingen opgaver i dag</p>
+            ) : (
+              <div className="mt-2 space-y-1">
+                {wos.map((wo) => (
+                  <WorkOrderChip key={wo.id} wo={wo} />
+                ))}
+              </div>
+            )}
           </section>
         )
       })}
