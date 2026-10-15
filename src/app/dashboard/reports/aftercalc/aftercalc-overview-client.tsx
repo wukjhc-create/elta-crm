@@ -74,7 +74,7 @@ export function AftercalcOverviewClient() {
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
 
   return (
-    <div className="p-6 space-y-4" data-testid="aftercalc-overview">
+    <div className="p-4 md:p-6 space-y-4" data-testid="aftercalc-overview">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Efterkalkulation</h1>
@@ -151,7 +151,54 @@ export function AftercalcOverviewClient() {
                 {data.rows.length === 0 ? (
                   <p className="text-sm text-gray-500">Ingen sager matcher filtrene.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                  <div className="md:hidden space-y-2" data-testid="aftercalc-overview-mobile">
+                    {data.rows.map((r) => (
+                      <article key={r.case_id} className="rounded-lg ring-1 ring-gray-200 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <Link href={`/dashboard/orders/${r.case_id}?tab=oekonomi`} className="font-medium text-blue-700 hover:underline">
+                              {r.case_number || 'Sag'}
+                            </Link>
+                            {r.title && <p className="text-xs text-gray-500 truncate">{r.title}</p>}
+                            <p className="text-sm text-gray-800">{r.customer_name || '—'}</p>
+                            <p className="text-xs text-gray-500">Ansvarlig: {r.assignee_name || '—'}</p>
+                          </div>
+                          <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${r.data_quality === 'warning' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                            {r.data_quality === 'warning' ? 'Advarsel' : 'OK'}
+                          </span>
+                        </div>
+                        {r.warning_codes.length > 0 && (
+                          <p className="mt-1 text-xs text-amber-900">
+                            {r.warning_codes.map((c: DataQualityCode) => DATA_QUALITY_LABELS[c]).join(', ')}
+                          </p>
+                        )}
+                        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                          <div>
+                            <dt className="text-gray-500">Tilbudt omsætning</dt>
+                            <dd className="tabular-nums text-gray-900">{kr(r.quoted_revenue)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-gray-500">Faktisk omsætning</dt>
+                            <dd className="tabular-nums text-gray-900">{kr(r.actual_revenue)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-gray-500">Tilbudt DB</dt>
+                            <dd className="tabular-nums text-gray-900">{pct(r.quoted_db_pct)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-gray-500">Faktisk DB</dt>
+                            <dd className="tabular-nums text-gray-900">{pct(r.actual_db_pct)}</dd>
+                          </div>
+                        </dl>
+                        <p className={`mt-2 text-sm tabular-nums ${r.db_variance == null ? 'text-gray-400' : r.db_variance < 0 ? 'text-red-700' : r.db_variance > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
+                          DB-afvigelse: {varianceText(r.db_variance, r.db_variance_pct_points)}
+                        </p>
+                        <p className="text-xs text-gray-600">{SERVICE_CASE_STATUS_LABELS[r.status as ServiceCaseStatus] ?? r.status}</p>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-xs text-gray-600">
                         <tr>
@@ -196,8 +243,9 @@ export function AftercalcOverviewClient() {
                       </tbody>
                     </table>
                   </div>
+                  </>
                 )}
-                <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
                   <span>{data.total} sager i visningen. Beregnet på {data.query_ms} ms.</span>
                   <div className="flex items-center gap-2">
                     <button type="button" disabled={(data.page ?? 1) <= 1} onClick={() => setFilter({ page: (data.page ?? 1) - 1 }, true)} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Forrige</button>

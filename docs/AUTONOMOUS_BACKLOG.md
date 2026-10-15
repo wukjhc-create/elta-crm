@@ -31,6 +31,8 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Fakturakontrol viser overpris som en streg, når ingen linje kunne kontrolleres. En kendt overpris vises stadig. Linjerne er kort under `md`. | DONE — `header-totals-test` |
 | Medarbejderlisten viser kort under `md`. Mail og telefon er egne links. Intern kost og salgspris følger `canSeePayroll`. | DONE — `employees-mobile-test` |
 | Sagens materialer vises som kort under `md`. Salg kræver `canSeePrices`. Kost og foreløbig DB kræver `showCost`. Rediger og slet er de samme knapper. | DONE — `materials-mobile-test` |
+| Efterkalkulationens ledelsesoversigt viser kort under `md`. Advarsel vises som tekst. Række-testid bliver i tabellen. | DONE — `aftercalc-overview-mobile-test` |
+| OIOUBL sætter kreditnota- og konsistensflag. Beløb vendes ikke. | DONE — `oioubl-test` |
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
