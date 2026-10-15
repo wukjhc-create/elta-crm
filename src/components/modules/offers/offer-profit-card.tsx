@@ -60,6 +60,7 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
   if (data.lines.length === 0) return null
 
   const v = VERDICT[data.verdict]
+  const missingCost = data.lines.filter((l) => l.costSource === 'unknown' && l.sale > 0)
   return (
     <div className="bg-white rounded-lg border p-6" data-testid="offer-profit-card">
       <div className="flex items-center justify-between mb-3">
@@ -82,6 +83,19 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
         </ul>
       )}
 
+      {missingCost.length > 0 && (
+        <div className="mb-3 text-sm text-orange-900" data-testid="offer-profit-missing-cost">
+          <p className="font-medium">Linjer uden kostpris</p>
+          <ul className="mt-1 space-y-0.5">
+            {missingCost.map((l, i) => (
+              <li key={`${l.description}-${i}`}>
+                {l.description || 'Linje uden tekst'}{l.isLabour ? ' (timer)' : ''} — salg {kr(l.sale)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="text-xs text-muted-foreground mb-2">
         Timekost: {data.hourlyCost != null ? `${data.hourlyCost} kr/t` : 'ikke sat'} ({data.hourlyCostSource})
         {data.minimumDbPct != null && ` · minimum-DB ${data.minimumDbPct} %`}{data.targetDbPct != null && ` · mål-DB ${data.targetDbPct} %`}
@@ -91,20 +105,35 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
         {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />} Linjer ({data.lines.length})
       </button>
       {expanded && (
-        <table className="w-full text-sm mt-2">
-          <thead><tr className="text-left text-muted-foreground"><th className="py-1">Linje</th><th className="text-right">Salg</th><th className="text-right">Kost</th><th className="text-right">Kilde</th><th className="text-right">DB %</th></tr></thead>
-          <tbody>
+        <>
+          <ul className="md:hidden mt-2 space-y-2 text-sm" data-testid="offer-profit-lines-mobile">
             {data.lines.map((l, i) => (
-              <tr key={i} className="border-t">
-                <td className="py-1">{l.description}{l.isLabour ? ' (timer)' : ''}</td>
-                <td className="text-right">{kr(l.sale)}</td>
-                <td className="text-right">{l.cost != null ? kr(l.cost) : '—'}</td>
-                <td className={`text-right ${l.costSource === 'unknown' ? 'text-orange-700' : ''}`}>{SOURCE[l.costSource]}</td>
-                <td className="text-right">{l.dbPct != null ? `${l.dbPct} %` : '—'}</td>
-              </tr>
+              <li key={i} className="rounded border p-2">
+                <p className="font-medium">{l.description || 'Linje uden tekst'}{l.isLabour ? ' (timer)' : ''}</p>
+                <p>Salg {kr(l.sale)}</p>
+                <p>{l.cost != null ? `Kost ${kr(l.cost)}` : 'Kost ukendt'}</p>
+                <p>Kilde {SOURCE[l.costSource] ?? l.costSource}</p>
+                <p>DB {l.dbPct != null ? `${l.dbPct} %` : '—'}</p>
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm mt-2">
+              <thead><tr className="text-left text-muted-foreground"><th className="py-1">Linje</th><th className="text-right">Salg</th><th className="text-right">Kost</th><th className="text-right">Kilde</th><th className="text-right">DB %</th></tr></thead>
+              <tbody>
+                {data.lines.map((l, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="py-1">{l.description}{l.isLabour ? ' (timer)' : ''}</td>
+                    <td className="text-right">{kr(l.sale)}</td>
+                    <td className="text-right">{l.cost != null ? kr(l.cost) : '—'}</td>
+                    <td className={`text-right ${l.costSource === 'unknown' ? 'text-orange-700' : ''}`}>{SOURCE[l.costSource]}</td>
+                    <td className="text-right">{l.dbPct != null ? `${l.dbPct} %` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )
