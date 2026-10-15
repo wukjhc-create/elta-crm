@@ -227,10 +227,10 @@ export function AttachmentPicker({
           {attachments.map((a) => (
             <li
               key={a.document_id}
-              className="flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-200 rounded text-xs"
+              className="flex items-start gap-2 px-2 py-1 bg-gray-50 border border-gray-200 rounded text-xs"
             >
-              <FileText className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-              <span className="font-medium text-gray-800 truncate flex-1" title={a.file_name}>
+              <FileText className="w-3.5 h-3.5 text-gray-500 shrink-0 mt-0.5" />
+              <span className="font-medium text-gray-800 break-all flex-1 min-w-0" title={a.file_name}>
                 {a.file_name}
               </span>
               <span className="text-gray-500 shrink-0">{formatBytes(a.size)}</span>
