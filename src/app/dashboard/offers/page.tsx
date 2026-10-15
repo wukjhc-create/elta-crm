@@ -51,7 +51,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
   if (!offersResult.success || !offersResult.data) {
     return (
       <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-600">
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-600" data-testid="offers-load-error">
           {offersResult.error || 'Kunne ikke hente tilbud'}
         </div>
       </div>
