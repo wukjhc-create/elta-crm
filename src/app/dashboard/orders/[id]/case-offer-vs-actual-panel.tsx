@@ -91,11 +91,11 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                     return (
                       <div key={r.key} className="p-3">
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-gray-900">{r.description}</p>
+                          <div className="min-w-0">
+                            <p className="text-gray-900 break-words">{r.description}</p>
                             {r.unit && <p className="text-[11px] text-gray-500">{r.unit}</p>}
                           </div>
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${shown.cls}`}>{shown.label}</span>
+                          <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${shown.cls}`}>{shown.label}</span>
                         </div>
                         <p className="mt-2 text-xs text-gray-600">Tilbudt antal {qty(r.offered_qty)} · faktisk antal {qty(r.actual_qty)}</p>
                         <p className="text-xs text-gray-700">Tilbudt kost {kr(r.offered_cost)} · faktisk kost {kr(r.actual_cost)}</p>
@@ -126,7 +126,7 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                       {data.rows.map((r) => (
                         <tr key={r.key} data-testid="offer-vs-actual-row" data-status={r.status}>
                           <td className="px-2 py-1.5">
-                            <div className="text-gray-900">{r.description}</div>
+                            <div className="text-gray-900 break-words">{r.description}</div>
                             {r.unit && <div className="text-[11px] text-gray-500">{r.unit}</div>}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{qty(r.offered_qty)}</td>

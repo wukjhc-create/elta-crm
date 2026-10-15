@@ -32,6 +32,8 @@ eq('ens tekst staar stadig som ikke matchet', fs.readFileSync(afterFile, 'utf8')
 eq('tomt merkost bliver', fs.readFileSync(afterFile, 'utf8').includes('Ingen linje er dyrere end tilbudt.'), true)
 
 eq('linje-kort findes', ova.length > 0, true)
+eq('linje-kort ombryder beskrivelse', ova.includes('text-gray-900 break-words">{r.description}'), true)
+eq('ukendt total bliver paa panelet', ovaText.includes('data-testid="offer-vs-actual-total-unknown"') && ovaText.includes('Den tælles ikke som 0 kr.'), true)
 eq('linje-kort viser totalen uden at fordoble U81-test-id', ova.includes('figures.offered_cost') && !ova.includes('offer-vs-actual-deviation'), true)
 eq('linje-kort fordobler ikke række-test-id', ova.includes('offer-vs-actual-row'), false)
 eq('linje-kort siger kost ukendt via samme funktion', ova.includes('visibleStatus(r)'), true)
