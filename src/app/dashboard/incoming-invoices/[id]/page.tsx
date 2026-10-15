@@ -24,11 +24,12 @@ export default async function IncomingInvoiceDetailPage({
   // klar). economicReady styrer disabled/"ikke opsat"-state i UI; ingen secrets.
   const canPost = await pageHasPermission('incoming_invoices.approve')
   let economicReady = false
+  let economicError: string | null = null
   try {
     economicReady = isEconomicReady(await getEconomicSettings())
   } catch {
-    economicReady = false
+    economicError = 'Kunne ikke tjekke e-conomic'
   }
   const canEditHeader = await pageHasPermission('incoming_invoices.edit')
-  return <IncomingInvoiceDetailClient initial={detail} canPost={canPost} canEditHeader={canEditHeader} economicReady={economicReady} />
+  return <IncomingInvoiceDetailClient initial={detail} canPost={canPost} canEditHeader={canEditHeader} economicReady={economicReady} economicError={economicError} />
 }
