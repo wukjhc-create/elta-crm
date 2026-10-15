@@ -113,6 +113,10 @@ export async function getIncomingInvoiceSupplierContextAction(invoiceId: string)
       ctx.supabase.from('suppliers').select('id, name, code').order('name').limit(500),
       senderOf(ctx, inv.source_email_id),
     ])
+    if (sup.error) {
+      logger.error('incoming-invoice-supplier: options failed', { error: sup.error })
+      return { success: false, error: 'Kunne ikke hente leverandører. Det tælles ikke som ingen.' }
+    }
     return {
       success: true,
       data: {
