@@ -202,8 +202,8 @@ export function CaseOtherCostDialog({
         </div>
 
         <div className="px-4 py-3 space-y-3 overflow-y-auto min-h-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
+            <div className="min-w-0">
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Kategori <span className="text-red-500">*</span>
               </label>
@@ -211,7 +211,7 @@ export function CaseOtherCostDialog({
                 ref={firstInputRef}
                 value={form.category}
                 onChange={(e) => update('category', e.target.value as CaseOtherCostCategory)}
-                className="w-full border rounded px-2 py-1.5 text-sm bg-white"
+                className="w-full min-w-0 max-w-full border rounded px-2 py-1.5 text-sm bg-white"
               >
                 {CASE_OTHER_COST_CATEGORIES.map((c) => (
                   <option key={c} value={c}>
@@ -220,15 +220,15 @@ export function CaseOtherCostDialog({
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1 break-words">
                 Dato <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
                 value={form.cost_date}
                 onChange={(e) => update('cost_date', e.target.value)}
-                className="w-full border rounded px-2 py-1.5 text-sm"
+                className="w-full min-w-0 max-w-full border rounded px-2 py-1.5 text-sm"
               />
             </div>
           </div>
