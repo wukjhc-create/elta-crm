@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -2013,6 +2013,31 @@ ${m.text()}`) })
         await a.page.waitForTimeout(500)
         r.kunde_url = a.page.url().includes('tab=sager')
         out.push({ id: 'U166 faner i URL (sag + kunde)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U173 B-3: kundekortets fakturaoverblik viser åbent beløb (delbetalt faktura 1.000 − 600 = 400)
+      if (want('U173')) {
+        let u173Diag = ''
+        const r: Record<string, boolean> = {}
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-OPEN-${stamp}`, company_name: `Delbetaler ${stamp}`, contact_person: 'X', email: `open-${stamp}@harness.test`, created_by: adminUser.id }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const { copenhagenDatePlusDays } = await import('../../src/lib/utils/copenhagen-time')
+        const inv = custId ? await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-OPEN-${stamp}`, customer_id: custId, status: 'sent',
+          total_amount: 800, tax_amount: 200, final_amount: 1000, amount_paid: 600, due_date: copenhagenDatePlusDays(-3) }]).select('id') : null
+        const invId = (inv?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/customers/${custId}?tab=fakturaer`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByText('Udestående i alt').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          // kortet = forælderen til label-div'en (label + beløb)
+          const card = a.page.getByText('Udestående i alt', { exact: true }).first().locator('xpath=../..')
+          const txt = ((await card.textContent().catch(() => '')) ?? '')
+          r.aabent_400 = /400/.test(txt) && !/1\.000/.test(txt)
+          u173Diag = txt.replace(/\s+/g, ' ').slice(0, 80)
+        } finally {
+          if (invId) await c.admin.from('invoices').delete().eq('id', invId)
+          if (custId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        out.push({ id: 'U173 kundekort: åbent beløb', ok: !!invId && Object.values(r).every(Boolean), note: `${inv?.error ? `SEED: ${inv.error.message} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${u173Diag}` })
       }
 
       // U172 B-6/B-7: forfaldne leverandørfakturaer — filteret i listen finder dem (DB-filter), widgetten tæller
