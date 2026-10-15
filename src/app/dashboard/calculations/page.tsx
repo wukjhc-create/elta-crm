@@ -34,6 +34,7 @@ export default async function CalculationsPage({ searchParams }: PageProps) {
     <Suspense fallback={<CalculationsLoading />}>
       <CalculationsClient
         initialCalculations={result.success && result.data ? result.data : null}
+        loadError={result.success ? null : result.error || 'Kunne ikke hente kalkulationer'}
         initialFilters={{
           search: params.search || '',
           calculation_type: params.calculation_type || '',
