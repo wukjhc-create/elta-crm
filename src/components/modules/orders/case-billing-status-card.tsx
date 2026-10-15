@@ -88,15 +88,15 @@ export function CaseBillingStatusCard({
         <div className="flex items-start gap-3 min-w-0">
           <span className="shrink-0 mt-0.5">{cfg.icon}</span>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-gray-900">{cfg.title}</h3>
-            <p className="text-sm text-gray-700 mt-0.5">{body}</p>
+            <h3 className="text-sm font-semibold text-gray-900 break-words">{cfg.title}</h3>
+            <p className="text-sm text-gray-700 mt-0.5 break-words">{body}</p>
             {data.has_open_timer && (
-              <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
+              <p className="text-xs text-amber-700 mt-1 flex flex-wrap items-center gap-1 break-words">
                 <Clock className="w-3.5 h-3.5" /> Der findes en åben timer. Luk timeren før fakturering.
               </p>
             )}
             {data.billed_line_count > 0 && data.status !== 'fully_billed' && (
-              <p className="text-[11px] text-gray-500 mt-1">{data.billed_line_count} linje(r) allerede fakturalåst.</p>
+              <p className="text-[11px] text-gray-500 mt-1 break-words">{data.billed_line_count} linje(r) allerede fakturalåst.</p>
             )}
           </div>
         </div>
