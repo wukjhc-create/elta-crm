@@ -849,8 +849,8 @@ function TaskRow({
 
       {/* Title + description */}
       <div className="min-w-0 cursor-pointer" onClick={onEdit}>
-        <div className="flex items-center gap-1.5">
-          <p className={`text-sm font-medium truncate ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+        <div className="flex items-start gap-1.5 min-w-0">
+          <p className={`text-sm font-medium break-words min-w-0 ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
             {task.title}
           </p>
           {task.auto_generated && (
@@ -873,7 +873,7 @@ function TaskRow({
           </Link>
         )}
         {task.description && !task.offer && (
-          <p className="text-xs text-gray-400 truncate mt-0.5">{task.description}</p>
+          <p className="text-xs text-gray-400 break-words mt-0.5">{task.description}</p>
         )}
       </div>
 
@@ -883,7 +883,7 @@ function TaskRow({
           <>
             <Link
               href={`/dashboard/customers/${task.customer.id}`}
-              className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline truncate"
+              className="flex items-start gap-1 text-sm text-blue-600 hover:underline break-words min-w-0"
             >
               {task.customer.company_name}
               <ExternalLink className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100" />
@@ -918,7 +918,7 @@ function TaskRow({
       {/* Assigned */}
       <div className="min-w-0">
         {task.assigned_profile ? (
-          <span className="text-sm text-gray-600 truncate block">
+          <span className="text-sm text-gray-600 break-words block">
             {task.assigned_profile.full_name || task.assigned_profile.email}
           </span>
         ) : (
