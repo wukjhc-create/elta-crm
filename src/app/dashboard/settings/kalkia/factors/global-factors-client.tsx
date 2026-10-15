@@ -27,6 +27,7 @@ import { KALKIA_FACTOR_CATEGORY_LABELS, KALKIA_VALUE_TYPE_LABELS } from '@/types
 
 interface GlobalFactorsClientProps {
   factors: KalkiaGlobalFactor[]
+  loadError?: string | null
 }
 
 const categoryIcons: Record<KalkiaFactorCategory, React.ElementType> = {
@@ -45,7 +46,7 @@ const categoryColors: Record<KalkiaFactorCategory, string> = {
   labor: 'bg-pink-100 text-pink-600',
 }
 
-export default function GlobalFactorsClient({ factors }: GlobalFactorsClientProps) {
+export default function GlobalFactorsClient({ factors, loadError = null }: GlobalFactorsClientProps) {
   // Group factors by category
   const groupedFactors = factors.reduce(
     (acc, factor) => {
@@ -124,6 +125,12 @@ export default function GlobalFactorsClient({ factors }: GlobalFactorsClientProp
           </div>
         </CardContent>
       </Card>
+
+      {loadError && (
+        <p className="text-sm text-red-700" data-testid="global-factors-load-error">
+          {loadError}. Det tælles ikke som ingen faktorer.
+        </p>
+      )}
 
       {/* Factors by Category */}
       {Object.entries(groupedFactors).map(([category, categoryFactors]) => {
