@@ -40,6 +40,8 @@ interface NotificationsContextValue {
   reminders: CustomerTaskWithRelations[]
   priceAlerts: PriceAlert[]
   systemAlerts: SystemAlert[]
+  remindersError: string | null
+  priceAlertsError: string | null
   setReminders: (u: Updater<CustomerTaskWithRelations>) => void
   setPriceAlerts: (u: Updater<PriceAlert>) => void
   setSystemAlerts: (u: Updater<SystemAlert>) => void
@@ -70,6 +72,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [reminders, setRemindersState] = useState<CustomerTaskWithRelations[]>([])
   const [priceAlerts, setPriceAlertsState] = useState<PriceAlert[]>([])
   const [systemAlerts, setSystemAlertsState] = useState<SystemAlert[]>([])
+  const [remindersError, setRemindersError] = useState<string | null>(null)
+  const [priceAlertsError, setPriceAlertsError] = useState<string | null>(null)
 
   // Refs mirror state so the poll can diff against the latest values
   // (including optimistic local mutations) without stale closures.
@@ -106,13 +110,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       const feed = await getNotificationFeed()
       // null = this slice failed to fetch → keep existing state untouched.
       // [] = a genuine empty result → safe to apply.
-      if (feed.reminders !== null && !sameIds(remindersRef.current, feed.reminders)) {
-        remindersRef.current = feed.reminders
-        setRemindersState(feed.reminders)
+      if (feed.reminders === null) {
+        setRemindersError('Kunne ikke hente påmindelser')
+      } else {
+        setRemindersError(null)
+        if (!sameIds(remindersRef.current, feed.reminders)) {
+          remindersRef.current = feed.reminders
+          setRemindersState(feed.reminders)
+        }
       }
-      if (feed.priceAlerts !== null && !sameIds(priceAlertsRef.current, feed.priceAlerts)) {
-        priceAlertsRef.current = feed.priceAlerts
-        setPriceAlertsState(feed.priceAlerts)
+      if (feed.priceAlerts === null) {
+        setPriceAlertsError('Kunne ikke hente prisadvarsler')
+      } else {
+        setPriceAlertsError(null)
+        if (!sameIds(priceAlertsRef.current, feed.priceAlerts)) {
+          priceAlertsRef.current = feed.priceAlerts
+          setPriceAlertsState(feed.priceAlerts)
+        }
       }
       if (feed.systemAlerts !== null && !sameAlerts(systemAlertsRef.current, feed.systemAlerts)) {
         systemAlertsRef.current = feed.systemAlerts
@@ -129,6 +143,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     reminders,
     priceAlerts,
     systemAlerts,
+    remindersError,
+    priceAlertsError,
     setReminders,
     setPriceAlerts,
     setSystemAlerts,

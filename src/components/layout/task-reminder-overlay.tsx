@@ -28,7 +28,7 @@ const MINIMIZED_STORAGE_KEY = 'taskReminderOverlay.isMinimized'
 export function TaskReminderOverlay() {
   // Data comes from the shared NotificationsProvider (single 60 s poll for
   // the whole dashboard) instead of a per-component poll loop.
-  const { reminders, priceAlerts, setReminders, setPriceAlerts } = useNotifications()
+  const { reminders, priceAlerts, remindersError, priceAlertsError, setReminders, setPriceAlerts } = useNotifications()
 
   // Default minimized. Overlay shows as the small orange pill on every
   // session-start. The full list only opens when the user explicitly
@@ -85,8 +85,17 @@ export function TaskReminderOverlay() {
   }
 
   const totalVisible = reminders.length + priceAlerts.length
+  const loadError = totalVisible === 0 ? remindersError || priceAlertsError : null
 
-  if (totalVisible === 0) return null
+  if (totalVisible === 0 && !loadError) return null
+
+  if (loadError) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg bg-white px-4 py-3 text-sm text-red-700 shadow-lg ring-1 ring-red-200" data-testid="reminder-load-error">
+        {loadError}. Det tælles ikke som ingen påmindelser.
+      </div>
+    )
+  }
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2 max-w-sm">

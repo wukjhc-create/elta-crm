@@ -47,9 +47,8 @@ export async function getNotificationFeed(): Promise<NotificationFeed> {
   ])
 
   return {
-    // getMyPendingReminders / getUnreadPriceAlerts resolve to [] on internal
-    // error, so null here only happens if the action itself throws. Same
-    // null=keep / []=empty contract, applied defensively.
+    // Query-fejl kaster, så allSettled giver null og overlayet beholder listen.
+    // [] er en ægte tom liste (ikke logget ind, manglende tilladelse, eller PGRST205).
     reminders: remindersRes.status === 'fulfilled' ? remindersRes.value : null,
     priceAlerts: priceAlertsRes.status === 'fulfilled' ? priceAlertsRes.value : null,
     // getSystemAlerts returns { success, data }: success:false is a real

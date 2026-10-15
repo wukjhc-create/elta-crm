@@ -387,7 +387,7 @@ export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations
 
   if (error) {
     logger.error('Failed to fetch reminders', { error })
-    return []
+    throw new Error('Kunne ikke hente påmindelser')
   }
 
   return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
@@ -851,12 +851,14 @@ export async function getUnreadPriceAlerts(): Promise<PriceAlert[]> {
       // system_alerts findes ikke i prod/staging (00046 aldrig kørt) — ikke en fejl, bare ingen advarsler
       if (error.code === 'PGRST205') return []
       logger.error('Failed to fetch price alerts', { error })
-      return []
+      throw new Error('Kunne ikke hente prisadvarsler')
     }
 
     return data || []
-  } catch {
-    return []
+  } catch (err) {
+    if (err instanceof Error && err.message === 'Kunne ikke hente prisadvarsler') throw err
+    logger.error('Failed to fetch price alerts', { error: err })
+    throw new Error('Kunne ikke hente prisadvarsler')
   }
 }
 
