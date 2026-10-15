@@ -17,6 +17,7 @@ import {
   getPriceExplanation,
 } from '@/lib/actions/ai-intelligence'
 import type { OfferLineItem } from '@/types/offers.types'
+import { copenhagenDateLabel } from '@/lib/utils/copenhagen-time'
 
 interface PriceExplanationCardProps {
   offerId: string
@@ -178,7 +179,7 @@ export function PriceExplanationCard({
             </div>
           )}
           <p className="text-xs text-muted-foreground mb-3">
-            Genereret {new Date(savedExplanation.generated_at).toLocaleDateString('da-DK')}
+            Genereret {copenhagenDateLabel(savedExplanation.generated_at)}
           </p>
         </div>
       )}

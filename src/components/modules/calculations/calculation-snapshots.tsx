@@ -21,6 +21,7 @@ import {
 } from '@/lib/actions/ai-intelligence'
 import type { CalculationWithRelations } from '@/types/calculations.types'
 import { formatCurrency } from '@/lib/utils/format'
+import { copenhagenDateLabel } from '@/lib/utils/copenhagen-time'
 import { calculateDBPercentage } from '@/lib/logic/pricing'
 
 interface CalculationSnapshotsProps {
@@ -191,10 +192,10 @@ export function CalculationSnapshots({ calculation }: CalculationSnapshotsProps)
               <div className="space-y-2 pt-2 border-t">
                 {snapshots.map((snap) => (
                   <div key={snap.id} className="bg-gray-50 rounded p-2 text-xs space-y-1">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                       <span className="font-medium">Version {snap.version}</span>
-                      <span className="text-gray-400">
-                        {new Date(snap.created_at).toLocaleDateString('da-DK')}
+                      <span className="text-gray-400 whitespace-nowrap">
+                        {copenhagenDateLabel(snap.created_at)}
                       </span>
                     </div>
                     {snap.snapshot_reason && (

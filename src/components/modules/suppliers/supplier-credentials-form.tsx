@@ -32,6 +32,7 @@ import {
   type CredentialType,
   type CredentialEnvironment,
 } from '@/lib/actions/credentials'
+import { copenhagenDateLabel } from '@/lib/utils/copenhagen-time'
 
 interface SupplierCredentialsFormProps {
   supplierId: string
@@ -438,7 +439,7 @@ export function SupplierCredentialsForm({ supplierId, supplierCode }: SupplierCr
 
                     {/* Test Status */}
                     {cred.last_test_at && (
-                      <div className="flex items-center gap-2 mt-2 text-sm">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-sm">
                         {cred.last_test_status === 'success' ? (
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
                         ) : cred.last_test_status === 'failed' ? (
@@ -453,7 +454,7 @@ export function SupplierCredentialsForm({ supplierId, supplierCode }: SupplierCr
                            'Timeout'}
                         </span>
                         <span className="text-gray-400">
-                          · Testet {new Date(cred.last_test_at).toLocaleDateString('da-DK')}
+                          · Testet {copenhagenDateLabel(cred.last_test_at)}
                         </span>
                       </div>
                     )}

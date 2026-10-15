@@ -10,6 +10,7 @@ import { updateProfile, uploadProfileAvatar, deleteProfileAvatar } from '@/lib/a
 import type { Profile, UpdateProfileInput } from '@/types/settings.types'
 import { User, Phone, Building2, Mail, Save, Loader2, Camera, Trash2 } from 'lucide-react'
 import { getRoleLabel } from '@/lib/auth/roles'
+import { copenhagenDateLabel } from '@/lib/utils/copenhagen-time'
 import type { UserRole } from '@/types/auth.types'
 
 interface ProfileSettingsClientProps {
@@ -221,7 +222,7 @@ export function ProfileSettingsClient({ profile }: ProfileSettingsClientProps) {
       <div className="bg-white rounded-lg border p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Konto information</h3>
 
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-gray-500">Rolle:</span>
             <span className="ml-2 font-medium">{getRoleLabel(profile.role as UserRole)}</span>
@@ -235,13 +236,13 @@ export function ProfileSettingsClient({ profile }: ProfileSettingsClientProps) {
           <div>
             <span className="text-gray-500">Oprettet:</span>
             <span className="ml-2 font-medium">
-              {new Date(profile.created_at).toLocaleDateString('da-DK')}
+              {copenhagenDateLabel(profile.created_at)}
             </span>
           </div>
           <div>
             <span className="text-gray-500">Sidst opdateret:</span>
             <span className="ml-2 font-medium">
-              {new Date(profile.updated_at).toLocaleDateString('da-DK')}
+              {copenhagenDateLabel(profile.updated_at)}
             </span>
           </div>
         </div>
