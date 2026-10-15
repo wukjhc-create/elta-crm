@@ -28,6 +28,10 @@ eq('desktop-raekken beholder afvigelse og realiseret db', src.includes('data-tes
 eq('sortering har ét testid', src.split('data-testid="report-sort-deviation"').length - 1, 1)
 eq('teamkort viser timer og udnyttelse', team.text.includes('total_hours') && team.text.includes('billable_percentage'), true)
 eq('sagsnavn ombrydes', profit.text.includes('break-words">{p.project_name}'), true)
+eq('desktop-sag ombrydes', src.includes('font-medium text-gray-900 break-words">{p.project_name}</div>'), true)
+eq('desktop-sagskunde ombrydes', src.includes('py-2.5 text-gray-600 break-words">{p.customer_name || \'—\'}'), true)
+eq('topkunde ombrydes', customers.text.includes('break-words">{c.customer_name}') && src.includes('py-2.5 font-medium text-gray-900 break-words">{c.customer_name}'), true)
+eq('medarbejder ombrydes', team.text.includes('break-words">{t.full_name}') && src.includes('py-2.5 font-medium text-gray-900 break-words">{t.full_name}'), true)
 eq('afvigelse-filter ombrydes', src.includes('flex flex-wrap items-center gap-2') && src.includes('data-testid="report-sort-deviation"'), true)
 eq('noegletal ombrydes', src.includes('text-xs text-gray-500 break-words">{label}'), true)
 

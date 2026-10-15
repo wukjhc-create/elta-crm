@@ -130,7 +130,7 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
         <div className="md:hidden space-y-2" data-testid="report-customers-mobile">
           {data.map((c) => (
             <article key={c.customer_id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-              <p className="font-medium text-gray-900">{c.customer_name}</p>
+              <p className="font-medium text-gray-900 break-words">{c.customer_name}</p>
               <p className="text-xs text-gray-600">{c.total_offers} tilbud</p>
               <p className={`text-sm font-medium ${c.acceptance_rate >= 50 ? 'text-green-600' : 'text-amber-600'}`}>Accept {c.acceptance_rate.toFixed(0)}%</p>
               <p className="tabular-nums font-medium text-gray-900">{formatCurrency(c.total_revenue)}</p>
@@ -150,7 +150,7 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
             <tbody>
               {data.map((c) => (
                 <tr key={c.customer_id} className="border-b last:border-b-0">
-                  <td className="py-2.5 font-medium text-gray-900">{c.customer_name}</td>
+                  <td className="py-2.5 font-medium text-gray-900 break-words">{c.customer_name}</td>
                   <td className="py-2.5 text-right text-gray-600">{c.total_offers}</td>
                   <td className="py-2.5 text-right">
                     <span
@@ -259,10 +259,10 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
                 return (
                   <tr key={p.project_id} className="border-b last:border-b-0">
                     <td className="py-2.5">
-                      <div className="font-medium text-gray-900">{p.project_name}</div>
-                      <div className="text-xs text-gray-400">{p.project_number}</div>
+                      <div className="font-medium text-gray-900 break-words">{p.project_name}</div>
+                      <div className="text-xs text-gray-400 break-words">{p.project_number}</div>
                     </td>
-                    <td className="py-2.5 text-gray-600">{p.customer_name || '—'}</td>
+                    <td className="py-2.5 text-gray-600 break-words">{p.customer_name || '—'}</td>
                     {costOpen && (
                       <>
                         <td className="py-2.5 text-right text-gray-600">
@@ -330,7 +330,7 @@ function TeamTable({ data }: { data: TeamProductivity[] }) {
         <div className="md:hidden space-y-2" data-testid="report-team-mobile">
           {data.map((t) => (
             <article key={t.user_id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-              <p className="font-medium text-gray-900">{t.full_name}</p>
+              <p className="font-medium text-gray-900 break-words">{t.full_name}</p>
               <p className="text-xs text-gray-600">{t.total_hours}t i alt · {t.billable_hours}t fakturerbare · {t.projects_count} sager</p>
               <p className={`font-medium ${t.billable_percentage >= 70 ? 'text-green-600' : t.billable_percentage >= 50 ? 'text-amber-600' : 'text-red-600'}`}>Udnyttelse {t.billable_percentage}%</p>
             </article>
@@ -350,7 +350,7 @@ function TeamTable({ data }: { data: TeamProductivity[] }) {
             <tbody>
               {data.map((t) => (
                 <tr key={t.user_id} className="border-b last:border-b-0">
-                  <td className="py-2.5 font-medium text-gray-900">{t.full_name}</td>
+                  <td className="py-2.5 font-medium text-gray-900 break-words">{t.full_name}</td>
                   <td className="py-2.5 text-right text-gray-600">{t.total_hours}t</td>
                   <td className="py-2.5 text-right text-gray-600">{t.billable_hours}t</td>
                   <td className="py-2.5 text-right">
