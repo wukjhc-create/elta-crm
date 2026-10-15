@@ -49,7 +49,7 @@ export async function MyJobsCard() {
         </div>
       )}
       {open.length === 0 ? (
-        <p className="text-sm text-gray-500">Ingen planlagte job de næste 7 dage.</p>
+        <p className="text-sm text-gray-500">Ingen planlagte job de næste 7 dage. Kontoret planlægger opgaverne.</p>
       ) : (
         <div className="space-y-4">
           <JobGroup title="Ikke afsluttet" jobs={overdue} warn />
