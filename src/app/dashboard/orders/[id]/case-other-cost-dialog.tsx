@@ -185,7 +185,7 @@ export function CaseOtherCostDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="case-other-cost-dialog-title"
-        className="w-full max-w-xl rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
+        className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
       >
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 id="case-other-cost-dialog-title" className="text-base font-semibold text-gray-900">
@@ -201,8 +201,8 @@ export function CaseOtherCostDialog({
           </button>
         </div>
 
-        <div className="px-4 py-3 space-y-3">
-          <div className="grid grid-cols-2 gap-2">
+        <div className="px-4 py-3 space-y-3 overflow-y-auto min-h-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Kategori <span className="text-red-500">*</span>
@@ -262,7 +262,7 @@ export function CaseOtherCostDialog({
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Antal <span className="text-red-500">*</span>
@@ -310,7 +310,7 @@ export function CaseOtherCostDialog({
           )}
 
           {canSetPrices && (<>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Kostpris pr. enhed (DKK)
@@ -338,7 +338,7 @@ export function CaseOtherCostDialog({
           </div>
 
           {/* Live preview */}
-          <div className="rounded ring-1 ring-gray-200 bg-gray-50 px-3 py-2 text-xs grid grid-cols-3 gap-2">
+          <div className="rounded ring-1 ring-gray-200 bg-gray-50 px-3 py-2 text-xs grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <div className="text-gray-500 uppercase text-[10px] tracking-wide">Sum kost</div>
               <div className="tabular-nums font-semibold text-gray-900">

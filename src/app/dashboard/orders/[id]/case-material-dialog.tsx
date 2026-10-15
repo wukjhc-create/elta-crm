@@ -162,7 +162,7 @@ export function CaseMaterialDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="case-material-dialog-title"
-        className="w-full max-w-xl rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
+        className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
       >
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 id="case-material-dialog-title" className="text-base font-semibold text-gray-900">
@@ -178,7 +178,7 @@ export function CaseMaterialDialog({
           </button>
         </div>
 
-        <div className="px-4 py-3 space-y-3">
+        <div className="px-4 py-3 space-y-3 overflow-y-auto min-h-0">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Beskrivelse <span className="text-red-500">*</span>
@@ -195,7 +195,7 @@ export function CaseMaterialDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">SKU</label>
               <input
@@ -222,7 +222,7 @@ export function CaseMaterialDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Antal <span className="text-red-500">*</span>
@@ -264,7 +264,7 @@ export function CaseMaterialDialog({
 
           {showPrices ? (
           <>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Kostpris pr. enhed (DKK)
@@ -292,7 +292,7 @@ export function CaseMaterialDialog({
           </div>
 
           {/* Live preview */}
-          <div className="rounded ring-1 ring-gray-200 bg-gray-50 px-3 py-2 text-xs grid grid-cols-3 gap-2">
+          <div className="rounded ring-1 ring-gray-200 bg-gray-50 px-3 py-2 text-xs grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <div className="text-gray-500 uppercase text-[10px] tracking-wide">Sum kost</div>
               <div className="tabular-nums font-semibold text-gray-900">
