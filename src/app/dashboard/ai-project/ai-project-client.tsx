@@ -473,29 +473,29 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               <div>
                 <h4 className="font-medium mb-3">Prisopbygning</h4>
                 <dl className="space-y-2 text-sm">
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500">Materialer</dt>
-                    <dd>{formatCurrency(result.calculation.price.material_cost)}</dd>
+                    <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.material_cost)}</dd>
                   </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Arbejdsløn ({result.calculation.time.total_hours.toFixed(1)}t × {result.calculation.price.hourly_rate} kr)</dt>
-                    <dd>{formatCurrency(result.calculation.price.labor_cost)}</dd>
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                    <dt className="text-gray-500 min-w-0 break-words">Arbejdsløn ({result.calculation.time.total_hours.toFixed(1)}t × {result.calculation.price.hourly_rate} kr)</dt>
+                    <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.labor_cost)}</dd>
                   </div>
-                  <div className="flex justify-between border-t pt-2">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2">
                     <dt className="text-gray-500">Subtotal</dt>
-                    <dd>{formatCurrency(result.calculation.price.subtotal)}</dd>
+                    <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.subtotal)}</dd>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500">Margin ({result.calculation.price.margin_percentage}%)</dt>
-                    <dd>{formatCurrency(result.calculation.price.margin_amount)}</dd>
+                    <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.margin_amount)}</dd>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500">Risikobuffer ({result.calculation.price.risk_buffer_percentage}%)</dt>
-                    <dd>{formatCurrency(result.calculation.price.risk_buffer_amount)}</dd>
+                    <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.risk_buffer_amount)}</dd>
                   </div>
-                  <div className="flex justify-between border-t pt-2 font-bold">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">
                     <dt>Total</dt>
-                    <dd className="text-green-600">{formatCurrency(result.calculation.price.total_price)}</dd>
+                    <dd className="min-w-0 text-green-600 break-words">{formatCurrency(result.calculation.price.total_price)}</dd>
                   </div>
                 </dl>
               </div>
@@ -504,23 +504,23 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               <div>
                 <h4 className="font-medium mb-3">Tidsberegning</h4>
                 <dl className="space-y-2 text-sm">
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500">Basis tid</dt>
                     <dd>{result.calculation.time.base_hours.toFixed(1)} timer</dd>
                   </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Kompleksitetsfaktor</dt>
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                    <dt className="text-gray-500 min-w-0 break-words">Kompleksitetsfaktor</dt>
                     <dd>×{result.calculation.time.complexity_multiplier}</dd>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500">Størrelsesfaktor</dt>
                     <dd>×{result.calculation.time.size_multiplier}</dd>
                   </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Tilgængelighedsfaktor</dt>
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                    <dt className="text-gray-500 min-w-0 break-words">Tilgængelighedsfaktor</dt>
                     <dd>×{result.calculation.time.accessibility_multiplier}</dd>
                   </div>
-                  <div className="flex justify-between border-t pt-2 font-bold">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">
                     <dt>Total tid</dt>
                     <dd>{result.calculation.time.total_hours.toFixed(1)} timer</dd>
                   </div>
