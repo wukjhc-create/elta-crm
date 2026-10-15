@@ -607,8 +607,8 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                   {/* Title */}
                   <div>
                     <h4 className="text-xs font-medium text-gray-500">TITEL</h4>
-                    <p className="font-medium">{title}</p>
-                    {description && <p className="text-sm text-gray-600 mt-1">{description}</p>}
+                    <p className="font-medium break-words">{title}</p>
+                    {description && <p className="text-sm text-gray-600 mt-1 break-words">{description}</p>}
                   </div>
 
                   {/* Line items summary */}
@@ -616,9 +616,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                     <h4 className="text-xs font-medium text-gray-500 mb-2">LINJER ({lineItems.length})</h4>
                     <div className="border rounded-md divide-y text-sm">
                       {lineItems.filter((li) => li.description).map((li) => (
-                        <div key={li.id} className="flex justify-between px-3 py-2">
-                          <span className="text-gray-700">{li.description}</span>
-                          <span className="font-medium">{formatCurrency(li.quantity * li.unitPrice, 'DKK', 2)}</span>
+                        <div key={li.id} className="flex flex-wrap justify-between gap-x-3 px-3 py-2 min-w-0">
+                          <span className="text-gray-700 min-w-0 break-words">{li.description}</span>
+                          <span className="font-medium min-w-0 break-words">{formatCurrency(li.quantity * li.unitPrice, 'DKK', 2)}</span>
                         </div>
                       ))}
                     </div>
@@ -626,23 +626,23 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
 
                   {/* Totals */}
                   <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex justify-between text-sm mb-1">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-sm mb-1 min-w-0">
                       <span className="text-gray-500">Subtotal:</span>
-                      <span>{formatCurrency(subtotal, 'DKK', 2)}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(subtotal, 'DKK', 2)}</span>
                     </div>
                     {discountPercentage > 0 && (
-                      <div className="flex justify-between text-sm mb-1">
+                      <div className="flex flex-wrap justify-between gap-x-3 text-sm mb-1 min-w-0">
                         <span className="text-gray-500">Rabat ({discountPercentage}%):</span>
-                        <span className="text-red-600">-{formatCurrency(discountAmount, 'DKK', 2)}</span>
+                        <span className="text-red-600 min-w-0 break-words">-{formatCurrency(discountAmount, 'DKK', 2)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-sm mb-1">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-sm mb-1 min-w-0">
                       <span className="text-gray-500">Moms ({taxPercentage}%):</span>
-                      <span>{formatCurrency(taxAmount, 'DKK', 2)}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(taxAmount, 'DKK', 2)}</span>
                     </div>
-                    <div className={`flex justify-between font-bold text-lg mt-2 pt-2 border-t-2 border-${accentColor}-500`}>
+                    <div className={`flex flex-wrap justify-between gap-x-3 min-w-0 font-bold text-lg mt-2 pt-2 border-t-2 border-${accentColor}-500`}>
                       <span>TOTAL:</span>
-                      <span className={`text-${accentColor}-600`}>{formatCurrency(total, 'DKK', 2)}</span>
+                      <span className={`min-w-0 break-words text-${accentColor}-600`}>{formatCurrency(total, 'DKK', 2)}</span>
                     </div>
                   </div>
 
