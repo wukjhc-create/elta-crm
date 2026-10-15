@@ -80,7 +80,7 @@ export default async function DashboardPage() {
     activities,
     tasks,
     personalReminders,
-    offers,
+    pendingOffersResult,
     settingsResult,
     overview,
     rejectionStatsResult,
@@ -343,7 +343,7 @@ export default async function DashboardPage() {
 
           <div className="bg-white p-6 rounded-lg border">
             <h2 className="text-lg font-semibold mb-4">Afventende tilbud</h2>
-            <PendingOffers offers={offers} />
+            <PendingOffers offers={pendingOffersResult.offers} loadError={pendingOffersResult.error} />
           </div>
 
           {/* Phase 12A — Seneste afviste tilbud */}

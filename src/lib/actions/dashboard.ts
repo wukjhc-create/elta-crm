@@ -303,8 +303,8 @@ export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_
   return activities.slice(0, limit)
 }
 
-export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_OFFERS): Promise<
-  {
+export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_OFFERS): Promise<{
+  offers: {
     id: string
     offer_number: string
     title: string
@@ -313,10 +313,11 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
     status: string
     created_at: string
   }[]
-> {
+  error: string | null
+}> {
   const { supabase } = await getAuthenticatedClient()
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('offers')
     .select(
       `
@@ -334,20 +335,24 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (!data) return []
+  if (error) return { offers: [], error: 'Kunne ikke hente afventende tilbud' }
+  if (!data) return { offers: [], error: null }
 
-  return data.map((offer) => {
-    const customer = offer.customer as unknown as { company_name: string } | null
-    return {
-      id: offer.id,
-      offer_number: offer.offer_number,
-      title: offer.title,
-      customer_name: customer?.company_name || '',
-      total_amount: offer.total_amount || 0,
-      status: offer.status,
-      created_at: offer.created_at,
-    }
-  })
+  return {
+    offers: data.map((offer) => {
+      const customer = offer.customer as unknown as { company_name: string } | null
+      return {
+        id: offer.id,
+        offer_number: offer.offer_number,
+        title: offer.title,
+        customer_name: customer?.company_name || '',
+        total_amount: offer.total_amount || 0,
+        status: offer.status,
+        created_at: offer.created_at,
+      }
+    }),
+    error: null,
+  }
 }
 
 export async function getMonthlyOfferStats(): Promise<{

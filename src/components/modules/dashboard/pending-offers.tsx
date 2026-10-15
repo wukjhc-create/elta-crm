@@ -17,9 +17,19 @@ interface Offer {
 
 interface PendingOffersProps {
   offers: Offer[]
+  /** Sat når hentningen fejlede. Tom liste må ikke ligne "ingen tilbud". */
+  loadError?: string | null
 }
 
-export function PendingOffers({ offers }: PendingOffersProps) {
+export function PendingOffers({ offers, loadError = null }: PendingOffersProps) {
+  if (loadError) {
+    return (
+      <p className="text-sm text-red-700" data-testid="pending-offers-load-error">
+        {loadError}. Det tælles ikke som ingen tilbud.
+      </p>
+    )
+  }
+
   if (offers.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
