@@ -302,28 +302,36 @@ function ReminderCard({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1.5 mt-3">
+        <div className="flex flex-wrap items-center gap-1.5 mt-3">
           <button
+            type="button"
             onClick={onComplete}
+            aria-label={`Markér udført: ${reminder.title}`}
             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             Udført
           </button>
           <button
+            type="button"
             onClick={() => onSnooze(15)}
+            aria-label={`Udsæt ${reminder.title} 15 minutter`}
             className="px-2 py-1.5 text-xs font-medium border rounded hover:bg-gray-50 transition-colors"
           >
             15 min
           </button>
           <button
+            type="button"
             onClick={() => onSnooze(60)}
+            aria-label={`Udsæt ${reminder.title} 1 time`}
             className="px-2 py-1.5 text-xs font-medium border rounded hover:bg-gray-50 transition-colors"
           >
             1 time
           </button>
           <button
+            type="button"
             onClick={() => onSnooze(60 * 24)}
+            aria-label={`Udsæt ${reminder.title} til i morgen`}
             className="px-2 py-1.5 text-xs font-medium border rounded hover:bg-gray-50 transition-colors"
           >
             I morgen
