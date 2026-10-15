@@ -31,6 +31,7 @@ import {
   FilePlus,
 } from 'lucide-react'
 import { LeadStatusBadge } from '@/components/modules/leads/lead-status-badge'
+import { nextLeadHint } from '@/lib/leads/next-hint'
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { LeadForm } from '@/components/modules/leads/lead-form'
 import {
@@ -158,6 +159,9 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
               <LeadStatusBadge status={lead.status} />
             </div>
             <p className="text-gray-600 mt-1">{lead.contact_person}</p>
+            <p className="text-sm text-gray-700 mt-2" data-testid="lead-next-hint">
+              {nextLeadHint(lead.status, { hasCustomer: !!linkedCustomerId, canConvert, canCreateOffer })}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Lead → kunde (så der kan laves tilbud og portaladgang) */}
