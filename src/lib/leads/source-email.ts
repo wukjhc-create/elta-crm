@@ -8,11 +8,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export async function leadSourceEmailIds(supabase: SupabaseClient): Promise<Set<string>> {
   const out = new Set<string>()
   for (let from = 0; from < 50_000; from += 1000) {
-    const { data, error } = await supabase.from('leads').select('id, custom_fields')
+    // S-12 (pilot-review 2026-10-15): kun JSON-stien — før hele custom_fields (inkl. vedhæftnings-arrays) ved hver
+    // dashboard-indlæsning
+    const { data, error } = await supabase.from('leads').select('id, source_email_id:custom_fields->>source_email_id')
       .not('custom_fields->>source_email_id', 'is', null).order('id').range(from, from + 999)
     if (error) throw new Error(error.message)
-    for (const l of (data ?? []) as Array<{ custom_fields: { source_email_id?: string } | null }>) {
-      if (l.custom_fields?.source_email_id) out.add(l.custom_fields.source_email_id)
+    for (const l of (data ?? []) as Array<{ source_email_id: string | null }>) {
+      if (l.source_email_id) out.add(l.source_email_id)
     }
     if (!data || data.length < 1000) break
   }

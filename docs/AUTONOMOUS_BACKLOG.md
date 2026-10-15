@@ -82,7 +82,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | S-9 (S3) | createCustomerFromEmail kun gated på inbox.view (opretter kunder/leads); quickCreateCustomerFromEmail død men kaldbar | DONE — kræver også customers.create; død action fjernet. UI U68/U52 |
 | S-10 (S4) | Lead-tidslinje viser engelske statuskoder | DONE — nye aktiviteter med danske navne, gamle oversættes ved visning. UI U27 |
 | S-11 (S4) | Accept/afvis-notifikationsmail linker til listen, mangler tilbudsnr./kunde | DELVIS — linker direkte til tilbuddet; tilbudsnr./kunde i teksten = TODO |
-| S-12 (S4) | Dashboard henter alle mail-leads med fulde custom_fields | TODO |
+| S-12 (S4) | Dashboard henter alle mail-leads med fulde custom_fields | DONE — kun JSON-stien source_email_id hentes. UI U68/U53/U70 |
 
 ## NEXT-16 (pilot-review-bølge 2026-10-15 aften — "hvad irriterer brugerne i morgen?")
 | # | Fund | Status |
