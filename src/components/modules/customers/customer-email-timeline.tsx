@@ -167,12 +167,12 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
     <div className="bg-white rounded-lg border">
       {/* Header */}
       <div className="p-4 sm:p-6 border-b">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Mail className="w-5 h-5" />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold flex flex-wrap items-center gap-2 min-w-0">
+            <Mail className="w-5 h-5 shrink-0" />
             Kundens Indbakke
             {unreadCount > 0 && (
-              <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-blue-500 text-white rounded-full">
+              <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-[10px] font-bold bg-blue-500 text-white rounded-full">
                 {unreadCount}
               </span>
             )}
@@ -240,7 +240,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
             className="w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
             rows={5}
           />
-          <div className="flex items-center justify-between mt-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
             <p className="text-xs text-gray-400">Sendes fra ELTA Drift-postkasse</p>
             <button
               onClick={handleCompose}
@@ -259,7 +259,13 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
         <div className="p-8 text-center">
           <Inbox className="w-10 h-10 mx-auto mb-3 text-gray-300" />
           <p className="text-gray-500 font-medium">Ingen emails med denne kunde</p>
-          <p className="text-sm text-gray-400 mt-1">Send den første email med knappen ovenfor</p>
+          <p className="text-sm text-gray-400 mt-1">
+            {canReply && !noRealEmail
+              ? 'Send den første email med knappen ovenfor'
+              : noRealEmail
+                ? 'Kunden mangler e-mail, så der kan ikke sendes herfra'
+                : 'Der er ingen mails koblet til kunden endnu'}
+          </p>
         </div>
       ) : viewMode === 'threads' && conversations.length > 0 ? (
         /* ========== THREADED VIEW ========== */
