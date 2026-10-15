@@ -57,7 +57,7 @@ interface CountMap {
 
 const fmtAmount = (n: number | null, ccy = 'DKK') =>
   n == null
-    ? '—'
+    ? 'Beløb mangler'
     : new Intl.NumberFormat('da-DK', { style: 'currency', currency: ccy, maximumFractionDigits: 2 }).format(n)
 
 const fmtDate = (iso: string | null) => (iso ? iso.slice(0, 10) : '—')
@@ -234,7 +234,7 @@ export function IncomingInvoicesListClient({
             <div key={r.id} className={`p-4 ${isTest ? 'bg-amber-50/40' : ''}`}>
               <div className="flex items-start justify-between gap-2">
                 <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline break-words min-w-0">
-                  {r.supplier_name || '—'}
+                  {r.supplier_name || 'Leverandør mangler'}
                 </Link>
                 <StatusBadge row={r} />
               </div>
@@ -290,7 +290,7 @@ export function IncomingInvoicesListClient({
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline break-words">
-                      {r.supplier_name || '—'}
+                      {r.supplier_name || 'Leverandør mangler'}
                     </Link>
                     {r.probably_not_invoice && <NotInvoiceBadge />}
                     {r.duplicate_of_id && <DuplicateBadge />}
