@@ -21,8 +21,7 @@ import type { PriceAlert } from '@/lib/actions/customer-tasks'
 import { useNotifications } from './notifications-provider'
 import { TASK_PRIORITY_CONFIG } from '@/types/customer-tasks.types'
 import type { CustomerTaskWithRelations } from '@/types/customer-tasks.types'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 const MINIMIZED_STORAGE_KEY = 'taskReminderOverlay.isMinimized'
 
@@ -195,7 +194,7 @@ function PriceAlertCard({
           </button>
         </div>
 
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex flex-wrap items-center gap-2 mt-2">
           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${
             alert.severity === 'critical' ? 'bg-red-100 text-red-700' :
             alert.severity === 'warning' ? 'bg-amber-100 text-amber-700' :
@@ -205,7 +204,7 @@ function PriceAlertCard({
             {alert.severity === 'critical' ? 'Kritisk' : alert.severity === 'warning' ? 'Advarsel' : 'Info'}
           </span>
           <span className="text-xs text-gray-500">
-            {format(new Date(alert.created_at), 'd. MMM HH:mm', { locale: da })}
+            {copenhagenDateTimeLabel(alert.created_at, 'short', false)}
           </span>
         </div>
 
@@ -290,14 +289,14 @@ function ReminderCard({
           </button>
         </div>
 
-        <div className="flex items-center gap-2 mt-1.5">
+        <div className="flex flex-wrap items-center gap-2 mt-1.5">
           <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${priorityCfg.bgColor} ${priorityCfg.color}`}>
             {priorityCfg.label}
           </span>
           <span className="text-xs text-gray-500 flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {reminder.due_date
-              ? format(new Date(reminder.due_date), 'd. MMM HH:mm', { locale: da })
+              ? copenhagenDateTimeLabel(reminder.due_date, 'short', false)
               : 'Ingen dato'}
           </span>
         </div>

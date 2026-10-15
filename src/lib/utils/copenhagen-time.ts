@@ -41,12 +41,16 @@ export function copenhagenDateLabel(value: string | Date, month: 'short' | 'long
 }
 
 /** Synlig dato og klokkeslæt i dansk lokaltid. Værdien i databasen ændres ikke. */
-export function copenhagenDateTimeLabel(value: string | Date, month: 'short' | 'long' | 'numeric' = 'short'): string {
+export function copenhagenDateTimeLabel(
+  value: string | Date,
+  month: 'short' | 'long' | 'numeric' = 'short',
+  withYear = true,
+): string {
   return new Date(value).toLocaleString('da-DK', {
     timeZone: TZ,
     day: 'numeric',
     month,
-    year: 'numeric',
+    ...(withYear ? { year: 'numeric' as const } : {}),
     hour: '2-digit',
     minute: '2-digit',
   })
