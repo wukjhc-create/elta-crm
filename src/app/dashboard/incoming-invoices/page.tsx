@@ -3,6 +3,7 @@ import { IncomingInvoicesListClient } from './list-client'
 import {
   getApprovalQueueCountsAction,
   listIncomingInvoicesAction,
+  type IncomingInvoiceListItem,
 } from '@/lib/actions/incoming-invoices'
 
 export const metadata: Metadata = {
@@ -26,21 +27,34 @@ export default async function IncomingInvoicesPage() {
   // throwing action never escapes the page to the not-found boundary.
   console.log('INCOMING INVOICES PAGE RENDER START:', new Date().toISOString())
 
-  let rows: Awaited<ReturnType<typeof listIncomingInvoicesAction>> = []
+  let rows: IncomingInvoiceListItem[] = []
+  let listError: string | null = null
   let counts: Awaited<ReturnType<typeof getApprovalQueueCountsAction>> = EMPTY_COUNTS
+  let countsError: string | null = null
 
   try {
-    rows = await listIncomingInvoicesAction({ status: 'needs_review' })
+    const result = await listIncomingInvoicesAction({ status: 'needs_review' })
+    if (result.error) listError = result.error
+    else rows = result.rows
   } catch (err) {
     console.error('INCOMING INVOICES list fetch failed:', err)
+    listError = 'Kunne ikke hente fakturaer'
   }
 
   try {
     counts = await getApprovalQueueCountsAction()
   } catch (err) {
     console.error('INCOMING INVOICES counts fetch failed:', err)
+    countsError = 'Kunne ikke tælle fakturaer'
   }
 
   console.log('INCOMING INVOICES PAGE RENDER OK rows=' + rows.length)
-  return <IncomingInvoicesListClient initialRows={rows} initialCounts={counts} />
+  return (
+    <IncomingInvoicesListClient
+      initialRows={rows}
+      initialCounts={counts}
+      initialListError={listError}
+      initialCountsError={countsError}
+    />
+  )
 }

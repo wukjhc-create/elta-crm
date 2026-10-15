@@ -73,9 +73,13 @@ function emptyListText(due: IncomingDueFilter | null): string {
 export function IncomingInvoicesListClient({
   initialRows,
   initialCounts,
+  initialListError = null,
+  initialCountsError = null,
 }: {
   initialRows: IncomingInvoiceListItem[]
   initialCounts: CountMap
+  initialListError?: string | null
+  initialCountsError?: string | null
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -92,9 +96,11 @@ export function IncomingInvoicesListClient({
   const todayIso = copenhagenParts(new Date()).date
 
   const [rows, setRows] = useState<IncomingInvoiceListItem[]>(initialRows)
+  const [listError, setListError] = useState<string | null>(initialListError)
   const [filter, setFilter] = useState<FilterKey>('needs_review')
   const [busy, startTransition] = useTransition()
   const [counts] = useState<CountMap>(initialCounts)
+  const [countsError] = useState<string | null>(initialCountsError)
   const [seedBusy, setSeedBusy] = useState(false)
   const [seedMsg, setSeedMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -108,8 +114,16 @@ export function IncomingInvoicesListClient({
       router.push(`/dashboard/incoming-invoices/${r.data.invoiceId}`)
     } else {
       // Refresh the current view in case it just appeared at top
-      const next = await listIncomingInvoicesAction({ status: filter })
-      setRows(next)
+      try {
+        const next = await listIncomingInvoicesAction({ status: filter })
+        if (next.error) setListError(next.error)
+        else {
+          setListError(null)
+          setRows(next.rows)
+        }
+      } catch {
+        setListError('Kunne ikke hente fakturaer')
+      }
       setTimeout(() => setSeedMsg(null), 6000)
     }
   }
@@ -118,8 +132,16 @@ export function IncomingInvoicesListClient({
   // scope); ellers brug det valgte statusfilter.
   useEffect(() => {
     startTransition(async () => {
-      const next = await listIncomingInvoicesAction({ status: due ? 'approved' : filter })
-      setRows(next)
+      try {
+        const next = await listIncomingInvoicesAction({ status: due ? 'approved' : filter })
+        if (next.error) setListError(next.error)
+        else {
+          setListError(null)
+          setRows(next.rows)
+        }
+      } catch {
+        setListError('Kunne ikke hente fakturaer')
+      }
     })
   }, [filter, due])
 
@@ -175,7 +197,7 @@ export function IncomingInvoicesListClient({
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => {
-          const count = countFor(counts, f.key)
+          const count = countFor(counts, f.key, countsError != null)
           const active = filter === f.key
           return (
             <button
@@ -221,11 +243,22 @@ export function IncomingInvoicesListClient({
         {due && <span className="text-[11px] text-gray-400">Viser godkendte fakturaer (afventer bogføring/betaling)</span>}
       </div>
 
+      {countsError && (
+        <p className="text-sm text-red-700" data-testid="incoming-invoices-counts-error">
+          {countsError}. Det tælles ikke som 0.
+        </p>
+      )}
+      {listError && (
+        <p className="text-sm text-red-700" data-testid="incoming-invoices-load-error">
+          {listError}. Det tælles ikke som ingen fakturaer.
+        </p>
+      )}
+
       <div className="md:hidden border rounded overflow-hidden bg-white divide-y" data-testid="incoming-invoices-mobile-list">
         {busy && (
           <p className="px-3 py-6 text-center text-gray-400 text-xs">Henter…</p>
         )}
-        {!busy && displayRows.length === 0 && (
+        {!busy && !listError && displayRows.length === 0 && (
           <p className="px-3 py-6 text-center text-gray-400 text-xs">{emptyListText(due)}</p>
         )}
         {!busy && displayRows.map((r) => {
@@ -280,7 +313,7 @@ export function IncomingInvoicesListClient({
             {busy && (
               <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400 text-xs">Henter…</td></tr>
             )}
-            {!busy && displayRows.length === 0 && (
+            {!busy && !listError && displayRows.length === 0 && (
               <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400 text-xs">{emptyListText(due)}</td></tr>
             )}
             {!busy && displayRows.map((r) => {
@@ -326,8 +359,8 @@ function openInvoiceLabel(r: IncomingInvoiceListItem): string {
   return `Åbn faktura ${r.invoice_number || r.supplier_name || 'uden nummer'}`
 }
 
-function countFor(c: CountMap, k: FilterKey): number | null {
-  if (k === 'all' || k === 'not_invoice') return null // N68: tælles ikke på forhånd (kræver afsender-opslag)
+function countFor(c: CountMap, k: FilterKey, failed: boolean): number | null {
+  if (failed || k === 'all' || k === 'not_invoice') return null // N68: tælles ikke på forhånd (kræver afsender-opslag)
   return c[k] ?? 0
 }
 

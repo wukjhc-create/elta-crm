@@ -94,9 +94,9 @@ async function notInvoiceFlagger(
 
 export async function listIncomingInvoicesAction(
   filter: ListFilter = {}
-): Promise<IncomingInvoiceListItem[]> {
+): Promise<{ rows: IncomingInvoiceListItem[]; error: string | null }> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-  if (!hasPermission('incoming_invoices.view')) return []
+  if (!hasPermission('incoming_invoices.view')) return { rows: [], error: null }
   const limit = filter.limit ?? 200
 
   let q = supabase
@@ -141,7 +141,11 @@ export async function listIncomingInvoicesAction(
       break
   }
 
-  const { data } = await q
+  const { data, error } = await q
+  if (error) {
+    logger.error('listIncomingInvoicesAction failed', { error })
+    return { rows: [], error: 'Kunne ikke hente fakturaer' }
+  }
   const notInvoice = await notInvoiceFlagger(supabase, (data ?? []).map((r) => (r as { source_email_id?: string | null }).source_email_id))
   const rows = (data ?? []).map((r) => {
     const supplierJoin = (r as { suppliers?: { name?: string } | { name?: string }[] }).suppliers
@@ -169,7 +173,8 @@ export async function listIncomingInvoicesAction(
       probably_not_invoice: notInvoice({ ...r, source_email_id: (r as { source_email_id?: string | null }).source_email_id ?? null }),
     }
   })
-  return filter.status === 'not_invoice' ? rows.filter((r) => r.probably_not_invoice) : rows
+  const visible = filter.status === 'not_invoice' ? rows.filter((r) => r.probably_not_invoice) : rows
+  return { rows: visible, error: null }
 }
 
 export interface IncomingInvoiceDetail {
@@ -871,6 +876,12 @@ export async function getApprovalQueueCountsAction(): Promise<{
     supabase.from('incoming_invoices').select('id', { count: 'exact', head: true })
       .eq('source', 'email').is('file_url', null).not('status', 'in', '(approved,posted,rejected,cancelled)'),
   ])
+  if (aw.error || nr.error || ap.error || rj.error || pst.error || mf.error) {
+    logger.error('getApprovalQueueCountsAction failed', {
+      error: aw.error || nr.error || ap.error || rj.error || pst.error || mf.error,
+    })
+    throw new Error('Kunne ikke tælle fakturaer')
+  }
   return {
     awaiting_approval: aw.count ?? 0,
     needs_review: nr.count ?? 0,
