@@ -48,9 +48,9 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4" data-testid="invoice-control-panel">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold">Fakturakontrol</h3>
-        {v && <span className={`text-xs px-2 py-1 rounded border ${v.cls}`} data-testid="invoice-control-verdict">{v.label}</span>}
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+        <h3 className="text-sm font-semibold break-words min-w-0">Fakturakontrol</h3>
+        {v && <span className={`text-xs px-2 py-1 rounded border shrink-0 ${v.cls}`} data-testid="invoice-control-verdict">{v.label}</span>}
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       {!res && !error && <p className="text-xs text-gray-400">Kontrollerer priser…</p>}
@@ -77,10 +77,10 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
               return (
                 <div key={l.lineNumber} className={`p-3 ${bad ? 'bg-red-50' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-gray-900"><span className="text-gray-400">{l.lineNumber}.</span> {l.description}<ChargeMark description={l.description} /></p>
-                    <span className={bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : 'text-gray-600'}>{LINE[l.verdict] ?? l.verdict}</span>
+                    <p className="text-gray-900 break-words min-w-0"><span className="text-gray-400">{l.lineNumber}.</span> {l.description}<ChargeMark description={l.description} /></p>
+                    <span className={`shrink-0 ${bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : 'text-gray-600'}`}>{LINE[l.verdict] ?? l.verdict}</span>
                   </div>
-                  <p className="mt-1 text-gray-600">{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : (l.reason ?? 'ingen')}</p>
+                  <p className="mt-1 text-gray-600 break-all">{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : (l.reason ?? 'ingen')}</p>
                   <p>Forventet {m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</p>
                   <p>Afvigelse {l.varianceAmount != null && l.verdict !== 'not_controllable' ? `${kr(l.varianceAmount)}${l.variancePct != null ? ` (${l.variancePct} %)` : ''}` : '—'}</p>
                 </div>
@@ -97,7 +97,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
                   return (
                     <tr key={l.lineNumber} className={`border-t ${bad ? 'bg-red-50' : ''}`}>
                       <td className="py-1">{l.lineNumber}</td>
-                      <td>{l.description}<ChargeMark description={l.description} /></td>
+                      <td className="break-words">{l.description}<ChargeMark description={l.description} /></td>
                       <td>{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : <span className="text-gray-400">{l.reason ?? 'ingen'}</span>}</td>
                       <td className="text-right">{m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</td>
                       <td className="text-right">{l.varianceAmount != null && l.verdict !== 'not_controllable' ? `${kr(l.varianceAmount)}${l.variancePct != null ? ` (${l.variancePct} %)` : ''}` : '—'}</td>
