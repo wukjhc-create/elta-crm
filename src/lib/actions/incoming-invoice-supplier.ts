@@ -37,14 +37,19 @@ export interface IncomingInvoiceSupplierContext {
 
 type Ctx = Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>
 
-async function loadInvoice(ctx: Ctx, invoiceId: string) {
+type LoadedInvoice = { id: string; status: string; supplier_id: string | null; supplier_name_extracted: string | null; source_email_id: string | null }
+
+async function loadInvoice(ctx: Ctx, invoiceId: string): Promise<{ invoice: LoadedInvoice | null; failed: boolean }> {
   const { data, error } = await ctx.supabase
     .from('incoming_invoices')
     .select('id, status, supplier_id, supplier_name_extracted, source_email_id')
     .eq('id', invoiceId)
     .maybeSingle()
-  if (error) logger.error('incoming-invoice-supplier: read failed', { error })
-  return (data ?? null) as { id: string; status: string; supplier_id: string | null; supplier_name_extracted: string | null; source_email_id: string | null } | null
+  if (error) {
+    logger.error('incoming-invoice-supplier: read failed', { error })
+    return { invoice: null, failed: true }
+  }
+  return { invoice: (data ?? null) as LoadedInvoice | null, failed: false }
 }
 
 async function senderOf(ctx: Ctx, sourceEmailId: string | null): Promise<{ domain: string | null; failed: boolean }> {
@@ -123,7 +128,9 @@ export async function getIncomingInvoiceSupplierContextAction(invoiceId: string)
     validateUUID(invoiceId, 'faktura ID')
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission('incoming_invoices.edit')) return { success: false, error: 'Manglende tilladelse: incoming_invoices.edit' }
-    const inv = await loadInvoice(ctx, invoiceId)
+    const loaded = await loadInvoice(ctx, invoiceId)
+    if (loaded.failed) return { success: false, error: 'Kunne ikke læse fakturaen. Det tælles ikke som at den ikke findes.' }
+    const inv = loaded.invoice
     if (!inv) return { success: false, error: 'Faktura ikke fundet' }
     const [sup, domain] = await Promise.all([
       ctx.supabase.from('suppliers').select('id, name, code').order('name').limit(500),
@@ -163,7 +170,9 @@ export async function setIncomingInvoiceSupplierAction(
     if (supplierId) validateUUID(supplierId, 'leverandør ID')
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission('incoming_invoices.edit')) return { success: false, error: 'Manglende tilladelse: incoming_invoices.edit' }
-    const inv = await loadInvoice(ctx, invoiceId)
+    const loaded = await loadInvoice(ctx, invoiceId)
+    if (loaded.failed) return { success: false, error: 'Kunne ikke læse fakturaen. Det tælles ikke som at den ikke findes.' }
+    const inv = loaded.invoice
     if (!inv) return { success: false, error: 'Faktura ikke fundet' }
     if (TERMINAL.includes(inv.status)) return { success: false, error: `Fakturaen er ${inv.status} — leverandøren kan ikke ændres` }
     let label: string | null = null
@@ -197,7 +206,9 @@ export async function createSupplierFromIncomingInvoiceAction(
     if (!ctx.hasPermission('incoming_invoices.edit')) return { success: false, error: 'Manglende tilladelse: incoming_invoices.edit' }
     const clean = String(name ?? '').trim().slice(0, 200)
     if (clean.length < 2) return { success: false, error: 'Angiv leverandørens navn' }
-    const inv = await loadInvoice(ctx, invoiceId)
+    const loaded = await loadInvoice(ctx, invoiceId)
+    if (loaded.failed) return { success: false, error: 'Kunne ikke læse fakturaen. Det tælles ikke som at den ikke findes.' }
+    const inv = loaded.invoice
     if (!inv) return { success: false, error: 'Faktura ikke fundet' }
     if (TERMINAL.includes(inv.status)) return { success: false, error: `Fakturaen er ${inv.status} — leverandøren kan ikke ændres` }
     const sender = await senderOf(ctx, inv.source_email_id)
