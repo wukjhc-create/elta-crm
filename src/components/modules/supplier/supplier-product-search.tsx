@@ -40,7 +40,7 @@ function SupplierBadge({ code }: { code: string }) {
     ? 'bg-orange-100 text-orange-700 border-orange-200'
     : 'bg-blue-100 text-blue-700 border-blue-200'
   return (
-    <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${colors}`}>
+    <span className={`inline-flex shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${colors}`}>
       {code}
     </span>
   )
@@ -136,12 +136,12 @@ export function SupplierProductSearch({
             >
               <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-start gap-1.5">
                     <SupplierBadge code={product.supplier_code} />
-                    <span className="font-medium truncate text-sm">{product.product_name}</span>
+                    <span className="font-medium break-words text-sm min-w-0">{product.product_name}</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
-                    <span className="font-mono">{product.supplier_sku}</span>
+                    <span className="font-mono break-all">{product.supplier_sku}</span>
                     {!product.is_available && (
                       <span className="text-red-500 font-medium">Ikke tilgængelig</span>
                     )}
