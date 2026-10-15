@@ -169,6 +169,11 @@ export default async function CalendarPage({ searchParams }: PageProps) {
 
   return (
     <>
+    {backlog?.success && backlog.data?.employees_failed && (
+      <p className="px-4 sm:px-6 pt-4 text-sm text-red-700" data-testid="planning-backlog-employees-error">
+        Medarbejdere kunne ikke hentes. Det tælles ikke som manglende montør.
+      </p>
+    )}
     {backlog?.success && backlog.data && <div className="px-4 sm:px-6 pt-4"><PlanningBacklogPanel items={backlog.data.items} total={backlog.data.total} /></div>}
     {canPlan && backlog && !backlog.success && (
       <p className="px-4 sm:px-6 pt-4 text-sm text-red-700" data-testid="planning-backlog-load-error">

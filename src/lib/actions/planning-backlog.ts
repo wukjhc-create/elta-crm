@@ -24,7 +24,7 @@ export interface PlanningBacklogItem {
 
 const ACTIVE_STATUSES = ['new', 'in_progress', 'pending']
 
-export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: PlanningBacklogItem[]; total: number }>> {
+export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: PlanningBacklogItem[]; total: number; employees_failed?: boolean }>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('work_orders.plan')) return { success: false, error: 'Manglende tilladelse: work_orders.plan' }
@@ -62,9 +62,12 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
     // X4: en planlagt arbejdsordre hos en DEAKTIVERET/fratrådt medarbejder mangler reelt en medarbejder
     // admin-klient bag gaten work_orders.plan: kun id + fratrædelsesdato; RLS må ikke få ALLE ordrer til at se ufordelte ud
     const { createAdminClient } = await import('@/lib/supabase/admin')
-    const { data: activeEmps } = await createAdminClient().from('employees').select('id, termination_date').eq('active', true)
+    const { data: activeEmps, error: empErr } = await createAdminClient().from('employees').select('id, termination_date').eq('active', true)
+    if (empErr) {
+      logger.error('getPlanningBacklogAction: employees failed', { error: empErr })
+    }
     const today = copenhagenParts(new Date()).date
-    const activeIds = new Set(((activeEmps ?? []) as Array<{ id: string; termination_date: string | null }>)
+    const activeIds = empErr ? null : new Set(((activeEmps ?? []) as Array<{ id: string; termination_date: string | null }>)
       .filter((e) => !e.termination_date || e.termination_date >= today).map((e) => e.id))
     const byCase = new Map<string, Array<{ status: string; scheduled_date: string | null; assigned_employee_id: string | null }>>()
     for (const w of wos as Array<{ case_id: string; status: string; scheduled_date: string | null; assigned_employee_id: string | null }>) {
@@ -78,13 +81,13 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
       let reason: PlanningBacklogItem['reason'] | null = null
       if (w.filter((x) => x.status !== 'cancelled').length === 0) reason = 'no_work_order'
       else if (open.some((x) => !x.scheduled_date)) reason = 'missing_date'
-      else if (open.some((x) => !x.assigned_employee_id || !activeIds.has(x.assigned_employee_id))) reason = 'missing_employee'
+      else if (open.some((x) => !x.assigned_employee_id || (activeIds !== null && !activeIds.has(x.assigned_employee_id)))) reason = 'missing_employee'
       if (!reason) continue
       const cust = Array.isArray(c.customer) ? c.customer[0] : c.customer
       items.push({ case_id: c.id, case_number: c.case_number, title: c.title, customer_name: cust?.company_name ?? null, status: c.status,
         reason, work_order_count: w.length, created_at: c.created_at })
     }
-    return { success: true, data: { items: items.slice(0, 20), total: items.length } }
+    return { success: true, data: { items: items.slice(0, 20), total: items.length, employees_failed: !!empErr } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente planlægningsbehov') }
   }
