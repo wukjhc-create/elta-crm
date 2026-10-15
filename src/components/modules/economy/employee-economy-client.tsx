@@ -66,7 +66,7 @@ export function EmployeeEconomyClient({
       </div>
 
       {/* Nøgletal */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="employee-economy-totals">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 min-w-0" data-testid="employee-economy-totals">
         <StatCard label="Samlet timer" value={`${formatNumber(totalHours, 2)} t`} />
         <StatCard label="Samlet arbejdssalg" value={formatCurrency(totalSale)} />
         <StatCard label="Samlet arbejdskost" value={costOpen ? (totalCost == null ? 'skjult (≤ 1 medarbejder)' : formatCurrency(totalCost)) : '••••••'} />
@@ -87,10 +87,10 @@ export function EmployeeEconomyClient({
         <div className="md:hidden space-y-2 p-2" data-testid="employee-economy-mobile">
           {employees.map((e) => (
             <article key={e.employee_id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-              <p className="font-medium text-gray-900">{e.employee_name}</p>
-              <p className="text-xs text-gray-600">{formatNumber(e.hours, 2)} t · Salg {formatCurrency(e.labor_sale)}</p>
+              <p className="font-medium text-gray-900 break-words">{e.employee_name}</p>
+              <p className="text-xs text-gray-600 break-words">{formatNumber(e.hours, 2)} t · Salg {formatCurrency(e.labor_sale)}</p>
               {showRowCost && (
-                <p className="mt-1 text-xs text-gray-700">
+                <p className="mt-1 text-xs text-gray-700 break-words">
                   Kost {formatCurrency(e.labor_cost ?? 0)} · DB {formatCurrency(e.db_amount ?? 0)} · {formatPercent(e.db_percentage ?? 0, 1)}
                 </p>
               )}
@@ -120,7 +120,7 @@ export function EmployeeEconomyClient({
             <tbody className="divide-y">
               {employees.map((e) => (
                   <tr key={e.employee_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 font-medium">{e.employee_name}</td>
+                    <td className="px-4 py-2 font-medium break-words">{e.employee_name}</td>
                     <td className="px-4 py-2 text-right tabular-nums">
                       {formatNumber(e.hours, 2)}
                     </td>
@@ -188,9 +188,9 @@ function StatCard({
   const valueColor =
     tone === 'pos' ? 'text-emerald-700' : tone === 'neg' ? 'text-red-700' : 'text-gray-900'
   return (
-    <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`mt-2 text-xl font-semibold tabular-nums ${valueColor}`}>{value}</div>
+    <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4 min-w-0">
+      <div className="text-xs text-gray-500 break-words">{label}</div>
+      <div className={`mt-2 text-xl font-semibold tabular-nums break-words ${valueColor}`}>{value}</div>
     </div>
   )
 }
