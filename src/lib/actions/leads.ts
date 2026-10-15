@@ -762,8 +762,13 @@ export async function getLeadAttachmentUrlAction(leadId: string, storagePath: st
     validateUUID(leadId, 'lead ID')
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('leads.view')) return { success: false, error: 'Manglende tilladelse: leads.view' }
-    const { data: lead } = await supabase.from('leads').select('custom_fields').eq('id', leadId).maybeSingle()
-    const atts = (((lead as { custom_fields?: Record<string, unknown> } | null)?.custom_fields?.attachments ?? []) as Array<{ leadStoragePath?: string; sourcePath?: string }>)
+    const { data: lead, error: leadErr } = await supabase.from('leads').select('custom_fields').eq('id', leadId).maybeSingle()
+    if (leadErr) {
+      logger.error('getLeadAttachmentUrlAction lead read failed', { error: leadErr })
+      return { success: false, error: 'Kunne ikke læse leadet. Det tælles ikke som at filen ikke hører til.' }
+    }
+    if (!lead) return { success: false, error: 'Lead ikke fundet' }
+    const atts = (((lead as { custom_fields?: Record<string, unknown> }).custom_fields?.attachments ?? []) as Array<{ leadStoragePath?: string; sourcePath?: string }>)
     const allowed = atts.some((a) => a.leadStoragePath === storagePath || a.sourcePath === storagePath)
     if (!allowed || !storagePath || storagePath.includes('..')) return { success: false, error: 'Filen hører ikke til leadet' }
     const { getStorageSignedUrlOrNull, SIGNED_URL_TTL } = await import('@/lib/storage/signed-url')
