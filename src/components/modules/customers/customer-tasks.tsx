@@ -245,12 +245,14 @@ function TaskRow({
               {task.assigned_profile.full_name || task.assigned_profile.email}
             </span>
           )}
-          {task.due_date && (
+          {task.due_date ? (
             <span className={`inline-flex items-center gap-1 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
               {isOverdue && <AlertTriangle className="w-3 h-3" />}
               <Clock className="w-3 h-3" />
               {format(new Date(task.due_date), 'd. MMM yyyy', { locale: da })}
             </span>
+          ) : (
+            <span className="text-xs text-gray-400">Ingen forfaldsdato</span>
           )}
         </div>
       </div>

@@ -277,7 +277,9 @@ function ReminderCard({
             </div>
           </div>
           <button
+            type="button"
             onClick={onDismiss}
+            aria-label="Luk påmindelse"
             className="p-0.5 hover:bg-gray-100 rounded shrink-0"
           >
             <X className="w-3.5 h-3.5 text-gray-400" />
@@ -288,12 +290,12 @@ function ReminderCard({
           <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${priorityCfg.bgColor} ${priorityCfg.color}`}>
             {priorityCfg.label}
           </span>
-          {reminder.due_date && (
-            <span className="text-xs text-gray-500 flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {format(new Date(reminder.due_date), 'd. MMM HH:mm', { locale: da })}
-            </span>
-          )}
+          <span className="text-xs text-gray-500 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {reminder.due_date
+              ? format(new Date(reminder.due_date), 'd. MMM HH:mm', { locale: da })
+              : 'Ingen dato'}
+          </span>
         </div>
 
         {/* Actions */}

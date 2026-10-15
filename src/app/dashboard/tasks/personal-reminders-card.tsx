@@ -76,12 +76,12 @@ export function PersonalRemindersCard() {
         <ul className="divide-y">
           {pending.map((r) => (
             <li key={r.id} className="py-2" data-testid="personal-reminder-row">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{r.title}</p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 break-words">{r.title}</p>
                   <p className="text-xs text-gray-500">{fmt(r.due_at)}{r.reminder_at && r.reminder_at !== r.due_at ? ` · påmindelse ${fmt(r.reminder_at)}` : ''}{SOURCE[r.source]}</p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex flex-wrap items-center gap-1">
                   <button title="Udført" aria-label="Udført" onClick={() => run(() => completePersonalReminder(r.id))} className="p-1.5 text-green-600 hover:bg-green-50 rounded"><Check className="w-4 h-4" /></button>
                   <button title="Udsæt 1 time" aria-label="Udsæt" onClick={() => run(() => snoozePersonalReminder(r.id))} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded"><Clock className="w-4 h-4" /></button>
                   <button title="Ret tidspunkt" aria-label="Ret tidspunkt" onClick={() => { const p = copenhagenParts(r.due_at); setEditId(r.id); setEditDate(p.date); setEditClock(p.clock) }} className="px-2 py-1 text-xs text-sky-700 hover:bg-sky-50 rounded">Ret</button>
@@ -89,7 +89,7 @@ export function PersonalRemindersCard() {
                 </div>
               </div>
               {editId === r.id && (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} aria-label="Ny dato" className="rounded-md border px-2 py-1 text-sm" />
                   <input type="time" value={editClock} onChange={(e) => setEditClock(e.target.value)} aria-label="Nyt klokkeslæt" className="rounded-md border px-2 py-1 text-sm" />
                   <button onClick={async () => { if (await run(() => reschedulePersonalReminder(r.id, copenhagenLocalToIso(editDate, editClock)))) setEditId(null) }} className="rounded-md bg-sky-600 px-2 py-1 text-xs text-white">Gem tidspunkt</button>
