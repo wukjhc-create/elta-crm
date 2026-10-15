@@ -95,14 +95,16 @@ export function MessageThread({
   return (
     <div className="h-full flex flex-col bg-white border-l">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="font-semibold truncate flex-1">{message.subject}</h2>
+      <div className="flex items-start justify-between gap-2 p-4 border-b">
+        <h2 className="font-semibold break-words min-w-0 flex-1">{message.subject}</h2>
         <div className="flex items-center gap-1 flex-shrink-0">
           {folder === 'inbox' && (
             <button
+              type="button"
               onClick={() => setShowReplyForm(true)}
               className="p-2 hover:bg-muted rounded-md"
               title="Svar"
+              aria-label="Svar"
             >
               <Reply className="w-4 h-4" />
             </button>
@@ -111,18 +113,22 @@ export function MessageThread({
             <>
               {isUnread ? (
                 <button
+                  type="button"
                   onClick={handleMarkAsRead}
                   className="p-2 hover:bg-muted rounded-md"
                   title="Markér som læst"
+                  aria-label="Markér som læst"
                   disabled={isLoading}
                 >
                   <MailOpen className="w-4 h-4" />
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={handleMarkAsUnread}
                   className="p-2 hover:bg-muted rounded-md"
                   title="Markér som ulæst"
+                  aria-label="Markér som ulæst"
                   disabled={isLoading}
                 >
                   <Mail className="w-4 h-4" />
@@ -132,9 +138,11 @@ export function MessageThread({
           )}
           {folder === 'inbox' && (
             <button
+              type="button"
               onClick={handleArchive}
               className="p-2 hover:bg-muted rounded-md"
               title="Arkivér"
+              aria-label="Arkivér"
               disabled={isLoading}
             >
               <Archive className="w-4 h-4" />
@@ -142,9 +150,11 @@ export function MessageThread({
           )}
           {folder === 'archived' && (
             <button
+              type="button"
               onClick={handleUnarchive}
               className="p-2 hover:bg-muted rounded-md"
               title="Gendan"
+              aria-label="Gendan"
               disabled={isLoading}
             >
               <ArchiveRestore className="w-4 h-4" />
