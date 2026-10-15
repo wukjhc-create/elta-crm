@@ -21,6 +21,7 @@ export function MaterialsAdmin() {
   const toast = useToast()
   const [rows, setRows] = useState<MaterialAdminRow[]>([])
   const [categories, setCategories] = useState<string[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [filterUnbound, setFilterUnbound] = useState(false)
@@ -31,17 +32,24 @@ export function MaterialsAdmin() {
   const load = useMemo(
     () => async () => {
       setLoading(true)
-      const [list, cats] = await Promise.all([
-        listMaterialsForAdmin({
-          category: filterCategory || null,
-          unboundOnly: filterUnbound,
-          search: search || null,
-        }),
-        listMaterialCategories(),
-      ])
-      setRows(list)
-      setCategories(cats)
-      setLoading(false)
+      try {
+        const [list, cats] = await Promise.all([
+          listMaterialsForAdmin({
+            category: filterCategory || null,
+            unboundOnly: filterUnbound,
+            search: search || null,
+          }),
+          listMaterialCategories(),
+        ])
+        const note = list.error || cats.error
+        if (!list.error) setRows(list.rows)
+        if (!cats.error) setCategories(cats.categories)
+        setLoadError(note)
+      } catch {
+        setLoadError('Kunne ikke hente materialer')
+      } finally {
+        setLoading(false)
+      }
     },
     [filterCategory, filterUnbound, search]
   )
@@ -102,15 +110,21 @@ export function MaterialsAdmin() {
         </Button>
       </div>
 
+      {loadError && (
+        <p className="text-sm text-red-700" data-testid="materials-admin-load-error">
+          {loadError}. Det tælles ikke som ingen materialer.
+        </p>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
-      ) : rows.length === 0 ? (
+      ) : rows.length === 0 && !loadError ? (
         <div className="rounded border bg-white p-8 text-center text-sm text-gray-500">
           Ingen materialer matcher filteret.
         </div>
-      ) : (
+      ) : rows.length === 0 ? null : (
         <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
