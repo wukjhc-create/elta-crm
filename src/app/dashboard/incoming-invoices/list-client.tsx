@@ -180,6 +180,8 @@ export function IncomingInvoicesListClient({
           return (
             <button
               key={f.key}
+              type="button"
+              aria-pressed={active}
               onClick={() => setFilter(f.key)}
               className={`px-3 py-1.5 rounded-md text-sm border transition ${
                 active
@@ -202,12 +204,16 @@ export function IncomingInvoicesListClient({
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-gray-500">Forfald:</span>
         <button
+          type="button"
+          aria-pressed={!due}
           onClick={() => setDue(null)}
           className={`px-2.5 py-1 rounded-full text-xs ring-1 ${!due ? 'bg-gray-800 text-white ring-gray-800' : 'bg-white text-gray-600 ring-gray-300 hover:bg-gray-50'}`}
         >Alle</button>
         {INCOMING_DUE_FILTERS.map((d) => (
           <button
             key={d}
+            type="button"
+            aria-pressed={due === d}
             onClick={() => setDue(d)}
             className={`px-2.5 py-1 rounded-full text-xs ring-1 ${due === d ? 'bg-amber-600 text-white ring-amber-600' : 'bg-white text-gray-700 ring-gray-300 hover:bg-amber-50'}`}
           >{INCOMING_DUE_FILTER_LABELS[d]}</button>
@@ -247,7 +253,7 @@ export function IncomingInvoicesListClient({
               </p>
               <div className="mt-3">
                 <Link href={`/dashboard/incoming-invoices/${r.id}`}>
-                  <Button size="sm" variant="outline">Åbn</Button>
+                  <Button size="sm" variant="outline" aria-label={openInvoiceLabel(r)}>Åbn</Button>
                 </Link>
               </div>
             </div>
@@ -301,7 +307,7 @@ export function IncomingInvoicesListClient({
                 </td>
                 <td className="px-3 py-2 text-right">
                   <Link href={`/dashboard/incoming-invoices/${r.id}`}>
-                    <Button size="sm" variant="outline">Åbn</Button>
+                    <Button size="sm" variant="outline" aria-label={openInvoiceLabel(r)}>Åbn</Button>
                   </Link>
                 </td>
               </tr>
@@ -312,6 +318,10 @@ export function IncomingInvoicesListClient({
       </div>
     </div>
   )
+}
+
+function openInvoiceLabel(r: IncomingInvoiceListItem): string {
+  return `Åbn faktura ${r.invoice_number || r.supplier_name || 'uden nummer'}`
 }
 
 function countFor(c: CountMap, k: FilterKey): number | null {
