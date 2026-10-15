@@ -97,6 +97,11 @@ export function CaseUnconvertedSupplierLinesCard({ caseId }: { caseId: string })
                 </span>
               </Link>
             ))}
+            {data.invoices.length > 8 && (
+              <p className="text-xs text-gray-600 break-words" data-testid="unconverted-invoices-capped">
+                Viser 8 af {data.invoices.length} fakturaer. De øvrige {data.invoices.length - 8} er ikke med i listen.
+              </p>
+            )}
           </div>
         </div>
       )}
