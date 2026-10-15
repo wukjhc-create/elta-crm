@@ -14,14 +14,24 @@ const kr = (n: number) => `${n.toLocaleString('da-DK', { minimumFractionDigits: 
 
 export function OfferSupplierSavingsCard({ offerId, lineItems }: { offerId: string; lineItems: OfferLineItem[] }) {
   const [alts, setAlts] = useState<CheaperAlternative[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const key = lineItems.map((l) => `${l.id}:${l.quantity}:${l.supplier_product_id ?? ''}`).join(',')
 
   useEffect(() => {
     let alive = true
-    getCheaperAlternativesForOffer(offerId).then((r) => { if (alive) setAlts(r.success && r.data ? r.data : []) })
+    getCheaperAlternativesForOffer(offerId).then((r) => {
+      if (!alive) return
+      if (r.success && r.data) { setAlts(r.data); setError(null) }
+      else setError(r.error ?? 'Kunne ikke sammenligne grossister. Det tælles ikke som ingen besparelse.')
+    })
     return () => { alive = false }
   }, [offerId, key])
 
+  if (error && (!alts || alts.length === 0)) {
+    return (
+      <p className="bg-white rounded-lg border p-4 text-sm text-red-800 break-words" data-testid="offer-supplier-savings-error">{error}</p>
+    )
+  }
   if (!alts || alts.length === 0) return null
   const total = alts.reduce((s, a) => s + a.savingTotal, 0)
 
