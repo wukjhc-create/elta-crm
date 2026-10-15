@@ -75,9 +75,9 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
             <div className="border-t border-gray-100 pt-2 space-y-1">
               <div className="text-xs font-medium text-gray-500">Pr. leverandør</div>
               {data.supplier_breakdown.slice(0, 6).map((b) => (
-                <div key={b.supplier_name} className="flex items-start justify-between text-sm px-1.5 py-0.5 gap-2">
+                <div key={b.supplier_name} className="flex flex-wrap items-start justify-between text-sm px-1.5 py-0.5 gap-2 min-w-0">
                   <span className="break-words min-w-0 text-gray-700">{b.supplier_name}</span>
-                  <span className="font-medium text-gray-700 shrink-0 ml-2">{kr(b.total_cost)}</span>
+                  <span className="font-medium text-gray-700 break-words min-w-0">{kr(b.total_cost)}</span>
                 </div>
               ))}
               {data.supplier_breakdown.length > 6 && (
@@ -93,13 +93,13 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
               <div className="text-xs font-medium text-gray-500">Leverandørfakturaer</div>
               {data.invoices.slice(0, 5).map((iv) => (
                 <Link key={iv.id} href={`/dashboard/incoming-invoices/${iv.id}`}
-                  className="flex items-start justify-between text-sm hover:bg-gray-50 rounded px-1.5 py-1 gap-2">
+                  className="flex flex-wrap items-start justify-between text-sm hover:bg-gray-50 rounded px-1.5 py-1 gap-2 min-w-0">
                   <span className="break-words min-w-0 text-gray-700 inline-flex items-start gap-1">
-                    <Receipt className="w-3 h-3 text-gray-400" />
+                    <Receipt className="w-3 h-3 text-gray-400 shrink-0" />
                     <span className="text-xs text-gray-500">{fmtDate(iv.invoice_date)}</span>
                     {' · '}{iv.supplier_name ?? iv.invoice_number ?? '—'}
                   </span>
-                  <span className="font-medium text-gray-700 shrink-0 ml-2 inline-flex items-center gap-1">
+                  <span className="font-medium text-gray-700 break-words min-w-0 inline-flex flex-wrap items-center gap-1">
                     {kr(iv.amount_incl_vat)} <ArrowRight className="w-3 h-3 text-gray-400" />
                   </span>
                 </Link>
