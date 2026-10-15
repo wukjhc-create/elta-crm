@@ -405,6 +405,7 @@ function StaleLeadsCard({ overview }: { overview: DashboardOverview }) {
               <div className="min-w-0">
                 <div className="line-clamp-2 break-words font-medium">{l.name}</div>
                 <div className="line-clamp-2 break-words text-gray-500">{LEAD_STATUS_DA[l.status] ?? l.status}</div>
+                <div className="mt-0.5 break-words text-gray-600">Åbn leadet og tilføj en note eller skift status.</div>
               </div>
               <span className={`shrink-0 text-[11px] flex items-center gap-1 ${ageBadge(l.ageDays, 14)}`}>
                 {l.ageDays}d

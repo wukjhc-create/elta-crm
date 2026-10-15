@@ -18,6 +18,9 @@ eq('ufaktureret beloeb bliver', src.includes('{kr(c.sale)}') && src.includes('da
 eq('aabnet-badge bliver', src.includes('data-testid="cockpit-offer-opened"') && src.includes('data-testid="cockpit-offer-unopened"'), true)
 eq('tomme tekster bliver', src.includes('Alle tråde er besvaret.') && src.includes('Ingen overdue opgaver.') && src.includes('Alt registreret arbejde er faktureret.'), true)
 eq('overskriften er stadig centreret', src.includes('flex items-center justify-between'), true)
+const leads = src.slice(src.indexOf('function StaleLeadsCard'), src.indexOf('N61. Forfaldne'))
+eq('gammelt lead siger naeste skridt', leads.includes('Åbn leadet og tilføj en note eller skift status.'), true)
+eq('lead-link bliver', leads.includes('/dashboard/leads/${l.id}'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncockpit-wrap-test OK')
 process.exitCode = fail ? 1 : 0
