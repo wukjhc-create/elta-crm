@@ -1089,14 +1089,14 @@ function TaskFormDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-dialog-title"
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4"
+        className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 id="task-dialog-title" className="text-lg font-semibold">
+        <div className="flex items-start justify-between gap-2 px-6 py-4 border-b">
+          <h2 id="task-dialog-title" className="text-lg font-semibold break-words min-w-0">
             {isEditing ? 'Rediger opgave' : 'Ny opgave'}
           </h2>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded" aria-label="Luk">
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded shrink-0" aria-label="Luk">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1150,7 +1150,7 @@ function TaskFormDialog({
               <p className="mt-1 text-xs text-gray-500">Henter kunder…</p>
             )}
             {customerLoadError && customers.length === 0 && (
-              <p className="mt-1 text-xs text-red-700" data-testid="task-customer-load-error">
+              <p className="mt-1 text-xs text-red-700 break-words" data-testid="task-customer-load-error">
                 {customerLoadError}. Det tælles ikke som ingen kunder.{' '}
                 <button type="button" onClick={onRetryCustomers} className="min-h-[44px] px-2 font-medium underline">
                   Prøv igen
@@ -1222,7 +1222,7 @@ function TaskFormDialog({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-lg">
+        <div className="flex flex-wrap items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-lg">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"

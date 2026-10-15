@@ -26,6 +26,11 @@ eq('kunde har et navn', dialog.includes('aria-label="Kunde"'), true)
 eq('forfald har et navn', dialog.includes('aria-label="Forfaldsdato"'), true)
 eq('formular stables paa mobil', dialog.includes('grid grid-cols-1 sm:grid-cols-2 gap-4'), true)
 eq('opret bliver', src.includes("isEditing ? 'Gem ændringer' : 'Opret opgave'"), true)
+eq('panelet kan rulles', src.includes('w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto'), true)
+eq('titel ombrydes', dialog.includes('text-lg font-semibold break-words min-w-0'), true)
+eq('kunde-fejl ombrydes', dialog.includes('text-xs text-red-700 break-words') && dialog.includes('data-testid="task-customer-load-error"'), true)
+eq('fod kan ombrydes', dialog.includes('flex flex-wrap items-center justify-end gap-3'), true)
+eq('luk har et navn', dialog.includes('aria-label="Luk"'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ntasks-filter-mobile-test OK')
 process.exitCode = fail ? 1 : 0
