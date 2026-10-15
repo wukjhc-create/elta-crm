@@ -535,79 +535,79 @@ export default function PackageDetailClient({
 
           <div className="space-y-6">
             {/* Time */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 min-w-0">
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Clock className="w-4 h-4" />
+                <Clock className="w-4 h-4 shrink-0" />
                 Total tid
               </div>
-              <span className="font-medium">{summary.totalTimeFormatted}</span>
+              <span className="font-medium min-w-0 break-words">{summary.totalTimeFormatted}</span>
             </div>
 
             {/* Cost breakdown */}
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <h4 className="text-sm font-medium text-muted-foreground">Kostpris</h4>
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span>Komponenter</span>
-                  <span>{formatCurrency(summary.componentsCost)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.componentsCost)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span>Produkter</span>
-                  <span>{formatCurrency(summary.productsCost)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.productsCost)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span>Manuel</span>
-                  <span>{formatCurrency(summary.manualCost)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.manualCost)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span>Arbejdsløn</span>
-                  <span>{formatCurrency(summary.laborCost)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.laborCost)}</span>
                 </div>
-                <div className="flex justify-between font-medium pt-1 border-t">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0 font-medium pt-1 border-t">
                   <span>Total kostpris</span>
-                  <span>{formatCurrency(summary.totalCost)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.totalCost)}</span>
                 </div>
               </div>
             </div>
 
             {/* Sale breakdown */}
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <h4 className="text-sm font-medium text-muted-foreground">Salgspris</h4>
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span>Komponenter</span>
-                  <span>{formatCurrency(summary.componentsSale)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.componentsSale)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span>Produkter</span>
-                  <span>{formatCurrency(summary.productsSale)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.productsSale)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span>Manuel</span>
-                  <span>{formatCurrency(summary.manualSale)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.manualSale)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                   <span>Arbejdsløn</span>
-                  <span>{formatCurrency(summary.laborSale)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.laborSale)}</span>
                 </div>
-                <div className="flex justify-between font-medium pt-1 border-t">
+                <div className="flex flex-wrap justify-between gap-x-3 min-w-0 font-medium pt-1 border-t">
                   <span>Total salgspris</span>
-                  <span>{formatCurrency(summary.totalSale)}</span>
+                  <span className="min-w-0 break-words">{formatCurrency(summary.totalSale)}</span>
                 </div>
               </div>
             </div>
 
             {/* DB */}
-            <div className="p-4 bg-muted/50 rounded-lg">
+            <div className="p-4 bg-muted/50 rounded-lg min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4" />
+                <TrendingUp className="w-4 h-4 shrink-0" />
                 <span className="font-medium">Dækningsbidrag</span>
               </div>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold min-w-0 break-words">
                 {formatCurrency(summary.dbAmount)}
               </div>
               <div
-                className={`text-sm ${
+                className={`text-sm break-words ${
                   summary.dbPercentage >= 30
                     ? 'text-green-600'
                     : summary.dbPercentage >= 20
