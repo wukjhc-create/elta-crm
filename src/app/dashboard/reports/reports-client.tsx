@@ -124,7 +124,7 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
         Top kunder (omsætning)
       </h3>
       {data.length === 0 ? (
-        <p className="text-sm text-gray-400 py-8 text-center">Ingen data endnu</p>
+        <p className="text-sm text-gray-500 py-8 text-center">Ingen tilbud ud over kladder med en kunde endnu.</p>
       ) : (
         <>
         <div className="md:hidden space-y-2" data-testid="report-customers-mobile">
@@ -204,7 +204,7 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
         </div>
       </div>
       {data.length === 0 ? (
-        <p className="text-sm text-gray-400 py-8 text-center">Ingen sager endnu</p>
+        <p className="text-sm text-gray-500 py-8 text-center">Ingen sager i overblikket endnu.</p>
       ) : (
         <>
         <div className="md:hidden space-y-2" data-testid="report-profit-mobile">
