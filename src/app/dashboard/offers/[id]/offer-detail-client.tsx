@@ -878,7 +878,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                         return (
                         <div
                           key={`${p.supplier_id}-${p.supplier_sku}`}
-                          className={`flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 transition-colors ${isCheapest ? 'bg-green-50/50 border-l-2 border-l-green-500' : ''}`}
+                          className={`flex flex-wrap items-start gap-3 px-3 py-2.5 hover:bg-blue-50 transition-colors ${isCheapest ? 'bg-green-50/50 border-l-2 border-l-green-500' : ''}`}
                         >
                           <div className="w-10 h-10 shrink-0 rounded bg-gray-100 flex items-center justify-center overflow-hidden">
                             {p.image_url ? (
@@ -906,7 +906,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                             {/* N57: forældet prisliste (fx AO opdateret for måneder siden) — tjek prisen før den bruges */}
                             {p.price_updated_at && Date.now() - new Date(p.price_updated_at).getTime() > 60 * 86_400_000 && (
                               <p className="text-[11px] text-amber-700 mt-0.5" data-testid="supplier-price-stale">
-                                Pris fra {new Date(p.price_updated_at).toLocaleDateString('da-DK', { month: 'short', year: 'numeric' })} — kan være forældet
+                                Pris fra {new Date(p.price_updated_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', month: 'short', year: 'numeric' })} — kan være forældet
                               </p>
                             )}
                           </div>
@@ -942,8 +942,8 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                   })()}
 
                   {supplierSearchQuery.length >= 2 && !isSearchingSupplier && supplierSearchResults.length === 0 && (
-                    <p className="mt-3 text-sm text-gray-400 text-center py-4">
-                      Ingen produkter fundet for &quot;{supplierSearchQuery}&quot;
+                    <p className="mt-3 text-sm text-gray-500 text-center py-4">
+                      Ingen produkter fundet for &quot;{supplierSearchQuery}&quot;. Prøv et andet varenummer eller navn.
                     </p>
                   )}
                 </div>
