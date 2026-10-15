@@ -2683,6 +2683,11 @@ ${m.text()}`) })
         const txt = (await card.innerText().catch(() => '')) ?? ''
         r.udateret_vist = txt.includes(t1)
         r.gammelt_vist = txt.includes(t2)
+        // fokus E 2026-10-15: "Til telefonens kalender" — egne job som .ics (dateret åbent job med; udateret kan ikke stå i en kalender)
+        r.ics_link = (await card.getByTestId('my-jobs-ics').count()) === 1
+        const icsRes = await m.page.request.get(`${base}/api/calendar/my-jobs`).catch(() => null)
+        const icsTxt = icsRes ? await icsRes.text().catch(() => '') : ''
+        r.ics_fil = !!icsRes && icsRes.status() === 200 && /text\/calendar/.test(icsRes.headers()['content-type'] ?? '') && icsTxt.includes(`UID:wo-${ids[1]}@eltasolar.dk`) && !icsTxt.includes('udateret job')
         if (ids.length) await c.admin.from('work_orders').delete().in('id', ids)
         out.push({ id: 'U151 Mine job: udaterede og gamle åbne job (PL-8)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${ins.error ? ` · ${ins.error.message.slice(0, 80)}` : ''}` })
       }

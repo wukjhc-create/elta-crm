@@ -42,6 +42,8 @@ export async function MyJobsCard() {
         <CalendarCheck className="w-5 h-5 text-emerald-700" />
         <h2 className="font-semibold">Mine job</h2>
         <Link href="/dashboard/calendar" className="ml-auto text-xs text-emerald-700 hover:underline">Kalender</Link>
+        {/* fokus E 2026-10-15: egne job som kalenderfil (heldagsbegivenheder) */}
+        <a href="/api/calendar/my-jobs" className="text-xs text-emerald-700 hover:underline" data-testid="my-jobs-ics" download>Til telefonens kalender</a>
       </div>
       {doneWithoutTime.length > 0 && (
         <div className="mb-4" data-testid="my-jobs-no-time">

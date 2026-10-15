@@ -12,10 +12,11 @@ interface ICSEventOptions {
 }
 
 function formatICSDate(dateStr: string, time?: string): string {
+  // 'YYYY-MM-DD' læses som UTC-midnat → UTC-getters (lokale getters gav forkert dag på en server vest for UTC)
   const d = new Date(dateStr)
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
+  const year = d.getUTCFullYear()
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
 
   if (time) {
     // Try to extract HH:MM from time string (e.g. "08:00–12:00" → "08:00")
@@ -54,8 +55,7 @@ export function generateBesigtigelseICS(options: ICSEventOptions): string {
   const p2 = (n: number) => String(n).padStart(2, '0')
   const dtEnd = `${wall.getUTCFullYear()}${p2(wall.getUTCMonth() + 1)}${p2(wall.getUTCDate())}T${p2(wall.getUTCHours())}${p2(wall.getUTCMinutes())}00`
 
-  const now = new Date()
-  const dtstamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}Z`
+  const dtstamp = icsUtcStamp(new Date())
 
   const lines = [
     'BEGIN:VCALENDAR',
@@ -130,4 +130,38 @@ export function extractDurationFromSlot(timeSlot: string): number {
     return endH - startH
   }
   return 2 // default 2 hours
+}
+
+/** DTSTAMP i UTC (suffiks Z kræver UTC-felter — lokale felter var kun korrekte fordi serveren kører i UTC) */
+export function icsUtcStamp(now: Date): string {
+  return now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+}
+
+export interface WorkOrderICSEvent {
+  id: string
+  /** YYYY-MM-DD */
+  date: string
+  title: string
+  location?: string | null
+  description?: string | null
+}
+
+/**
+ * Fokus E 2026-10-15: montørens egne arbejdsordrer som kalenderfil (heldagsbegivenheder — arbejdsordrer har kun dato).
+ * Fast UID pr. arbejdsordre, så en ny import opdaterer i stedet for at dublere.
+ */
+export function generateWorkOrdersICS(events: WorkOrderICSEvent[], now: Date = new Date()): string {
+  const stamp = icsUtcStamp(now)
+  const ymd = (d: string) => d.replace(/-/g, '')
+  const next = (d: string) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10) }
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Elta Solar//Arbejdsordrer//DA', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:ELTA job']
+  for (const e of events) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) continue
+    lines.push('BEGIN:VEVENT', `UID:wo-${e.id}@eltasolar.dk`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(e.date)}`, `DTEND;VALUE=DATE:${ymd(next(e.date))}`, `SUMMARY:${escapeICS(e.title)}`)
+    if (e.location) lines.push(`LOCATION:${escapeICS(e.location)}`)
+    if (e.description) lines.push(`DESCRIPTION:${escapeICS(e.description)}`)
+    lines.push('TRANSP:TRANSPARENT', 'END:VEVENT')
+  }
+  lines.push('END:VCALENDAR')
+  return lines.join('\r\n')
 }
