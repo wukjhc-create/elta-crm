@@ -19,6 +19,11 @@ eq('status er paa dansk', src.includes("unmatched: 'Uden match'") && src.include
 eq('auto-match teksten er paa dansk', src.includes('Gennemgik ${summary.scanned}'), true)
 eq('match kalder stadig manualMatchAction', src.includes('manualMatchAction(rowId, invoiceId)'), true)
 eq('tom liste har stadig teksten', src.includes('Ingen umatchede transaktioner.'), true)
+eq('tom liste siger naeste skridt', src.includes('Importér en CSV, når banken har sendt nye linjer.'), true)
+eq('tom soegning skelnes', src.includes('Ingen fakturaer matcher søgningen. Prøv et andet fakturanummer.') && src.includes('Ingen ubetalte fakturaer at matche.'), true)
+eq('reference ombrydes', card.includes('break-words">{row.reference_text'), true)
+eq('afsender ombrydes', card.includes('break-words">{row.sender_name'), true)
+eq('beloeb bliver', card.includes('fmtAmount(Number(row.amount))'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nbank-mobile-test OK')
 process.exitCode = fail ? 1 : 0

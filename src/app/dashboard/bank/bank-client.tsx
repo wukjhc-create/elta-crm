@@ -103,7 +103,7 @@ export function BankTransactionsClient({ initialRows }: { initialRows: BankTxLis
       {matchMsg && <div className="text-sm text-gray-700">{matchMsg}</div>}
 
       {rows.length === 0 && (
-        <p className="text-sm text-gray-500">Ingen umatchede transaktioner.</p>
+        <p className="text-sm text-gray-500">Ingen umatchede transaktioner. Importér en CSV, når banken har sendt nye linjer.</p>
       )}
 
       <div className="md:hidden space-y-2" data-testid="bank-tx-mobile">
@@ -181,11 +181,17 @@ function MatchPanel({
         aria-label="Søg fakturanummer"
       />
       <div className="space-y-1 max-h-64 overflow-auto">
-        {results.length === 0 && <div className="text-xs text-gray-500">Ingen kandidater.</div>}
+        {results.length === 0 && (
+          <div className="text-xs text-gray-500">
+            {query.trim()
+              ? 'Ingen fakturaer matcher søgningen. Prøv et andet fakturanummer.'
+              : 'Ingen ubetalte fakturaer at matche.'}
+          </div>
+        )}
         {results.map((inv) => (
           <div key={inv.id} className="flex flex-wrap items-center justify-between gap-2 border rounded px-2 py-1 bg-white text-xs">
             <div>
-              <span className="font-medium">{inv.invoice_number}</span>
+              <span className="font-medium break-all">{inv.invoice_number}</span>
               <span className="ml-2 text-gray-500">
                 {fmtAmount(Number(inv.final_amount), inv.currency)} · {inv.status} / {inv.payment_status}
               </span>
@@ -209,8 +215,8 @@ function BankTxCard({ row, onMatched }: { row: BankTxListRow; onMatched: () => P
         </div>
         <StatusBadge status={row.match_status} />
       </div>
-      <p className="mt-2 text-gray-800">{row.reference_text || '—'}</p>
-      <p className="text-xs text-gray-600">{row.sender_name || '—'}</p>
+      <p className="mt-2 text-gray-800 break-words">{row.reference_text || '—'}</p>
+      <p className="text-xs text-gray-600 break-words">{row.sender_name || '—'}</p>
       {row.candidate_invoice_ids && row.candidate_invoice_ids.length > 0 && (
         <p className="text-xs text-gray-500">{row.candidate_invoice_ids.length} kandidater</p>
       )}
@@ -234,8 +240,8 @@ function BankTxRow({ row, onMatched }: { row: BankTxListRow; onMatched: () => Pr
       <tr className="border-t">
         <td className="px-3 py-2 whitespace-nowrap">{row.date}</td>
         <td className="px-3 py-2 whitespace-nowrap font-medium">{fmtAmount(Number(row.amount))}</td>
-        <td className="px-3 py-2">{row.reference_text || <span className="text-gray-400">—</span>}</td>
-        <td className="px-3 py-2">{row.sender_name || <span className="text-gray-400">—</span>}</td>
+        <td className="px-3 py-2 break-words">{row.reference_text || <span className="text-gray-400">—</span>}</td>
+        <td className="px-3 py-2 break-words">{row.sender_name || <span className="text-gray-400">—</span>}</td>
         <td className="px-3 py-2">
           <StatusBadge status={row.match_status} />
           {row.candidate_invoice_ids && row.candidate_invoice_ids.length > 0 && (
