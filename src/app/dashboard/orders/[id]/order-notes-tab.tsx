@@ -41,6 +41,7 @@ export function OrderNotesTab({
 }) {
   const [notes, setNotes] = useState<CaseNoteEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   // Add-form
   const [content, setContent] = useState('')
@@ -60,10 +61,15 @@ export function OrderNotesTab({
     getCaseNotes(caseId).then((res) => {
       if (cancelled) return
       if (!res.success) { setError(res.error || 'Kunne ikke hente noter'); setNotes([]); return }
+      setError(null)
       setNotes(res.data ?? [])
+    }).catch(() => {
+      if (cancelled) return
+      setError('Kunne ikke hente noter')
+      setNotes([])
     })
     return () => { cancelled = true }
-  }, [caseId])
+  }, [caseId, reloadKey])
 
   const handleAdd = () => {
     const text = content.trim()
@@ -138,7 +144,16 @@ export function OrderNotesTab({
       {notes === null ? (
         <div className="text-sm text-gray-500 py-6 text-center">Henter noter…</div>
       ) : error ? (
-        <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>
+        <div className="text-center">
+          <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}. Det tælles ikke som en tom note-liste.</div>
+          <button
+            type="button"
+            onClick={() => setReloadKey((key) => key + 1)}
+            className="mt-3 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+          >
+            Prøv igen
+          </button>
+        </div>
       ) : notes.length === 0 ? (
         <div className="text-center py-12">
           <StickyNote className="w-8 h-8 text-gray-300 mx-auto mb-2" />

@@ -85,15 +85,19 @@ export function OrderMaterialsTab({
 
   const reload = useCallback(async () => {
     setLoadError(null)
-    const res = await listCaseMaterials(caseId)
-    if (!res.success) {
-      setLoadError(res.error ?? 'Kunne ikke hente materialer')
-      setRows([])
-      setSummary(null)
-      return
+    try {
+      const res = await listCaseMaterials(caseId)
+      if (!res.success) {
+        setLoadError(res.error ?? 'Kunne ikke hente materialer')
+        setRows([])
+        setSummary(null)
+        return
+      }
+      setRows(res.data?.rows ?? [])
+      setSummary(res.data?.summary ?? null)
+    } catch {
+      setLoadError('Kunne ikke hente materialer')
     }
-    setRows(res.data?.rows ?? [])
-    setSummary(res.data?.summary ?? null)
   }, [caseId])
 
   useEffect(() => {
@@ -149,9 +153,12 @@ export function OrderMaterialsTab({
       </div>
 
       {loadError && (
-        <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 flex items-center gap-2">
+        <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 flex flex-wrap items-center gap-2">
           <AlertCircle className="w-4 h-4" />
-          {loadError}
+          <span>{loadError}. Det tælles ikke som en tom materialeliste.</span>
+          <button type="button" onClick={() => void reload()} className="ml-auto min-h-[44px] px-3 text-sm font-medium">
+            Prøv igen
+          </button>
         </div>
       )}
 
