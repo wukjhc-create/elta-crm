@@ -312,25 +312,6 @@ export function OrderDetailClient({
           {active === 'opgaver' && <OrderTasksTab caseId={sag.id} canComplete={canAddNote} />}
           {active === 'noter' && <OrderNotesTab caseId={sag.id} canAddNote={canAddNote} canManageAllNotes={canManageAllNotes} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
-          {active !== 'overblik' &&
-            active !== 'planlaegning' &&
-            active !== 'materialer' &&
-            active !== 'oevrige' &&
-            active !== 'mails' &&
-            active !== 'dokumenter' &&
-            active !== 'dokumentation' &&
-            active !== 'oekonomi' &&
-            active !== 'fakturakladde' &&
-            active !== 'handlinger' &&
-            active !== 'opgaver' &&
-            active !== 'noter' &&
-            active !== 'aktivitet' &&
-            active !== 'aflevering' && (
-              <Placeholder
-                tabId={active}
-                tabLabel={TABS.find((t) => t.id === active)?.label ?? ''}
-              />
-            )}
         </div>
       </div>
     </div>
@@ -781,49 +762,6 @@ function OverblikTab({
       />
     )}
     </>
-  )
-}
-
-const PLACEHOLDER_INFO: Record<string, { headline: string; sprint: string; body: string }> = {
-  materialer: {
-    headline: 'Materialer på sagen',
-    sprint: 'Sprint 5',
-    body:
-      'Materialer fra kalkulationen, samt manuelle linjer og leverandørordrer, vises her med kost-/salgspriser.',
-  },
-  oevrige: {
-    headline: 'Øvrige omkostninger',
-    sprint: 'Sprint 5',
-    body:
-      'Kørsel, underleverandører og andre omkostninger der ikke er materialer eller timer.',
-  },
-  oekonomi: {
-    headline: 'Økonomisk overblik',
-    sprint: 'Sprint 8',
-    body:
-      'DB-beregning, profit-snapshots, tilbudt vs. revideret vs. faktisk forbrug.',
-  },
-  fakturakladde: {
-    headline: 'Fakturakladde',
-    sprint: 'Sprint 6',
-    body:
-      'Faktura forberedes ud fra timer, materialer og øvrige omkostninger og kan sendes til e-conomic.',
-  },
-}
-
-function Placeholder({ tabLabel, tabId }: { tabLabel: string; tabId?: string }) {
-  const info = tabId ? PLACEHOLDER_INFO[tabId] : undefined
-  return (
-    <div className="text-center py-12">
-      <h3 className="text-base font-medium text-gray-700">{info?.headline ?? tabLabel}</h3>
-      <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-        {info?.body ??
-          'Denne fane bygges i et kommende sprint. Strukturen er på plads, men data og handlinger er ikke wired op endnu.'}
-      </p>
-      {info?.sprint && (
-        <p className="text-xs text-gray-400 mt-4 uppercase tracking-wide">{info.sprint}</p>
-      )}
-    </div>
   )
 }
 

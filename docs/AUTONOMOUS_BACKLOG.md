@@ -65,7 +65,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | W-15 (S3) | Advarselsnoter gemt i Noter-fanen; noter tavst begrænset til 100; små tap-mål | DONE — advarselsnoter som banner øverst på Overblik (link til Noter), loft 500 med besked, rediger/slet med større tap-mål og afstand. UI U166/U40 |
 | W-16 (S3) | Faktureringsfilter tavst begrænset til 500 sager | DONE (besked når loftet rammes; SQL-filter = senere) |
 | W-17 (S3) | Dokumenter på sag kan ikke slettes | [H] (sletning af kundedata/fotos — rettighed + historik) |
-| W-18 (S4) | Lead-søgning uden telefon, ubegrænset lead-dropdown, pageSize uden loft, "Kun mine" på tilbud, død kode, 2 rå DB-fejl | DELVIS — lead-søgning med telefon, pageSize 1–100 (leads + tilbud), 2 rå DB-fejl → danske beskeder. TODO: lead-dropdown med søgning, "Kun mine" på tilbud, død kode |
+| W-18 (S4) | Lead-søgning uden telefon, ubegrænset lead-dropdown, pageSize uden loft, "Kun mine" på tilbud, død kode, 2 rå DB-fejl | DELVIS — lead-søgning med telefon, pageSize 1–100 (leads + tilbud), 2 rå DB-fejl → danske beskeder. lead-dropdown viser kontakt + nyeste 300 åbne (sorteret), "Kun mine" på tilbudslisten (?mine=1), ukendt ?sortBy= falder tilbage (før fejlside), død Placeholder-fane på sagen fjernet. UI U168/U166/U12. Rest: approveIncomingInvoiceWithConversionAction ubrugt (finance-kode — fjernes ikke uden Henrik) |
 
 ## NEXT-15 (pilot-readiness review 2026-10-15 eftermiddag — daglige flows)
 | # | Fund | Status |

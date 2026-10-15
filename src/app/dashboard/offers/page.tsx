@@ -20,6 +20,7 @@ interface PageProps {
     conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
+    mine?: string
   }>
 }
 
@@ -36,6 +37,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
   const conversion = params.conversion && VALID_CONVERSION.has(params.conversion) ? params.conversion : undefined
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
+  const mine = params.mine === '1'
 
   const [offersResult, settingsResult] = await Promise.all([
     getOffers({
@@ -46,6 +48,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
       conversion,
       sortBy,
       sortOrder,
+      mine,
     }),
     getDocumentCompanySettings(),
   ])
@@ -69,7 +72,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
         totalItems: offersResult.data.total,
         pageSize: offersResult.data.pageSize,
       }}
-      filters={{ search, status, conversion }}
+      filters={{ search, status, conversion, mine }}
       sort={{ sortBy, sortOrder }}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />

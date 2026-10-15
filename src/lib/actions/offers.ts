@@ -49,6 +49,8 @@ import { isOfferExpired } from '@/lib/offers/validity'
 import { rankBy, searchWords } from '@/lib/products/search-rank'
 
 // Get all offers with optional filtering and pagination
+const OFFER_SORT_COLUMNS = new Set(['title', 'offer_number', 'status', 'final_amount', 'valid_until', 'created_at', 'updated_at'])
+
 export async function getOffers(filters?: {
   search?: string
   status?: OfferStatus
@@ -61,9 +63,11 @@ export async function getOffers(filters?: {
   proposalsOnly?: boolean
   /** Sprint Ø7.2 — konverteringsfilter (drevet af converted_case_id). */
   conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
+  /** W-18 (pilot-review 2026-10-15): kun tilbud brugeren selv har oprettet */
+  mine?: boolean
 }): Promise<ActionResult<PaginatedResponse<OfferWithRelations>>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('offers.view')) {
       return { success: false, error: 'Manglende tilladelse: offers.view' }
     }
@@ -125,6 +129,11 @@ export async function getOffers(filters?: {
       dataQuery = dataQuery.eq('customer_id', filters.customer_id)
     }
 
+    if (filters?.mine) {
+      countQuery = countQuery.eq('created_by', userId)
+      dataQuery = dataQuery.eq('created_by', userId)
+    }
+
     // Sprint Ø7.2 — konverteringsfilter (samme logik som Ø7.1-badget; O(1),
     // ingen N+1 — bruger kun eksisterende kolonner converted_case_id/status).
     const conv = filters?.conversion
@@ -141,9 +150,9 @@ export async function getOffers(filters?: {
       dataQuery = dataQuery.is('converted_case_id', null).in('status', READY)
     }
 
-    // Apply sorting
-    const sortBy = filters?.sortBy || 'created_at'
-    const sortOrder = filters?.sortOrder || 'desc'
+    // Apply sorting — W-18: kun kendte kolonner (en ukendt ?sortBy= i URL'en gav før en databasefejl på hele siden)
+    const sortBy = filters?.sortBy && OFFER_SORT_COLUMNS.has(filters.sortBy) ? filters.sortBy : 'created_at'
+    const sortOrder = filters?.sortOrder === 'asc' ? 'asc' : 'desc'
     dataQuery = dataQuery.order(sortBy, { ascending: sortOrder === 'asc' })
 
     // Apply pagination
