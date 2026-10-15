@@ -437,11 +437,11 @@ function RejectionAnalyticsSection({ stats }: { stats: RejectionStats | null }) 
             const isUnknown = r.reason === 'unknown'
             return (
               <li key={r.reason} className="space-y-1">
-                <div className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className={`font-medium ${isUnknown ? 'text-gray-500 italic' : 'text-gray-900'}`}>
+                <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3 text-sm">
+                  <span className={`font-medium break-words ${isUnknown ? 'text-gray-500 italic' : 'text-gray-900'}`}>
                     {r.label}
                   </span>
-                  <span className="text-gray-600 font-mono text-xs shrink-0">
+                  <span className="text-gray-600 font-mono text-xs">
                     {r.count} · {r.percentage.toFixed(0)}% · {formatCurrency(r.lostRevenue)}
                   </span>
                 </div>

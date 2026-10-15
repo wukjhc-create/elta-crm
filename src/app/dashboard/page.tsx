@@ -364,7 +364,7 @@ export default async function DashboardPage() {
                       href={`/dashboard/offers/${r.id}`}
                       className="block hover:bg-gray-50 -mx-2 px-2 py-1 rounded"
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {r.offer_number}
