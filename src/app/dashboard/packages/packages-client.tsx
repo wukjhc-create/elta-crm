@@ -278,20 +278,20 @@ export default function PackagesClient({
 
                   {/* Financials */}
                   <div className="pt-3 border-t space-y-1">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-sm min-w-0">
                       <span className="text-muted-foreground">Kostpris</span>
-                      <span>{formatCurrency(pkg.total_cost_price)}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(pkg.total_cost_price)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-sm min-w-0">
                       <span className="text-muted-foreground">Salgspris</span>
-                      <span className="font-medium">{formatCurrency(pkg.total_sale_price)}</span>
+                      <span className="font-medium min-w-0 break-words">{formatCurrency(pkg.total_sale_price)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" />
+                    <div className="flex flex-wrap justify-between gap-x-3 text-sm min-w-0">
+                      <span className="text-muted-foreground flex items-center gap-1 min-w-0">
+                        <TrendingUp className="w-3 h-3 shrink-0" />
                         DB
                       </span>
-                      <span className={pkg.db_percentage >= 30 ? 'text-green-600' : pkg.db_percentage >= 20 ? 'text-amber-600' : 'text-red-600'}>
+                      <span className={`min-w-0 break-words ${pkg.db_percentage >= 30 ? 'text-green-600' : pkg.db_percentage >= 20 ? 'text-amber-600' : 'text-red-600'}`}>
                         {formatCurrency(pkg.db_amount)} ({pkg.db_percentage.toFixed(1)}%)
                       </span>
                     </div>
