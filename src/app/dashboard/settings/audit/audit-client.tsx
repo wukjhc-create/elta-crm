@@ -129,6 +129,7 @@ export function AuditLogClient() {
   const [entries, setEntries] = useState<AuditLogEntry[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
@@ -145,6 +146,10 @@ export function AuditLogClient() {
       setEntries(result.data.data)
       setTotal(result.data.total)
       setTotalPages(result.data.totalPages)
+      setLoadError(null)
+    } else if (!result.success) {
+      setEntries([])
+      setLoadError(result.error || 'Kunne ikke hente audit logs')
     }
     setIsLoading(false)
   }, [filters])
@@ -199,7 +204,9 @@ export function AuditLogClient() {
           )}
 
           <div className="ml-auto text-sm text-gray-500">
-            {total} {total === 1 ? 'post' : 'poster'} fundet
+            {loadError
+              ? 'Antallet kunne ikke hentes. Det tælles ikke som 0 poster.'
+              : `${total} ${total === 1 ? 'post' : 'poster'} fundet`}
           </div>
         </div>
 
@@ -264,6 +271,10 @@ export function AuditLogClient() {
             <div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto" />
             <p className="text-sm text-gray-500 mt-3">Henter audit log...</p>
           </div>
+        ) : loadError ? (
+          <p className="p-8 text-center text-sm text-red-700" data-testid="audit-load-error">
+            {loadError}. Det tælles ikke som ingen poster.
+          </p>
         ) : entries.length === 0 ? (
           <div className="p-12 text-center">
             <Clock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
