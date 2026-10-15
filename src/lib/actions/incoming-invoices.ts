@@ -1213,6 +1213,8 @@ export interface ConversionPreview {
   lines: ConversionPreviewLine[]
   /** Markør: dette er intern indkøbsøkonomi (ikke kundevendt salg). */
   internal_purchase: true
+  /** Sagsopslaget fejlede. Manglende sag er så ikke "ikke matchet". */
+  case_failed: boolean
 }
 
 export async function getIncomingInvoiceConversionPreviewAction(id: string): Promise<ConversionPreview> {
@@ -1220,7 +1222,7 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     ok: false, invoice_number: null, supplier_name: null, amount_incl_vat: null, currency: 'DKK',
     case: null, requires_case_match: true, requires_review: false, status: 'unknown',
     has_lines: false, total_only: false, convertible_count: 0, already_converted_count: 0,
-    lines: [], internal_purchase: true,
+    lines: [], internal_purchase: true, case_failed: false,
   }
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.view')) {
@@ -1240,13 +1242,17 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
 
   // Sag (intern) + leverandør-navn (cost-bounded, ingen N+1).
   let caseInfo: ConversionPreview['case'] = null
+  let caseFailed = false
   if (inv.matched_case_id) {
-    const { data: c } = await supabase
+    const { data: c, error: caseErr } = await supabase
       .from('service_cases')
       .select('id, case_number, title')
       .eq('id', inv.matched_case_id as string)
       .maybeSingle()
-    if (c) caseInfo = { id: c.id as string, case_number: c.case_number as string, title: (c.title as string | null) ?? null }
+    if (caseErr) {
+      caseFailed = true
+      logger.error('getIncomingInvoiceConversionPreviewAction case failed', { error: caseErr })
+    } else if (c) caseInfo = { id: c.id as string, case_number: c.case_number as string, title: (c.title as string | null) ?? null }
   }
   let supplierName = (inv.supplier_name_extracted as string | null) ?? null
   if (inv.supplier_id) {
@@ -1307,6 +1313,7 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     already_converted_count: alreadyCount,
     lines,
     internal_purchase: true,
+    case_failed: caseFailed,
   }
 }
 
