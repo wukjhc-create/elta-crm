@@ -192,8 +192,12 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const rows: Row[] = []
         // bid 200 (500 UUID'er sprænger URL-grænsen ~350 → tælleren blev stille for lav, se lib/supabase/in-chunks.ts)
         for (let i = 0; i < ids.length; i += 200) {
-          const { data } = await supabase.from('incoming_emails')
+          const { data, error } = await supabase.from('incoming_emails')
             .select('id, conversation_id, subject, sender_name, sender_email, received_at').in('id', ids.slice(i, i + 200))
+          if (error) {
+            overview.errors.mails = 'Kunne ikke hente mails'
+            return
+          }
           rows.push(...((data ?? []) as Row[]))
         }
         const latestPerThread = new Map<string, Row>()
@@ -243,6 +247,10 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             .order('due_date', { ascending: true })
             .limit(TOP_N),
         ])
+        if (openRes.error || autoRes.error || overdueRes.error) {
+          overview.errors.tasks = 'Kunne ikke hente opgaver'
+          return
+        }
         overview.tasks.openCount = openRes.count || 0
         overview.tasks.autoCount = autoRes.count || 0
         const rows = (overdueRes.data || []) as Array<{
@@ -283,6 +291,10 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('is_proposal', false),
           supabase.from('service_cases').select('id', { count: 'exact', head: true }).not('status', 'in', '("closed","converted")').eq('is_proposal', false),
         ])
+        if (newRes.error || progressRes.error || pendingRes.error || totalRes.error) {
+          overview.errors.cases = 'Kunne ikke hente sager'
+          return
+        }
         overview.cases.new = newRes.count || 0
         overview.cases.in_progress = progressRes.count || 0
         overview.cases.pending = pendingRes.count || 0
@@ -343,12 +355,20 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             .order('created_at', { ascending: true })
             .limit(TOP_N),
         ])
+        if (countRes.error || listRes.error) {
+          overview.errors.offers = 'Kunne ikke hente tilbud'
+          return
+        }
         overview.offers.followupCount = countRes.count || 0
         // N52: kladder der aldrig blev sendt (> 14 dage)
         const staleCutoff = new Date(now - 14 * 86_400_000).toISOString()
-        const { count: staleCount } = await supabase.from('offers').select('id', { count: 'exact', head: true })
+        const { count: staleCount, error: staleError } = await supabase.from('offers').select('id', { count: 'exact', head: true })
           .eq('status', 'draft').eq('is_proposal', false).lt('created_at', staleCutoff)
-        overview.offers.staleDraftCount = staleCount || 0
+        if (staleError) {
+          overview.errors.offers = 'Kunne ikke hente kladder'
+        } else {
+          overview.offers.staleDraftCount = staleCount || 0
+        }
         const rows = (listRes.data || []) as Array<{
           id: string
           offer_number: string

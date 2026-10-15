@@ -102,9 +102,9 @@ function MailsCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Mails kræver svar"
       icon={<Mail className="h-4 w-4" />}
-      tone={requiresResponseCount > 0 ? 'amber' : 'green'}
+      tone={err ? 'gray' : requiresResponseCount > 0 ? 'amber' : 'green'}
       href={MAIL_HREF}
-      headline={requiresResponseCount}
+      headline={err ? '—' : requiresResponseCount}
       headlineLabel="ubesvarede tråde (seneste 14 dage)"
       error={err}
     >
@@ -158,9 +158,9 @@ function TasksCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Åbne opgaver"
       icon={<ListChecks className="h-4 w-4" />}
-      tone={overdue.length > 0 ? 'red' : openCount > 0 ? 'amber' : 'green'}
+      tone={err ? 'gray' : overdue.length > 0 ? 'red' : openCount > 0 ? 'amber' : 'green'}
       href={TASKS_HREF}
-      headline={openCount}
+      headline={err ? '—' : openCount}
       headlineLabel={`åbne · ${autoCount} auto-genererede`}
       error={err}
     >
@@ -211,17 +211,21 @@ function CasesCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Sager kræver handling"
       icon={<Wrench className="h-4 w-4" />}
-      tone={newCases > 0 || pending > 0 ? 'amber' : 'green'}
+      tone={err ? 'gray' : newCases > 0 || pending > 0 ? 'amber' : 'green'}
       href="/dashboard/orders"
-      headline={total}
+      headline={err ? '—' : total}
       headlineLabel="aktive i alt"
       error={err}
     >
+      {err ? (
+        <EmptyRow text="Kunne ikke hente sager. Det tælles ikke som 0." />
+      ) : (
       <div className="grid grid-cols-3 gap-2 text-center text-xs">
         <Pill label="Nye" value={newCases} tone={newCases > 0 ? 'amber' : 'gray'} />
         <Pill label="I gang" value={in_progress} tone="blue" />
         <Pill label="Pending" value={pending} tone={pending > 0 ? 'amber' : 'gray'} />
       </div>
+      )}
       {readyToClose > 0 && (
         <p className="mt-2 text-xs text-emerald-800" data-testid="cockpit-ready-to-close">
           {readyToClose} sag{readyToClose === 1 ? '' : 'er'} klar til lukning (alle job udført, alt faktureret)
@@ -247,9 +251,9 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Tilbud — opfølgning"
       icon={<FileText className="h-4 w-4" />}
-      tone={followupCount > 0 ? 'amber' : 'green'}
+      tone={err ? 'gray' : followupCount > 0 ? 'amber' : 'green'}
       href="/dashboard/offers?status=sent"
-      headline={followupCount}
+      headline={err ? '—' : followupCount}
       headlineLabel="ældre end 7 dage"
       error={err}
     >
@@ -609,7 +613,7 @@ function Card({
   icon: React.ReactNode
   tone: Tone
   href: string
-  headline: number
+  headline: number | string
   headlineLabel: string
   error?: string
   children: React.ReactNode
