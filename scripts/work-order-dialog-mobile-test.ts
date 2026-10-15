@@ -18,6 +18,13 @@ eq('kunde ombrydes', head.includes('break-words min-w-0">· {workOrder.case.cust
 eq('status bliver', head.includes('STATUS_LABELS[currentStatus]'), true)
 eq('luk bliver', src.includes('aria-label="Luk"'), true)
 eq('fallback bliver', src.includes("workOrder.title || 'Arbejdsordre'"), true)
+eq('titel er koblet', src.includes('htmlFor="edit-wo-job-title"') && src.includes('id="edit-wo-job-title"') && src.includes('value={title}'), true)
+eq('dato er koblet', src.includes('htmlFor="edit-wo-date"') && src.includes('id="edit-wo-date"') && src.includes('type="date"') && src.includes('value={date}'), true)
+eq('medarbejder er koblet', src.includes('htmlFor="edit-wo-employee"') && src.includes('id="edit-wo-employee"') && src.includes('value={employeeId}'), true)
+eq('beskrivelse er koblet', src.includes('htmlFor="edit-wo-description"') && src.includes('id="edit-wo-description"') && src.includes('value={description}'), true)
+eq('dato og medarbejder stables paa mobil', src.includes('grid grid-cols-1 sm:grid-cols-2 gap-2'), true)
+eq('overskrift beholder sit id', src.includes('id="edit-wo-title"'), true)
+eq('gem bliver', src.includes('Gem ændringer'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nwork-order-dialog-mobile-test OK')
 process.exitCode = fail ? 1 : 0

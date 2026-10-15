@@ -205,8 +205,9 @@ export function PlanWorkOrderDialog({
                 </div>
                 <button
                   onClick={() => setSelectedCaseId('')}
-                  className="ml-2 text-xs text-emerald-700 hover:underline"
+                  className="ml-2 text-xs text-emerald-700 hover:underline shrink-0"
                   type="button"
+                  aria-label="Skift sag"
                 >
                   Skift
                 </button>
@@ -282,10 +283,11 @@ export function PlanWorkOrderDialog({
 
           {/* Medarbejder */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label htmlFor="plan-wo-employee" className="block text-xs font-medium text-gray-700 mb-1">
               Medarbejder
             </label>
             <select
+              id="plan-wo-employee"
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
               className="w-full border rounded px-2 py-1.5 text-sm bg-white"
@@ -301,8 +303,9 @@ export function PlanWorkOrderDialog({
 
           {/* Dato */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Dato</label>
+            <label htmlFor="plan-wo-date" className="block text-xs font-medium text-gray-700 mb-1">Dato</label>
             <input
+              id="plan-wo-date"
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -312,10 +315,11 @@ export function PlanWorkOrderDialog({
 
           {/* Titel */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label htmlFor="plan-wo-job-title" className="block text-xs font-medium text-gray-700 mb-1">
               Titel <span className="text-red-500">*</span>
             </label>
             <input
+              id="plan-wo-job-title"
               ref={titleInputRef}
               type="text"
               value={title}
@@ -328,10 +332,11 @@ export function PlanWorkOrderDialog({
 
           {/* Beskrivelse */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label htmlFor="plan-wo-description" className="block text-xs font-medium text-gray-700 mb-1">
               Beskrivelse
             </label>
             <textarea
+              id="plan-wo-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}

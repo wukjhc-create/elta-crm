@@ -290,10 +290,11 @@ export function EditWorkOrderDialog({
           {/* Editable fields — disabled if terminal */}
           <fieldset disabled={isTerminal || !canPlan} className="space-y-3 disabled:opacity-60">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="edit-wo-job-title" className="block text-xs font-medium text-gray-700 mb-1">
                 Titel <span className="text-red-500">*</span>
               </label>
               <input
+                id="edit-wo-job-title"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -302,10 +303,11 @@ export function EditWorkOrderDialog({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Dato</label>
+                <label htmlFor="edit-wo-date" className="block text-xs font-medium text-gray-700 mb-1">Dato</label>
                 <input
+                  id="edit-wo-date"
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
@@ -313,10 +315,11 @@ export function EditWorkOrderDialog({
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label htmlFor="edit-wo-employee" className="block text-xs font-medium text-gray-700 mb-1">
                   Medarbejder
                 </label>
                 <select
+                  id="edit-wo-employee"
                   value={employeeId}
                   onChange={(e) => setEmployeeId(e.target.value)}
                   className="w-full border rounded px-2 py-1.5 text-sm bg-white"
@@ -332,10 +335,11 @@ export function EditWorkOrderDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="edit-wo-description" className="block text-xs font-medium text-gray-700 mb-1">
                 Beskrivelse
               </label>
               <textarea
+                id="edit-wo-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
