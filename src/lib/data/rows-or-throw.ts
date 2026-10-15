@@ -1,7 +1,11 @@
 /** Skelner en fejlet liste fra en tom liste. Ingen I/O. */
 
+export function throwIfQueryError(error: unknown, message = 'Kunne ikke hente rækker'): void {
+  if (error) throw new Error(message)
+}
+
 export function rowsOrThrow<T>(error: unknown, rows: readonly T[] | null): T[] {
-  if (error) throw new Error('Kunne ikke hente rækker')
+  throwIfQueryError(error)
   return rows ? [...rows] : []
 }
 

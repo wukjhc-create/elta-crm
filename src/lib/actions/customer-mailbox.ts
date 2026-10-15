@@ -37,6 +37,7 @@ async function gateDenied(permission: Permission): Promise<string | null> {
 }
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
+import { throwIfQueryError } from '@/lib/data/rows-or-throw'
 import { retroLinkable } from '@/lib/mail/retro-link'
 
 // =====================================================
@@ -199,7 +200,7 @@ export async function getCustomerMailbox(
 
   if (error) {
     logger.error('Failed to fetch customer mailbox', { error, entityId: customerId })
-    return { emails: [], unreadCount: 0, conversations: [], canReply: false }
+    throwIfQueryError(error, 'Kunne ikke hente kundens indbakke')
   }
 
   const emails: CustomerMailboxEmail[] = (data || []).map((e) => {

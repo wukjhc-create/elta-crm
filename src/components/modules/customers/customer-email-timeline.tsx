@@ -49,6 +49,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
   const toast = useToast()
   const [emails, setEmails] = useState<CustomerMailboxEmail[]>([])
   const [conversations, setConversations] = useState<CustomerConversation[]>([])
+  const [loadError, setLoadError] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(false)
@@ -88,7 +89,18 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
 
   const load = async () => {
     setLoading(true)
-    const result = await getCustomerMailbox(customerId, customerEmail)
+    setLoadError(false)
+    let result: Awaited<ReturnType<typeof getCustomerMailbox>>
+    try {
+      result = await getCustomerMailbox(customerId, customerEmail)
+    } catch {
+      setEmails([])
+      setConversations([])
+      setUnreadCount(0)
+      setLoadError(true)
+      setLoading(false)
+      return
+    }
     setEmails(result.emails)
     setConversations(result.conversations || [])
     setUnreadCount(result.unreadCount)
@@ -255,7 +267,19 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
       )}
 
       {/* Email list */}
-      {emails.length === 0 ? (
+      {loadError ? (
+        <div className="p-8 text-center">
+          <p className="text-gray-700 font-medium">Kunne ikke hente kundens indbakke.</p>
+          <p className="text-sm text-gray-500 mt-1">Det tælles ikke som en tom indbakke.</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="mt-4 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+          >
+            Prøv igen
+          </button>
+        </div>
+      ) : emails.length === 0 ? (
         <div className="p-8 text-center">
           <Inbox className="w-10 h-10 mx-auto mb-3 text-gray-300" />
           <p className="text-gray-500 font-medium">Ingen emails med denne kunde</p>
