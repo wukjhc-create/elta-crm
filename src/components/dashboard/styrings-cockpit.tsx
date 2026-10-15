@@ -460,6 +460,11 @@ function OverdueInvoicesCard({ overview }: { overview: DashboardOverview }) {
         <EmptyRow text={err ? 'Kunne ikke hente data' : 'Ingen fakturaer over forfald.'} />
       ) : (
         <ul className="text-xs divide-y" data-testid="cockpit-overdue-invoices">
+          {overview.overdueInvoices.namesFailed && (
+            <li className="py-1.5 text-amber-800" data-testid="cockpit-overdue-names-error">
+              Kundenavne kunne ikke hentes. Det tælles ikke som ukendte.
+            </li>
+          )}
           {items.map((i) => (
             <li key={i.id}>
               <Link href={`/dashboard/invoices/${i.id}`} className="py-1.5 flex items-start justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">

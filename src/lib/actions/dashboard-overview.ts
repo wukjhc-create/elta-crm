@@ -120,6 +120,8 @@ export interface DashboardOverview {
     total: number
     /** next: N89 — næste rykkertrin efter samme regler som invoice-reminders-cronen */
     items: Array<{ id: string; invoice_number: string | null; customer_name: string | null; amount: number; daysOverdue: number; reminders: number; next: import('@/lib/invoices/reminder-plan').NextReminder }>
+    /** Sat når kundenavnene ikke kunne hentes. Beløbene bliver stående. */
+    namesFailed?: boolean
   }
   /** N50: ulæste kundebeskeder fra kundeportalen pr. kunde (kun customers.edit). */
   portal: {
@@ -585,12 +587,15 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         if (!rows.length) return
         const custIds = Array.from(new Set(rows.slice(0, TOP_N).map((r) => r.customer_id).filter((x): x is string => !!x)))
         const names = new Map<string, string>()
+        let namesFailed = false
         if (custIds.length) {
-          const { data: cs } = await supabase.from('customers').select('id, company_name').in('id', custIds)
-          for (const c of (cs ?? []) as Array<{ id: string; company_name: string | null }>) names.set(c.id, c.company_name ?? '')
+          const { data: cs, error: nameError } = await supabase.from('customers').select('id, company_name').in('id', custIds)
+          if (nameError) namesFailed = true
+          else for (const c of (cs ?? []) as Array<{ id: string; company_name: string | null }>) names.set(c.id, c.company_name ?? '')
         }
         overview.overdueInvoices = {
           allowed: true,
+          namesFailed,
           count: rows.length,
           total: Math.round(rows.reduce((sum, r) => sum + r.open, 0) * 100) / 100,
           items: rows.slice(0, TOP_N).map((r) => ({
