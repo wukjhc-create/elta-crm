@@ -127,9 +127,23 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
           ))}
         </div>
       ) : activeTasks.length === 0 && doneTasks.length === 0 ? (
-        <p className="text-gray-500 text-center py-4">Ingen opgaver endnu</p>
+        <div className="text-center py-6" data-testid="customer-tasks-empty">
+          <p className="text-gray-700 font-medium">Ingen opgaver endnu</p>
+          <p className="text-sm text-gray-500 mt-1">Opret en opgave, hvis der skal følges op på kunden.</p>
+          <button
+            type="button"
+            onClick={() => { setEditingTask(null); setShowForm(true) }}
+            className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            <Plus className="w-4 h-4" />
+            Ny opgave
+          </button>
+        </div>
       ) : (
         <div className="space-y-2">
+          {activeTasks.length === 0 && (
+            <p className="text-sm text-gray-500 text-center py-2">Ingen åbne opgaver. Udførte ligger nedenfor.</p>
+          )}
           {activeTasks.map((task) => (
             <TaskRow
               key={task.id}
