@@ -60,18 +60,17 @@ export function CaseInvoicesList({ caseId }: { caseId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError(null)
     try {
       const res = await listCaseInvoicesAction(caseId)
       if (!res.ok) {
+        if (res.message?.includes('Manglende tilladelse')) setItems([])
         setError(res.message ?? 'Kunne ikke hente fakturaer')
-        setItems([])
       } else {
+        setError(null)
         setItems(res.items)
       }
     } catch {
       setError('Kunne ikke hente fakturaer')
-      setItems([])
     } finally {
       setLoading(false)
     }
@@ -104,15 +103,15 @@ export function CaseInvoicesList({ caseId }: { caseId: string }) {
         </button>
       </div>
 
-      {loading ? (
+      {loading && items.length === 0 ? (
         <div className="flex items-center gap-2 px-3 py-6 text-sm text-gray-500">
           <Loader2 className="w-4 h-4 animate-spin" />
           Henter fakturaer…
         </div>
-      ) : error ? (
-        <div className="flex items-center gap-2 px-3 py-6 text-sm text-rose-600">
+      ) : error && items.length === 0 ? (
+        <div className="flex items-center gap-2 px-3 py-6 text-sm text-rose-600" data-testid="case-invoices-load-error">
           <AlertCircle className="w-4 h-4" />
-          {error}
+          {error}. Det tælles ikke som ingen fakturaer.
         </div>
       ) : items.length === 0 ? (
         <div className="px-3 py-6 text-sm text-gray-500">
@@ -120,6 +119,12 @@ export function CaseInvoicesList({ caseId }: { caseId: string }) {
         </div>
       ) : (
         <>
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 text-sm text-rose-600" data-testid="case-invoices-load-error">
+            <AlertCircle className="w-4 h-4" />
+            {error}. Det tælles ikke som ingen fakturaer.
+          </div>
+        )}
         <div className="md:hidden space-y-2 p-2" data-testid="case-invoices-mobile">
           {items.map((it) => {
             const sb = statusBadge(it)

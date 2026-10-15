@@ -87,18 +87,17 @@ export function CaseInvoiceHistory({ caseId }: { caseId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError(null)
     try {
       const res = await getCaseInvoiceHistoryAction(caseId)
       if (!res.ok) {
+        if (res.message?.includes('Manglende tilladelse')) setEntries([])
         setError(res.message ?? 'Kunne ikke hente fakturahistorik')
-        setEntries([])
       } else {
+        setError(null)
         setEntries(res.entries)
       }
     } catch {
       setError('Kunne ikke hente fakturahistorik')
-      setEntries([])
     } finally {
       setLoading(false)
     }
@@ -126,21 +125,28 @@ export function CaseInvoiceHistory({ caseId }: { caseId: string }) {
         </button>
       </div>
 
-      {loading ? (
+      {loading && entries.length === 0 ? (
         <div className="flex items-center gap-2 px-3 py-6 text-sm text-gray-500">
           <Loader2 className="w-4 h-4 animate-spin" />
           Henter historik…
         </div>
-      ) : error ? (
-        <div className="flex items-center gap-2 px-3 py-6 text-sm text-rose-600">
+      ) : error && entries.length === 0 ? (
+        <div className="flex items-center gap-2 px-3 py-6 text-sm text-rose-600" data-testid="case-invoice-history-load-error">
           <AlertCircle className="w-4 h-4" />
-          {error}
+          {error}. Det tælles ikke som ingen fakturahistorik.
         </div>
       ) : entries.length === 0 ? (
         <div className="px-3 py-6 text-sm text-gray-500">
           Der er endnu ingen fakturahistorik på sagen.
         </div>
       ) : (
+        <>
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 text-sm text-rose-600" data-testid="case-invoice-history-load-error">
+            <AlertCircle className="w-4 h-4" />
+            {error}. Det tælles ikke som ingen fakturahistorik.
+          </div>
+        )}
         <ul className="divide-y divide-gray-100">
           {entries.map((e) => {
             const v = actionVisual(e)
@@ -189,6 +195,7 @@ export function CaseInvoiceHistory({ caseId }: { caseId: string }) {
             )
           })}
         </ul>
+        </>
       )}
 
       <p className="px-3 py-2 text-[11px] text-gray-400 border-t border-gray-100">
