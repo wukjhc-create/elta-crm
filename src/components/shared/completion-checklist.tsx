@@ -155,10 +155,14 @@ export function CompletionChecklist({
                       {onDeleteAttachment && !disabled && (
                         <button
                           type="button"
-                          onClick={() => onDeleteAttachment(att.id)}
-                          className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-colors"
+                          aria-label="Slet foto"
+                          onClick={() => {
+                            if (!window.confirm('Slet dette foto fra afleveringen?')) return
+                            void onDeleteAttachment(att.id)
+                          }}
+                          className="absolute top-0.5 right-0.5 rounded bg-black/70 p-0.5 text-white"
                         >
-                          <Trash2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
