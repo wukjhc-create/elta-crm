@@ -219,6 +219,8 @@ export function OrdersListClient({
           <div className="md:hidden divide-y" data-testid="orders-mobile-list">
             {cases.map((c) => {
               const customerName = c.customer?.company_name || c.customer?.contact_person || '—'
+              const assigneeName = c.assignee?.full_name || ''
+              const formandName = c.formand_id ? (empById.get(c.formand_id) || '') : ''
               const e = economy[c.id]
               const badge = canSeeBilling ? caseBillingBadge(e, c.status) : 'none'
               const cfg = badge !== 'none' ? CASE_BILLING_BADGE_CONFIG[badge] : null
@@ -246,6 +248,14 @@ export function OrdersListClient({
                     )}
                     <span>{fmtDateRange(c.start_date, c.end_date)}</span>
                   </div>
+                  {(c.reference || c.requisition || assigneeName || formandName) && (
+                    <div className="mt-1 space-y-0.5 text-xs text-gray-600">
+                      {c.reference && <p className="break-words" data-testid="order-mobile-reference">Ref. {c.reference}</p>}
+                      {c.requisition && <p className="break-words" data-testid="order-mobile-requisition">Rekvirent {c.requisition}</p>}
+                      {assigneeName && <p className="break-words" data-testid="order-mobile-assignee">{assigneeName}</p>}
+                      {formandName && <p className="break-words" data-testid="order-mobile-formand">Formand {formandName}</p>}
+                    </div>
+                  )}
                   <p className="text-xs text-gray-700 mt-2">Tilbudt {fmtAmount(c.contract_sum)} · revideret {fmtAmount(c.revised_sum)}</p>
                   {hasNumbers && (
                     <p className="text-xs mt-1">
