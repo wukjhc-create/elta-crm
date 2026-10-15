@@ -38,7 +38,9 @@ export default async function ProductsPage({ searchParams }: PageProps) {
     <Suspense fallback={<ProductsLoading />}>
       <ProductsClient
         initialProducts={productsResult.success && productsResult.data ? productsResult.data : null}
+        loadError={productsResult.success ? null : productsResult.error || 'Kunne ikke hente produkter'}
         categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
+        categoriesError={categoriesResult.success ? null : categoriesResult.error || 'Kunne ikke hente kategorier'}
         canSeeCost={canSeeCost}
         initialFilters={{
           search: params.search || '',

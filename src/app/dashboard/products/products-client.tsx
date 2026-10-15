@@ -52,7 +52,9 @@ import { formatCurrency } from '@/lib/utils/format'
 
 interface ProductsClientProps {
   initialProducts: PaginatedResponse<ProductWithCategory> | null
+  loadError?: string | null
   categories: ProductCategory[]
+  categoriesError?: string | null
   initialFilters: {
     search: string
     category_id: string
@@ -63,7 +65,9 @@ interface ProductsClientProps {
 
 export default function ProductsClient({
   initialProducts,
+  loadError = null,
   categories,
+  categoriesError = null,
   initialFilters,
   canSeeCost = false,
 }: ProductsClientProps) {
@@ -149,7 +153,9 @@ export default function ProductsClient({
         <div>
           <h1 className="text-2xl font-bold">Produktkatalog</h1>
           <p className="text-gray-500">
-            {total} {total === 1 ? 'produkt' : 'produkter'}
+            {loadError
+              ? 'Antallet kunne ikke hentes. Det tælles ikke som 0 produkter.'
+              : `${total} ${total === 1 ? 'produkt' : 'produkter'}`}
           </p>
         </div>
         <Button onClick={() => setShowCreateDialog(true)}>
@@ -191,10 +197,19 @@ export default function ProductsClient({
             ))}
           </SelectContent>
         </Select>
+        {categoriesError && (
+          <p className="text-sm text-red-700 sm:self-center" data-testid="product-categories-load-error">
+            {categoriesError}. Det tælles ikke som ingen kategorier.
+          </p>
+        )}
       </div>
 
       {/* Products Table */}
-      {products.length === 0 ? (
+      {loadError ? (
+        <p className="text-sm text-red-700 py-8 text-center" data-testid="products-load-error">
+          {loadError}. Det tælles ikke som ingen produkter.
+        </p>
+      ) : products.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border" data-testid="products-empty">
           <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
