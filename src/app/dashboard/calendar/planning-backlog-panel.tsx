@@ -23,12 +23,12 @@ export function PlanningBacklogPanel({ items, total }: { items: PlanningBacklogI
       </summary>
       <ul className="divide-y text-sm px-4 pb-3">
         {items.map((it) => (
-          <li key={it.case_id} className="py-2 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <Link href={`/dashboard/orders/${it.case_id}?tab=planlaegning`} className="font-medium text-gray-900 hover:underline truncate block" data-testid="planning-backlog-item">
+          <li key={it.case_id} className="py-2 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <Link href={`/dashboard/orders/${it.case_id}?tab=planlaegning`} className="font-medium text-gray-900 hover:underline break-words" data-testid="planning-backlog-item">
                 {it.case_number ? `${it.case_number} · ` : ''}{it.title}
               </Link>
-              <div className="text-xs text-gray-500 truncate">{it.customer_name ?? '—'}</div>
+              <div className="text-xs text-gray-500 break-words">{it.customer_name ?? '—'}</div>
             </div>
             <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-800 ring-1 ring-amber-200">{REASON[it.reason]}</span>
           </li>
@@ -55,16 +55,16 @@ export function JobsWithoutTimePanel({ items, total }: { items: JobWithoutTimeIt
       </summary>
       <ul className="divide-y text-sm px-4 pb-3">
         {items.map((it) => (
-          <li key={it.work_order_id} className="py-2 flex items-center justify-between gap-3">
-            <div className="min-w-0">
+          <li key={it.work_order_id} className="py-2 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
               {it.case_id ? (
-                <Link href={`/dashboard/orders/${it.case_id}?tab=planlaegning`} className="font-medium text-gray-900 hover:underline truncate block" data-testid="jobs-without-time-item">
+                <Link href={`/dashboard/orders/${it.case_id}?tab=planlaegning`} className="font-medium text-gray-900 hover:underline break-words" data-testid="jobs-without-time-item">
                   {it.case_number ? `${it.case_number} · ` : ''}{it.title}
                 </Link>
               ) : (
-                <span className="font-medium text-gray-900 truncate block" data-testid="jobs-without-time-item">{it.title}</span>
+                <span className="font-medium text-gray-900 break-words" data-testid="jobs-without-time-item">{it.title}</span>
               )}
-              <div className="text-xs text-gray-500 truncate">{it.employee_name ?? 'Ukendt montør'} · {fmt(it.scheduled_date)}</div>
+              <div className="text-xs text-gray-500 break-words">{it.employee_name ?? 'Ukendt montør'} · {fmt(it.scheduled_date)}</div>
             </div>
             <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-rose-50 text-rose-800 ring-1 ring-rose-200">
               {it.status === 'done' ? 'Afsluttet uden tid' : `${it.days_ago} d siden`}
