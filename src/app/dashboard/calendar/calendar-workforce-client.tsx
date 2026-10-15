@@ -636,6 +636,12 @@ function WeekEmployeeRow({
   // Fokus E 2026-10-15: belastning — aktive job (planlagt/i gang) pr. dag og uge
   const active = (wos: WorkOrderForCalendar[]) => wos.filter((w) => w.status === 'planned' || w.status === 'in_progress').length
   const weekActive = weekDates.reduce((n, d) => n + active(byDateThenEmployee.get(d)?.get(employee.id) ?? []), 0)
+  // 00229: planlagte (estimerede) timer mod normtimer — tom norm = "Norm ikke sat" (ingen 37-fallback)
+  const plannedHours = weekDates.reduce((n, d) => n + (byDateThenEmployee.get(d)?.get(employee.id) ?? [])
+    .filter((w) => w.status === 'planned' || w.status === 'in_progress')
+    .reduce((a, w) => a + (Number(w.estimated_hours ?? 0) || 0), 0), 0)
+  const norm = employee.weekly_hours == null ? null : Number(employee.weekly_hours)
+  const h1 = (x: number) => (Math.round(x * 10) / 10).toLocaleString('da-DK')
   return (
     <tr className="align-top">
       <td className="px-3 py-2 w-48 border-r">
@@ -647,6 +653,9 @@ function WeekEmployeeRow({
         </Link>
         <div className="text-[11px] text-gray-500 truncate">{roleLabel}</div>
         <div className="text-[11px] text-gray-500" data-testid="week-employee-load">{weekActive} aktive job denne uge</div>
+        <div className={`text-[11px] ${norm != null && plannedHours > norm ? 'text-red-600 font-medium' : 'text-gray-500'}`} data-testid="week-employee-capacity">
+          {norm == null ? 'Norm ikke sat' : `Planlagt ${h1(plannedHours)} t af norm ${h1(norm)} t`}
+        </div>
       </td>
       {weekDates.map((d) => {
         const isToday = d === today

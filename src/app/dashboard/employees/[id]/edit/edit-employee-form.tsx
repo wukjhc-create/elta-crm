@@ -92,6 +92,7 @@ function IdentitySection({ employee }: { employee: EmployeeWithCompensation }) {
       hire_date: employee.hire_date ?? '',
       termination_date: employee.termination_date ?? '',
       notes: employee.notes ?? '',
+      weekly_hours: employee.weekly_hours ?? null,
     },
   })
 
@@ -208,6 +209,9 @@ function IdentitySection({ employee }: { employee: EmployeeWithCompensation }) {
         </Field>
         <Field label="Fratrædelsesdato" error={fieldError('termination_date')}>
           <input {...register('termination_date')} type="date" disabled={isSubmitting} className={input} />
+        </Field>
+        <Field label="Normtimer pr. uge (tom = norm ikke sat)" error={fieldError('weekly_hours')}>
+          <input {...register('weekly_hours')} type="text" inputMode="decimal" placeholder="fx 37" disabled={isSubmitting} className={input} data-testid="employee-weekly-hours" />
         </Field>
       </div>
 

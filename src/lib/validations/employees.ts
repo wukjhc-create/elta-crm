@@ -61,6 +61,22 @@ export const EMPLOYEE_ROLES = [
   'installer',
 ] as const
 
+/** 00229: normtimer pr. uge — undefined = uændret, '' = "Norm ikke sat" (null), ellers 0–60. Ingen 37-fallback. */
+const weeklyHours = z
+  .union([z.number(), z.string()])
+  .nullable()
+  .optional()
+  .transform((v, ctx) => {
+    if (v === undefined) return undefined
+    if (v === null || (typeof v === 'string' && v.trim() === '')) return null
+    const n = typeof v === 'number' ? v : Number(String(v).trim().replace(',', '.'))
+    if (!Number.isFinite(n) || n < 0 || n > 60) {
+      ctx.addIssue({ code: 'custom', message: 'Normtimer skal være mellem 0 og 60 (eller tomt)' })
+      return z.NEVER
+    }
+    return Math.round(n * 10) / 10
+  })
+
 export const EmployeeIdentitySchema = z.object({
   first_name: z
     .string()
@@ -93,6 +109,7 @@ export const EmployeeIdentitySchema = z.object({
   hire_date: optionalDate,
   termination_date: optionalDate,
   notes: optionalString,
+  weekly_hours: weeklyHours,
   profile_id: z
     .string()
     .uuid()

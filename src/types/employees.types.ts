@@ -168,6 +168,8 @@ export interface EmployeeRow {
   hire_date: string | null
   termination_date: string | null
   notes: string | null
+  /** 00229: normtimer pr. uge — null = "Norm ikke sat" (ingen fallback) */
+  weekly_hours?: number | null
   hourly_rate: number | null   // mirror of compensation.sales_rate
   cost_rate: number | null     // mirror of compensation.internal_cost_rate
   created_at: string

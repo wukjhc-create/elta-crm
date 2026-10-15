@@ -478,6 +478,8 @@ function buildEmployeePayload(input: EmployeeIdentityInput) {
     hire_date: input.hire_date,
     termination_date: input.termination_date,
     notes: input.notes,
+    // 00229: undefined → feltet sendes ikke (uændret)
+    ...(input.weekly_hours !== undefined ? { weekly_hours: input.weekly_hours } : {}),
     profile_id: input.profile_id,
   }
 }

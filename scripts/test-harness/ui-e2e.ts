@@ -1894,8 +1894,12 @@ ${m.text()}`) })
         await gotoSafe(a.page, `${base}/dashboard/calendar?date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.vist_paa_ny_dag = (await a.page.getByText(woTitle).count()) > 0
         r.tid_paa_chip = (await a.page.getByTestId('wo-chip-time').filter({ hasText: '10:00–12:00' }).count()) > 0
+        // 00229: Bente norm 5 t (planlagt 4 + 2 = 6 → over), Anders uden norm
+        if (empB) await c.admin.from('employees').update({ weekly_hours: 5 }).eq('id', empB)
         await gotoSafe(a.page, `${base}/dashboard/calendar?view=week&date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
         const bRow = a.page.locator('tr', { hasText: `Harness Bente ${stamp}` }).first()
+        r.kapacitet_norm = /Planlagt 6 t af norm 5 t/.test(((await bRow.getByTestId('week-employee-capacity').textContent().catch(() => '')) ?? ''))
+        r.kapacitet_ikke_sat = /Norm ikke sat/.test(((await a.page.locator('tr', { hasText: `Harness Anders ${stamp}` }).first().getByTestId('week-employee-capacity').textContent().catch(() => '')) ?? ''))
         r.uge_belastning = (await bRow.getByTestId('week-day-overload').count()) === 1 && /2 aktive job denne uge/.test(((await bRow.getByTestId('week-employee-load').textContent().catch(() => '')) ?? ''))
         // E-7: klik på Anders' tomme celle på d3 → planlæg-dialog med Anders + d3 udfyldt
         const aRow = a.page.locator('tr', { hasText: `Harness Anders ${stamp}` }).first()
@@ -3497,12 +3501,15 @@ ${m.text()}`) })
         await gotoSafe(a.page, `${base}/dashboard/employees/${empId}/edit`, { waitUntil: 'networkidle', timeout: 120_000 })
         const aktiv = a.page.getByRole('checkbox', { name: 'Aktiv', exact: true }).first()
         await aktiv.waitFor({ timeout: 60_000 }).catch(() => {})
+        // 00229: normtimer gemmes med stamdata (dansk decimal)
+        await a.page.getByTestId('employee-weekly-hours').fill('37,5').catch(() => {})
         await aktiv.uncheck({ timeout: 30_000 }).catch(() => {})
         await a.page.getByRole('button', { name: 'Gem stamdata' }).click({ timeout: 30_000 }).catch(() => {})
         await a.page.waitForTimeout(4000)
         a.page.off('dialog', onDialog)
         r.bekraeftelse_vist = /LOGIN deaktiveres/.test(dialogText)
-        const e1 = (await c.admin.from('employees').select('active, termination_date').eq('id', empId).maybeSingle()).data as { active: boolean; termination_date: string | null } | null
+        const e1 = (await c.admin.from('employees').select('active, termination_date, weekly_hours').eq('id', empId).maybeSingle()).data as { active: boolean; termination_date: string | null; weekly_hours: number | null } | null
+        r.normtimer_gemt = Number(e1?.weekly_hours) === 37.5
         const p1 = (await c.admin.from('profiles').select('is_active').eq('id', u.id).maybeSingle()).data as { is_active: boolean } | null
         r.medarbejder_deaktiveret = e1?.active === false
         r.login_deaktiveret = p1?.is_active === false
