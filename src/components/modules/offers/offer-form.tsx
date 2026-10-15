@@ -299,8 +299,8 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
           </div>
 
           {/* Financial settings */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
+            <div className="space-y-1 min-w-0">
               <label htmlFor="discount_percentage" className="text-sm font-medium">
                 Rabat (%)
               </label>
@@ -316,7 +316,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <label htmlFor="tax_percentage" className="text-sm font-medium">
                 Moms (%)
               </label>
@@ -332,15 +332,15 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
               />
             </div>
 
-            <div className="space-y-1">
-              <label htmlFor="valid_until" className="text-sm font-medium">
+            <div className="space-y-1 min-w-0">
+              <label htmlFor="valid_until" className="text-sm font-medium break-words">
                 Gyldig til
               </label>
               <input
                 {...register('valid_until')}
                 id="valid_until"
                 type="date"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full min-w-0 max-w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 disabled={isLoading}
               />
             </div>
