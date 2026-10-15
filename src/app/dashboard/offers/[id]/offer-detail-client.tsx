@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
+import { copenhagenDateLabel, copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
 import { CopyButton } from '@/components/shared/copy-button'
 import { useConfirm } from '@/components/shared/confirm-dialog'
@@ -1221,51 +1222,41 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Tidsstempler</h2>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <span className="text-gray-500">Oprettet</span>
-                  <span>
-                    {format(new Date(offer.created_at), 'd. MMM yyyy HH:mm', {
-                      locale: da,
-                    })}
+                  <span className="whitespace-nowrap">
+                    {copenhagenDateTimeLabel(offer.created_at)}
                   </span>
                 </div>
                 {offer.sent_at && (
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                     <span className="text-gray-500">Sendt</span>
-                    <span>
-                      {format(new Date(offer.sent_at), 'd. MMM yyyy HH:mm', {
-                        locale: da,
-                      })}
+                    <span className="whitespace-nowrap">
+                      {copenhagenDateTimeLabel(offer.sent_at)}
                     </span>
                   </div>
                 )}
                 {offer.viewed_at && (
-                  <div className="flex justify-between">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                     <span className="text-gray-500">Set</span>
-                    <span>
-                      {format(new Date(offer.viewed_at), 'd. MMM yyyy HH:mm', {
-                        locale: da,
-                      })}
+                    <span className="whitespace-nowrap">
+                      {copenhagenDateTimeLabel(offer.viewed_at)}
                     </span>
                   </div>
                 )}
                 {offer.accepted_at && (
-                  <div className="flex justify-between text-green-600">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-green-600">
                     <span>Accepteret</span>
-                    <span>
-                      {format(new Date(offer.accepted_at), 'd. MMM yyyy HH:mm', {
-                        locale: da,
-                      })}
+                    <span className="whitespace-nowrap">
+                      {copenhagenDateTimeLabel(offer.accepted_at)}
                     </span>
                   </div>
                 )}
                 {offer.rejected_at && (
-                  <div className="flex justify-between text-red-600">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-red-600">
                     <span>Afvist</span>
-                    <span>
-                      {format(new Date(offer.rejected_at), 'd. MMM yyyy HH:mm', {
-                        locale: da,
-                      })}
+                    <span className="whitespace-nowrap">
+                      {copenhagenDateTimeLabel(offer.rejected_at)}
                     </span>
                   </div>
                 )}
@@ -1664,10 +1655,10 @@ function OfferPdfView({
         </div>
 
         {/* Dates */}
-        <div className="flex gap-8 mb-6 text-sm">
+        <div className="flex flex-wrap gap-x-8 gap-y-2 mb-6 text-sm">
           <div>
             <span className="text-gray-500">Dato: </span>
-            <span>{format(new Date(offer.created_at), 'd. MMMM yyyy', { locale: da })}</span>
+            <span>{copenhagenDateLabel(offer.created_at, 'long')}</span>
           </div>
           {offer.valid_until && (
             <div>
