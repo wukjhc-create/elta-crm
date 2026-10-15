@@ -8,6 +8,7 @@
  * + manuelt uploadede docs der er flyttet til sagen.
  */
 
+import { downscaleImageForUpload } from '@/lib/utils/image-downscale'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { FileText, Mail, Download, Loader2, FolderOpen, Camera } from 'lucide-react'
@@ -73,16 +74,25 @@ export function OrderDocumentsTab({
     setUploadMsg(null)
     let ok = 0
     const errors: string[] = []
-    for (const f of Array.from(files)) {
-      const fd = new FormData()
-      fd.append('file', f)
-      const r = await uploadCaseDocument(caseId, fd)
-      if (r.success) ok++
-      else errors.push(`${f.name}: ${r.error ?? 'fejl'}`)
+    // Pilot-review 2026-10-15 (#5): billeder skaleres ned før upload (telefonfotos ramte body-grænsen), og en fejlet
+    // upload (fx netværk/for stor) stopper ikke resten eller efterlader spinneren kørende
+    try {
+      for (const f of Array.from(files)) {
+        try {
+          const fd = new FormData()
+          fd.append('file', await downscaleImageForUpload(f))
+          const r = await uploadCaseDocument(caseId, fd)
+          if (r.success) ok++
+          else errors.push(`${f.name}: ${r.error ?? 'fejl'}`)
+        } catch {
+          errors.push(`${f.name}: upload fejlede (filen er måske for stor eller forbindelsen røg)`)
+        }
+      }
+      await load().catch(() => {})
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
     }
-    await load()
-    setUploading(false)
-    if (fileRef.current) fileRef.current.value = ''
     setUploadMsg(errors.length ? { ok: false, text: `${ok} uploadet · ${errors.join(' · ')}` } : { ok: true, text: `${ok} fil${ok === 1 ? '' : 'er'} uploadet` })
   }
 

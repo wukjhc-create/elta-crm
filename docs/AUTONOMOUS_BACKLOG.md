@@ -44,6 +44,20 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-15 (pilot-readiness review 2026-10-15 eftermiddag — daglige flows)
+| # | Fund | Status |
+|---|---|---|
+| PR-1 (S1/S2) | Bogholderi kan ikke godkende leverandørfakturaer i UI (eneste knap kræver materials.add_to_case → kun admin) | [H] = L-11 rettighedsmodel (godkend uden konvertering for bogholderi?) |
+| PR-2 (S2) | Godkendelse af leverandørfaktura pusher til e-conomic så snart integrationen er aktiv — ingen env-kill-switch | [H] (P-7/N12): kill-switch `ECONOMIC_PUSH_ENABLED`? e-conomic er ikke aktiv i prod i dag |
+| PR-3 (S2) | Timer der ikke er godkendt (afventer) kan faktureres; derefter kan de ikke afvises | [H] forretningsregel: kun godkendte timer på faktura, eller advarsel? |
+| PR-4 (S2) | Fakturakladde fra sag: timer uden sats → skjult fallback-sats; overspringslisten forsvandt i omdirigeringen | DONE (kode) — springes over som F-2; kladden viser hvad der ikke kom med før videre. NB: DB-triggeren (00137) fryser stille 495 kr/t for medarbejdere uden timepris → [H] skal manglende sats blokere/advare ved registrering? |
+| PR-5 (S2) | Montør-fotos: store telefonbilleder fejler, spinneren hænger | DONE — nedskalering i browseren (maks 2000 px JPEG) + try/finally på sag-dokumenter, aflevering, kvittering, kundedokumenter (`lib/utils/image-downscale.ts`, unit 7/7) |
+| PR-6 (S2) | Slutfaktura på kontraktsag fakturerer ikke resten af kontraktsummen | [H] = F-3 |
+| PR-7 (S3) | Nattevagt 22–02 kunne ikke registreres | DONE — sluttid før starttid = næste dag (`endDateForClocks`, 16-t-grænsen gælder), opret + ret. Unit |
+| PR-8 (S3) | Tilbud uden kunde kunne gøres til sag i kernen | DONE — kernen afviser med dansk besked (UI U13) |
+| PR-9 (S3) | Timer/arbejdsordre-status kunne ændres på lukket sag | DONE — samme lås som ved oprettelse ("Sagen er lukket — genåbn den først"). UI U11/U155/U48 |
+| PR-10 (S4) | Rate-/slutfaktura lægger altid 25 % moms på, også hvis tilbuddet var 0 % (omvendt betalingspligt) | [H] lav sandsynlighed — afklar om 0 %-kunder findes |
+
 ## NEXT-13 (2026-10-15 — tavse fejl/feedback + døde revalidateringer + doc-drift)
 Kilde: to opfølgende read-only sweeps til pilot-reviewet.
 | # | Fund | Status |

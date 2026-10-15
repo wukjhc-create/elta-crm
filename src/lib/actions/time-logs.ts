@@ -22,7 +22,7 @@
  */
 
 import type { Permission } from '@/lib/auth/permissions'
-import { findOverlappingTimeLog, rateBelongsToEmployee, timeLogSpanError } from '@/lib/time-logs/guards'
+import { endDateForClocks, findOverlappingTimeLog, rateBelongsToEmployee, timeLogSpanError } from '@/lib/time-logs/guards'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import {
@@ -243,7 +243,10 @@ export async function createTimeLog(
       if (!/^\d{2}:\d{2}$/.test(endClock)) {
         return { success: false, error: 'Sluttid skal være i formatet HH:mm' }
       }
-      endTimeIso = copenhagenLocalToIso(input.date, endClock)
+      // #7: sluttid før starttid = næste dag (nattevagt)
+      const endDate = endDateForClocks(input.date, startClock, endClock)
+      if (!endDate) return { success: false, error: 'Sluttid skal være efter starttid' }
+      endTimeIso = copenhagenLocalToIso(endDate, endClock)
       if (new Date(endTimeIso).getTime() <= new Date(startTimeIso).getTime()) {
         return { success: false, error: 'Sluttid skal være efter starttid' }
       }
@@ -361,6 +364,12 @@ export async function updateTimeLog(
         error: 'Kan ikke ændre — timeregistreringen er allerede faktureret',
       }
     }
+    {
+      // Pilot-review 2026-10-15 (#9): som ved oprettelse — ingen ændring af timer på en lukket sag (genåbn først)
+      const { data: woCase } = await supabase.from('work_orders').select('case:service_cases(status)').eq('id', cur.work_order_id as string).maybeSingle()
+      const cs = (woCase as { case?: { status?: string } | Array<{ status?: string }> | null } | null)?.case
+      if ((Array.isArray(cs) ? cs[0] : cs)?.status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+    }
     // Henrik 2026-10-15: en GODKENDT registrering kan kun ændres af en godkender (montøren retter afviste/afventende;
     // godkendt tid må ikke ændres bag om godkenderen). Fakturerede er låst ovenfor for alle.
     if ((cur as { approval_status?: string }).approval_status === 'approved' && !hasPermission('time_logs.approve')) {
@@ -392,7 +401,10 @@ export async function updateTimeLog(
       let endTimeIso: string | null = null
       if (input.end_clock !== undefined) {
         if (input.end_clock && /^\d{2}:\d{2}$/.test(input.end_clock)) {
-          endTimeIso = copenhagenLocalToIso(dateStr, input.end_clock)
+          // #7: sluttid før starttid = næste dag (nattevagt)
+          const endDate = endDateForClocks(dateStr, startClock, input.end_clock)
+          if (!endDate) return { success: false, error: 'Sluttid skal være efter starttid' }
+          endTimeIso = copenhagenLocalToIso(endDate, input.end_clock)
         } else {
           return { success: false, error: 'Sluttid skal være HH:mm' }
         }

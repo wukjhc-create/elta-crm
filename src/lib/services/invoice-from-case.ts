@@ -283,13 +283,16 @@ export async function createInvoiceDraftFromCase(
         },
         defaultHourlyRate
       )
+      // Pilot-review 2026-10-15 (som F-2 på slutfakturaen): timer uden timepris (hverken frosset eller medarbejdersats)
+      // faktureres IKKE til en skjult fallback-sats — de springes over og forbliver ufakturerede, til satsen er sat
       if (source === 'fallback') {
         skipped.push({
           kind: 'time_log',
           source_id: id,
           reason: 'missing_employee_rate',
-          detail: `Bruger fallback ${defaultHourlyRate} kr/t — ${emp?.name ?? 'ukendt medarbejder'} mangler hourly_rate`,
+          detail: `${emp?.name ?? 'ukendt medarbejder'} mangler timepris — sæt den på medarbejderen og fakturér timerne bagefter`,
         })
+        continue
       }
       position += 1
       const empName = emp?.name ?? 'Medarbejder'

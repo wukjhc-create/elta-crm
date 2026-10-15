@@ -369,6 +369,12 @@ export async function changeWorkOrderStatus(
       return { success: true, data: hideLowProfit(row as WorkOrderRow, lowProfitVisible(hasPermission)) }
     }
 
+    // Pilot-review 2026-10-15 (#9): ingen statusskift på en lukket sags arbejdsordrer (som ved oprettelse/timer)
+    if (cur.case_id) {
+      const { data: cs } = await supabase.from('service_cases').select('status').eq('id', cur.case_id as string).maybeSingle()
+      if ((cs as { status?: string } | null)?.status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+    }
+
     if (!ALLOWED_TRANSITIONS[cur.status as WorkOrderStatus]?.includes(next)) {
       return {
         success: false,

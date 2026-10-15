@@ -1270,6 +1270,7 @@ export function BillingStandardMode({
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSkipped, setSubmitSkipped] = useState<string[]>([])
+  const [createdInvoiceId, setCreatedInvoiceId] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -1350,6 +1351,7 @@ export function BillingStandardMode({
     setSubmitting(true)
     setSubmitError(null)
     setSubmitSkipped([])
+    setCreatedInvoiceId(null)
 
     const res = await createInvoiceDraftFromCaseAction(
       caseId,
@@ -1372,6 +1374,15 @@ export function BillingStandardMode({
         // U-13 (pilot-sweep 2026-10-15): danske tekster i stedet for "time_log 3fa2b1c9 — already_billed"
         setSubmitSkipped(res.skipped_lines.map((s) => `${SKIP_KIND_LABEL[s.kind] ?? 'Linje'} — ${SKIP_REASON_LABEL[s.reason] ?? 'kunne ikke medtages'}${s.detail ? ` (${s.detail})` : ''}`))
       }
+      return
+    }
+
+    // Pilot-review 2026-10-15: linjer der ikke kom med (fx timer uden timepris) vises før videre — før forsvandt listen
+    // i omdirigeringen, og brugeren troede alt var faktureret
+    const notIncluded = res.skipped_lines.filter((s) => s.reason !== 'already_billed')
+    if (notIncluded.length > 0) {
+      setSubmitSkipped(notIncluded.map((s) => `${SKIP_KIND_LABEL[s.kind] ?? 'Linje'} — ${SKIP_REASON_LABEL[s.reason] ?? 'kunne ikke medtages'}${s.detail ? ` (${s.detail})` : ''}`))
+      setCreatedInvoiceId(res.invoice_id)
       return
     }
 
@@ -1766,6 +1777,16 @@ export function BillingStandardMode({
             </div>
           )
         })()}
+
+        {createdInvoiceId && (
+          <div className="rounded ring-1 ring-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="draft-created-with-skipped">
+            <div className="font-medium">Fakturakladden er oprettet, men {submitSkipped.length} linje{submitSkipped.length === 1 ? '' : 'r'} kom ikke med:</div>
+            <ul className="mt-1.5 list-disc pl-5 space-y-0.5">
+              {submitSkipped.slice(0, 8).map((s, i) => <li key={i}>{s}</li>)}
+            </ul>
+            <a href={`/dashboard/invoices/${createdInvoiceId}`} className="inline-block mt-2 font-medium text-emerald-800 hover:underline">Åbn fakturakladden →</a>
+          </div>
+        )}
 
         {submitError && (
           <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">

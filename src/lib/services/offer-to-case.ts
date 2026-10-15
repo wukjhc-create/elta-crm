@@ -83,6 +83,9 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       null
 
     const customerId = (offer.customer_id as string | null) ?? null
+    // Pilot-review 2026-10-15 (#8): uden kunde virker sagen ikke (fakturering: "Sagen mangler en kunde", fotos/dokumenter
+    // kræver kunde) — preview'et tjekkede det, kernen gjorde ikke
+    if (!customerId) return { success: false, error: 'Tilbuddet mangler en kunde — tilknyt en kunde før det gøres til sag' }
 
     // N26a: planlagte timer + internt kostbudget fra tilbudslinjerne (grundlag for efterkalkulation)
     const { deriveCaseBudgetFromOffer, offerBudgetNote } = await import('@/lib/cases/offer-budget')

@@ -58,3 +58,15 @@ export function timeLogSpanError(startIso: string, endIso: string, now: Date = n
   }
   return null
 }
+
+/**
+ * Pilot-review 2026-10-15 (#7): nattevagt 22:00–02:00 blev afvist ("Sluttid skal være efter starttid"), fordi sluttiden
+ * altid lå på startdatoen. Sluttid FØR starttid = næste dag (16-timersgrænsen fanger fejlindtastninger); samme klokkeslæt
+ * er stadig en fejl (0 t, ikke 24 t). Returnerer sluttidens dato (YYYY-MM-DD) eller null ved ens klokkeslæt.
+ */
+export function endDateForClocks(date: string, startClock: string, endClock: string): string | null {
+  if (endClock === startClock) return null
+  if (endClock > startClock) return date
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)
+}

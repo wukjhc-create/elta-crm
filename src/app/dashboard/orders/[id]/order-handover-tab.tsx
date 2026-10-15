@@ -4,6 +4,7 @@
  * Aflevering (N9a): afslutnings-tjekliste med fotos pr. punkt + kundens underskrift — på ordresiden, så montøren kan
  * afslutte på stedet. Samme data som Service-modulet. Adgang afgøres af serveren (kontor eller montør på egen sag).
  */
+import { downscaleImageForUpload } from '@/lib/utils/image-downscale'
 import { useCallback, useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
@@ -30,11 +31,17 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
 
   const run = async (fn: () => Promise<{ success: boolean; error?: string }>) => {
     setBusy(true)
-    const r = await fn()
-    setBusy(false)
-    if (!r.success) setError(r.error ?? 'Fejl')
-    else setError(null)
-    await load()
+    // pilot-review 2026-10-15 (#5): en kastet fejl (fx for stort foto/netværk) låste fanen i "busy"
+    try {
+      const r = await fn()
+      if (!r.success) setError(r.error ?? 'Fejl')
+      else setError(null)
+    } catch {
+      setError('Handlingen fejlede — filen er måske for stor, eller forbindelsen røg')
+    } finally {
+      setBusy(false)
+    }
+    await load().catch(() => {})
   }
 
   if (!data && !error) return <div className="bg-white rounded-lg border p-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
@@ -61,7 +68,7 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
           attachments={data.attachments}
           onToggle={async (key: string, completed: boolean) => { await run(() => toggleHandoverItemAction(caseId, key, completed)) }}
           onUpload={async (key: string, file: File) => {
-            const fd = new FormData(); fd.append('file', file); fd.append('category', key)
+            const fd = new FormData(); fd.append('file', await downscaleImageForUpload(file)); fd.append('category', key)
             await run(() => uploadHandoverPhotoAction(caseId, fd))
           }}
           onDeleteAttachment={async (attachmentId: string) => { await run(() => deleteHandoverPhotoAction(caseId, attachmentId)) }}

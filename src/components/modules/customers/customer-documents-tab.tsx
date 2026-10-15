@@ -1,5 +1,6 @@
 'use client'
 
+import { downscaleImageForUpload } from '@/lib/utils/image-downscale'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -118,14 +119,21 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
     let uploadedCount = 0
     // U-16 (pilot-sweep 2026-10-15): årsag pr. fil (størrelse/type) i stedet for samlet "Upload fejlede"
     const failures: string[] = []
-    for (const file of Array.from(files)) {
-      const formData = new FormData()
-      formData.append('file', file)
-      const result = await uploadCustomerDocument(customerId, formData)
-      if (result.success) uploadedCount++
-      else failures.push(`${file.name}: ${result.error ?? 'kunne ikke uploades'}`)
+    try {
+      for (const file of Array.from(files)) {
+        try {
+          const formData = new FormData()
+          formData.append('file', await downscaleImageForUpload(file))
+          const result = await uploadCustomerDocument(customerId, formData)
+          if (result.success) uploadedCount++
+          else failures.push(`${file.name}: ${result.error ?? 'kunne ikke uploades'}`)
+        } catch {
+          failures.push(`${file.name}: upload fejlede (filen er måske for stor eller forbindelsen røg)`)
+        }
+      }
+    } finally {
+      setIsUploading(false)
     }
-    setIsUploading(false)
     if (uploadedCount > 0) {
       toast.success(`${uploadedCount} fil${uploadedCount > 1 ? 'er' : ''} uploadet`)
       load()

@@ -9,6 +9,7 @@
  * stored elsewhere. Full upload comes later.
  */
 
+import { downscaleImageForUpload } from '@/lib/utils/image-downscale'
 import { useEffect, useRef, useState } from 'react'
 import { X, Loader2, AlertCircle } from 'lucide-react'
 import {
@@ -390,10 +391,18 @@ export function CaseOtherCostDialog({
                     if (!f) return
                     setReceiptUploading(true)
                     setError(null)
-                    const fd = new FormData()
-                    fd.append('file', f)
-                    const r = await uploadOtherCostReceiptAction(caseId, fd)
-                    setReceiptUploading(false)
+                    // Pilot-review 2026-10-15 (#5): kvitteringsfoto skaleres ned; netværksfejl efterlader ikke spinneren
+                    let r: Awaited<ReturnType<typeof uploadOtherCostReceiptAction>>
+                    try {
+                      const fd = new FormData()
+                      fd.append('file', await downscaleImageForUpload(f))
+                      r = await uploadOtherCostReceiptAction(caseId, fd)
+                    } catch {
+                      setError('Upload fejlede — filen er måske for stor, eller forbindelsen røg')
+                      return
+                    } finally {
+                      setReceiptUploading(false)
+                    }
                     if (!r.success || !r.data) { setError(r.error ?? 'Kunne ikke uploade kvittering'); return }
                     update('receipt_url', r.data.path)
                     update('receipt_filename', r.data.filename)
