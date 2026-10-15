@@ -20,9 +20,11 @@ export function CustomerPicker({ value, onChange, disabled, id = 'customer_picke
   const [selected, setSelected] = useState<CustomerPickerItem | null>(null)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<CustomerPickerItem[]>([])
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
+  const resultsQuery = useRef<string | null>(null)
 
   // Vis navnet på en forvalgt kunde (redigering / "nyt tilbud fra kundekortet")
   useEffect(() => {
@@ -37,10 +39,20 @@ export function CustomerPicker({ value, onChange, disabled, id = 'customer_picke
     if (!open) return
     let alive = true
     setLoading(true)
+    const term = query
     const t = setTimeout(async () => {
-      const r = await searchCustomersForPickerAction(query)
+      const r = await searchCustomersForPickerAction(term)
       if (!alive) return
-      setResults(r.success && r.data ? r.data : [])
+      if (r.success) {
+        setResults(r.data ?? [])
+        resultsQuery.current = term
+        setSearchError(null)
+      } else if (resultsQuery.current === term) {
+        setSearchError(r.error || 'Søgning fejlede')
+      } else {
+        setResults([])
+        setSearchError(r.error || 'Søgning fejlede')
+      }
       setLoading(false)
     }, 250)
     return () => { alive = false; clearTimeout(t) }
@@ -86,7 +98,12 @@ export function CustomerPicker({ value, onChange, disabled, id = 'customer_picke
       {open && (
         <ul className="absolute z-20 mt-1 w-full max-h-64 overflow-auto bg-white border rounded-md shadow-lg" role="listbox">
           {loading && <li className="px-3 py-2 text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Søger…</li>}
-          {!loading && results.length === 0 && <li className="px-3 py-2 text-sm text-gray-500">Ingen kunder fundet</li>}
+          {!loading && searchError && (
+            <li className="px-3 py-2 text-sm text-red-700" data-testid="customer-picker-search-error">
+              {searchError}{results.length === 0 ? '. Det tælles ikke som ingen kunder.' : '. De tidligere forslag bliver.'}
+            </li>
+          )}
+          {!loading && !searchError && results.length === 0 && <li className="px-3 py-2 text-sm text-gray-500">Ingen kunder fundet</li>}
           {!loading && results.map((c) => (
             <li key={c.id}>
               <button type="button" role="option" aria-selected={c.id === value} onClick={() => pick(c)}
