@@ -19,6 +19,7 @@ eq('tabellen er skjult under md', end > start, true)
 eq('kortet viser navn, timer og salg', mobile.includes('employee_name') && mobile.includes('e.hours') && mobile.includes('labor_sale'), true)
 eq('kost og db paa kortet kraever showRowCost', cost > mobile.lastIndexOf('{showRowCost && (', cost) && mobile.lastIndexOf('{showRowCost && (', cost) > 0, true)
 eq('tom liste staar stadig', src.includes('Ingen lukkede timeregistreringer.'), true)
+eq('tom liste siger naeste skridt', src.includes('Lukkede timer vises her, når de er afsluttet.'), true)
 eq('totaler ligger uden for kortet', mobile.includes('employee-economy-totals'), false)
 
 console.log(fail ? `\n${fail} fejl` : '\nemployee-economy-mobile-test OK')

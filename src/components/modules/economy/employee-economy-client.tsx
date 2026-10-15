@@ -81,7 +81,7 @@ export function EmployeeEconomyClient({
       {/* Tabel */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
         {employees.length === 0 ? (
-          <p className="px-4 py-8 text-center text-gray-400 text-sm">Ingen lukkede timeregistreringer.</p>
+          <p className="px-4 py-8 text-center text-gray-400 text-sm">Ingen lukkede timeregistreringer. Lukkede timer vises her, når de er afsluttet.</p>
         ) : (
         <>
         <div className="md:hidden space-y-2 p-2" data-testid="employee-economy-mobile">
