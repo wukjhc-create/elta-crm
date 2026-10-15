@@ -679,11 +679,11 @@ export async function previewSupplierInvoiceForEconomic(
  * klar-til-bogføring-tjek før e-conomic er tilkoblet.
  */
 export async function previewPaymentForEconomic(invoiceId: string): Promise<
-  | { ok: true; data: { entry: ReturnType<typeof buildEconomicPaymentEntry>; synced: boolean; configured: boolean; alreadyMarkedPaid: boolean } }
+  | { ok: true; data: { entry: ReturnType<typeof buildEconomicPaymentEntry>; synced: boolean; configured: boolean; alreadyMarkedPaid: boolean; settings_error?: string | null; paid_error?: string | null } }
   | { ok: false; error: string }
 > {
   const supabase = createAdminClient()
-  const [{ data: inv }, { data: settingsRow }, { data: prevPaid }] = await Promise.all([
+  const [invRes, settingsRes, paidRes] = await Promise.all([
     supabase.from('invoices')
       .select('id, currency, final_amount, amount_paid, payment_status, paid_at, external_invoice_id, external_provider')
       .eq('id', invoiceId).maybeSingle(),
@@ -691,11 +691,26 @@ export async function previewPaymentForEconomic(invoiceId: string): Promise<
     supabase.from('accounting_sync_log').select('id').eq('entity_type', 'invoice').eq('entity_id', invoiceId)
       .eq('action', 'mark_paid').eq('status', 'success').limit(1).maybeSingle(),
   ])
+  if (invRes.error) return { ok: false, error: 'Kunne ikke hente fakturaen. Det tælles ikke som at fakturaen mangler.' }
+  const inv = invRes.data
   if (!inv) return { ok: false, error: 'Faktura ikke fundet' }
-  const cfg: EconomicConfig = ((settingsRow as { config?: EconomicConfig } | null)?.config) || {}
+  const settingsError = settingsRes.error ? 'Kunne ikke tjekke e-conomic' : null
+  const paidError = paidRes.error ? 'Kunne ikke tjekke om betalingen allerede er registreret' : null
+  const settingsRow = settingsError ? null : settingsRes.data
+  const cfg: EconomicConfig = settingsError ? {} : (((settingsRow as { config?: EconomicConfig } | null)?.config) || {})
   const synced = !!inv.external_invoice_id && inv.external_provider === PROVIDER
   const entry = buildEconomicPaymentEntry({ invoice: inv, config: cfg })
-  return { ok: true, data: { entry, synced, configured: !!cfg.cashbookNumber && !!cfg.bankContraAccountNumber, alreadyMarkedPaid: !!prevPaid } }
+  return {
+    ok: true,
+    data: {
+      entry,
+      synced,
+      configured: settingsError ? false : !!cfg.cashbookNumber && !!cfg.bankContraAccountNumber,
+      alreadyMarkedPaid: paidError ? false : !!paidRes.data,
+      settings_error: settingsError,
+      paid_error: paidError,
+    },
+  }
 }
 
 // =====================================================

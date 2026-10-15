@@ -38,18 +38,28 @@ export function InvoicePaymentEconomicPreview({ invoiceId }: { invoiceId: string
       {open && (
         <div className="mt-2 rounded ring-1 ring-gray-200 bg-gray-50 p-3 space-y-2" data-testid="economic-payment-preview">
           {loading && <div className="text-xs text-gray-500 flex items-center gap-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Bygger postering…</div>}
-          {error && <div className="text-xs text-red-800">{error}</div>}
+          {error && <div className="text-xs text-red-800" data-testid="economic-payment-load-error">{error}</div>}
           {data && !loading && (
             <>
-              <div className="text-xs text-gray-600">
-                Kassekladde · dato {data.entry.body.date} · modkonto {data.entry.body.contraAccount.accountNumber ?? '— (mangler i opsætning)'} ·{' '}
+              {data.settings_error && (
+                <div className="text-xs text-red-800" data-testid="economic-payment-ready-error">
+                  {data.settings_error}. Det tælles ikke som at opsætningen mangler.
+                </div>
+              )}
+              <div className="text-xs text-gray-600 break-words">
+                Kassekladde · dato {data.entry.body.date} · modkonto {data.settings_error ? '—' : (data.entry.body.contraAccount.accountNumber ?? '— (mangler i opsætning)')} ·{' '}
                 {data.entry.body.customerInvoice.bookedInvoiceNumber != null ? `bogført faktura nr. ${data.entry.body.customerInvoice.bookedInvoiceNumber}` : 'faktura ikke bogført i e-conomic endnu'}
               </div>
               <div className="text-xs flex justify-between border-t border-gray-300 pt-1">
                 <span>{data.entry.body.text}</span>
                 <span className="tabular-nums font-medium" data-testid="economic-payment-amount">{fmt(data.entry.body.amount)} {data.entry.body.currency.code}</span>
               </div>
-              {data.alreadyMarkedPaid && (
+              {data.paid_error && (
+                <div className="text-xs text-red-800" data-testid="economic-payment-paid-error">
+                  {data.paid_error}. Det tælles ikke som at betalingen mangler.
+                </div>
+              )}
+              {!data.paid_error && data.alreadyMarkedPaid && (
                 <div className="text-xs rounded px-2 py-1 ring-1 bg-blue-50 text-blue-900 ring-blue-200">Betalingen er allerede registreret i e-conomic — sendes ikke igen.</div>
               )}
               {data.entry.issues.map((i, k) => (
