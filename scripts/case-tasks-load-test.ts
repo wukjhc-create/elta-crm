@@ -19,6 +19,7 @@ eq('sagens opgaver bliver', body.includes(".eq('service_case_id', caseId)"), tru
 
 const tab = fs.readFileSync('src/app/dashboard/orders/[id]/order-tasks-tab.tsx', 'utf8')
 eq('fanen siger det ikke er ingen opgaver', tab.includes('Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver.'), true)
+eq('opgaver beholdes ved fejl', !tab.includes('setTasks([])'), true)
 eq('fejlen skjuler den tomme tekst', tab.includes('error && tasks.length === 0'), true)
 eq('tom tekst bliver', tab.includes('Ingen opgaver endnu'), true)
 eq('udfoer bliver', tab.includes('completeCustomerTask(taskId)'), true)

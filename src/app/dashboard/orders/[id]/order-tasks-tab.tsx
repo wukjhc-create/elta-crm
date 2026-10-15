@@ -22,8 +22,8 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
 
   const load = () => {
     getServiceCaseTasks(caseId)
-      .then((rows) => setTasks(rows))
-      .catch(() => { setError('Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver.'); setTasks([]) })
+      .then((rows) => { setError(null); setTasks(rows) })
+      .catch(() => { setError('Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver.') })
   }
   useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [caseId])
 
@@ -41,7 +41,8 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
     })
   }
 
-  if (tasks === null) return <div className="text-sm text-gray-500 py-6 text-center">Henter opgaver…</div>
+  if (tasks === null && !error) return <div className="text-sm text-gray-500 py-6 text-center">Henter opgaver…</div>
+  if (tasks === null) return <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>
   if (error && tasks.length === 0) return <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>
   if (tasks.length === 0) {
     return (
