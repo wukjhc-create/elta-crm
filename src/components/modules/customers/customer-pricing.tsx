@@ -118,7 +118,7 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
 
   return (
     <div className="bg-white rounded-lg border p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Percent className="w-5 h-5" />
           Leverandørpriser
@@ -146,9 +146,10 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
 
       {/* Agreements List */}
       {agreements.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-4">
-          Ingen kundespecifikke prisaftaler
-        </p>
+        <div className="text-center py-4" data-testid="customer-pricing-empty">
+          <p className="text-sm text-gray-700">Ingen kundespecifikke prisaftaler</p>
+          <p className="text-xs text-gray-500 mt-1">Tilføj en aftale, hvis kunden har en særlig rabat eller prisliste.</p>
+        </div>
       ) : (
         <div className="space-y-3 mt-4">
           {agreements.map(agreement => (
@@ -156,14 +157,14 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
               key={agreement.id}
               className={`border rounded-lg p-4 ${!agreement.is_active ? 'opacity-50' : ''}`}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3 min-w-0">
                   <div className="p-2 bg-blue-50 rounded-lg">
                     <Building2 className="w-4 h-4 text-blue-600" />
                   </div>
                   <div>
                     <p className="font-medium">{getSupplierName(agreement.supplier_id)}</p>
-                    <div className="flex items-center gap-3 text-sm text-gray-500 mt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 mt-0.5">
                       <span className="flex items-center gap-1">
                         <Percent className="w-3 h-3" />
                         {agreement.discount_percentage}% rabat
@@ -196,6 +197,7 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
                     onClick={() => { setEditingAgreement(agreement); setShowForm(true) }}
                     className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
                     title="Rediger"
+                    aria-label="Rediger aftale"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
@@ -203,6 +205,7 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
                     onClick={() => handleDelete(agreement)}
                     className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"
                     title="Slet"
+                    aria-label="Slet aftale"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -236,6 +239,7 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
             variant="outline"
             onClick={handlePriceLookup}
             disabled={isSearchingPrice || !priceLookupSku.trim()}
+            aria-label="Søg pris"
           >
             {isSearchingPrice ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -260,7 +264,7 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
                       i === 0 ? 'border-green-300 bg-green-50' : ''
                     }`}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <span className="font-medium">{r.supplier_name}</span>
                         {r.supplier_code && (
