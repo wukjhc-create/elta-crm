@@ -374,7 +374,11 @@ export async function uploadCaseDocument(caseId: string, formData: FormData): Pr
     if (file.size > CASE_UPLOAD_MAX_BYTES) return { success: false, error: 'Filen er for stor (max 20 MB)' }
     if (!CASE_UPLOAD_MIME.test(file.type || '')) return { success: false, error: 'Kun billeder (JPG, PNG, WEBP, HEIC) og PDF' }
 
-    const { data: sc } = await supabase.from('service_cases').select('id, customer_id').eq('id', caseId).maybeSingle()
+    const { data: sc, error: scErr } = await supabase.from('service_cases').select('id, customer_id').eq('id', caseId).maybeSingle()
+    if (scErr) {
+      logger.error('uploadCaseDocument case read failed', { error: scErr, entityId: caseId })
+      return { success: false, error: 'Kunne ikke læse sagen. Dokumentet er ikke uploadet.' }
+    }
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
     if (!sc.customer_id) return { success: false, error: 'Sagen har ingen kunde — kan ikke gemme dokument' }
 
