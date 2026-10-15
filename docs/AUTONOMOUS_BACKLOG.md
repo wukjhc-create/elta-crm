@@ -35,6 +35,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | OIOUBL sætter kreditnota- og konsistensflag. Beløb vendes ikke. | DONE — `oioubl-test` |
 | Sagens leverandørfakturaer vises som kort under `md`. Beløb er inkl. moms. Ukonverterede linjer står som tekst. Åbn er et link. | DONE — `case-supplier-invoices-mobile-test` |
 | Sagens øvrige omkostninger vises som kort under `md`. Kost og foreløbig DB kræver `showCost`. DB-testid bliver i tabellen. | DONE — `other-costs-mobile-test` |
+| Timer på arbejdsordren vises som kort under `md`. Kost kræver `canSeeCost`. Salg kræver `canSeeSale`, også i overskriften. Satstype bruger samme skift. | DONE — `time-logs-mobile-test` |
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.

@@ -232,7 +232,7 @@ export function WorkOrderTimeLogs({
             <span className="ml-2 text-gray-500 font-normal">
               · {fmtHours(totalHours)}
               {canSeeCost && totalCost > 0 && ` · kost ${fmtAmount(totalCost)}`}
-              {totalSale > 0 && ` · salg ${fmtAmount(totalSale)}`}
+              {canSeeSale && totalSale > 0 && ` · salg ${fmtAmount(totalSale)}`}
               {canSeeCost && totalSale > 0 && totalCost > 0 && (
                 <>
                   {' · '}
@@ -401,7 +401,75 @@ export function WorkOrderTimeLogs({
           Ingen timer registreret på denne arbejdsordre endnu.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="md:hidden space-y-2" data-testid="time-logs-mobile">
+          {logs.map((l) => {
+            const sale = saleFor(l)
+            const db = dbFor(l)
+            return (
+              <article key={l.id} className="rounded ring-1 ring-gray-200 p-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{l.employee?.name ?? '—'}</p>
+                    <p className="text-xs text-gray-500">
+                      {fmtDate(l.start_time)} · {fmtTime(l.start_time)}
+                      {l.end_time ? ` → ${fmtTime(l.end_time)}` : ''}
+                    </p>
+                    {!l.end_time && <p className="text-xs text-amber-600 font-medium">Åben</p>}
+                  </div>
+                  <p className="text-sm tabular-nums font-medium text-gray-900">{fmtHours(l.hours)}</p>
+                </div>
+                {l.description && <p className="mt-1 text-xs text-gray-700">{l.description}</p>}
+                <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                  {l.billable ? <span className="text-emerald-700">Fakturerbar</span> : <span className="text-gray-500">Ikke fakturerbar</span>}
+                  {l.invoice_line_id && <span className="text-[10px] uppercase bg-purple-100 text-purple-800 px-1 py-0.5 rounded">Faktureret</span>}
+                </div>
+                <div className="mt-2">
+                  {l.invoice_line_id ? (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-medium">
+                      {PAY_RATE_TYPE_LABEL.get(l.pay_rate_type) ?? 'Normal'}
+                    </span>
+                  ) : (
+                    <select
+                      value={l.pay_rate_type ?? 'normal'}
+                      onChange={(e) => onChangeRateType(l.id, e.target.value as PayRateType)}
+                      disabled={isWorking}
+                      aria-label="Satstype"
+                      className={`text-[11px] border rounded px-1 py-1 bg-white ${l.pay_rate_type !== 'normal' ? 'text-amber-800 bg-amber-50' : 'text-gray-600'}`}
+                    >
+                      {PAY_RATE_TYPE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {(canSeeCost || canSeeSale) && (
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    {canSeeCost && (
+                      <div>
+                        <dt className="text-gray-500">Intern kost</dt>
+                        <dd className="tabular-nums">{l.cost_amount == null && l.hours != null ? <span className="text-amber-600">Mangler kostpris</span> : fmtAmount(l.cost_amount)}</dd>
+                      </div>
+                    )}
+                    {canSeeSale && (
+                      <div>
+                        <dt className="text-gray-500">Salgspris</dt>
+                        <dd className="tabular-nums">{sale == null && l.hours != null ? <span className="text-amber-600">Mangler salgspris</span> : fmtAmount(sale)}</dd>
+                      </div>
+                    )}
+                    {canSeeCost && (
+                      <div>
+                        <dt className="text-gray-500">DB</dt>
+                        <dd className={`tabular-nums ${db == null ? 'text-gray-400' : db >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{db == null ? '—' : fmtAmount(db)}</dd>
+                      </div>
+                    )}
+                  </dl>
+                )}
+              </article>
+            )
+          })}
+        </div>
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="text-left text-[10px] uppercase tracking-wide text-gray-500">
               <tr>
@@ -540,6 +608,7 @@ export function WorkOrderTimeLogs({
             </tfoot>
           </table>
         </div>
+        </>
       )}
 
       {((canSeeCost && hasMissingCost) || (canSeeSale && hasMissingSale)) && (
