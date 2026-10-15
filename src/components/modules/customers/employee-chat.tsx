@@ -362,16 +362,16 @@ export function EmployeeChat({
             {pendingAttachments.map((attachment, idx) => (
               <div
                 key={idx}
-                className="flex items-center gap-2 bg-white border rounded-lg px-2 py-1 text-sm"
+                className="flex items-start gap-2 bg-white border rounded-lg px-2 py-1 text-sm max-w-full"
               >
                 {getFileIcon(attachment.type)}
-                <span className="truncate max-w-[120px]">{attachment.name}</span>
+                <span className="break-all min-w-0">{attachment.name}</span>
                 <span className="text-xs text-gray-400">
                   ({formatFileSize(attachment.size)})
                 </span>
                 <button
                   onClick={() => removeAttachment(idx)}
-                  className="text-gray-400 hover:text-red-500"
+                  className="text-gray-400 hover:text-red-500 shrink-0"
                   aria-label="Fjern vedhæftet fil"
                 >
                   <X className="w-4 h-4" />
@@ -506,7 +506,7 @@ function AttachmentDisplay({
     >
       <File className="w-5 h-5 flex-shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium truncate">{attachment.name}</p>
+        <p className="text-sm font-medium break-all">{attachment.name}</p>
         <p className={`text-xs ${isEmployee ? 'text-white/70' : 'text-gray-500'}`}>
           {formatFileSize(attachment.size)}
         </p>

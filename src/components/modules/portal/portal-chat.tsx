@@ -290,11 +290,11 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
           <p className="text-xs text-gray-500 mb-2">Vedhæftede filer:</p>
           <div className="flex flex-wrap gap-2">
             {pendingAttachments.map((attachment, idx) => (
-              <div key={idx} className="flex items-center gap-2 bg-white border rounded-lg px-2 py-1 text-sm">
+              <div key={idx} className="flex items-start gap-2 bg-white border rounded-lg px-2 py-1 text-sm max-w-full">
                 {getFileIcon(attachment.type)}
-                <span className="truncate max-w-[120px]">{attachment.name}</span>
+                <span className="break-all min-w-0">{attachment.name}</span>
                 <span className="text-xs text-gray-400">({formatBytes(attachment.size)})</span>
-                <button onClick={() => removeAttachment(idx)} className="text-gray-400 hover:text-red-500" aria-label="Fjern vedhæftet fil">
+                <button onClick={() => removeAttachment(idx)} className="text-gray-400 hover:text-red-500 shrink-0" aria-label="Fjern vedhæftet fil">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -384,7 +384,7 @@ function AttachmentDisplay({ attachment, isCustomer }: { attachment: PortalAttac
     >
       <File className="w-5 h-5 flex-shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium truncate">{attachment.name}</p>
+        <p className="text-sm font-medium break-all">{attachment.name}</p>
         <p className={`text-xs ${isCustomer ? 'text-white/70' : 'text-gray-500'}`}>{formatBytes(attachment.size)}</p>
       </div>
       <Download className="w-4 h-4 flex-shrink-0" />
