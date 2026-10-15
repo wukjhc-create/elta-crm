@@ -535,7 +535,32 @@ function SupplierInvoicesPanel({ data }: { data: ServiceCaseEconomy }) {
           </p>
 
           {/* List */}
-          <div className="rounded ring-1 ring-gray-200 overflow-x-auto">
+          <div className="md:hidden space-y-2" data-testid="case-supplier-invoices-mobile">
+            {si.list.map((row) => (
+              <article key={row.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900">{row.supplier_name ?? '—'}</p>
+                    <p className="text-xs text-gray-500">{fmtSiDate(row.invoice_date)} · {row.invoice_number ?? '—'}</p>
+                  </div>
+                  <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${SI_STATUS_COLOR[row.status] ?? 'bg-gray-100 text-gray-700'}`}>
+                    {SI_STATUS_LABEL[row.status] ?? row.status}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">Beløb inkl. moms</p>
+                <p className="tabular-nums text-gray-900">{row.amount_incl_vat == null ? '—' : fmtKr(row.amount_incl_vat)}</p>
+                <p className="text-xs text-gray-600">
+                  Linjer {row.converted_count}/{row.line_count}
+                  {row.unconverted_count > 0 ? ` · ${row.unconverted_count} ikke konverteret` : ''}
+                </p>
+                <Link href={`/dashboard/incoming-invoices/${row.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">
+                  Åbn faktura
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+              </article>
+            ))}
+          </div>
+          <div className="hidden md:block rounded ring-1 ring-gray-200 overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
