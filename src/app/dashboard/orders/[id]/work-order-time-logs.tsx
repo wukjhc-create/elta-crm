@@ -502,11 +502,11 @@ export function WorkOrderTimeLogs({
                   </div>
                 )}
                 {isRejected && fixId === l.id && (
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-800">
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-800">
                     <label className="flex flex-col">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-1 py-1" /></label>
                     <label className="flex flex-col">Start<input type="time" value={fixStart} onChange={(e) => setFixStart(e.target.value)} className="border rounded px-1 py-1" /></label>
                     <label className="flex flex-col">Slut<input type="time" value={fixEnd} onChange={(e) => setFixEnd(e.target.value)} className="border rounded px-1 py-1" /></label>
-                    <label className="flex flex-col col-span-2">Beskrivelse<input value={fixDesc} onChange={(e) => setFixDesc(e.target.value)} className="border rounded px-1 py-1" /></label>
+                    <label className="flex flex-col sm:col-span-2">Beskrivelse<input value={fixDesc} onChange={(e) => setFixDesc(e.target.value)} className="border rounded px-1 py-1" /></label>
                     <button type="button" onClick={() => saveFix(l)} disabled={isWorking} className="px-2 py-1 rounded bg-emerald-600 text-white disabled:opacity-50">Gem — send til godkendelse</button>
                     <button type="button" onClick={() => setFixId(null)} className="px-2 py-1 rounded border bg-white">Annullér</button>
                   </div>
