@@ -196,16 +196,16 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
                   <button
                     onClick={() => { setEditingAgreement(agreement); setShowForm(true) }}
                     className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
-                    title="Rediger"
-                    aria-label="Rediger aftale"
+                    title={`Rediger ${getSupplierName(agreement.supplier_id)}`}
+                    aria-label={`Rediger aftale hos ${getSupplierName(agreement.supplier_id)}`}
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(agreement)}
                     className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"
-                    title="Slet"
-                    aria-label="Slet aftale"
+                    title={`Slet ${getSupplierName(agreement.supplier_id)}`}
+                    aria-label={`Slet aftale hos ${getSupplierName(agreement.supplier_id)}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -230,6 +230,7 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
             type="text"
             value={priceLookupSku}
             onChange={(e) => setPriceLookupSku(e.target.value)}
+            aria-label="Varenummer"
             onKeyDown={(e) => e.key === 'Enter' && handlePriceLookup()}
             className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
             placeholder="Indtast varenummer/SKU..."
