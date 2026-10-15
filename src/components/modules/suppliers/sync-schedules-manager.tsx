@@ -432,6 +432,11 @@ export function SyncSchedulesManager({ supplierId, supplierName }: SyncSchedules
                             </div>
                           )
                         })}
+                        {history.length > 10 && (
+                          <p className="text-xs text-gray-600 break-words" data-testid="sync-history-capped">
+                            Viser 10 af {history.length} kørsler. De øvrige {history.length - 10} er ikke med i listen.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
