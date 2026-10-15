@@ -301,10 +301,11 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             agg.set(w.case_id, a)
           }
           const candidates = [...agg.entries()].filter(([, a]) => a.done > 0 && a.open === 0).map(([id]) => id).slice(0, 25)
-          if (candidates.length) {
-            const { getCaseCloseReadinessAction } = await import('@/lib/actions/service-cases')
-            const rs = await Promise.all(candidates.map((id) => getCaseCloseReadinessAction(id)))
-            overview.cases.readyToClose = rs.filter((r) => r.success && r.data?.ready).length
+          if (candidates.length && roleCtx.hasPermission('cases.close')) {
+            // R-10: samlet vurdering (5 forespørgsler) i stedet for ≈5 pr. kandidat
+            const { batchCaseCloseReadiness } = await import('@/lib/cases/close-readiness-batch')
+            const rs = await batchCaseCloseReadiness(supabase, candidates)
+            overview.cases.readyToClose = [...rs.values()].filter((r) => r.ready).length
           }
         }
         // N28: timer der afventer godkendelse (montør registrerer → serviceleder/admin godkender)
