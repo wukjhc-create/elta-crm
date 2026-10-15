@@ -61,7 +61,7 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
       serviceCasesError={serviceCasesResult.success ? null : serviceCasesResult.error || 'Kunne ikke hente serviceopgaver'}
       invoices={invoicesResult.success ? invoicesResult.data || [] : []}
       invoicesError={invoicesResult.success ? null : invoicesResult.error || 'Kunne ikke hente fakturaer'}
-      fuldmagter={fuldmagterResult.success ? fuldmagterResult.data || [] : []}
+      fuldmagter={fuldmagterResult.data || []}
       fuldmagterError={fuldmagterResult.success ? null : fuldmagterResult.error || 'Kunne ikke hente dokumenter'}
       companySettings={companySettings}
     />

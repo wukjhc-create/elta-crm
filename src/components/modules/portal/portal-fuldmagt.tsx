@@ -44,6 +44,12 @@ export function PortalFuldmagtSection({ token, fuldmagter, fuldmagterError = nul
         </div>
       </div>
 
+      {fuldmagterError && (
+        <p className="px-6 pt-4 text-sm text-red-700" data-testid="portal-fuldmagt-partial-error">
+          {fuldmagterError} Egne dokumenter er vist.
+        </p>
+      )}
+
       <div className="divide-y">
         {pending.map((f) =>
           f.is_intended_signer === false ? (

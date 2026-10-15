@@ -15,7 +15,8 @@ eq('beskeder tjekker success', page.includes('messagesResult.success ? messagesR
 eq('sager tjekker success', page.includes('serviceCasesResult.success ? serviceCasesResult.data || [] : []'), true)
 eq('fakturaer tjekker success', page.includes('invoicesResult.success ? invoicesResult.data || [] : []'), true)
 eq('dokumenter tjekker success', page.includes('documentsResult.success ? documentsResult.data || [] : []'), true)
-eq('fuldmagter tjekker success', page.includes('fuldmagterResult.success ? fuldmagterResult.data || [] : []'), true)
+eq('fuldmagter beholder egne dokumenter', page.includes('fuldmagter={fuldmagterResult.data || []}'), true)
+eq('fuldmagtfejl sendes', page.includes("fuldmagterResult.success ? null : fuldmagterResult.error || 'Kunne ikke hente dokumenter'"), true)
 eq('blind tilbudsliste er vaek', page.includes('offers={offersResult.data || []}'), false)
 
 const dash = fs.readFileSync('src/components/modules/portal/portal-dashboard.tsx', 'utf8')
