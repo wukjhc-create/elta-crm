@@ -258,6 +258,13 @@ export async function getIncomingEmailStats(): Promise<{
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', true).neq('link_status', 'ignored'),
   ])
 
+  if (
+    totalRes.error || unreadRes.error || unidentifiedRes.error || linkedRes.error ||
+    pendingRes.error || ignoredRes.error || aoRes.error || webformRes.error || archivedRes.error
+  ) {
+    throw new Error('Kunne ikke hente mailtællere')
+  }
+
   // Sprint 8E-1A: requires_response counter (live-beregnet via helper)
   let requiresResponse = 0
   try {

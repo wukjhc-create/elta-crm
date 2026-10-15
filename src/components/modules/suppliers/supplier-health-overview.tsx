@@ -51,6 +51,7 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
   const [summary, setSummary] = useState<HealthSummary | null>(null)
   const [emailSync, setEmailSync] = useState<EmailSyncHealth | null>(null)
   const [syncFailed, setSyncFailed] = useState(false)
+  const [statsFailed, setStatsFailed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -65,10 +66,10 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
             import('@/lib/actions/incoming-emails'),
           ])
 
-        const [result, syncOutcome, emailStats] = await Promise.all([
+        const [result, syncOutcome, statsOutcome] = await Promise.all([
           getSystemHealthSummary(),
           getGraphSyncState().then((state) => ({ state, failed: false })).catch(() => ({ state: null, failed: true })),
-          getIncomingEmailStats(),
+          getIncomingEmailStats().then((stats) => ({ stats, failed: false })).catch(() => ({ stats: null, failed: true })),
         ])
 
         if (cancelled) return
@@ -83,14 +84,15 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
         }
 
         setSyncFailed(syncOutcome.failed)
+        setStatsFailed(statsOutcome.failed)
         const syncState = syncOutcome.state
         setEmailSync(syncOutcome.failed ? null : {
           lastSync: syncState?.last_sync_at ? new Date(syncState.last_sync_at) : null,
           lastStatus: syncState?.last_sync_status || 'never',
           lastError: syncState?.last_sync_error || null,
           totalSynced: syncState?.emails_synced_total || 0,
-          unidentifiedCount: emailStats.unidentified,
-          aoMatchCount: emailStats.aoMatches,
+          unidentifiedCount: statsOutcome.stats?.unidentified ?? 0,
+          aoMatchCount: statsOutcome.stats?.aoMatches ?? 0,
         })
       } catch {
         if (cancelled) return
@@ -112,10 +114,10 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
           import('@/lib/actions/incoming-emails'),
         ])
 
-      const [result, syncOutcome, emailStats] = await Promise.all([
+      const [result, syncOutcome, statsOutcome] = await Promise.all([
         getSystemHealthSummary(),
         getGraphSyncState().then((state) => ({ state, failed: false })).catch(() => ({ state: null, failed: true })),
-        getIncomingEmailStats(),
+        getIncomingEmailStats().then((stats) => ({ stats, failed: false })).catch(() => ({ stats: null, failed: true })),
       ])
 
       if (result.success && result.data) {
@@ -129,14 +131,15 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
       }
 
       setSyncFailed(syncOutcome.failed)
+      setStatsFailed(statsOutcome.failed)
       const syncState = syncOutcome.state
       setEmailSync(syncOutcome.failed ? null : {
         lastSync: syncState?.last_sync_at ? new Date(syncState.last_sync_at) : null,
         lastStatus: syncState?.last_sync_status || 'never',
         lastError: syncState?.last_sync_error || null,
         totalSynced: syncState?.emails_synced_total || 0,
-        unidentifiedCount: emailStats.unidentified,
-        aoMatchCount: emailStats.aoMatches,
+        unidentifiedCount: statsOutcome.stats?.unidentified ?? 0,
+        aoMatchCount: statsOutcome.stats?.aoMatches ?? 0,
       })
     } catch {
       setSummary(null)
@@ -291,6 +294,12 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
         </p>
       )}
 
+      {statsFailed && (
+        <p className="text-sm text-red-700 break-words border-t p-4" data-testid="supplier-mail-stats-load-error">
+          Mailtællere kunne ikke hentes. Det tælles ikke som 0.
+        </p>
+      )}
+
       {/* Email Sync Status */}
       {emailSync && (
         <div className="border-t">
@@ -329,13 +338,13 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
             </div>
             <div className="p-3 text-center">
               <div className="text-lg font-bold text-yellow-600">
-                {emailSync.unidentifiedCount}
+                {statsFailed ? '—' : emailSync.unidentifiedCount}
               </div>
               <div className="text-[10px] text-gray-500">Uidentificerede</div>
             </div>
             <div className="p-3 text-center">
               <div className="text-lg font-bold text-blue-600">
-                {emailSync.aoMatchCount}
+                {statsFailed ? '—' : emailSync.aoMatchCount}
               </div>
               <div className="text-[10px] text-gray-500">AO-match</div>
             </div>

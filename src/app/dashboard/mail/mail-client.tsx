@@ -119,6 +119,7 @@ export function MailClient() {
   const [syncState, setSyncState] = useState<GraphSyncState | null>(null)
   const [syncLoadError, setSyncLoadError] = useState<string | null>(null)
   const [allSyncFailed, setAllSyncFailed] = useState(false)
+  const [statsFailed, setStatsFailed] = useState(false)
   const [allSyncStates, setAllSyncStates] = useState<GraphSyncState[]>([])
   const [stats, setStats] = useState({
     total: 0,
@@ -185,23 +186,26 @@ export function MailClient() {
           page: currentPage,
           pageSize: 25,
         }),
-        getIncomingEmailStats(),
+        getIncomingEmailStats().then((stats) => ({ stats, failed: false })).catch(() => ({ stats: null, failed: true })),
         getGraphSyncState().then((state) => ({ state, failed: false })).catch(() => ({ state: null, failed: true })),
         getAllGraphSyncStates().then((states) => ({ states, failed: false })).catch(() => ({ states: [], failed: true })),
       ])
       setEmails(emailResult.data)
       setTotalCount(emailResult.count)
-      setStats({
-        total: statsResult.total,
-        unread: statsResult.unread,
-        unidentified: statsResult.unidentified,
-        linked: statsResult.linked,
-        pending: statsResult.pending,
-        ignored: statsResult.ignored,
-        requiresResponse: statsResult.requiresResponse,
-        webform: statsResult.webform,
-        archived: statsResult.archived,
-      })
+      setStatsFailed(statsResult.failed)
+      if (statsResult.stats) {
+        setStats({
+          total: statsResult.stats.total,
+          unread: statsResult.stats.unread,
+          unidentified: statsResult.stats.unidentified,
+          linked: statsResult.stats.linked,
+          pending: statsResult.stats.pending,
+          ignored: statsResult.stats.ignored,
+          requiresResponse: statsResult.stats.requiresResponse,
+          webform: statsResult.stats.webform,
+          archived: statsResult.stats.archived,
+        })
+      }
       setAllSyncStates(allStatesResult.states)
       setAllSyncFailed(allStatesResult.failed)
       setSyncState(syncStateResult.state)
@@ -317,22 +321,25 @@ export function MailClient() {
           page: currentPage,
           pageSize: 25,
         }),
-        getIncomingEmailStats(),
+        getIncomingEmailStats().then((stats) => ({ stats, failed: false })).catch(() => ({ stats: null, failed: true })),
         getGraphSyncState().then((state) => ({ state, failed: false })).catch(() => ({ state: null, failed: true })),
       ])
       setEmails(emailResult.data)
       setTotalCount(emailResult.count)
-      setStats({
-        total: statsResult.total,
-        unread: statsResult.unread,
-        unidentified: statsResult.unidentified,
-        linked: statsResult.linked,
-        pending: statsResult.pending,
-        ignored: statsResult.ignored,
-        requiresResponse: statsResult.requiresResponse,
-        webform: statsResult.webform,
-        archived: statsResult.archived,
-      })
+      setStatsFailed(statsResult.failed)
+      if (statsResult.stats) {
+        setStats({
+          total: statsResult.stats.total,
+          unread: statsResult.stats.unread,
+          unidentified: statsResult.stats.unidentified,
+          linked: statsResult.stats.linked,
+          pending: statsResult.stats.pending,
+          ignored: statsResult.stats.ignored,
+          requiresResponse: statsResult.stats.requiresResponse,
+          webform: statsResult.stats.webform,
+          archived: statsResult.stats.archived,
+        })
+      }
       setSyncState(syncStateResult.state)
       setSyncLoadError(syncStateResult.failed ? 'Mail-sync kunne ikke hentes. Det tælles ikke som aldrig synket.' : null)
       setLastRefresh(new Date())
@@ -736,7 +743,11 @@ export function MailClient() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Mail</h1>
           <p className="text-gray-600 mt-1 flex items-center gap-2 flex-wrap">
-            <span>Samlet indbakke ({stats.total} emails, {stats.unread} ulæste)</span>
+            {statsFailed ? (
+              <span className="text-xs text-red-700 break-words" data-testid="mail-stats-load-error">Mailtællere kunne ikke hentes. Det tælles ikke som 0 mails.</span>
+            ) : (
+              <span>Samlet indbakke ({stats.total} emails, {stats.unread} ulæste)</span>
+            )}
             {/* N59: ryd op i ulæste — markér de viste mails som læst (kan fortrydes pr. mail) */}
             {emails.some((e) => !e.is_read) && (
               <button
@@ -1100,7 +1111,7 @@ export function MailClient() {
             >
               <Icon className="w-4 h-4" />
               {tab.label}
-              {count !== null && count > 0 && (
+              {!statsFailed && count !== null && count > 0 && (
                 <span className={`ml-1 inline-flex items-center justify-center min-w-[20px] px-1.5 py-0.5 rounded-full text-xs font-semibold ${
                   isActive
                     ? 'bg-primary text-primary-foreground'
