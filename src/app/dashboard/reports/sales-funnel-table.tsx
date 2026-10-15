@@ -29,20 +29,20 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
         {data.months.map((m) => (
           <article key={m.month} className="rounded ring-1 ring-gray-200 p-3 text-sm">
             <p className="font-medium text-gray-900">{monthLabel(m.month)}</p>
-            <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-              <div><dt className="text-gray-500">Nye kunder</dt><dd className="tabular-nums">{m.new_customers}</dd></div>
-              <div><dt className="text-gray-500">Tilbud oprettet</dt><dd className="tabular-nums">{m.offers_created}</dd></div>
-              <div><dt className="text-gray-500">Sendt</dt><dd className="tabular-nums">{m.offers_sent}</dd></div>
-              <div><dt className="text-gray-500">Accepteret</dt><dd className="tabular-nums">{m.offers_accepted}</dd></div>
-              <div><dt className="text-gray-500">Accepteret værdi</dt><dd className="tabular-nums">{m.accepted_value ? kr(m.accepted_value) : '—'}</dd></div>
-              <div><dt className="text-gray-500">Faktureret</dt><dd className="tabular-nums">{m.invoiced_ex_vat ? kr(m.invoiced_ex_vat) : '—'}</dd></div>
+            <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0">
+              <div className="min-w-0"><dt className="text-gray-500">Nye kunder</dt><dd className="tabular-nums break-words">{m.new_customers}</dd></div>
+              <div className="min-w-0"><dt className="text-gray-500">Tilbud oprettet</dt><dd className="tabular-nums break-words">{m.offers_created}</dd></div>
+              <div className="min-w-0"><dt className="text-gray-500">Sendt</dt><dd className="tabular-nums break-words">{m.offers_sent}</dd></div>
+              <div className="min-w-0"><dt className="text-gray-500">Accepteret</dt><dd className="tabular-nums break-words">{m.offers_accepted}</dd></div>
+              <div className="min-w-0"><dt className="text-gray-500">Accepteret værdi</dt><dd className="tabular-nums break-words">{m.accepted_value ? kr(m.accepted_value) : '—'}</dd></div>
+              <div className="min-w-0"><dt className="text-gray-500">Faktureret</dt><dd className="tabular-nums break-words">{m.invoiced_ex_vat ? kr(m.invoiced_ex_vat) : '—'}</dd></div>
             </dl>
           </article>
         ))}
         <article className="rounded bg-gray-50 ring-1 ring-gray-200 p-3 text-sm">
           <p className="font-semibold">I alt</p>
-          <p className="text-xs text-gray-700 mt-1">Nye kunder {t.new_customers} · tilbud {t.offers_created} · sendt {t.offers_sent} · accepteret {t.offers_accepted}</p>
-          <p className="text-xs text-gray-700">Accepteret værdi {kr(t.accepted_value)} · faktureret {kr(t.invoiced_ex_vat)}</p>
+          <p className="text-xs text-gray-700 mt-1 break-words">Nye kunder {t.new_customers} · tilbud {t.offers_created} · sendt {t.offers_sent} · accepteret {t.offers_accepted}</p>
+          <p className="text-xs text-gray-700 break-words">Accepteret værdi {kr(t.accepted_value)} · faktureret {kr(t.invoiced_ex_vat)}</p>
         </article>
       </div>
       <div className="hidden md:block overflow-x-auto">
