@@ -1429,6 +1429,8 @@ export interface InvoiceOverviewResult {
   rows: InvoiceOverviewRow[]
   /** Sprint Ø6.1 — er e-conomic-integrationen opsat (styrer bulk-knap). */
   accounting_ready: boolean
+  /** Sat når opslaget kaster. accounting_ready er da false, men det er ikke "ikke opsat". */
+  accounting_error?: string | null
 }
 
 export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResult> {
@@ -1470,11 +1472,13 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
     for (const f of failed) failedSet.add(f.entity_id)
   }
   let accountingReady = false
+  let accountingError: string | null = null
   try {
     const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
     accountingReady = isEconomicReady(await getEconomicSettings())
   } catch (e) {
     logger.error('listInvoicesOverviewAction: economic readiness failed', { error: e })
+    accountingError = 'Kunne ikke tjekke e-conomic'
   }
 
   // Berig kunde + sag via batch-opslag (cost-free).
@@ -1553,7 +1557,7 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
     }
   })
 
-  return { ok: true, rows, accounting_ready: accountingReady }
+  return { ok: true, rows, accounting_ready: accountingReady, accounting_error: accountingError }
 }
 
 // =====================================================

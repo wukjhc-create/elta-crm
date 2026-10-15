@@ -108,11 +108,13 @@ export function InvoicesOverviewClient({
   canSend,
   canExportAccounting = false,
   accountingReady = false,
+  accountingError = null,
 }: {
   rows: InvoiceOverviewRow[]
   canSend: boolean
   canExportAccounting?: boolean
   accountingReady?: boolean
+  accountingError?: string | null
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -211,8 +213,14 @@ export function InvoicesOverviewClient({
   )
   const selectedExportable = Array.from(selected).filter((id) => selectableIds.includes(id))
 
+  const exportTitle = accountingError
+    ? 'e-conomic kunne ikke tjekkes'
+    : !accountingReady
+      ? 'e-conomic er ikke opsat endnu'
+      : 'Eksportér valgte fakturaer til e-conomic'
+
   const handleBulkExport = () => {
-    if (!canExportAccounting || !accountingReady || selectedExportable.length === 0) return
+    if (accountingError || !canExportAccounting || !accountingReady || selectedExportable.length === 0) return
     if (!window.confirm(`Eksportér ${selectedExportable.length} valgt(e) faktura(er) til e-conomic?`)) return
     startBulk(async () => {
       const res = await bulkExportInvoicesToEconomicAction(selectedExportable)
@@ -362,19 +370,26 @@ export function InvoicesOverviewClient({
           </button>
         ))}
         {canExportAccounting && (
-          <div className="ml-auto flex items-center gap-2">
-            {!accountingReady ? (
+          <div className="ml-auto flex flex-wrap items-center gap-2 max-w-full">
+            {accountingError && (
+              <span className="text-[11px] text-red-700 inline-flex items-center gap-1 max-w-full break-words" data-testid="invoice-overview-economic-error">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {accountingError}. Det tælles ikke som at e-conomic mangler. Eksport er deaktiveret.
+              </span>
+            )}
+            {!accountingError && !accountingReady && (
               <span className="text-[11px] text-amber-600 inline-flex items-center gap-1">
                 <AlertTriangle className="w-3.5 h-3.5" /> e-conomic er ikke opsat endnu
               </span>
-            ) : (
+            )}
+            {!accountingError && accountingReady && (
               <span className="text-[11px] text-gray-500">{selectedExportable.length} valgt</span>
             )}
             <button
               type="button"
               onClick={handleBulkExport}
-              disabled={!accountingReady || selectedExportable.length === 0 || bulkPending}
-              title={!accountingReady ? 'e-conomic er ikke opsat endnu' : 'Eksportér valgte fakturaer til e-conomic'}
+              disabled={!!accountingError || !accountingReady || selectedExportable.length === 0 || bulkPending}
+              title={exportTitle}
               className="inline-flex items-center gap-1.5 px-3 py-1 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {bulkPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
