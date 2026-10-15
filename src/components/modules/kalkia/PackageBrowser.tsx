@@ -263,15 +263,15 @@ export function PackageBrowser({
                 {pkgs.map((pkg) => (
                   <div
                     key={pkg.id}
-                    className="w-full p-3 hover:bg-gray-50 transition-colors flex items-center gap-3"
+                    className="w-full p-3 hover:bg-gray-50 transition-colors flex items-start gap-3"
                   >
                     <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
                       <Package className="w-5 h-5" />
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">{pkg.name}</span>
+                      <div className="flex items-start gap-2">
+                        <span className="font-medium break-words min-w-0">{pkg.name}</span>
                         {pkg.code && (
                           <Badge variant="outline" className="text-xs flex-shrink-0">
                             {pkg.code}
@@ -306,7 +306,7 @@ export function PackageBrowser({
                         )}
                       </div>
                       {pkg.description && (
-                        <p className="text-xs text-gray-400 mt-1 truncate">
+                        <p className="text-xs text-gray-400 mt-1 break-words line-clamp-2">
                           {pkg.description}
                         </p>
                       )}
