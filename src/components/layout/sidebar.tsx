@@ -455,13 +455,19 @@ export function Sidebar() {
   const { role } = useUserRole()
   const [taskCount, setTaskCount] = useState(0)
   const [overdueCount, setOverdueCount] = useState(0)
+  const [countError, setCountError] = useState<string | null>(null)
 
   // Sprint Performance 1: was getAllTasks() (entire customer_tasks table +
   // joins, every 60 s) just to count rows client-side. Now two HEAD count
   // queries via getTaskCounts(), polled only while the tab is visible.
   const fetchCounts = useCallback(async () => {
     try {
-      const { active, overdue } = await getTaskCounts()
+      const { active, overdue, error } = await getTaskCounts()
+      if (error) {
+        setCountError(error)
+        return
+      }
+      setCountError(null)
       setTaskCount(active)
       setOverdueCount(overdue)
     } catch {
@@ -521,7 +527,16 @@ export function Sidebar() {
                   >
                     {item.icon}
                     {item.name}
-                    {item.href === '/dashboard/tasks' && (taskCount > 0 || overdueCount > 0) && (
+                    {item.href === '/dashboard/tasks' && countError && (
+                      <span
+                        className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-red-900 text-red-100"
+                        data-testid="task-count-load-error"
+                        title="Kunne ikke hente opgavetal. Det tælles ikke som 0."
+                      >
+                        !
+                      </span>
+                    )}
+                    {item.href === '/dashboard/tasks' && !countError && (taskCount > 0 || overdueCount > 0) && (
                       <span className="ml-auto inline-flex items-center gap-1">
                         {overdueCount > 0 && (
                           <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-red-500 text-white">

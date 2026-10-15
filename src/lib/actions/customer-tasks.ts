@@ -313,7 +313,7 @@ export async function getMyDayTasks(): Promise<{
  * all — while preserving the same role scoping (montør sees only own tasks)
  * and the same definitions (active = not done, overdue = active + past due).
  */
-export async function getTaskCounts(): Promise<{ active: number; overdue: number }> {
+export async function getTaskCounts(): Promise<{ active: number; overdue: number; error: string | null }> {
   let role: string = 'montør'
   let userId: string | null = null
   let supabase: Awaited<ReturnType<typeof createClient>>
@@ -323,7 +323,7 @@ export async function getTaskCounts(): Promise<{ active: number; overdue: number
     userId = ctx.userId
     supabase = ctx.supabase
   } catch {
-    return { active: 0, overdue: 0 }
+    return { active: 0, overdue: 0, error: 'Kunne ikke hente opgavetal' }
   }
 
   const nowIso = new Date().toISOString()
@@ -342,7 +342,7 @@ export async function getTaskCounts(): Promise<{ active: number; overdue: number
 
   // Sprint 7E — montør scope: only tasks assigned to the current user.
   if (role === 'montør') {
-    if (!userId) return { active: 0, overdue: 0 }
+    if (!userId) return { active: 0, overdue: 0, error: null }
     activeQuery = activeQuery.eq('assigned_to', userId)
     overdueQuery = overdueQuery.eq('assigned_to', userId)
   }
@@ -351,10 +351,10 @@ export async function getTaskCounts(): Promise<{ active: number; overdue: number
 
   if (activeRes.error || overdueRes.error) {
     logger.error('Failed to fetch task counts', { error: activeRes.error || overdueRes.error })
-    return { active: 0, overdue: 0 }
+    return { active: 0, overdue: 0, error: 'Kunne ikke hente opgavetal' }
   }
 
-  return { active: activeRes.count ?? 0, overdue: overdueRes.count ?? 0 }
+  return { active: activeRes.count ?? 0, overdue: overdueRes.count ?? 0, error: null }
 }
 
 export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations[]> {
