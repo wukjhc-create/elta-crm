@@ -4,12 +4,11 @@
  * Phase B1 — status-pille + expander-liste for document_confirmations
  * paa en besigtigelsesrapport-raekke.
  *
- * Defensiv: hvis listConfirmationsForDocument fejler eller returnerer
- * tomt, vises INGENTING. Dokumentlisten i parent crasher aldrig pga.
- * confirmation-state.
+ * Defensiv: en tom liste viser ingen pille. En fejl siger det, saa det ikke
+ * ligner ingen modtagere. Dokumentlisten i parent crasher ikke.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   CheckCircle2,
   Clock,
@@ -126,26 +125,38 @@ export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props
   const [isExpanded, setIsExpanded] = useState(false)
   // Fase 2a — lokal refresh efter "send videre" uden at parent skal involveres.
   const [localRefresh, setLocalRefresh] = useState(0)
+  const loadedDoc = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    if (loadedDoc.current !== documentId) {
+      setItems([])
+      setHasError(false)
+    }
     setIsLoading(true)
-    setHasError(false)
     listConfirmationsForDocument(documentId)
       .then((result) => {
         if (cancelled) return
         if (result.success && result.data) {
+          setHasError(false)
           setItems(result.data)
-        } else {
-          // Stille fejl — vis ingen pille
-          setHasError(true)
-          setItems([])
+          loadedDoc.current = documentId
+          return
         }
+        const message = result.error ?? ''
+        if (message.includes('Manglende tilladelse') || message.includes('Ikke logget ind') || message.includes('Du har ikke adgang') || loadedDoc.current !== documentId) {
+          setItems([])
+          loadedDoc.current = null
+        }
+        setHasError(true)
       })
       .catch(() => {
         if (cancelled) return
+        if (loadedDoc.current !== documentId) {
+          setItems([])
+          loadedDoc.current = null
+        }
         setHasError(true)
-        setItems([])
       })
       .finally(() => {
         if (cancelled) return
@@ -156,15 +167,21 @@ export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props
     }
   }, [documentId, refreshKey, localRefresh])
 
-  // Defensiv: ved fejl eller ingen confirmations vises ingenting
-  if (isLoading) {
+  if (isLoading && items.length === 0) {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-gray-400">
         <Loader2 className="w-3 h-3 animate-spin" />
       </span>
     )
   }
-  if (hasError || items.length === 0) return null
+  if (hasError && items.length === 0) {
+    return (
+      <p className="text-xs text-red-700" data-testid="confirmation-load-error">
+        Bekræftelser kunne ikke hentes. Det tælles ikke som ingen modtagere.
+      </p>
+    )
+  }
+  if (items.length === 0) return null
 
   const agg = aggregate(items)
   const pill = pillFor(agg)
@@ -172,6 +189,11 @@ export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props
 
   return (
     <div className="w-full">
+      {hasError && (
+        <p className="text-xs text-red-700 mb-1" data-testid="confirmation-load-error">
+          Bekræftelser kunne ikke hentes. Det tælles ikke som ingen modtagere.
+        </p>
+      )}
       <button
         onClick={() => setIsExpanded((v) => !v)}
         className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border ${pill.bg} ${pill.text} hover:brightness-95 active:scale-95 transition-transform`}
