@@ -201,11 +201,12 @@ export default function PackageDetailClient({
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-4 min-w-0">
               <Link
                 href="/dashboard/packages"
-                className="p-2 hover:bg-muted rounded-md"
+                aria-label="Tilbage til pakker"
+                className="p-2 hover:bg-muted rounded-md shrink-0"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Link>
@@ -233,6 +234,8 @@ export default function PackageDetailClient({
             </div>
             <div className="flex items-center gap-3">
               <button
+                type="button"
+                aria-label="Pakkeindstillinger"
                 onClick={() => setShowSettings(!showSettings)}
                 className="p-2 hover:bg-muted rounded-md"
               >
@@ -251,7 +254,7 @@ export default function PackageDetailClient({
 
           {/* Settings Panel */}
           {showSettings && (
-            <div className="mt-4 p-4 bg-muted/50 rounded-lg grid grid-cols-3 gap-4">
+            <div className="mt-4 p-4 bg-muted/50 rounded-lg grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Kode</label>
                 <input
@@ -297,7 +300,7 @@ export default function PackageDetailClient({
                   <option value="inactive">Inaktiv</option>
                 </select>
               </div>
-              <div className="col-span-3 space-y-1">
+              <div className="sm:col-span-3 space-y-1">
                 <label className="text-sm font-medium">Beskrivelse</label>
                 <textarea
                   value={pkg.description || ''}
@@ -315,12 +318,12 @@ export default function PackageDetailClient({
         </div>
       </div>
 
-      <div className="flex">
+      <div className="flex flex-col lg:flex-row">
         {/* Main Content - Items Table */}
-        <div className="flex-1 p-6">
-          <div className="bg-white rounded-lg border overflow-hidden">
+        <div className="flex-1 min-w-0 p-4 lg:p-6">
+          <div className="bg-white rounded-lg border overflow-x-auto">
             {/* Table Header */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-muted/50 text-sm font-medium border-b">
+            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-muted/50 text-sm font-medium border-b min-w-[720px]">
               <div className="col-span-1"></div>
               <div className="col-span-4">Beskrivelse</div>
               <div className="col-span-1 text-right">Antal</div>
@@ -345,13 +348,13 @@ export default function PackageDetailClient({
                 {items.map((item, index) => (
                   <div
                     key={item.id}
-                    className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-muted/30 group"
+                    className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-muted/30 group min-w-[720px]"
                   >
                     <div className="col-span-1 flex items-center gap-2">
                       <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab opacity-0 group-hover:opacity-100" />
                       {getItemIcon(item.item_type)}
                     </div>
-                    <div className="col-span-4">
+                    <div className="col-span-4 min-w-0">
                       <div className="flex items-center gap-2">
                         {editingItem?.id === item.id ? (
                           <input
@@ -364,7 +367,7 @@ export default function PackageDetailClient({
                           />
                         ) : (
                           <span
-                            className="cursor-pointer hover:text-primary"
+                            className="cursor-pointer hover:text-primary break-words"
                             onClick={() => setEditingItem(item)}
                           >
                             {item.description}
@@ -468,6 +471,8 @@ export default function PackageDetailClient({
                       {editingItem?.id === item.id ? (
                         <>
                           <button
+                            type="button"
+                            aria-label="Gem element"
                             onClick={() => handleUpdateItem(editingItem)}
                             disabled={isPending}
                             className="p-1 text-green-600 hover:bg-green-50 rounded"
@@ -475,6 +480,8 @@ export default function PackageDetailClient({
                             <Save className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
+                            aria-label="Luk redigering"
                             onClick={() => setEditingItem(null)}
                             className="p-1 text-muted-foreground hover:bg-muted rounded"
                           >
@@ -483,9 +490,11 @@ export default function PackageDetailClient({
                         </>
                       ) : (
                         <button
+                          type="button"
+                          aria-label="Slet element"
                           onClick={() => handleDeleteItem(item.id)}
                           disabled={isPending}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100"
+                          className="p-1 text-red-600 hover:bg-red-50 rounded opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -510,7 +519,7 @@ export default function PackageDetailClient({
         </div>
 
         {/* Right Sidebar - Financial Summary */}
-        <div className="w-80 p-6 border-l bg-white">
+        <div className="w-full lg:w-80 p-6 border-t lg:border-t-0 lg:border-l bg-white">
           <h3 className="font-semibold mb-4">Overblik</h3>
 
           <div className="space-y-6">
