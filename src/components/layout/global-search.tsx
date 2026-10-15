@@ -150,18 +150,19 @@ export function GlobalSearch() {
                 return (
                   <button
                     key={`${result.type}-${result.id}`}
+                    type="button"
                     onClick={() => navigateToResult(result)}
                     onMouseEnter={() => setSelectedIndex(index)}
-                    className={`w-full px-3 py-2 flex items-center gap-3 text-left transition-colors ${
+                    className={`w-full px-3 py-2 flex items-start gap-3 text-left transition-colors ${
                       index === selectedIndex ? 'bg-gray-100' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <span className={`p-1.5 rounded ${config.color}`}>
+                    <span className={`p-1.5 rounded shrink-0 ${config.color}`}>
                       <Icon className="w-4 h-4" />
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{result.title}</div>
-                      <div className="text-xs text-gray-500 truncate">{result.subtitle}</div>
+                      <div className="font-medium text-sm break-words line-clamp-2" title={result.title}>{result.title}</div>
+                      <div className="text-xs text-gray-500 break-words line-clamp-2" title={result.subtitle}>{result.subtitle}</div>
                     </div>
                     <span className="text-xs text-gray-400 shrink-0">{config.label}</span>
                   </button>
