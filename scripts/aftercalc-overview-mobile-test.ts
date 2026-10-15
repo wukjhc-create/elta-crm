@@ -25,6 +25,10 @@ eq('række-testid ligger ikke på kortet', mobile.includes('data-testid="afterca
 eq('desktop-rækken beholder testid og datakvalitet', src.includes('data-testid="aftercalc-overview-row"') && src.includes('data-quality={r.data_quality}'), true)
 eq('desktop-titel ombrydes', src.includes('text-[11px] text-gray-500 break-words max-w-[16rem]">{r.title}'), true)
 eq('desktop-titel klippes ikke', src.includes('truncate max-w-[16rem]'), false)
+const table = src.slice(tableStart)
+eq('desktop-advarsel staar som tekst', table.includes('text-[11px] text-amber-900 break-words max-w-[12rem]'), true)
+eq('desktop-titel-attribut bliver', table.includes('title={r.warning_codes.map'), true)
+eq('sagsnummer ombrydes', mobile.includes('hover:underline break-words') && table.includes('hover:underline break-words'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\naftercalc-overview-mobile-test OK')
 process.exitCode = fail ? 1 : 0
