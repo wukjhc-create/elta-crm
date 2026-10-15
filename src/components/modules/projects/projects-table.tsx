@@ -248,18 +248,18 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
                     >
                       {project.project_number}
                     </Link>
-                    <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                    <p className="text-sm text-muted-foreground break-words">
                       {project.name}
                     </p>
                   </td>
                   <td className="py-3">
                     {project.customer ? (
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-muted-foreground" />
-                        <div>
+                      <div className="flex items-start gap-2">
+                        <Building2 className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                        <div className="min-w-0">
                           <Link
                             href={`/dashboard/customers/${project.customer.id}`}
-                            className="text-sm hover:underline"
+                            className="text-sm hover:underline break-words"
                           >
                             {project.customer.company_name}
                           </Link>
