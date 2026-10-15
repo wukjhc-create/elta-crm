@@ -57,12 +57,12 @@ export function CustomerPicker({ value, onChange, disabled, id = 'customer_picke
   return (
     <div ref={boxRef} className="relative" data-testid="customer-picker">
       {selected && !open ? (
-        <div className="flex items-center gap-2 w-full px-3 py-2 border rounded-md bg-white">
-          <button type="button" className="flex-1 text-left truncate" onClick={() => !disabled && setOpen(true)} disabled={disabled}>
+        <div className="flex items-start gap-2 w-full px-3 py-2 border rounded-md bg-white">
+          <button type="button" className="flex-1 text-left break-words min-w-0" onClick={() => !disabled && setOpen(true)} disabled={disabled}>
             {label(selected)}
           </button>
           {!disabled && (
-            <button type="button" aria-label="Fjern kunde" onClick={() => { setSelected(null); onChange(null) }} className="text-gray-400 hover:text-gray-700">
+            <button type="button" aria-label="Fjern kunde" onClick={() => { setSelected(null); onChange(null) }} className="text-gray-400 hover:text-gray-700 shrink-0">
               <X className="w-4 h-4" />
             </button>
           )}
@@ -91,8 +91,8 @@ export function CustomerPicker({ value, onChange, disabled, id = 'customer_picke
             <li key={c.id}>
               <button type="button" role="option" aria-selected={c.id === value} onClick={() => pick(c)}
                 className="w-full text-left px-3 py-2 hover:bg-gray-50" data-testid="customer-picker-option">
-                <span className="block text-sm font-medium">{label(c)}</span>
-                {(c.contact_person || c.email) && <span className="block text-xs text-gray-500">{[c.contact_person, c.email].filter(Boolean).join(' · ')}</span>}
+                <span className="block text-sm font-medium break-words">{label(c)}</span>
+                {(c.contact_person || c.email) && <span className="block text-xs text-gray-500 break-words">{[c.contact_person, c.email].filter(Boolean).join(' · ')}</span>}
               </button>
             </li>
           ))}
