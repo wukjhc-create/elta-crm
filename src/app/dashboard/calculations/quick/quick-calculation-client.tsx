@@ -573,26 +573,26 @@ export default function QuickCalculationClient({
                   </div>
 
                   <div className="border-t pt-4 space-y-2">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-sm min-w-0">
                       <span className="text-gray-500">Materialer</span>
-                      <span>{formatCurrency(totals.totalSalePrice)}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(totals.totalSalePrice)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-sm min-w-0">
+                      <span className="text-gray-500 min-w-0 break-words">
                         Arbejdsløn ({laborHours.toFixed(1)}t × {formatCurrency(hourlyRate)})
                       </span>
-                      <span>{formatCurrency(laborCost)}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(laborCost)}</span>
                     </div>
                   </div>
 
                   <div className="border-t pt-4">
-                    <div className="flex justify-between font-bold text-lg">
+                    <div className="flex flex-wrap justify-between gap-x-3 font-bold text-lg min-w-0">
                       <span>Subtotal</span>
-                      <span>{formatCurrency(grandTotal)}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(grandTotal)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-green-600 mt-2">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-sm text-green-600 mt-2 min-w-0">
                       <span>DB</span>
-                      <span>{formatCurrency(dbAmount)} ({dbPercentage.toFixed(1)}%)</span>
+                      <span className="min-w-0 break-words">{formatCurrency(dbAmount)} ({dbPercentage.toFixed(1)}%)</span>
                     </div>
                   </div>
                 </CardContent>
@@ -643,10 +643,10 @@ export default function QuickCalculationClient({
                           <Home className="w-4 h-4" />
                           {room.name}
                         </div>
-                        <div className="grid grid-cols-2 gap-2 pl-6 text-sm">
+                        <div className="grid grid-cols-2 gap-2 pl-6 text-sm min-w-0">
                           {room.components.map(comp => (
-                            <div key={comp.id} className="flex justify-between">
-                              <span className="text-gray-600">{comp.componentName}</span>
+                            <div key={comp.id} className="flex flex-wrap justify-between gap-x-2 min-w-0">
+                              <span className="text-gray-600 min-w-0 break-words">{comp.componentName}</span>
                               <span>× {comp.quantity}</span>
                             </div>
                           ))}
@@ -684,41 +684,41 @@ export default function QuickCalculationClient({
                   </div>
 
                   <div className="border-t pt-4 space-y-2">
-                    <div className="flex justify-between">
+                    <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                       <span className="flex items-center gap-1 text-gray-500">
-                        <Package className="w-4 h-4" />
+                        <Package className="w-4 h-4 shrink-0" />
                         Materialer
                       </span>
-                      <span>{formatCurrency(totals.totalSalePrice)}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(totals.totalSalePrice)}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                       <span className="flex items-center gap-1 text-gray-500">
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-4 h-4 shrink-0" />
                         Arbejdsløn
                       </span>
-                      <span>{formatCurrency(laborCost)}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(laborCost)}</span>
                     </div>
                   </div>
 
                   <div className="border-t pt-4">
-                    <div className="flex justify-between text-lg font-bold">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-lg font-bold min-w-0">
                       <span>Subtotal</span>
-                      <span>{formatCurrency(grandTotal)}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(grandTotal)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-gray-500 mt-1">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-sm text-gray-500 mt-1 min-w-0">
                       <span>+ moms ({DEFAULT_TAX_RATE}%)</span>
-                      <span>{formatCurrency(grandTotal * (DEFAULT_TAX_RATE / 100))}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(grandTotal * (DEFAULT_TAX_RATE / 100))}</span>
                     </div>
-                    <div className="flex justify-between text-xl font-bold mt-2 pt-2 border-t">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-xl font-bold mt-2 pt-2 border-t min-w-0">
                       <span>Total inkl. moms</span>
-                      <span>{formatCurrency(grandTotal * (1 + DEFAULT_TAX_RATE / 100))}</span>
+                      <span className="min-w-0 break-words">{formatCurrency(grandTotal * (1 + DEFAULT_TAX_RATE / 100))}</span>
                     </div>
                   </div>
 
                   <div className="border-t pt-4">
-                    <div className="flex justify-between text-green-600">
+                    <div className="flex flex-wrap justify-between gap-x-3 text-green-600 min-w-0">
                       <span>Dækningsbidrag</span>
-                      <span className="font-medium">
+                      <span className="font-medium min-w-0 break-words">
                         {formatCurrency(dbAmount)} ({dbPercentage.toFixed(1)}%)
                       </span>
                     </div>
