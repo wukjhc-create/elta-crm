@@ -257,9 +257,9 @@ export function IncomingInvoiceDetailClient({
               {deletingTest ? 'Sletter…' : 'Slet test-faktura'}
             </Button>
           )}
-          <div className="text-right shrink-0">
-            <div className="text-2xl font-semibold">{fmtAmount(inv.amount_incl_vat, inv.currency)}</div>
-            <div className="text-xs text-gray-500">incl. moms</div>
+          <div className="text-right min-w-0">
+            <div className="text-2xl font-semibold break-words">{fmtAmount(inv.amount_incl_vat, inv.currency)}</div>
+            <div className="text-xs text-gray-500 break-words">incl. moms</div>
           </div>
         </div>
       </div>
