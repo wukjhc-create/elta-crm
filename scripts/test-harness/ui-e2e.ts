@@ -3148,6 +3148,36 @@ ${m.text()}`) })
         out.push({ id: 'U88 N26d rapport: tilbudt vs. faktisk kost pr. sag (foldet)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U159 fokus D 2026-10-15: dashboard-widget "Sager over estimat" — åben sag med faktisk kost over tilbudt (tilbudt 100,
+      // faktisk 600) vises for admin med flag; montør ser ikke widgetten (economy.view)
+      if (want('U159') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-OB-${stamp}`, title: `[HARNESS] over ${stamp}`, customer_id: profitCustomerId,
+          status: 'accepted', created_by: adminUser.id, tax_percentage: 25 }]).select('id')
+        const offId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (offId) await c.admin.from('offer_line_items').insert([{ offer_id: offId, position: 1, description: `OB kabel ${stamp}`, quantity: 10, unit: 'm', unit_price: 15, total: 150, cost_price: 10, margin_percentage: 33, sale_price: 15 }])
+        const caseTitle = `[HARNESS] over estimat ${stamp}`
+        const sc = await c.admin.from('service_cases').insert([{ title: caseTitle, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, source_offer_id: offId }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) {
+          listCaseIds.push(caseId)
+          await c.admin.from('case_materials').insert([{ case_id: caseId, description: `ob kabel ${stamp}`, quantity: 60, unit: 'm', unit_cost: 10, unit_sales_price: 15, billable: true, source: 'manual', created_by: adminUser.id }])
+        }
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const w = a.page.getByTestId('over-budget-widget')
+        await w.getByText(caseTitle).first().waitFor({ timeout: 90_000 }).catch(() => {})
+        const item = w.locator('li', { hasText: caseTitle }).first()
+        r.vist_for_admin = (await item.count()) === 1
+        r.flag_kost = (await item.getByText('over tilbudt kost').count()) === 1
+        r.ingen_beloeb = !/kr\./.test(((await w.innerText().catch(() => '')) ?? ''))
+        const m = await login(montor)
+        await gotoSafe(m.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.montoer_ser_ikke = (await m.page.getByTestId('over-budget-widget').count()) === 0
+        await m.ctx.close().catch(() => {})
+        out.push({ id: 'U159 dashboard: sager over estimat (economy.view)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U89 PV16: Rediger medarbejder — løn/satser sammenfoldet og IKKE hentet ved åbning (intet lønbeløb i HTML/data);
       // "Løn og satser" foldes ud → hentes og vises
       if (want('U89')) {

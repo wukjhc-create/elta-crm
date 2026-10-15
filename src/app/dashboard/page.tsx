@@ -43,6 +43,7 @@ import {
   OfferConversionWidget,
   OutstandingPortfolioWidget,
   BillingFollowupWidget,
+  OverBudgetCasesWidget,
   IncomingInvoiceDueWidget,
   PurchaseOperationsWidget,
 } from '@/components/modules/dashboard'
@@ -117,6 +118,8 @@ export default async function DashboardPage() {
   const canViewIncoming = await pageHasPermission('incoming_invoices.view')
   // D49: pris-/systemadvarsler (leverandørkost, lav margin) kun for economy.cost_prices
   const canViewCostAlerts = await pageHasPermission('economy.cost_prices')
+  // Fokus D 2026-10-15: åbne sager over estimat (samme gate som efterkalkulationen)
+  const canViewEconomy = await pageHasPermission('economy.view')
 
   return (
     <div className="space-y-6">
@@ -150,6 +153,9 @@ export default async function DashboardPage() {
 
       {/* Sprint Ø8.3 — Faktureringsopfølgning: sager der kræver fakturahandling */}
       {canSeeBilling && <BillingFollowupWidget />}
+
+      {/* Fokus D 2026-10-15 — åbne sager over estimat / tilbudt kost */}
+      {canViewEconomy && <OverBudgetCasesWidget />}
 
       {/* Sprint Ø9.1 — Leverandørfaktura-forfald (intern indkøb, "pengene ud") */}
       {canViewIncoming && <IncomingInvoiceDueWidget />}
