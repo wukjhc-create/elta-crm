@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Search,
   Loader2,
@@ -36,6 +36,7 @@ export function PackagePickerDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const loadSeq = useRef(0)
   const toast = useToast()
 
   useEffect(() => {
@@ -45,23 +46,28 @@ export function PackagePickerDialog({
   }, [open])
 
   const loadPackages = async (searchTerm?: string) => {
+    const seq = ++loadSeq.current
     setIsLoading(true)
     try {
       const result = await getPackages({
         is_active: true,
         search: searchTerm,
       })
+      if (seq !== loadSeq.current) return
       if (result.success && result.data) {
         setPackages(result.data.data)
         setLoadError(null)
       } else {
-        setLoadError(result.error || 'Kunne ikke hente pakker')
+        setPackages([])
+        setLoadError(result.success ? 'Kunne ikke hente pakker' : (result.error || 'Kunne ikke hente pakker'))
       }
     } catch {
+      if (seq !== loadSeq.current) return
+      setPackages([])
       setLoadError('Kunne ikke hente pakker')
       toast.error('Kunne ikke hente pakker')
     } finally {
-      setIsLoading(false)
+      if (seq === loadSeq.current) setIsLoading(false)
     }
   }
 
