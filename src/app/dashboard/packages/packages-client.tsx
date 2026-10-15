@@ -46,6 +46,7 @@ export default function PackagesClient({
   const page = initialPackages?.page || 1
   const totalPages = initialPackages?.totalPages || 1
   const pageSize = initialPackages?.pageSize || 24
+  const filtering = Boolean(initialFilters.search.trim() || initialFilters.category_id)
 
   const [search, setSearch] = useState(initialFilters.search)
   const [categoryFilter, setCategoryFilter] = useState(initialFilters.category_id)
@@ -102,7 +103,7 @@ export default function PackagesClient({
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Pakker</h1>
           <p className="text-muted-foreground">
@@ -119,7 +120,7 @@ export default function PackagesClient({
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -140,7 +141,7 @@ export default function PackagesClient({
             if (e.target.value) params.set('category_id', e.target.value)
             router.push(`/dashboard/packages?${params.toString()}`)
           }}
-          className="px-3 py-2 border rounded-md min-w-[150px]"
+          className="px-3 py-2 border rounded-md w-full sm:w-auto sm:min-w-[150px]"
         >
           <option value="">Alle kategorier</option>
           {categories.map((cat) => (
@@ -150,8 +151,10 @@ export default function PackagesClient({
           ))}
         </select>
         <button
+          type="button"
           onClick={handleSearch}
-          className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80"
+          aria-label="Søg pakker"
+          className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 shrink-0"
         >
           <Filter className="w-4 h-4" />
         </button>
@@ -161,9 +164,13 @@ export default function PackagesClient({
       {packages.length === 0 ? (
         <div className="text-center py-12 border rounded-lg bg-muted/50">
           <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">Ingen pakker endnu</h3>
+          <h3 className="text-lg font-medium mb-2">
+            {filtering ? 'Ingen pakker matcher søgningen' : 'Ingen pakker endnu'}
+          </h3>
           <p className="text-muted-foreground mb-4">
-            Opret din første pakke for at komme i gang
+            {filtering
+              ? 'Ryd søgning eller kategori, eller opret en ny pakke.'
+              : 'Opret din første pakke for at komme i gang'}
           </p>
           <button
             onClick={() => setShowCreateDialog(true)}
@@ -182,8 +189,10 @@ export default function PackagesClient({
               {/* Menu */}
               <div className="absolute top-3 right-3">
                 <button
+                  type="button"
+                  aria-label="Flere handlinger"
                   onClick={() => setMenuOpen(menuOpen === pkg.id ? null : pkg.id)}
-                  className="p-1 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1 hover:bg-muted rounded opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>
@@ -229,7 +238,7 @@ export default function PackagesClient({
                         {pkg.code}
                       </span>
                     )}
-                    <h3 className="font-semibold">{pkg.name}</h3>
+                    <h3 className="font-semibold break-words pr-8">{pkg.name}</h3>
                     {pkg.category_name && (
                       <span className="text-xs bg-muted px-2 py-0.5 rounded">
                         {pkg.category_name}
