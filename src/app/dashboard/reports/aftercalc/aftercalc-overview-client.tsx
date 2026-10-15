@@ -192,25 +192,25 @@ export function AftercalcOverviewClient() {
                             {r.warning_codes.map((c: DataQualityCode) => DATA_QUALITY_LABELS[c]).join(', ')}
                           </p>
                         )}
-                        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                          <div>
+                        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0">
+                          <div className="min-w-0">
                             <dt className="text-gray-500">Tilbudt omsætning</dt>
-                            <dd className="tabular-nums text-gray-900">{kr(r.quoted_revenue)}</dd>
+                            <dd className="tabular-nums text-gray-900 break-words">{kr(r.quoted_revenue)}</dd>
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <dt className="text-gray-500">Faktisk omsætning</dt>
-                            <dd className="tabular-nums text-gray-900">{kr(r.actual_revenue)}</dd>
+                            <dd className="tabular-nums text-gray-900 break-words">{kr(r.actual_revenue)}</dd>
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <dt className="text-gray-500">Tilbudt DB</dt>
-                            <dd className="tabular-nums text-gray-900">{pct(r.quoted_db_pct)}</dd>
+                            <dd className="tabular-nums text-gray-900 break-words">{pct(r.quoted_db_pct)}</dd>
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <dt className="text-gray-500">Faktisk DB</dt>
-                            <dd className="tabular-nums text-gray-900">{pct(r.actual_db_pct)}</dd>
+                            <dd className="tabular-nums text-gray-900 break-words">{pct(r.actual_db_pct)}</dd>
                           </div>
                         </dl>
-                        <p className={`mt-2 text-sm tabular-nums ${r.db_variance == null ? 'text-gray-400' : r.db_variance < 0 ? 'text-red-700' : r.db_variance > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
+                        <p className={`mt-2 text-sm tabular-nums break-words ${r.db_variance == null ? 'text-gray-400' : r.db_variance < 0 ? 'text-red-700' : r.db_variance > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
                           DB-afvigelse: {varianceText(r.db_variance, r.db_variance_pct_points)}
                         </p>
                         <p className="text-xs text-gray-600">{SERVICE_CASE_STATUS_LABELS[r.status as ServiceCaseStatus] ?? r.status}</p>
