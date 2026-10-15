@@ -353,7 +353,9 @@ export function CalendarWorkforceClient({
         )}
 
         <div className="w-full sm:w-auto sm:ml-auto text-xs text-gray-500">
-          {filteredWOs.length} arbejdsordre{filteredWOs.length === 1 ? '' : 'r'} i visningen
+          {loadError
+            ? 'Antallet kunne ikke hentes. Det tælles ikke som 0 arbejdsordrer.'
+            : `${filteredWOs.length} arbejdsordre${filteredWOs.length === 1 ? '' : 'r'} i visningen`}
         </div>
       </div>
 
