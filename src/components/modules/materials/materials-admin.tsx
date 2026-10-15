@@ -409,7 +409,7 @@ function BindDialog({
           ) : (
             <ul className="divide-y">
               {results.map((sp) => (
-                <li key={sp.id} className="p-3 hover:bg-gray-50 flex items-start gap-3">
+                <li key={sp.id} className="p-3 hover:bg-gray-50 flex flex-wrap items-start gap-3 min-w-0">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium break-words">{sp.supplier_name}</div>
                     <div className="text-xs text-gray-500 break-words">
@@ -418,9 +418,9 @@ function BindDialog({
                       {sp.sub_category ? ` / ${sp.sub_category}` : ''}
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-medium">{formatCurrency(sp.cost_price)}</div>
-                    <div className="text-xs text-gray-500">
+                  <div className="text-right min-w-0">
+                    <div className="text-sm font-medium break-words">{formatCurrency(sp.cost_price)}</div>
+                    <div className="text-xs text-gray-500 break-words">
                       {sp.is_available ? 'På lager' : 'Ikke ledig'}
                     </div>
                   </div>
