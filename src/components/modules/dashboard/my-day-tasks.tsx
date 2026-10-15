@@ -55,12 +55,14 @@ function List({
   testId,
   empty,
   warn,
+  suppressEmpty,
 }: {
   title: string
   rows: Row[]
   testId: string
   empty: string
   warn?: boolean
+  suppressEmpty?: boolean
 }) {
   return (
     <div className="mb-4 last:mb-0" data-testid={testId}>
@@ -69,7 +71,7 @@ function List({
         {title} {rows.length > 0 && <span className="font-normal">({rows.length})</span>}
       </h3>
       {rows.length === 0 ? (
-        <p className="text-sm text-gray-500">{empty}</p>
+        suppressEmpty ? null : <p className="text-sm text-gray-500">{empty}</p>
       ) : (
         <ul className="divide-y rounded-md ring-1 ring-gray-100">
           {rows.map((row) => (
@@ -101,26 +103,37 @@ export function MyDayTasks({
   today,
   reminderOverdue = [],
   reminderToday = [],
+  loadError = null,
 }: {
   overdue: MyDayTask[]
   today: MyDayTask[]
   reminderOverdue?: MyDayReminder[]
   reminderToday?: MyDayReminder[]
+  /** Sat når opgavehentningen fejlede. Tomme lister må ikke ligne "ingen opgaver". */
+  loadError?: string | null
 }) {
+  const failed = !!loadError
   return (
     <div data-testid="my-day-tasks">
+      {failed ? (
+        <p className="text-sm text-red-700 mb-3" data-testid="my-day-load-error">
+          {loadError}. Det tælles ikke som ingen opgaver.
+        </p>
+      ) : null}
       <List
         title="Mine forfaldne"
         rows={[...taskRows(overdue), ...reminderRows(reminderOverdue)].sort(byWhen)}
         testId="my-day-overdue"
         empty="Ingen forfaldne opgaver."
         warn
+        suppressEmpty={failed}
       />
       <List
         title="I dag"
         rows={[...taskRows(today), ...reminderRows(reminderToday)].sort(byWhen)}
         testId="my-day-today"
         empty="Ingen opgaver i dag."
+        suppressEmpty={failed}
       />
     </div>
   )

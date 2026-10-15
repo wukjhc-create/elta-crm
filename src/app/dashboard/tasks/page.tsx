@@ -43,6 +43,7 @@ export default async function TasksPage() {
           today={myDay.today}
           reminderOverdue={dayReminders.overdue}
           reminderToday={dayReminders.today}
+          loadError={myDay.error}
         />
       </section>
       <PersonalRemindersCard />

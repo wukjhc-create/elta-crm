@@ -337,6 +337,7 @@ export default async function DashboardPage() {
               today={tasks.today}
               reminderOverdue={dayReminders.overdue}
               reminderToday={dayReminders.today}
+              loadError={tasks.error}
             />
           </div>
 

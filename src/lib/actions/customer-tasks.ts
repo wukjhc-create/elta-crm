@@ -251,7 +251,11 @@ export async function getAllTasks(options?: {
  * N29: mine forfaldne opgaver og dagens liste. Kun opgaver tildelt den indloggede bruger.
  * Klassificeringen er den danske kalenderdag (splitMyDayTasks).
  */
-export async function getMyDayTasks(): Promise<{ overdue: MyDayTask[]; today: MyDayTask[] }> {
+export async function getMyDayTasks(): Promise<{
+  overdue: MyDayTask[]
+  today: MyDayTask[]
+  error: string | null
+}> {
   let userId: string
   let supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']
   try {
@@ -259,7 +263,7 @@ export async function getMyDayTasks(): Promise<{ overdue: MyDayTask[]; today: My
     userId = ctx.userId
     supabase = ctx.supabase
   } catch {
-    return { overdue: [], today: [] }
+    return { overdue: [], today: [], error: 'Kunne ikke hente opgaver' }
   }
 
   try {
@@ -291,10 +295,11 @@ export async function getMyDayTasks(): Promise<{ overdue: MyDayTask[]; today: My
         customer_name: customer?.company_name ?? '',
       }
     })
-    return splitMyDayTasks(mapped, userId)
+    const lists = splitMyDayTasks(mapped, userId)
+    return { overdue: lists.overdue, today: lists.today, error: null }
   } catch (error) {
     logger.error('Failed to fetch my day tasks', { error })
-    return { overdue: [], today: [] }
+    return { overdue: [], today: [], error: 'Kunne ikke hente opgaver' }
   }
 }
 
