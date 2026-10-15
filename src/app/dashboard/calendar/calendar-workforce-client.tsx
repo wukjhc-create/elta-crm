@@ -605,6 +605,7 @@ function WeekView({
           return wos.length > 0 ? [{ id: emp.id, name: emp.name || '—', wos }] : []
         })
         const loose = byDateThenEmployee.get(d)?.get('__unassigned__') ?? []
+        const free = employees.filter((emp) => (byDateThenEmployee.get(d)?.get(emp.id) ?? []).length === 0)
         const current = d === today
         return (
           <section
@@ -638,6 +639,12 @@ function WeekView({
                       ))}
                     </div>
                   </div>
+                )}
+                {free.length > 0 && (
+                  <p className="text-xs text-gray-500 break-words" data-testid="calendar-week-free">
+                    Uden job denne dag: {free.map((emp) => emp.name || '—').join(', ')}
+                    {filtersActive ? ' Tomme navne kan skyldes filtrene.' : ''}
+                  </p>
                 )}
               </div>
             )}
