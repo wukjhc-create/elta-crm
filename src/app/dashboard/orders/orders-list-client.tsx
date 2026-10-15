@@ -101,10 +101,10 @@ export function OrdersListClient({
 
   return (
     <div className="p-6 space-y-4 max-w-[1400px]">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold">Sager / Ordrer</h1>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 break-words">
             {pagination.totalItems} sager · viser side {pagination.currentPage} af {pagination.totalPages || 1}
           </p>
         </div>
@@ -121,7 +121,7 @@ export function OrdersListClient({
 
       {/* Filters */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-3 flex flex-wrap items-end gap-3">
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="block text-xs text-gray-500 mb-1">Søg (titel · kunde · case nr)</label>
           <form
             onSubmit={(e) => {
@@ -134,7 +134,8 @@ export function OrdersListClient({
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="fx Møllevej, SVC-01000…"
-              className="border rounded px-2 py-1.5 text-sm w-56"
+              aria-label="Søg sager"
+              className="border rounded px-2 py-1.5 text-sm w-full sm:w-56"
             />
           </form>
         </div>
@@ -143,6 +144,7 @@ export function OrdersListClient({
           <label className="block text-xs text-gray-500 mb-1">Status</label>
           <select
             className="border rounded px-2 py-1.5 text-sm"
+            aria-label="Status"
             value={filters.status ?? ''}
             onChange={(e) => updateParam('status', e.target.value || null)}
           >
@@ -159,6 +161,7 @@ export function OrdersListClient({
           <label className="block text-xs text-gray-500 mb-1">Type</label>
           <select
             className="border rounded px-2 py-1.5 text-sm"
+            aria-label="Type"
             value={filters.type ?? ''}
             onChange={(e) => updateParam('type', e.target.value || null)}
           >
@@ -174,6 +177,7 @@ export function OrdersListClient({
             <label className="block text-xs text-gray-500 mb-1">Fakturering</label>
             <select
               className="border rounded px-2 py-1.5 text-sm"
+              aria-label="Fakturering"
               value={filters.billing ?? ''}
               onChange={(e) => updateParam('billing', e.target.value || null)}
             >
@@ -220,8 +224,8 @@ export function OrdersListClient({
                       {SERVICE_CASE_STATUS_LABELS[c.status]}
                     </span>
                   </div>
-                  <p className="font-medium text-gray-900 mt-1 truncate">{c.project_name || c.title}</p>
-                  <p className="text-sm text-gray-600 truncate">{customerName}</p>
+                  <p className="font-medium text-gray-900 mt-1 break-words">{c.project_name || c.title}</p>
+                  <p className="text-sm text-gray-600 break-words">{customerName}</p>
                   <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500">
                     {(c.priority === 'urgent' || c.priority === 'high') && (
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${c.priority === 'urgent' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}`} data-testid="order-priority">
