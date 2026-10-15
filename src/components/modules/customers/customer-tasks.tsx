@@ -368,13 +368,13 @@ function TaskForm({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <h3 className="text-lg font-semibold">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
+        <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
+          <h3 className="text-lg font-semibold break-words min-w-0">
             {task ? 'Rediger opgave' : 'Ny opgave'}
           </h3>
-          <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded">
+          <button type="button" onClick={onClose} aria-label="Luk" className="p-1 hover:bg-gray-100 rounded shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
