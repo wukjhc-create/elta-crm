@@ -578,7 +578,7 @@ function WeekView({
               {WEEKDAY_NAMES[i]} {fmtShortDate(d)}
             </h3>
             {named.length === 0 && loose.length === 0 ? (
-              <p className="text-xs text-gray-400 mt-1">Ingen job</p>
+              <p className="text-xs text-gray-400 mt-1">Ingen planlagte job denne dag</p>
             ) : (
               <div className="mt-2 space-y-2">
                 {named.map((group) => (

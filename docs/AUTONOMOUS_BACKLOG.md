@@ -67,13 +67,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Tom aktivitet på kunde, lead og tilbud siger hvad der lander der. | DONE — `activity-empty-test` |
 | Sync-job og kørsler ombrydes. Ikonerne har et navn. Tom kørsel er den samme. | DONE — `sync-jobs-mobile-test` |
 | Tomme rapportsektioner siger hvad der mangler. Team-teksten er den samme. | DONE — `reports-empty-test` |
+| En tom dag i ugevisningen siger at der ikke er planlagte job. | DONE — `calendar-mobile-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: reports-empty efter 25383df2
-TESTS: reports-empty-test, sync-jobs-mobile-test, activity-empty-test, missing-date-test, inspection-calendar-test, tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, calendar-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
+LAST_COMMIT: calendar-empty-day efter 87625fc0
+TESTS: calendar-mobile-test, reports-empty-test, sync-jobs-mobile-test, activity-empty-test, missing-date-test, inspection-calendar-test, tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00223 GP-1 RLS, 00224 GP-6 (migrationer, ikke kørt). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: aria-label på ikonknapper; planlægning tom uge; tilbudsliste tom søgning.
+NEXT_QUEUE: aria-label på ikonknapper; efterkalkulation tomt filter kan nulstilles; efterkalkulation titel ombrydes; kundeliste tom søgning; indbakke tom søgning; fakturaliste tom tilstand.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
