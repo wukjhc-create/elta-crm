@@ -597,18 +597,18 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           </div>
         ) : recentAnalyses.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-4">
-            Ingen tidligere analyser endnu
+            Ingen tidligere analyser endnu. Kør en analyse ovenfor, så den kan ses her.
           </p>
         ) : (
           <div className="space-y-2">
             {recentAnalyses.map((analysis) => (
               <div
                 key={analysis.id}
-                className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
+                className="flex items-start gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
               >
-                <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+                <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-700 truncate">{analysis.description}</p>
+                  <p className="text-sm text-gray-700 break-words line-clamp-2">{analysis.description}</p>
                   <p className="text-xs text-gray-400">
                     {new Date(analysis.created_at).toLocaleDateString('da-DK', {
                       day: 'numeric',
