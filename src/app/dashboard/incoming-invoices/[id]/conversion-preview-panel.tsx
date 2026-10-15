@@ -48,7 +48,7 @@ export function ConversionPreviewPanel({ invoiceId }: { invoiceId: string }) {
       ) : (
         <div className="space-y-2 text-sm">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <div className="break-words"><span className="text-gray-500">Leverandør:</span> {data.supplier_name ?? '—'}</div>
+            <div className="break-words"><span className="text-gray-500">Leverandør:</span> {data.supplier_name ?? (data.supplier_failed ? '' : '—')}{data.supplier_failed && <span className="text-red-800" data-testid="conversion-preview-supplier-error"> Navnet kunne ikke hentes. Det tælles ikke som ingen leverandør.</span>}</div>
             <div className="break-words"><span className="text-gray-500">Faktura:</span> {data.invoice_number ?? '—'}</div>
             <div><span className="text-gray-500">Sag:</span>{' '}
               {data.case ? (

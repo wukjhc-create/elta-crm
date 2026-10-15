@@ -1215,6 +1215,8 @@ export interface ConversionPreview {
   internal_purchase: true
   /** Sagsopslaget fejlede. Manglende sag er så ikke "ikke matchet". */
   case_failed: boolean
+  /** Katalog-navnet kunne ikke læses. Et tomt navn er så ikke "ingen leverandør". */
+  supplier_failed: boolean
 }
 
 export async function getIncomingInvoiceConversionPreviewAction(id: string): Promise<ConversionPreview> {
@@ -1222,7 +1224,7 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     ok: false, invoice_number: null, supplier_name: null, amount_incl_vat: null, currency: 'DKK',
     case: null, requires_case_match: true, requires_review: false, status: 'unknown',
     has_lines: false, total_only: false, convertible_count: 0, already_converted_count: 0,
-    lines: [], internal_purchase: true, case_failed: false,
+    lines: [], internal_purchase: true, case_failed: false, supplier_failed: false,
   }
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.view')) {
@@ -1255,9 +1257,13 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     } else if (c) caseInfo = { id: c.id as string, case_number: c.case_number as string, title: (c.title as string | null) ?? null }
   }
   let supplierName = (inv.supplier_name_extracted as string | null) ?? null
+  let supplierFailed = false
   if (inv.supplier_id) {
-    const { data: s } = await supabase.from('suppliers').select('name').eq('id', inv.supplier_id as string).maybeSingle()
-    if (s?.name) supplierName = s.name as string
+    const { data: s, error: supErr } = await supabase.from('suppliers').select('name').eq('id', inv.supplier_id as string).maybeSingle()
+    if (supErr) {
+      supplierFailed = true
+      logger.error('getIncomingInvoiceConversionPreviewAction supplier failed', { error: supErr })
+    } else if (s?.name) supplierName = s.name as string
   }
 
   const { data: lineRows, error: lineErr } = await supabase
@@ -1314,6 +1320,7 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     lines,
     internal_purchase: true,
     case_failed: caseFailed,
+    supplier_failed: supplierFailed,
   }
 }
 
