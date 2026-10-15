@@ -85,7 +85,7 @@ export function RoofDrawingCaseCard({ customerId, serviceCaseId }: RoofDrawingCa
               </span>
             </div>
             <div className="p-2">
-              <span className="text-xs font-medium text-gray-900 truncate block">{d.title}</span>
+              <span className="text-xs font-medium text-gray-900 break-words block">{d.title}</span>
             </div>
           </a>
         ))}

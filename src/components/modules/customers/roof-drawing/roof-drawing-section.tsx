@@ -196,8 +196,8 @@ export function RoofDrawingSection({ customerId, serviceCaseId }: RoofDrawingSec
                   {d.panel_count}
                 </span>
               </div>
-              <div className="flex items-center justify-between p-2">
-                <span className="text-sm font-medium text-gray-900 truncate">{d.title}</span>
+              <div className="flex items-start justify-between gap-2 p-2">
+                <span className="text-sm font-medium text-gray-900 break-words min-w-0">{d.title}</span>
                 <Pencil className="w-4 h-4 text-gray-400 shrink-0" />
               </div>
             </button>
