@@ -43,8 +43,8 @@ export function OfferSupplierPriceChanges({ offerId, showAmounts }: { offerId: s
       </p>
       <ul className="text-sm divide-y divide-amber-200">
         {rows.map((r) => (
-          <li key={r.lineId} className="py-1.5 flex items-center justify-between gap-3">
-            <span className="truncate">{r.description}</span>
+          <li key={r.lineId} className="py-1.5 flex items-start justify-between gap-3">
+            <span className="min-w-0 break-words">{r.description}</span>
             <span className="shrink-0 flex items-center gap-3">
               {showAmounts && <span className="tabular-nums text-xs text-gray-600">{kr(r.oldCost)} → {kr(r.newCost)}</span>}
               <span className={`tabular-nums text-xs font-medium ${r.deltaPct > 0 ? 'text-red-700' : 'text-emerald-700'}`} data-testid="supplier-price-delta">

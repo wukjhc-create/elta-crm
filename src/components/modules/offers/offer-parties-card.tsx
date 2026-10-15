@@ -66,12 +66,12 @@ function PartyRow({
         <p className="text-sm text-gray-500">{label}</p>
         <Link
           href={`/dashboard/customers/${party.id}`}
-          className="font-medium text-primary hover:underline block truncate"
+          className="font-medium text-primary hover:underline block break-words"
         >
           {party.company_name || party.contact_person || 'Ukendt kunde'}
         </Link>
         {party.contact_person && party.company_name && (
-          <p className="text-sm text-gray-500 truncate">{party.contact_person}</p>
+          <p className="text-sm text-gray-500 break-words">{party.contact_person}</p>
         )}
         {party.customer_number && (
           <p className="text-xs text-gray-400 font-mono">{party.customer_number}</p>

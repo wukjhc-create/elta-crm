@@ -319,7 +319,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       </div>
                       {/* M-9 (mobil-review 2026-10-14): kunde-kolonnen er skjult på mobil — vis kunden under titlen */}
                       {(offer.customer || offer.lead) && (
-                        <div className="md:hidden text-xs text-gray-600 truncate">
+                        <div className="md:hidden text-xs text-gray-600 break-words">
                           {offer.customer ? offer.customer.company_name : `${offer.lead?.company_name ?? ''} (lead)`}
                         </div>
                       )}
