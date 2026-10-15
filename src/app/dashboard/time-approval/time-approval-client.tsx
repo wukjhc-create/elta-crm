@@ -121,7 +121,11 @@ export function TimeApprovalClient() {
       {rows !== null && rows.length === 0 && !error && (
         <div className="bg-white rounded-lg ring-1 ring-gray-200 py-10 text-center text-sm text-gray-500">
           <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-          {tab === 'pending' ? 'Ingen timer afventer godkendelse' : 'Ingen registreringer'}
+          {tab === 'pending'
+            ? 'Ingen timer afventer godkendelse'
+            : tab === 'rejected'
+              ? 'Ingen afviste timer. Afviste timer kan rettes af montøren og godkendes igen.'
+              : 'Ingen godkendte timer endnu. De vises her, når de er godkendt.'}
         </div>
       )}
 

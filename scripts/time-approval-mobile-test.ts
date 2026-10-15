@@ -23,6 +23,8 @@ eq('saerlig sats bliver', row.includes('data-testid="time-approval-rate"'), true
 eq('godkend alle bliver', src.includes('Godkend alle ({approvable.length})'), true)
 eq('begrundelse ombrydes', src.includes('flex flex-wrap gap-2') && src.includes('aria-label="Begrundelse"'), true)
 eq('tom ko bliver', src.includes('Ingen timer afventer godkendelse'), true)
+eq('tom afvist siger naeste skridt', src.includes('Afviste timer kan rettes af montøren og godkendes igen.'), true)
+eq('tom godkendt siger naeste skridt', src.includes('De vises her, når de er godkendt.'), true)
 eq('loen teksten bliver', src.includes('Godkendelse påvirker endnu ikke løn eller fakturering.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ntime-approval-mobile-test OK')
