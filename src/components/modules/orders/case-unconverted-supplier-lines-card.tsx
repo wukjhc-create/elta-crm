@@ -83,11 +83,11 @@ export function CaseUnconvertedSupplierLinesCard({ caseId }: { caseId: string })
           <div className="space-y-1">
             {data.invoices.slice(0, 8).map((iv) => (
               <Link key={iv.id} href={iv.link}
-                className="flex items-center justify-between gap-2 text-sm hover:bg-gray-50 rounded px-1.5 py-1">
-                <span className="truncate text-gray-700 inline-flex items-center gap-1.5 min-w-0">
+                className="flex items-start justify-between gap-2 text-sm hover:bg-gray-50 rounded px-1.5 py-1">
+                <span className="text-gray-700 inline-flex flex-wrap items-center gap-1.5 min-w-0">
                   {iv.action_required && <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />}
                   <span className="text-xs text-gray-500 shrink-0">{fmtDate(iv.invoice_date)}</span>
-                  <span className="truncate">{iv.supplier_name ?? iv.invoice_number ?? '—'}</span>
+                  <span className="break-words min-w-0">{iv.supplier_name ?? iv.invoice_number ?? '—'}</span>
                   <span className="text-[10px] text-gray-500 bg-gray-100 rounded px-1 py-0.5 shrink-0">{STATUS_LABEL[iv.status] ?? iv.status}</span>
                 </span>
                 <span className="shrink-0 inline-flex items-center gap-1 text-gray-600">
