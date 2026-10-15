@@ -1263,11 +1263,12 @@ export async function getEmailStats(options?: {
 
     if (options?.offer_id) {
       // Get threads for this offer first
-      const { data: threads } = await supabase
+      const { data: threads, error: threadError } = await supabase
         .from('email_threads')
         .select('id')
         .eq('offer_id', options.offer_id)
 
+      if (threadError) throw new Error('Kunne ikke hente mailstatistik')
       if (threads && threads.length > 0) {
         query = query.in('thread_id', threads.map(t => t.id))
       }
@@ -1279,7 +1280,8 @@ export async function getEmailStats(options?: {
       query = query.gte('created_at', since.toISOString())
     }
 
-    const { data: messages } = await query
+    const { data: messages, error } = await query
+    if (error) throw new Error('Kunne ikke hente mailstatistik')
 
     if (!messages || messages.length === 0) {
       return {
@@ -1307,14 +1309,7 @@ export async function getEmailStats(options?: {
     }
   } catch (error) {
     logger.error('Error getting email stats', { error: error })
-    return {
-      total_sent: 0,
-      total_opened: 0,
-      total_clicked: 0,
-      total_bounced: 0,
-      open_rate: 0,
-      click_rate: 0,
-    }
+    throw new Error('Kunne ikke hente mailstatistik')
   }
 }
 
