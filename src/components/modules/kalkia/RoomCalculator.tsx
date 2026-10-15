@@ -230,7 +230,7 @@ export function RoomCalculator({ onAddItems, className = '' }: RoomCalculatorPro
                 }`}
               >
                 <Icon className="w-5 h-5 mb-1" />
-                <span className="text-xs font-medium truncate w-full text-center">
+                <span className="text-xs font-medium break-words w-full text-center">
                   {roomType.name}
                 </span>
               </button>
