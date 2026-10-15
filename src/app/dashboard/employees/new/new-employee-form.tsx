@@ -67,7 +67,7 @@ export function NewEmployeeForm() {
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-gray-700">Stamdata</legend>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
           <Field label="Fornavn *" error={fieldError('first_name')}>
             <input
               {...register('first_name')}
@@ -145,7 +145,7 @@ export function NewEmployeeForm() {
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-gray-700">Kontakt</legend>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
           <Field label="E-mail *" error={fieldError('email')}>
             <input
               {...register('email')}
@@ -200,13 +200,13 @@ export function NewEmployeeForm() {
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-gray-700">Ansættelse</legend>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
           <Field label="Ansættelsesdato" error={fieldError('hire_date')}>
             <input
               {...register('hire_date')}
               type="date"
               disabled={isSubmitting}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full min-w-0 max-w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </Field>
 
@@ -215,7 +215,7 @@ export function NewEmployeeForm() {
               {...register('termination_date')}
               type="date"
               disabled={isSubmitting}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full min-w-0 max-w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </Field>
         </div>
@@ -265,8 +265,8 @@ function Field({
   error?: string
 }) {
   return (
-    <div className="space-y-1">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+    <div className="space-y-1 min-w-0">
+      <label className="text-sm font-medium text-gray-700 break-words">{label}</label>
       {children}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
