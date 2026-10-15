@@ -267,6 +267,9 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                 </div>
                 <p className="text-sm text-gray-500 mt-0.5 break-words">{customer.contact_person || customer.email}</p>
                 <p className="text-xs text-gray-500 break-words">Kundenr. {customer.customer_number || '—'}</p>
+                {customer.vat_number && (
+                  <p className="text-xs text-gray-500 break-words" data-testid="customer-mobile-cvr">CVR: {customer.vat_number}</p>
+                )}
               </div>
               <svg className="w-5 h-5 text-gray-300 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
