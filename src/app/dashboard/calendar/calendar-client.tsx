@@ -180,7 +180,17 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
               return (
                 <div
                   key={dateKey}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedDate(dateKey)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setSelectedDate(dateKey)
+                    }
+                  }}
+                  aria-label={`Vælg ${dateKey}`}
+                  aria-pressed={isSelected}
                   className={`min-h-[80px] border-b border-r p-1.5 cursor-pointer transition-colors ${
                     isSelected ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset' : 'hover:bg-gray-50'
                   }`}

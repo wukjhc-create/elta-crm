@@ -18,6 +18,8 @@ const upcoming = src.slice(src.indexOf('Kommende besigtigelser'))
 eq('kommende navn ombrydes', upcoming.includes('break-words">'), true)
 eq('tom kommende siger naeste skridt', upcoming.includes('Book dem fra kunden eller sagen.'), true)
 eq('dagens adresse ombrydes', src.includes('break-words min-w-0">{info.address}'), true)
+eq('dag kan vaelges med tastatur', src.includes('aria-label={`Vælg ${dateKey}`}') && src.includes("e.key === 'Enter' || e.key === ' '"), true)
+eq('dagkort bliver afkortet', src.includes('leading-tight px-1 py-0.5 rounded mb-0.5 truncate'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ninspection-calendar-test OK')
 process.exitCode = fail ? 1 : 0
