@@ -14,25 +14,62 @@ const kr = (n: number) => new Intl.NumberFormat('da-DK', { minimumFractionDigits
 export function OfferSupplierPriceChanges({ offerId, showAmounts }: { offerId: string; showAmounts: boolean }) {
   const router = useRouter()
   const [rows, setRows] = useState<OfferSupplierPriceChange[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [tryKey, setTryKey] = useState(0)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
-    getOfferSupplierPriceChanges(offerId).then((res) => { if (alive && res.success && res.data) setRows(res.data) })
+    setLoadError(null)
+    getOfferSupplierPriceChanges(offerId).then((res) => {
+      if (!alive) return
+      if (res.success) {
+        setRows(res.data ?? [])
+        return
+      }
+      // Manglende kost-tilladelse er ikke en fejl i prislisten. Den bliver skjult som før.
+      if (res.error?.includes('Manglende tilladelse')) {
+        setRows([])
+        return
+      }
+      setLoadError(res.error ?? 'Kunne ikke tjekke leverandørpriser')
+    }).catch(() => {
+      if (alive) setLoadError('Kunne ikke tjekke leverandørpriser')
+    })
     return () => { alive = false }
-  }, [offerId])
+  }, [offerId, tryKey])
+
+  if (loadError && rows.length === 0) {
+    return (
+      <div className="bg-amber-50 border border-amber-300 rounded-lg p-4" data-testid="offer-supplier-price-load-error">
+        <p className="text-sm text-amber-900">{loadError}. Det tælles ikke som uændrede priser.</p>
+        <button
+          type="button"
+          onClick={() => setTryKey((n) => n + 1)}
+          className="mt-2 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800"
+        >
+          Prøv igen
+        </button>
+      </div>
+    )
+  }
 
   if (!rows.length) return null
 
   const update = async (lineId: string) => {
     setBusy(lineId)
     setMsg(null)
-    const res = await refreshLineItemPrice(lineId)
-    setBusy(null)
-    if (!res.success) { setMsg(res.error ?? 'Kunne ikke opdatere'); return }
-    setRows((r) => r.filter((x) => x.lineId !== lineId))
-    router.refresh()
+    try {
+      const res = await refreshLineItemPrice(lineId)
+      if (!res.success) { setMsg(res.error ?? 'Kunne ikke opdatere'); return }
+      setRows((r) => r.filter((x) => x.lineId !== lineId))
+      router.refresh()
+    } catch {
+      setMsg('Kunne ikke opdatere. Prisen er ikke ændret.')
+    } finally {
+      setBusy(null)
+    }
   }
 
   return (
@@ -43,9 +80,9 @@ export function OfferSupplierPriceChanges({ offerId, showAmounts }: { offerId: s
       </p>
       <ul className="text-sm divide-y divide-amber-200">
         {rows.map((r) => (
-          <li key={r.lineId} className="py-1.5 flex items-start justify-between gap-3">
+          <li key={r.lineId} className="py-1.5 flex flex-wrap items-start justify-between gap-3">
             <span className="min-w-0 break-words">{r.description}</span>
-            <span className="shrink-0 flex items-center gap-3">
+            <span className="shrink-0 flex flex-wrap items-center gap-3">
               {showAmounts && <span className="tabular-nums text-xs text-gray-600">{kr(r.oldCost)} → {kr(r.newCost)}</span>}
               <span className={`tabular-nums text-xs font-medium ${r.deltaPct > 0 ? 'text-red-700' : 'text-emerald-700'}`} data-testid="supplier-price-delta">
                 {r.deltaPct > 0 ? '+' : ''}{r.deltaPct.toLocaleString('da-DK')} %
@@ -55,7 +92,7 @@ export function OfferSupplierPriceChanges({ offerId, showAmounts }: { offerId: s
                 onClick={() => void update(r.lineId)}
                 disabled={busy === r.lineId}
                 data-testid="supplier-price-refresh"
-                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-amber-400 bg-white hover:bg-amber-100 disabled:opacity-50"
+                className="inline-flex items-center gap-1 text-xs px-2 min-h-[44px] rounded border border-amber-400 bg-white hover:bg-amber-100 disabled:opacity-50"
               >
                 {busy === r.lineId ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                 Opdater pris

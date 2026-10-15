@@ -2134,7 +2134,8 @@ export async function getOfferSupplierPriceChanges(offerId: string): Promise<Act
     if (error) return { success: false, error: 'Kunne ikke hente tilbudslinjer' }
     const rows = (lines ?? []) as Array<{ id: string; description: string; supplier_product_id: string; supplier_cost_price_at_creation: number | string | null }>
     if (!rows.length) return { success: true, data: [] }
-    const { data: sps } = await admin.from('supplier_products').select('id, cost_price').in('id', Array.from(new Set(rows.map((r) => r.supplier_product_id))))
+    const { data: sps, error: spErr } = await admin.from('supplier_products').select('id, cost_price').in('id', Array.from(new Set(rows.map((r) => r.supplier_product_id))))
+    if (spErr) return { success: false, error: 'Kunne ikke hente leverandørpriser' }
     const current = new Map(((sps ?? []) as Array<{ id: string; cost_price: number | string | null }>).map((p) => [p.id, Number(p.cost_price ?? 0)]))
     const out: OfferSupplierPriceChange[] = []
     for (const r of rows) {
