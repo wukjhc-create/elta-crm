@@ -42,6 +42,13 @@ export async function insertOfferWithNumber<T extends { id: string; offer_number
   row: Record<string, unknown>,
   select = 'id, offer_number',
 ): Promise<UniqueViolationResult<T>> {
+  // 00231 (Henrik 2026-10-15): tilbuddet arver kundens momsmode ved oprettelse (eksplicit, ingen gæt). Uden kunde
+  // forbliver den tom og afgøres af kunden ved fakturering (lib/invoices/vat-guard.ts).
+  if (row.vat_mode === undefined && typeof row.customer_id === 'string' && row.customer_id) {
+    const { data: cust } = await client.from('customers').select('vat_mode').eq('id', row.customer_id).maybeSingle()
+    const mode = (cust as { vat_mode?: string | null } | null)?.vat_mode
+    if (mode) row = { ...row, vat_mode: mode }
+  }
   return retryOnUniqueViolation<T>(
     async () =>
       client

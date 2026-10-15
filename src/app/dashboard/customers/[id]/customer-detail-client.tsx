@@ -225,6 +225,11 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               Kundenr. {customer.customer_number}
               <CopyButton value={customer.customer_number} label="kundenummer" />
               {customer.vat_number && ` • CVR: ${customer.vat_number}`}
+              {customer.vat_mode && customer.vat_mode !== 'standard_25' && (
+                <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide rounded bg-amber-100 text-amber-800 px-1.5 py-0.5" data-testid="customer-vat-mode">
+                  {customer.vat_mode === 'zero' ? '0 % moms' : 'Omvendt betalingspligt'}
+                </span>
+              )}
             </p>
           </div>
           {/* Action buttons — scrollable on mobile */}

@@ -414,6 +414,8 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       mobile: formData.get('mobile') as string || null,
       website: formData.get('website') as string || null,
       vat_number: formData.get('vat_number') as string || null,
+      // 00231: momsmode (eksplicit) — tom = uændret/standard
+      vat_mode: (formData.get('vat_mode') as string) || undefined,
       billing_address: formData.get('billing_address') as string || null,
       billing_city: formData.get('billing_city') as string || null,
       billing_postal_code: formData.get('billing_postal_code') as string || null,
@@ -678,6 +680,8 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
       mobile: formData.get('mobile') as string || null,
       website: formData.get('website') as string || null,
       vat_number: formData.get('vat_number') as string || null,
+      // 00231: momsmode (eksplicit) — tom = uændret/standard
+      vat_mode: (formData.get('vat_mode') as string) || undefined,
       billing_address: formData.get('billing_address') as string || null,
       billing_city: formData.get('billing_city') as string || null,
       billing_postal_code: formData.get('billing_postal_code') as string || null,

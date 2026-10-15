@@ -44,6 +44,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
           mobile: customer.mobile,
           website: customer.website,
           vat_number: customer.vat_number,
+          vat_mode: customer.vat_mode ?? 'standard_25',
           billing_address: customer.billing_address,
           billing_city: customer.billing_city,
           billing_postal_code: customer.billing_postal_code,
@@ -190,6 +191,13 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
 
               <FormField label="CVR-nummer" htmlFor="vat_number" error={errors.vat_number}>
                 <input {...register('vat_number')} id="vat_number" type="text" placeholder="DK12345678" className={inputClass(!!errors.vat_number)} disabled={isLoading} />
+              </FormField>
+              <FormField label="Moms" htmlFor="vat_mode" error={errors.vat_mode}>
+                <select {...register('vat_mode')} id="vat_mode" className={inputClass(!!errors.vat_mode)} disabled={isLoading} data-testid="customer-vat-mode">
+                  <option value="standard_25">25 % moms (standard)</option>
+                  <option value="zero">0 % moms</option>
+                  <option value="reverse_charge">Omvendt betalingspligt</option>
+                </select>
               </FormField>
 
               <FormField label="Kontaktperson" htmlFor="contact_person" required error={errors.contact_person}>

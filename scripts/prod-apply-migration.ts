@@ -75,6 +75,7 @@ const APPROVED: Record<string, string> = {
   '00228': '2026-10-15', // employee_absences (type + periode, ingen fritekst; RLS admin/serviceleder skriver, bogholderi læser, montør egne), godkendt af Henrik i chat 2026-10-15 ("00228 GODKENDT TIL PROD")
   '00229': '2026-10-15', // employees.weekly_hours (valgfri; tom = "Norm ikke sat", ingen 37-fallback), godkendt af Henrik i chat 2026-10-15 ("00229 GODKENDT TIL PROD")
   '00230': '2026-10-15', // sats-motor uden skjult 495/400 (dansk fejl med navn), trigger SECURITY DEFINER, compute_time_log_rates lukket for anon/authenticated, godkendt af Henrik i chat 2026-10-15 ("00230 GODKENDT TIL PROD")
+  '00231': '2026-10-15', // momsmode (standard_25/zero/reverse_charge) på kunder, tilbud, fakturaer; eksisterende = standard_25, godkendt af Henrik i chat 2026-10-15 ("00231 GODKENDT SOM VAT-DATAMODEL")
 }
 
 async function main() {

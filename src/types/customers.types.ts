@@ -9,6 +9,8 @@ export interface Customer {
   mobile: string | null
   website: string | null
   vat_number: string | null
+  /** 00231: momsmode — standard_25 / zero / reverse_charge */
+  vat_mode?: 'standard_25' | 'zero' | 'reverse_charge'
   billing_address: string | null
   billing_city: string | null
   billing_postal_code: string | null
@@ -87,6 +89,7 @@ export interface CreateCustomerInput {
   mobile?: string | null
   website?: string | null
   vat_number?: string | null
+  vat_mode?: 'standard_25' | 'zero' | 'reverse_charge'
   billing_address?: string | null
   billing_city?: string | null
   billing_postal_code?: string | null

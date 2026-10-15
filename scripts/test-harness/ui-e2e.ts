@@ -1913,6 +1913,39 @@ ${m.text()}`) })
         out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U164 00231 (Henrik 2026-10-15): momsmode på kunden — admin vælger "Omvendt betalingspligt" i kundeformularen → gemt
+      // + mærkat på kundesiden; nyt tilbud arver mode og viser at fakturering er blokeret
+      if (want('U164')) {
+        const r: Record<string, boolean> = {}
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-VAT-${stamp}`, company_name: `[HARNESS] moms ${stamp}`, contact_person: 'X', email: `vat-${stamp}@harness.test`, created_by: adminUser.id }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        let offerId: string | null = null
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/customers/${custId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: /Rediger/ }).first().click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByTestId('customer-vat-mode').selectOption('reverse_charge').catch(() => {})
+          await a.page.getByRole('button', { name: 'Gem ændringer' }).click({ timeout: 30_000 }).catch(() => {})
+          let mode = ''
+          for (let i = 0; i < 15 && mode !== 'reverse_charge'; i++) {
+            mode = String(((await c.admin.from('customers').select('vat_mode').eq('id', custId ?? '').maybeSingle()).data as { vat_mode?: string } | null)?.vat_mode ?? '')
+            if (mode !== 'reverse_charge') await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.gemt = mode === 'reverse_charge'
+          await gotoSafe(a.page, `${base}/dashboard/customers/${custId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.maerkat = /Omvendt betalingspligt/i.test(((await a.page.getByTestId('customer-vat-mode').first().textContent().catch(() => '')) ?? ''))
+          const { insertOfferWithNumber } = await import('../../src/lib/services/offer-number')
+          const ni = await insertOfferWithNumber(c.admin, { title: `[HARNESS] moms ${stamp}`, customer_id: custId, status: 'draft', created_by: adminUser.id, tax_percentage: 25 })
+          offerId = (ni.data as { id?: string } | null)?.id ?? null
+          await gotoSafe(a.page, `${base}/dashboard/offers/${offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('offer-vat-mode-warning').waitFor({ timeout: 60_000 }).catch(() => {})
+          r.tilbud_advarsel = (await a.page.getByTestId('offer-vat-mode-warning').count()) === 1
+        } finally {
+          if (offerId) await c.admin.from('offers').delete().eq('id', offerId)
+          if (custId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        out.push({ id: 'U164 momsmode på kunde → tilbud', ok: !!custId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U163 00228 (Henrik 2026-10-15): fravær — admin registrerer; vises i kalenderen; planlægning på fraværsdag kræver
       // eksplicit bekræftelse (afvist → intet oprettet; bekræftet → oprettet + audit); bogholderi læser uden at kunne
       // skrive; montør har ingen adgang til siden

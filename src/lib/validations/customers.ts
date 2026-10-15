@@ -34,6 +34,8 @@ export const createCustomerSchema = z.object({
     .max(50, 'CVR-nummer må højst være 50 tegn')
     .nullable()
     .optional(),
+  // 00231 (Henrik 2026-10-15): eksplicit momsmode — 0 %/omvendt betalingspligt blokerer automatisk fakturering indtil videre
+  vat_mode: z.enum(['standard_25', 'zero', 'reverse_charge'], { message: 'Ugyldig momsmode' }).optional(),
   billing_address: z
     .string()
     .max(500, 'Adresse må højst være 500 tegn')

@@ -731,6 +731,13 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               </div>
             </div>
 
+            {/* 00231: kunden er ikke 25 %-kunde — fakturering blokeres indtil fakturatekst/e-conomic er godkendt */}
+            {offer.vat_mode && offer.vat_mode !== 'standard_25' && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900" data-testid="offer-vat-mode-warning">
+                Kunden er sat til <strong>{offer.vat_mode === 'zero' ? '0 % moms' : 'omvendt betalingspligt'}</strong>. Tilbuddet er beregnet med {offer.tax_percentage} % — automatisk fakturering er blokeret, indtil momsopsætningen er godkendt.
+              </div>
+            )}
+
             {/* N25: linjer uden kostpris → DB overvurderet; hurtig-udfyld (kun kostpris-roller, ingen beløb vist) */}
             {showFinancials && offerDB.linesWithoutCost > 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between gap-3" data-testid="offer-missing-cost-banner">
@@ -1029,6 +1036,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     </span>
                     <span>{formatCurrency(offer.tax_amount, currency, 2)}</span>
                   </div>
+
                   <div className="flex justify-between text-lg font-semibold pt-2 border-t">
                     <span>Total:</span>
                     <span>{formatCurrency(offer.final_amount, currency, 2)}</span>
