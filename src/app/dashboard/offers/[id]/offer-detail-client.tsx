@@ -11,6 +11,7 @@ import { useConfirm } from '@/components/shared/confirm-dialog'
 import {
   Pencil,
   Trash2,
+  X,
   Plus,
   FileText,
   Send,
@@ -583,11 +584,11 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
           { label: offer.title },
         ]} />
 
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-gray-900">
+        {/* Header — M-6/M-7 (mobil-review 2026-10-14): stables og knapperne ombrydes på mobil (før vandret scroll) */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 break-words">
                 {offer.title}
               </h1>
               <OfferStatusBadge status={offer.status} />
@@ -598,7 +599,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <CopyButton value={offer.offer_number} label="tilbudsnummer" />
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Send buttons - only show for draft/sent/viewed with customer */}
             {(offer.status === 'draft' || offer.status === 'sent' || offer.status === 'viewed') && offer.customer && (
               <>
@@ -631,6 +632,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <Printer className="w-4 h-4" />
               Print
             </button>
+            {hasPermission(role, 'settings.economic') /* M-12: integrationer kræver settings.economic */ && (
             <button
               onClick={handleOpenExport}
               disabled={isExporting}
@@ -643,6 +645,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               )}
               Eksporter
             </button>
+            )}
             <button
               onClick={() => setShowTaskForm(true)}
               className="inline-flex items-center gap-2 px-4 py-2 border border-amber-200 text-amber-700 rounded-md hover:bg-amber-50"
@@ -674,12 +677,15 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <span
                 className="inline-flex items-center gap-2 px-4 py-2 border rounded-md text-gray-400 cursor-not-allowed"
                 title={offer.status === 'accepted' ? 'Accepterede tilbud kan ikke ændres — opret et nyt tilbud (Kopiér)' : 'Sendte tilbud er låst — sæt tilbuddet tilbage til kladde for at redigere'}
+                // M-20 (mobil-review 2026-10-14): årsagen stod kun i title (hover) — et tryk viser den også på touch
+                onClick={() => toast.info(offer.status === 'accepted' ? 'Accepterede tilbud kan ikke ændres — opret et nyt tilbud (Kopiér)' : 'Sendte tilbud er låst — sæt tilbuddet tilbage til kladde for at redigere')}
                 data-testid="offer-edit-locked"
               >
                 <Pencil className="w-4 h-4" />
                 Låst
               </span>
             )}
+            {hasPermission(role, 'offers.delete') && (
             <button
               onClick={handleDelete}
               disabled={isDeleting}
@@ -688,6 +694,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <Trash2 className="w-4 h-4" />
               {isDeleting ? 'Sletter...' : 'Slet'}
             </button>
+            )}
           </div>
         </div>
 
@@ -1369,8 +1376,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <button
                 onClick={() => setShowProductPicker(false)}
                 className="p-1 hover:bg-gray-100 rounded-full"
+                aria-label="Luk"
               >
-                <Trash2 className="w-5 h-5" />
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -1421,8 +1429,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <button
                 onClick={() => setShowCalculationPicker(false)}
                 className="p-1 hover:bg-gray-100 rounded-full"
+                aria-label="Luk"
               >
-                <Trash2 className="w-5 h-5" />
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">

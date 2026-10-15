@@ -62,6 +62,7 @@ type TimeLogRow = {
   hours: number | string | null
   cost_amount: number | string | null
   sale_amount: number | string | null
+  billable?: boolean | null
   employee_id: string | null
   employee:
     | { id: string; name: string | null; first_name: string | null; last_name: string | null; email: string | null }
@@ -104,7 +105,7 @@ export async function getEmployeeEconomy(
       let query = supabase
         .from('time_logs')
         .select(
-          'id, hours, cost_amount, sale_amount, employee_id, employee:employees(id, name, first_name, last_name, email)'
+          'id, hours, cost_amount, sale_amount, billable, employee_id, employee:employees(id, name, first_name, last_name, email)'
         )
         .not('end_time', 'is', null) // kun lukkede timer
         .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
@@ -154,7 +155,8 @@ export async function getEmployeeEconomy(
       // Snapshot-only: manglende beløb -> 0 + tæl som missing.
       const saleNull = tl.sale_amount == null
       const costNull = tl.cost_amount == null
-      const sale = saleNull ? 0 : Number(tl.sale_amount)
+      // Profit-review 2026-10-14 (#5): ikke-fakturerbare timer (garanti/internt) giver ingen omsætning — som sags-økonomien
+      const sale = saleNull || tl.billable === false ? 0 : Number(tl.sale_amount)
       const cost = costNull ? 0 : Number(tl.cost_amount)
       acc.labor_sale += Number.isFinite(sale) ? sale : 0
       acc.labor_cost += Number.isFinite(cost) ? cost : 0

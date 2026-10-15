@@ -25,13 +25,14 @@ async function requireGate(permission: Permission) {
 }
 import { DEFAULT_TAX_RATE, DEFAULT_CURRENCY, OFFER_VALIDITY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+import { DEFAULT_DB_RED_THRESHOLD } from '@/lib/profit/db-thresholds'
 // =====================================================
 // CALCULATION SETTINGS
 // =====================================================
 
 export async function getCalculationSettings(): Promise<ActionResult<CalculationSettings>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
 
     const { data, error } = await supabase
       .from('calculation_settings')
@@ -59,7 +60,7 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
         minimum_db: CALC_DEFAULTS.MARGINS.MINIMUM_DB,
         db_green_threshold: CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET,
         db_yellow_threshold: CALC_DEFAULTS.MARGINS.MINIMUM_DB,
-        db_red_threshold: 10,
+        db_red_threshold: DEFAULT_DB_RED_THRESHOLD,
       },
       work_hours: {
         start: CALC_DEFAULTS.WORK_HOURS.START,
@@ -121,7 +122,7 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
           settings.margins.db_yellow_threshold = (value.percentage as number) ?? CALC_DEFAULTS.MARGINS.MINIMUM_DB
           break
         case 'db_red_threshold':
-          settings.margins.db_red_threshold = (value.percentage as number) ?? 10
+          settings.margins.db_red_threshold = (value.percentage as number) ?? DEFAULT_DB_RED_THRESHOLD
           break
         case 'work_hours_standard':
           settings.work_hours.start = (value.start as string) || CALC_DEFAULTS.WORK_HOURS.START
@@ -157,6 +158,14 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
       }
     }
 
+    // Grossist-review 2026-10-14 (GP-1): indkøbsavancerne afslører nettoindkøbsprisen (estimeret salgspris = kost ×
+    // (1 + avance)) — kun roller med kostadgang får dem; server-beregninger læser dem via lib/settings/product-margin
+    if (!hasPermission('offers.view.cost_prices')) {
+      settings.margins.materials = 0
+      settings.margins.products = 0
+      settings.margins.subcontractor = 0
+    }
+
     return { success: true, data: settings }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente indstillinger') }
@@ -165,7 +174,7 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
 
 export async function getAllSettings(): Promise<ActionResult<CalculationSetting[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
 
     const { data, error } = await supabase
       .from('calculation_settings')
@@ -178,7 +187,10 @@ export async function getAllSettings(): Promise<ActionResult<CalculationSetting[
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data as CalculationSetting[] }
+    // GP-1: indkøbsavancer kun til roller med kostadgang (se getCalculationSettings)
+    const hidden = new Set(['margin_materials', 'margin_products', 'margin_subcontractor'])
+    const rows = (data ?? []) as CalculationSetting[]
+    return { success: true, data: hasPermission('offers.view.cost_prices') ? rows : rows.filter((r) => !hidden.has(r.setting_key)) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente indstillinger') }
   }

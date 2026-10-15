@@ -2036,6 +2036,77 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'time-overlap-rejected-check') {
+    // PL-1 (planlægnings-review 2026-10-14): en afvist registrering blokerer ikke genindtastning; en afventende gør
+    const { findOverlappingTimeLog } = await import('../../src/lib/time-logs/guards')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const emp = ((await admin.from('employees').insert({ name: '[HARNESS] overlap', email: `ov-${stamp}@harness.test`, role: 'montør', active: true }).select('id').single()).data as { id: string }).id
+    const cust = ((await admin.from('customers').insert({ customer_number: `OV-${stamp}`, company_name: `[HARNESS] overlap ${stamp}`, contact_person: 'X', email: `ov-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const caseId = ((await admin.from('service_cases').insert({ case_number: `SVC-7${String(stamp).slice(-6)}`, customer_id: cust, title: '[HARNESS] overlap', status: 'in_progress', created_by: owner }).select('id').single()).data as { id: string }).id
+    const wo = ((await admin.from('work_orders').insert({ case_id: caseId, customer_id: cust, title: '[HARNESS] overlap', status: 'in_progress', scheduled_date: '2026-10-01', assigned_employee_id: emp }).select('id').single()).data as { id: string }).id
+    const tl = ((await admin.from('time_logs').insert({ work_order_id: wo, employee_id: emp, start_time: '2026-10-01T06:00:00Z', end_time: '2026-10-01T14:00:00Z', billable: true }).select('id').single()).data as { id: string }).id
+    try {
+      const pending = await findOverlappingTimeLog(admin, emp, '2026-10-01T06:00:00Z', '2026-10-01T14:00:00Z')
+      check('afventende registrering blokerer overlap', pending?.id === tl)
+      await admin.from('time_logs').update({ approval_status: 'rejected', approved_by: owner, approved_at: new Date().toISOString(), rejection_reason: 'harness' }).eq('id', tl)
+      const rejected = await findOverlappingTimeLog(admin, emp, '2026-10-01T06:00:00Z', '2026-10-01T14:00:00Z')
+      check('afvist registrering blokerer IKKE genindtastning', rejected === null, rejected ? 'blokeret' : 'fri')
+    } finally {
+      await admin.from('time_logs').delete().eq('id', tl)
+      await admin.from('work_orders').delete().eq('id', wo)
+      await admin.from('service_cases').delete().eq('id', caseId)
+      await admin.from('customers').delete().eq('id', cust)
+      await admin.from('employees').delete().eq('id', emp)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ overlap ignorerer afviste')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'supplier-line-pricing-check') {
+    // Grossist-review 2026-10-14: GP-3 kategoriregel gælder for tilbudslinjer; GP-2 udløbet kundeaftale giver ikke rabat
+    const { supplierLinePricing } = await import('../../src/lib/offers/supplier-line-pricing')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const sup = ((await admin.from('suppliers').insert({ name: `HARNESS-GP ${stamp}`, code: `HGP${stamp}` }).select('id').single()).data as { id: string }).id
+    const cat = `HARNESS-KAT-${stamp}`
+    const prod = ((await admin.from('supplier_products').insert({ supplier_id: sup, supplier_sku: `GP-${stamp}`, supplier_name: 'Harness kabel', cost_price: 100, category: cat, margin_percentage: 20 }).select('id').single()).data as { id: string }).id
+    const cust = ((await admin.from('customers').insert({ customer_number: `GP-${stamp}`, company_name: `[HARNESS] gp ${stamp}`, contact_person: 'X', email: `gp-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const rule = await admin.from('supplier_margin_rules').insert({ supplier_id: sup, rule_type: 'category', category: cat, margin_percentage: 40, priority: 50, is_active: true, created_by: owner }).select('id').single()
+    const ruleId = (rule.data as { id: string } | null)?.id ?? null
+    const yesterday = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10)
+    const agr = await admin.from('customer_supplier_prices').insert({ customer_id: cust, supplier_id: sup, discount_percentage: 10, is_active: true, valid_to: yesterday, created_by: owner }).select('id').single()
+    const agrId = (agr.data as { id: string } | null)?.id ?? null
+    let cppId: string | null = null
+    try {
+      check('seed', !!ruleId && !!agrId, `${rule.error?.message ?? ''} ${agr.error?.message ?? ''}`.trim())
+      const p1 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
+      check('kategoriregel (40 %) bruges på tilbudslinjen', p1.marginPercentage === 40, `avance ${p1.marginPercentage}`)
+      check('udløbet kundeaftale giver ingen rabat', p1.effectiveCost === 100, `kost ${p1.effectiveCost}`)
+      if (agrId) await admin.from('customer_supplier_prices').update({ valid_to: null }).eq('id', agrId)
+      const p2 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
+      check('gyldig kundeaftale giver 10 % rabat på kosten', p2.effectiveCost === 90, `kost ${p2.effectiveCost}`)
+      // GP-2: produktspecifik kundepris går foran leverandøraftalen
+      const cpp = await admin.from('customer_product_prices').insert({ customer_id: cust, supplier_product_id: prod, custom_cost_price: 70, is_active: true, created_by: owner }).select('id').single()
+      cppId = (cpp.data as { id: string } | null)?.id ?? null
+      const p3 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
+      check('produktspecifik kundepris (70) går foran leverandøraftalens rabat', p3.effectiveCost === 70, `kost ${p3.effectiveCost}${cpp.error ? ` · ${cpp.error.message}` : ''}`)
+    } finally {
+      if (cppId) await admin.from('customer_product_prices').delete().eq('id', cppId)
+      if (agrId) await admin.from('customer_supplier_prices').delete().eq('id', agrId)
+      if (ruleId) await admin.from('supplier_margin_rules').delete().eq('id', ruleId)
+      await admin.from('supplier_products').delete().eq('id', prod)
+      await admin.from('customers').delete().eq('id', cust)
+      await admin.from('suppliers').delete().eq('id', sup)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ leverandørlinje-pris ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'supplier-vat') {
     const { runSupplierVat, formatSupplierVat } = await import('./supplier-vat')
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
@@ -2664,6 +2735,11 @@ async function main() {
     const { data: cu } = await admin.from('customers').insert({ customer_number: `IG-${stamp}`, company_name: `[HARNESS] fakturavagt ${stamp}`, contact_person: 'x', email: `ig-${stamp}@harness.test`, created_by: owner }).select('id').single()
     const custId = (cu as { id: string }).id
     let n = 0
+    let guardCaseId: string | null = null
+    let finalCaseId: string | null = null
+    let noRateEmpId: string | null = null
+    let noRateWoId: string | null = null
+    let noRateTlId: string | null = null
     const mkInv = async (fields: Record<string, unknown>, lines: Array<[string, number, number]>) => {
       const { data, error } = await admin.from('invoices').insert({ invoice_number: `HX-${stamp}-${++n}`, customer_id: custId, status: 'draft', total_amount: 0, tax_amount: 0, final_amount: 0, ...fields }).select('id').single()
       if (error) throw new Error(`faktura: ${error.message}`)
@@ -2718,14 +2794,67 @@ async function main() {
         const { data: kh } = await admin.from('invoices').select('total_amount').eq('id', k2.credit_invoice_id).single()
         check('  kreditnotaens linjer og header stemmer', Math.abs(Math.abs(lineSum) - Math.abs(Number((kh as { total_amount: number }).total_amount))) < 0.01, `linjer ${lineSum} / header ${(kh as { total_amount: number }).total_amount}`)
       }
+
+      // Faktura-review 2026-10-14 (S1): forskud fratrukket på en slutfaktura kan ikke krediteres (kunden fik det ellers to gange)
+      const { data: sc } = await admin.from('service_cases').insert({ case_number: `SVC-6${String(stamp).slice(-6)}`, customer_id: custId, title: '[HARNESS] fradrag', status: 'in_progress', created_by: owner }).select('id').single()
+      guardCaseId = (sc as { id: string } | null)?.id ?? null
+      const dep2 = await mkInv({ invoice_type: 'deposit', billing_percentage: 30, case_id: guardCaseId }, [['Forskud 30 %', 1, 30000]])
+      await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', dep2.id)
+      const fin2 = await mkInv({ invoice_type: 'final', is_final_invoice: true, case_id: guardCaseId }, [['Arbejde', 1, 100000], ['Fradrag: forskud', 1, -30000]])
+      await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', fin2.id)
+      const g1 = await createCreditNoteForInvoice({ invoice_id: dep2.id, credit_type: 'full', reason: 'harness' }, owner)
+      check('forskud fratrukket på sendt slutfaktura: kreditering afvises', !g1.ok && /slutfaktura/.test(g1.message ?? ''), g1.message)
+      await admin.from('invoices').update({ voided_at: new Date().toISOString() }).eq('id', fin2.id)
+      const g2 = await createCreditNoteForInvoice({ invoice_id: dep2.id, credit_type: 'full', reason: 'harness' }, owner)
+      check('slutfakturaen annulleret (krediteret): forskuddet kan nu krediteres', g2.ok, g2.message)
+
+      // Faktura-review 2026-10-14 F-3/F-2: slutfaktura med negativ total afvises; timer uden timepris blokerer slutfakturaen
+      const { createFinalInvoiceForCase } = await import('../../src/lib/services/invoice-stage')
+      const { data: sc3 } = await admin.from('service_cases').insert({ case_number: `SVC-8${String(stamp).slice(-6)}`, customer_id: custId, title: '[HARNESS] slutfaktura', status: 'in_progress', created_by: owner, contract_sum: 100000 }).select('id').single()
+      finalCaseId = (sc3 as { id: string } | null)?.id ?? null
+      const dep3 = await mkInv({ invoice_type: 'deposit', billing_percentage: 40, case_id: finalCaseId }, [['Forskud 40 %', 1, 40000]])
+      await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', dep3.id)
+      const fneg = await createFinalInvoiceForCase({ case_id: finalCaseId!, include_unbilled_lines: false }, owner)
+      check('slutfaktura uden linjer efter 40 % forskud (negativ total) afvises', !fneg.ok && /negativ/.test(fneg.message) && !fneg.invoice_number, fneg.message.slice(0, 90))
+      const empNoRate = ((await admin.from('employees').insert({ name: '[HARNESS] uden sats', email: `nr-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: null }).select('id').single()).data as { id: string }).id
+      noRateEmpId = empNoRate
+      const wo3 = ((await admin.from('work_orders').insert({ case_id: finalCaseId, customer_id: custId, title: '[HARNESS] uden sats', status: 'in_progress', scheduled_date: '2026-10-01', assigned_employee_id: empNoRate }).select('id').single()).data as { id: string }).id
+      noRateWoId = wo3
+      const tl3 = await admin.from('time_logs').insert({ work_order_id: wo3, employee_id: empNoRate, start_time: '2026-10-01T06:00:00Z', end_time: '2026-10-01T16:00:00Z', billable: true }).select('id, sale_amount').single()
+      noRateTlId = (tl3.data as { id: string } | null)?.id ?? null
+      // Rate-motoren kan have frosset en sats fra firmastandarden — tving "ingen sats" for at teste fallback-vagten
+      if (noRateTlId) await admin.from('time_logs').update({ sale_amount: null, sale_rate_snapshot: null }).eq('id', noRateTlId)
+      const fmiss = await createFinalInvoiceForCase({ case_id: finalCaseId!, include_unbilled_lines: true }, owner)
+      check('timer uden timepris blokerer slutfakturaen (før skjult 650 kr/t)', !fmiss.ok && /timepris/.test(fmiss.message), fmiss.message.slice(0, 90))
+
+      // Faktura-review 2026-10-14 #8/#9: "markér som sendt" taber til en igangværende sletning; kreditnota-PDF på momsfri faktura
+      const { markInvoiceSent, getInvoicePdfPayload } = await import('../../src/lib/services/invoices')
+      const claimed = await mkInv({ invoice_type: 'standard' }, [['Arbejde', 1, 1000]])
+      await admin.from('invoices').update({ sent_at: '1970-01-01T00:00:00Z' }).eq('id', claimed.id)
+      const ms1 = await markInvoiceSent(claimed.id).then(() => 'sendt', (e: Error) => `afvist: ${e.message.slice(0, 60)}`)
+      check('markér som sendt afvises mens kladden er claimet (sletning i gang)', ms1.startsWith('afvist'), ms1)
+      const free = await mkInv({ invoice_type: 'standard' }, [['Arbejde', 1, 1000]])
+      const ms2 = await markInvoiceSent(free.id).then(() => 'sendt', (e: Error) => `afvist: ${e.message.slice(0, 60)}`)
+      check('markér som sendt virker på almindelig kladde', ms2 === 'sendt', ms2)
+      const cn0 = await mkInv({ invoice_type: 'credit', credit_of_invoice_id: free.id }, [['Kreditnota: Arbejde', 1, -1000]])
+      await admin.from('invoices').update({ tax_amount: 0, final_amount: -1000 }).eq('id', cn0.id)
+      const pdf = await getInvoicePdfPayload(cn0.id)
+      const pdfVat = (pdf as unknown as { totals?: { vat?: number; vat_rate?: number } } | null)?.totals
+      check('kreditnota på momsfri faktura: PDF uden moms', !!pdfVat && Number(pdfVat.vat ?? -1) === 0, JSON.stringify(pdfVat))
     } finally {
       const { data: invs } = await admin.from('invoices').select('id').eq('customer_id', custId)
       const ids = ((invs ?? []) as Array<{ id: string }>).map((x) => x.id)
       if (ids.length) {
+        await admin.from('invoice_predecessors').delete().in('invoice_id', ids)
         await admin.from('invoice_lines').delete().in('invoice_id', ids)
         await admin.from('invoices').delete().in('credit_of_invoice_id', ids)
         await admin.from('invoices').delete().in('id', ids)
       }
+      if (guardCaseId) await admin.from('service_cases').delete().eq('id', guardCaseId)
+      if (noRateTlId) await admin.from('time_logs').delete().eq('id', noRateTlId)
+      if (noRateWoId) await admin.from('work_orders').delete().eq('id', noRateWoId)
+      if (finalCaseId) await admin.from('service_cases').delete().eq('id', finalCaseId)
+      if (noRateEmpId) await admin.from('employees').delete().eq('id', noRateEmpId)
       await admin.from('customers').delete().eq('id', custId)
     }
     log(fails ? `❌ ${fails} fejl` : '✅ fakturavagter (X1 #7/#8) bestået')
@@ -2919,6 +3048,13 @@ async function main() {
       await Promise.all([registerPayment(conc, 300), registerPayment(conc, 300)])
       const c = await get(conc)
       check('to samtidige betalinger à 300 → amount_paid 600 (ingen tabt)', Number(c.amount_paid) === 600 && c.payment_status === 'partial', JSON.stringify(c))
+      // F-7 (faktura-review 2026-10-14): overbetaling måles på summen af betalinger mod udestående
+      const ov = await mk('ov', 'sent', 1000)
+      const p1 = await registerPayment(ov, 250)
+      const p2 = await registerPayment(ov, 1000)
+      check('250 + 1.000 på en 1.000-faktura → overbetalt 250 (før "matched")', p1.overpaidBy === 0 && p2.fullyPaid && p2.overpaidBy === 250, `${p1.overpaidBy}/${p2.overpaidBy}`)
+      const p3 = await registerPayment(ov, 1000)
+      check('betaling til allerede betalt faktura = overbetaling i sin helhed', p3.overpaidBy === 1000, String(p3.overpaidBy))
     } finally {
       if (ids.length) { await admin.from('invoice_payments').delete().in('invoice_id', ids); await admin.from('invoices').delete().in('credit_of_invoice_id', ids); await admin.from('invoices').delete().in('id', ids) }
       await admin.from('customers').delete().eq('id', cust)

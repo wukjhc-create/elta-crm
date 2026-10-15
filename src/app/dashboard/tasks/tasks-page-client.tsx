@@ -472,7 +472,8 @@ export function TasksPageClient({
       </div>
 
       {/* Task list */}
-      <div className="bg-white rounded-lg border overflow-hidden">
+      {/* M-4 (mobil-review 2026-10-14): tabellen er ~900 px — vandret scroll i stedet for afskårne kolonner */}
+      <div className="bg-white rounded-lg border overflow-x-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -491,7 +492,7 @@ export function TasksPageClient({
             </p>
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y min-w-[900px]">
             {/* Table header */}
             <div className="grid grid-cols-[40px_1fr_160px_110px_100px_140px_140px_80px] gap-3 px-4 py-2.5 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
               <div></div>
@@ -810,7 +811,8 @@ function TaskRow({
             </button>
           </div>
         ) : canManage ? (
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          // M-4: handlinger synlige på touch (ingen hover)
+          <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
             <button
               onClick={onEdit}
               className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
@@ -870,7 +872,8 @@ function TaskFormDialog({
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    // M-18: et tryk ved siden af dialogen lukker den ikke længere (tab af udfyldt formular på mobil) — Annuller/Esc lukker
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div
         ref={dialogRef}
         role="dialog"

@@ -15,9 +15,11 @@ import { calculateSalePrice, calculateLineTotal, calculateMarginFromPrices, reso
 import { getOfferLowDbStatus } from '@/lib/offers/low-db-status'
 import { lowDbAckMessage, type OfferLowDbStatus } from '@/lib/offers/low-db-warning'
 import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
-import { mergeOfferLineCost, fetchOfferLineCostById } from '@/lib/offers/line-cost'
+import { mergeOfferLineCost } from '@/lib/offers/line-cost'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCalculationSettings } from '@/lib/actions/calculation-settings'
+import { supplierLinePricing } from '@/lib/offers/supplier-line-pricing'
+import { loadDefaultProductMargin } from '@/lib/settings/product-margin'
+import { onlyValidAgreements } from '@/lib/pricing/agreement-validity'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { insertOfferWithNumber } from '@/lib/services/offer-number'
@@ -26,7 +28,7 @@ import { offerEditLockReason, offerIdForLine } from '@/lib/offers/edit-lock'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { isValidOfferTransition, OFFER_STATUS_LABELS } from '@/types/offers.types'
-import { rowOfferMode } from '@/types/calculations.types'
+import { buildCalculationImportLines } from '@/lib/offers/calc-import-lines'
 import type {
   Offer,
   OfferWithRelations,
@@ -1380,30 +1382,6 @@ export async function importCalculationToOffer(
     // standard (før null → DB/avance ~100 % på importerede linjer)
     const includeCostPrices = options?.includeCostPrices ?? true
 
-    // 00219 (Henrik 2026-10-10): eksplicit tilbudstilstand pr. række —
-    //   visible → egen linje · hidden_included → ingen egen linje, men med i prisen (én samlet linje med kost)
-    //   excluded → hverken linje eller pris (tæller heller ikke i kalkulationens total)
-    // Før faldt skjulte rækker stille ud af tilbuddet (kalkulation 14.400 → tilbud 12.000).
-    const allRows = calculation.rows || []
-    type ModeRow = { show_on_offer?: boolean; offer_mode?: string | null }
-    let rowsToImport = allRows.filter((r: ModeRow) => rowOfferMode(r) === 'visible' || (includeHiddenRows && rowOfferMode(r) === 'hidden_included'))
-    const hiddenIncluded: Array<{ total?: number | null; cost_price?: number | null; quantity?: number | null }> =
-      includeHiddenRows ? [] : allRows.filter((r: ModeRow) => rowOfferMode(r) === 'hidden_included')
-
-    if (rowsToImport.length === 0 && hiddenIncluded.length === 0) {
-      return { success: false, error: 'Ingen linjer at importere' }
-    }
-
-    // Sort rows by section if grouping is enabled
-    if (groupBySection) {
-      rowsToImport = [...rowsToImport].sort((a: { section: string | null }, b: { section: string | null }) => {
-        if (!a.section && !b.section) return 0
-        if (!a.section) return 1
-        if (!b.section) return -1
-        return a.section.localeCompare(b.section)
-      })
-    }
-
     // Get current max position if not specified
     let nextPosition = startingPosition
     if (nextPosition === undefined) {
@@ -1417,81 +1395,20 @@ export async function importCalculationToOffer(
       nextPosition = items && items.length > 0 ? items[0].position + 1 : 0
     }
 
-    // Create line items from calculation rows
-    // If grouping by section, add section headers
-    const lineItems: Array<{
-      offer_id: string
-      line_type: string
-      product_id: string | null
-      calculation_id: string
-      section: string | null
-      position: number
-      description: string
-      quantity: number
-      unit: string
-      unit_price: number
-      sale_price: number
-      cost_price: number | null
-      discount_percentage: number
-      total: number
-    }> = []
-
-    let currentSection: string | null = null
-    let positionCounter = nextPosition ?? 0
-
-    for (const row of rowsToImport) {
-      // Add section header if section changed and grouping is enabled
-      if (groupBySection && row.section && row.section !== currentSection) {
-        currentSection = row.section
-        // Note: Section headers could be added here if the offer_line_items table supports them
-        // For now, we just track the section in each row
-      }
-
-      lineItems.push({
-        offer_id: offerId,
-        line_type: row.product_id ? 'product' : 'calculation',
-        product_id: row.product_id,
-        calculation_id: calculationId,
-        section: row.section,
-        position: positionCounter++,
-        description: row.description,
-        quantity: row.hours || row.quantity, // Use hours if labor row
-        unit: row.hours ? 'timer' : row.unit,
-        unit_price: row.hourly_rate || row.sale_price, // Use hourly_rate if labor row
-        sale_price: row.hourly_rate || row.sale_price, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
-        cost_price: includeCostPrices ? row.cost_price : null,
-        discount_percentage: row.discount_percentage,
-        total: row.total,
-      })
-    }
-
-    // 00219: skjulte-men-medregnede rækker → én samlet linje (pris = rækkernes total, kost = deres kost) — kunden ser ikke
-    // detaljerne, men prisen og DB er de samme som i kalkulationen
-    if (hiddenIncluded.length > 0) {
-      const amount = Math.round(hiddenIncluded.reduce((sum, r) => sum + Number(r.total ?? 0), 0) * 100) / 100
-      const cost = Math.round(hiddenIncluded.reduce((sum, r) => sum + Number(r.cost_price ?? 0) * Number(r.quantity ?? 1), 0) * 100) / 100
-      lineItems.push({
-        offer_id: offerId, line_type: 'calculation', product_id: null, calculation_id: calculationId, section: null,
-        position: positionCounter++, description: 'Øvrige materialer og ydelser', quantity: 1, unit: 'stk',
-        unit_price: amount, sale_price: amount, cost_price: includeCostPrices ? cost : null, discount_percentage: 0, total: amount,
-      })
-    }
-
-    // Kalkule-review 2026-10-08 (#2): kalkulationens Avance % og Rabat % (update_calculation_totals: avance på subtotal,
-    // rabat efter avance) blev tabt — tilbuddet blev subtotalen uden avance. Nu som eksplicitte linjer på de importerede rækker.
-    {
-      const importedSubtotal = Math.round(lineItems.reduce((sum, l) => sum + Number(l.total || 0), 0) * 100) / 100
-      const marginPct = Number((calculation as { margin_percentage?: number | null }).margin_percentage ?? 0)
-      const discountPct = Number((calculation as { discount_percentage?: number | null }).discount_percentage ?? 0)
-      const marginAmt = Math.round(importedSubtotal * marginPct) / 100
-      const discountAmt = Math.round((importedSubtotal + marginAmt) * discountPct) / 100
-      const extra = (description: string, amount: number) => lineItems.push({
-        offer_id: offerId, line_type: 'calculation', product_id: null, calculation_id: calculationId, section: null,
-        position: positionCounter++, description, quantity: 1, unit: 'stk', unit_price: amount, sale_price: amount,
-        cost_price: includeCostPrices ? 0 : null, discount_percentage: 0, total: amount,
-      })
-      if (marginAmt >= 0.01) extra(`Avance ${marginPct.toLocaleString('da-DK')} % iht. kalkulation`, marginAmt)
-      if (discountAmt >= 0.01) extra(`Rabat ${discountPct.toLocaleString('da-DK')} % iht. kalkulation`, -discountAmt)
+    // 00219: linjerne bygges af den rene funktion (vises / skjult-men-medregnet som samlelinje / udeladt + avance/rabat)
+    const lineItems = buildCalculationImportLines({
+      rows: calculation.rows || [],
+      offerId,
+      calculationId,
+      startPosition: nextPosition ?? 0,
+      marginPercentage: (calculation as { margin_percentage?: number | null }).margin_percentage,
+      discountPercentage: (calculation as { discount_percentage?: number | null }).discount_percentage,
+      includeHiddenRows,
+      includeCostPrices,
+      groupBySection,
+    })
+    if (lineItems.length === 0) {
+      return { success: false, error: 'Ingen linjer at importere' }
     }
 
     const { error: insertError } = await supabase
@@ -1719,11 +1636,8 @@ export async function searchSupplierProductsForOffer(
       return { success: false, error: 'Manglende tilladelse: offers.view' }
     }
 
-    // Hent global produkt-avance fra indstillinger (auto-markup)
-    const calcResult = await getCalculationSettings()
-    const defaultProductMargin = calcResult.success && calcResult.data
-      ? calcResult.data.margins.products
-      : CALC_DEFAULTS.MARGINS.PRODUCTS
+    // Hent global produkt-avance fra indstillinger (auto-markup) — server-side (GP-1: udleveres ikke til salg)
+    const defaultProductMargin = await loadDefaultProductMargin()
 
     // Search across ALL suppliers — increased limit for cross-supplier comparison
     const searchLimit = (options?.limit || 20) * 2
@@ -1753,6 +1667,8 @@ export async function searchSupplierProductsForOffer(
       `)
       .eq('suppliers.is_active', true)
       .or(`supplier_sku.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},supplier_name.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},ean.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)}`)
+      // GP-13: varer uden kostpris (0 = ingen prisaftale) fyldte toppen og fejlede ved "tilføj" ("ingen kostpris")
+      .gt('cost_price', 0)
       .order('cost_price', { ascending: true })
       .limit(searchLimit)
 
@@ -1773,11 +1689,11 @@ export async function searchSupplierProductsForOffer(
     if (options?.customerId) {
       validateUUID(options.customerId, 'kunde ID')
 
-      const { data: customerPricing } = await createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
+      const { data: customerPricing } = await onlyValidAgreements(createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
         .from('customer_supplier_prices')
         .select('supplier_id, discount_percentage, custom_margin_percentage')
         .eq('customer_id', options.customerId)
-        .eq('is_active', true)
+        .eq('is_active', true)) // GP-2: kun aftaler i deres gyldighedsperiode
 
       if (customerPricing) {
         customerPricingMap = new Map(
@@ -2056,11 +1972,8 @@ export async function searchSupplierProductsLive(
       return { success: true, data: [] }
     }
 
-    // Get global product margin for pricing
-    const calcResult = await getCalculationSettings()
-    const defaultMargin = calcResult.success && calcResult.data
-      ? calcResult.data.margins.products
-      : CALC_DEFAULTS.MARGINS.PRODUCTS
+    // Get global product margin for pricing — server-side (GP-1: udleveres ikke til salg)
+    const defaultMargin = await loadDefaultProductMargin()
 
     // Find active suppliers with API credentials
     let supplierQuery = supabase
@@ -2141,7 +2054,8 @@ export async function searchSupplierProductsLive(
           stock_quantity: p.stockQuantity,
           delivery_days: p.leadTimeDays,
           image_url: p.imageUrl || null,
-          source: 'live' as const,
+          // GP-7: LM Classic læser vores egne rækker (prisfil) — ikke live-priser
+          source: client.readsLocalCatalog ? ('cache' as const) : ('live' as const),
         }))
       } catch (err) {
         logger.error(`Live search failed for ${supplier.name}`, { error: err })
@@ -2292,7 +2206,6 @@ export async function refreshLineItemPrice(
       .select('cost_price, supplier_id, margin_percentage')
       .eq('id', lineItem.supplier_product_id)
       .maybeSingle()
-    const lineCost = (await fetchOfferLineCostById([lineItem.id])).get(lineItem.id)
 
     if (spError || !supplierProduct?.cost_price) {
       return { success: false, error: 'Kunne ikke hente leverandør pris' }
@@ -2301,7 +2214,6 @@ export async function refreshLineItemPrice(
     // Kalkulations-review 2026-10-09 (#2): samme prisberegning som ved oprettelse (avanceregler med fast tillæg/
     // afrunding, kunderabat, 0 % respekteres) — før gav en opdatering med uændret kost en anden pris
     const offerInfo = Array.isArray(lineItem.offers) ? lineItem.offers[0] : lineItem.offers
-    void lineCost
     const pricing = await supplierLinePricing({
       supplierId: supplierProduct.supplier_id,
       supplierProductId: lineItem.supplier_product_id,
@@ -2460,6 +2372,8 @@ export async function optimizeOfferPrices(
         supplier_sku,
         supplier_name,
         cost_price,
+        margin_percentage,
+        unit,
         ean,
         suppliers ( name, code )
       `)
@@ -2467,28 +2381,10 @@ export async function optimizeOfferPrices(
 
     const spMap = new Map((supplierProducts || []).map(sp => [sp.id, sp]))
 
-    // Get customer-specific pricing
-    let customerPricingMap = new Map<string, { discount: number; margin: number | null }>()
-    if (offer.customer_id) {
-      const { data: customerPricing } = await createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
-        .from('customer_supplier_prices')
-        .select('supplier_id, discount_percentage, custom_margin_percentage')
-        .eq('customer_id', offer.customer_id)
-        .eq('is_active', true)
-
-      if (customerPricing) {
-        customerPricingMap = new Map(
-          customerPricing.map(cp => [
-            cp.supplier_id,
-            { discount: cp.discount_percentage || 0, margin: cp.custom_margin_percentage }
-          ])
-        )
-      }
-    }
-
     const changes: OptimizationResult['changes'] = []
     let oldTotalCost = 0
     let newTotalCost = 0
+    const normUnit = (u: string | null | undefined) => (u ?? '').trim().toLowerCase()
 
     for (const li of lineItems) {
       if (!li.supplier_product_id) continue
@@ -2500,12 +2396,11 @@ export async function optimizeOfferPrices(
       const currentCost = currentSP.cost_price
       oldTotalCost += currentCost * li.quantity
 
-      // Try to find cheaper alternatives by EAN or product name
+      // Grossist-review 2026-10-14 (GP-5): kun et EAN-match med SAMME enhed er "samme vare" — det tidligere navne-match
+      // (første 30 tegn hos en anden leverandør) kunne bytte meterkabel med en ring/pakke
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let cheaperProduct: any = null
-
       if (currentSP.ean && currentSP.ean.length > 5) {
-        // Search by EAN across all suppliers
         const { data: alternatives } = await admin
           .from('supplier_products')
           .select(`
@@ -2514,6 +2409,8 @@ export async function optimizeOfferPrices(
             supplier_sku,
             supplier_name,
             cost_price,
+            margin_percentage,
+            unit,
             ean,
             suppliers ( name, code )
           `)
@@ -2522,114 +2419,59 @@ export async function optimizeOfferPrices(
           .gt('cost_price', 0)
           .neq('id', currentSP.id)
           .order('cost_price', { ascending: true })
-          .limit(1)
-
-        if (alternatives && alternatives.length > 0 && alternatives[0].cost_price < currentCost) {
-          cheaperProduct = alternatives[0]
-        }
+          .limit(10)
+        cheaperProduct = (alternatives ?? []).find((a) => normUnit(a.unit) === normUnit(currentSP.unit) && a.cost_price < currentCost) ?? null
       }
 
-      // Also search by similar name if no EAN match
-      if (!cheaperProduct && currentSP.supplier_name) {
-        const searchName = currentSP.supplier_name.substring(0, 30).replace(/[%_]/g, '')
-        if (searchName.length >= 5) {
-          const { data: nameAlts } = await admin
-            .from('supplier_products')
-            .select(`
-              id,
-              supplier_id,
-              supplier_sku,
-              supplier_name,
-              cost_price,
-              ean,
-              suppliers ( name, code )
-            `)
-            .ilike('supplier_name', `%${searchName}%`)
-            .eq('is_available', true)
-            .gt('cost_price', 0)
-            .neq('supplier_id', currentSP.supplier_id)
-            .order('cost_price', { ascending: true })
-            .limit(1)
-
-          if (nameAlts && nameAlts.length > 0 && nameAlts[0].cost_price < currentCost) {
-            cheaperProduct = nameAlts[0]
-          }
-        }
+      // GP-5: samme prisberegning som oprettelse/opdatering (avanceregler, fast tillæg/afrunding, kundeaftale med
+      // gyldighed, 0 % respekteres); cost_price = effektiv kost (efter kunderabat) som ved oprettelse
+      const target = cheaperProduct ?? (currentCost !== li.supplier_cost_price_at_creation ? currentSP : null)
+      if (!target) {
+        newTotalCost += currentCost * li.quantity
+        continue
+      }
+      const pricing = await supplierLinePricing({
+        supplierId: target.supplier_id,
+        supplierProductId: target.id,
+        customerId: offer.customer_id ?? null,
+        costPrice: Number(target.cost_price),
+        productMargin: target.margin_percentage ?? null,
+      })
+      const total = calculateLineTotal(li.quantity, pricing.unitPrice, li.discount_percentage || 0)
+      const targetSupplier = Array.isArray(target.suppliers) ? target.suppliers[0] : target.suppliers
+      const { error: updErr } = await supabase
+        .from('offer_line_items')
+        .update({
+          unit_price: pricing.unitPrice,
+          sale_price: pricing.unitPrice, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
+          total,
+          cost_price: Math.round(pricing.effectiveCost * 100) / 100,
+          supplier_product_id: target.id,
+          supplier_cost_price_at_creation: Number(target.cost_price),
+          supplier_margin_applied: pricing.marginPercentage,
+          ...(cheaperProduct ? { supplier_name_at_creation: targetSupplier?.name || null } : {}),
+        })
+        .eq('id', li.id)
+      if (updErr) {
+        // GP-5: en fejlet opdatering må ikke rapporteres som en ændring
+        logger.error('optimizeOfferPrices: line update failed', { entityId: li.id, error: updErr })
+        newTotalCost += currentCost * li.quantity
+        continue
       }
 
+      const newCost = Number(target.cost_price)
       if (cheaperProduct) {
-        const newSupplier = Array.isArray(cheaperProduct.suppliers) ? cheaperProduct.suppliers[0] : cheaperProduct.suppliers
-        const newCost = cheaperProduct.cost_price!
-
-        // Apply customer-specific pricing
-        const customerPrice = customerPricingMap.get(cheaperProduct.supplier_id)
-        let effectiveCost = newCost
-        let margin = li.supplier_margin_applied || CALC_DEFAULTS.MARGINS.PRODUCTS
-        if (customerPrice) {
-          effectiveCost = newCost * (1 - customerPrice.discount / 100)
-          if (customerPrice.margin !== null) margin = customerPrice.margin
-        }
-
-        const newUnitPrice = calculateSalePrice(effectiveCost, margin)
-        const discount = li.discount_percentage || 0
-        const total = calculateLineTotal(li.quantity, newUnitPrice, discount)
-
-        // Update line item to use cheaper supplier
-        await supabase
-          .from('offer_line_items')
-          .update({
-            unit_price: newUnitPrice,
-            sale_price: newUnitPrice, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
-            total,
-            cost_price: newCost,
-            supplier_product_id: cheaperProduct.id,
-            supplier_cost_price_at_creation: newCost,
-            supplier_margin_applied: margin,
-            supplier_name_at_creation: newSupplier?.name || null,
-          })
-          .eq('id', li.id)
-
-        const saving = (currentCost - newCost) * li.quantity
-
         changes.push({
           line_id: li.id,
           description: li.description,
           old_supplier: currentSupplier?.code || currentSupplier?.name || '?',
-          new_supplier: newSupplier?.code || newSupplier?.name || '?',
+          new_supplier: targetSupplier?.code || targetSupplier?.name || '?',
           old_cost: currentCost,
           new_cost: newCost,
-          saving,
+          saving: (currentCost - newCost) * li.quantity,
         })
-
-        newTotalCost += newCost * li.quantity
-      } else {
-        // Also update to latest price from current supplier
-        if (currentCost !== li.supplier_cost_price_at_creation) {
-          const customerPrice = customerPricingMap.get(currentSP.supplier_id)
-          let effectiveCost = currentCost
-          let margin = li.supplier_margin_applied || CALC_DEFAULTS.MARGINS.PRODUCTS
-          if (customerPrice) {
-            effectiveCost = currentCost * (1 - customerPrice.discount / 100)
-            if (customerPrice.margin !== null) margin = customerPrice.margin
-          }
-
-          const newUnitPrice = calculateSalePrice(effectiveCost, margin)
-          const discount = li.discount_percentage || 0
-          const total = calculateLineTotal(li.quantity, newUnitPrice, discount)
-
-          await supabase
-            .from('offer_line_items')
-            .update({
-              unit_price: newUnitPrice,
-              sale_price: newUnitPrice, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
-              total,
-              cost_price: currentCost,
-              supplier_cost_price_at_creation: currentCost,
-            })
-            .eq('id', li.id)
-        }
-        newTotalCost += currentCost * li.quantity
       }
+      newTotalCost += newCost * li.quantity
     }
 
     // Recalculate offer totals
@@ -2926,53 +2768,3 @@ export async function getOfferRevisionHistoryAction(offerId: string): Promise<Ac
   }
 }
 
-/**
- * Kalkulations-review 2026-10-09 (#1/#2): ÉN prisberegning for leverandørlinjer (oprettelse og opdatering).
- *   kost (effektiv) = leverandørens kostpris × (1 − kundens leverandørrabat)
- *   avance = egen avance (kost-roller) → avanceregel (inkl. fast tillæg/afrunding) → kundens aftale-avance → produktets
- *   avance → standard. Kost/aftaler læses med admin-klienten bag kaldernes gate (00192/00201).
- */
-async function supplierLinePricing(input: {
-  supplierId: string
-  supplierProductId: string
-  customerId: string | null
-  costPrice: number
-  productMargin: number | null | undefined
-  customMargin?: number
-}): Promise<{ unitPrice: number; marginPercentage: number; effectiveCost: number }> {
-  const admin = createAdminClient()
-  const [{ data: marginData }, customerRes] = await Promise.all([
-    admin.rpc('get_effective_margin', {
-      p_supplier_id: input.supplierId,
-      p_supplier_product_id: input.supplierProductId,
-      p_category: null,
-      p_sub_category: null,
-      p_customer_id: input.customerId,
-    }),
-    input.customerId
-      ? admin.from('customer_supplier_prices').select('discount_percentage, custom_margin_percentage')
-          .eq('customer_id', input.customerId).eq('supplier_id', input.supplierId).eq('is_active', true).maybeSingle()
-      : Promise.resolve({ data: null }),
-  ])
-  const agreement = customerRes.data as { discount_percentage: number | null; custom_margin_percentage: number | null } | null
-  const discountPct = Number(agreement?.discount_percentage ?? 0)
-  const effectiveCost = discountPct > 0 ? input.costPrice * (1 - discountPct / 100) : input.costPrice
-
-  const rule = (marginData as Array<{ margin_percentage: number; fixed_markup: number | null; round_to: number | null }> | null)?.[0]
-  let marginPercentage: number
-  let fixedMarkup = 0
-  let roundTo: number | undefined
-  if (input.customMargin !== undefined && input.customMargin !== null) {
-    marginPercentage = input.customMargin
-  } else if (rule) {
-    marginPercentage = Number(rule.margin_percentage)
-    fixedMarkup = Number(rule.fixed_markup ?? 0)
-    roundTo = rule.round_to ?? undefined
-  } else if (agreement?.custom_margin_percentage !== null && agreement?.custom_margin_percentage !== undefined) {
-    marginPercentage = Number(agreement.custom_margin_percentage)
-  } else {
-    marginPercentage = input.productMargin ?? CALC_DEFAULTS.MARGINS.PRODUCTS
-  }
-  const unitPrice = Math.round(calculateSalePrice(effectiveCost, marginPercentage, { fixedMarkup, roundTo }) * 100) / 100
-  return { unitPrice, marginPercentage, effectiveCost }
-}

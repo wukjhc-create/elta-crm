@@ -155,7 +155,7 @@ function EditableRow({ item, idx, currency, showCostData = true, thresholds, onS
   const doSave = useCallback(async () => {
     if (!isDirty || isSaving) return
     setIsSaving(true)
-    await onSave({
+    const saved = await onSave({
       id: item.id,
       description,
       quantity: parseFloat(quantity) || 1,
@@ -164,7 +164,9 @@ function EditableRow({ item, idx, currency, showCostData = true, thresholds, onS
       cost_price: parseFloat(costPrice) || null,
       supplier_margin_applied: parseFloat(marginPct) || null,
     })
-    setIsDirty(false)
+    // M-17 (mobil-review 2026-10-14): kun markér som gemt når gem lykkedes — ellers viste feltet en værdi der aldrig
+    // blev gemt, og der blev ikke forsøgt igen
+    if (saved) setIsDirty(false)
     setIsSaving(false)
   }, [isDirty, isSaving, item.id, description, quantity, unit, unitPrice, costPrice, marginPct, onSave])
 
@@ -185,6 +187,8 @@ function EditableRow({ item, idx, currency, showCostData = true, thresholds, onS
   }
 
   const handleDelete = async () => {
+    // M-5: knappen er synlig på touch (ingen hover) — bekræft, så et fejltryk ikke sletter linjen stille
+    if (!window.confirm(`Slet linjen "${item.description || 'uden beskrivelse'}"?`)) return
     setIsDeleting(true)
     await onDelete(item.id)
     setIsDeleting(false)
@@ -303,7 +307,7 @@ function EditableRow({ item, idx, currency, showCostData = true, thresholds, onS
         <button
           onClick={handleDelete}
           disabled={isDeleting}
-          className="p-1 hover:bg-red-100 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+          className="p-1 hover:bg-red-100 rounded md:opacity-0 md:group-hover:opacity-100 transition-opacity disabled:opacity-50"
           aria-label="Slet linje"
         >
           <Trash2 className="w-3.5 h-3.5 text-red-400" />
@@ -389,6 +393,8 @@ export function LineItemsTable({
 }: LineItemsTableProps) {
   const shadow = shadowOfferDb(items, offerDiscountPercentage)
   const db = offerDiscountPercentage > 0 ? shadow.after : shadow.before
+  // M-17: "Tilføj linje" må ikke kunne dobbelttrykkes (to tomme linjer)
+  const [adding, setAdding] = useState(false)
 
   return (
     <div>
@@ -445,18 +451,24 @@ export function LineItemsTable({
       {/* Add new line button (editable mode) */}
       {editable && onSaveItem && (
         <button
+          disabled={adding}
           onClick={async () => {
-            const nextPos = items.length > 0 ? Math.max(...items.map(i => i.position ?? 0)) + 1 : 1
-            await onSaveItem({
-              description: '',
-              quantity: 1,
-              unit: 'stk',
-              unit_price: 0,
-              cost_price: null,
-              supplier_margin_applied: null,
-            })
+            if (adding) return
+            setAdding(true)
+            try {
+              await onSaveItem({
+                description: '',
+                quantity: 1,
+                unit: 'stk',
+                unit_price: 0,
+                cost_price: null,
+                supplier_margin_applied: null,
+              })
+            } finally {
+              setAdding(false)
+            }
           }}
-          className="mt-2 flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
+          className="disabled:opacity-50 mt-2 flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
         >
           <Plus className="w-4 h-4" />
           Tilføj linje

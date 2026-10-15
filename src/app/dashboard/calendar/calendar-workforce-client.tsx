@@ -462,11 +462,12 @@ function DayView({
         </section>
       )}
     </div>
-    <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
-      <table className="w-full text-sm">
+    {/* PL-9: vandret scroll og min-bredde på dags-tabellen (mobilen bruger kortene ovenfor). */}
+    <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
+      <table className="w-full min-w-[480px] text-sm">
         <thead className="bg-gray-50 text-xs text-gray-600">
           <tr>
-            <th className="px-3 py-2 text-left w-64">Medarbejder</th>
+            <th className="px-3 py-2 text-left w-32 md:w-64">Medarbejder</th>
             <th className="px-3 py-2 text-left">Planlagte arbejdsordrer</th>
           </tr>
         </thead>

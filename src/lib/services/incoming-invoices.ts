@@ -507,7 +507,7 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
 
   const { data: row } = await supabase
     .from('incoming_invoices')
-    .select('id, raw_text, file_hash, status, supplier_id, supplier_name_extracted, supplier_vat_number, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat, payment_reference, iban, source_email_id')
+    .select('id, raw_text, file_hash, status, supplier_id, supplier_name_extracted, supplier_vat_number, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat, payment_reference, iban, source_email_id, matched_work_order_id, matched_case_id')
     .eq('id', invoiceId)
     .maybeSingle()
   if (!row) return { parsed: false, matched: false, duplicate: false, message: 'not found' }
@@ -574,7 +574,11 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
   // Status remains 'awaiting_approval' — auto-approval never happens.
   const overall = (parsed.confidence + match.confidence) / 2
   const NEEDS_REVIEW_THRESHOLD = 0.7
-  const requiresReview = overall < NEEDS_REVIEW_THRESHOLD
+  // Leverandørfaktura-review 2026-10-14: kreditnota, beløb der ikke stemmer (ekskl. + moms ≠ inkl.) og fremmed valuta
+  // kræver altid manuel kontrol (godkendelse kræver kvittering; e-conomic-udkastet blokerer bogføring)
+  const effectiveCurrency = row.currency && row.currency !== 'DKK' ? row.currency : parsed.currency
+  const requiresReview =
+    overall < NEEDS_REVIEW_THRESHOLD || parsed.isCreditNote || parsed.amountsConsistent === false || effectiveCurrency !== 'DKK'
 
   const parseStatus: 'parsed' | 'failed' | 'needs_review' =
     parsed.confidence === 0
@@ -590,14 +594,17 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
     invoice_number: pick(row.invoice_number, parsed.invoiceNumber),
     invoice_date: pick(row.invoice_date, parsed.invoiceDate),
     due_date: pick(row.due_date, parsed.dueDate),
-    currency: oioubl?.fields.currency ?? pick(row.currency, parsed.currency),
+    // L-3: kolonnens standard 'DKK' betyder "ukendt". OIOUBL-felter ligger i parsed, så EUR/USD vinder over standarden.
+    // En allerede gemt fremmed valuta (manuel rettelse) beholdes via effectiveCurrency.
+    currency: effectiveCurrency,
     amount_excl_vat: pick(row.amount_excl_vat, parsed.amountExclVat),
     vat_amount: pick(row.vat_amount, parsed.vatAmount),
     amount_incl_vat: pick(row.amount_incl_vat, parsed.amountInclVat),
     payment_reference: pick(row.payment_reference, parsed.paymentReference),
     iban: pick(row.iban, parsed.iban),
-    matched_work_order_id: match.workOrderId,
-    matched_case_id: match.caseId,
+    // #4: en eksisterende (fx manuelt valgt) sag/arbejdsordre overskrives aldrig af en ny læsning
+    matched_work_order_id: pick(row.matched_work_order_id, match.workOrderId),
+    matched_case_id: pick(row.matched_case_id, match.caseId),
     match_confidence: match.confidence,
     match_breakdown: match.breakdown as unknown as Record<string, unknown>,
     parse_status: parseStatus,
@@ -784,12 +791,25 @@ export async function rejectInvoice(invoiceId: string, rejecterId: string, reaso
   const supabase = createAdminClient()
   const { data: row } = await supabase
     .from('incoming_invoices')
-    .select('id, status')
+    .select('id, status, external_invoice_id')
     .eq('id', invoiceId)
     .maybeSingle()
   if (!row) return { ok: false, message: 'not found' }
   if (row.status === 'posted' || row.status === 'rejected' || row.status === 'cancelled') {
     return { ok: false, message: `cannot reject ${row.status} invoice` }
+  }
+  // Leverandørfaktura-review 2026-10-14 (#6): ikke mens den bogføres i e-conomic (krav 'pending-…'), og ikke når
+  // linjer er konverteret til sagens kost — en afvist faktura må ikke efterlade materialer/udlæg på sagen
+  if (typeof row.external_invoice_id === 'string' && row.external_invoice_id.startsWith('pending-')) {
+    return { ok: false, message: 'Fakturaen er ved at blive bogført i e-conomic — prøv igen om lidt' }
+  }
+  const { count: converted } = await supabase
+    .from('incoming_invoice_lines')
+    .select('id', { count: 'exact', head: true })
+    .eq('incoming_invoice_id', invoiceId)
+    .or('converted_case_material_id.not.is.null,converted_case_other_cost_id.not.is.null')
+  if ((converted ?? 0) > 0) {
+    return { ok: false, message: `${converted} linje(r) er overført til sagens kost — fjern dem på sagen før fakturaen afvises` }
   }
   const { data: rejRows, error } = await supabase
     .from('incoming_invoices')

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation'
 import { LeadForm } from '@/components/modules/leads/lead-form'
 import { CustomerCreateDialog } from '@/components/modules/customers/customer-create-dialog'
 import { OfferForm } from '@/components/modules/offers/offer-form'
-import { ProjectForm } from '@/components/modules/projects/project-form'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
 import { MessageForm } from '@/components/modules/messages/message-form'
 import type { CompanySettings } from '@/types/company-settings.types'
 
@@ -19,6 +20,7 @@ interface QuickActionsProps {
 const ACTIONS = [
   {
     type: 'lead' as const,
+    permission: 'leads.create' as Permission,
     label: 'Ny Lead',
     icon: Users,
     color: 'text-blue-600',
@@ -26,6 +28,7 @@ const ACTIONS = [
   },
   {
     type: 'customer' as const,
+    permission: 'customers.create' as Permission,
     label: 'Ny Kunde',
     icon: Building2,
     color: 'text-green-600',
@@ -33,20 +36,24 @@ const ACTIONS = [
   },
   {
     type: 'offer' as const,
+    permission: 'offers.create' as Permission,
     label: 'Nyt Tilbud',
     icon: FileText,
     color: 'text-purple-600',
     bgColor: 'bg-purple-100',
   },
   {
+    // M-13: "Nyt Projekt" oprettede et usynligt legacy-projekt (/dashboard/projects viderestiller til sager) — nu "Ny sag"
     type: 'project' as const,
-    label: 'Nyt Projekt',
+    permission: 'cases.create' as Permission,
+    label: 'Ny sag',
     icon: FolderKanban,
     color: 'text-orange-600',
     bgColor: 'bg-orange-100',
   },
   {
     type: 'message' as const,
+    permission: null,
     label: 'Ny Besked',
     icon: Mail,
     color: 'text-indigo-600',
@@ -57,16 +64,19 @@ const ACTIONS = [
 export function QuickActions({ companySettings }: QuickActionsProps) {
   const router = useRouter()
   const [activeForm, setActiveForm] = useState<ActionType>(null)
+  // M-13 (mobil-review 2026-10-14): kun genveje brugeren har ret til (bogholderi udfyldte formularer der blev afvist)
+  const { role } = useUserRole()
+  const actions = ACTIONS.filter((a) => !a.permission || (!!role && hasPermission(role, a.permission)))
 
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {ACTIONS.map((action) => {
+        {actions.map((action) => {
           const Icon = action.icon
           return (
             <button
               key={action.type}
-              onClick={() => setActiveForm(action.type)}
+              onClick={() => (action.type === 'project' ? router.push('/dashboard/orders/new') : setActiveForm(action.type))}
               className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
             >
               <div className={`p-2 rounded-lg ${action.bgColor}`}>
@@ -94,9 +104,6 @@ export function QuickActions({ companySettings }: QuickActionsProps) {
       )}
       {activeForm === 'offer' && (
         <OfferForm companySettings={companySettings} onClose={() => setActiveForm(null)} />
-      )}
-      {activeForm === 'project' && (
-        <ProjectForm onClose={() => setActiveForm(null)} />
       )}
       {activeForm === 'message' && (
         <MessageForm onClose={() => setActiveForm(null)} />

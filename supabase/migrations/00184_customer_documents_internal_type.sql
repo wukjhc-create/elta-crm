@@ -1,6 +1,8 @@
 -- =====================================================
 -- Migration 00184: customer_documents — intern dokumenttype (ikke synlig i kundeportalen)
 --
+-- STATUS: ERSTATTET af 00218 (customer_documents.visible_in_portal, prod 2026-10-14) — køres ALDRIG i prod.
+--         (Kun anvendt på staging 2026-10-02; branch d26-internal-case-docs er forældet.)
 -- STATUS: FORBEREDT — IKKE KØRT (BLOCKED_APPROVAL: kræver Henriks godkendelse + produktbeslutning).
 --
 -- Baggrund (overnight 2026-10-01): fotos/PDF'er der uploades på sagens Dokumenter-fane

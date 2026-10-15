@@ -18,7 +18,7 @@ export const INCIDENT_REGISTER: IncidentEntry[] = [
   { id: 'P-007', severity: 'S3', area: 'Leverandørfaktura-RLS', title: 'Fakturalinjer og audit-log åbne for alle indloggede (audit kan manipuleres)', closed: true },
   { id: 'P-008', severity: 'S2', area: 'Leverandør-RLS', title: 'suppliers skrivbar/slettelig for alle indloggede (CASCADE til ~324k priser)', closed: true },
   { id: 'P-009', severity: 'S2', area: 'RLS-skrivemodel', title: 'Åbne skrive-policies for indloggede (RBAC kun i app-laget) — 64 af 108 låst i prod', closed: false,
-    pending: 'Runde 4: ~44 kalkulations-/katalogtabeller (staging først)' },
+    pending: 'Runde 4 (00178) kørt i prod 2026-10-03; tilbage: 00211 sager/materialer + 00204/00207 læseskop (udkast, afventer Henrik)' },
   { id: 'P-010', severity: 'S2', area: 'Kundedokumenter', title: 'Uautentificeret sletning af kundedokumenter via outbound-attachment-action', closed: true },
   { id: 'P-012', severity: 'S2', area: 'Login/auth-formularer', title: 'Klik før hydrering gav native GET-submit med adgangskoden i URL (historik/request-logs)', closed: true },
   { id: 'P-013', severity: 'S2', area: 'Kundeportal — tilbudslinjer', title: 'Kostpris/margin/linjenoter i sidedata til kunden (select(*)); 2 tilbud/2 kunder; ingen kundekontakt (Henrik)', closed: true },

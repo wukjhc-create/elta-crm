@@ -394,6 +394,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u119WorkOrderId: string | null = null
   let u91SeedErr = ''
   let u92InvoiceId: string | null = null
+  let u149InvoiceId: string | null = null
   const u120InvoiceIds: string[] = []
   const u120EmailIds: string[] = []
   let u120SupplierId: string | null = null
@@ -898,6 +899,58 @@ ${m.text()}`) })
         const opts = await a.page.locator('select').first().locator('option').allInnerTexts()
         r.statustaellere = opts.some((o) => /^Alle \(\d+\)$/.test(o.trim())) && opts.some((o) => /\(\d+\)$/.test(o.trim()) && !o.startsWith('Alle'))
         out.push({ id: 'U20 sagsliste: type, prioritet, tællere', ok: listCaseIds.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U149 L-7 (leverandørfaktura-review 2026-10-14): ret fakturahovedet — Momsgrundlag-fejlen (ekskl./moms byttet)
+      // rettes, gemmes og auditeres; inkonsistente beløb afvises med besked; knappen findes ikke på godkendte fakturaer
+      if (want('U149')) {
+        const r: Record<string, boolean> = {}
+        const ii = await c.admin.from('incoming_invoices').insert([{ source: 'upload', status: 'received', parse_status: 'parsed',
+          file_name: `u149-${stamp}.txt`, mime_type: 'text/plain', raw_text: 'HARNESS U149', file_hash: `u149-${stamp}`,
+          supplier_name_extracted: `[HARNESS] U149 ${stamp}`, invoice_number: `HV149-${stamp}`, currency: 'DKK',
+          amount_excl_vat: 250, vat_amount: 1000, amount_incl_vat: 1250, requires_manual_review: true }]).select('id')
+        u149InvoiceId = (ii.data?.[0] as { id?: string } | undefined)?.id ?? null
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${u149InvoiceId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('header-edit-open').click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('header-amount-excl').fill('800,00').catch(() => {})
+        await a.page.getByTestId('header-edit-save').click({ timeout: 15_000 }).catch(() => {})
+        await a.page.getByTestId('header-edit-error').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.inkonsistent_afvist = (await a.page.getByTestId('header-edit-error').count()) > 0
+        await a.page.getByTestId('header-amount-excl').fill('1.000,00').catch(() => {})
+        await a.page.getByTestId('header-vat').fill('250,00').catch(() => {})
+        await a.page.getByTestId('header-edit-save').click({ timeout: 15_000 }).catch(() => {})
+        await a.page.getByTestId('invoice-header-edit').waitFor({ state: 'detached', timeout: 30_000 }).catch(() => {})
+        type HR = { amount_excl_vat: number | null; vat_amount: number | null; amount_incl_vat: number | null }
+        const row = (await c.admin.from('incoming_invoices').select('amount_excl_vat, vat_amount, amount_incl_vat').eq('id', u149InvoiceId ?? '').maybeSingle()).data as HR | null
+        r.gemt = Number(row?.amount_excl_vat) === 1000 && Number(row?.vat_amount) === 250 && Number(row?.amount_incl_vat) === 1250
+        const aud = ((await c.admin.from('incoming_invoice_audit_log').select('action, previous_value').eq('incoming_invoice_id', u149InvoiceId ?? '')).data ?? []) as Array<{ action: string; previous_value: Record<string, unknown> | null }>
+        r.audit = aud.some((x) => x.action === 'header_edited' && Number(x.previous_value?.amount_excl_vat) === 250)
+        await c.admin.from('incoming_invoices').update({ status: 'approved' }).eq('id', u149InvoiceId ?? '')
+        await a.page.reload({ waitUntil: 'networkidle' }).catch(() => {})
+        await a.page.getByText('Parsede felter').first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.laast_efter_godkendelse = (await a.page.getByTestId('header-edit-open').count()) === 0
+        out.push({ id: 'U149 ret leverandørfakturahoved (L-7)', ok: !!u149InvoiceId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${row?.amount_excl_vat ?? '-'}/${row?.vat_amount ?? '-'}/${row?.amount_incl_vat ?? '-'}` })
+      }
+
+      // U148 (00220, Henrik 2026-10-10): notifikationsindstillinger — standard fra; push + daglig opsummering "ikke
+      // tilgængelig"; valget gemmes og huskes (det er det, afsenderne læser)
+      if (want('U148')) {
+        const r: Record<string, boolean> = {}
+        await c.admin.from('profiles').update({ notification_preferences: {} }).eq('id', adminUser.id)
+        await gotoSafe(a.page, `${base}/dashboard/settings/notifications`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.push_ikke_tilgaengelig = (await a.page.getByTestId('notify-new_lead-push-na').count()) > 0
+        r.daglig_ikke_tilgaengelig = (await a.page.getByTestId('notify-daily_summary-email-na').count()) > 0
+        r.standard_fra = ((await a.page.getByTestId('notify-offer_signed-email').getAttribute('aria-label').catch(() => '')) ?? '').endsWith(' fra')
+        await a.page.getByTestId('notify-offer_signed-email').click({ timeout: 15_000 }).catch(() => {})
+        await a.page.getByRole('button', { name: /Gem indstillinger/ }).click({ timeout: 15_000 }).catch(() => {})
+        await a.page.waitForTimeout(2000)
+        const { data: prof } = await c.admin.from('profiles').select('notification_preferences').eq('id', adminUser.id).single()
+        const prefs = (prof as { notification_preferences: Record<string, { email?: boolean; push?: boolean }> } | null)?.notification_preferences ?? {}
+        r.gemt_i_db = prefs.offer_signed?.email === true && prefs.new_lead?.email !== true && prefs.daily_summary?.email !== true && prefs.new_lead?.push !== true
+        await gotoSafe(a.page, `${base}/dashboard/settings/notifications`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.husket_efter_genindlaesning = ((await a.page.getByTestId('notify-offer_signed-email').getAttribute('aria-label').catch(() => '')) ?? '').endsWith(' til')
+        await c.admin.from('profiles').update({ notification_preferences: {} }).eq('id', adminUser.id)
+        out.push({ id: 'U148 notifikationsindstillinger (00220)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U23 portal-chat begge veje (kunde uden login ↔ sælger)
@@ -2505,6 +2558,28 @@ ${m.text()}`) })
         out.push({ id: 'U72 N28 cockpit: timer afventer godkendelse', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · vist="${txt}" forventet=${count}` })
       }
 
+      // U151 PL-8: montørens åbne job uden dato og ældre end 14 dage vises under "Ikke afsluttet" i Mine job
+      if (want('U151') && jobCaseId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const t1 = `[HARNESS] udateret job ${stamp}`
+        const t2 = `[HARNESS] gammelt job ${stamp}`
+        const old = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() - 30 * 86_400_000))
+        const ins = await c.admin.from('work_orders').insert([
+          { case_id: jobCaseId, title: t1, scheduled_date: null, assigned_employee_id: jobEmployeeId, status: 'planned' },
+          { case_id: jobCaseId, title: t2, scheduled_date: old, assigned_employee_id: jobEmployeeId, status: 'planned' },
+        ]).select('id')
+        const ids = ((ins.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        r.seed = ids.length === 2
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const card = m.page.getByTestId('my-jobs-card')
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        const txt = (await card.innerText().catch(() => '')) ?? ''
+        r.udateret_vist = txt.includes(t1)
+        r.gammelt_vist = txt.includes(t2)
+        if (ids.length) await c.admin.from('work_orders').delete().in('id', ids)
+        out.push({ id: 'U151 Mine job: udaterede og gamle åbne job (PL-8)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${ins.error ? ` · ${ins.error.message.slice(0, 80)}` : ''}` })
+      }
+
       // U62 N2: timegodkendelse — montør registrerer (U11) → admin afviser med begrundelse → montør ser "Afvist" → godkend
       if (want('U62') && jobCaseId) {
         const r: Record<string, boolean> = {}
@@ -2533,6 +2608,8 @@ ${m.text()}`) })
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.montoer_ser_afvist = (await m.page.getByTestId('my-hours-rejected').count()) > 0
+        // PL-5: begrundelsen står synligt (ikke kun hover) — læsbar på mobil
+        r.montoer_ser_begrundelse = ((await m.page.getByTestId('my-hours-rejection-reason').first().textContent().catch(() => '')) ?? '').includes('Forkert sag')
         await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         // admin: godkend fra fanen Afvist
         await gotoSafe(a.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })
@@ -3051,6 +3128,115 @@ ${m.text()}`) })
         await a.page.waitForTimeout(600)
         r.admin_kost_pr_medarbejder = (await a.page.getByRole('columnheader', { name: 'Kost', exact: true }).count()) > 0
         out.push({ id: 'U90 D50b medarbejderøkonomi: kost pr. medarbejder kun med løn-adgang', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U150 PE-6: kontraktsag — foreløbig DB regnes mod kontraktsummen (2.000 ekskl. moms), ikke registreret salg (1.000):
+      // kost 600 → DB 1.400 (70 %) "af kontraktsum"
+      if (want('U150') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] kontrakt-DB ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, contract_sum: 2000 }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) {
+          listCaseIds.push(caseId)
+          await c.admin.from('case_materials').insert([{ case_id: caseId, description: `KDB kabel ${stamp}`, quantity: 1, unit: 'stk', unit_cost: 600, unit_sales_price: 1000, billable: true, source: 'manual', created_by: adminUser.id }])
+        }
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=oekonomi`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('economy-reveal').click({ timeout: 30_000 }).catch(() => {})
+        const basis = a.page.getByTestId('case-db-basis')
+        await basis.waitFor({ timeout: 60_000 }).catch(() => {})
+        const btxt = (await basis.textContent().catch(() => '')) ?? ''
+        r.af_kontraktsum = /kontraktsum/.test(btxt) && /2\.000/.test(btxt)
+        const body = (await a.page.locator('main').innerText().catch(() => '')) ?? ''
+        r.db_1400 = /1\.400\s?kr/.test(body)
+        r.pct_70 = /70,0\s?%/.test(body)
+        r.registreret_salg_vist = /Registreret salg\s+1\.000/.test(body)
+        out.push({ id: 'U150 kontraktsag: DB mod kontraktsum (PE-6)', ok: !!caseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${btxt.slice(0, 60)}` })
+      }
+
+      // U152 GP-5: "Optimer priser" skifter kun til samme EAN med SAMME enhed (ikke en billigere meter-variant) og bruger
+      // samme prisberegning som oprettelse (kost = effektiv kost, rå leverandørkost i supplier_cost_price_at_creation)
+      if (want('U152') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const ean = `57${String(stamp).slice(-11)}`
+        const sups = await c.admin.from('suppliers').insert([{ name: `HARNESS OPT A ${stamp}`, code: `HOA${stamp}` }, { name: `HARNESS OPT B ${stamp}`, code: `HOB${stamp}` }, { name: `HARNESS OPT C ${stamp}`, code: `HOC${stamp}` }]).select('id')
+        const sIds = ((sups.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        const prods = sIds.length === 3 ? await c.admin.from('supplier_products').insert([
+          { supplier_id: sIds[0], supplier_sku: `OPT-A-${stamp}`, supplier_name: 'Harness stikkontakt', cost_price: 100, unit: 'stk', ean, is_available: true },
+          { supplier_id: sIds[1], supplier_sku: `OPT-B-${stamp}`, supplier_name: 'Harness stikkontakt', cost_price: 80, unit: 'stk', ean, is_available: true },
+          { supplier_id: sIds[2], supplier_sku: `OPT-C-${stamp}`, supplier_name: 'Harness stikkontakt', cost_price: 50, unit: 'm', ean, is_available: true },
+        ]).select('id, supplier_sku') : null
+        const pId = (sku: string) => ((prods?.data ?? []) as Array<{ id: string; supplier_sku: string }>).find((x) => x.supplier_sku.startsWith(sku))?.id ?? null
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-OPT-${stamp}`, title: '[HARNESS] optimer', created_by: adminUser.id, customer_id: profitCustomerId }]).select('id')
+        const offerId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const li = offerId ? await c.admin.from('offer_line_items').insert([{ offer_id: offerId, position: 1, description: 'Stikkontakt', quantity: 10, unit: 'stk',
+          unit_price: 125, total: 1250, cost_price: 100, supplier_product_id: pId('OPT-A'), supplier_cost_price_at_creation: 100 }]).select('id') : null
+        const lineId = (li?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!lineId && !!pId('OPT-B') && !!pId('OPT-C')
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/offers/${offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('cost-reveal-toggle').first().click({ timeout: 60_000 }).catch(() => {})
+          await a.page.getByRole('button', { name: /Optimer priser/ }).click({ timeout: 60_000 }).catch(() => {})
+          type L = { supplier_product_id: string | null; cost_price: number | null; supplier_cost_price_at_creation: number | null; unit_price: number | null }
+          let row: L | null = null
+          for (let i = 0; i < 20; i++) {
+            row = (await c.admin.from('offer_line_items').select('supplier_product_id, cost_price, supplier_cost_price_at_creation, unit_price').eq('id', lineId ?? '').maybeSingle()).data as L | null
+            if (row?.supplier_product_id !== pId('OPT-A')) break
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.skiftet_til_samme_enhed = row?.supplier_product_id === pId('OPT-B')
+          r.ikke_meter_varianten = row?.supplier_product_id !== pId('OPT-C')
+          r.kost_80 = Number(row?.cost_price) === 80 && Number(row?.supplier_cost_price_at_creation) === 80
+          r.salgspris_sat = Number(row?.unit_price) > 80
+          out.push({ id: 'U152 Optimer priser: EAN + samme enhed, samme prismodel (GP-5)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · kost=${row?.cost_price ?? '-'} pris=${row?.unit_price ?? '-'}` })
+        } finally {
+          if (offerId) { await c.admin.from('offer_line_items').delete().eq('offer_id', offerId); await c.admin.from('offers').delete().eq('id', offerId) }
+          if (sIds.length) { await c.admin.from('supplier_products').delete().in('supplier_id', sIds); await c.admin.from('suppliers').delete().in('id', sIds) }
+        }
+      }
+
+      // U153 NEXT-11 mobil (375 px): salg ser tilbud uden vandret scroll og uden admin-slet; kundekortet uden Slet;
+      // bogholderi ser ikke Ny Lead/Nyt Tilbud på dashboardet og ingen "+ Ny sag"; mail viser liste ELLER detalje
+      if (want('U153') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-MOB-${stamp}`, title: `[HARNESS] mobil ${stamp}`, created_by: salg.id, customer_id: profitCustomerId }]).select('id')
+        const offerId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sp = await login(salg)
+        try {
+          await sp.page.setViewportSize({ width: 375, height: 812 })
+          await gotoSafe(sp.page, `${base}/dashboard/offers/${offerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await sp.page.getByText(`[HARNESS] mobil ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const overflow = await sp.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)
+          r.tilbud_uden_vandret_scroll = overflow <= 2
+          r.salg_ingen_slet_paa_tilbud = (await sp.page.getByRole('button', { name: /^Slet$/ }).count()) === 0
+          r.salg_ingen_eksporter = (await sp.page.getByRole('button', { name: /Eksporter/ }).count()) === 0
+          await gotoSafe(sp.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await sp.page.getByRole('button', { name: /Nyt tilbud/ }).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.salg_kundekort_nyt_tilbud = (await sp.page.getByRole('button', { name: /Nyt tilbud/ }).count()) > 0
+          r.salg_kundekort_ingen_slet = (await sp.page.getByTestId('customer-delete').count()) === 0
+        } finally { await sp.ctx.close().catch(() => {}) }
+        const bog = await mkUser('bogholderi')
+        const bp = await login(bog)
+        try {
+          await gotoSafe(bp.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await bp.page.waitForTimeout(1000)
+          r.bog_ingen_ny_lead = (await bp.page.getByRole('button', { name: /Ny Lead/ }).count()) === 0
+          r.bog_ingen_nyt_tilbud = (await bp.page.getByRole('button', { name: /Nyt Tilbud/ }).count()) === 0
+          await gotoSafe(bp.page, `${base}/dashboard/orders`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.bog_ingen_ny_sag = (await bp.page.getByRole('link', { name: /\+ Ny sag/ }).count()) === 0
+          // negativ kontrol: admin ser stadig slet-knappen
+          await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await a.page.getByTestId('customer-delete').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.admin_ser_slet = (await a.page.getByTestId('customer-delete').count()) > 0
+        } finally { await bp.ctx.close().catch(() => {}) }
+        await a.page.setViewportSize({ width: 375, height: 812 })
+        await gotoSafe(a.page, `${base}/dashboard/mail`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.waitForTimeout(1500)
+        const mailOverflow = await a.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)
+        r.mail_uden_vandret_scroll = mailOverflow <= 2
+        await a.page.setViewportSize({ width: 1400, height: 1000 })
+        if (offerId) await c.admin.from('offers').delete().eq('id', offerId)
+        out.push({ id: 'U153 mobil + rettigheder (NEXT-11)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
       // U91 realiseret DB: netto faktureret ekskl. moms (udstedt − kreditnota; kladde/annulleret tæller ikke) mod faktisk
@@ -5145,6 +5331,7 @@ ${m.text()}`) })
     if (u120SupplierId) await c.admin.from('suppliers').delete().eq('id', u120SupplierId)
     for (const id of u120SupplierIds) await c.admin.from('suppliers').delete().eq('id', id)
     if (u92InvoiceId) { await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', u92InvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u92InvoiceId) }
+    if (u149InvoiceId) { await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', u149InvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u149InvoiceId) }
     if (u116InvoiceId) await c.admin.from('invoices').delete().eq('id', u116InvoiceId)
     if (u117WorkOrderId) await c.admin.from('work_orders').delete().eq('id', u117WorkOrderId)
     if (u119WorkOrderId) { await c.admin.from('time_logs').delete().eq('work_order_id', u119WorkOrderId); await c.admin.from('work_orders').delete().eq('id', u119WorkOrderId) }

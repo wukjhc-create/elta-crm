@@ -30,6 +30,8 @@ export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
     paymentReference: null,
     iban: null,
     currency: 'DKK',
+    isCreditNote: false,
+    amountsConsistent: null,
     workOrderHints: [],
     supplierOrderRefs: [],
     deliveryAddressHints: [],
@@ -64,15 +66,27 @@ export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
   if (dueDate) out.dueDate = dueDate
 
   // ---- Amounts ----
-  // Total incl. VAT — look for "Total / I alt / Beløb i alt" near "DKK"
+  // Leverandørfaktura-review 2026-10-14 (#1/#2): etiketterne har ordgrænser — "Moms" matchede før "Momsgrundlag"
+  // (moms = grundlaget → ekskl. 250 i stedet for 1.000) og "Total" matchede "Subtotal". Totalen tages fra den SIDSTE
+  // "I alt/Total" (sammentællingen står nederst), fortegn læses (-1.250,00 / 1.250,00-) til kreditnotaer.
   out.amountInclVat =
-    findAmountNear(text, /(?:I\s*alt|Total(?:\s*incl)?|Beløb\s*i\s*alt|Total\s*to\s*pay)/i) ??
-    findAmountNear(text, /At\s*betale/i)
+    lastAmount(text, /(?<![A-Za-zÆØÅæøå])(?<!Sub)(?<!sub)(?:I\s*alt|Total(?:\s*(?:incl|inkl)\.?(?:\s*moms)?)?|Beløb\s*i\s*alt|Total\s*to\s*pay)(?![A-Za-zÆØÅæøå])/gi) ??
+    lastAmount(text, /\bAt\s*betale\b/gi)
   out.amountExclVat =
-    findAmountNear(text, /(?:Subtotal|Sum\s*(?:excl|ex)\s*moms|Beløb\s*ekskl(?:\.\s*moms)?)/i) ??
-    findAmountNear(text, /Net\s*total/i)
+    firstAmount(text, /(?<![A-Za-zÆØÅæøå])(?:Subtotal|Momsgrundlag|Nettobeløb|Netto|Sum\s*(?:excl|ex|ekskl)\.?\s*moms|Beløb\s*ekskl\.?(?:\s*moms)?|Net\s*total)(?![A-Za-zÆØÅæøå])/gi)
   out.vatAmount =
-    findAmountNear(text, /(?:Moms|VAT|Tax)\s*(?:beløb)?/i)
+    firstAmount(text, /(?<![A-Za-zÆØÅæøå])(?<!(?:inkl|ekskl|excl|incl|ex)\.?\s*)(?:Moms|VAT|Tax)(?!grundlag|pligtig|\s*(?:nr|no|number|reg))(?![A-Za-zÆØÅæøå])(?:\s*\d{1,2}(?:[,.]\d+)?\s*%)?(?:\s*beløb)?/gi)
+
+  // Kreditnota: overskrift/etiket eller negativt totalbeløb → beløbene gemmes negative (en kreditnota reducerer kost)
+  const creditByText = /\b(?:kreditnota|credit\s*note)\b/i.test(lines.slice(0, 25).join('\n'))
+  const negative = [out.amountInclVat, out.amountExclVat, out.vatAmount].some((v) => v != null && v < 0)
+  out.isCreditNote = creditByText || negative
+  if (out.isCreditNote) {
+    const neg = (v: number | null) => (v == null ? null : -Math.abs(v))
+    out.amountInclVat = neg(out.amountInclVat)
+    out.amountExclVat = neg(out.amountExclVat)
+    out.vatAmount = neg(out.vatAmount)
+  }
 
   // If we have only incl + vat, derive excl.
   if (out.amountInclVat != null && out.vatAmount != null && out.amountExclVat == null) {
@@ -82,6 +96,12 @@ export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
   if (out.amountInclVat == null && out.amountExclVat != null && out.vatAmount != null) {
     out.amountInclVat = round2(out.amountExclVat + out.vatAmount)
   }
+  // Konsistens: ekskl. + moms = inkl. (±5 øre). Afvigelse → manuel kontrol (og bogføring blokeres i e-conomic-udkastet)
+  // + moms kan aldrig overstige 25 % af ekskl. (lavere ved momsfri linjer)
+  out.amountsConsistent =
+    out.amountInclVat != null && out.amountExclVat != null && out.vatAmount != null
+      ? Math.abs(out.amountExclVat + out.vatAmount - out.amountInclVat) <= 0.05 && Math.abs(out.vatAmount) <= Math.abs(out.amountExclVat) * 0.25 + 1
+      : null
 
   // ---- Payment reference ----
   // Danish FIK +71/+73/+75 + 15-digit ref
@@ -226,17 +246,28 @@ function normalizeDate(raw: string): string | null {
   return null
 }
 
-function findAmountNear(text: string, labelRe: RegExp): number | null {
-  // Look for label followed (within 60 chars) by a Danish-format number
-  // optionally suffixed with "kr" / "DKK".
-  const re = new RegExp(
-    labelRe.source +
-      '[\\s\\S]{0,60}?([0-9](?:[0-9.\\s]*)[,.]\\d{2})\\s*(?:kr|DKK|EUR)?',
-    'i'
-  )
-  const m = text.match(re)
-  if (!m) return null
-  return parseDanishNumber(m[1])
+// Beløb efter etiket (højst 60 tegn imellem), med fortegn foran ("-1.250,00") eller bagved ("1.250,00-").
+const AMOUNT_AFTER_LABEL = '[^\\d-]{0,60}?(-\\s*)?([0-9](?:[0-9.\\s]*)[,.]\\d{2})(\\s*-(?!\\d))?'
+
+function allAmounts(text: string, labelRe: RegExp): number[] {
+  const re = new RegExp(labelRe.source + AMOUNT_AFTER_LABEL, 'gi')
+  const out: number[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text))) {
+    const n = parseDanishNumber(m[2])
+    if (n == null) continue
+    out.push(m[1] || m[3] ? -n : n)
+  }
+  return out
+}
+
+function firstAmount(text: string, labelRe: RegExp): number | null {
+  return allAmounts(text, labelRe)[0] ?? null
+}
+
+function lastAmount(text: string, labelRe: RegExp): number | null {
+  const all = allAmounts(text, labelRe)
+  return all.length ? all[all.length - 1] : null
 }
 
 function parseDanishNumber(s: string): number | null {

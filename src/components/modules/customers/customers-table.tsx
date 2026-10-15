@@ -1,4 +1,6 @@
 'use client'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -74,6 +76,10 @@ function PaymentListChip({ badge }: { badge?: CustomerPaymentBadge }) {
 }
 
 export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered, onClearFilters, paymentBadges, emptyText }: CustomersTableProps) {
+  // M-11 (mobil-review 2026-10-14): rediger/(de)aktivér kræver customers.edit, slet er admin-only (customers.delete)
+  const { role } = useUserRole()
+  const canEdit = !!role && hasPermission(role, 'customers.edit')
+  const canDelete = !!role && hasPermission(role, 'customers.delete')
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -196,6 +202,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
             {selectedIds.size} valgt
           </span>
           <div className="h-4 w-px bg-gray-300" />
+          {canEdit && (
           <button
             onClick={() => handleBulkToggleActive(true)}
             disabled={isBulkActing}
@@ -203,6 +210,8 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
           >
             Aktivér
           </button>
+          )}
+          {canEdit && (
           <button
             onClick={() => handleBulkToggleActive(false)}
             disabled={isBulkActing}
@@ -210,6 +219,8 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
           >
             Deaktivér
           </button>
+          )}
+          {canDelete && (
           <button
             onClick={handleBulkDelete}
             disabled={isBulkActing}
@@ -217,6 +228,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
           >
             Slet valgte
           </button>
+          )}
           <button
             onClick={() => setSelectedIds(new Set())}
             className="text-sm text-gray-500 hover:text-gray-700 ml-auto"
@@ -407,6 +419,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                                 <Eye className="w-4 h-4" />
                                 Se detaljer
                               </Link>
+                              {canEdit && (
                               <button
                                 onClick={() => {
                                   setEditingCustomer(customer)
@@ -417,6 +430,8 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                                 <Pencil className="w-4 h-4" />
                                 Rediger
                               </button>
+                              )}
+                              {canEdit && (
                               <button
                                 onClick={() =>
                                   handleToggleActive(customer.id, customer.is_active)
@@ -435,6 +450,8 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                                   </>
                                 )}
                               </button>
+                              )}
+                              {canDelete && (
                               <button
                                 onClick={() => handleDelete(customer.id)}
                                 disabled={deletingId === customer.id}
@@ -443,6 +460,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                                 <Trash2 className="w-4 h-4" />
                                 {deletingId === customer.id ? 'Sletter...' : 'Slet'}
                               </button>
+                              )}
                             </div>
                           </div>
                         </>

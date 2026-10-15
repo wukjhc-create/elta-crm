@@ -785,7 +785,11 @@ export async function sendOfferEmail(
         }
       } catch (pdfError) {
         logger.error('Failed to generate PDF attachment', { error: pdfError })
-        // Continue without PDF — don't block the email
+      }
+      // Pilot-review 2026-10-14 (P-3): før blev mailen sendt UDEN PDF uden at brugeren fik besked — kunden fik en
+      // tilbudsmail uden tilbud. Nu sendes intet, og brugeren kan prøve igen eller sende uden PDF.
+      if (!emailAttachments.some((a) => a.contentType === 'application/pdf')) {
+        return { success: false, error: 'Tilbuddets PDF kunne ikke dannes — mailen er IKKE sendt. Prøv igen, eller send uden PDF.' }
       }
     }
 

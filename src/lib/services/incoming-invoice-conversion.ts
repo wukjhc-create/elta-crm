@@ -443,7 +443,7 @@ export async function convertAndApproveInvoice(
   }
 
   // 10. Flip status to approved (race-safe)
-  const { error: statusErr } = await supabase
+  const { data: flipped, error: statusErr } = await supabase
     .from('incoming_invoices')
     .update({
       status: 'approved',
@@ -452,6 +452,19 @@ export async function convertAndApproveInvoice(
     })
     .eq('id', invoiceId)
     .eq('status', invoice.status as string)
+    .select('id')
+  // Leverandørfaktura-review 2026-10-14 (#5): status nåede at ændre sig imens (fx afvist af en anden) → rul DENNE kørsels
+  // konverterede rækker tilbage, så en afvist faktura ikke efterlader kost på sagen (og svar ikke "godkendt")
+  if (!statusErr && (flipped ?? []).length === 0) {
+    await rollbackCreatedConversions(supabase, perLine)
+    return {
+      ok: false,
+      message: 'Fakturaen blev ændret af en anden imens — konverteringen er rullet tilbage. Genindlæs og prøv igen.',
+      invoiceStatusFlipped: false,
+      perLine,
+      caseId,
+    }
+  }
   if (statusErr) {
     return {
       ok: false,
@@ -585,5 +598,20 @@ export async function convertApprovedInvoiceLines(
     invoiceStatusFlipped: false,
     perLine,
     caseId,
+  }
+}
+
+/** Fjern rækker oprettet i denne kørsel (ikke tidligere/samtidige konverteringer) og nulstil linjernes kobling. */
+async function rollbackCreatedConversions(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  perLine: Array<{ lineId: string; ok: boolean; createdAs?: 'material' | 'other_cost' | null; createdId?: string; alreadyConverted?: boolean }>
+): Promise<void> {
+  for (const l of perLine) {
+    if (!l.ok || l.alreadyConverted || !l.createdId || !l.createdAs) continue
+    const table = l.createdAs === 'material' ? 'case_materials' : 'case_other_costs'
+    const linkCol = l.createdAs === 'material' ? 'converted_case_material_id' : 'converted_case_other_cost_id'
+    await supabase.from('incoming_invoice_lines').update({ [linkCol]: null, converted_at: null, converted_by: null }).eq('id', l.lineId).eq(linkCol, l.createdId)
+    await supabase.from(table).delete().eq('id', l.createdId)
   }
 }

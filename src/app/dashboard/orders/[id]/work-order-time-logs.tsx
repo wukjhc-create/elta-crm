@@ -16,6 +16,8 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import {
   listTimeLogsForWorkOrder,
   createTimeLog,
@@ -74,6 +76,10 @@ export function WorkOrderTimeLogs({
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  // PL-4 (planlægnings-review 2026-10-14): salgspriser fjernes server-side for roller uden invoices.view.own_cases
+  // (montør) — vis hverken kolonnen eller "salgspris mangler"-advarsler for dem
+  const { role } = useUserRole()
+  const canSeeSale = !!role && hasPermission(role, 'invoices.view.own_cases')
 
   const [logs, setLogs] = useState<TimeLogWithEmployee[] | null>(null)
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
@@ -405,7 +411,7 @@ export function WorkOrderTimeLogs({
                 <th className="py-1 pr-2 text-right">Timer</th>
                 <th className="py-1 pr-2">Sats</th>
                 {canSeeCost && <th className="py-1 pr-2 text-right">Intern kost</th>}
-                <th className="py-1 pr-2 text-right">Salgspris</th>
+                {canSeeSale && <th className="py-1 pr-2 text-right">Salgspris</th>}
                 {canSeeCost && <th className="py-1 pr-2 text-right">DB</th>}
                 <th className="py-1 pr-2">Beskrivelse</th>
                 <th className="py-1 pr-2">Fak.</th>
@@ -461,6 +467,7 @@ export function WorkOrderTimeLogs({
                         )}
                       </td>
                     )}
+                    {canSeeSale && (
                     <td className="py-1 pr-2 text-right tabular-nums">
                       {sale == null && l.hours != null ? (
                         <span className="text-amber-600" title="Medarbejder mangler salgspris">—</span>
@@ -468,6 +475,7 @@ export function WorkOrderTimeLogs({
                         fmtAmount(sale)
                       )}
                     </td>
+                    )}
                     {canSeeCost && (
                       <td className="py-1 pr-2 text-right tabular-nums">
                         {db == null ? (
@@ -511,9 +519,11 @@ export function WorkOrderTimeLogs({
                 {canSeeCost && (
                   <td className="pt-1 pr-2 text-right tabular-nums">{fmtAmount(totalCost)}</td>
                 )}
+                {canSeeSale && (
                 <td className="pt-1 pr-2 text-right tabular-nums">
                   {totalSale > 0 ? fmtAmount(totalSale) : '—'}
                 </td>
+                )}
                 {canSeeCost && (
                 <td className="pt-1 pr-2 text-right tabular-nums">
                   {totalSale > 0 && totalCost > 0 ? (
@@ -532,7 +542,7 @@ export function WorkOrderTimeLogs({
         </div>
       )}
 
-      {((canSeeCost && hasMissingCost) || hasMissingSale) && (
+      {((canSeeCost && hasMissingCost) || (canSeeSale && hasMissingSale)) && (
         <p className="text-[10px] text-amber-700">
           ⚠ Økonomiberegning ufuldstændig — én eller flere medarbejdere
           mangler {canSeeCost && hasMissingCost && hasMissingSale

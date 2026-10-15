@@ -21,6 +21,9 @@ async function requireGate(permission: Permission) {
 import { CALC_DEFAULTS, BATCH_CONFIG, MONITORING_CONFIG } from '@/lib/constants'
 import { calculateSalePrice } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
+import { planMaterialCostUpdates } from '@/lib/suppliers/material-price-plan'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { onlyValidAgreements } from '@/lib/pricing/agreement-validity'
 
 // =====================================================
 // Supplier Integration for Materials
@@ -247,29 +250,10 @@ export async function syncMaterialPricesFromSupplier(
       (supplierProducts || []).map((sp) => [sp.id, sp])
     )
 
-    // Collect updates to execute in parallel
-    const toUpdate: Array<{ id: string; cost_price: number; sale_price: number | null }> = []
-    let skipped = 0
-
-    for (const material of materials) {
-      if (!material.auto_update_price) {
-        skipped++
-        continue
-      }
-
-      const sp = spMap.get(material.supplier_product_id)
-      if (!sp) {
-        skipped++
-        continue
-      }
-
-      if (sp.cost_price === material.cost_price && sp.list_price === material.sale_price) {
-        skipped++
-        continue
-      }
-
-      toUpdate.push({ id: material.id, cost_price: sp.cost_price, sale_price: sp.list_price })
-    }
+    // GP-8: kun kostprisen synkroniseres (salgsprisen er materialets egen); kost ≤ 0 overskriver aldrig
+    const plan = planMaterialCostUpdates(materials, spMap, { requireAutoUpdate: true })
+    const toUpdate = plan.updates
+    let skipped = plan.skipped
 
     // Execute all updates in parallel (batches of 10 to avoid overwhelming DB)
     let updated = 0
@@ -280,7 +264,7 @@ export async function syncMaterialPricesFromSupplier(
         batch.map((item) =>
           supabase
             .from('kalkia_variant_materials')
-            .update({ cost_price: item.cost_price, sale_price: item.sale_price })
+            .update({ cost_price: item.cost_price })
             .eq('id', item.id)
         )
       )
@@ -302,89 +286,44 @@ export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult
   try {
     const { supabase } = await requireGate('materials.edit')
 
-    // Call the database function to sync all materials
-    const { data, error } = await supabase
-      .rpc('sync_all_material_prices_from_suppliers')
+    // GP-8: RPC'en sync_all_material_prices_from_suppliers findes ikke i nogen migration — altid manuel synk, side for
+    // side (før: de første 1.000 materialer og én uchunket .in() uden fejltjek → alt talt som "sprunget over")
+    const materials = await fetchAllRows<{ id: string; supplier_product_id: string | null; cost_price: number | null }>((from, to) => supabase
+      .from('kalkia_variant_materials')
+      .select('id, supplier_product_id, cost_price')
+      .eq('auto_update_price', true)
+      .not('supplier_product_id', 'is', null)
+      .order('id')
+      .range(from, to))
+    if (materials.length === 0) return { success: true, data: { updated: 0, skipped: 0 } }
 
-    if (error) {
-      // If the function doesn't exist, do it manually
-      logger.warn('RPC sync_all_material_prices_from_suppliers not available, syncing manually')
-
-      // Get all materials with supplier links and auto_update enabled
-      const { data: materials, error: materialsError } = await supabase
-        .from('kalkia_variant_materials')
-        .select(`
-          id,
-          supplier_product_id,
-          cost_price,
-          sale_price
-        `)
-        .eq('auto_update_price', true)
-        .not('supplier_product_id', 'is', null)
-
-      if (materialsError) {
+    // 00192: kostkolonner — admin-klient bag materials.edit; bidder à 200 (PostgREST .in()-grænse)
+    const ids = [...new Set(materials.map((m) => m.supplier_product_id).filter((x): x is string => !!x))]
+    const spMap = new Map<string, { id: string; cost_price: number | null }>()
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await createAdminClient().from('supplier_products').select('id, cost_price').in('id', ids.slice(i, i + 200))
+      if (error) {
+        logger.error('syncAllMaterialPrices: supplier_products-opslag fejlede', { error })
         throw new Error('DATABASE_ERROR')
       }
+      for (const sp of (data ?? []) as Array<{ id: string; cost_price: number | null }>) spMap.set(sp.id, sp)
+    }
 
-      if (!materials || materials.length === 0) {
-        return { success: true, data: { updated: 0, skipped: 0 } }
-      }
-
-      // Get linked supplier products
-      const supplierProductIds = materials.map((m) => m.supplier_product_id).filter(Boolean)
-
-      // 00192: kostkolonner — admin-klient bag materials.edit
-      const { data: supplierProducts } = await createAdminClient()
-        .from('supplier_products')
-        .select('id, cost_price, list_price')
-        .in('id', supplierProductIds)
-
-      const spMap = new Map(
-        (supplierProducts || []).map((sp) => [sp.id, sp])
+    const plan = planMaterialCostUpdates(materials, spMap, { requireAutoUpdate: false })
+    let updated = 0
+    let skipped = plan.skipped
+    const BATCH_SIZE = BATCH_CONFIG.MATERIAL_UPDATE_BATCH_SIZE
+    for (let i = 0; i < plan.updates.length; i += BATCH_SIZE) {
+      const batch = plan.updates.slice(i, i + BATCH_SIZE)
+      const results = await Promise.allSettled(
+        batch.map((item) => supabase.from('kalkia_variant_materials').update({ cost_price: item.cost_price }).eq('id', item.id))
       )
-
-      // Collect updates to execute in parallel
-      const toUpdate: Array<{ id: string; cost_price: number; sale_price: number | null }> = []
-      let skipped = 0
-
-      for (const material of materials) {
-        const sp = spMap.get(material.supplier_product_id)
-        if (!sp) {
-          skipped++
-          continue
-        }
-
-        if (sp.cost_price === material.cost_price && sp.list_price === material.sale_price) {
-          skipped++
-          continue
-        }
-
-        toUpdate.push({ id: material.id, cost_price: sp.cost_price, sale_price: sp.list_price })
-      }
-
-      // Execute all updates in parallel (batches of 10)
-      let updated = 0
-      const BATCH_SIZE = BATCH_CONFIG.MATERIAL_UPDATE_BATCH_SIZE
-      for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
-        const batch = toUpdate.slice(i, i + BATCH_SIZE)
-        const results = await Promise.allSettled(
-          batch.map((item) =>
-            supabase
-              .from('kalkia_variant_materials')
-              .update({ cost_price: item.cost_price, sale_price: item.sale_price })
-              .eq('id', item.id)
-          )
-        )
-        updated += results.filter((r) => r.status === 'fulfilled' && !(r.value as { error: unknown }).error).length
-        skipped += results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && (r.value as { error: unknown }).error)).length
-      }
-
-      revalidatePath('/dashboard/settings/kalkia')
-      return { success: true, data: { updated, skipped } }
+      updated += results.filter((r) => r.status === 'fulfilled' && !(r.value as { error: unknown }).error).length
+      skipped += results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && (r.value as { error: unknown }).error)).length
     }
 
     revalidatePath('/dashboard/settings/kalkia')
-    return { success: true, data: data as { updated: number; skipped: number } }
+    return { success: true, data: { updated, skipped } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke synkronisere alle priser') }
   }
@@ -474,16 +413,17 @@ export async function loadSupplierPricesForVariant(
 
       // Parallelize customer pricing queries
       const [{ data: customerSupplierPrices }, { data: customerProductPrices }] = await Promise.all([
-        supabase
+        // GP-2: kun aftaler i deres gyldighedsperiode
+        onlyValidAgreements(supabase
           .from('customer_supplier_prices')
           .select('supplier_id, discount_percentage, custom_margin_percentage')
           .eq('customer_id', customerId)
-          .eq('is_active', true),
-        supabase
+          .eq('is_active', true)),
+        onlyValidAgreements(supabase
           .from('customer_product_prices')
           .select('supplier_product_id, custom_cost_price, custom_list_price, custom_discount_percentage')
           .eq('customer_id', customerId)
-          .eq('is_active', true)
+          .eq('is_active', true))
           .in('supplier_product_id', supplierProductIds),
       ])
 

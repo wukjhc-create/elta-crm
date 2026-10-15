@@ -382,6 +382,9 @@ export async function setDefaultSupplierMargin(
       .select('id')
       .eq('supplier_id', supplierId)
       .eq('rule_type', 'supplier')
+      // GP-14: findes der (historisk) flere standardregler, fejlede maybeSingle og koden oprettede endnu en
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle()
 
     if (existing) {

@@ -1,4 +1,6 @@
 'use client'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -71,6 +73,7 @@ export function OrdersListClient({
   /** N9c: antal sager pr. status (kun roller med cases.view.all) */
   statusCounts?: Record<string, number> | null
 }) {
+  const { role } = useUserRole()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
@@ -105,12 +108,15 @@ export function OrdersListClient({
             {pagination.totalItems} sager · viser side {pagination.currentPage} af {pagination.totalPages || 1}
           </p>
         </div>
+        {/* M-16: kun med cases.create (bogholderi landede på "ingen adgang") */}
+        {!!role && hasPermission(role, 'cases.create') && (
         <Link
           href="/dashboard/orders/new"
           className="inline-flex items-center gap-1 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
         >
           + Ny sag
         </Link>
+        )}
       </div>
 
       {/* Filters */}

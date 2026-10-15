@@ -22,11 +22,17 @@ export interface InvoiceLineInput {
 export interface ControlTolerance {
   /** Procentvis tolerance (fx 2 = 2 %). */
   pct: number
-  /** Absolut tolerance pr. enhed i kr (afrunding). Afvigelse skal overstige BEGGE for at blive markeret. */
+  /** Absolut tolerance pr. enhed i kr (afrunding). */
   absPerUnit: number
+  /**
+   * Leverandørfaktura-review 2026-10-14 (#8): absolut tolerance pr. LINJE i kr. En afvigelse markeres når den overstiger
+   * procent-tolerancen OG enten enheds- eller linjetolerancen — før skulle den overstige 0,50 kr pr. enhed, så 4,00 → 4,45
+   * kr/m på 500 m (+11 %, 225 kr for meget) blev "ok".
+   */
+  absPerLine?: number
 }
 
-export const DEFAULT_TOLERANCE: ControlTolerance = { pct: 2, absPerUnit: 0.5 }
+export const DEFAULT_TOLERANCE: ControlTolerance = { pct: 2, absPerUnit: 0.5, absPerLine: 25 }
 
 export type LineVerdict = 'ok' | 'overcharge' | 'undercharge' | 'not_controllable'
 export interface LineControl {
@@ -61,7 +67,7 @@ export function controlLine(l: InvoiceLineInput, tol: ControlTolerance = DEFAULT
   const diff = l.unitPrice - l.expectedUnitPrice
   const variancePct = r2((diff / l.expectedUnitPrice) * 100)
   const varianceAmount = r2(diff * l.quantity)
-  const beyond = Math.abs(diff) > tol.absPerUnit && Math.abs(variancePct) > tol.pct
+  const beyond = Math.abs(variancePct) > tol.pct && (Math.abs(diff) > tol.absPerUnit || Math.abs(varianceAmount) > (tol.absPerLine ?? Infinity))
   if (!beyond) return { ...base, verdict: 'ok', varianceAmount, variancePct, reason: 'inden for tolerance' }
   return diff > 0
     ? { ...base, verdict: 'overcharge', varianceAmount, variancePct, reason: `faktureret ${l.unitPrice} mod aftalt ${l.expectedUnitPrice} (+${variancePct} %)` }

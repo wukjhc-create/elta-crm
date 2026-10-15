@@ -505,17 +505,26 @@ export async function createFinalInvoiceForCase(
     ])
 
     const timeRows = (tlRes.data ?? []) as unknown as TimeLogJoin[]
+    let missingRateHours = 0
+    const missingRateNames = new Set<string>()
     for (const t of timeRows) {
       const emp = Array.isArray(t.employee) ? t.employee[0] : t.employee
       // Fælles prisregel (frosset snapshot → live sats → fallback) — før brugte
       // slutfakturaen altid live sats og ignorerede rate engine-snapshottet.
-      const { hours, rate, total } = priceTimeLog({
+      const { hours, rate, total, source } = priceTimeLog({
         hours: t.hours,
         sale_amount: t.sale_amount,
         sale_rate_snapshot: t.sale_rate_snapshot,
         live_hourly_rate: emp?.hourly_rate,
       })
       if (!Number.isFinite(hours) || hours <= 0) continue
+      // Faktura-review 2026-10-14 (F-2): timer uden timepris (hverken frosset eller medarbejdersats) blev faktureret til
+      // en skjult fallback-sats, som forhåndsvisningen ikke viste — og en slutfaktura kan ikke genfaktureres bagefter
+      if (source === 'fallback') {
+        missingRateHours += hours
+        missingRateNames.add(emp?.name ?? 'ukendt medarbejder')
+        continue
+      }
       lines.push({
         description: `Timer (${hours.toLocaleString('da-DK', {
           minimumFractionDigits: 2,
@@ -572,6 +581,15 @@ export async function createFinalInvoiceForCase(
       positiveSubtotal += total
       unbilledLinesCount += 1
     }
+
+    if (missingRateHours > 0) {
+      return {
+        ...empty,
+        message: `${missingRateHours.toLocaleString('da-DK', { maximumFractionDigits: 2 })} timer mangler timepris (${[...missingRateNames].join(', ')}) — sæt timeprisen på medarbejderen før slutfakturaen oprettes`,
+        predecessor_count: predRows.length,
+        unbilled_lines_count: unbilledLinesCount,
+      }
+    }
   }
 
   // 5. Build deduction lines (negative — DB has no CHECK forbidding it)
@@ -597,6 +615,18 @@ export async function createFinalInvoiceForCase(
         predRows.length === 0
           ? 'Ingen ufakturerede linjer og ingen forgængere — slutfaktura ville være tom'
           : 'Ingen linjer at oprette',
+      predecessor_count: predRows.length,
+      deduction_total: r2(deductionTotal),
+      unbilled_lines_count: unbilledLinesCount,
+    }
+  }
+
+  // Faktura-review 2026-10-14 (F-3): en slutfaktura med negativ total er en skjult kreditnota (typen final, mailes som
+  // "Beløb −X") — tilbagebetaling skal ske med en kreditnota på forskud/rate
+  if (r2(positiveSubtotal - deductionTotal) < 0) {
+    return {
+      ...empty,
+      message: `Slutfakturaen ville blive negativ (${r2(positiveSubtotal - deductionTotal).toLocaleString('da-DK', { minimumFractionDigits: 2 })} kr ekskl. moms) — forskud/rater overstiger det udførte. Medtag sagens linjer, eller kreditér forskud/rate i stedet`,
       predecessor_count: predRows.length,
       deduction_total: r2(deductionTotal),
       unbilled_lines_count: unbilledLinesCount,

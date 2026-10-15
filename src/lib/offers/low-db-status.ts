@@ -10,6 +10,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { evaluateOfferLowDb, type OfferLowDbStatus } from '@/lib/offers/low-db-warning'
 import type { LineItemForDB } from '@/lib/logic/pricing'
+import { DEFAULT_DB_RED_THRESHOLD } from '@/lib/profit/db-thresholds'
 
 export async function getOfferLowDbStatus(offerId: string): Promise<OfferLowDbStatus | null> {
   // 00192: kostkolonner — admin-klient (resultatet vises kun som tal for kost-roller)
@@ -22,6 +23,6 @@ export async function getOfferLowDbStatus(offerId: string): Promise<OfferLowDbSt
   if (!row?.line_items?.length) return null
   const { getCalculationSettings } = await import('@/lib/actions/calculation-settings')
   const calc = await getCalculationSettings()
-  const red = calc.success && calc.data ? calc.data.margins.db_red_threshold : 10
+  const red = calc.success && calc.data ? calc.data.margins.db_red_threshold : DEFAULT_DB_RED_THRESHOLD
   return evaluateOfferLowDb(row.line_items, Number(row.discount_percentage ?? 0), red)
 }

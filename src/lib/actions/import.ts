@@ -33,6 +33,7 @@ async function requireSupplierWrite() {
   return ctx
 }
 import { logger } from '@/lib/utils/logger'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 /**
  * Get importer config based on supplier code
  */
@@ -444,7 +445,7 @@ export async function executeImport(
         .upsert({
           supplier_id: supplierId,
           last_import_at: new Date().toISOString(),
-        })
+        }, { onConflict: 'supplier_id' }) // GP-9: før fejlede upsert stille på UNIQUE(supplier_id) efter 1. import
 
       const result: ImportResult = {
         batch_id: batch.id,
@@ -661,26 +662,30 @@ export async function getPriceChangesFromImport(
     if (!hasPermission('products.view.cost_prices')) return { success: false, error: 'Manglende tilladelse: products.view.cost_prices' }
     validateUUID(batchId, 'batch ID')
 
-    const { data, error } = await supabase
-      .from('price_history')
-      .select(`
-        id,
-        supplier_product_id,
-        old_cost_price,
-        new_cost_price,
-        old_list_price,
-        new_list_price,
-        change_percentage,
-        created_at,
-        supplier_products!inner(supplier_sku, supplier_name)
-      `)
-      .eq('import_batch_id', batchId)
-      .order('change_percentage', { ascending: false })
-
-    if (error) {
+    // GP-10: en fuld AO-import kan have > 1.000 prisændringer (PostgREST max_rows) — side for side, sorteret bagefter
+    let data: Array<Record<string, any>> = []
+    try {
+      data = await fetchAllRows<Record<string, any>>((from, to) => supabase
+        .from('price_history')
+        .select(`
+          id,
+          supplier_product_id,
+          old_cost_price,
+          new_cost_price,
+          old_list_price,
+          new_list_price,
+          change_percentage,
+          created_at,
+          supplier_products!inner(supplier_sku, supplier_name)
+        `)
+        .eq('import_batch_id', batchId)
+        .order('id')
+        .range(from, to))
+    } catch (error) {
       logger.error('Database error fetching price changes', { error: error })
       throw new Error('DATABASE_ERROR')
     }
+    data.sort((a, b) => Number(b.change_percentage ?? 0) - Number(a.change_percentage ?? 0))
 
     const priceChanges: PriceChange[] = (data || []).map((row) => {
       const supplierProduct = row.supplier_products as unknown as { supplier_sku: string; supplier_name: string }

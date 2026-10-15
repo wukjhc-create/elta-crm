@@ -22,6 +22,8 @@ import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type { ServiceCaseStatus } from '@/types/service-cases.types'
 import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
+import { expectedCaseRevenue, type RevenueBasis } from '@/lib/cases/expected-revenue'
+import { loadDbThresholds } from '@/lib/profit/db-thresholds'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { netInvoicedExVat, summarizeCaseInvoices, type InvoiceAmountRow, type CaseInvoiceRow } from '@/lib/invoices/net-invoiced'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -64,10 +66,17 @@ export interface ServiceCaseEconomy {
 
   totals: {
     cost: number
+    /** Omsætningsgrundlag for DB: kontraktsum (kontraktsag), netto faktureret (over kontrakt) eller registreret salg */
     sales_price: number
     contribution_margin: number
     margin_percentage: number
+    /** PE-6: hvor sales_price kommer fra */
+    revenue_basis: RevenueBasis
+    /** Registrerede salgspriser (tid + materialer + øvrige) — før hovedtallet på alle sager */
+    registered_sales_price: number
   }
+  /** PE-7: farvegrænser for DB (calculation_settings) */
+  db_thresholds: { red: number; green: number }
 
   invoicing: {
     has_invoice_data: boolean
@@ -440,7 +449,14 @@ export async function getServiceCaseEconomy(
 
     // ---- Totals ----
     const total_cost = total_labor_cost + mat_cost + oth_cost
-    const total_sale = total_labor_sale + mat_sale + oth_sale
+    const registered_sale = total_labor_sale + mat_sale + oth_sale
+    // PE-6: kontraktsager regnes mod kontraktsummen (ekskl. moms), ikke registrerede salgspriser
+    const revenue = expectedCaseRevenue({
+      contractSum: sag.contract_sum, revisedSum: sag.revised_sum,
+      registeredSale: registered_sale, netInvoicedExVat: invoiced_total,
+    })
+    const total_sale = revenue.revenue
+    const dbThresholds = await loadDbThresholds(supabase)
     const cm = total_sale - total_cost
     const margin_pct = total_sale > 0 ? (cm / total_sale) * 100 : 0
 
@@ -473,7 +489,7 @@ export async function getServiceCaseEconomy(
       employees_without_rate: employees_without_rate_count > 0,
       materials_without_cost: mat_without_cost > 0,
       materials_without_sale: mat_without_sale > 0,
-      low_margin: total_sale > 0 && margin_pct < 10,
+      low_margin: total_sale > 0 && margin_pct < dbThresholds.red,
       no_contract_sum: sag.contract_sum == null && sag.revised_sum == null,
       unconverted_supplier_invoice_lines: si_approved_with_unconverted > 0,
     }
@@ -514,7 +530,10 @@ export async function getServiceCaseEconomy(
         sales_price: r2(total_sale),
         contribution_margin: r2(cm),
         margin_percentage: r2(margin_pct),
+        revenue_basis: revenue.basis,
+        registered_sales_price: r2(registered_sale),
       },
+      db_thresholds: { red: dbThresholds.red, green: dbThresholds.green },
       invoicing: {
         has_invoice_data,
         invoice_count: invRows.length,

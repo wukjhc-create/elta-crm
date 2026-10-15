@@ -22,7 +22,7 @@
  */
 
 import type { Permission } from '@/lib/auth/permissions'
-import { findOverlappingTimeLog, rateBelongsToEmployee } from '@/lib/time-logs/guards'
+import { findOverlappingTimeLog, rateBelongsToEmployee, timeLogSpanError } from '@/lib/time-logs/guards'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import {
@@ -260,6 +260,8 @@ export async function createTimeLog(
     // X4: overlap med medarbejderens andre registreringer afvises (før 2× løn/fakturering), og en valgt sats skal være
     // medarbejderens egen aktive (før kunne en kollegas/inaktiv overtidssats sættes via direkte kald)
     {
+      const spanErr = timeLogSpanError(startTimeIso, endTimeIso)
+      if (spanErr) return { success: false, error: spanErr }
       const clash = await findOverlappingTimeLog(supabase, input.employee_id, startTimeIso, endTimeIso)
       if (clash) {
         const p = (iso: string) => copenhagenParts(iso).clock
@@ -438,6 +440,8 @@ export async function updateTimeLog(
       const newStart = (patch.start_time ?? cur.start_time) as string
       const newEnd = (patch.end_time ?? cur.end_time) as string | null
       if (newEnd) {
+        const spanErr = timeLogSpanError(newStart, newEnd)
+        if (spanErr) return { success: false, error: spanErr }
         const clash = await findOverlappingTimeLog(supabase, cur.employee_id as string, newStart, newEnd, timeLogId)
         if (clash) {
           const p = (iso: string) => copenhagenParts(iso).clock

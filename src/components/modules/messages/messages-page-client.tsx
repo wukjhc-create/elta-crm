@@ -110,8 +110,8 @@ export function MessagesPageClient() {
 
       {/* Main Content */}
       <div className="flex-1 flex bg-white border rounded-lg overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-56 border-r flex flex-col">
+        {/* Sidebar — M-2 (mobil-review 2026-10-14): skjult på mobil (mappevalg som rullemenu over listen) */}
+        <div className="hidden md:flex w-56 border-r flex-col">
           {/* Folders */}
           <nav className="p-2 space-y-1">
             {INBOX_FOLDERS.map((folder) => {
@@ -160,8 +160,23 @@ export function MessagesPageClient() {
           </div>
         </div>
 
-        {/* Message List */}
-        <div className={`flex-1 flex flex-col ${selectedMessage ? 'w-1/2' : ''}`}>
+        {/* Message List — M-2: på mobil vises listen ELLER beskeden */}
+        <div className={`flex-1 flex-col ${selectedMessage ? 'hidden md:flex md:w-1/2' : 'flex'}`}>
+          {/* Mappe (mobil) */}
+          <div className="md:hidden p-3 border-b">
+            <select
+              value={currentFolder}
+              onChange={(e) => setFolder(e.target.value as typeof currentFolder)}
+              className="w-full border rounded-md px-3 py-2 text-sm"
+              aria-label="Mappe"
+            >
+              {INBOX_FOLDERS.map((folder) => (
+                <option key={folder} value={folder}>
+                  {INBOX_FOLDER_LABELS[folder]}{folder === 'inbox' && unreadCount > 0 ? ` (${unreadCount})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
           {/* Search */}
           <div className="p-3 border-b">
             <div className="relative">
@@ -212,7 +227,7 @@ export function MessagesPageClient() {
 
         {/* Message Detail */}
         {selectedMessage && (
-          <div className="w-1/2 border-l">
+          <div className="w-full md:w-1/2 md:border-l">
             <MessageThread
               message={selectedMessage}
               folder={currentFolder}

@@ -13,7 +13,7 @@ import { logger } from '@/lib/utils/logger'
 import { sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { generateBesigtigelseICS } from '@/lib/utils/ics'
 import { APP_URL } from '@/lib/constants'
-import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { splitMyDayTasks, type MyDayTask } from '@/lib/tasks/my-day'
@@ -466,7 +466,7 @@ export async function createCustomerTask(
 
   if (error) {
     logger.error('Failed to create customer task', { error })
-    return { success: false, error: error.message }
+    return { success: false, error: formatError(error, 'Opgaven kunne ikke oprettes') }
   }
 
   revalidatePath(`/dashboard/customers/${input.customer_id}`)
@@ -500,7 +500,7 @@ export async function updateCustomerTask(
 
   if (error) {
     logger.error('Failed to update customer task', { error, entityId: input.id })
-    return { success: false, error: error.message }
+    return { success: false, error: formatError(error, 'Opgaven kunne ikke opdateres') }
   }
 
   revalidatePath('/dashboard/customers')
@@ -526,7 +526,7 @@ export async function completeCustomerTask(
 
   if (error) {
     logger.error('Failed to complete customer task', { error, entityId: taskId })
-    return { success: false, error: error.message }
+    return { success: false, error: formatError(error, 'Opgaven kunne ikke markeres som udført') }
   }
 
   revalidatePath('/dashboard/customers')
@@ -548,7 +548,7 @@ export async function deleteCustomerTask(
 
   if (error) {
     logger.error('Failed to delete customer task', { error, entityId: taskId })
-    return { success: false, error: error.message }
+    return { success: false, error: formatError(error, 'Opgaven kunne ikke slettes') }
   }
 
   revalidatePath('/dashboard/customers')
@@ -574,7 +574,7 @@ export async function snoozeTask(
 
   if (error) {
     logger.error('Failed to snooze task', { error, entityId: taskId })
-    return { success: false, error: error.message }
+    return { success: false, error: formatError(error, 'Opgaven kunne ikke udsættes') }
   }
 
   revalidatePath('/dashboard/customers')

@@ -1,5 +1,6 @@
 'use server'
 
+import { getStandardCostRate } from '@/lib/services/rates'
 import { revalidatePath } from 'next/cache'
 import { DEFAULT_TAX_RATE } from '@/lib/constants'
 import type { ActionResult } from '@/types/common.types'
@@ -143,7 +144,9 @@ export async function calculateProject(
       input.hourly_rate
     )
 
-    const estimate = engine.calculateProject(input)
+    // Arbejdskost-model trin 2: kost til DB = valgt sats, ellers firmaets standard-timekost (prod: 400 — uændret)
+    const laborCostRate = input.labor_cost_rate && input.labor_cost_rate > 0 ? input.labor_cost_rate : await getStandardCostRate()
+    const estimate = engine.calculateProject({ ...input, labor_cost_rate: laborCostRate })
 
     return { success: true, data: estimate }
   } catch (err) {
@@ -496,7 +499,8 @@ export async function simulateProfit(
   const __denied = await permissionDenied('tools.calculations')
   if (__denied) return { success: false, error: __denied }
   try {
-    const result = CalculationIntelligenceEngine.simulateProfit(input)
+    const laborCostRate = input.labor_cost_rate && input.labor_cost_rate > 0 ? input.labor_cost_rate : await getStandardCostRate()
+    const result = CalculationIntelligenceEngine.simulateProfit({ ...input, labor_cost_rate: laborCostRate })
     return { success: true, data: result }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke simulere profit') }

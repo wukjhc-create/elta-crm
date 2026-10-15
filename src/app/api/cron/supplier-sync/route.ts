@@ -132,6 +132,12 @@ async function handleCron(request: Request): Promise<Response> {
             await supabase.from('supplier_sync_schedules').update({ last_run_status: 'skipped', last_run_duration_ms: durationMs }).eq('id', schedule.id)
             return { supplierId: schedule.supplier_id, supplierName: supplier.name, syncType: schedule.sync_type, status: 'skipped', error: 'No API client available', durationMs }
           }
+          // GP-7: klient uden live-API (LM Classic læser vores egne rækker) — ingen "sync", ingen last_synced_at-stempel
+          if (client.readsLocalCatalog) {
+            const durationMs = Date.now() - syncStartTime
+            await supabase.from('supplier_sync_schedules').update({ last_run_status: 'skipped', last_run_duration_ms: durationMs }).eq('id', schedule.id)
+            return { supplierId: schedule.supplier_id, supplierName: supplier.name, syncType: schedule.sync_type, status: 'skipped', error: 'Intet live-API — priser opdateres via prisfil-import', durationMs }
+          }
 
           // Get products to sync - load all at once to avoid N+1 queries
           // leverandør-review: side for side — før kun de første 1.000 varer (PostgREST max_rows)

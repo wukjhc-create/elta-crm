@@ -28,6 +28,7 @@ import { ConversionPreviewPanel } from './conversion-preview-panel'
 import { InvoiceControlPanel } from './invoice-control-panel'
 import { SupplierEconomicPreview } from './supplier-economic-preview'
 import { AttachInvoiceFile } from './attach-invoice-file'
+import { HeaderEditForm } from './header-edit-form'
 
 const fmtAmount = (n: number | null | undefined, ccy = 'DKK') =>
   n == null
@@ -52,10 +53,12 @@ type Msg = { ok: boolean; text: string } | null
 export function IncomingInvoiceDetailClient({
   initial,
   canPost = false,
+  canEditHeader = false,
   economicReady = false,
 }: {
   initial: IncomingInvoiceDetail
   canPost?: boolean
+  canEditHeader?: boolean
   economicReady?: boolean
 }) {
   const router = useRouter()
@@ -77,6 +80,7 @@ export function IncomingInvoiceDetailClient({
   const [showApprovePreview, setShowApprovePreview] = useState(false)
   const [approvePreviewBusy, setApprovePreviewBusy] = useState(false)
   const [approvePreviewError, setApprovePreviewError] = useState<string | null>(null)
+  const [editingHeader, setEditingHeader] = useState(false)
 
   const inv = detail.invoice
   const review = inv.requires_manual_review
@@ -308,6 +312,31 @@ export function IncomingInvoiceDetailClient({
         </Panel>
 
         <Panel title="Parsede felter">
+          {canEditHeader && !terminal && !editingHeader && (
+            <div className="flex justify-end -mt-1 mb-1">
+              <button
+                type="button"
+                onClick={() => setEditingHeader(true)}
+                className="text-xs text-emerald-700 hover:underline"
+                data-testid="header-edit-open"
+              >
+                Ret fakturahoved
+              </button>
+            </div>
+          )}
+          {editingHeader ? (
+            <HeaderEditForm
+              invoiceId={inv.id}
+              initial={inv}
+              onCancel={() => setEditingHeader(false)}
+              onSaved={async (message) => {
+                setEditingHeader(false)
+                setMsg({ ok: true, text: message })
+                await refresh()
+                router.refresh()
+              }}
+            />
+          ) : (<>
           <Row label="Leverandør (navn)"  value={inv.supplier_name_extracted ?? '—'} />
           <Row label="CVR/VAT"            value={inv.supplier_vat_number ?? '—'} />
           <Row label="Faktura nr"         value={<span className="font-mono">{inv.invoice_number ?? '—'}</span>} />
@@ -318,6 +347,7 @@ export function IncomingInvoiceDetailClient({
           <Row label="Beløb incl moms"    value={fmtAmount(inv.amount_incl_vat, inv.currency)} />
           <Row label="Betalingsreference" value={<span className="font-mono">{inv.payment_reference ?? '—'}</span>} />
           <Row label="IBAN"               value={<IbanValue invoiceId={inv.id} masked={inv.iban} canReveal={canRevealIban} />} />
+          </>)}
         </Panel>
 
         <Panel title="Match resultat">

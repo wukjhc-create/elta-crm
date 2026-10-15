@@ -274,11 +274,15 @@ export async function setInvoiceStatus(
     patch.payment_status = 'paid'
   }
 
-  const { data: updated, error: updErr } = await supabase
+  let upd = supabase
     .from('invoices')
     .update(patch)
     .eq('id', invoiceId)
     .eq('status', cur) // samtidigt statusskift må ikke overskrives blindt
+  // Faktura-review 2026-10-14 #8: sletning af en kladde (og mail-afsendelse) tager sent_at som claim — "markér som
+  // sendt" må ikke vinde over en igangværende sletning (ellers en sendt faktura uden linjer)
+  if (cur === 'draft' && next === 'sent') upd = upd.is('sent_at', null)
+  const { data: updated, error: updErr } = await upd
     .select('*')
     .single()
 
@@ -618,9 +622,10 @@ export async function getInvoicePdfPayload(
   const r2 = (n: number) => Math.round(n * 100) / 100
   const headerVat = Number(inv.tax_amount) || 0
   const headerSubtotal = Number(inv.total_amount) || 0
-  // Derive vat_rate from header (default 25 % if header is empty)
+  // Derive vat_rate from header (default 25 % if header is empty). Absolutværdier: kreditnotaer er negative —
+  // før gav en kreditnota på en momsfri faktura 25 % moms i PDF'en (faktura-review 2026-10-14 #9)
   const vatRate =
-    headerSubtotal > 0 ? r2((headerVat / headerSubtotal) * 100) : 25
+    headerSubtotal !== 0 ? r2((Math.abs(headerVat) / Math.abs(headerSubtotal)) * 100) : 25
   const vat = r2(subtotal * (vatRate / 100))
   const final = r2(subtotal + vat)
 
@@ -1514,6 +1519,11 @@ export interface RegisterPaymentResult {
   amountPaid: number
   paymentStatus: InvoicePaymentStatus
   fullyPaid: boolean
+  /**
+   * F-7 (faktura-review 2026-10-14): beløb betalt UD OVER det udestående (efter kreditnotaer) — inkl. alle tidligere
+   * betalinger. En betaling til en allerede betalt faktura er i sin helhed overbetaling.
+   */
+  overpaidBy: number
 }
 
 /**
@@ -1579,6 +1589,7 @@ export async function registerPayment(
       amountPaid: Number(inv.amount_paid),
       paymentStatus: 'paid',
       fullyPaid: true,
+      overpaidBy: round2(amt),
     }
   }
 
@@ -1653,6 +1664,7 @@ export async function registerPayment(
     amountPaid: newAmountPaid,
     paymentStatus: nextPaymentStatus,
     fullyPaid: nextPaymentStatus === 'paid',
+    overpaidBy: Math.max(0, round2(newAmountPaid - final)),
   }
 }
 

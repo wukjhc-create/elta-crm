@@ -76,6 +76,15 @@ export abstract class BaseSupplierAPIClient {
   protected rateLimitInfo: RateLimitInfo | null = null
   protected lastCredentialError: string | null = null
 
+  /**
+   * GP-7 (grossist-review 2026-10-14): true når klienten IKKE har et live-API men læser vores egne supplier_products
+   * (LM Classic). En "sync" mod den kan aldrig finde nye priser — den må ikke stemple last_synced_at (gamle priser så
+   * ellers friske ud). Priserne for disse leverandører kommer fra prisfil-import.
+   */
+  get readsLocalCatalog(): boolean {
+    return false
+  }
+
   constructor(supplierId: string, config: SupplierAPIConfig) {
     this.supplierId = supplierId
     this.config = {
@@ -782,6 +791,11 @@ export class AOAPIClient extends BaseSupplierAPIClient {
  * No live API — all data comes from periodic CSV uploads.
  */
 export class LMClassicClient extends BaseSupplierAPIClient {
+  /** GP-7: læser supplier_products — intet live-API */
+  get readsLocalCatalog(): boolean {
+    return true
+  }
+
   get supplierCode(): string {
     return 'LM'
   }

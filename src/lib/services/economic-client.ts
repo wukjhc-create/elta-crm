@@ -989,6 +989,8 @@ export async function pushSupplierInvoiceToEconomic(
       posted_at: new Date().toISOString(),
     })
     .eq('id', incomingInvoiceId)
+    // Leverandørfaktura-review 2026-10-14 (#6): kun hvis kravet stadig er vores (ikke afvist/overtaget imens)
+    .eq('external_invoice_id', supClaimValue)
 
   await logAttempt({
     entity_type: 'invoice',

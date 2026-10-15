@@ -1056,7 +1056,8 @@ export function MailClient() {
       )}
 
       {/* ========== LINK STATUS TABS — like Leads filter tabs ========== */}
-      <div className="flex gap-1 border-b">
+      {/* M-1: fanerne scroller vandret på mobil i stedet for at gøre hele siden bredere */}
+      <div className="flex gap-1 border-b overflow-x-auto [&>*]:shrink-0">
         {FILTER_TABS.map((tab) => {
           const Icon = tab.icon
           const isActive = currentFilter === tab.value
@@ -1151,7 +1152,7 @@ export function MailClient() {
       )}
 
       {/* ========== SPLIT VIEW: LIST (with filter bar) + DETAIL ========== */}
-      <div className="flex gap-6 min-h-[650px]">
+      <div className="flex flex-col md:flex-row gap-6 md:min-h-[650px]">
         {/* Left panel: filter bar + email list */}
         <MailList
           emails={emails}
@@ -1170,8 +1171,17 @@ export function MailClient() {
           onToggleReadStatus={handleToggleReadStatus}
         />
 
-        {/* Right panel: email detail */}
-        <div className="flex-1 bg-white rounded-lg border overflow-hidden">
+        {/* Right panel: email detail — M-1: på mobil kun når en mail er valgt, med tilbage-knap */}
+        <div className={`flex-1 bg-white rounded-lg border overflow-hidden ${selectedEmail ? '' : 'hidden md:block'}`}>
+          {selectedEmail && (
+            <button
+              type="button"
+              onClick={() => setSelectedEmail(null)}
+              className="md:hidden w-full text-left px-4 py-3 text-sm text-emerald-700 border-b"
+            >
+              ← Tilbage til listen
+            </button>
+          )}
           {selectedEmail && currentFilter === 'archived' && (
             <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 border-b text-sm text-gray-700" data-testid="mail-archived-bar">
               <Archive className="w-4 h-4" /> Mailen er arkiveret.

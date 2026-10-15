@@ -32,6 +32,148 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Medarbejderlisten viser kort under `md`. Mail og telefon er egne links. Intern kost og salgspris følger `canSeePayroll`. | DONE — `employees-mobile-test` |
 | Sagens materialer vises som kort under `md`. Salg kræver `canSeePrices`. Kost og foreløbig DB kræver `showCost`. Rediger og slet er de samme knapper. | DONE — `materials-mobile-test` |
 
+## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
+Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
+| # | Fund | Status |
+|---|---|---|
+| M-1 (S2) | Mail (/dashboard/mail) side-om-side liste/detalje + faneblade uden scroll → ubrugelig på mobil | DONE (UI U153) |
+| M-2 (S2) | Beskeder (/dashboard/inbox) fast w-56 mappekolonne + w-1/2 detalje | DONE (UI U153) |
+| M-3 (S2) | Bundnavigationen (z-50, senere i DOM) ligger over alle modaler → skjult Send-knap, tab af input | DONE (UI U153) |
+| M-4 (S2) | Opgavelisten: 8-kolonne-grid i overflow-hidden, handlinger kun ved hover | DONE (UI U153) |
+| M-5 (S2) | Usynlige slet-knapper (hover) uden bekræftelse: tilbudslinjer, kundeopgaver | DONE (UI U153) |
+| M-6/7 (S3) | Tilbuds-/lead-hoved med 8/4 knapper uden ombrydning | DONE (UI U153) |
+| M-8 (S3) | Rækkemenuer/statusdropdown klippes i tabeller (overflow) | LATER (portal/fixed-positionering af menuer) |
+| M-9 (S3) | Tilbudslisten viser ikke kunden på mobil | DONE (UI U153) |
+| M-10/11 (S3) | Knapper vises uden rettighed (kundekort, slet-knapper for salg) | DONE (UI U153) |
+| M-12 (S3) | "Eksporter" på tilbud kræver settings.economic → fejltoast for salg/serviceleder | DONE (UI U153) |
+| M-13/14 (S3) | Dashboard-genveje/-kort ignorerer rolle; "Nyt Projekt" opretter usynlige legacy-projekter | DONE (UI U153) |
+| M-15 (S3) | Mobilmenuen mangler kontormoduler; salg mangler Leads i bundnavigationen | DONE (UI U153) |
+| M-16 (S3) | Ny sag: "Ansvarlig" tom for serviceleder/salg (users.view); "+ Ny sag" vises for bogholderi | DONE (UI U153) |
+| M-17 (S3) | Inline-linjer: dobbelt "Tilføj linje"; fejlet gem markeres som gemt | DONE (UI U153) |
+| M-18 (S3) | Opgavedialog lukker ved tryk på baggrunden (tab af input) | DONE (UI U153) |
+| M-19/20 (S4) | Skraldespand som luk-ikon; "Låst"-årsag kun hover; avatar "U"; padding | DONE (X-ikon, Låst ved tryk); avatar/padding: LATER |
+
+## Checkpoint 2026-10-14 aften (long-run)
+- **I prod (push = deploy):** L-7 ret fakturahoved · PE-6 kontraktsum-DB · PE-7 fælles DB-tærskler · arbejdskost trin 2 (adfærdsneutralt)
+  · F-1 (S1) kreditering af fratrukket forskud blokeret · F-2/F-3 slutfaktura-vagter · F-8/F-9/F-10/F-12 · F-7 overbetaling
+  · PL-1–PL-8 (montør/planlægning) · GP-1 app-vej · GP-2/3/5/7/8/9/10/11/12/13/14 · 3 små audit-punkter
+- **Udkast BLOCKED_APPROVAL (branches, staging-testet):** 00221 L-10 (`l10-rejected-dup-00221`, rejected-dup 5/5) · 00222 PE-1/PE-2
+  (`profit-engine-00222`, wo-profit 7/7, erstatter 00205) · 00223 GP-1 RLS (`calc-settings-rls-00223`, calc-settings-rls 3/3).
+  · 00224 GP-6 (`package-pricing-00224`, package-pricing-check 3/3). Staging har 00221–00224 anvendt.
+- **Nye beslutninger** i HENRIK-DECISIONS: lav-DB 20 vs 10, GP-1, GP-4, F-3 kontrakt-rest, F-4, F-5, PL-10.
+
+## NEXT-10 (backlog-wave 2026-10-14 aften — planlægning/montør, kundefaktura, grossist/prissætning)
+Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data er små (3 arbejdsordrer), så de fleste er latente.
+
+### Kundefaktura (F)
+| # | Fund | Status |
+|---|---|---|
+| F-1 (S1) | Forskud/rate kunne krediteres efter slutfakturaen havde fratrukket den → kunden fik beløbet to gange | DONE 5b086139 (invoice-guards-check) |
+| F-2 (S2) | Slutfaktura/sagsfaktura prissætter timer uden timepris til hardcodet 650 kr/t, som forhåndsvisningen ikke viser | DONE (slutfaktura blokeres med klar besked; sagsfaktura-kladde advarer stadig) — fallback-værdien 650/495/695 = P-8 §5.4 [H] |
+| F-3 (S2) | Slutfaktura kan oprettes med negativ total (typen final, ikke kreditnota); ingen "rest af kontraktsum" på kontraktsager | DONE negativ total afvises (før nummertildeling) · [H] rest-af-kontrakt-tilstand |
+| F-4 (S2) | Krediteret slutfaktura låser sagen for altid (uq_invoices_one_final_per_case tæller annullerede; kilde-låse frigives ikke) | [H] migration + kreditér-og-genfakturér-flow |
+| F-5 (S2) | Bankimport dropper en ægte 2. betaling med samme dato/beløb/reference (dedup-nøgle) | [H] migration (dedup på bank-id/rækkehash) |
+| F-6 (S2) | Auto-faktura ved tilbudsaccept sætter ikke case_id (kun hvis reglen går ud af dry-run) | LATENT — prod: reglen er active + dry_run (prod-automation-rules 2026-10-14); [H] case_id skal sættes før dry_run slås fra |
+| F-7 (S3) | Overbetaling/dobbeltbetaling markeres ikke | DONE — `overpaidBy` (summen mod udestående efter kredit); bankmatch → "overpayment" (register-payment-check +2) |
+| F-8 (S3) | "Markér som sendt" kunne vinde over kladde-sletning | DONE f67e46b4 |
+| F-9 (S3) | Kreditnota på momsfri faktura viste 25 % moms i PDF | DONE f67e46b4 |
+| F-10 (S3) | Rykker-cron: fejlede afsendelser tæller med i loftet → kan gå i stå på de ældste | DONE — kun sendte tæller, nyligt fejlede sidst, tidsbudget 25 s (`reminder-run-test` 5/5) |
+| F-11 (S4) | Tidszone-kanter (fakturaår ved nytår, CURRENT_DATE i SQL, rykker-cooldown floor) | LATER |
+| F-12 (S4) | Slutfakturaens "Intern note" siger "Vises på fakturaen" (vises ikke, D34) | DONE |
+
+### Planlægning / montør (PL)
+| # | Fund | Status |
+|---|---|---|
+| PL-1 (S2) | Afvist timeregistrering kan ikke rettes/slettes af montøren og blokerer genindtastning (overlap tæller afviste) | DONE (overlap ignorerer afviste; `time-overlap-rejected-check`) — redigér/slet egne afviste: LATER |
+| PL-2 (S2) | Godkender ser ikke satstype (overtid) → overtid godkendes uset | DONE — badge pr. række + ændret satstype efter visning springes over |
+| PL-3 (S3) | Montør ser planlægnings-/statusknapper der altid fejler (kalenderdialog, "Planlæg medarbejder") | DONE — statusknapper efter getWorkOrderCapabilities, felter/Gem og "Planlæg medarbejder" kun med work_orders.plan |
+| PL-4 (S3) | Montør ser "salgspris mangler"-advarsler (salg er skjult for ham) | DONE — kolonne/sum/advarsel kun med invoices.view.own_cases |
+| PL-5 (S3) | Afvisningsårsag kun i hover — kan ikke læses på mobil | DONE — inline "Begrundelse:" (U62) |
+| PL-6 (S3) | Ingen fornuftsgrænse på manuel tid (80 t, fremtidige datoer) | DONE — højst 16 t og højst i morgen (`time-log-span-test` 7/7) |
+| PL-7 (S3) | Omplanlægning tjekker ikke fratrædelsesdato | DONE |
+| PL-8 (S3) | "Mine job" skjuler udaterede og >14 dage gamle åbne job | DONE (UI U151) |
+| PL-9 (S3/S4) | Kalender dagvisning trang på mobil; overlap kun app-niveau; tidsformular-felter | LATER |
+| PL-10 | Montør ser kontraktsum i sagens Økonomi-panel (salg, ikke kost) — passer det med D42? | [H] beslutning |
+
+### Grossist / prissætning (GP)
+| # | Fund | Status |
+|---|---|---|
+| GP-1 (S1→S2) | Salg kan regne nettoindkøbspris baglæns: estimeret salgspris = kost × (1 + global avance), og avancen er læsbar for alle (calculation_settings RLS USING(true), ugated action) | DELVIS — app-vejen lukket: getCalculationSettings/getAllSettings udleverer ikke indkøbsavancer til roller uden kostadgang; server-beregning via lib/settings/product-margin (uændrede priser). Rest: RLS = udkast 00223 på branch `calc-settings-rls-00223` (staging `cli.ts calc-settings-rls` 3/3) BLOCKED_APPROVAL |
+| GP-2 (S2) | Produktspecifikke kundepriser og aftalers gyldighedsdatoer ignoreres ved linjeoprettelse/-opdatering | DELVIS — gyldighedsdatoer håndhæves ved linjeoprettelse/-opdatering (`supplier-line-pricing-check`); gyldighed nu også i søgning, optimering og Kalkia (fælles `onlyValidAgreements`); produktspecifikke kundepriser går nu foran leverandøraftalen ved linjeoprettelse/-opdatering/optimering (som DB-funktionen) — DONE |
+| GP-3 (S2) | Kategori-/underkategori-avanceregler bruges aldrig på manuelle linjer (p_category null) | DONE — kategori/underkategori sendes med (`supplier-line-pricing-check`) |
+| GP-4 (S2) | Avance-fallback og forrang forskellig på hver sti (20/25 %/indstilling; regel slår kundeaftale) | [H] forrang + én resolver |
+| GP-5 (S2) | optimizeOfferPrices: egen matematik, skriver bruttokost, navne-match på tværs af enheder, ukontrollerede fejl | DONE — supplierLinePricing, kun EAN + samme enhed, effektiv kost, fejl tjekkes (UI U152) |
+| GP-6 (S2) | Pakke-/auto-tilbud: rabatteret kost gemt som leverandørkost (falsk "pris ændret"), avance gemt som 0, ROUND vs ceil | BLOCKED_APPROVAL — udkast 00224 på branch `package-pricing-00224` (rå kost + faktisk avance; staging `cli.ts package-pricing-check` 3/3; latent: 0 pakkelinjer i prod). Afrunding ROUND vs ceil: LATER |
+| GP-7 (S2) | LM "API-sync" læser egne rækker og stempler last_synced_at → gamle priser ser friske ud | DONE — `readsLocalCatalog`: cron/manuel API-sync springer LM Classic over (ingen last_synced_at-stempel); live-søgning mærker LM-rækker "cache" (`supplier-client-catalog-test`) |
+| GP-8 (S2) | Kalkia-materialesync skriver vejl. udsalgspris som salgspris, 0-kost, upagineret/uchunket | DONE — kun kostprisen synkroniseres (aldrig 0, salgspris urørt), "synk alle" pagineret + chunket med fejltjek (`material-price-plan-test` 7/7) |
+| GP-9 (S3) | import: supplier_settings.upsert uden onConflict → last_import_at opdateres aldrig efter 1. import | DONE (onConflict) |
+| GP-10 (S3) | 1.000-rækkers-afkortning i prisændringer fra import og kategoriliste | DONE (fetchAllRows) |
+| GP-11 (S3) | getAffectedOffers tager højeste nye kost i vinduet, ikke seneste | DONE — første gamle → seneste nye |
+| GP-12 (S3) | Manuel kostændring skriver ingen price_history | DONE for leverandørvarer (change_source manual); product_catalog: LATER |
+| GP-13 (S3) | parseDanishNumber("1.234") = 1,234; FTP-insert kost 0; søgning sorterer 0-kr øverst | DELVIS — søgning udelader kost 0; "1.234"-tvetydighed + FTP-insert 0: TODO |
+| GP-14 (S4) | Død line-item-form.tsx, ubrugt forespørgsel, maybeSingle i setDefaultSupplierMargin | DONE |
+
+## NEXT-9 (backlog-wave 2026-10-14 — go-live/pilot, leverandørfakturaer, Profit Engine)
+Kilde: tre read-only reviews 2026-10-14 (pilot-readiness, leverandørfaktura-kontrol, Profit Engine). [H] = kræver Henrik.
+
+### Go-live-blockers
+| # | Opgave | Ejer | Status |
+|---|---|---|---|
+| G-1 | Slå selvregistrering fra (Supabase Auth "Allow new users to sign up") — standardrolle er montør → enhver med anon-nøglen kan oprette en aktiv montør. Målt 2026-10-14: stadig `disable_signup:false` | [H] manuel | BLOCKED (`prod-auth-signup-status.ts`) |
+| G-2 | Pilotbrugere: navne + roller (afgør om 00186 skal køres først — bogholderi ser ellers hele postkassen) | [H] beslutning | BLOCKED |
+| G-3 | G11 montør #2 uden koblet medarbejder (målt 2026-10-14: 2 logins / 1 koblet) | [H] manuel | BLOCKED (`prod-montor-linkage.ts`) |
+| G-4 | G12 bankoplysninger på fakturaer (Vercel `INVOICE_BANK_*` eller Indstillinger → Firma) | [H] manuel | BLOCKED |
+| G-5 | Admin-alarmer når ingen: `ADMIN_ALERT_EMAIL` i Vercel eller branch `admin-alert-recipients-auth-email` / 00188 | [H] env/godkendelse | BLOCKED |
+| G-6 | "Kør rykker-tjek nu" på go-live-siden sender rigtige rykkere uden bekræftelse/loft | dev | DONE eb94707c — bekræftelse + fælles loft `MAX_REMINDER_MAILS_PER_RUN` (3) |
+
+### Pilot-uge-risici
+| # | Opgave | Ejer | Status |
+|---|---|---|---|
+| P-1 | Mobil hamburger-menu ignorerer rettigheder (Mail/Tilbud for montør/salg/bogholderi → "ingen adgang") | dev | DONE eb94707c |
+| P-2 | Interne beskeder (/dashboard/inbox) har intet menupunkt | dev | DONE eb94707c ("Beskeder") |
+| P-3 | Tilbudsmail sendes uden PDF uden at brugeren får besked (`email.ts` "Continue without PDF") | dev | DONE eb94707c — klar fejl, mailen sendes ikke |
+| P-4 | Go-live-tjeklisten: selvregistrerings-tjek, P-009-incident forældet (Pilot Health altid rød), menulink + admin-guard, `is_active` i montør-tjek | dev | DONE eb94707c |
+| P-5 | 00186 bogholderi-mail-scope / 00211 / 00207 / 00204 sikkerhedspakke | [H] godkendelse | BLOCKED_APPROVAL |
+| P-6 | Vercel-flag `INVOICE_ATTACHMENT_FETCH_ENABLED` (godkendt 09-29, ikke sat) og `MONTOR_START_JOB_ENABLED` | [H] Vercel | BLOCKED |
+| P-7 | Kunde-mail-crons under pilot (rykkere/tilbudspåmindelser sender i dag intet), N74b auto-kunder, N69 "kræver svar", e-conomic (N12) | [H] beslutninger | BLOCKED |
+| P-8 | Arbejdskost-modellen (`docs/design/labour-cost-model.md` §5: 4 spørgsmål) | [H] beslutning | BLOCKED |
+
+### Leverandørfaktura-kontrol (review 2026-10-14)
+| # | Fund | Status |
+|---|---|---|
+| L-1 (S1) | Parseren læste "Momsgrundlag" som moms og "Subtotal" som total; ingen konsistenskontrol | DONE — ordgrænser, sidste "I alt", konsistens (ekskl.+moms=inkl., moms ≤ 25 %) → manuel kontrol + bogføring blokeres (`invoice-parser-test` 10/10, `economic-supplier-draft-test`) |
+| L-2 (S1) | Kreditnotaer bogført som positive fakturaer (fortegn tabt) | DONE — fortegn/"Kreditnota" → negative beløb (negative linjer i e-conomic), altid manuel kontrol |
+| L-3 (S1/S2) | Valuta altid DKK (kolonnestandard vandt over parseren) | DONE — fremmed valuta gemmes, kræver kontrol, bogføring blokeres |
+| L-4 (S2) | Genlæsning slettede en manuel sagskobling | DONE — eksisterende kobling bevares |
+| L-5 (S2) | Konvertér+godkend tjekkede ikke statusskiftet | DONE — rækketjek + tilbagerulning af kørslens konverteringer |
+| L-6 (S2) | Afvisning af godkendt faktura efterlod kost på sagen; afvisning under e-conomic-bogføring blev overskrevet | DONE — afvisning blokeres ved konverterede linjer / aktivt bogføringskrav; "bogført" kun med eget krav |
+| L-7 (S2) | Fakturahoved (nr., dato, beløb, valuta) kan ikke rettes i UI'et | DONE — "Ret fakturahoved" på detaljesiden (`editIncomingInvoiceHeaderAction`, `incoming_invoices.edit`, kun ikke-afsluttede, audit `header_edited`, samme beløbsregel som parseren; `invoice-header-edit-test` 15/15, UI U149) |
+| L-8 (S3) | Priskontrol overså merbetaling på lave enhedspriser | DONE — linje-tolerance (25 kr) ud over enhedstolerance (`invoice-control-test`) |
+| L-9 (S3) | price_history uden paginering (forkert "gammel" pris) | DONE — fetchAllRows sorteret |
+| L-10 (S3) | Gensendt rettet faktura (samme nr. som en afvist) annulleres som dublet (unik-indeks inkl. afviste) | BLOCKED_APPROVAL — udkast 00221 på branch `l10-rejected-dup-00221` (indeks uden rejected/cancelled + matcher: samme nr. som afvist → manuel kontrol). Staging `cli.ts rejected-dup` 5/5 (negativ kontrol ok). Prod read-only `prod-check-00221.ts`: latent (0 tilfælde) |
+| L-11 | Konvertér+godkend kræver både `incoming_invoices.approve` og `materials.add_to_case` → kun admin; bogholderi kan ikke | [H] beslutning (rettighedsmodel) |
+| L-12 | RLS lader admin/bogholderi ændre status/external_invoice_id direkte via REST (ingen overgangs-trigger); backfill-kandidater upagineret | LATER |
+
+### Profit Engine (review 2026-10-14)
+| # | Fund | Status |
+|---|---|---|
+| PE-1 (S1) | `calculate_work_order_profit` tæller kun timer (materialer kun via work_orders.source_offer_id, som aldrig sættes) og prissætter timer med live sats i stedet for sale_amount → forkert low_profit / AI-indsigter | BLOCKED_APPROVAL — udkast 00222 på branch `profit-engine-00222` (erstatter 00205): kost = timer + materialer/øvrige på ordren, omsætning = netto faktureret (kreditnotaer via original; kladder aldrig) ellers frossen timesalg + fakturerbare linjer. Staging `cli.ts wo-profit` 7/7 (negativ kontrol: 6 fejl før). Prod: latent (3 arbejdsordrer, 0 snapshots) |
+| PE-2 (S2) | Profit-snapshots forældes (kreditnotaer når dem aldrig; timer/materialer efter "udført" opdaterer ikke) | BLOCKED_APPROVAL — i 00222: snapshot ved kreditnota/statusskift og ved kost-linjer på udført ordre; uændrede tal giver intet nyt snapshot |
+| PE-3 (S2) | Tilbudt-vs-faktisk: arbejdslinjer uden kost tæller 0 på tilbudssiden men fuldt på faktisk-siden | TODO — afhænger af arbejdskost-modellen (P-8) |
+| PE-4 (S2) | Lav-DB-afsendelsesværn tæller manglende arbejdskost som 0 og bruger anden tærskel end profitkortet | TODO — afhænger af P-8 + én tærskel |
+| PE-5 (S2) | Medarbejderøkonomi talte salg på ikke-fakturerbare timer | DONE |
+| PE-6 (S3) | Sagens hoved-DB bruger registrerede salgspriser i stedet for kontraktsum på kontraktsager | DONE — `lib/cases/expected-revenue.ts`: kontraktsum (revideret først, ekskl. moms), netto faktureret hvis højere, ellers registreret salg; Økonomi-fanen viser grundlaget (`case-revenue-test` 7/7, UI U150+U91) |
+| PE-7 (S4) | DB-tærskler hardcoded og forskellige (10/15/db_red_threshold/minimum_db) | DONE (app) — `lib/profit/db-thresholds.ts` (calculation_settings, standarder = hidtidige 10/20/35; sags-flag/-farver, AI-risiko, afsendelsesværn); `db-thresholds-test` 7/7. Rest: SQL-trigger 15 % → med PE-1; minimum 20 vs. rød 10 → [H] beslutning |
+
+## Prod-kørsel 2026-10-14 — 00218–00220 (Henrik: "GODKENDT TIL PROD")
+| Nr. | Pre | Post | UI/tests |
+|---|---|---|---|
+| 00218 Del med kunde | 18 dokumenter, 15 portal-synlige, 3 mail-arkiv | kolonne findes; 15/15 eksisterende stadig delt; mail-arkiv 0 delt; ny manuel række intern; "Del med kunde" → i portalens forespørgsel; tjeksum uændret (16f2c95d); fuldmagter filtreres fortsat | customer-docs-share-check 5/5; portal-mail-UI 34/34; U61/U64/U65/U69/U22/U23/U25 |
+| 00219 Kalkulationsrækker | 9 rækker (0 skjulte) | backfill ok; visible+hidden_included tæller, excluded ikke (12.000); total 16.200; DB efter avance/rabat 5.760; kalkulations- og ikke-kladde-tilbudstjeksummer UÆNDREDE (a0d8617b / f1d883ec) | calc-offer-mode-check 4/4; ren funktion `lib/offers/calc-import-lines` + unit-test 12/12 ("Øvrige materialer og ydelser" med kost); kalkulations-UI 9/9 |
+| 00220 Notifikationer | kolonne mangler | kolonne + kolonne-grant (kun 4 eksisterende + notification_preferences); 0/5 profiler har noget slået til (alt FRA); egne kan gemmes, andres ikke; rolle kan ikke ændres | notify-prefs-check 7/7 (test-transport — ingen live-mail); U148 |
+| DB-audit | — | HØJ=0 · MIDDEL=0 · LAV=0 | prod-version e9d010c |
+
+
 ## Henriks beslutninger 2026-10-10 — status
 | # | Beslutning | Status |
 |---|---|---|
@@ -292,7 +434,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | # | Beslutning | Udførelse |
 |---|---|---|
 | D24 | Ingen kundekontakt. Dokumentér internt som lukket | LUKKET — se docs/pilot/INCIDENT_LOG.md (P-013) |
-| D26 | Sagsfotos/-dokumenter er INTERNE som standard; brugeren vælger aktivt "Del med kunde". 00184 på STAGING, ikke prod | STAGING DONE · prod BLOCKED_APPROVAL — branch `d26-internal-case-docs` (merge først EFTER prod-00184) |
+| D26 | Sagsfotos/-dokumenter er INTERNE som standard; brugeren vælger aktivt "Del med kunde". 00184 på STAGING, ikke prod | SUPERSEDED — løst af 00218 `visible_in_portal` (prod 2026-10-14); 00184 + branch `d26-internal-case-docs` køres/merges ikke |
 | D18 | Montør må IKKE indtaste/redigere kostpriser på øvrige omkostninger; må registrere udgiften/kvitteringen/oplysningen — kostfelter styres af kontorroller | DONE (kode, ingen migration) — serveren gemmer kost/salg = 0 uden prisret (navngivet PRICE_FIELDS_PERMISSION som i case-materials); montørens dialog viser ingen prisfelter men "Priser udfyldes af kontoret" (beløb i note, kvitteringsfoto under Dokumenter — internt jf. D26); kontoret ser "Afventer pris" og prissætter via Rediger (other_costs.edit = admin/serviceleder) |
 | D28 | Bogholderi skal se kundemails relevante for kunde/faktura/økonomi, men ikke hele virksomhedens postkasse — least-privilege design på staging | APP DONE (main) + 00186 STAGING DONE · prod BLOCKED_APPROVAL — app: ny tilladelse customers.emails.view (admin/serviceleder/salg/bogholderi); bogholderi ser på kundekortet kun mails KOBLET til kunden (ikke adresse-match), kun læsning (ingen Ny mail/Besvar), mail-body kun for kundekoblede mails; markér-læst kræver nu customers.emails.view (før customers.view — også montør). RLS 00186: bogholderi kun mails med customer_id eller kilde til leverandørfaktura (prod: 805 → 241 mails), kræver 00180 først. rls-read L9/L12 12/12, U61 |
 | D27 | Price alerts beholdes som NEXT; korrekt foundation senere; fjern ikke | BLOCKED_APPROVAL — `price_alert_rules` findes ikke i prod (00046 aldrig kørt; docs/runbooks/system-alerts-00194.md). Mangler: Henrik godkender en prod-migration der opretter tabellen, eller bekræfter at prisadvarsler forbliver slået fra. Koden fjernes ikke. |
@@ -604,7 +746,7 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | R-OFR | S2 | Tilbuds-review 2026-10-07 (agent, verificeret): totaler ved ændret rabat-/moms-% (updateOffer), auto-tilbud recalculateOfferFull (forkert total_amount + dobbelt rabat → fjernet), dobbelt-accept slettede vindende underskrift, statusskift uden status-vagt, 'set' overskrev samtidig accept | DONE 80f14cb |
 | R-OFR-B | S2 | **BLOCKED_APPROVAL (Henrik):** (a) sendte/accepterede tilbud kan stadig redigeres (Rediger-knap + server actions tjekker kun offers.edit) → underskrevet indhold kan ændres uden spor. Forslag: kun 'draft' kan redigeres; ændring kræver 'Tilbage til kladde' (ny version). (b) accepted→draft efterlader underskrift/accepted_at/sag/faktura → forslag: blokér når sag/faktura findes, ellers arkivér underskrift + ryd accepted_at. Begge ændrer salgsflowet |
 | R-PRT | S2 | Portal-review 2026-10-07: getPortalServiceCases tog kunde-id fra kalderen (latent IDOR) → token | DONE 80f14cb |
-| R-PRT-B | S3 | **BLOCKED_APPROVAL (Henrik):** (a) portal-chat/upload uden længde-/mængdeloft (mail til kontakt@ pr. besked; 10 MB pr. upload uden kvote) → forslag: besked ≤ 5.000 tegn, ≤ 20 beskeder/time og ≤ 20 uploads/døgn pr. kunde, notifikationsmail højst hver 10. min. (b) interne sagsfotos/kundedokumenter vises i portalen = kendt D26/00184 (prod BLOCKED_APPROVAL) |
+| R-PRT-B | S3 | **BLOCKED_APPROVAL (Henrik):** (a) portal-chat/upload uden længde-/mængdeloft (mail til kontakt@ pr. besked; 10 MB pr. upload uden kvote) → forslag: besked ≤ 5.000 tegn, ≤ 20 beskeder/time og ≤ 20 uploads/døgn pr. kunde, notifikationsmail højst hver 10. min. (b) interne sagsfotos/kundedokumenter vises i portalen = D26 — DONE via 00218 (prod 2026-10-14) |
 | R-RBAC | S2 | Kost-/løn-review 2026-10-07 (6 audits): app-lag-læk lukket — kalibreringsprofiler, hurtigjobs kostpris, arbejdsordrers lav-DB, projekters budget/kost (62628db); egen avance på leverandørlinje (salg kunne aflæse eksakt kostpris, dc5ac3a); materiale-kostprishistorik, leverandørindstillinger, avance-orakel, DB%-metadata i aktiviteter (b05e558) | DONE |
 | R-RBAC-B | S2 | **BLOCKED_APPROVAL (Henrik):** bølge 2 af kost-kolonne-lockdown — 18 tabeller læsbare for alle medarbejdere via REST (prod-verificeret; i dag kun montør berørt), plan i docs/runbooks/rls-cost-columns.md § Bølge 2. Desuden (lav): 00096-trigger hourly_rate = COALESCE(sales_rate, hourly_wage) — løn som salgssats hvis salgssats mangler (prod: 0 ramt); employees.cost_rate/hourly_rate læsbar for serviceleder; employee-economy kan inferere enkeltsats via flere perioder; omkostningsbaseret timekost i tilbudsanalyse (n=1) |
 | R-CUS | S2 | Kunde-/leads-review 2026-10-07: dublet-kunder fra mail-automatik (e-mail + telefon sidste 8 cifre; staging `find-or-create-customer-check` 5/5), koblede mails om-klassificeret til ignoreret, domæne-kobling til vilkårlig kunde/eget domæne, intern afsender som kunde-e-mail, SAG-nummer-kollision, auto-kobling nulstillede manuel sag, kunde fra mail uden nummer-retry + lead-aktivitet med forkert kolonne, kundesletning kaskaderede projekter/dokumenter/opgaver/portal | DONE a984279 |
@@ -679,7 +821,7 @@ parallelt med øvrige NEXT-flows, når core gates (tsc, check:rls-matrix, check:
 | D23 | S2 (omsætning) | En sag kunne lukkes (3 veje: status-dropdown, "Markér afsluttet", rediger-formular) med ufakturerede timer/materialer/øvrige eller kørende timer — stille tabt omsætning | DONE — serverværn i setServiceCaseStatus + updateServiceCase: lukning afvises med opgørelse ("1 materiale for i alt 300,00 kr ekskl. moms er ikke faktureret på sagen"); UI spørger og kan "luk alligevel" (audit: "lukket trods …"). Ren optælling lib/invoices/unbilled.ts (6 unit-tests). ui-e2e U48 (fortryd = åben, bekræft = lukket + audit) |
 | D24 | S2 (fortrolighed) | Kundeportalen sendte tilbudslinjer med select(*) til KUNDENS browser — inkl. kostpris, leverandørkost, margin og interne noter (bevist: 777.777 kostpris + intern note i sidens data på både tilbudsdetalje og oversigt). UI viste dem ikke, men de lå i sidens data | DONE — eksplicitte kunde-sikre linjefelter (= PortalOfferLineItem) i begge forespørgsler. ui-e2e U50 m. negativ kontrol. Prod-omfang (read-only 2026-10-01, `scripts/prod-portal-cost-exposure.ts`): 7 tilbud åbnet i portalen, heraf 2 (2 kunder) med kostpris på linjerne i sidens data (kun synligt i sidekilden); 0 med interne noter. Rettelsen er deployet. BESLUTNING (Henrik): skal de 2 kunder/tilbud vurderes? |
 | D25 | S3 | Dashboard "Forfaldne fakturaer": talte forfald I DAG som forfalden, UTC-dato, medtog kreditnotaer og annullerede (fakturalisten gør ikke) + "betalinger i dag" i UTC-døgn | DONE — samme regel som fakturalisten (forfald før dansk dag, uden kreditnota/annulleret), dage via calendarDaysSince, dansk døgn for betalinger. ui-e2e U49 m. negativ kontrol |
-| D26 | S2 (privatliv) — BESLUTNING | Fotos/PDF'er uploadet på sagens Dokumenter-fane (G4, montør/kontor) gemmes i customer_documents og vises i KUNDEPORTALEN — uden at UI'et sagde det; ingen måde at uploade internt | STAGING DONE (2026-10-02, Henrik: interne som standard) — 00184 `customer_documents.visible_to_customer` (default true for eksisterende/kontor-dokumenter; sagsuploads + mailbilag sættes interne), anvendt på staging. Kode på branch `d26-internal-case-docs`: kunde-/partnerportal (liste+download) kun delte; upload med "Del med kunde"-valg (default fra); mailbilag interne; pr. dokument Delt/Intern-badge + skift (cases.edit / egen sag) med audit. U59 7/7 på staging; negativ kontrol (portal-filter fjernet): U59 fejler på portal_skjuler_intern — testen fanger regressionen. Prod-effekt (read-only): 3 mailbilag bliver interne, 15 forbliver synlige, 0 sagsuploads. BLOCKED_APPROVAL: prod-00184 → derefter merge af branchen (kode kræver kolonnen) |
+| D26 | S2 (privatliv) — BESLUTNING | Fotos/PDF'er uploadet på sagens Dokumenter-fane (G4, montør/kontor) gemmes i customer_documents og vises i KUNDEPORTALEN — uden at UI'et sagde det; ingen måde at uploade internt | STAGING DONE (2026-10-02, Henrik: interne som standard) — 00184 `customer_documents.visible_to_customer` (default true for eksisterende/kontor-dokumenter; sagsuploads + mailbilag sættes interne), anvendt på staging. Kode på branch `d26-internal-case-docs`: kunde-/partnerportal (liste+download) kun delte; upload med "Del med kunde"-valg (default fra); mailbilag interne; pr. dokument Delt/Intern-badge + skift (cases.edit / egen sag) med audit. U59 7/7 på staging; negativ kontrol (portal-filter fjernet): U59 fejler på portal_skjuler_intern — testen fanger regressionen. Prod-effekt (read-only): 3 mailbilag bliver interne, 15 forbliver synlige, 0 sagsuploads. SUPERSEDED 2026-10-14 af 00218 `visible_in_portal` (prod; 15/15 eksisterende delt, mailbilag interne) — 00184/branchen bruges ikke |
 | D27 | S3 (drift/støj) | Notifikationsklokken forespurgte `system_alerts` ved hver opdatering — tabellen findes IKKE i prod eller staging (00046 aldrig kørt; read-only bekræftet, også `price_alert_rules`) → fejl-log + undtagelse hver gang (støj der skjuler reelle fejl). NB: CLAUDE.md lister begge som eksisterende | DONE — "tabel mangler" (PGRST205) = ingen advarsler, ingen fejl-log; øvrige fejl logges som før. Fundet via ny dev-server-log i ui-e2e. Beslutning (senere): skal prisadvarsler bygges (migration) eller koden fjernes? |
 | D28 | S2 | Kundekortets mail-tidslinje fejlede ALTID (PGRST201: tvetydig join incoming_emails↔service_cases — to FK'er, også i prod) → kundens mails blev aldrig vist; desuden ingen tilladelsestjek på kundens mails/mail-body (kun RLS, og incoming_emails er åben i prod indtil G10) | DONE — entydig FK (`!incoming_emails_service_case_id_fkey`) + gate customers.edit (admin/serviceleder/salg; ikke montør jf. G9) på liste, body og ulæst-tæller. Fundet via dev-server-log. ui-e2e U52 m. negativ kontrol. BESLUTNING (Henrik): skal bogholderi se kundens mails? (i dag: nej) |
 | D29 | S3 (støj) | Portal-accept: intern "Tilbud accepteret"-mail kalder getSmtpSettings/getCompanySettings uden session → AUTH_REQUIRED i loggen. Prod har INGEN SMTP i firmaindstillinger (read-only) → mail bruger env-SMTP ligesom for indloggede — ingen funktionel forskel | DONE — portal-accept kalder ikke længere de session-krævende indstillinger; samme adfærd (env-SMTP, ingen aktivering), firmanavn via offentlig kolonne. 0 AUTH_REQUIRED-linjer i loggen; U10 grøn |

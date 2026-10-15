@@ -43,6 +43,7 @@ import type {
 import type { OfferTextContext } from '@/lib/engines/offer-text-engine'
 import type { OfferTextTemplate } from '@/types/component-intelligence.types'
 import { logger } from '@/lib/utils/logger'
+import { dbRisk, loadDbThresholds } from '@/lib/profit/db-thresholds'
 
 // =====================================================
 // PROJECT INTAKE ACTIONS
@@ -513,14 +514,8 @@ export async function createCalculationSnapshot(
     }
 
     // Determine risk level from margin
-    let riskLevel: 'low' | 'medium' | 'high' | null = null
-    if (data.totals.margin_percentage < 10) {
-      riskLevel = 'high'
-    } else if (data.totals.margin_percentage < 20) {
-      riskLevel = 'medium'
-    } else {
-      riskLevel = 'low'
-    }
+    // PE-7: samme tærskler som resten af systemet (calculation_settings; standard 10/20)
+    const riskLevel: 'low' | 'medium' | 'high' = dbRisk(data.totals.margin_percentage, await loadDbThresholds(supabase))
 
     // Calculate effective hourly rate
     const effectiveRate = data.totals.total_time_minutes > 0

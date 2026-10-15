@@ -178,7 +178,8 @@ export function SupplierSyncOverviewPanel() {
               ) : (
               <button
                 onClick={() => handleSync(s.code)}
-                disabled={syncingCode === s.code || !s.connection_configured}
+                disabled={s.code !== 'LM' || syncingCode === s.code || !s.connection_configured}
+                title={s.code !== 'LM' ? 'Automatisk synkronisering findes kun for Lemvigh-Müller endnu' : undefined}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
               >
                 {syncingCode === s.code ? (

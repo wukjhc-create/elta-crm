@@ -15,9 +15,15 @@ import {
   approveInvoice,
   getApprovalQueue,
   getInvoiceById,
+  LOCKED_INVOICE_STATUSES,
   parseAndMatch,
   rejectInvoice,
 } from '@/lib/services/incoming-invoices'
+import {
+  validateInvoiceHeaderEdit,
+  type InvoiceHeaderInput,
+  type InvoiceHeaderValues,
+} from '@/lib/invoices/incoming-header-edit'
 import {
   convertAndApproveInvoice,
   convertApprovedInvoiceLines,
@@ -750,6 +756,86 @@ export async function setIncomingInvoiceCaseAction(
       ? `Tilknyttet sag ${caseLabel ?? ''}`
       : 'Sag-tilknytning fjernet',
   }
+}
+
+/**
+ * L-7 — ret fakturahovedet (nr., datoer, valuta, beløb) når parseren har læst forkert.
+ * Kun ikke-afsluttede fakturaer; validering i lib/invoices/incoming-header-edit.ts (samme beløbsregel som parseren).
+ * Audit: action='header_edited' med før/efter. Fremmed valuta → manuel kontrol. Kontrol/e-conomic-udkast læser
+ * rækkens værdier og genberegnes derfor ved næste visning.
+ */
+export async function editIncomingInvoiceHeaderAction(
+  invoiceId: string,
+  input: InvoiceHeaderInput,
+): Promise<ActionOutcome> {
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.edit')) {
+    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.edit' }
+  }
+
+  const { data: cur, error: readErr } = await supabase
+    .from('incoming_invoices')
+    .select('id, status, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat')
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (readErr || !cur) return { ok: false, message: 'Faktura ikke fundet' }
+  if (LOCKED_INVOICE_STATUSES.includes(cur.status as string)) {
+    return { ok: false, message: `Fakturaen er ${cur.status} — fakturahovedet kan ikke rettes` }
+  }
+
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+  const current: InvoiceHeaderValues = {
+    invoice_number: cur.invoice_number ?? null,
+    invoice_date: cur.invoice_date ?? null,
+    due_date: cur.due_date ?? null,
+    currency: cur.currency ?? 'DKK',
+    amount_excl_vat: num(cur.amount_excl_vat),
+    vat_amount: num(cur.vat_amount),
+    amount_incl_vat: num(cur.amount_incl_vat),
+  }
+  const v = validateInvoiceHeaderEdit(current, input)
+  if (!v.ok) return { ok: false, message: v.message }
+  if (v.changed.length === 0) return { ok: true, message: 'Ingen ændringer' }
+
+  const update: Record<string, unknown> = { ...v.patch }
+  if (v.next.currency !== 'DKK') update.requires_manual_review = true
+
+  const { data: updated, error: updErr } = await supabase
+    .from('incoming_invoices')
+    .update(update)
+    .eq('id', invoiceId)
+    .eq('status', cur.status)
+    .select('id')
+  if (updErr) {
+    if ((updErr as { code?: string }).code === '23505') {
+      return { ok: false, message: 'Leverandøren har allerede en faktura med dette fakturanummer' }
+    }
+    logger.error('editIncomingInvoiceHeaderAction failed', { error: updErr, entityId: invoiceId })
+    return { ok: false, message: 'Fakturahovedet kunne ikke gemmes' }
+  }
+  if (!updated || updated.length === 0) {
+    return { ok: false, message: 'Fakturaen er ændret imens — genindlæs siden og prøv igen' }
+  }
+
+  const previous: Record<string, unknown> = {}
+  for (const k of v.changed) previous[k] = current[k]
+  try {
+    await supabase.from('incoming_invoice_audit_log').insert({
+      incoming_invoice_id: invoiceId,
+      action: 'header_edited',
+      actor_id: userId,
+      previous_value: previous,
+      new_value: v.patch,
+      ok: true,
+      message: `fakturahoved rettet manuelt: ${v.changed.join(', ')}`,
+    })
+  } catch {
+    /* best-effort */
+  }
+
+  revalidatePath('/dashboard/incoming-invoices')
+  revalidatePath(`/dashboard/incoming-invoices/${invoiceId}`)
+  return { ok: true, message: 'Fakturahovedet er rettet' }
 }
 
 export async function getApprovalQueueCountsAction(): Promise<{

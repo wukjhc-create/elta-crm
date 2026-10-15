@@ -56,6 +56,9 @@ export type SupplierIssueCode =
   | 'adjustment_line'
   | 'net_derived'
   | 'single_line'
+  | 'credit_note'
+  | 'amounts_inconsistent'
+  | 'foreign_currency'
 
 export interface SupplierIssue {
   code: SupplierIssueCode
@@ -102,6 +105,23 @@ export function buildEconomicSupplierInvoiceDraft(input: SupplierDraftInput): Su
   }
   if (!invoice.invoice_date) {
     issues.push({ code: 'missing_invoice_date', severity: 'error', message: 'Fakturadato mangler — bogføring ville ske på forkert dato' })
+  }
+
+  // Leverandørfaktura-review 2026-10-14: hellere ingen bogføring end en forkert
+  {
+    const excl = num(invoice.amount_excl_vat), vatAmt = num(invoice.vat_amount), incl = num(invoice.amount_incl_vat)
+    // Kreditnota: negative beløb bogføres som negative linjer (parseren læser nu fortegnet) — kun info
+    if ([excl, vatAmt, incl].some((v) => v != null && v < 0)) {
+      issues.push({ code: 'credit_note', severity: 'info', message: 'Kreditnota — bogføres med negative beløb (reducerer kosten)' })
+    }
+    // moms kan aldrig overstige 25 % af ekskl. (lavere ved momsfri linjer) — fanger "Momsgrundlag læst som moms"
+    const vatTooHigh = excl != null && vatAmt != null && Math.abs(vatAmt) > Math.abs(excl) * 0.25 + 1
+    if (vatTooHigh || (excl != null && vatAmt != null && incl != null && Math.abs(excl + vatAmt - incl) > 0.05)) {
+      issues.push({ code: 'amounts_inconsistent', severity: 'error', message: `Beløbene stemmer ikke: ekskl. ${fmt(excl)} + moms ${fmt(vatAmt)} ≠ inkl. ${incl == null ? "?" : fmt(incl)} — kontrollér fakturaen` })
+    }
+    if ((invoice.currency || 'DKK') !== 'DKK') {
+      issues.push({ code: 'foreign_currency', severity: 'error', message: `Fakturaen er i ${invoice.currency} — bogfør manuelt (sagens kost forudsætter DKK)` })
+    }
   }
 
   // Nettobeløb (ekskl. moms)

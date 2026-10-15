@@ -38,7 +38,7 @@ export async function MyHoursCard() {
       )}
       {week.entries.some((e) => e.approval_status === 'rejected') && (
         <p className="text-xs text-red-800 flex items-center gap-1 mb-2">
-          <AlertTriangle className="w-3.5 h-3.5" /> Nogle timer er afvist — se begrundelsen (hold musen over &quot;Afvist&quot;) og ret registreringen.
+          <AlertTriangle className="w-3.5 h-3.5" /> Nogle timer er afvist — se begrundelsen nedenfor og registrér tiden korrekt.
         </p>
       )}
       {week.entries.length === 0 ? (
@@ -46,7 +46,8 @@ export async function MyHoursCard() {
       ) : (
         <ul className="divide-y text-sm">
           {week.entries.slice(0, 12).map((e) => (
-            <li key={e.id} className="py-1.5 flex items-center gap-2">
+            <li key={e.id} className="py-1.5">
+              <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 w-20 shrink-0">{dayLabel(e.date)} {e.clock}</span>
               <span className="truncate">
                 {e.case_number ? <span className="font-mono text-xs text-gray-600 mr-1">{e.case_number}</span> : null}
@@ -65,6 +66,11 @@ export async function MyHoursCard() {
                 <span className="text-[10px] uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded shrink-0" data-testid="my-hours-approved">Godkendt</span>
               )}
               <span className="ml-auto tabular-nums font-medium">{e.end_time ? `${fmtH(e.hoursNum)} t` : 'kører'}</span>
+              </div>
+              {/* PL-5: begrundelsen skal kunne læses på mobil (før kun hover) */}
+              {e.end_time && e.approval_status === 'rejected' && e.rejection_reason && (
+                <p className="mt-0.5 ml-[5.5rem] text-xs text-red-700" data-testid="my-hours-rejection-reason">Begrundelse: {e.rejection_reason}</p>
+              )}
             </li>
           ))}
         </ul>

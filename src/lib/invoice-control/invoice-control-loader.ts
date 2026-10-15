@@ -3,12 +3,12 @@
  * vinder, ellers deterministisk varenr. → EAN → varenr. i teksten (kun fakturaens leverandør). Klienten gives af kalderen
  * (bruger-session under RLS: linjer er kun læsbare for admin/serviceleder/bogholderi, 00166). Bevidst IKKE 'use server'.
  */
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { controlInvoice, type InvoiceControl } from '@/lib/invoice-control/engine'
 import { headerLineCheck, type HeaderLineCheck } from '@/lib/invoice-control/header-totals'
 import { codeFromRawLine } from '@/lib/invoice-control/coverage'
 import { codesToLookup, matchLines, type ProductRef, type LineMatchMethod } from '@/lib/invoice-control/line-matcher'
 import { asPriceChange, expectedCostOnInvoiceDate, priceHistoryAfterIso, type PriceChange } from '@/lib/invoice-control/price-at-date'
-import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface InvoiceControlLineInfo {
   lineNumber: number
@@ -64,13 +64,14 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
   if (invoiceDate) {
     const productIds = [...new Set([...storedIds, ...(matched.map((m) => m.supplierProductId).filter(Boolean) as string[])])]
     const after = priceHistoryAfterIso(invoiceDate)
-    // PostgREST giver højst 1000 rækker pr. kald. Ét .in().gte() taber den tidligste tilbagerulning,
-    // når 200 produkter har mere end 1000 ændringer efter fakturadatoen. Samme paging som dækningen.
+    // PostgREST giver højst 1000 rækker pr. kald. Paging i fast rækkefølge (created_at, id) så den tidligste
+    // tilbagerulning ikke tabes, når mange produkter har mere end 1000 ændringer efter fakturadatoen.
     for (let k = 0; k < productIds.length && after; k += 200) {
       const ids = productIds.slice(k, k + 200)
       const rows = await fetchAllRows<PriceChange & { id: string }>((from, to) => catalogClient.from('price_history')
         .select('id, supplier_product_id, old_cost_price, created_at')
-        .in('supplier_product_id', ids).gte('created_at', after).order('id').range(from, to))
+        .in('supplier_product_id', ids).gte('created_at', after)
+        .order('created_at', { ascending: true }).order('id').range(from, to))
       for (const c of rows) {
         const list = changesByProduct.get(c.supplier_product_id) ?? []
         list.push(asPriceChange(c))

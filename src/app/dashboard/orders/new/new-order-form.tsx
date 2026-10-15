@@ -510,7 +510,7 @@ export function NewOrderForm({
               <option value="">— Mig (standard) —</option>
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.full_name || p.email}
+                  {p.full_name || p.email || 'Uden navn'}
                 </option>
               ))}
             </select>

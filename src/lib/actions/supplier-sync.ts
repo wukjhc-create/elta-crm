@@ -75,6 +75,10 @@ export async function syncSupplierPrices(
     if (!client) {
       return { success: false, error: `API integration ikke tilgængelig for ${supplier.name}` }
     }
+    // GP-7: intet live-API (LM Classic) — en sync ville kun stemple gamle priser som friske
+    if (client.readsLocalCatalog) {
+      return { success: false, error: `${supplier.name} har intet live-API — opdatér priserne via prisfil-import` }
+    }
 
     // Get products to sync
     let skusToSync = options?.skus || []
