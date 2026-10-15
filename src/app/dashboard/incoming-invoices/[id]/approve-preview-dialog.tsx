@@ -260,11 +260,11 @@ export function ApprovePreviewDialog({
 
           {/* Linjer preview */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
               <h3 className="text-sm font-semibold text-gray-900">
                 Fakturalinjer ({lines.length})
               </h3>
-              <div className="text-[11px] text-gray-500 flex items-center gap-3">
+              <div className="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span>Materiale: <strong className="text-blue-700">{counts.material}</strong></span>
                 <span>Øvrige: <strong className="text-purple-700">{counts.other_cost}</strong></span>
                 <span>Spring over: <strong className="text-gray-600">{counts.skip}</strong></span>
@@ -276,7 +276,80 @@ export function ApprovePreviewDialog({
                 Ingen linjer ekstraheret. Godkendelse vil kun flippe status — ingen konvertering.
               </div>
             ) : (
-              <div className="rounded ring-1 ring-gray-200 bg-white overflow-x-auto">
+              <div className="rounded ring-1 ring-gray-200 bg-white">
+                <ul className="md:hidden divide-y" data-testid="approve-lines-mobile">
+                  {lines.map((l) => {
+                    const row = plan.find((p) => p.lineId === l.id)
+                    const disposition = row?.disposition ?? 'skip'
+                    const category = row?.category ?? 'andet'
+                    const alreadyConverted = !!l.converted_at
+                    const convertedAs = l.converted_case_material_id
+                      ? 'material'
+                      : l.converted_case_other_cost_id
+                      ? 'other_cost'
+                      : null
+                    return (
+                      <li key={l.id} className={`p-2 space-y-1 ${alreadyConverted ? 'bg-gray-50' : ''}`}>
+                        <p className="text-gray-500">#{l.line_number}</p>
+                        <p className={alreadyConverted ? 'text-gray-500 line-through break-words' : 'text-gray-900 break-words'}>
+                          {l.description ?? '—'}
+                        </p>
+                        {l.supplier_product_id && !alreadyConverted && (
+                          <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
+                            Matched produkt
+                          </span>
+                        )}
+                        {alreadyConverted && (
+                          <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                            {convertedAs === 'material'
+                              ? 'Allerede konverteret · Materiale'
+                              : convertedAs === 'other_cost'
+                              ? 'Allerede konverteret · Øvrig'
+                              : 'Allerede behandlet · Sprunget over'}
+                          </span>
+                        )}
+                        <p className="text-gray-600">{l.quantity ?? '—'} {l.unit ?? '—'} · {fmtAmount(l.total_price)}</p>
+                        <select
+                          value={disposition}
+                          aria-label="Konvertér til"
+                          onChange={(e) => updateLine(l.id, { disposition: e.target.value as LineDisposition })}
+                          disabled={busy || alreadyConverted}
+                          className={`w-full border rounded px-1.5 py-1 text-xs bg-white ${
+                            alreadyConverted
+                              ? 'text-gray-400'
+                              : disposition === 'material'
+                              ? 'ring-1 ring-blue-200'
+                              : disposition === 'other_cost'
+                              ? 'ring-1 ring-purple-200'
+                              : 'text-gray-500'
+                          } disabled:opacity-60`}
+                        >
+                          <option value="material">Materiale</option>
+                          <option value="other_cost">Øvrig omkostning</option>
+                          <option value="skip">Spring over</option>
+                        </select>
+                        {disposition === 'other_cost' && !alreadyConverted ? (
+                          <select
+                            value={category}
+                            aria-label="Kategori"
+                            onChange={(e) => updateLine(l.id, { category: e.target.value as CaseOtherCostCategory })}
+                            disabled={busy}
+                            className="w-full border rounded px-1.5 py-1 text-xs bg-white"
+                          >
+                            {CASE_OTHER_COST_CATEGORIES.map((c) => (
+                              <option key={c} value={c}>
+                                {CASE_OTHER_COST_CATEGORY_LABELS[c]}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-[11px] text-gray-400">—</span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+                <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 text-left text-gray-600">
                     <tr>
@@ -304,7 +377,7 @@ export function ApprovePreviewDialog({
                         <tr key={l.id} className={`align-top ${alreadyConverted ? 'bg-gray-50' : ''}`}>
                           <td className="px-2 py-1.5 text-gray-500">{l.line_number}</td>
                           <td className="px-2 py-1.5">
-                            <div className={alreadyConverted ? 'text-gray-500 line-through' : 'text-gray-900'}>
+                            <div className={alreadyConverted ? 'text-gray-500 line-through break-words' : 'text-gray-900 break-words'}>
                               {l.description ?? '—'}
                             </div>
                             {l.supplier_product_id && !alreadyConverted && (
@@ -332,6 +405,7 @@ export function ApprovePreviewDialog({
                           <td className="px-2 py-1.5">
                             <select
                               value={disposition}
+                              aria-label="Konvertér til"
                               onChange={(e) =>
                                 updateLine(l.id, {
                                   disposition: e.target.value as LineDisposition,
@@ -357,6 +431,7 @@ export function ApprovePreviewDialog({
                             {disposition === 'other_cost' && !alreadyConverted ? (
                               <select
                                 value={category}
+                                aria-label="Kategori"
                                 onChange={(e) =>
                                   updateLine(l.id, {
                                     category: e.target.value as CaseOtherCostCategory,
@@ -380,6 +455,7 @@ export function ApprovePreviewDialog({
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
             {convertOnly ? (
@@ -427,7 +503,7 @@ export function ApprovePreviewDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-2 border-t bg-gray-50 px-4 py-2.5 rounded-b-lg sticky bottom-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-gray-50 px-4 py-2.5 rounded-b-lg sticky bottom-0">
           <div className="text-[11px] text-gray-500">
             {!hasCase
               ? 'Match til sag for at fortsætte.'
@@ -464,7 +540,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wide text-gray-500">{label}</div>
-      <div className="text-gray-900">{children}</div>
+      <div className="text-gray-900 break-words">{children}</div>
     </div>
   )
 }
