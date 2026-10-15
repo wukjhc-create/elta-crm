@@ -54,6 +54,39 @@ export function SignaturePad({
     }
   }, [existingSignature])
 
+  // M-2 (pilot-review 2026-10-15): drejes telefonen (mere plads til kunden), skaleres lærredet om og den tegnede
+  // underskrift bevares — før passede stregerne ikke længere med fingeren
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    let last = canvas.getBoundingClientRect().width
+    const onResize = () => {
+      const rect = canvas.getBoundingClientRect()
+      if (!rect.width || Math.abs(rect.width - last) < 1) return
+      last = rect.width
+      const snapshot = canvas.toDataURL('image/png')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      canvas.width = rect.width * 2
+      canvas.height = rect.height * 2
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.scale(2, 2)
+      ctx.lineWidth = 2
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = '#1a1a1a'
+      const img = new Image()
+      img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height)
+      img.src = snapshot
+    }
+    window.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onResize)
+    }
+  }, [])
+
   const getPosition = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
