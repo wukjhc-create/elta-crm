@@ -82,6 +82,7 @@ export function WorkOrderTimeLogs({
 
   const [logs, setLogs] = useState<TimeLogWithEmployee[] | null>(null)
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
+  const [employeesError, setEmployeesError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(false)
 
@@ -105,8 +106,11 @@ export function WorkOrderTimeLogs({
     else if (!logsRes.success) setError(logsRes.error || 'Kunne ikke hente timer')
     if (empRes.success && empRes.data) {
       setEmployees(empRes.data)
+      setEmployeesError(null)
       // Kun én mulighed (montør = sig selv): vælg den, så formularen kan sendes med det samme
       if (empRes.data.length === 1) setEmployeeId((cur) => cur || empRes.data![0].id)
+    } else if (!empRes.success) {
+      setEmployeesError(empRes.error || 'Kunne ikke hente medarbejdere')
     }
   }
 
@@ -334,6 +338,11 @@ export function WorkOrderTimeLogs({
                   <option key={e.id} value={e.id}>{e.name}</option>
                 ))}
               </select>
+              {employeesError && (
+                <p className="text-xs text-red-700" data-testid="time-log-employees-load-error">
+                  {employeesError}. Det tælles ikke som ingen medarbejdere.
+                </p>
+              )}
             </Field>
 
             <Field label="Start (HH:mm)">

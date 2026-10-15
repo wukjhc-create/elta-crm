@@ -1463,9 +1463,8 @@ export async function getEmployeesForOrderSelect(): Promise<
     if (ownOnly) q = q.eq('profile_id', userId)
     const { data, error } = await q.order('name')
     if (error) {
-      // employees table may be optional in some envs; return empty rather than fail.
-      logger.warn('Error fetching employees for order select', { error })
-      return { success: true, data: [] }
+      logger.error('Error fetching employees for order select', { error })
+      return { success: false, error: 'Kunne ikke hente medarbejdere' }
     }
     const list = (data || []).map((e: any) => ({
       id: e.id as string,

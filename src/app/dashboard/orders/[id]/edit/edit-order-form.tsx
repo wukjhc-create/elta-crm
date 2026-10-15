@@ -45,11 +45,13 @@ export function EditOrderForm({
   customers,
   profiles,
   employees,
+  employeesError = null,
 }: {
   sag: ServiceCaseWithRelations
   customers: CustomerOption[]
   profiles: ProfileOption[]
   employees: EmployeeOption[]
+  employeesError?: string | null
 }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
@@ -327,6 +329,11 @@ export function EditOrderForm({
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
             </select>
+            {employeesError && (
+              <p className="text-sm text-red-700" data-testid="order-employees-load-error">
+                {employeesError}. Det tælles ikke som ingen medarbejdere.
+              </p>
+            )}
           </Field>
         </div>
       </fieldset>

@@ -93,6 +93,7 @@ export default async function EditOrderPage({
         customers={customers}
         profiles={profiles}
         employees={employees}
+        employeesError={employeesRes.success ? null : (employeesRes.error ?? 'Kunne ikke hente medarbejdere')}
       />
     </div>
   )

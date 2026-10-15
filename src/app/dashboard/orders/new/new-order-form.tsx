@@ -60,10 +60,12 @@ export function NewOrderForm({
   customers: initialCustomers,
   profiles,
   employees,
+  employeesError = null,
 }: {
   customers: CustomerOption[]
   profiles: ProfileOption[]
   employees: EmployeeOption[]
+  employeesError?: string | null
 }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
@@ -549,6 +551,11 @@ export function NewOrderForm({
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
             </select>
+            {employeesError && (
+              <p className="text-sm text-red-700" data-testid="order-employees-load-error">
+                {employeesError}. Det tælles ikke som ingen medarbejdere.
+              </p>
+            )}
           </Field>
         </div>
       </fieldset>

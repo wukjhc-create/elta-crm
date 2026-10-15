@@ -72,6 +72,8 @@ export function OrderPlanningTab({
   const [caps, setCaps] = useState<WorkOrderCaps>(NO_CAPS)
   useEffect(() => { getWorkOrderCapabilitiesAction().then(setCaps).catch(() => setCaps(NO_CAPS)) }, [])
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
+  const [employeesError, setEmployeesError] = useState<string | null>(null)
+  const [logsNote, setLogsNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(false)
   const [caseTotals, setCaseTotals] = useState<{
@@ -109,7 +111,12 @@ export function OrderPlanningTab({
       setWorkOrders(woRes.data)
       setError(null)
     } else setError(woRes.error || 'Kunne ikke hente arbejdsordrer')
-    if (empRes.success && empRes.data) setEmployees(empRes.data)
+    if (empRes.success && empRes.data) {
+      setEmployees(empRes.data)
+      setEmployeesError(null)
+    } else if (!empRes.success) {
+      setEmployeesError(empRes.error || 'Kunne ikke hente medarbejdere')
+    }
     if (logsRes.success && logsRes.data) {
       const logs = logsRes.data
       setCaseTotals({
@@ -125,6 +132,9 @@ export function OrderPlanningTab({
           0
         ),
       })
+      setLogsNote(null)
+    } else if (!logsRes.success) {
+      setLogsNote(logsRes.error || 'Kunne ikke hente timeregistreringer')
     }
     } catch {
       setError('Kunne ikke hente arbejdsordrer')
@@ -261,6 +271,12 @@ export function OrderPlanningTab({
         )}
       </div>
 
+      {employeesError && (
+        <p className="text-sm text-red-700" data-testid="planning-employees-load-error">
+          {employeesError}. Det tælles ikke som ingen medarbejdere.
+        </p>
+      )}
+
       {/* Inline create form */}
       {showForm && (
         <div className="bg-emerald-50/50 ring-1 ring-emerald-200 rounded-lg p-4 space-y-3">
@@ -353,8 +369,13 @@ export function OrderPlanningTab({
         <EmptyState onPlan={canPlan ? () => setShowForm(true) : null} />
       ) : (
         <>
+          {logsNote && (
+            <p className="text-sm text-red-700" data-testid="case-time-load-error">
+              {logsNote}. Det tælles ikke som at tiden er registreret.
+            </p>
+          )}
           {/* Sag-level totals (sum across all work_orders) */}
-          {caseTotals.count > 0 && (
+          {!logsNote && caseTotals.count > 0 && (
             <div data-testid="case-time-totals" className="bg-gray-50 ring-1 ring-gray-200 rounded-md px-3 py-2 text-sm flex items-center flex-wrap gap-x-4 gap-y-1">
               <span className="font-semibold text-gray-700">Sagstotal:</span>
               <span>
