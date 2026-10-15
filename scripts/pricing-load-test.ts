@@ -11,6 +11,7 @@ const eq = (name: string, got: unknown, want: unknown) => {
 const src = fs.readFileSync('src/app/dashboard/pricing/pricing-client.tsx', 'utf8')
 
 eq('advarsel kast siges', src.includes("setAlertsError('Kunne ikke hente prisadvarsler')"), true)
+eq('advarsler beholdes ved fejl', !src.includes('setAlerts([])'), true)
 eq('trend kast siges', src.includes("setTrendsError('Kunne ikke hente pristendenser')"), true)
 eq('ikke tom', src.includes('Det tælles ikke som ingen prisændringer.'), true)
 eq('tom advarsel bliver', src.includes('Ingen prisadvarsler i den valgte periode'), true)
