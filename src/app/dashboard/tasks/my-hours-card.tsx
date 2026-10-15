@@ -44,6 +44,7 @@ export async function MyHoursCard() {
       {week.entries.length === 0 ? (
         <p className="text-sm text-gray-500">Ingen timer registreret i denne uge. Registrér tiden på sagen under Planlægning.</p>
       ) : (
+        <>
         <ul className="divide-y text-sm">
           {week.entries.slice(0, 12).map((e) => (
             <li key={e.id} className="py-1.5">
@@ -74,6 +75,12 @@ export async function MyHoursCard() {
             </li>
           ))}
         </ul>
+        {week.entries.length > 12 && (
+          <p className="mt-2 text-xs text-gray-600 break-words" data-testid="my-hours-capped">
+            Viser 12 af {week.entries.length} registreringer. De øvrige {week.entries.length - 12} er ikke med i listen.
+          </p>
+        )}
+        </>
       )}
       <div className="mt-2 text-right">
         <Link href="/dashboard/calendar" className="text-xs text-emerald-700 hover:underline">Kalender</Link>
