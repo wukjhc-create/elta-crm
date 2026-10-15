@@ -20,15 +20,10 @@ import {
   type CaseInvoiceHistoryEntry,
 } from '@/lib/actions/invoices'
 import { formatCurrency } from '@/lib/utils/format'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 function fmtDateTime(s: string): string {
-  return new Intl.DateTimeFormat('da-DK', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(s))
+  return copenhagenDateTimeLabel(s)
 }
 
 function actionVisual(e: CaseInvoiceHistoryEntry): {
@@ -157,8 +152,8 @@ export function CaseInvoiceHistory({ caseId }: { caseId: string }) {
                   {v.icon}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-sm font-medium ${v.text}`}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                    <span className={`text-sm font-medium break-words ${v.text}`}>
                       {e.action_label}
                       {e.invoice_number ? (
                         <span className="text-gray-700"> · {e.invoice_number}</span>
