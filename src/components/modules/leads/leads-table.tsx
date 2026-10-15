@@ -217,14 +217,14 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
               />
               <Link href={`/dashboard/leads/${lead.id}`} className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold text-gray-900 truncate">{lead.company_name}</p>
-                  <LeadStatusBadge status={lead.status} />
+                  <p className="font-semibold text-gray-900 break-words min-w-0 flex-1">{lead.company_name}</p>
+                  <span className="shrink-0"><LeadStatusBadge status={lead.status} /></span>
                 </div>
                 {lead.contact_person && (
-                  <p className="text-sm text-gray-500 truncate">{lead.contact_person}</p>
+                  <p className="text-sm text-gray-500 break-words">{lead.contact_person}</p>
                 )}
                 {lead.notes?.startsWith('Webhenvendelse — ') && (
-                  <p className="text-xs text-emerald-800 mt-0.5 truncate" title={lead.notes} data-testid="lead-row-inquiry">
+                  <p className="text-xs text-emerald-800 mt-0.5 break-words" title={lead.notes} data-testid="lead-row-inquiry">
                     {lead.notes.replace(/^Webhenvendelse — /, '')}
                   </p>
                 )}
@@ -239,7 +239,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                   {lead.email && (
                     <span className="inline-flex items-center gap-1 min-w-0">
                       <Mail className="w-3 h-3 shrink-0" />
-                      <span className="truncate max-w-[180px]">{lead.email}</span>
+                      <span className="break-all min-w-0">{lead.email}</span>
                     </span>
                   )}
                 </div>
