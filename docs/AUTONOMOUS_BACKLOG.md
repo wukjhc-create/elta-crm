@@ -114,13 +114,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Arbejdsordre-dialogen ombryder titel og kunde. Status og luk er de samme. | DONE — `work-order-dialog-mobile-test` |
 | Sagens plan ombryder overskrift og medarbejdermail. Tom liste og opret er de samme. | DONE — `title-wrap-test` |
 | Tilbuddets kost- og DB-advarsler ombrydes. 0 kr-reglen og Udfyld kost er de samme. | DONE — `offer-warning-mobile-test` |
+| Kundens dokumenttitler og filnavne ombrydes. PDF, deling og underskrift er de samme. | DONE — `customer-documents-wrap-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: offer-warning-wrap efter 0cb24650
+LAST_COMMIT: customer-documents-wrap efter 42a0e46
 TESTS: inspection-list-test, offer-product-name-test, title-wrap-test, close-button-label-test, case-notes-empty-test, customer-notes-empty-test, messages-empty-test, invoices-empty-search-test, aftercalc-empty-filter-test, calendar-mobile-test, reports-empty-test, sync-jobs-mobile-test, activity-empty-test, missing-date-test, inspection-calendar-test, tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2 (migrationer, ikke kørt her). 00223 er kørt af Claude på main (bc5705a2) — køres ikke igen. 00224 er kørt af Claude på main (725df30d) — køres ikke igen. 00225 ACL er Claudes (8f97e621). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: kundens dokumenttitler og filnavne ombrydes; faktura-hændelsens tekst ombrydes og beløb inkl. moms bliver. Kalenderchips i ugevisningen bliver afkortet med vilje. Mailens forhåndsvisning bliver på én linje med vilje. Kundens sidehoved klipper ikke. Scan 2026-10-15 fortsat: tomme chats, tom plan og sagsopgaver forklarer allerede næste skridt.
+NEXT_QUEUE: faktura-hændelsens tekst ombrydes og beløb inkl. moms bliver; bekræftelsens modtager ombrydes. Kalenderchips i ugevisningen bliver afkortet med vilje. Mailens forhåndsvisning bliver på én linje med vilje. Kundens sidehoved klipper ikke. Scan 2026-10-15 fortsat: tomme chats, tom plan og sagsopgaver forklarer allerede næste skridt.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.

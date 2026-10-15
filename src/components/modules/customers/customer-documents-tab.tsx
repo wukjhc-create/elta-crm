@@ -272,7 +272,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.title}</p>
+                    <p className="text-sm font-medium break-words">{doc.title}</p>
                     <p className="text-xs text-gray-500">
                       {doc.fuldmagt_status === 'signed'
                         ? `Underskrevet ${doc.fuldmagt_signed_at ? new Date(doc.fuldmagt_signed_at).toLocaleDateString('da-DK') : ''}`
@@ -308,7 +308,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                       <FileText className="w-4 h-4 text-green-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{doc.title}</p>
+                      <p className="text-sm font-medium break-words">{doc.title}</p>
                       <p className="text-xs text-gray-500">
                         {new Date(doc.created_at).toLocaleDateString('da-DK')}
                         {doc.file_size ? ` — ${Math.round(doc.file_size / 1024)} KB` : ''}
@@ -405,7 +405,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     <FileText className="w-4 h-4 text-blue-600" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.file_name}</p>
+                    <p className="text-sm font-medium break-all">{doc.file_name}</p>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-xs text-gray-500">
                         {new Date(doc.created_at).toLocaleDateString('da-DK')}
@@ -459,13 +459,13 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     <FileText className="w-4 h-4 text-gray-600" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.title}</p>
+                    <p className="text-sm font-medium break-words">{doc.title}</p>
                     <p className="text-xs text-gray-500">
                       {new Date(doc.created_at).toLocaleDateString('da-DK')}
                       {doc.file_size ? ` — ${Math.round(doc.file_size / 1024)} KB` : ''}
                     </p>
                     {displayDesc && (
-                      <p className="text-xs text-gray-500 truncate mt-0.5">{displayDesc}</p>
+                      <p className="text-xs text-gray-500 break-words mt-0.5">{displayDesc}</p>
                     )}
                     {hasHiddenJsonMetadata && (
                       <p className="text-xs text-gray-400 italic mt-0.5">Dokumentmetadata</p>
