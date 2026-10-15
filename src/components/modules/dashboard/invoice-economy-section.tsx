@@ -23,6 +23,7 @@ import {
   type DashboardInvoiceEvent,
 } from '@/lib/actions/invoices'
 import { formatCurrency } from '@/lib/utils/format'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 function kr(n: number, ccy: string | null = 'DKK'): string {
   return formatCurrency(n, ccy || 'DKK', 0)
@@ -34,9 +35,7 @@ function fmtDate(s: string | null): string {
   )
 }
 function fmtDateTime(s: string): string {
-  return new Intl.DateTimeFormat('da-DK', {
-    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-  }).format(new Date(s))
+  return copenhagenDateTimeLabel(s, 'short', false)
 }
 
 function eventVisual(e: DashboardInvoiceEvent) {
