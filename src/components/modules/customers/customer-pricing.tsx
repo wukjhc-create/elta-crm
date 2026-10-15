@@ -382,10 +382,11 @@ function PriceAgreementForm({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Supplier */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label htmlFor="customer-price-supplier" className="block text-xs font-medium text-gray-600 mb-1">
             Leverandør <span className="text-red-500">*</span>
           </label>
           <select
+            id="customer-price-supplier"
             value={supplierId}
             onChange={(e) => setSupplierId(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
@@ -403,8 +404,9 @@ function PriceAgreementForm({
 
         {/* Discount */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Rabat (%)</label>
+          <label htmlFor="customer-price-discount" className="block text-xs font-medium text-gray-600 mb-1">Rabat (%)</label>
           <input
+            id="customer-price-discount"
             type="number"
             step="0.1"
             value={discount}
@@ -416,8 +418,9 @@ function PriceAgreementForm({
 
         {/* Custom Margin */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Avance (%)</label>
+          <label htmlFor="customer-price-margin" className="block text-xs font-medium text-gray-600 mb-1">Avance (%)</label>
           <input
+            id="customer-price-margin"
             type="number"
             step="0.1"
             value={margin}
@@ -429,8 +432,9 @@ function PriceAgreementForm({
 
         {/* Price List Code */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Prisliste-kode</label>
+          <label htmlFor="customer-price-list" className="block text-xs font-medium text-gray-600 mb-1">Prisliste-kode</label>
           <input
+            id="customer-price-list"
             type="text"
             value={priceListCode}
             onChange={(e) => setPriceListCode(e.target.value)}
@@ -441,8 +445,9 @@ function PriceAgreementForm({
 
         {/* Valid From */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Gyldig fra</label>
+          <label htmlFor="customer-price-from" className="block text-xs font-medium text-gray-600 mb-1">Gyldig fra</label>
           <input
+            id="customer-price-from"
             type="date"
             value={validFrom}
             onChange={(e) => setValidFrom(e.target.value)}
@@ -452,8 +457,9 @@ function PriceAgreementForm({
 
         {/* Valid To */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Gyldig til</label>
+          <label htmlFor="customer-price-to" className="block text-xs font-medium text-gray-600 mb-1">Gyldig til</label>
           <input
+            id="customer-price-to"
             type="date"
             value={validTo}
             onChange={(e) => setValidTo(e.target.value)}
@@ -463,8 +469,9 @@ function PriceAgreementForm({
 
         {/* Notes */}
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Noter</label>
+          <label htmlFor="customer-price-notes" className="block text-xs font-medium text-gray-600 mb-1">Noter</label>
           <input
+            id="customer-price-notes"
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
