@@ -196,7 +196,94 @@ export function OrderOtherCostsTab({
 
       {/* Table */}
       {rows && rows.length > 0 && (
-        <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
+        <>
+        <div className="md:hidden space-y-2" data-testid="other-costs-mobile">
+          {rows.map((r) => {
+            const isLocked = !!r.invoice_line_id
+            return (
+              <article key={r.id} className="bg-white rounded-lg ring-1 ring-gray-200 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500">{fmtDate(r.cost_date)}</p>
+                    <p className="font-medium text-gray-900">{r.description}</p>
+                    {r.notes && <p className="text-xs text-gray-500">{r.notes}</p>}
+                    <p className="text-xs text-gray-600">{r.supplier_name ?? '—'}</p>
+                  </div>
+                  <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${CASE_OTHER_COST_CATEGORY_COLORS[r.category]}`}>
+                    {CASE_OTHER_COST_CATEGORY_LABELS[r.category]}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm tabular-nums text-gray-800">{fmtNum(r.quantity, 2)} {r.unit}</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {isLocked && (
+                    <span className="inline-block text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Faktureret</span>
+                  )}
+                  {canSeeCost && r.unit_cost === 0 && r.unit_sales_price === 0 && (
+                    <span className="inline-block text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded" data-testid="other-cost-awaiting-price">Afventer pris</span>
+                  )}
+                  {!r.billable && (
+                    <span className="inline-block text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Ikke faktura</span>
+                  )}
+                  {r.receipt_url && (
+                    <a href={r.receipt_view_url ?? r.receipt_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
+                      <Paperclip className="w-2.5 h-2.5" /> Bilag
+                    </a>
+                  )}
+                  {r.source !== 'manual' && (
+                    <span className="inline-block text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{SOURCE_LABEL[r.source] ?? r.source}</span>
+                  )}
+                </div>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div>
+                    <dt className="text-gray-500">Salgspris</dt>
+                    <dd className="tabular-nums text-gray-900">{formatCurrency(r.unit_sales_price, 'DKK', 2)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500">Sum salg</dt>
+                    <dd className="tabular-nums font-medium text-gray-900">{formatCurrency(r.total_sales_price, 'DKK', 2)}</dd>
+                  </div>
+                  {showCost && (
+                    <>
+                      <div>
+                        <dt className="text-gray-500">Kostpris</dt>
+                        <dd className="tabular-nums text-gray-900">{formatCurrency(r.unit_cost, 'DKK', 2)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500">Sum kost</dt>
+                        <dd className="tabular-nums text-gray-900">{formatCurrency(r.total_cost, 'DKK', 2)}</dd>
+                      </div>
+                    </>
+                  )}
+                </dl>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={() => { setEditing(r); setDialogOpen(true) }} disabled={isLocked} aria-label="Rediger omkostning" className="p-2 rounded hover:bg-emerald-100 text-emerald-700 disabled:opacity-30">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button type="button" onClick={() => handleDelete(r)} disabled={isLocked || deletingId === r.id} aria-label="Slet omkostning" className="p-2 rounded hover:bg-red-100 text-red-600 disabled:opacity-30">
+                    {deletingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  </button>
+                </div>
+              </article>
+            )
+          })}
+          {summary && canSeeCost && (
+            <div className="bg-white rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+              <p className="flex justify-between gap-2"><span className="text-gray-600">Sum salg</span><span className="tabular-nums font-semibold">{formatCurrency(summary.total_sales_price, 'DKK', 2)}</span></p>
+              {showCost && (
+                <>
+                  <p className="flex justify-between gap-2 mt-1"><span className="text-gray-600">Sum kost</span><span className="tabular-nums font-semibold">{formatCurrency(summary.total_cost, 'DKK', 2)}</span></p>
+                  <p className="flex justify-between gap-2 mt-1">
+                    <span className="text-gray-600">Foreløbig DB</span>
+                    <span className={`tabular-nums font-semibold ${summary.contribution_margin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                      {formatCurrency(summary.contribution_margin, 'DKK', 2)} ({fmtPct(summary.margin_percentage)})
+                    </span>
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-600">
               <tr>
@@ -380,6 +467,7 @@ export function OrderOtherCostsTab({
             )}
           </table>
         </div>
+        </>
       )}
 
       <CaseOtherCostDialog
