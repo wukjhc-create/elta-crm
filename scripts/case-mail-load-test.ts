@@ -32,6 +32,7 @@ eq('ikke tom indbakke', view.includes('Det tælles ikke som en tom indbakke.'), 
 eq('tom tekst bliver', view.includes('Ingen mails koblet til denne sag'), true)
 eq('kan proeves igen', view.includes('Prøv igen') && view.includes('void loadEmails()'), true)
 eq('fejl saetter flag', view.includes('setLoadError(true)'), true)
+eq('mails beholdes ved fejl', !view.includes('setEmails([])'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncase-mail-load-test OK')
 process.exitCode = fail ? 1 : 0

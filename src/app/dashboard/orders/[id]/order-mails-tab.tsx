@@ -108,7 +108,6 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
       setEmails(data)
       await fetchRequiresResponse(data)
     } catch {
-      setEmails([])
       setLoadError(true)
     } finally {
       setIsLoading(false)
@@ -127,10 +126,7 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
         }
       })
       .catch(() => {
-        if (!cancelled) {
-          setEmails([])
-          setLoadError(true)
-        }
+        if (!cancelled) setLoadError(true)
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -143,7 +139,7 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
 
   const requiresResponseCount = Object.keys(requiresResponseMap).length
 
-  if (isLoading) {
+  if (isLoading && emails.length === 0) {
     return (
       <div className="bg-white rounded-lg border p-12 flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -151,7 +147,7 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
     )
   }
 
-  if (loadError) {
+  if (loadError && emails.length === 0) {
     return (
       <div className="bg-white rounded-lg border p-12 text-center text-gray-700">
         <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
@@ -183,6 +179,19 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
 
   return (
     <div className="bg-white rounded-lg border">
+      {loadError && (
+        <div className="p-4 text-center text-gray-700 border-b">
+          <p className="font-medium">Kunne ikke hente mails på sagen.</p>
+          <p className="text-sm mt-1 text-gray-500">Det tælles ikke som en tom indbakke.</p>
+          <button
+            type="button"
+            onClick={() => void loadEmails()}
+            className="mt-4 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+          >
+            Prøv igen
+          </button>
+        </div>
+      )}
       <div className="p-4 border-b flex items-center gap-2">
         <Mail className="w-4 h-4 text-blue-600" />
         <h3 className="font-semibold text-sm">Mails</h3>
