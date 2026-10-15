@@ -95,6 +95,9 @@ export function TasksPageClient({
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>([])
   const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string; role?: string | null }>>([])
   const [customers, setCustomers] = useState<Array<{ id: string; company_name: string; customer_number: string }>>([])
+  const [customerLoadError, setCustomerLoadError] = useState<string | null>(null)
+  const [customerLoading, setCustomerLoading] = useState(false)
+  const [customerTry, setCustomerTry] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
@@ -184,14 +187,23 @@ export function TasksPageClient({
     return () => clearTimeout(timer)
   }, [highlightedTaskId])
 
-  // Load customers on first dialog open
+  // Load customers on first dialog open. En fejl er ikke en tom kundeliste.
   useEffect(() => {
-    if (dialogOpen && customers.length === 0) {
-      getCustomersForSelect().then((res) => {
-        if (res.success && res.data) setCustomers(res.data)
-      })
-    }
-  }, [dialogOpen, customers.length])
+    if (!dialogOpen || customers.length > 0) return
+    let alive = true
+    setCustomerLoading(true)
+    setCustomerLoadError(null)
+    getCustomersForSelect().then((res) => {
+      if (!alive) return
+      if (res.success) setCustomers(res.data ?? [])
+      else setCustomerLoadError(res.error ?? 'Kunne ikke hente kunder')
+    }).catch(() => {
+      if (alive) setCustomerLoadError('Kunne ikke hente kunder')
+    }).finally(() => {
+      if (alive) setCustomerLoading(false)
+    })
+    return () => { alive = false }
+  }, [dialogOpen, customers.length, customerTry])
 
   const handleComplete = async (taskId: string) => {
     const result = await completeCustomerTask(taskId)
@@ -581,6 +593,9 @@ export function TasksPageClient({
           setFormData={setFormData}
           profiles={profiles}
           customers={customers}
+          customerLoadError={customerLoadError}
+          customerLoading={customerLoading}
+          onRetryCustomers={() => setCustomerTry((n) => n + 1)}
           isSaving={isSaving}
           onSave={handleSave}
           onClose={() => setDialogOpen(false)}
@@ -1000,6 +1015,9 @@ function TaskFormDialog({
   setFormData,
   profiles,
   customers,
+  customerLoadError,
+  customerLoading,
+  onRetryCustomers,
   isSaving,
   onSave,
   onClose,
@@ -1010,6 +1028,9 @@ function TaskFormDialog({
   setFormData: React.Dispatch<React.SetStateAction<TaskFormData>>
   profiles: Array<{ id: string; full_name: string | null; email: string; role?: string | null }>
   customers: Array<{ id: string; company_name: string; customer_number: string }>
+  customerLoadError: string | null
+  customerLoading: boolean
+  onRetryCustomers: () => void
   isSaving: boolean
   onSave: () => void
   onClose: () => void
@@ -1090,6 +1111,17 @@ function TaskFormDialog({
                 </option>
               ))}
             </select>
+            {customerLoading && customers.length === 0 && !customerLoadError && (
+              <p className="mt-1 text-xs text-gray-500">Henter kunder…</p>
+            )}
+            {customerLoadError && customers.length === 0 && (
+              <p className="mt-1 text-xs text-red-700" data-testid="task-customer-load-error">
+                {customerLoadError}. Det tælles ikke som ingen kunder.{' '}
+                <button type="button" onClick={onRetryCustomers} className="min-h-[44px] px-2 font-medium underline">
+                  Prøv igen
+                </button>
+              </p>
+            )}
           </div>
 
           {/* Priority + Assigned */}
