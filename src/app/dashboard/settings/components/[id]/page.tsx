@@ -32,10 +32,13 @@ export default async function ComponentDetailPage({ params }: Props) {
 
   // Get variant materials for each variant
   const variantMaterialsMap: Record<string, Awaited<ReturnType<typeof getVariantMaterials>>['data']> = {}
+  const variantMaterialErrors: Record<string, string> = {}
   for (const variant of result.data.variants) {
     const vmResult = await getVariantMaterials(variant.id)
-    if (vmResult.success && vmResult.data) {
-      variantMaterialsMap[variant.id] = vmResult.data
+    if (vmResult.success) {
+      variantMaterialsMap[variant.id] = vmResult.data ?? []
+    } else {
+      variantMaterialErrors[variant.id] = vmResult.error || 'Kunne ikke hente variant-materialer'
     }
   }
 
@@ -43,6 +46,7 @@ export default async function ComponentDetailPage({ params }: Props) {
     <ComponentDetailClient
       component={result.data}
       variantMaterialsMap={variantMaterialsMap}
+      variantMaterialErrors={variantMaterialErrors}
     />
   )
 }
