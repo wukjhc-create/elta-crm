@@ -131,6 +131,7 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
                       type="button"
                       disabled={isUpdating === lead.id}
                       onClick={() => void moveLead(lead.id, target)}
+                      aria-label={`Flyt ${lead.company_name} til ${LEAD_STATUS_LABELS[target]}`}
                       className="text-xs px-2 py-1 rounded-md ring-1 ring-gray-200 text-gray-700 disabled:opacity-50"
                     >
                       {LEAD_STATUS_LABELS[target]}
