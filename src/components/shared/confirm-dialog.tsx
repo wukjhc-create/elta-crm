@@ -61,24 +61,24 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-description"
-        className="bg-white rounded-lg shadow-xl w-full max-w-md"
+        className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
       >
         <div className="p-6">
           <div className="flex items-start gap-4">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${iconColors[variant]}`}>
               <AlertTriangle className="w-5 h-5" />
             </div>
-            <div>
-              <h3 id="confirm-dialog-title" className="text-lg font-semibold text-gray-900">
+            <div className="min-w-0">
+              <h3 id="confirm-dialog-title" className="text-lg font-semibold text-gray-900 break-words">
                 {title}
               </h3>
-              <p id="confirm-dialog-description" className="mt-2 text-sm text-gray-600">
+              <p id="confirm-dialog-description" className="mt-2 text-sm text-gray-600 break-words">
                 {description}
               </p>
             </div>
           </div>
         </div>
-        <div className="flex justify-end gap-3 px-6 pb-6">
+        <div className="flex flex-wrap justify-end gap-3 px-6 pb-6">
           <button
             type="button"
             onClick={onCancel}
