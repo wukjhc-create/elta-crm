@@ -592,7 +592,35 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               : 'Ingen linjer på fakturaen.'}
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <ul className="md:hidden space-y-2" data-testid="invoice-detail-lines-mobile">
+            {detail.lines.map((l) => {
+              const src = lineSourceLabel(l)
+              return (
+                <li key={l.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 break-words text-gray-900">{l.position}. {l.description}</p>
+                    <p className="shrink-0 tabular-nums font-medium">{fmtKr(l.total_price, inv.currency)}</p>
+                  </div>
+                  <p className={`mt-1 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${src.color}`}>
+                    {src.label}
+                  </p>
+                  <p className="mt-1 text-xs tabular-nums text-gray-700">
+                    {fmtNum(Number(l.quantity), 2)} {l.unit ?? '—'} · {fmtKr(l.unit_price, inv.currency)}
+                  </p>
+                </li>
+              )
+            })}
+          </ul>
+          <div className="md:hidden mt-2 space-y-1 text-sm">
+            <p className="flex justify-between gap-2"><span className="text-gray-600">Subtotal (ex moms)</span><span className="tabular-nums font-medium">{fmtKr(inv.total_amount, inv.currency)}</span></p>
+            <p className="flex justify-between gap-2"><span className="text-gray-600">Moms</span><span className="tabular-nums font-medium">{fmtKr(inv.tax_amount, inv.currency)}</span></p>
+            <p className="flex justify-between gap-2"><span className="text-gray-700 font-medium">Total inkl. moms</span><span className="tabular-nums font-bold">{fmtKr(inv.final_amount, inv.currency)}</span></p>
+            {inv.amount_paid > 0 && (
+              <p className="flex justify-between gap-2 text-emerald-700"><span>Betalt</span><span className="tabular-nums font-medium">{fmtKr(inv.amount_paid, inv.currency)}</span></p>
+            )}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
@@ -665,6 +693,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               </tfoot>
             </table>
           </div>
+          </>
         )}
       </Panel>
 
