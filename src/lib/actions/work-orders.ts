@@ -375,13 +375,19 @@ export async function changeWorkOrderStatus(
       }
     }
 
-    // Block done if a timer is still open
+    // Block done if a timer is still open. A failed count is not zero open timers.
     if (next === 'done') {
-      const { count: openTimers } = await supabase
+      const { count: openTimers, error: timerError } = await supabase
         .from('time_logs')
         .select('id', { count: 'exact', head: true })
         .eq('work_order_id', workOrderId)
         .is('end_time', null)
+      if (timerError) {
+        return {
+          success: false,
+          error: 'Kunne ikke tælle åbne timere. Det tælles ikke som 0.',
+        }
+      }
       if ((openTimers ?? 0) > 0) {
         return {
           success: false,
