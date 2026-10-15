@@ -82,7 +82,7 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                 </p>
               )}
               {data.rows.length === 0 ? (
-                <p className="text-sm text-gray-500">Ingen linjer eller forbrug endnu.</p>
+                <p className="text-sm text-gray-500">Ingen linjer eller forbrug endnu. Linjer kommer fra tilbuddet. Forbrug kommer fra sagens materialer og timer.</p>
               ) : (
                 <>
                 <div className="md:hidden divide-y rounded ring-1 ring-gray-200" data-testid="offer-vs-actual-mobile">
