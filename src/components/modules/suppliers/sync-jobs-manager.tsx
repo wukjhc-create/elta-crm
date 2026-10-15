@@ -176,10 +176,12 @@ export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerPro
               <div key={job.id} className="bg-white border rounded-lg overflow-hidden">
                 {/* Job Header */}
                 <div className={`p-4 ${!job.is_active ? 'opacity-60' : ''}`}>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                     {/* Expand toggle */}
                     <button
+                      type="button"
                       onClick={() => handleToggleExpand(job.id)}
+                      aria-label={isExpanded ? 'Skjul kørsler' : 'Vis kørsler'}
                       className="shrink-0 text-gray-400 hover:text-gray-600"
                     >
                       {isExpanded
@@ -211,7 +213,7 @@ export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerPro
                       {job.description && (
                         <p className="text-sm text-gray-500 mt-0.5 truncate">{job.description}</p>
                       )}
-                      <div className="flex items-center gap-4 text-xs text-gray-400 mt-1">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400 mt-1">
                         {job.schedule_cron && (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -228,23 +230,29 @@ export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerPro
                     {/* Actions */}
                     <div className="flex items-center gap-1 shrink-0">
                       <button
+                        type="button"
                         onClick={() => handleToggleActive(job)}
                         className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
                         title={job.is_active ? 'Deaktiver' : 'Aktiver'}
+                        aria-label={job.is_active ? 'Deaktiver job' : 'Aktiver job'}
                       >
                         {job.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                       </button>
                       <button
+                        type="button"
                         onClick={() => { setEditingJob(job); setShowForm(true) }}
                         className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
                         title="Rediger"
+                        aria-label="Rediger job"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(job)}
                         className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"
                         title="Slet"
+                        aria-label="Slet job"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -267,14 +275,14 @@ export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerPro
                               <div className="flex items-center gap-3">
                                 <logStatus.icon className={`h-4 w-4 shrink-0 ${logStatus.color}`} />
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 text-sm">
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                                     <span className="font-medium">{logStatus.label}</span>
                                     <span className="text-gray-400">|</span>
                                     <span className="text-gray-500">{formatDateTimeDK(log.started_at) || '\u2014'}</span>
                                     <span className="text-gray-400">|</span>
                                     <span className="text-gray-500">{formatDuration(log.duration_ms)}</span>
                                   </div>
-                                  <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400 mt-1">
                                     <span>{log.processed_items}/{log.total_items} behandlet</span>
                                     {log.new_items > 0 && <span className="text-green-600">+{log.new_items} nye</span>}
                                     {log.updated_items > 0 && <span className="text-blue-600">{log.updated_items} opdateret</span>}
