@@ -464,7 +464,29 @@ export function IncomingInvoiceDetailClient({
         {detail.lines.length === 0 ? (
           <p className="text-xs text-gray-400">Ingen linjer ekstraheret.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="md:hidden space-y-2" data-testid="incoming-invoice-lines-mobile">
+            {detail.lines.map((l) => {
+              const convertedAs = l.converted_case_material_id
+                ? 'material'
+                : l.converted_case_other_cost_id
+                ? 'other_cost'
+                : null
+              const skippedExplicit = l.converted_at && !convertedAs
+              return (
+                <article key={l.id} className="rounded ring-1 ring-gray-200 p-2 text-xs">
+                  <p className="font-medium text-gray-900 break-words">{l.line_number}. {l.description ?? '—'}</p>
+                  <p className="text-gray-600 mt-1">{l.quantity ?? '—'} {l.unit ?? ''}</p>
+                  <p>Stk-pris {fmtAmount(l.unit_price, inv.currency)}</p>
+                  <p className="font-medium">Total {fmtAmount(l.total_price, inv.currency)}</p>
+                  <p className="mt-1 text-gray-700">
+                    {convertedAs === 'material' ? 'Materiale' : convertedAs === 'other_cost' ? 'Øvrig' : skippedExplicit ? 'Sprunget over' : 'Ikke konverteret'}
+                  </p>
+                </article>
+              )
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
@@ -516,6 +538,7 @@ export function IncomingInvoiceDetailClient({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Panel>
 
