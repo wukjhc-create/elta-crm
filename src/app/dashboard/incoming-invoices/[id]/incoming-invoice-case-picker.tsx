@@ -68,19 +68,18 @@ export function IncomingInvoiceCasePicker({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, submitting, onClose])
 
-  const filtered = useMemo(() => {
+  const caseMatches = useMemo(() => {
     if (!cases) return []
     const q = search.trim().toLowerCase()
-    if (!q) return cases.slice(0, 30)
-    return cases
-      .filter(
-        (c) =>
-          c.case_number.toLowerCase().includes(q) ||
-          c.title.toLowerCase().includes(q) ||
-          (c.customer_name ?? '').toLowerCase().includes(q)
-      )
-      .slice(0, 30)
+    if (!q) return cases
+    return cases.filter(
+      (c) =>
+        c.case_number.toLowerCase().includes(q) ||
+        c.title.toLowerCase().includes(q) ||
+        (c.customer_name ?? '').toLowerCase().includes(q)
+    )
   }, [cases, search])
+  const filtered = caseMatches.slice(0, 30)
 
   if (!open) return null
 
@@ -159,6 +158,7 @@ export function IncomingInvoiceCasePicker({
                 )}
               </div>
             ) : (
+              <>
               <ul className="divide-y divide-gray-100">
                 {filtered.map((c) => {
                   const isCurrent = c.id === currentCaseId
@@ -195,6 +195,12 @@ export function IncomingInvoiceCasePicker({
                   )
                 })}
               </ul>
+              {caseMatches.length > filtered.length && (
+                <p className="px-2 py-1.5 text-[11px] text-gray-500 border-t">
+                  Viser {filtered.length} af {caseMatches.length}. Søg for at finde resten.
+                </p>
+              )}
+              </>
             )}
           </div>
 
