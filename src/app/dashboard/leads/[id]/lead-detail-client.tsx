@@ -158,7 +158,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
               </h1>
               <LeadStatusBadge status={lead.status} />
             </div>
-            <p className="text-gray-600 mt-1">{lead.contact_person}</p>
+            <p className="text-gray-600 mt-1 break-words">{lead.contact_person}</p>
             <p className="text-sm text-gray-700 mt-2" data-testid="lead-next-hint">
               {nextLeadHint(lead.status, { hasCustomer: !!linkedCustomerId, canConvert, canCreateOffer })}
             </p>
@@ -248,7 +248,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                   <Inbox className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-amber-900">{web ? 'Oprettet fra webhenvendelse' : 'Oprettet fra email'}</p>
-                    <p className="text-xs text-amber-700 mt-0.5">
+                    <p className="text-xs text-amber-700 mt-0.5 break-words">
                       {web && lead.notes?.startsWith('Webhenvendelse — ')
                         ? <span data-testid="lead-source-message">{lead.notes.replace(/^Webhenvendelse — /, '')}</span>
                         : <>Emne: {cf.source_email_subject || lead.notes?.replace(/^Fra mail: /, '') || 'Ukendt'}</>}
@@ -323,48 +323,48 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Kontaktoplysninger</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                     <Building className="w-5 h-5 text-gray-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-500">Firma</p>
-                    <p className="font-medium">{lead.company_name}</p>
+                    <p className="font-medium break-words">{lead.company_name}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                     <User className="w-5 h-5 text-gray-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-500">Kontaktperson</p>
-                    <p className="font-medium">{lead.contact_person}</p>
+                    <p className="font-medium break-words">{lead.contact_person}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                     <Mail className="w-5 h-5 text-gray-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-500">E-mail</p>
                     <a
                       href={`mailto:${lead.email}`}
-                      className="font-medium text-primary hover:underline"
+                      className="font-medium text-primary hover:underline break-all"
                     >
                       {lead.email}
                     </a>
                   </div>
                 </div>
                 {lead.phone && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 rounded-lg">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="p-2 bg-gray-100 rounded-lg shrink-0">
                       <Phone className="w-5 h-5 text-gray-600" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm text-gray-500">Telefon</p>
                       <a
                         href={`tel:${lead.phone}`}
-                        className="font-medium text-primary hover:underline"
+                        className="font-medium text-primary hover:underline break-all"
                       >
                         {lead.phone}
                       </a>
@@ -393,6 +393,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 placeholder="Skriv en note..."
+                aria-label="Note"
                 rows={3}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary resize-none"
               />
@@ -429,9 +430,9 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                           <Clock className="w-4 h-4 text-gray-600" />
                         )}
                       </div>
-                      <div className="flex-1">
-                        <p className="text-gray-900">{activity.description}</p>
-                        <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-900 break-words">{activity.description}</p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-sm text-gray-500">
                           <span>
                             {activity.performed_by_profile?.full_name ||
                               activity.performed_by_profile?.email ||
@@ -522,7 +523,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Tildelt til</p>
-                  <p className="font-medium">
+                  <p className="font-medium break-words">
                     {lead.assigned_to_profile?.full_name ||
                       lead.assigned_to_profile?.email ||
                       'Ikke tildelt'}
@@ -530,7 +531,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Oprettet af</p>
-                  <p className="font-medium">
+                  <p className="font-medium break-words">
                     {lead.created_by_profile?.full_name ||
                       lead.created_by_profile?.email ||
                       'Ukendt'}
