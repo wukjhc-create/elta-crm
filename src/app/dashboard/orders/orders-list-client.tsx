@@ -203,7 +203,7 @@ export function OrdersListClient({
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
         {cases.length === 0 && (
           <p className="md:hidden px-3 py-12 text-center text-gray-400 text-sm">
-            {filters.search || filters.status || filters.type
+            {filters.search || filters.status || filters.type || filters.billing
               ? 'Ingen sager matcher filtrene.'
               : 'Ingen sager endnu — opret din første sag fra et tilbud, en email eller manuelt.'}
           </p>
@@ -281,7 +281,7 @@ export function OrdersListClient({
               {cases.length === 0 ? (
                 <tr>
                   <td colSpan={canSeeBilling ? 13 : 12} className="px-3 py-12 text-center text-gray-400 text-sm">
-                    {filters.search || filters.status || filters.type
+                    {filters.search || filters.status || filters.type || filters.billing
                       ? 'Ingen sager matcher filtrene.'
                       : 'Ingen sager endnu — opret din første sag fra et tilbud, en email eller manuelt.'}
                   </td>
