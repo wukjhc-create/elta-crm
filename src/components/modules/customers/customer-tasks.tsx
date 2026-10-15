@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
 import {
   Plus,
   CheckCircle2,
@@ -251,7 +249,7 @@ function TaskRow({
             <span className={`inline-flex items-center gap-1 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
               {isOverdue && <AlertTriangle className="w-3 h-3" />}
               <Clock className="w-3 h-3" />
-              {format(new Date(task.due_date), 'd. MMM yyyy', { locale: da })}
+              {new Date(task.due_date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           ) : (
             <span className="text-xs text-gray-400">Ingen forfaldsdato</span>

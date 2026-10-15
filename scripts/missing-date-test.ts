@@ -13,7 +13,7 @@ const overlay = fs.readFileSync('src/components/layout/task-reminder-overlay.tsx
 const personal = fs.readFileSync('src/app/dashboard/tasks/personal-reminders-card.tsx', 'utf8')
 
 eq('kundeopgave uden forfald siger det', tasks.includes('Ingen forfaldsdato') && tasks.includes('task.due_date ?'), true)
-eq('forfaldsdato formateres stadig', tasks.includes("format(new Date(task.due_date), 'd. MMM yyyy'"), true)
+eq('forfaldsdato bruger koebenhavn', tasks.includes("timeZone: 'Europe/Copenhagen'") && tasks.includes('task.due_date'), true)
 eq('paamindelse uden dato siger det', overlay.includes("'Ingen dato'") && overlay.includes('reminder.due_date'), true)
 eq('luk har et navn', overlay.includes('aria-label="Luk påmindelse"'), true)
 eq('prisadvarsel ombrydes', overlay.includes('break-words min-w-0">{alert.title}'), true)
