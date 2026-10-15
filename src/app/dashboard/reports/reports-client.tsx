@@ -322,6 +322,11 @@ function ProjectTable({ data, error }: { data: ProjectProfitability[]; error: bo
             </tbody>
           </table>
         </div>
+        {rows.length > 15 && (
+          <p className="mt-3 text-xs text-gray-600 break-words" data-testid="report-cases-capped">
+            Viser 15 af {rows.length} sager. De øvrige {rows.length - 15} er ikke med i listen.
+          </p>
+        )}
         </>
       )}
     </div>
