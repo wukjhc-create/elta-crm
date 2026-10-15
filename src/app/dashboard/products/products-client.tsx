@@ -233,7 +233,7 @@ export default function ProductsClient({
                     {product.is_active ? 'Aktiv' : 'Inaktiv'}
                   </Badge>
                 </div>
-                <p className="text-xs text-gray-500">SKU {product.sku || '-'}</p>
+                <p className="text-xs text-gray-500 break-all">SKU {product.sku || '-'}</p>
                 {product.category && <Badge variant="outline">{product.category.name}</Badge>}
                 <dl className="grid grid-cols-2 gap-2 text-sm">
                   {canSeeCost && (
