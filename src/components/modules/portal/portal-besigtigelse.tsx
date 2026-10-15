@@ -33,10 +33,17 @@ function extractTimeFromDescription(desc: string | null): string | null {
 export function PortalBesigtigelseSection({ token, customerName }: PortalBesigtigelseSectionProps) {
   const [bookings, setBookings] = useState<PortalBesigtigelse[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadBookings = () => {
+    setLoading(true)
+    setLoadError(null)
     getPortalBesigtigelser(token).then((res) => {
-      if (res.success && res.data) setBookings(res.data)
+      if (res.success) setBookings(res.data ?? [])
+      else setLoadError(res.error ?? 'Kunne ikke hente besigtigelser')
+      setLoading(false)
+    }).catch(() => {
+      setLoadError('Kunne ikke hente besigtigelser')
       setLoading(false)
     })
   }
@@ -55,7 +62,7 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
     (b) => b.status === 'done' || (b.due_date && b.due_date < today)
   )
 
-  if (loading) {
+  if (loading && bookings.length === 0) {
     return (
       <div className="bg-white rounded-xl border shadow-sm p-6">
         <div className="flex items-center gap-2 mb-4">
@@ -65,6 +72,25 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
         </div>
+      </div>
+    )
+  }
+
+  if (loadError && bookings.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border shadow-sm p-6" data-testid="portal-besigtigelse-load-error">
+        <div className="flex items-center gap-2 mb-3">
+          <CalendarCheck className="w-5 h-5 text-blue-600" />
+          <h2 className="text-lg font-semibold">Besigtigelse</h2>
+        </div>
+        <p className="text-sm text-red-700">{loadError}. Det tælles ikke som ingen besigtigelser.</p>
+        <button
+          type="button"
+          onClick={loadBookings}
+          className="mt-3 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800"
+        >
+          Prøv igen
+        </button>
       </div>
     )
   }
@@ -102,6 +128,14 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
       </div>
 
       <div className="p-6 space-y-4">
+        {loadError && (
+          <p className="text-sm text-red-700" data-testid="portal-besigtigelse-load-error">
+            {loadError}. Det tælles ikke som ingen besigtigelser.{' '}
+            <button type="button" onClick={loadBookings} className="min-h-[44px] px-3 font-medium underline">
+              Prøv igen
+            </button>
+          </p>
+        )}
         {/* N31: kunden kan selv booke (endnu) en besigtigelse */}
         <PortalBookBesigtigelse token={token} onBooked={loadBookings} />
 
@@ -286,7 +320,7 @@ function BesigtigelseCard({
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-3 ml-[52px]">
+      <div className="flex flex-wrap items-center gap-3 sm:ml-[52px]">
         <button
           onClick={handleConfirm}
           disabled={confirming}
@@ -310,7 +344,7 @@ function BesigtigelseCard({
 
       {/* Reschedule form */}
       {showReschedule && (
-        <div className="ml-[52px] space-y-3">
+        <div className="space-y-3 sm:ml-[52px]">
           <textarea
             value={rescheduleMsg}
             onChange={(e) => setRescheduleMsg(e.target.value)}
@@ -347,7 +381,7 @@ function BesigtigelseCard({
 
       {/* Error */}
       {error && (
-        <div className="ml-[52px] bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+        <div className="sm:ml-[52px] bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 break-words">
           {error}
         </div>
       )}
