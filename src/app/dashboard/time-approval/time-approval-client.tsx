@@ -45,9 +45,14 @@ export function TimeApprovalClient() {
 
   const load = useCallback(async () => {
     setError(null)
-    const r = await listTimeLogsForApprovalAction(tab)
-    if (!r.success) { setError(r.error ?? 'Kunne ikke hente timer'); setRows([]); return }
-    setRows(r.data ?? [])
+    try {
+      const r = await listTimeLogsForApprovalAction(tab)
+      if (!r.success) { setError(r.error ?? 'Kunne ikke hente timer'); setRows([]); return }
+      setRows(r.data ?? [])
+    } catch {
+      setError('Kunne ikke hente timer')
+      setRows([])
+    }
   }, [tab])
 
   useEffect(() => { setRows(null); load() }, [load])
@@ -109,8 +114,12 @@ export function TimeApprovalClient() {
       </div>
 
       {error && (
-        <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4" /> {error}
+        <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 flex flex-wrap items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          <span>{error}{rows !== null && rows.length === 0 ? '. Det tælles ikke som en tom liste.' : ''}</span>
+          <button type="button" onClick={() => void load()} className="ml-auto min-h-[44px] px-3 text-sm font-medium">
+            Prøv igen
+          </button>
         </div>
       )}
       {msg && <div className="rounded-md bg-emerald-50 ring-1 ring-emerald-200 px-3 py-2 text-sm text-emerald-900" data-testid="time-approval-msg">{msg}</div>}
