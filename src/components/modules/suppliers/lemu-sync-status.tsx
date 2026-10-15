@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Server, Clock, Package, Wifi, WifiOff } from 'lucide-react'
 import { getLemuSyncStatus, triggerLemuSync, type LemuSyncStatus } from '@/lib/actions/lemu-sync'
 import { useToast } from '@/components/ui/toast'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
@@ -13,14 +14,7 @@ function formatDuration(ms: number): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return 'Aldrig'
-  const d = new Date(iso)
-  return d.toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return copenhagenDateTimeLabel(iso)
 }
 
 export function LemuSyncStatus() {
@@ -110,7 +104,7 @@ export function LemuSyncStatus() {
               <Clock className="w-3.5 h-3.5" />
               Sidste synk
             </div>
-            <p className="text-sm font-medium text-gray-900">
+            <p className="text-sm font-medium text-gray-900 break-words">
               {formatDate(status.last_sync_at)}
             </p>
           </div>

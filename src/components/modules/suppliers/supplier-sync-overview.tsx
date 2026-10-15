@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Package, Wifi, WifiOff, Clock, Server } from 'lucide-react'
 import { getAllSupplierSyncStatuses, triggerLemuSync, type SupplierSyncOverview } from '@/lib/actions/lemu-sync'
 import { useToast } from '@/components/ui/toast'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
@@ -14,14 +15,7 @@ function formatDuration(ms: number): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return 'Aldrig'
-  const d = new Date(iso)
-  return d.toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return copenhagenDateTimeLabel(iso)
 }
 
 function SupplierBadge({ code }: { code: string }) {
@@ -139,7 +133,7 @@ export function SupplierSyncOverviewPanel() {
                   : 'border-yellow-200'
             }`}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <SupplierBadge code={s.code} />
 
               <div className="flex-1 min-w-0">
@@ -147,7 +141,7 @@ export function SupplierSyncOverviewPanel() {
                   <h4 className="font-semibold text-gray-900">{s.name}</h4>
                   <StatusBadge status={s.last_sync_status} configured={s.connection_configured} />
                 </div>
-                <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mt-1">
                   <span className="flex items-center gap-1">
                     <Package className="w-3 h-3" />
                     {s.product_count.toLocaleString('da-DK')} produkter

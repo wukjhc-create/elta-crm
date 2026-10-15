@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Loader2, Save, Info } from 'lucide-react'
 import { getSupplierSettings, updateSupplierSettings } from '@/lib/actions/suppliers'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import type { SupplierSettings, UpdateSupplierSettingsData, ImportFormat } from '@/types/suppliers.types'
 
 interface SupplierSettingsFormProps {
@@ -264,15 +265,9 @@ export function SupplierSettingsForm({
 
       {/* Last Import Info */}
       {settings?.last_import_at && (
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-gray-500 break-words">
           Sidst importeret:{' '}
-          {new Date(settings.last_import_at).toLocaleString('da-DK', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
+          {copenhagenDateTimeLabel(settings.last_import_at, 'long')}
         </div>
       )}
 
