@@ -403,7 +403,32 @@ export function LineItemsTable({
           {editable ? 'Ingen linjer endnu. Tilføj den første linje nedenfor.' : 'Ingen linjer på tilbuddet.'}
         </p>
       )}
-      <div className="overflow-x-auto">
+      {!editable && (
+        <ul className="md:hidden space-y-2" data-testid="line-items-mobile">
+          {items.map((item, idx) => {
+            const costPrice = item.cost_price || item.supplier_cost_price_at_creation || null
+            const marginPct = getLineItemMargin(item)
+            return (
+              <li key={item.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 break-words font-medium text-gray-900">{item.description}</p>
+                  <p className="shrink-0 tabular-nums font-semibold">{formatCurrency(item.total, currency, 2)}</p>
+                </div>
+                <p className="mt-1 text-xs tabular-nums text-gray-600">
+                  {item.position ?? idx + 1} · {item.quantity} {item.unit || 'stk'} · {formatCurrency(item.unit_price, currency, 2)}
+                </p>
+                {showCostData && (
+                  <p className="mt-1 text-xs tabular-nums text-gray-500">
+                    {costPrice ? formatCurrency(costPrice, currency, 2) : <span className="text-gray-300">-</span>}
+                    {marginPct != null ? ` · ${marginPct}%` : ''}
+                  </p>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <div className={editable ? 'overflow-x-auto' : 'hidden md:block overflow-x-auto'}>
         <table className="min-w-full">
           <thead>
             <tr className="border-b bg-gray-50/50">
