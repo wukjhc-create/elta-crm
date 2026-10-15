@@ -643,6 +643,7 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
                 placeholder="Søg efter produkt..."
+                aria-label="Søg efter leverandørprodukt"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="pl-9"
