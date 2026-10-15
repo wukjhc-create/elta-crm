@@ -179,7 +179,8 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
       breakdown.duplicate_detected = 1
       breakdown.reasons.push('duplicate_supplier_invoice_number')
     } else {
-      const rejected = hits.find((h) => h.status === 'rejected')
+      // samme nr. som en afvist ELLER annulleret (Henrik 2026-10-15) → manuel kontrol, ikke stille godkendelse
+      const rejected = hits.find((h) => h.status === 'rejected') ?? hits.find((h) => h.status === 'cancelled')
       if (rejected) {
         sameNumberAsRejectedId = rejected.id
         breakdown.reasons.push('same_number_as_rejected')
