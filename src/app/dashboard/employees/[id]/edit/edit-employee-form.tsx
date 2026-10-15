@@ -342,7 +342,7 @@ function CompensationSection({ employee }: { employee: EmployeeWithCompensation 
 
       {/* A. Grundsatser */}
       <h3 className="text-sm font-semibold text-gray-800 pt-1 border-t">Grundsatser</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Field label="Timeløn / time" error={fieldError('hourly_wage')}>
           <input {...register('hourly_wage')} type="number" step="0.01" min="0" disabled={isSubmitting} className={input} />
         </Field>
@@ -359,7 +359,7 @@ function CompensationSection({ employee }: { employee: EmployeeWithCompensation 
 
       {/* B. Løntillæg og beregning */}
       <h3 className="text-sm font-semibold text-gray-800 pt-1 border-t">Løntillæg og beregning</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <Field label="Pension %" error={fieldError('pension_pct')}>
           <input {...register('pension_pct')} type="number" step="0.01" min="0" max="100" disabled={isSubmitting} className={input} />
         </Field>
