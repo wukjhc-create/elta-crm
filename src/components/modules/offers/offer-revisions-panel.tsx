@@ -60,22 +60,22 @@ export function OfferRevisionsPanel({ offerId, status, supersededBy }: { offerId
         )}
       </div>
       {supersededBy && (
-        <p className="text-sm text-amber-700 bg-amber-50 rounded px-3 py-2" data-testid="offer-superseded">
+        <p className="text-sm text-amber-700 bg-amber-50 rounded px-3 py-2 break-words" data-testid="offer-superseded">
           Denne revision er afløst af en nyere — kunden ser kun den gældende version.{' '}
           <a className="underline" href={`/dashboard/offers/${supersededBy}`}>Åbn gældende revision</a>
         </p>
       )}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 break-words">{error}</p>}
       {loadError ? (
         <p className="text-sm text-red-700 break-words" data-testid="offer-revisions-load-error">{loadError}</p>
       ) : revs.length > 0 ? (
         <ul className="text-sm divide-y">
           {revs.map((r) => (
-            <li key={r.id} className="py-1.5 flex items-center justify-between gap-2">
-              <a href={`/dashboard/offers/${r.id}`} className={r.id === offerId ? 'font-semibold' : 'text-blue-700 hover:underline'}>
+            <li key={r.id} className="py-1.5 flex flex-wrap items-start justify-between gap-x-2 gap-y-1 min-w-0">
+              <a href={`/dashboard/offers/${r.id}`} className={`break-words min-w-0 ${r.id === offerId ? 'font-semibold' : 'text-blue-700 hover:underline'}`}>
                 Rev. {r.revision_number} · {r.offer_number}
               </a>
-              <span className="text-gray-500">
+              <span className="text-gray-500 break-words min-w-0">
                 {OFFER_STATUS_LABELS[r.status as OfferStatus] ?? r.status}
                 {r.snapshot_sent_at ? ` · sendt ${fmt(r.snapshot_sent_at)}` : ''}
                 {r.superseded_at ? ` · afløst ${fmt(r.superseded_at)}` : ''}
