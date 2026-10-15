@@ -615,7 +615,7 @@ export function RoomCalculatorClient() {
       {activeTab === 'results' && estimate && (
         <div className="space-y-6">
           {/* Key Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 min-w-0">
             <MetricCard label="Kostpris" value={formatCurrency(estimate.cost_price)} />
             <MetricCard label="Salgspris ekskl. moms" value={formatCurrency(estimate.sale_price_excl_vat)} />
             <MetricCard label="Moms" value={formatCurrency(estimate.vat_amount)} />
@@ -874,11 +874,11 @@ export function RoomCalculatorClient() {
                 <li key={i} className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${s.name === 'Standard margin' ? 'bg-blue-50' : ''}`}>
                   <p className="font-medium text-gray-900 break-words">{s.name}</p>
                   <p className="mt-1 text-xs text-gray-700">Margin {s.margin_percentage}% · rabat {s.discount_percentage}%</p>
-                  <p className="text-xs tabular-nums text-gray-700">Salgspris {formatCurrency(s.net_price)}</p>
-                  <p className="text-xs tabular-nums font-medium text-gray-900">Slutpris inkl. moms {formatCurrency(s.final_amount)}</p>
-                  <p className={`text-xs tabular-nums ${s.db_amount < 0 ? 'text-red-600' : 'text-gray-800'}`}>DB {formatCurrency(s.db_amount)}</p>
+                  <p className="text-xs tabular-nums text-gray-700 break-words">Salgspris {formatCurrency(s.net_price)}</p>
+                  <p className="text-xs tabular-nums font-medium text-gray-900 break-words">Slutpris inkl. moms {formatCurrency(s.final_amount)}</p>
+                  <p className={`text-xs tabular-nums break-words ${s.db_amount < 0 ? 'text-red-600' : 'text-gray-800'}`}>DB {formatCurrency(s.db_amount)}</p>
                   <p className={`text-xs tabular-nums ${getDBTextColor(s.db_percentage)}`}>DB% {s.db_percentage.toFixed(1)}%</p>
-                  <p className="text-xs tabular-nums text-gray-700">DB/time {formatCurrency(s.db_per_hour)}</p>
+                  <p className="text-xs tabular-nums text-gray-700 break-words">DB/time {formatCurrency(s.db_per_hour)}</p>
                 </li>
               ))}
             </ul>
@@ -951,9 +951,9 @@ function MetricCard({
   status?: 'success' | 'warning' | 'danger'
 }) {
   return (
-    <div className={`rounded-lg border p-3 ${highlight ? 'bg-blue-50 border-blue-200' : 'bg-white'}`}>
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`text-lg font-bold mt-1 ${
+    <div className={`min-w-0 rounded-lg border p-3 ${highlight ? 'bg-blue-50 border-blue-200' : 'bg-white'}`}>
+      <div className="text-xs text-gray-500 break-words">{label}</div>
+      <div className={`text-lg font-bold mt-1 break-words ${
         status === 'danger' ? 'text-red-600' :
         status === 'warning' ? 'text-amber-600' :
         status === 'success' ? 'text-green-600' :
