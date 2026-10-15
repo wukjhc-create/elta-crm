@@ -1,7 +1,6 @@
 'use client'
 
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { copenhagenDateTimeLabel, copenhagenDayMonth } from '@/lib/utils/copenhagen-time'
 import {
   Plus,
   ArrowRight,
@@ -85,11 +84,9 @@ export function ActivityTimeline({ activities, className = '' }: ActivityTimelin
               {/* Content */}
               <div className="bg-white border rounded-lg p-3">
                 <p className="text-sm text-gray-900 break-words">{activity.description}</p>
-                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-gray-500">
                   <time>
-                    {format(new Date(activity.created_at), 'd. MMM yyyy HH:mm', {
-                      locale: da,
-                    })}
+                    {copenhagenDateTimeLabel(activity.created_at)}
                   </time>
                   {activity.performed_by_profile && (
                     <>
@@ -135,7 +132,7 @@ export function ActivityList({
       {displayActivities.map((activity) => (
         <li key={activity.id} className="flex items-start gap-2 text-sm">
           <span className="text-gray-400 flex-shrink-0">
-            {format(new Date(activity.created_at), 'd/M', { locale: da })}
+            {copenhagenDayMonth(activity.created_at)}
           </span>
           <span className="text-gray-700 break-words min-w-0">{activity.description}</span>
         </li>

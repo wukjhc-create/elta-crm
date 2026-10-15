@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { copenhagenDateLabel } from '@/lib/utils/copenhagen-time'
 import {
   ChevronDown,
   ChevronRight,
@@ -117,7 +116,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
                 <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-0.5">
                   <StatusBadge status={lead.status} />
                   {lead.source && <span>{lead.source}</span>}
-                  <span>{format(new Date(lead.created_at), 'd. MMM yyyy', { locale: da })}</span>
+                  <span>{copenhagenDateLabel(lead.created_at)}</span>
                 </div>
               </div>
             </div>
@@ -145,7 +144,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
                   {offer.offer_number && <span className="font-mono">{offer.offer_number}</span>}
                   <StatusBadge status={offer.status} />
                   {offer.created_at && (
-                    <span>{format(new Date(offer.created_at), 'd. MMM yyyy', { locale: da })}</span>
+                    <span>{copenhagenDateLabel(offer.created_at)}</span>
                   )}
                 </div>
               </div>
@@ -202,7 +201,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
                       {Number(sq.total).toLocaleString('da-DK', { minimumFractionDigits: 2 })} kr.
                     </span>
                   )}
-                  <span>{format(new Date(sq.created_at), 'd. MMM yyyy', { locale: da })}</span>
+                  <span>{copenhagenDateLabel(sq.created_at)}</span>
                 </div>
               </div>
             </div>
@@ -230,7 +229,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
                   <span className="font-mono">{sc.case_number}</span>
                   <StatusBadge status={sc.status} />
                   <span>{SERVICE_CASE_PRIORITY_LABELS[sc.priority]}</span>
-                  <span>{format(new Date(sc.created_at), 'd. MMM yyyy', { locale: da })}</span>
+                  <span>{copenhagenDateLabel(sc.created_at)}</span>
                 </div>
               </div>
             </Link>

@@ -56,6 +56,12 @@ export function copenhagenDateTimeLabel(
   })
 }
 
+/** Kort dag/måned i dansk kalender, fx 16/1. Værdien i databasen ændres ikke. */
+export function copenhagenDayMonth(value: string | Date): string {
+  const { date } = copenhagenParts(value)
+  return `${Number(date.slice(8, 10))}/${Number(date.slice(5, 7))}`
+}
+
 /** ISO/Date -> { date: 'YYYY-MM-DD', clock: 'HH:mm' } i dansk lokaltid. */
 export function copenhagenParts(value: string | Date): { date: string; clock: string } {
   const p = parts(new Date(value).getTime())
