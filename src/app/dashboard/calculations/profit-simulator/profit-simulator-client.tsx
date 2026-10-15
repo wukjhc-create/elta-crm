@@ -43,7 +43,7 @@ export function ProfitSimulatorClient() {
       {/* Input Form */}
       <div className="bg-white rounded-lg border p-6">
         <h3 className="font-semibold mb-4">Projektdata</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label className="text-xs text-gray-500 block mb-1">Materialeomkostning (kr)</label>
             <input
@@ -119,7 +119,7 @@ export function ProfitSimulatorClient() {
         </div>
 
         {/* Quick summary */}
-        <div className="mt-4 pt-4 border-t grid grid-cols-3 gap-4 text-sm">
+        <div className="mt-4 pt-4 border-t grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
           <div>
             <span className="text-gray-500">Arbejdsløn:</span>
             <span className="ml-2 font-medium">{formatCurrency(hourlyRate * totalHours)}</span>
@@ -176,7 +176,7 @@ export function ProfitSimulatorClient() {
                         key={idx}
                         className={`border-b last:border-0 ${isStandard ? 'bg-blue-50 font-medium' : 'hover:bg-gray-50'}`}
                       >
-                        <td className="px-4 py-2.5">{scenario.name}</td>
+                        <td className="px-4 py-2.5 break-words">{scenario.name}</td>
                         <td className="px-4 py-2.5 text-right">{scenario.margin_percentage}%</td>
                         <td className="px-4 py-2.5 text-right">
                           {scenario.discount_percentage > 0 ? `${scenario.discount_percentage}%` : '-'}
@@ -208,8 +208,8 @@ export function ProfitSimulatorClient() {
                 const dbColor = getDBBarColor(scenario.db_percentage)
 
                 return (
-                  <div key={idx} className="flex items-center gap-3">
-                    <div className="w-36 text-xs text-gray-600 text-right truncate">{scenario.name}</div>
+                  <div key={idx} className="flex items-start gap-3">
+                    <div className="w-36 text-xs text-gray-600 text-right break-words">{scenario.name}</div>
                     <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
                       <div
                         className={`h-full rounded-full ${dbColor} transition-all`}
