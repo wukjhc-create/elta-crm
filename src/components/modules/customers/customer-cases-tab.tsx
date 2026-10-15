@@ -92,8 +92,8 @@ export function CustomerCasesTab({ customerId }: { customerId: string }) {
         <Briefcase className="w-12 h-12 mx-auto mb-3 opacity-30" />
         <p className="font-medium">Ingen sager endnu</p>
         <p className="text-sm mt-1">
-          Sager oprettes via mailmodulet (&quot;Opret sag fra mail&quot;) eller direkte under{' '}
-          <Link href="/dashboard/orders" className="text-blue-600 hover:underline">/dashboard/orders</Link>.
+          Opret sagen fra mailen (&quot;Opret sag fra mail&quot;) eller under{' '}
+          <Link href="/dashboard/orders" className="text-blue-600 hover:underline">Ordrer</Link>.
         </p>
       </div>
     )
@@ -124,9 +124,9 @@ export function CustomerCasesTab({ customerId }: { customerId: string }) {
             <Link
               key={sag.id}
               href={`/dashboard/orders/${sag.id}`}
-              className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors group"
+              className="flex items-start gap-3 p-4 hover:bg-gray-50 transition-colors group"
             >
-              <div className="w-10 h-10 shrink-0 rounded-lg bg-blue-50 flex items-center justify-center">
+              <div className="w-10 h-10 shrink-0 mt-0.5 rounded-lg bg-blue-50 flex items-center justify-center">
                 <Briefcase className="w-5 h-5 text-blue-600" />
               </div>
 
@@ -176,10 +176,10 @@ export function CustomerCasesTab({ customerId }: { customerId: string }) {
 
       {/* Hint om hvor sager oprettes — ingen knap i denne commit */}
       <div className="border-t p-3 text-center bg-gray-50">
-        <p className="text-xs text-gray-500 inline-flex items-center gap-1">
+        <p className="text-xs text-gray-500 inline-flex flex-wrap items-center justify-center gap-1">
           <Plus className="w-3 h-3" />
-          Ny sag oprettes via mailmodulet (&quot;Opret sag fra mail&quot;) eller{' '}
-          <Link href="/dashboard/orders" className="text-blue-600 hover:underline">/dashboard/orders</Link>
+          Ny sag oprettes fra mailen (&quot;Opret sag fra mail&quot;) eller under{' '}
+          <Link href="/dashboard/orders" className="text-blue-600 hover:underline">Ordrer</Link>
         </p>
       </div>
     </div>
