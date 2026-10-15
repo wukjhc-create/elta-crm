@@ -25,7 +25,7 @@ import {
   deleteRejectedTimeLogAction,
   type TimeLogWithEmployee,
 } from '@/lib/actions/time-logs'
-import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { copenhagenDateLabel, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
 import { PAY_RATE_TYPE_OPTIONS, PAY_RATE_TYPE_LABEL, type PayRateType } from '@/types/workforce.types'
 import { toNumberDa } from '@/lib/utils/danish-number'
@@ -48,20 +48,17 @@ const fmtDate = (s: string | null | undefined) => {
   if (!s) return '—'
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleDateString('da-DK', { day: '2-digit', month: 'short', year: 'numeric' })
+  return copenhagenDateLabel(s)
 }
 
 const fmtTime = (s: string | null | undefined) => {
   if (!s) return '—'
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })
+  return copenhagenParts(s).clock
 }
 
-const today = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+const today = () => copenhagenParts(new Date()).date
 
 export function WorkOrderTimeLogs({
   workOrderId,
