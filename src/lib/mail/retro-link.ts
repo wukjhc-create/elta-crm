@@ -45,7 +45,7 @@ export async function countUnlinkedEmailsFromAddress(supabase: Client, email: st
   return count ?? 0
 }
 
-export async function linkUnlinkedEmailsFromAddress(supabase: Client, customerId: string, email: string | null | undefined): Promise<number> {
+export async function linkUnlinkedEmailsFromAddress(supabase: Client, customerId: string, email: string | null | undefined): Promise<number | null> {
   if (!email || !email.includes('@') || !retroLinkable(email)) return 0
   try {
     const { data, error } = await supabase
@@ -55,10 +55,10 @@ export async function linkUnlinkedEmailsFromAddress(supabase: Client, customerId
       .neq('link_status', 'ignored')
       .or(addressFilter(email))
       .select('id')
-    if (error) { logger.warn('retro-kobling af mails fejlede', { error, entityId: customerId }); return 0 }
+    if (error) { logger.warn('retro-kobling af mails fejlede', { error, entityId: customerId }); return null }
     return (data ?? []).length
   } catch (err) {
     logger.warn('retro-kobling af mails kastede', { error: err, entityId: customerId })
-    return 0
+    return null
   }
 }
