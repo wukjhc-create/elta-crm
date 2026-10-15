@@ -372,17 +372,17 @@ function SystemHealthPanel({ health }: { health: DashboardPayload['system_health
           {healthStatusLabel(health.overall)}
         </span>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 min-w-0">
         {visible.map((s) => {
           const cls = toneClasses(s.status)
           return (
-            <div key={s.service} className={`p-3 rounded ring-1 ${cls.ring}`}>
-              <div className="text-xs text-gray-500 flex items-center gap-1.5">
-                <span className={`inline-block h-2 w-2 rounded-full ${cls.dot}`} />
-                {SERVICE_LABEL[s.service] || s.service}
+            <div key={s.service} className={`p-3 rounded ring-1 min-w-0 ${cls.ring}`}>
+              <div className="text-xs text-gray-500 flex items-center gap-1.5 min-w-0">
+                <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${cls.dot}`} />
+                <span className="break-words">{SERVICE_LABEL[s.service] || s.service}</span>
               </div>
-              <div className={`mt-1 text-sm font-medium ${cls.text}`}>{healthStatusLabel(s.status)}</div>
-              <div className="mt-1 text-[11px] text-gray-500">
+              <div className={`mt-1 text-sm font-medium break-words ${cls.text}`}>{healthStatusLabel(s.status)}</div>
+              <div className="mt-1 text-[11px] text-gray-500 break-words">
                 {s.errorsLastHour} fejl · {s.warningsLastHour} advarsler (1 t)
               </div>
               {s.lastErrorMessage && s.status !== 'ok' && (
