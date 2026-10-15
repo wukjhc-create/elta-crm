@@ -35,8 +35,11 @@ export default async function PackageDetailPage({ params }: PageProps) {
     <PackageDetailClient
       initialPackage={packageResult.data}
       categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
+      categoriesError={categoriesResult.success ? null : categoriesResult.error || 'Kunne ikke hente kategorier'}
       components={componentsResult.success && componentsResult.data ? componentsResult.data : []}
+      componentsError={componentsResult.success ? null : componentsResult.error || 'Kunne ikke hente komponenter'}
       products={productsResult.success && productsResult.data ? productsResult.data : []}
+      productsError={productsResult.success ? null : productsResult.error || 'Kunne ikke hente produkter'}
     />
   )
 }

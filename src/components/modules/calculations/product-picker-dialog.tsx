@@ -23,6 +23,7 @@ interface ProductPickerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   products: Product[]
+  loadError?: string | null
   onSelect: (productId: string) => void
 }
 
@@ -30,6 +31,7 @@ export default function ProductPickerDialog({
   open,
   onOpenChange,
   products,
+  loadError = null,
   onSelect,
 }: ProductPickerDialogProps) {
   const [search, setSearch] = useState('')
@@ -59,7 +61,11 @@ export default function ProductPickerDialog({
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-2 min-h-[300px]">
-          {filteredProducts.length === 0 ? (
+          {loadError ? (
+            <p className="text-center py-8 text-sm text-red-700" data-testid="calc-product-picker-error">
+              {loadError}. Det tælles ikke som ingen produkter.
+            </p>
+          ) : filteredProducts.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Package className="w-12 h-12 mx-auto mb-2 text-gray-400" />
               <p>Ingen produkter fundet</p>

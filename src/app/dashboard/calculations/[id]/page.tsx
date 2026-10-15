@@ -52,6 +52,7 @@ export default async function CalculationDetailPage({ params }: PageProps) {
         calculation={calculationResult.data}
         categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
         products={productsResult.success && productsResult.data ? productsResult.data : []}
+        productsError={productsResult.success ? null : productsResult.error || 'Kunne ikke hente produkter'}
       />
     </div>
   )

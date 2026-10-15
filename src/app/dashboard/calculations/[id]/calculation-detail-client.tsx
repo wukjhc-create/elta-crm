@@ -71,12 +71,14 @@ interface CalculationDetailClientProps {
   calculation: CalculationWithRelations
   categories: ProductCategory[]
   products: { id: string; name: string; sku: string | null; list_price: number }[]
+  productsError?: string | null
 }
 
 export default function CalculationDetailClient({
   calculation,
   categories,
   products,
+  productsError = null,
 }: CalculationDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
@@ -519,6 +521,7 @@ export default function CalculationDetailClient({
         open={showProductPicker}
         onOpenChange={setShowProductPicker}
         products={products}
+        loadError={productsError}
         onSelect={handleAddProduct}
       />
 
