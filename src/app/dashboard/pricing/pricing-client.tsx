@@ -545,7 +545,7 @@ function TrendsTab({
           {trends.map((trend) => (
             <li key={trend.supplier_product_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
               <p className="font-medium text-gray-900 break-words">{trend.product_name}</p>
-              <p className="mt-1 tabular-nums font-medium">{formatCurrency(trend.current_price)}</p>
+              <p className="mt-1 tabular-nums font-medium break-words">{formatCurrency(trend.current_price)}</p>
               <p className="mt-1 text-xs">
                 30 dage{' '}
                 {trend.trend_30_days !== null ? (
