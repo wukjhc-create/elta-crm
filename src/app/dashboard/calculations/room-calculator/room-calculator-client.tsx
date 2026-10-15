@@ -700,22 +700,22 @@ export function RoomCalculatorClient() {
             </div>
             <div className="divide-y">
               {estimate.rooms.map((room, idx) => (
-                <div key={idx} className="px-4 py-3">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="font-medium text-sm">{room.room_name}</span>
+                <div key={idx} className="px-4 py-3 min-w-0">
+                  <div className="flex flex-wrap justify-between items-start gap-2 min-w-0">
+                    <div className="min-w-0">
+                      <span className="font-medium text-sm break-words">{room.room_name}</span>
                       <span className="text-xs text-gray-400 ml-2">
                         {Object.values(room.points).reduce((s, v) => s + v, 0)} punkter
                       </span>
                     </div>
-                    <div className="flex gap-6 text-sm">
+                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm min-w-0">
                       <span className="text-gray-500">
                         {(room.total_time_seconds / 3600).toFixed(1)}t
                       </span>
-                      <span className="text-gray-500">
+                      <span className="text-gray-500 break-words">
                         Mat: {formatCurrency(room.total_material_cost)}
                       </span>
-                      <span className="font-medium">
+                      <span className="font-medium break-words">
                         {formatCurrency(room.total_cost)}
                       </span>
                     </div>
