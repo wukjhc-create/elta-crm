@@ -83,6 +83,13 @@ export function MessagesPageClient() {
     router.push(`/dashboard/inbox?${params.toString()}`)
   }
 
+  const clearSearch = () => {
+    setSearch('')
+    const params = new URLSearchParams()
+    params.set('folder', currentFolder)
+    router.push(`/dashboard/inbox?${params.toString()}`)
+  }
+
   // Load full message when selected
   const handleSelectMessage = async (message: MessageWithRelations) => {
     const result = await getMessage(message.id)
@@ -94,7 +101,7 @@ export function MessagesPageClient() {
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div>
           <h1 className="text-2xl font-bold">Beskeder</h1>
           <p className="text-muted-foreground">Intern kommunikation</p>
@@ -184,6 +191,7 @@ export function MessagesPageClient() {
               <input
                 type="text"
                 placeholder="Søg i beskeder..."
+                aria-label="Søg i beskeder"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -191,8 +199,17 @@ export function MessagesPageClient() {
                     loadMessages()
                   }
                 }}
-                className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                className="w-full pl-10 pr-16 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               />
+              {search.trim() && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-blue-700 hover:underline"
+                >
+                  Ryd
+                </button>
+              )}
             </div>
           </div>
 
@@ -217,6 +234,8 @@ export function MessagesPageClient() {
               <MessagesList
                 messages={messages}
                 folder={currentFolder}
+                searching={search.trim().length > 0}
+                onClearSearch={clearSearch}
                 onRefresh={loadMessages}
                 onSelectMessage={handleSelectMessage}
                 selectedMessageId={selectedMessage?.id}

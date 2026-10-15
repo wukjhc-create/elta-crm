@@ -31,6 +31,8 @@ import type { MessageWithRelations, InboxFolder } from '@/types/messages.types'
 interface MessagesListProps {
   messages: MessageWithRelations[]
   folder: InboxFolder
+  searching?: boolean
+  onClearSearch?: () => void
   onRefresh?: () => void
   onSelectMessage?: (message: MessageWithRelations) => void
   selectedMessageId?: string
@@ -39,6 +41,8 @@ interface MessagesListProps {
 export function MessagesList({
   messages,
   folder,
+  searching = false,
+  onClearSearch,
   onRefresh,
   onSelectMessage,
   selectedMessageId,
@@ -91,16 +95,23 @@ export function MessagesList({
   }
 
   if (messages.length === 0) {
-    const empty = {
-      inbox: { title: 'Ingen beskeder i indbakken.', hint: 'Nye beskeder vises her.' },
-      sent: { title: 'Ingen sendte beskeder.', hint: 'Beskeder du sender, vises her.' },
-      archived: { title: 'Ingen arkiverede beskeder.', hint: 'Arkiverede beskeder vises her.' },
-    }[folder]
+    const empty = searching
+      ? { title: 'Ingen beskeder matcher søgningen.', hint: 'Prøv et andet ord, eller ryd søgningen.' }
+      : {
+          inbox: { title: 'Ingen beskeder i indbakken.', hint: 'Nye beskeder vises her.' },
+          sent: { title: 'Ingen sendte beskeder.', hint: 'Beskeder du sender, vises her.' },
+          archived: { title: 'Ingen arkiverede beskeder.', hint: 'Arkiverede beskeder vises her.' },
+        }[folder]
     return (
       <div className="bg-white rounded-lg border p-12 text-center text-muted-foreground" data-testid="messages-empty">
         <Mail className="w-12 h-12 mx-auto mb-3 opacity-30" />
         <p className="font-medium">{empty.title}</p>
         <p className="text-sm mt-1">{empty.hint}</p>
+        {searching && onClearSearch && (
+          <button type="button" onClick={onClearSearch} className="mt-3 text-sm text-blue-700 hover:underline">
+            Ryd søgning
+          </button>
+        )}
       </div>
     )
   }

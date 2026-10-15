@@ -9,11 +9,17 @@ const eq = (name: string, got: unknown, want: unknown) => {
 }
 
 const src = fs.readFileSync('src/components/modules/messages/messages-list.tsx', 'utf8')
-const empty = src.slice(src.indexOf('data-testid="messages-empty"') - 500, src.indexOf('messages.map'))
+const empty = src.slice(src.indexOf('if (messages.length === 0)'), src.indexOf('messages.map'))
 
 eq('indbakken siger det', empty.includes('Ingen beskeder i indbakken.') && empty.includes('Nye beskeder vises her.'), true)
 eq('sendt siger det', empty.includes('Ingen sendte beskeder.') && empty.includes('Beskeder du sender, vises her.'), true)
 eq('arkiv siger det', empty.includes('Ingen arkiverede beskeder.') && empty.includes('Arkiverede beskeder vises her.'), true)
+eq('tom soegning siger det', empty.includes('Ingen beskeder matcher søgningen.') && empty.includes('Ryd søgning'), true)
+
+const page = fs.readFileSync('src/components/modules/messages/messages-page-client.tsx', 'utf8')
+eq('soegning har et navn', page.includes('aria-label="Søg i beskeder"'), true)
+eq('soegning kan ryddes', page.includes('onClearSearch={clearSearch}') && page.includes('searching={search.trim().length > 0}'), true)
+eq('overskriften ombrydes', page.includes('flex flex-wrap items-center justify-between gap-2 mb-4'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nmessages-empty-test OK')
 process.exitCode = fail ? 1 : 0
