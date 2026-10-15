@@ -77,9 +77,9 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | S-4 (S3) | Lead-kanban taber leads efter 500 (lukkede fylder) | TODO |
 | S-5 (S3) | Auto "Følg op: intet svar"-opgave uden due_date (vises ikke) og lukkes ikke ved accept/afvisning | DONE — due_date sættes; lukkes ved accept/afvisning (portal + manuel status, lib/offers/follow-up-tasks.ts). UI U170 |
 | S-6 (S3) | Send på mail: statusskift uden CAS, aktivitet, audit, webhook og revalidering | TODO |
-| S-7 (S3) | Manuel mail→kunde-kobling kan fejle tavst (0 rækker) og kobler ikke resten af tråden | TODO |
+| S-7 (S3) | Manuel mail→kunde-kobling kan fejle tavst (0 rækker) og kobler ikke resten af tråden | DONE — 0 rækker → fejl; trådens øvrige mails uden kunde kobles med. UI U171 |
 | S-8 (S3) | Indbakke viser tom liste/0-tællere ved DB-fejl | TODO |
-| S-9 (S3) | createCustomerFromEmail kun gated på inbox.view (opretter kunder/leads); quickCreateCustomerFromEmail død men kaldbar | TODO |
+| S-9 (S3) | createCustomerFromEmail kun gated på inbox.view (opretter kunder/leads); quickCreateCustomerFromEmail død men kaldbar | DONE — kræver også customers.create; død action fjernet. UI U68/U52 |
 | S-10 (S4) | Lead-tidslinje viser engelske statuskoder | DONE — nye aktiviteter med danske navne, gamle oversættes ved visning. UI U27 |
 | S-11 (S4) | Accept/afvis-notifikationsmail linker til listen, mangler tilbudsnr./kunde | DELVIS — linker direkte til tilbuddet; tilbudsnr./kunde i teksten = TODO |
 | S-12 (S4) | Dashboard henter alle mail-leads med fulde custom_fields | TODO |
