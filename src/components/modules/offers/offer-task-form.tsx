@@ -18,6 +18,7 @@ interface OfferTaskFormProps {
 export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSuccess }: OfferTaskFormProps) {
   const toast = useToast()
   const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string }>>([])
+  const [profilesError, setProfilesError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [title, setTitle] = useState(`Følg op: ${offerTitle}`)
   const [description, setDescription] = useState('')
@@ -27,7 +28,9 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
   const [reminderAt, setReminderAt] = useState('')
 
   useEffect(() => {
-    getActiveProfiles().then(setProfiles)
+    getActiveProfiles()
+      .then((rows) => { setProfiles(rows); setProfilesError(null) })
+      .catch(() => setProfilesError('Medarbejdere kunne ikke hentes. Det tælles ikke som ingen.'))
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,6 +137,9 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
                     </option>
                   ))}
                 </select>
+                {profilesError && (
+                  <p className="mt-1 text-xs text-red-700" data-testid="offer-task-profiles-error">{profilesError}</p>
+                )}
               </div>
             </div>
 

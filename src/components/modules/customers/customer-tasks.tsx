@@ -39,6 +39,7 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
   const toast = useToast()
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>([])
   const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string }>>([])
+  const [profilesError, setProfilesError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -48,18 +49,21 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const [tasksData, profilesData] = await Promise.all([
-        getCustomerTasks(customerId),
-        getActiveProfiles(),
-      ])
+      const tasksData = await getCustomerTasks(customerId)
       setLoadError(null)
       setTasks(tasksData)
-      setProfiles(profilesData)
     } catch {
       setLoadError('Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver.')
-    } finally {
       setIsLoading(false)
+      return
     }
+    try {
+      setProfiles(await getActiveProfiles())
+      setProfilesError(null)
+    } catch {
+      setProfilesError('Medarbejdere kunne ikke hentes. Det tælles ikke som ingen.')
+    }
+    setIsLoading(false)
   }
 
   useEffect(() => {
@@ -114,6 +118,10 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
           Ny opgave
         </button>
       </div>
+
+      {profilesError && (
+        <p className="text-sm text-red-700 mb-3" data-testid="customer-task-profiles-error">{profilesError}</p>
+      )}
 
       {isLoading ? (
         <div className="space-y-2">

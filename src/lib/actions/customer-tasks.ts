@@ -418,7 +418,7 @@ export async function getActiveProfiles(): Promise<
 
   if (error) {
     logger.error('Failed to fetch profiles', { error })
-    return []
+    throw new Error('Kunne ikke hente medarbejdere')
   }
 
   // Berig med auth.users.email saa profiler uden profile.email stadig

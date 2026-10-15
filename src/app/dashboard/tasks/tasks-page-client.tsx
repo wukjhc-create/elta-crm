@@ -94,6 +94,7 @@ export function TasksPageClient({
   const router = useRouter()
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>([])
   const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string; role?: string | null }>>([])
+  const [profilesError, setProfilesError] = useState<string | null>(null)
   const [customers, setCustomers] = useState<Array<{ id: string; company_name: string; customer_number: string }>>([])
   const [customerLoadError, setCustomerLoadError] = useState<string | null>(null)
   const [customerLoading, setCustomerLoading] = useState(false)
@@ -118,21 +119,28 @@ export function TasksPageClient({
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
-    const [tasksData, profilesData] = await Promise.all([
+    const [tasksData, profilesResult] = await Promise.all([
       getAllTasks({
         status: statusFilter !== 'all' ? statusFilter : undefined,
         priority: priorityFilter !== 'all' ? priorityFilter : undefined,
         assignedTo: assignedFilter !== 'all' ? assignedFilter : undefined,
         search: search || undefined,
       }),
-      getActiveProfiles(),
+      getActiveProfiles()
+        .then((rows) => ({ rows, failed: false as const }))
+        .catch(() => ({ rows: null, failed: true as const })),
     ])
     if (tasksData.error) setTasksError(tasksData.error)
     else {
       setTasksError(null)
       setTasks(tasksData.tasks)
     }
-    setProfiles(profilesData)
+    if (profilesResult.failed) {
+      setProfilesError('Medarbejdere kunne ikke hentes. Det tælles ikke som ingen.')
+    } else {
+      setProfilesError(null)
+      setProfiles(profilesResult.rows)
+    }
     setIsLoading(false)
   }, [statusFilter, priorityFilter, assignedFilter, search])
 
@@ -501,6 +509,9 @@ export function TasksPageClient({
       {/* Task list */}
       {/* M-4: mobil viser kort. Desktop beholder det brede gitter med vandret scroll. */}
       <div className="bg-white rounded-lg border">
+        {profilesError && (
+          <p className="px-4 py-3 text-sm text-red-700" data-testid="task-profiles-load-error">{profilesError}</p>
+        )}
         {tasksError && (
           <p className="px-4 py-3 text-sm text-red-700" data-testid="tasks-list-load-error">
             {tasksError}. Det tælles ikke som ingen opgaver.
