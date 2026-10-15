@@ -254,7 +254,7 @@ export function PortalDashboard({
         {offers.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Du har ingen tilbud endnu</p>
+            <p>Du har ingen tilbud endnu. De vises her, når ELTA sender et tilbud.</p>
           </div>
         ) : (
           <div className="divide-y">
@@ -323,7 +323,7 @@ export function PortalDashboard({
         </div>
         {serviceCases.length === 0 ? (
           <div className="p-6 text-sm text-gray-500">
-            Der er endnu ingen aktive sager.
+            Der er endnu ingen aktive sager. De vises her, når en sag er i gang.
           </div>
         ) : (
           <div className="divide-y">
@@ -342,10 +342,10 @@ export function PortalDashboard({
                   key={sc.id}
                   className="p-6"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm text-gray-500">{sc.case_number}</span>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm text-gray-500 break-all">{sc.case_number}</span>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColor}`}>
                           {SERVICE_CASE_STATUS_LABELS[sc.status]}
                         </span>
@@ -353,7 +353,7 @@ export function PortalDashboard({
                           {SERVICE_CASE_PRIORITY_LABELS[sc.priority]}
                         </span>
                       </div>
-                      <p className="font-medium text-gray-900 mt-1">{sc.title}</p>
+                      <p className="font-medium text-gray-900 mt-1 break-words">{sc.title}</p>
                       {sc.description && (
                         <p className="text-sm text-gray-500 mt-1 line-clamp-2">{sc.description}</p>
                       )}

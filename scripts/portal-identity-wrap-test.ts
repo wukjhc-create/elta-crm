@@ -25,6 +25,10 @@ eq('fuldmagtstekst bliver', fuldmagt.includes('Undertegnede giver hermed'), true
 
 eq('velkomst ombryder navn', dash.includes('break-words">') && dash.includes('session.customer.contact_person'), true)
 eq('firma ombrydes', dash.includes('text-gray-600 mt-1 break-words'), true)
+eq('tomt tilbud siger naeste skridt', dash.includes('Du har ingen tilbud endnu. De vises her, når ELTA sender et tilbud.'), true)
+eq('tom sag siger naeste skridt', dash.includes('Der er endnu ingen aktive sager. De vises her, når en sag er i gang.'), true)
+eq('sags titel ombrydes', dash.includes('font-medium text-gray-900 mt-1 break-words">{sc.title}'), true)
+eq('beloeb bliver', dash.includes('formatCurrency(offer.final_amount, currency)'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nportal-identity-wrap-test OK')
 process.exitCode = fail ? 1 : 0
