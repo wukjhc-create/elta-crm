@@ -5,8 +5,7 @@
  * afslutte på stedet. Samme data som Service-modulet. Adgang afgøres af serveren (kontor eller montør på egen sag).
  */
 import { useCallback, useEffect, useState } from 'react'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import { FileSignature, Loader2, ClipboardCheck } from 'lucide-react'
 import { CompletionChecklist } from '@/components/shared/completion-checklist'
 import { SignaturePad } from '@/components/shared/signature-pad'
@@ -82,7 +81,7 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
             </div>
             <p className="text-sm text-gray-600">
               Underskrevet af <strong>{data.signature.name}</strong>
-              {data.signature.signed_at ? ` · ${format(new Date(data.signature.signed_at), 'd. MMMM yyyy HH:mm', { locale: da })}` : ''}
+              {data.signature.signed_at ? ` · ${copenhagenDateTimeLabel(data.signature.signed_at, 'long')}` : ''}
             </p>
           </div>
         ) : !data.canEdit ? (
