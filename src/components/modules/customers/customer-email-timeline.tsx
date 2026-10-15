@@ -306,11 +306,11 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                         </span>
                       </div>
 
-                      <p className={`text-sm mt-1 truncate ${conv.hasUnread ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                      <p className={`text-sm mt-1 line-clamp-2 ${conv.hasUnread ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
                         {conv.subject}
                       </p>
 
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">
+                      <p className="text-xs text-gray-500 mt-0.5 break-all">
                         {latestIsIncoming
                           ? `Fra: ${latestMsg.sender_name || latestMsg.sender_email}`
                           : `Til: ${latestMsg.to_email || customerEmail}`}
@@ -469,13 +469,13 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                         </span>
                       </div>
 
-                      <p className={`text-sm mt-1 truncate ${
+                      <p className={`text-sm mt-1 line-clamp-2 ${
                         !email.is_read && isIncoming ? 'font-semibold text-gray-900' : 'text-gray-700'
                       }`}>
                         {email.subject || '(Intet emne)'}
                       </p>
 
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">
+                      <p className="text-xs text-gray-500 mt-0.5 break-all">
                         {isIncoming
                           ? `Fra: ${email.sender_name || email.sender_email}`
                           : `Til: ${email.to_email || customerEmail}`}

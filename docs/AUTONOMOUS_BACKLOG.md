@@ -125,13 +125,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Leverandørfakturaens hoved, felter og match-score ombrydes. Beløb, score og bogfør er de samme. | DONE — `incoming-invoice-lines-mobile-test` |
 | Listen siger at e-conomic-bogføring forsøges og kan fejle, uden at godkendelser rulles tilbage. | DONE — `incoming-invoices-mobile-test` |
 | Leadets mailfil ombryder filnavnet. Linket hentes stadig ved klik. | DONE — `lead-attachment-wrap-test` |
+| Kundens mailtidslinje viser to linjer af emnet. Forhåndsvisningen bliver på én linje. | DONE — `customer-mail-wrap-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: lead-attachment-wrap efter e7227ac9
+LAST_COMMIT: customer-mail-wrap efter d837814d
 TESTS: inspection-list-test, offer-product-name-test, title-wrap-test, close-button-label-test, case-notes-empty-test, customer-notes-empty-test, messages-empty-test, invoices-empty-search-test, aftercalc-empty-filter-test, calendar-mobile-test, reports-empty-test, sync-jobs-mobile-test, activity-empty-test, missing-date-test, inspection-calendar-test, tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2 (migrationer, ikke kørt her). 00223 er kørt af Claude på main (bc5705a2) — køres ikke igen. 00224 er kørt af Claude på main (725df30d) — køres ikke igen. 00225 ACL er Claudes (8f97e621). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: kundemailens emne i tidslinjen ombrydes hvis det stadig klippes helt. Kalenderchips i ugevisningen bliver afkortet med vilje. Mailens forhåndsvisning i indbakken bliver på én linje med vilje. UpcomingTasks bruges ikke på dashboardet. Kalenderchips i ugevisningen bliver afkortet med vilje. Mailens forhåndsvisning bliver på én linje med vilje. Kundens sidehoved klipper ikke. Scan 2026-10-15 fortsat: tomme chats, tom plan og sagsopgaver forklarer allerede næste skridt.
+NEXT_QUEUE: tagtegningens titel ombrydes hvis den stadig klipper. Kalenderchips i ugevisningen bliver afkortet med vilje. Indbakkens forhåndsvisning bliver på én linje med vilje. UpcomingTasks bruges ikke på dashboardet. Kalenderchips i ugevisningen bliver afkortet med vilje. Mailens forhåndsvisning bliver på én linje med vilje. Kundens sidehoved klipper ikke. Scan 2026-10-15 fortsat: tomme chats, tom plan og sagsopgaver forklarer allerede næste skridt.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
