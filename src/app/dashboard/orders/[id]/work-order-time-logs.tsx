@@ -268,8 +268,8 @@ export function WorkOrderTimeLogs({
 
   return (
     <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold text-gray-700">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-semibold text-gray-700 min-w-0 break-words">
           Timer ({logs.length})
           {logs.length > 0 && (
             <span className="ml-2 text-gray-500 font-normal">
@@ -310,10 +310,11 @@ export function WorkOrderTimeLogs({
           onSubmit={onSubmit}
           className="bg-emerald-50/50 ring-1 ring-emerald-200 rounded p-3 space-y-2"
         >
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <Field label="Dato">
               <input
                 type="date"
+                aria-label="Dato"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 disabled={isWorking}
@@ -324,6 +325,7 @@ export function WorkOrderTimeLogs({
 
             <Field label="Medarbejder">
               <select
+                aria-label="Medarbejder"
                 value={employeeId}
                 onChange={(e) => setEmployeeId(e.target.value)}
                 disabled={isWorking}
@@ -340,6 +342,7 @@ export function WorkOrderTimeLogs({
             <Field label="Start (HH:mm)">
               <input
                 type="time"
+                aria-label="Start"
                 value={startClock}
                 onChange={(e) => setStartClock(e.target.value)}
                 disabled={isWorking}
@@ -351,6 +354,7 @@ export function WorkOrderTimeLogs({
               <div className="flex gap-1">
                 <input
                   type="time"
+                  aria-label="Slut"
                   value={endClock}
                   onChange={(e) => {
                     setEndClock(e.target.value)
@@ -362,6 +366,7 @@ export function WorkOrderTimeLogs({
                 />
                 <input
                   type="number"
+                  aria-label="Timer"
                   step="0.25"
                   min="0"
                   value={hoursStr}
@@ -380,6 +385,7 @@ export function WorkOrderTimeLogs({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Field label="Satstype">
               <select
+                aria-label="Satstype"
                 value={payRateType}
                 onChange={(e) => setPayRateType(e.target.value as PayRateType)}
                 disabled={isWorking}
@@ -393,6 +399,7 @@ export function WorkOrderTimeLogs({
             <Field label="Beskrivelse (valgfri)">
               <input
                 type="text"
+                aria-label="Beskrivelse"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isWorking}
@@ -441,7 +448,7 @@ export function WorkOrderTimeLogs({
       {/* Time-logs list */}
       {logs.length === 0 ? (
         <div className="text-xs text-gray-400 py-2 italic">
-          Ingen timer registreret på denne arbejdsordre endnu.
+          Ingen timer registreret på denne arbejdsordre endnu. De vises her, når tiden er gemt.
         </div>
       ) : (
         <>
@@ -588,6 +595,7 @@ export function WorkOrderTimeLogs({
                           value={l.pay_rate_type ?? 'normal'}
                           onChange={(e) => onChangeRateType(l.id, e.target.value as PayRateType)}
                           disabled={isWorking}
+                          aria-label="Satstype"
                           className={`text-[11px] border rounded px-1 py-0.5 bg-white ${
                             l.pay_rate_type !== 'normal' ? 'text-amber-800 bg-amber-50' : 'text-gray-600'
                           }`}

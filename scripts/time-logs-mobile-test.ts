@@ -31,6 +31,11 @@ eq('afvist timer kan rettes paa kortet', mobile.includes('isRejected') && mobile
 eq('afvist rettelse stables', mobile.includes('grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-800') && mobile.includes('saveFix(l)') && mobile.includes('Gem — send til godkendelse'), true)
 eq('U155-testid bliver i tabellen', mobile.includes('time-log-fix') || mobile.includes('time-log-rejected-row'), false)
 eq('godkendt sats er laast som i tabellen', mobile.includes("approval === 'approved' && !canApprove"), true)
+eq('formular har navne', src.includes('aria-label="Dato"') && src.includes('aria-label="Medarbejder"') && src.includes('aria-label="Start"') && src.includes('aria-label="Slut"') && src.includes('aria-label="Timer"') && src.includes('aria-label="Beskrivelse"'), true)
+eq('formular stables paa mobil', src.includes('grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2'), true)
+eq('tom liste siger naeste skridt', src.includes('De vises her, når tiden er gemt.'), true)
+eq('overskrift ombrydes', src.includes('flex flex-wrap items-center justify-between gap-2') && src.includes('min-w-0 break-words'), true)
+eq('kost-gate bliver', src.includes('canSeeCost && totalCost > 0'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ntime-logs-mobile-test OK')
 process.exitCode = fail ? 1 : 0
