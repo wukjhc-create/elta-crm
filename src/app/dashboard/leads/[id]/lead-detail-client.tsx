@@ -433,7 +433,12 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                         )}
                       </div>
                       <div className="flex-1">
-                        <p className="text-gray-900">{activity.description}</p>
+                        <p className="text-gray-900">
+                          {/* S-10: ældre statusaktiviteter har engelske koder ("new") — vises med danske navne */}
+                          {activity.activity_type === 'status_change'
+                            ? activity.description.replace(/"([a-z_]+)"/g, (m: string, k: string) => (LEAD_STATUS_LABELS as Record<string, string>)[k] ? `"${(LEAD_STATUS_LABELS as Record<string, string>)[k]}"` : m)
+                            : activity.description}
+                        </p>
                         <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
                           <span>
                             {activity.performed_by_profile?.full_name ||

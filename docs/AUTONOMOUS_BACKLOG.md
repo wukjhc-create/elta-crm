@@ -70,7 +70,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | B-8 (S3) | Leverandørfaktura-fane/tællere og rapportfiltre ikke i URL / opdateres ikke efter handling | TODO |
 | B-9 (S2) | Rapporter: "Omsætning" og "Top kunder" er accepterede tilbud, ikke fakturering | TODO |
 | B-10 (S3) | Dashboard henter alle rækker for at tælle; fejl → 0 uden advarsel | TODO |
-| B-11 (S3) | "+ Opret test-leverandørfaktura" synlig i prod og kobler til rigtig sag; forældet engelsk tekst | TODO |
+| B-11 (S3) | "+ Opret test-leverandørfaktura" synlig i prod og kobler til rigtig sag; forældet engelsk tekst | DONE — kun når TEST_SEED_ENABLED=true (knap + server-handling); tekst "bogføres i e-conomic via Bogfør". UI U28 |
 | S-1 (S2) | Tilbudsstatus-piller: ét klik "Sendt" (ingen mail) og irreversibel "Accepteret" (vinder lead + opretter sag) uden bekræftelse | DONE — kun nuværende + tilladte skift vises ("Set" sættes af portalen), alle skift bekræftes med konsekvens, låst mens det kører. UI U60 |
 | S-2 (S3) | Inline-redigering af leverandørlinje overskriver supplier_cost_price_at_creation; avance 0 → null | TODO |
 | S-3 (S3) | Dashboard "Samlet værdi" = 5 nyeste, før rabat — afviger fra stat-kortet | TODO |
@@ -80,8 +80,8 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | S-7 (S3) | Manuel mail→kunde-kobling kan fejle tavst (0 rækker) og kobler ikke resten af tråden | TODO |
 | S-8 (S3) | Indbakke viser tom liste/0-tællere ved DB-fejl | TODO |
 | S-9 (S3) | createCustomerFromEmail kun gated på inbox.view (opretter kunder/leads); quickCreateCustomerFromEmail død men kaldbar | TODO |
-| S-10 (S4) | Lead-tidslinje viser engelske statuskoder | TODO |
-| S-11 (S4) | Accept/afvis-notifikationsmail linker til listen, mangler tilbudsnr./kunde | TODO |
+| S-10 (S4) | Lead-tidslinje viser engelske statuskoder | DONE — nye aktiviteter med danske navne, gamle oversættes ved visning. UI U27 |
+| S-11 (S4) | Accept/afvis-notifikationsmail linker til listen, mangler tilbudsnr./kunde | DELVIS — linker direkte til tilbuddet; tilbudsnr./kunde i teksten = TODO |
 | S-12 (S4) | Dashboard henter alle mail-leads med fulde custom_fields | TODO |
 
 ## NEXT-16 (pilot-review-bølge 2026-10-15 aften — "hvad irriterer brugerne i morgen?")

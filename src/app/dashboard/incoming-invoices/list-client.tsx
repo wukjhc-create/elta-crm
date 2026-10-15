@@ -68,9 +68,11 @@ const fmtPct = (n: number | null) =>
 export function IncomingInvoicesListClient({
   initialRows,
   initialCounts,
+  canSeedTest = false,
 }: {
   initialRows: IncomingInvoiceListItem[]
   initialCounts: CountMap
+  canSeedTest?: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -136,12 +138,12 @@ export function IncomingInvoicesListClient({
         <div>
           <h1 className="text-2xl font-semibold">Indgående fakturaer</h1>
           <p className="text-xs text-gray-500">
-            Godkend leverandørfakturaer · auto-pushed til e-conomic ved godkendelse.
+            Godkend leverandørfakturaer · bogføres i e-conomic via &quot;Bogfør&quot; efter godkendelse.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
         <UploadInvoiceButton />
-        {isAdmin && (
+        {isAdmin && canSeedTest && (
           <Button
             type="button"
             onClick={createTestInvoice}

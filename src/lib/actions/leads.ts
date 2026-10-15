@@ -370,7 +370,7 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       if (oldLead.status !== data.status) {
         activities.push({
           activity_type: 'status_change',
-          description: `Status ændret fra "${oldLead.status}" til "${data.status}"`,
+          description: `Status ændret fra "${LEAD_STATUS_LABELS[oldLead.status as LeadStatus] ?? oldLead.status}" til "${LEAD_STATUS_LABELS[data.status as LeadStatus] ?? data.status}"`,
         })
       }
 
@@ -532,7 +532,7 @@ export async function updateLeadStatus(
       await supabase.from('lead_activities').insert({
         lead_id: id,
         activity_type: 'status_change',
-        description: `Status ændret fra "${oldLead.status}" til "${status}"`,
+        description: `Status ændret fra "${LEAD_STATUS_LABELS[oldLead.status as LeadStatus] ?? oldLead.status}" til "${LEAD_STATUS_LABELS[status] ?? status}"`,
         performed_by: userId,
       })
 

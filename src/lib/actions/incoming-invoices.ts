@@ -367,6 +367,10 @@ async function requireAdminClient() {
 }
 
 export async function createTestIncomingInvoiceAction(): Promise<ActionOutcome> {
+  // B-11 (pilot-review 2026-10-15): testdata kun i miljøer der eksplicit tillader det (aldrig prod som standard)
+  if (process.env.TEST_SEED_ENABLED !== 'true') {
+    return { ok: false, message: 'Testfakturaer er slået fra i dette miljø' }
+  }
   let supabase
   let userId: string
   try {
