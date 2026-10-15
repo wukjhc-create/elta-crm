@@ -191,11 +191,12 @@ export async function createWorkOrderForCase(
     // omplanlægning
     if ((caseRow as { is_proposal?: boolean }).is_proposal) return { success: false, error: 'Sagen er et forslag — godkend den først' }
     if (input.assigned_employee_id) {
-      const { data: emp } = await supabase
+      const { data: emp, error: empError } = await supabase
         .from('employees')
         .select('id, active, termination_date')
         .eq('id', input.assigned_employee_id)
         .maybeSingle()
+      if (empError) return { success: false, error: 'Kunne ikke tjekke medarbejderen. Det tælles ikke som at personen ikke findes.' }
       if (!emp) return { success: false, error: 'Medarbejder findes ikke' }
       const e = emp as { active: boolean; termination_date: string | null }
       if (!e.active || (e.termination_date && e.termination_date < copenhagenParts(new Date()).date)) {
@@ -288,11 +289,12 @@ export async function updateWorkOrderPlanning(
 
     // Validate employee (active) if assigning
     if (input.assigned_employee_id) {
-      const { data: emp } = await supabase
+      const { data: emp, error: empError } = await supabase
         .from('employees')
         .select('id, active, termination_date')
         .eq('id', input.assigned_employee_id)
         .maybeSingle()
+      if (empError) return { success: false, error: 'Kunne ikke tjekke medarbejderen. Det tælles ikke som at personen ikke findes.' }
       if (!emp) return { success: false, error: 'Medarbejder findes ikke' }
       // PL-7 (planlægnings-review 2026-10-14): samme regel som ved oprettelse — fratrådte tæller som inaktive
       const e = emp as { active: boolean; termination_date: string | null }
