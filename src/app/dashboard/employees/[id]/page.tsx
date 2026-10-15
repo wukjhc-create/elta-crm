@@ -31,7 +31,18 @@ export default async function EmployeeDetailPage({
   const { id } = await params
   if (!UUID_RE.test(id)) notFound()
 
-  const employee = await getEmployeeAction(id)
+  let employee: Awaited<ReturnType<typeof getEmployeeAction>> = null
+  let loadError: string | null = null
+  try {
+    employee = await getEmployeeAction(id)
+  } catch {
+    loadError = 'Kunne ikke hente medarbejderen. Det tælles ikke som at personen ikke findes.'
+  }
+  if (loadError) {
+    return (
+      <p className="p-6 text-sm text-red-800" data-testid="employee-detail-load-error">{loadError}</p>
+    )
+  }
   if (!employee) notFound()
 
   return (

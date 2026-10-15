@@ -37,7 +37,18 @@ export default async function EditEmployeePage({
   if (!UUID_RE.test(id)) notFound()
 
   // PV16 (shoulder-surfing): løn hentes IKKE ved åbning af Rediger — først når "Løn og satser" foldes ud
-  const employee = await getEmployeeAction(id, { includeCompensation: false })
+  let employee: Awaited<ReturnType<typeof getEmployeeAction>> = null
+  let loadError: string | null = null
+  try {
+    employee = await getEmployeeAction(id, { includeCompensation: false })
+  } catch {
+    loadError = 'Kunne ikke hente medarbejderen. Det tælles ikke som at personen ikke findes.'
+  }
+  if (loadError) {
+    return (
+      <p className="p-6 text-sm text-red-800" data-testid="employee-edit-load-error">{loadError}</p>
+    )
+  }
   if (!employee) notFound()
 
   return (
