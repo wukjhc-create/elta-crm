@@ -360,7 +360,7 @@ export function IncomingInvoiceDetailClient({
           <Row label="Vælg leverandør" value={<IncomingInvoiceSupplierPicker invoiceId={inv.id} />} />
           <Row label="Tilknyttet sag"
             value={
-              <div className="flex items-start justify-between gap-2 w-full">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between w-full text-left">
                 <div className="min-w-0">
                   {detail.case ? (
                     <Link
@@ -397,7 +397,7 @@ export function IncomingInvoiceDetailClient({
                         disabled={busy || casePickerBusy || clearingCase}
                         className="text-[11px] px-2 py-0.5 rounded ring-1 ring-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50"
                       >
-                        {clearingCase ? '…' : 'Fjern'}
+                        {clearingCase ? '…' : 'Fjern sag'}
                       </button>
                     )}
                   </div>
@@ -758,6 +758,7 @@ function IbanValue({ invoiceId, masked, canReveal }: { invoiceId: string; masked
           type="button"
           className="text-xs text-emerald-700 hover:underline"
           data-testid="iban-reveal"
+          aria-label={full ? 'Skjul IBAN' : 'Vis IBAN'}
           onClick={async () => {
             if (full) { setFull(null); return }
             const r = await revealIncomingInvoiceIbanAction(invoiceId)

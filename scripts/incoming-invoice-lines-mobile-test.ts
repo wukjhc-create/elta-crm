@@ -26,6 +26,11 @@ eq('match-label kan blive smal', src.includes('w-28 sm:w-44 shrink-0 text-gray-5
 eq('score er den samme', src.includes('score.toFixed(2)') && src.includes('Math.min(100, score * 100)'), true)
 eq('beløb incl moms bliver', src.includes('fmtAmount(inv.amount_incl_vat, inv.currency)'), true)
 eq('bogfør-knappen bliver', src.includes('Bogfør til e-conomic'), true)
+eq('sagsknapper stables', src.includes('flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between w-full text-left'), true)
+eq('fjern siger sag', src.includes("clearingCase ? '…' : 'Fjern sag'"), true)
+eq('ryd sag bliver', src.includes('onClick={clearCase}'), true)
+eq('iban-knap siger hvad den viser', src.includes("aria-label={full ? 'Skjul IBAN' : 'Vis IBAN'}") && src.includes('data-testid="iban-reveal"'), true)
+eq('iban-tekst bliver', src.includes("{full ? 'Skjul' : 'Vis'}"), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nincoming-invoice-lines-mobile-test OK')
 process.exitCode = fail ? 1 : 0
