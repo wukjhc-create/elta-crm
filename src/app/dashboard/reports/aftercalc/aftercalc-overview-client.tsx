@@ -70,12 +70,18 @@ export function AftercalcOverviewClient() {
   const setFilter = (patch: AftercalcOverviewFilters, keepPage = false) => {
     setFilters((prev) => ({ ...prev, ...patch, page: keepPage ? patch.page ?? prev.page : 1 }))
   }
+  const filtersActive = Boolean(
+    filters.from || filters.to || filters.assigneeId || filters.status || filters.missingCostOnly
+    || (filters.variance && filters.variance !== 'all')
+    || (filters.sort && filters.sort !== 'worst_db')
+  )
+  const resetFilters = () => setFilters({ sort: 'worst_db', page: 1, variance: 'all' })
 
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
 
   return (
     <div className="p-4 md:p-6 space-y-4" data-testid="aftercalc-overview">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Efterkalkulation</h1>
           <p className="text-gray-500">Tilbudt mod faktisk dækningsbidrag pr. sag. Beløb er ekskl. moms.</p>
@@ -149,7 +155,14 @@ export function AftercalcOverviewClient() {
                   </p>
                 )}
                 {data.rows.length === 0 ? (
-                  <p className="text-sm text-gray-500">Ingen sager matcher filtrene.</p>
+                  <div className="text-sm text-gray-500" data-testid="aftercalc-empty">
+                    <p>{filtersActive ? 'Ingen sager matcher filtrene.' : 'Ingen sager i oversigten.'}</p>
+                    {filtersActive && (
+                      <button type="button" onClick={resetFilters} className="mt-2 text-blue-700 hover:underline" data-testid="aftercalc-clear-filters">
+                        Nulstil filtre
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <>
                   <div className="md:hidden space-y-2" data-testid="aftercalc-overview-mobile">
@@ -160,7 +173,7 @@ export function AftercalcOverviewClient() {
                             <Link href={`/dashboard/orders/${r.case_id}?tab=oekonomi`} className="font-medium text-blue-700 hover:underline">
                               {r.case_number || 'Sag'}
                             </Link>
-                            {r.title && <p className="text-xs text-gray-500 truncate">{r.title}</p>}
+                            {r.title && <p className="text-xs text-gray-500 break-words">{r.title}</p>}
                             <p className="text-sm text-gray-800">{r.customer_name || '—'}</p>
                             <p className="text-xs text-gray-500">Ansvarlig: {r.assignee_name || '—'}</p>
                           </div>
