@@ -17,6 +17,7 @@ for (const file of files) {
   const src = fs.readFileSync(file, 'utf8')
   eq(`${file} tom soegning`, src.includes('Ingen åbne sager matcher søgningen.'), true)
   eq(`${file} ingen sager`, src.includes('Der er ingen åbne sager.'), true)
+  eq(`${file} ingen sager siger naeste skridt`, src.includes('Opret en sag fra kunden først.'), true)
   eq(`${file} kan ryddes`, src.includes('Ryd søgning'), true)
   eq(`${file} titel ombrydes`, src.includes('font-medium break-words min-w-0">{c.title}'), true)
   eq(`${file} loftet bliver`, src.includes('.slice(0, 30)'), true)

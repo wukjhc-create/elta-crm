@@ -155,7 +155,7 @@ export function IncomingInvoiceCasePicker({
                     </button>
                   </>
                 ) : (
-                  'Der er ingen åbne sager.'
+                  'Der er ingen åbne sager. Opret en sag fra kunden først.'
                 )}
               </div>
             ) : (
