@@ -25,6 +25,12 @@ eq('beskrivelse er koblet', src.includes('htmlFor="edit-wo-description"') && src
 eq('dato og medarbejder stables paa mobil', src.includes('grid grid-cols-1 sm:grid-cols-2 gap-2'), true)
 eq('overskrift beholder sit id', src.includes('id="edit-wo-title"'), true)
 eq('gem bliver', src.includes('Gem ændringer'), true)
+eq('panelet kan rulles', src.includes('w-full max-w-lg max-h-[90vh] overflow-y-auto'), true)
+eq('fejl ombrydes', src.includes('min-w-0 break-words">{error}'), true)
+eq('laast status ombrydes', src.includes('min-w-0 break-words">') && src.includes('status er låst.'), true)
+eq('fod kan ombrydes', src.includes('flex flex-wrap items-center justify-end gap-2'), true)
+eq('ikke tildelt bliver', src.includes('— Ikke tildelt —'), true)
+eq('gem kalder samme funktion', src.includes('onClick={handleSavePatch}'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nwork-order-dialog-mobile-test OK')
 process.exitCode = fail ? 1 : 0

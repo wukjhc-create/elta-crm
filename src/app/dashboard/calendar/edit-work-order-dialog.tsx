@@ -195,7 +195,7 @@ export function EditWorkOrderDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-wo-title"
-        className="w-full max-w-lg rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
       >
         {/* Header */}
         <div className="flex items-start justify-between border-b px-4 py-3">
@@ -281,9 +281,11 @@ export function EditWorkOrderDialog({
           )}
 
           {isTerminal && (
-            <div className="rounded ring-1 ring-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-600 flex items-center gap-1">
-              <RotateCcw className="w-3 h-3" />
-              Arbejdsordren er {STATUS_LABELS[currentStatus].toLowerCase()} — status er låst.
+            <div className="rounded ring-1 ring-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-600 flex items-start gap-1">
+              <RotateCcw className="w-3 h-3 shrink-0 mt-0.5" />
+              <span className="min-w-0 break-words">
+                Arbejdsordren er {STATUS_LABELS[currentStatus].toLowerCase()} — status er låst.
+              </span>
             </div>
           )}
 
@@ -350,8 +352,9 @@ export function EditWorkOrderDialog({
           </fieldset>
 
           {error && (
-            <div className="rounded ring-1 ring-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-800 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> {error}
+            <div className="rounded ring-1 ring-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-800 flex items-start gap-1">
+              <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+              <span className="min-w-0 break-words">{error}</span>
             </div>
           )}
           {info && !error && (
@@ -362,7 +365,7 @@ export function EditWorkOrderDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t bg-gray-50 px-4 py-2.5 rounded-b-lg">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-gray-50 px-4 py-2.5 rounded-b-lg">
           <button
             type="button"
             onClick={onClose}
