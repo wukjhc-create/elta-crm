@@ -375,7 +375,7 @@ Men også brugt i flere actions hvor det måske ikke er nødvendigt.
 Dedikeret sprint kan ikke addresseres som lille fix.
 
 Se **Sprint 11F — Storage Security Hardening** (planlagt næste storage-sikkerhedssprint):
-1. Refaktorér 8 `getPublicUrl()`-kald (i `settings.ts`, `quote-generator.ts`, `email-attachment-storage.ts`, `files.ts`, `outbound-attachments.ts`, `incoming-emails.ts`) til `createSignedUrl()` med passende TTL
+1. Refaktorér 8 `getPublicUrl()`-kald (i `settings.ts`, `quote-generator.ts`, `email-attachment-storage.ts`, ~~`files.ts`~~ (slettet), `outbound-attachments.ts`, `incoming-emails.ts`) til `createSignedUrl()` med passende TTL
 2. Avatar/logo-proxy-endpoint (`/api/avatars/[userId]`, `/api/company-logo`) der streamer fra storage med fresh signed URL
 3. Backfill eller lazy-regenerering af eksisterende DB-rows der indeholder public URLs
 4. Skriv `00118_secure_attachments_bucket.sql` der sætter `public=false`

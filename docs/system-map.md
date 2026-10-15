@@ -100,7 +100,7 @@ Hovedkategorier:
 | Lemvigh-Müller (grossist) | Produktdata + priser (FTP/API) | `lemu-sync.ts`, `sync-engine.ts` |
 | Ordrestyring | Ekstern ordresystem-integration | `ordrestyring.ts` |
 | e-conomic | Regnskab | `economic-client.ts`, `accounting_integration` |
-| GatewayAPI | SMS | `src/lib/sms/` (legacy) |
+| SMS | Ikke implementeret | Ingen GatewayAPI-kode; planlagt retning Relatel (kontrakt-stub i `src/lib/integrations/relatel`) |
 | DAWA | Dansk adresse-API | `address-lookup.ts` |
 | OpenAI | AI-funktioner | `email-intelligence.ts`, `ai-mail-assistant.ts`, `autoProjectEngine.ts` |
 | Vercel | Deploy + cron | `vercel.json` |

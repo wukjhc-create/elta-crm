@@ -12,15 +12,16 @@ problemer automatisk** — ikke en simpel unit-test-suite.
 
 Harness må **aldrig** generere/mutere data mod production.
 
-- **`env-guard.ts` → `assertSafeHarnessTarget()`** kaldes FØRST i generator og
-  scenario-runner. Den **hard-blokerer** medmindre alle gælder:
-  - `HARNESS_SUPABASE_URL` er sat og **≠** production URL/ref
-  - `HARNESS_SUPABASE_SERVICE_ROLE_KEY` er sat
-  - `HARNESS_CONFIRM === 'I_UNDERSTAND_TEST_ONLY'`
-  - `NODE_ENV ≠ production`
-  - URL ligner test/staging (medmindre `HARNESS_ALLOW_ANY=true` bevidst)
-- Da intet af dette er sat i dag, **kan harness ikke skrive data** — præcis det
-  ønskede, indtil staging er sikkert på plads.
+- **Opdateret 2026-10-15** (den tidligere env-var-model `assertSafeHarnessTarget`/`HARNESS_*` findes ikke længere):
+  konfigurationen læses fra **`harness.secrets.local.json`** (`loadHarnessSecrets` i `scripts/test-harness/env-guard.ts`;
+  filen må aldrig læses/printes i logs) med felterne `supabaseUrl`, `anonKey`, `serviceRoleKey`, `confirm` og
+  `environment`.
+  - `environment` skal være præcis `"staging"`; kendte production-refs er **hard-blokeret** (`KNOWN_PRODUCTION_REFS`)
+    og der findes ingen "allow any"-udvej.
+  - Indgange: `evaluateHarnessTarget()` (ren, enhedstestet), `assertRuntimeConfig()` og `bindAppEnvToStaging()`
+    (bindes også til app-env, så testserveren kører mod staging).
+  - Harness **skriver** i dag testdata til staging via de mange `harness:*`-scripts og `cli.ts`-subkommandoer — altid
+    med oprydning; prod-tjek er read-only (`scripts/prod-*.ts`, `withProdReadOnly`).
 - `evaluateHarnessTarget()` er ren og enhedstestet (blokering + tilladelse).
 
 ## 2. Komponenter
