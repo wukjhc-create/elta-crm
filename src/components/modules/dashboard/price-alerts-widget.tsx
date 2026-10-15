@@ -74,13 +74,13 @@ export function PriceAlertsWidget() {
           {recentAlerts.map((alert) => {
             const isIncrease = alert.change_direction === 'increase'
             return (
-              <div key={alert.id} className="flex items-center gap-2 text-sm">
+              <div key={alert.id} className="flex items-start gap-2 text-sm">
                 {isIncrease ? (
                   <TrendingUp className="h-3.5 w-3.5 text-red-500 shrink-0" />
                 ) : (
                   <TrendingDown className="h-3.5 w-3.5 text-green-500 shrink-0" />
                 )}
-                <span className="truncate flex-1 text-gray-700">{alert.product_name}</span>
+                <span className="break-words min-w-0 flex-1 text-gray-700">{alert.product_name}</span>
                 <span className={`text-xs font-medium shrink-0 ${isIncrease ? 'text-red-600' : 'text-green-600'}`}>
                   {isIncrease ? '+' : ''}{alert.change_percentage.toFixed(1)}%
                 </span>

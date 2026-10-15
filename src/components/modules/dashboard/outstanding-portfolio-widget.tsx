@@ -73,8 +73,8 @@ export function OutstandingPortfolioWidget() {
               <div className="text-xs font-medium text-gray-500">Største udestående</div>
               {data.top.map((t) => (
                 <Link key={t.case_id} href={`/dashboard/orders/${t.case_id}`}
-                  className="flex items-center justify-between text-sm hover:bg-gray-50 rounded px-1.5 py-1">
-                  <span className="truncate text-gray-700">
+                  className="flex items-start justify-between gap-2 text-sm hover:bg-gray-50 rounded px-1.5 py-1">
+                  <span className="break-words min-w-0 text-gray-700">
                     <span className="font-mono text-xs text-emerald-700">{t.case_number ?? '—'}</span>
                     {t.title ? ` · ${t.title}` : ''}
                   </span>

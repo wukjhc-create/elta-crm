@@ -69,7 +69,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{activity.action}</p>
-                <p className="text-sm text-muted-foreground truncate">
+                <p className="text-sm text-muted-foreground break-words">
                   {activity.title}
                   {activity.description && ` - ${activity.description}`}
                 </p>

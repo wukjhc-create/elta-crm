@@ -93,8 +93,8 @@ export function OfferConversionWidget() {
                 </span>
                 <span className="text-xs text-gray-500">{fmtDate(data.latest_ready.created_at)}</span>
               </div>
-              <div className="flex items-center justify-between mt-0.5 text-gray-600">
-                <span className="truncate">{data.latest_ready.customer_name ?? '—'}</span>
+              <div className="flex items-start justify-between gap-2 mt-0.5 text-gray-600">
+                <span className="break-words min-w-0">{data.latest_ready.customer_name ?? '—'}</span>
                 {data.latest_ready.amount != null && (
                   <span className="font-medium text-gray-800 shrink-0 ml-2">
                     {formatCurrency(data.latest_ready.amount, 'DKK')}

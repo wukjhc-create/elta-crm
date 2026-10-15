@@ -77,8 +77,8 @@ export function IncomingInvoiceDueWidget() {
               <div className="text-xs font-medium text-gray-500">Ældste forfaldne</div>
               {data.top.map((t) => (
                 <Link key={t.id} href={`/dashboard/incoming-invoices/${t.id}`}
-                  className="flex items-center justify-between text-sm hover:bg-gray-50 rounded px-1.5 py-1">
-                  <span className="truncate text-gray-700">
+                  className="flex items-start justify-between gap-2 text-sm hover:bg-gray-50 rounded px-1.5 py-1">
+                  <span className="break-words min-w-0 text-gray-700">
                     <span className="text-xs text-gray-500">{fmtDate(t.due_date)}</span>
                     {' · '}{t.supplier_name ?? t.invoice_number ?? '—'}
                   </span>

@@ -172,12 +172,12 @@ export function InvoiceEconomySection() {
               ) : (
                 <ul className="divide-y divide-gray-100">
                   {data.overdue_top.map((r) => (
-                    <li key={r.id} className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-gray-50">
+                    <li key={r.id} className="px-3 py-2 flex items-start justify-between gap-2 hover:bg-gray-50">
                       <div className="min-w-0">
                         <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-sm text-emerald-700 hover:underline">
                           {r.invoice_number ?? '—'}
                         </Link>
-                        <div className="text-[11px] text-gray-500 truncate">
+                        <div className="text-[11px] text-gray-500 break-words">
                           {r.customer_name ?? '—'}
                           {r.case_number && (
                             <>
@@ -215,10 +215,10 @@ export function InvoiceEconomySection() {
                   {data.recent_events.map((e) => {
                     const v = eventVisual(e)
                     return (
-                      <li key={e.id} className="px-3 py-2 flex items-center gap-2.5">
-                        <span className={`shrink-0 ${v.cls}`}>{v.icon}</span>
+                      <li key={e.id} className="px-3 py-2 flex items-start gap-2.5">
+                        <span className={`shrink-0 mt-0.5 ${v.cls}`}>{v.icon}</span>
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm text-gray-800 truncate">
+                          <div className="text-sm text-gray-800 break-words">
                             {e.action_label}
                             {e.invoice_number ? <span className="text-gray-500"> · {e.invoice_number}</span> : null}
                           </div>

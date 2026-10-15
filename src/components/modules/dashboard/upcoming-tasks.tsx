@@ -65,8 +65,8 @@ export function UpcomingTasks({ tasks }: UpcomingTasksProps) {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{task.title}</p>
-              <p className="text-xs text-muted-foreground">{task.project_name}</p>
+              <p className="font-medium text-sm break-words">{task.title}</p>
+              <p className="text-xs text-muted-foreground break-words">{task.project_name}</p>
             </div>
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
               <span

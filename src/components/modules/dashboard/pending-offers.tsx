@@ -75,7 +75,7 @@ export function PendingOffers({ offers }: PendingOffersProps) {
                   {isViewed ? 'Set' : 'Sendt'}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-xs text-muted-foreground break-words">
                 {offer.customer_name}
               </p>
             </div>
