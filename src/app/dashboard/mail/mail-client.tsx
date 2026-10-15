@@ -727,7 +727,7 @@ export function MailClient() {
   return (
     <div className="space-y-6">
       {/* ========== HEADER — same pattern as Leads ========== */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Mail</h1>
           <p className="text-gray-600 mt-1 flex items-center gap-2 flex-wrap">
@@ -794,14 +794,14 @@ export function MailClient() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <GoldenButton selectedEmail={selectedEmail} />
           <button
             onClick={async () => {
               setShowDebug(!showDebug)
               if (!diagnostic && !isRunningDiag) {
                 setIsRunningDiag(true)
-                try { setDiagnostic(await runSyncDiagnostic()) } catch { /* */ }
+                try { setDiagnostic(await runSyncDiagnostic()) } catch { toast.error('Diagnose fejlede', 'Kunne ikke hente sync-status') }
                 setIsRunningDiag(false)
               }
             }}
@@ -882,13 +882,13 @@ export function MailClient() {
       {/* ========== SYNC DEBUG PANEL ========== */}
       {showDebug && (
         <div className="bg-gray-900 text-gray-100 rounded-lg border border-gray-700 text-xs font-mono overflow-hidden">
-          <div className="p-3 border-b border-gray-700 flex items-center justify-between">
+          <div className="p-3 border-b border-gray-700 flex flex-wrap items-center justify-between gap-2">
             <span className="text-amber-400 font-bold text-sm">Sync Diagnostic</span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={async () => {
                   setIsRunningDiag(true)
-                  try { setDiagnostic(await runSyncDiagnostic()) } catch { /* */ }
+                  try { setDiagnostic(await runSyncDiagnostic()) } catch { toast.error('Diagnose fejlede', 'Kunne ikke hente sync-status') }
                   setIsRunningDiag(false)
                 }}
                 disabled={isRunningDiag}
@@ -906,7 +906,9 @@ export function MailClient() {
                       toast.success('Sync OK', `${result.syncTestResult.inserted} nye emails`)
                     }
                     await loadEmails()
-                  } catch { /* */ }
+                  } catch {
+                    toast.error('Reset fejlede', 'Delta blev ikke nulstillet')
+                  }
                   setIsRunningFixSync(false)
                 }}
                 disabled={isRunningFixSync}
