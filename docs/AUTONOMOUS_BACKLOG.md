@@ -55,11 +55,11 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | M-5 (S2) | Timer med komma ("7,5") afvises (type=number) | DONE — tekstfelt med decimal-tastatur (toNumberDa) |
 | M-6 (S2) | "Mine job" forsvinder tavst ved hentefejl | DONE — fejlkort med "Prøv igen" |
 | M-7 (S3) | Mine job henter alle åbne arbejdsordrer uden loft og filtrerer i JS (1.000-loft kan skjule egne) | DELVIS — pagineret (intet 1.000-loft, frisk forespørgsel pr. side), så egne job ikke skæres fra. DB-filter på montørens job = TODO (scope er arbejdsordre-id'er; .in()-grænse). UI U151/U43/U11/U160 |
-| M-8 (S3) | Montøren ser ikke starttid/estimat på sine job | DELVIS — vises i Mine job; sagens Planlægning-fane = TODO |
+| M-8 (S3) | Montøren ser ikke starttid/estimat på sine job | DONE — Mine job + sagens Planlægning-fane. UI U11/U151 |
 | M-9 (S3) | N+1: hver arbejdsordre henter egne timer + medarbejderliste; fejl på medarbejderliste tavs | TODO |
 | M-10 (S3) | Små tap-mål (Start/Afslut/Annullér, Registrér timer, Ret/Slet, tjekliste-flueben) | TODO |
 | M-11 (S3) | Tjeklistefoto kun via kamera (capture) — kan ikke vælge fra galleri | DONE — capture fjernet (telefonen tilbyder kamera eller galleri); knap "Foto" |
-| M-12 (S4) | Kalender: fravær-hentefejl tavs; tidsgodkendelse 500-loft uden besked | TODO |
+| M-12 (S4) | Kalender: fravær-hentefejl tavs; tidsgodkendelse 500-loft uden besked | DONE — advarselsbanner til planlæggere når fravær ikke kan hentes; "Viser de 500 …" i tidsgodkendelse. UI U43/U72 |
 | B-1 (S1) | "Annuller" på betalingsreference-prompten markerer alligevel fakturaen betalt (irreversibelt); send uden mail uden bekræftelse | DONE — Annuller afbryder (prompten viser nr./beløb og "kan ikke fortrydes"); "Markér som sendt (uden mail)" bekræftes. UI U29 (annuller → stadig sendt) |
 | B-2 (S2) | Fakturaoversigten henter kun 500 nyeste uden besked; summeringskort regnes på det beskårne udsnit | DELVIS — tydelig besked når loftet rammes (summerne dækker kun de viste; fulde tal på Dashboard). Server-side summer = TODO (sammen med B-3) |
 | B-3 (S2) | Tre forskellige "udestående" (widget trækker indbetalt/kreditnota fra, oversigt/kundekort/badge gør ikke); kundeoversigt loft 200, badge 500 uden order | TODO |

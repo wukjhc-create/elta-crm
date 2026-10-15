@@ -119,6 +119,12 @@ export function TimeApprovalClient() {
       {rows === null && (
         <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />Henter timer…</div>
       )}
+      {/* M-12 (pilot-review 2026-10-15): listen hentes med loft 500 — sig det, i stedet for at skjule resten */}
+      {rows !== null && rows.length >= 500 && (
+        <p className="text-sm text-amber-800 bg-amber-50 ring-1 ring-amber-200 rounded px-3 py-2" data-testid="time-approval-capped">
+          Viser de 500 {tab === 'pending' ? 'ældste' : 'nyeste'} — godkend/afvis disse, så vises resten.
+        </p>
+      )}
       {rows !== null && rows.length === 0 && !error && (
         <div className="bg-white rounded-lg ring-1 ring-gray-200 py-10 text-center text-sm text-gray-500">
           <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />

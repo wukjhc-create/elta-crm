@@ -20,6 +20,7 @@ import type { WorkOrderStatus } from '@/types/workforce.types'
 import { WorkOrderTimeLogs } from './work-order-time-logs'
 import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
+import { formatWorkOrderTime } from '@/lib/planning/work-order-time'
 
 const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   planned: 'Planlagt',
@@ -493,7 +494,11 @@ function WorkOrderRow({
               {STATUS_LABELS[wo.status]}
             </span>
             {wo.scheduled_date && (
-              <span className="text-xs text-gray-500">{fmtDate(wo.scheduled_date)}</span>
+              <span className="text-xs text-gray-500">
+                {fmtDate(wo.scheduled_date)}
+                {/* M-8 (pilot-review 2026-10-15): starttid/estimat — før kun datoen */}
+                {formatWorkOrderTime(wo.start_time, wo.estimated_hours) ? ` · ${formatWorkOrderTime(wo.start_time, wo.estimated_hours)}` : ''}
+              </span>
             )}
             {wo.completed_at && (
               <span className="text-xs text-gray-500">

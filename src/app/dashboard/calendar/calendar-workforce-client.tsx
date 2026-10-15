@@ -99,8 +99,10 @@ export function CalendarWorkforceClient({
   filters,
   loadError,
   absences = [],
+  absenceLoadFailed = false,
 }: {
   absences?: AbsenceRow[]
+  absenceLoadFailed?: boolean
   view: CalendarView
   anchorDate: string
   rangeStart: string
@@ -369,6 +371,12 @@ export function CalendarWorkforceClient({
         </div>
       </div>
 
+      {absenceLoadFailed && (
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900 flex items-center gap-2" role="alert" data-testid="calendar-absence-load-failed">
+          <AlertCircle className="w-4 h-4" />
+          Fravær kunne ikke hentes — kalenderen viser ikke ferie/sygdom lige nu. Genindlæs før du planlægger.
+        </div>
+      )}
       {loadError && (
         <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 flex items-center gap-2">
           <AlertCircle className="w-4 h-4" />
