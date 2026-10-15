@@ -19,13 +19,9 @@ import {
   clearEconomicIntegrationAction,
   type EconomicIntegrationStatus,
 } from '@/lib/actions/accounting'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
-const dkDateTime = (iso: string | null) =>
-  iso
-    ? new Intl.DateTimeFormat('da-DK', {
-        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-      }).format(new Date(iso))
-    : '—'
+const dkDateTime = (iso: string | null) => (iso ? copenhagenDateTimeLabel(iso) : '—')
 
 export function EconomicSettingsClient({
   initial,
@@ -179,31 +175,31 @@ export function EconomicSettingsClient({
         )}
 
         <div className="text-sm divide-y divide-gray-100">
-          <div className="flex justify-between py-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5">
             <span className="text-gray-500">App-hemmelighed (X-AppSecretToken)</span>
-            <span className="font-mono text-gray-900">{status.api_token_masked ?? '— ikke sat —'}</span>
+            <span className="font-mono text-gray-900 break-all">{status.api_token_masked ?? '— ikke sat —'}</span>
           </div>
-          <div className="flex justify-between py-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5">
             <span className="text-gray-500">Aftale-token (X-AgreementGrantToken)</span>
-            <span className="font-mono text-gray-900">{status.grant_token_masked ?? '— ikke sat —'}</span>
+            <span className="font-mono text-gray-900 break-all">{status.grant_token_masked ?? '— ikke sat —'}</span>
           </div>
-          <div className="flex justify-between py-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5">
             <span className="text-gray-500">Status</span>
             <span className="font-medium text-gray-900">{status.active ? 'Aktiv' : 'Ikke aktiv'}</span>
           </div>
-          <div className="flex justify-between py-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5">
             <span className="text-gray-500">Senest synkroniseret</span>
-            <span className="font-medium text-gray-900">{dkDateTime(status.last_sync_at)}</span>
+            <span className="font-medium text-gray-900 break-words">{dkDateTime(status.last_sync_at)}</span>
           </div>
-          <div className="flex justify-between py-1.5 items-center">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-1.5">
             <span className="text-gray-500">Eksport-log</span>
             <Link href="/dashboard/settings/economic/log" className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline">
               <ListChecks className="w-4 h-4" /> Se eksportforsøg
             </Link>
           </div>
-          <div className="flex justify-between py-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5">
             <span className="text-gray-500">Senest testet</span>
-            <span className="font-medium text-gray-900">
+            <span className="font-medium text-gray-900 break-words">
               {status.last_tested_at ? (
                 <span className={status.last_test_ok ? 'text-emerald-700' : 'text-red-700'}>
                   {dkDateTime(status.last_tested_at)} · {status.last_test_ok ? 'OK' : 'fejl'}
