@@ -182,11 +182,11 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                     {data.lines.map((r) => (
                       <div key={r.key} className="p-3">
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-gray-900">{r.description}</p>
+                          <div className="min-w-0">
+                            <p className="text-gray-900 break-words">{r.description}</p>
                             {r.unit && <p className="text-[11px] text-gray-500">{r.unit}</p>}
                           </div>
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
+                          <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
                         </div>
                         <p className="mt-2 text-xs text-gray-600">Tilbudt antal {qty(r.offered_qty)} · faktisk antal {qty(r.actual_qty)}</p>
                         <p className="text-xs text-gray-700">Tilbudt kost {kr(r.offered_cost)} · faktisk kost {kr(r.actual_cost)}</p>
@@ -211,7 +211,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                         {data.lines.map((r) => (
                           <tr key={r.key} data-testid="aftercalc-line" data-status={r.status}>
                             <td className="px-2 py-1.5">
-                              <div className="text-gray-900">{r.description}</div>
+                              <div className="text-gray-900 break-words">{r.description}</div>
                               {r.unit && <div className="text-[11px] text-gray-500">{r.unit}</div>}
                             </td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{qty(r.offered_qty)}</td>
@@ -247,8 +247,8 @@ function Highlight({ title, rows, empty, tone }: { title: string; rows: { key: s
       ) : (
         <ul className="space-y-0.5">
           {rows.map((r) => (
-            <li key={r.key} className="flex justify-between gap-3">
-              <span className="text-gray-800 truncate">{r.description}</span>
+            <li key={r.key} className="flex items-start justify-between gap-3">
+              <span className="text-gray-800 break-words min-w-0">{r.description}</span>
               <span className={`tabular-nums shrink-0 ${tone}`}>{kr(r.amount)}</span>
             </li>
           ))}
