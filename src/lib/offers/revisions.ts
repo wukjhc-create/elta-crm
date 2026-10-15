@@ -133,7 +133,8 @@ export async function getRevisionHistory(offerId: string): Promise<Array<{ id: s
   // find roden
   let rootId = offerId
   for (let i = 0; i < 50; i++) {
-    const { data } = await admin.from('offers').select('revision_of').eq('id', rootId).maybeSingle()
+    const { data, error } = await admin.from('offers').select('revision_of').eq('id', rootId).maybeSingle()
+    if (error) throw new Error('Kunne ikke hente revisioner')
     const prev = (data as { revision_of: string | null } | null)?.revision_of
     if (!prev) break
     rootId = prev
@@ -141,13 +142,17 @@ export async function getRevisionHistory(offerId: string): Promise<Array<{ id: s
   const chain: Array<{ id: string; offer_number: string; revision_number: number; status: string; superseded_at: string | null }> = []
   let cur: string | null = rootId
   for (let i = 0; i < 50 && cur; i++) {
-    const { data } = await admin.from('offers').select('id, offer_number, revision_number, status, superseded_at').eq('id', cur).maybeSingle()
+    const { data, error } = await admin.from('offers').select('id, offer_number, revision_number, status, superseded_at').eq('id', cur).maybeSingle()
+    if (error) throw new Error('Kunne ikke hente revisioner')
     if (!data) break
     chain.push(data as (typeof chain)[number])
-    const nextRes: { data: unknown } = await admin.from('offers').select('id').eq('revision_of', cur).order('revision_number', { ascending: false }).limit(1).maybeSingle()
+    const nextRes: { data: unknown; error: { message: string } | null } = await admin.from('offers').select('id').eq('revision_of', cur).order('revision_number', { ascending: false }).limit(1).maybeSingle()
+    if (nextRes.error) throw new Error('Kunne ikke hente revisioner')
     cur = (nextRes.data as { id: string } | null)?.id ?? null
   }
-  const { data: snaps } = await admin.from('offer_snapshots').select('offer_id, sent_at').in('offer_id', chain.map((c) => c.id))
+  if (chain.length === 0) return []
+  const { data: snaps, error: snapErr } = await admin.from('offer_snapshots').select('offer_id, sent_at').in('offer_id', chain.map((c) => c.id))
+  if (snapErr) throw new Error('Kunne ikke hente revisioner')
   const sentAt = new Map(((snaps ?? []) as Array<{ offer_id: string; sent_at: string }>).map((s) => [s.offer_id, s.sent_at]))
   return chain.map((c) => ({ ...c, snapshot_sent_at: sentAt.get(c.id) ?? null }))
 }
