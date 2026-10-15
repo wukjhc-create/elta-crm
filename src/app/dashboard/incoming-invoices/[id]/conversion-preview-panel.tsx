@@ -44,7 +44,7 @@ export function ConversionPreviewPanel({ invoiceId }: { invoiceId: string }) {
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-400 py-3"><Loader2 className="w-4 h-4 animate-spin" /> Henter…</div>
       ) : error || !data ? (
-        <p className="text-sm text-gray-400 py-2">{error || 'Ingen data'}</p>
+        <p className="text-sm text-red-800 py-2" data-testid="conversion-preview-load-error">{error || 'Ingen data'}</p>
       ) : (
         <div className="space-y-2 text-sm">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">

@@ -1227,11 +1227,15 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     return { ...base, message: 'Manglende tilladelse: incoming_invoices.view' }
   }
 
-  const { data: inv } = await supabase
+  const { data: inv, error: invErr } = await supabase
     .from('incoming_invoices')
     .select('id, invoice_number, supplier_id, supplier_name_extracted, amount_incl_vat, currency, status, requires_manual_review, matched_case_id')
     .eq('id', id)
     .maybeSingle()
+  if (invErr) {
+    logger.error('getIncomingInvoiceConversionPreviewAction invoice failed', { error: invErr })
+    return { ...base, message: 'Kunne ikke læse fakturaen. Det tælles ikke som at den ikke findes.' }
+  }
   if (!inv) return { ...base, message: 'Faktura ikke fundet' }
 
   // Sag (intern) + leverandør-navn (cost-bounded, ingen N+1).
@@ -1250,11 +1254,15 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     if (s?.name) supplierName = s.name as string
   }
 
-  const { data: lineRows } = await supabase
+  const { data: lineRows, error: lineErr } = await supabase
     .from('incoming_invoice_lines')
     .select('id, line_number, description, quantity, unit, unit_price, total_price, supplier_product_id, converted_at, converted_case_material_id, converted_case_other_cost_id')
     .eq('incoming_invoice_id', id)
     .order('line_number', { ascending: true })
+  if (lineErr) {
+    logger.error('getIncomingInvoiceConversionPreviewAction lines failed', { error: lineErr })
+    return { ...base, message: 'Kunne ikke hente linjerne. Det tælles ikke som en faktura uden linjer.' }
+  }
 
   const rows = (lineRows ?? []) as Array<Record<string, unknown>>
   const lines: ConversionPreviewLine[] = rows.map((l) => {
