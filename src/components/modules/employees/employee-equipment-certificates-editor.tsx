@@ -41,9 +41,15 @@ function useRunner(reload: () => Promise<void>) {
 export function EmployeeEquipmentEditor({ employeeId }: { employeeId: string }) {
   const [items, setItems] = useState<EmployeeEquipment[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const reload = useCallback(async () => {
-    const r = await listEquipment(employeeId)
-    if (r.success && r.data) setItems(r.data)
+    try {
+      const r = await listEquipment(employeeId)
+      if (r.success && r.data) { setItems(r.data); setLoadError(null) }
+      else setLoadError('Udstyr kunne ikke hentes. Det tælles ikke som intet udstyr.')
+    } catch {
+      setLoadError('Udstyr kunne ikke hentes. Det tælles ikke som intet udstyr.')
+    }
     setLoaded(true)
   }, [employeeId])
   useEffect(() => { reload() }, [reload])
@@ -74,11 +80,12 @@ export function EmployeeEquipmentEditor({ employeeId }: { employeeId: string }) 
         })} className="h-8 inline-flex items-center justify-center gap-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"><Plus className="w-4 h-4" />Tilføj</button>
       </div>
 
-      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : items.length === 0 ? (
+      {loadError && <p className="text-sm text-red-700 break-words" data-testid="equipment-load-error">{loadError}</p>}
+      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : items.length === 0 && !loadError ? (
         <p className="text-sm text-gray-500">Intet udstyr endnu.</p>
-      ) : (
+      ) : items.length > 0 ? (
         <div className="space-y-2">{items.map((e) => <EquipRow key={e.id} item={e} pending={pending} run={run} />)}</div>
-      )}
+      ) : null}
     </section>
   )
 }
@@ -112,9 +119,15 @@ function EquipRow({ item, pending, run }: { item: EmployeeEquipment; pending: bo
 export function EmployeeCertificatesEditor({ employeeId }: { employeeId: string }) {
   const [items, setItems] = useState<EmployeeCertificate[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const reload = useCallback(async () => {
-    const r = await listCertificates(employeeId)
-    if (r.success && r.data) setItems(r.data)
+    try {
+      const r = await listCertificates(employeeId)
+      if (r.success && r.data) { setItems(r.data); setLoadError(null) }
+      else setLoadError('Certifikater kunne ikke hentes. Det tælles ikke som ingen certifikater.')
+    } catch {
+      setLoadError('Certifikater kunne ikke hentes. Det tælles ikke som ingen certifikater.')
+    }
     setLoaded(true)
   }, [employeeId])
   useEffect(() => { reload() }, [reload])
@@ -147,11 +160,12 @@ export function EmployeeCertificatesEditor({ employeeId }: { employeeId: string 
         })} className="h-8 inline-flex items-center justify-center gap-1 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"><Plus className="w-4 h-4" />Tilføj</button>
       </div>
 
-      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : items.length === 0 ? (
+      {loadError && <p className="text-sm text-red-700 break-words" data-testid="certificate-load-error">{loadError}</p>}
+      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : items.length === 0 && !loadError ? (
         <p className="text-sm text-gray-500">Ingen certifikater endnu.</p>
-      ) : (
+      ) : items.length > 0 ? (
         <div className="space-y-2">{items.map((c) => <CertRow key={c.id} item={c} pending={pending} run={run} />)}</div>
-      )}
+      ) : null}
     </section>
   )
 }
