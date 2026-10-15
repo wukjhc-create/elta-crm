@@ -1208,7 +1208,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     >
                       {offer.lead.company_name}
                     </Link>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-500 break-words">
                       {offer.lead.contact_person}
                     </p>
                   </div>
