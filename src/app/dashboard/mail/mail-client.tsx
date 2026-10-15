@@ -117,6 +117,7 @@ export function MailClient() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
   const [syncState, setSyncState] = useState<GraphSyncState | null>(null)
+  const [syncLoadError, setSyncLoadError] = useState<string | null>(null)
   const [allSyncStates, setAllSyncStates] = useState<GraphSyncState[]>([])
   const [stats, setStats] = useState({
     total: 0,
@@ -184,7 +185,7 @@ export function MailClient() {
           pageSize: 25,
         }),
         getIncomingEmailStats(),
-        getGraphSyncState(),
+        getGraphSyncState().then((state) => ({ state, failed: false })).catch(() => ({ state: null, failed: true })),
         getAllGraphSyncStates(),
       ])
       setEmails(emailResult.data)
@@ -201,7 +202,8 @@ export function MailClient() {
         archived: statsResult.archived,
       })
       setAllSyncStates(allStatesResult)
-      setSyncState(syncStateResult)
+      setSyncState(syncStateResult.state)
+      setSyncLoadError(syncStateResult.failed ? 'Mail-sync kunne ikke hentes. Det tælles ikke som aldrig synket.' : null)
 
       // Check which emails have leads
       const emailIds = emailResult.data.map((e) => e.id)
@@ -314,7 +316,7 @@ export function MailClient() {
           pageSize: 25,
         }),
         getIncomingEmailStats(),
-        getGraphSyncState(),
+        getGraphSyncState().then((state) => ({ state, failed: false })).catch(() => ({ state: null, failed: true })),
       ])
       setEmails(emailResult.data)
       setTotalCount(emailResult.count)
@@ -329,7 +331,8 @@ export function MailClient() {
         webform: statsResult.webform,
         archived: statsResult.archived,
       })
-      setSyncState(syncStateResult)
+      setSyncState(syncStateResult.state)
+      setSyncLoadError(syncStateResult.failed ? 'Mail-sync kunne ikke hentes. Det tælles ikke som aldrig synket.' : null)
       setLastRefresh(new Date())
 
       const emailIds = emailResult.data.map((e) => e.id)
@@ -778,6 +781,8 @@ export function MailClient() {
                   </span>
                 )
               })
+            ) : syncLoadError ? (
+              <span className="text-xs text-red-700 break-words" data-testid="mail-sync-load-error">{syncLoadError}</span>
             ) : syncState?.last_sync_at ? (
               <span className="text-xs text-gray-400 flex items-center gap-1">
                 <Mail className="w-3 h-3" />
@@ -859,7 +864,7 @@ export function MailClient() {
               </div>
               <div className="bg-white/60 rounded px-2 py-1.5 border border-white/80">
                 <span className="text-gray-500">Sidste inbox-sync</span>
-                <p className="font-medium text-gray-800">{syncState?.last_sync_at ? formatDate(syncState.last_sync_at) : 'Aldrig'}</p>
+                <p className="font-medium text-gray-800">{syncLoadError || (syncState?.last_sync_at ? formatDate(syncState.last_sync_at) : 'Aldrig')}</p>
               </div>
               <div className="bg-white/60 rounded px-2 py-1.5 border border-white/80">
                 <span className="text-gray-500">Sync status</span>

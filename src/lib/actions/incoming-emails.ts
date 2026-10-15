@@ -1132,12 +1132,13 @@ export async function applyEmailKalkiaPriceUpdates(emailId: string) {
 export async function getGraphSyncState(): Promise<GraphSyncState | null> {
   const supabase = await createClient()
   const mailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('graph_sync_state')
     .select('*')
     .eq('mailbox', mailbox)
     .maybeSingle()
 
+  if (error) throw new Error('Kunne ikke hente mail-sync')
   return data as GraphSyncState | null
 }
 

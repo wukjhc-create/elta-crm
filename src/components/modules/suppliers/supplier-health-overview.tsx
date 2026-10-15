@@ -50,6 +50,7 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
   const toast = useToast()
   const [summary, setSummary] = useState<HealthSummary | null>(null)
   const [emailSync, setEmailSync] = useState<EmailSyncHealth | null>(null)
+  const [syncFailed, setSyncFailed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -64,9 +65,9 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
             import('@/lib/actions/incoming-emails'),
           ])
 
-        const [result, syncState, emailStats] = await Promise.all([
+        const [result, syncOutcome, emailStats] = await Promise.all([
           getSystemHealthSummary(),
-          getGraphSyncState(),
+          getGraphSyncState().then((state) => ({ state, failed: false })).catch(() => ({ state: null, failed: true })),
           getIncomingEmailStats(),
         ])
 
@@ -81,7 +82,9 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
           setSummary(null)
         }
 
-        setEmailSync({
+        setSyncFailed(syncOutcome.failed)
+        const syncState = syncOutcome.state
+        setEmailSync(syncOutcome.failed ? null : {
           lastSync: syncState?.last_sync_at ? new Date(syncState.last_sync_at) : null,
           lastStatus: syncState?.last_sync_status || 'never',
           lastError: syncState?.last_sync_error || null,
@@ -109,9 +112,9 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
           import('@/lib/actions/incoming-emails'),
         ])
 
-      const [result, syncState, emailStats] = await Promise.all([
+      const [result, syncOutcome, emailStats] = await Promise.all([
         getSystemHealthSummary(),
-        getGraphSyncState(),
+        getGraphSyncState().then((state) => ({ state, failed: false })).catch(() => ({ state: null, failed: true })),
         getIncomingEmailStats(),
       ])
 
@@ -125,7 +128,9 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
         toast.error('Kunne ikke hente systemstatus')
       }
 
-      setEmailSync({
+      setSyncFailed(syncOutcome.failed)
+      const syncState = syncOutcome.state
+      setEmailSync(syncOutcome.failed ? null : {
         lastSync: syncState?.last_sync_at ? new Date(syncState.last_sync_at) : null,
         lastStatus: syncState?.last_sync_status || 'never',
         lastError: syncState?.last_sync_error || null,
@@ -278,6 +283,12 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
             Alle leverandører online med frisk data
           </div>
         </div>
+      )}
+
+      {syncFailed && (
+        <p className="text-sm text-red-700 break-words border-t p-4" data-testid="supplier-mail-sync-load-error">
+          Mail-sync kunne ikke hentes. Det tælles ikke som ikke synket, og det tælles ikke som 0.
+        </p>
       )}
 
       {/* Email Sync Status */}
