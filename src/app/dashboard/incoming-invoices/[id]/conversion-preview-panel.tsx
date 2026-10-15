@@ -47,9 +47,9 @@ export function ConversionPreviewPanel({ invoiceId }: { invoiceId: string }) {
         <p className="text-sm text-gray-400 py-2">{error || 'Ingen data'}</p>
       ) : (
         <div className="space-y-2 text-sm">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <div><span className="text-gray-500">Leverandør:</span> {data.supplier_name ?? '—'}</div>
-            <div><span className="text-gray-500">Faktura:</span> {data.invoice_number ?? '—'}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <div className="break-words"><span className="text-gray-500">Leverandør:</span> {data.supplier_name ?? '—'}</div>
+            <div className="break-words"><span className="text-gray-500">Faktura:</span> {data.invoice_number ?? '—'}</div>
             <div><span className="text-gray-500">Sag:</span>{' '}
               {data.case ? (
                 <Link href={`/dashboard/orders/${data.case.case_number}`} className="text-emerald-700 hover:underline font-mono">{data.case.case_number}</Link>
@@ -77,30 +77,45 @@ export function ConversionPreviewPanel({ invoiceId }: { invoiceId: string }) {
                 {data.convertible_count} linje(r) klar · {data.already_converted_count} allerede konverteret
               </div>
               <div className="border rounded overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead className="bg-gray-50 text-left text-gray-500">
-                    <tr>
-                      <th className="px-2 py-1">Beskrivelse</th>
-                      <th className="px-2 py-1 text-right">Antal</th>
-                      <th className="px-2 py-1 text-right">Kostpris</th>
-                      <th className="px-2 py-1">Opretter som</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.lines.map((l) => (
-                      <tr key={l.line_id} className={`border-t ${l.already_converted ? 'opacity-50' : ''}`}>
-                        <td className="px-2 py-1 max-w-[260px] truncate" title={l.description}>{l.description}</td>
-                        <td className="px-2 py-1 text-right">{l.quantity} {l.unit}</td>
-                        <td className="px-2 py-1 text-right">{kr(l.unit_cost)}</td>
-                        <td className="px-2 py-1">
-                          {l.already_converted
-                            ? <span className="text-gray-400">allerede konverteret</span>
-                            : <span className="text-gray-700">{DISP_LABEL[l.suggested]}</span>}
-                        </td>
+                <ul className="md:hidden divide-y" data-testid="conversion-preview-mobile">
+                  {data.lines.map((l) => (
+                    <li key={l.line_id} className={`px-2 py-2 ${l.already_converted ? 'opacity-50' : ''}`}>
+                      <p className="break-words">{l.description}</p>
+                      <p className="text-gray-600 mt-0.5">{l.quantity} {l.unit} · {kr(l.unit_cost)}</p>
+                      <p className="mt-0.5">
+                        {l.already_converted
+                          ? <span className="text-gray-400">allerede konverteret</span>
+                          : <span className="text-gray-700">{DISP_LABEL[l.suggested]}</span>}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 text-left text-gray-500">
+                      <tr>
+                        <th className="px-2 py-1">Beskrivelse</th>
+                        <th className="px-2 py-1 text-right">Antal</th>
+                        <th className="px-2 py-1 text-right">Kostpris</th>
+                        <th className="px-2 py-1">Opretter som</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {data.lines.map((l) => (
+                        <tr key={l.line_id} className={`border-t ${l.already_converted ? 'opacity-50' : ''}`}>
+                          <td className="px-2 py-1 break-words" title={l.description}>{l.description}</td>
+                          <td className="px-2 py-1 text-right">{l.quantity} {l.unit}</td>
+                          <td className="px-2 py-1 text-right">{kr(l.unit_cost)}</td>
+                          <td className="px-2 py-1">
+                            {l.already_converted
+                              ? <span className="text-gray-400">allerede konverteret</span>
+                              : <span className="text-gray-700">{DISP_LABEL[l.suggested]}</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
               <p className="text-[11px] text-gray-400">
                 Forslag — den endelige fordeling (materiale/udlæg/spring over) vælges i godkend-dialogen. Kun kostpris fra leverandør; salgspris sættes på sagen.
