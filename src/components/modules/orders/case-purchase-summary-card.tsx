@@ -35,9 +35,10 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
 
   return (
     <div className="bg-white rounded-lg border p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-800">
-          <ShoppingCart className="w-4 h-4 text-blue-600" /> Indkøb fra leverandørfakturaer
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h3 className="text-sm font-semibold flex flex-wrap items-center gap-2 text-gray-800 min-w-0">
+          <ShoppingCart className="w-4 h-4 text-blue-600 shrink-0" />
+          <span className="break-words">Indkøb fra leverandørfakturaer</span>
           <span className="text-[10px] font-medium rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-200 px-1.5 py-0.5">Intern kost</span>
         </h3>
       </div>
@@ -50,14 +51,14 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
         <p className="text-sm text-gray-400 py-2">Ingen leverandørfaktura-linjer konverteret til denne sag endnu.</p>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Stat label="Materialer" value={kr(data.supplier_material_cost_total)} />
             <Stat label="Udlæg" value={kr(data.supplier_other_cost_total)} />
             <Stat label="Indkøb i alt" value={kr(data.supplier_purchase_total)} strong />
           </div>
 
           {data.budget_reference != null && (
-            <div className="rounded-md bg-gray-50 ring-1 ring-gray-200 px-3 py-2 text-xs text-gray-600 flex items-center justify-between">
+            <div className="rounded-md bg-gray-50 ring-1 ring-gray-200 px-3 py-2 text-xs text-gray-600 flex flex-wrap items-center justify-between gap-2">
               <span>{data.budget_reference_kind === 'budget' ? 'Budget' : 'Kontraktsum'} (reference)</span>
               <span className="font-medium text-gray-800">{kr(data.budget_reference)}</span>
             </div>
