@@ -30,16 +30,20 @@ function ChargeMark({ description }: { description: string }) {
 export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: string; lineCount: number }) {
   const [res, setRes] = useState<InvoiceControlResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [tryKey, setTryKey] = useState(0)
 
   useEffect(() => {
     let alive = true
+    setError(null)
     getInvoiceControl(invoiceId).then((r) => {
       if (!alive) return
       if (r.success && r.data) setRes(r.data)
       else setError(r.error ?? 'Ukendt fejl')
+    }).catch(() => {
+      if (alive) setError('Kunne ikke kontrollere priser')
     })
     return () => { alive = false }
-  }, [invoiceId, lineCount])
+  }, [invoiceId, lineCount, tryKey])
 
   if (lineCount === 0) return null
   const v = res ? VERDICT[res.control.verdict] : null
@@ -52,7 +56,14 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
         <h3 className="text-sm font-semibold break-words min-w-0">Fakturakontrol</h3>
         {v && <span className={`text-xs px-2 py-1 rounded border shrink-0 ${v.cls}`} data-testid="invoice-control-verdict">{v.label}</span>}
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && (
+        <div className="text-xs text-red-600">
+          <p>{error}. Det tælles ikke som at priserne stemmer.</p>
+          <button type="button" onClick={() => setTryKey((n) => n + 1)} className="mt-2 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800">
+            Prøv igen
+          </button>
+        </div>
+      )}
       {!res && !error && <p className="text-xs text-gray-400">Kontrollerer priser…</p>}
       {res && (
         <>
