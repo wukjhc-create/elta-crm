@@ -17,6 +17,7 @@
  * is open, and the error is shown inline.
  */
 
+import { ABSENCE_CONFLICT_PREFIX, isAbsenceConflict } from '@/lib/planning/absence'
 import { useEffect, useState, useTransition } from 'react'
 import { EmployeeDayLoadHint } from './employee-day-load-hint'
 import { useRouter } from 'next/navigation'
@@ -146,7 +147,7 @@ export function EditWorkOrderDialog({
     setError(null)
     setInfo(null)
     setSavingPatch(true)
-    const res = await updateWorkOrderPlanning(workOrder.id, {
+    const planPatch = {
       title: title.trim() !== initial.title.trim() ? title : undefined,
       description:
         (description ?? '').trim() !== (initial.description ?? '').trim()
@@ -159,7 +160,17 @@ export function EditWorkOrderDialog({
           : undefined,
       start_time: startTime !== initial.startTime ? (startTime || null) : undefined,
       estimated_hours: estHours.trim() !== initial.estHours ? (estHours.trim() || null) : undefined,
-    })
+    }
+    let res = await updateWorkOrderPlanning(workOrder.id, planPatch)
+    // 00228: fravær → eksplicit bekræftelse (audit-logges på serveren)
+    if (!res.success && isAbsenceConflict(res.error)) {
+      if (!window.confirm((res.error ?? '').slice(ABSENCE_CONFLICT_PREFIX.length).trim())) {
+        setSavingPatch(false)
+        setError('Ikke gemt — medarbejderen har fravær den dag')
+        return
+      }
+      res = await updateWorkOrderPlanning(workOrder.id, { ...planPatch, override_absence: true })
+    }
     setSavingPatch(false)
     if (!res.success) {
       setError(res.error ?? 'Kunne ikke opdatere arbejdsordre')

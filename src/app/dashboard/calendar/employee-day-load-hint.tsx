@@ -20,12 +20,21 @@ export function EmployeeDayLoadHint({ employeeId, date, excludeWorkOrderId, star
     return () => { alive = false }
   }, [employeeId, date, excludeWorkOrderId, startTime, estimatedHours])
 
-  if (!load || load.count === 0) return null
+  if (!load || (load.count === 0 && !load.absence)) return null
+  if (load.count === 0 && load.absence) {
+    return (
+      <div className="mt-1 rounded bg-red-50 ring-1 ring-red-200 px-2 py-1.5 text-xs text-red-900 flex gap-1.5" role="status" data-testid="employee-day-absence">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <span>Fravær: {load.absence}. Du bliver bedt om at bekræfte, hvis du planlægger alligevel.</span>
+      </div>
+    )
+  }
   return (
     <div className="mt-1 rounded bg-amber-50 ring-1 ring-amber-200 px-2 py-1.5 text-xs text-amber-900 flex gap-1.5" role="status" data-testid="employee-day-load">
       <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
       <span>
         Medarbejderen har allerede {load.count} job denne dag: {load.titles.slice(0, 3).join(', ')}{load.count > 3 ? ` m.fl.` : ''}
+        {load.absence && <strong className="block text-red-700" data-testid="employee-day-absence">Fravær: {load.absence}</strong>}
         {load.overlaps.length > 0 && (
           <strong className="block text-red-700" data-testid="employee-day-overlap">Overlapper tidsmæssigt med: {load.overlaps.join(', ')}</strong>
         )}

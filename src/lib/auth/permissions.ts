@@ -129,6 +129,9 @@ export const PERMISSIONS = {
   'calendar.view.team':          ['admin', 'serviceleder'],
   'calendar.view.own':           ['admin', 'serviceleder', 'montør'],
   'calendar.plan':               ['admin', 'serviceleder'],
+  // 00228 (Henrik 2026-10-15): fravær — type + periode; bogholderi læser, admin/serviceleder vedligeholder
+  'absences.view':               ['admin', 'serviceleder', 'bogholderi'],
+  'absences.manage':             ['admin', 'serviceleder'],
 
   // Time logs (udvidet, parallelt med eksisterende time.*)
   'time_logs.view.all':          ['admin', 'serviceleder', 'bogholderi'],

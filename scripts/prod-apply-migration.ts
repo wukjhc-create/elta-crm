@@ -72,6 +72,7 @@ const APPROVED: Record<string, string> = {
   '00224': '2026-10-15', // apply_package_to_offer: rå leverandørkost + faktisk avance, EXECUTE fjernet for anon/PUBLIC (GP-6), godkendt af Henrik i chat 2026-10-15 (kode + migration samlet)
   '00226': '2026-10-15', // offers.customer_id ON DELETE CASCADE → RESTRICT (rest af 00191), godkendt af Henrik i chat 2026-10-15 ("00226 GODKENDT TIL PROD")
   '00227': '2026-10-15', // work_orders.start_time + estimated_hours (valgfri, ingen backfill), godkendt af Henrik i chat 2026-10-15 ("00227 GODKENDT TIL PROD")
+  '00228': '2026-10-15', // employee_absences (type + periode, ingen fritekst; RLS admin/serviceleder skriver, bogholderi læser, montør egne), godkendt af Henrik i chat 2026-10-15 ("00228 GODKENDT TIL PROD")
 }
 
 async function main() {

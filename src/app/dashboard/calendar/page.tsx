@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { listAbsencesAction } from '@/lib/actions/absences'
 import type { Metadata } from 'next'
 import { getAllTasks } from '@/lib/actions/customer-tasks'
 import { getMyPersonalReminders } from '@/lib/actions/personal-reminders'
@@ -101,9 +102,11 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     rangeEnd = anchorDate
   }
 
-  const [workOrdersRes, employees] = await Promise.all([
+  const [workOrdersRes, employees, absencesRes] = await Promise.all([
     listWorkOrdersByDateRange(rangeStart, rangeEnd),
     listCalendarEmployeesAction(),
+    // 00228: fravær i perioden (RLS: montør ser kun egne)
+    listAbsencesAction(rangeStart, rangeEnd),
   ])
 
   const workOrders = workOrdersRes.success && workOrdersRes.data ? workOrdersRes.data : []
@@ -143,6 +146,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
         status: params.status ?? '',
       }}
       loadError={!workOrdersRes.success ? workOrdersRes.error ?? null : null}
+      absences={absencesRes.success ? (absencesRes.data ?? []) : []}
     />
     </>
   )

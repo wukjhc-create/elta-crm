@@ -14,6 +14,7 @@
  * On success the router refreshes so the chip appears in the grid.
  */
 
+import { ABSENCE_CONFLICT_PREFIX, isAbsenceConflict } from '@/lib/planning/absence'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { EmployeeDayLoadHint } from './employee-day-load-hint'
 import { useRouter } from 'next/navigation'
@@ -145,7 +146,7 @@ export function PlanWorkOrderDialog({
       return
     }
     setSubmitting(true)
-    const res = await createWorkOrderForCase({
+    const payload = {
       case_id: selectedCaseId,
       title: title.trim(),
       description: description.trim() || null,
@@ -153,8 +154,18 @@ export function PlanWorkOrderDialog({
       start_time: startTime || null,
       estimated_hours: estHours || null,
       assigned_employee_id: employeeId || null,
-      status: 'planned',
-    })
+      status: 'planned' as const,
+    }
+    let res = await createWorkOrderForCase(payload)
+    // 00228: fravær på datoen → bekræft eksplicit (audit-logges på serveren)
+    if (!res.success && isAbsenceConflict(res.error)) {
+      if (!window.confirm((res.error ?? '').slice(ABSENCE_CONFLICT_PREFIX.length).trim())) {
+        setSubmitting(false)
+        setSubmitError('Ikke planlagt — medarbejderen har fravær den dag')
+        return
+      }
+      res = await createWorkOrderForCase({ ...payload, override_absence: true })
+    }
     if (!res.success) {
       setSubmitting(false)
       setSubmitError(res.error ?? 'Kunne ikke oprette arbejdsordre')

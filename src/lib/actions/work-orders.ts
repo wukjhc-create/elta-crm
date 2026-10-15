@@ -1,4 +1,6 @@
 'use server'
+import { absenceConflictMessage } from '@/lib/planning/absence'
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { formatWorkOrderTime, parseEstimatedHours, parseStartTime, workOrdersOverlap } from '@/lib/planning/work-order-time'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
@@ -49,6 +51,8 @@ export interface CreateWorkOrderForCaseInput {
   estimated_hours?: string | number | null
   assigned_employee_id?: string | null
   status?: WorkOrderStatus
+  /** 00228: planlæg alligevel på en fraværsdag (bekræftet af planlæggeren — audit-logges) */
+  override_absence?: boolean
 }
 
 // Status transitions matching the service-layer state machine
@@ -176,7 +180,7 @@ export async function createWorkOrderForCase(
     const estHours = parseEstimatedHours(input.estimated_hours)
     if (!estHours.ok) return { success: false, error: estHours.error }
 
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('work_orders.plan')) {
       return { success: false, error: 'Manglende tilladelse: work_orders.plan' }
     }
@@ -208,6 +212,10 @@ export async function createWorkOrderForCase(
         return { success: false, error: 'Medarbejder er inaktiv' }
       }
     }
+
+    // 00228: fravær på datoen → advarsel; kun med eksplicit override (bekræftet) fortsættes, og det audit-logges
+    const absence = await absenceConflict(supabase, input.assigned_employee_id ?? null, input.scheduled_date ?? null)
+    if (absence && !input.override_absence) return { success: false, error: absence.message }
 
     const { data, error } = await supabase
       .from('work_orders')
@@ -247,6 +255,8 @@ export async function createWorkOrderForCase(
       /* best-effort */
     }
 
+    if (absence && input.override_absence) await logAbsenceOverride(userId, data.id as string, absence)
+
     revalidatePath(`/dashboard/orders/${caseRow.id}`)
     if ((caseRow as any).case_number) {
       revalidatePath(`/dashboard/orders/${(caseRow as any).case_number}`)
@@ -271,10 +281,11 @@ export async function updateWorkOrderPlanning(
     start_time?: string | null
     estimated_hours?: string | number | null
     assigned_employee_id?: string | null
+    override_absence?: boolean
   }
 ): Promise<ActionResult<WorkOrderRow>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('work_orders.plan')) {
       return { success: false, error: 'Manglende tilladelse: work_orders.plan' }
     }
@@ -304,6 +315,17 @@ export async function updateWorkOrderPlanning(
 
     if (Object.keys(patch).length === 0) {
       return { success: false, error: 'Ingen ændringer' }
+    }
+
+    // 00228: ændres medarbejder eller dato, kontrolleres fravær på den (nye) kombination
+    let absenceUpd: AbsenceConflict | null = null
+    if (input.assigned_employee_id !== undefined || input.scheduled_date !== undefined) {
+      const { data: curWo } = await supabase.from('work_orders').select('assigned_employee_id, scheduled_date').eq('id', workOrderId).maybeSingle()
+      const cw = (curWo ?? {}) as { assigned_employee_id?: string | null; scheduled_date?: string | null }
+      const emp = input.assigned_employee_id !== undefined ? (input.assigned_employee_id || null) : cw.assigned_employee_id ?? null
+      const day = input.scheduled_date !== undefined ? (input.scheduled_date || null) : cw.scheduled_date ?? null
+      absenceUpd = await absenceConflict(supabase, emp, day ? String(day).slice(0, 10) : null)
+      if (absenceUpd && !input.override_absence) return { success: false, error: absenceUpd.message }
     }
 
     // Validate employee (active) if assigning
@@ -345,6 +367,7 @@ export async function updateWorkOrderPlanning(
       revalidatePath(`/dashboard/orders/${data.case_id}`)
     }
 
+    if (absenceUpd && input.override_absence) await logAbsenceOverride(userId, workOrderId, absenceUpd)
     return { success: true, data: data as WorkOrderRow }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
@@ -659,7 +682,7 @@ function lowProfitVisible(hasPermission: (p: import('@/lib/auth/permissions').Pe
 // Planlægning — dobbeltbooking-varsel (fokus E 2026-10-15)
 // =====================================================
 
-export interface EmployeeDayLoad { count: number; titles: string[]; overlaps: string[] }
+export interface EmployeeDayLoad { count: number; titles: string[]; overlaps: string[]; absence: string | null }
 
 /**
  * Aktive arbejdsordrer (planlagt/i gang) for en medarbejder på en dato — vises som advarsel i planlægningsdialogerne
@@ -677,13 +700,51 @@ export async function getEmployeeDayLoadAction(employeeId: string, date: string,
     const { data, error } = await q.order('created_at').limit(20)
     if (error) throw error
     const rows = (data ?? []) as Array<{ id: string; title: string | null; start_time: string | null; estimated_hours: number | null }>
+    const abs = await absenceConflict(supabase, employeeId, date)
     // 00227: ægte overlap når både det nye og de eksisterende job har tidspunkt + varighed
     const st = parseStartTime(startTime ?? null)
     const eh = parseEstimatedHours(estimatedHours ?? null)
     const mine = { start_time: st.ok ? st.value : null, estimated_hours: eh.ok ? eh.value : null }
     const overlaps = rows.filter((r) => workOrdersOverlap(mine, r)).map((r) => `${r.title ?? 'Arbejdsordre'} (${formatWorkOrderTime(r.start_time, r.estimated_hours)})`)
-    return { success: true, data: { count: rows.length, titles: rows.map((r) => `${r.title ?? 'Arbejdsordre'}${r.start_time ? ` ${formatWorkOrderTime(r.start_time, r.estimated_hours)}` : ''}`), overlaps } }
+    return { success: true, data: { count: rows.length, titles: rows.map((r) => `${r.title ?? 'Arbejdsordre'}${r.start_time ? ` ${formatWorkOrderTime(r.start_time, r.estimated_hours)}` : ''}`), overlaps, absence: abs ? abs.message.replace(/^FRAVÆR:\s*/, '').replace(/ Planlæg alligevel\?$/, '') : null } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente medarbejderens dag') }
   }
+}
+
+
+// =====================================================
+// 00228 — fravær ved planlægning (advarsel + eksplicit override + audit)
+// =====================================================
+
+interface AbsenceConflict { message: string; absence_id: string; kind: string; start_date: string; end_date: string; employee_id: string }
+
+async function absenceConflict(
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
+  employeeId: string | null,
+  date: string | null,
+): Promise<AbsenceConflict | null> {
+  if (!employeeId || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
+  const { data } = await supabase
+    .from('employee_absences')
+    .select('id, employee_id, kind, start_date, end_date, employee:employees(name)')
+    .eq('employee_id', employeeId)
+    .lte('start_date', date)
+    .gte('end_date', date)
+    .limit(1)
+  const r = ((data ?? []) as unknown as Array<{ id: string; employee_id: string; kind: string; start_date: string; end_date: string; employee: { name: string | null } | Array<{ name: string | null }> | null }>)[0]
+  if (!r) return null
+  const name = (Array.isArray(r.employee) ? r.employee[0] : r.employee)?.name ?? null
+  return { message: absenceConflictMessage(name, r), absence_id: r.id, kind: r.kind, start_date: r.start_date, end_date: r.end_date, employee_id: r.employee_id }
+}
+
+async function logAbsenceOverride(userId: string, workOrderId: string, a: AbsenceConflict): Promise<void> {
+  await insertAuditRow({
+    user_id: userId,
+    entity_type: 'work_order',
+    entity_id: workOrderId,
+    action: 'planning_absence_override',
+    action_description: `Planlagt trods fravær (${a.kind} ${a.start_date}–${a.end_date}) — bekræftet af planlæggeren`,
+    changes: { absence_id: a.absence_id, employee_id: a.employee_id, kind: a.kind, start_date: a.start_date, end_date: a.end_date },
+  })
 }

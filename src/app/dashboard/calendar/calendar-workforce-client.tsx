@@ -14,6 +14,7 @@
  * Month view is rendered by the existing CalendarPageClient (preserved).
  */
 
+import { absenceLabel, absenceOn, type AbsenceRow } from '@/lib/planning/absence'
 import { formatWorkOrderTime } from '@/lib/planning/work-order-time'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
@@ -92,7 +93,9 @@ export function CalendarWorkforceClient({
   workOrders,
   filters,
   loadError,
+  absences = [],
 }: {
+  absences?: AbsenceRow[]
   view: CalendarView
   anchorDate: string
   rangeStart: string
@@ -196,6 +199,7 @@ export function CalendarWorkforceClient({
   }, [view, rangeStart, anchorDate])
 
   return (
+    <AbsenceCtx.Provider value={{ absences, anchorDate }}>
     <ChipClickContext.Provider value={(wo) => setSelectedWorkOrder(wo)}>
     <div className="space-y-4">
       {/* Header */}
@@ -399,6 +403,7 @@ export function CalendarWorkforceClient({
       />
     </div>
     </ChipClickContext.Provider>
+    </AbsenceCtx.Provider>
   )
 }
 
@@ -470,6 +475,8 @@ function EmployeeRow({
   workOrders: WorkOrderForCalendar[]
 }) {
   const roleLabel = ROLE_LABEL.get(employee.role as any) ?? employee.role
+  const { absences, anchorDate } = useContext(AbsenceCtx)
+  const absent = absenceOn(absences, employee.id, anchorDate)
   return (
     <tr className="align-top">
       <td className="px-3 py-3 w-64">
@@ -480,6 +487,7 @@ function EmployeeRow({
           {employee.name || '—'}
         </Link>
         <div className="text-xs text-gray-500">{roleLabel}</div>
+        {absent && <AbsenceBadge kind={absent.kind} />}
       </td>
       <td className="px-3 py-3">
         {workOrders.length === 0 ? (
@@ -624,6 +632,7 @@ function WeekEmployeeRow({
 }) {
   const today = todayKey()
   const roleLabel = ROLE_LABEL.get(employee.role as any) ?? employee.role
+  const { absences } = useContext(AbsenceCtx)
   // Fokus E 2026-10-15: belastning — aktive job (planlagt/i gang) pr. dag og uge
   const active = (wos: WorkOrderForCalendar[]) => wos.filter((w) => w.status === 'planned' || w.status === 'in_progress').length
   const weekActive = weekDates.reduce((n, d) => n + active(byDateThenEmployee.get(d)?.get(employee.id) ?? []), 0)
@@ -643,13 +652,15 @@ function WeekEmployeeRow({
         const isToday = d === today
         const wos = byDateThenEmployee.get(d)?.get(employee.id) ?? []
         const dayActive = active(wos)
+        const absent = absenceOn(absences, employee.id, d)
         return (
           <td
             key={d}
             className={`px-1.5 py-2 border-r last:border-r-0 align-top min-w-[140px] ${
-              isToday ? 'bg-emerald-50/40' : ''
+              absent ? 'bg-red-50/50' : isToday ? 'bg-emerald-50/40' : ''
             }`}
           >
+            {absent && <AbsenceBadge kind={absent.kind} />}
             {wos.length === 0 ? (
               onPlanCell ? (
                 <button
@@ -678,6 +689,17 @@ function WeekEmployeeRow({
         )
       })}
     </tr>
+  )
+}
+
+// 00228 (Henrik 2026-10-15): fravær i kalenderen — kun type (ingen detaljer)
+const AbsenceCtx = createContext<{ absences: AbsenceRow[]; anchorDate: string }>({ absences: [], anchorDate: '' })
+
+function AbsenceBadge({ kind }: { kind: string }) {
+  return (
+    <div className="mb-1 inline-block text-[10px] font-semibold uppercase tracking-wide rounded bg-red-100 text-red-800 px-1.5 py-0.5" data-testid="calendar-absence">
+      {absenceLabel(kind)}
+    </div>
   )
 }
 

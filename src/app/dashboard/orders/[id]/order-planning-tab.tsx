@@ -1,5 +1,6 @@
 'use client'
 
+import { ABSENCE_CONFLICT_PREFIX, isAbsenceConflict } from '@/lib/planning/absence'
 import { EmployeeDayLoadHint } from '@/app/dashboard/calendar/employee-day-load-hint'
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -147,7 +148,7 @@ export function OrderPlanningTab({
       return
     }
     setIsWorking(true)
-    const res = await createWorkOrderForCase({
+    const payload = {
       case_id: caseId,
       title: formTitle.trim(),
       description: formDescription.trim() || null,
@@ -155,7 +156,17 @@ export function OrderPlanningTab({
       start_time: formStart || null,
       estimated_hours: formEst || null,
       assigned_employee_id: formEmployee || null,
-    })
+    }
+    let res = await createWorkOrderForCase(payload)
+    // 00228: fravær → eksplicit bekræftelse (audit-logges på serveren)
+    if (!res.success && isAbsenceConflict(res.error)) {
+      if (!window.confirm((res.error ?? '').slice(ABSENCE_CONFLICT_PREFIX.length).trim())) {
+        setIsWorking(false)
+        setError('Ikke planlagt — medarbejderen har fravær den dag')
+        return
+      }
+      res = await createWorkOrderForCase({ ...payload, override_absence: true })
+    }
     setIsWorking(false)
     if (!res.success) {
       setError(res.error || 'Kunne ikke oprette arbejdsordre')

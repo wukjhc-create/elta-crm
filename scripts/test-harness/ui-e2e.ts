@@ -1909,6 +1909,82 @@ ${m.text()}`) })
         out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U163 00228 (Henrik 2026-10-15): fravær — admin registrerer; vises i kalenderen; planlægning på fraværsdag kræver
+      // eksplicit bekræftelse (afvist → intet oprettet; bekræftet → oprettet + audit); bogholderi læser uden at kunne
+      // skrive; montør har ingen adgang til siden
+      if (want('U163') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const dayKey = (offset: number) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() + offset * 86400_000))
+        const d = dayKey(4)
+        const empName = `Harness Fravær ${stamp}`
+        const emp = await c.admin.from('employees').insert([{ name: empName, email: `fravaer-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495 }]).select('id')
+        const empId = (emp.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] fravær ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/absences`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('absence-employee').selectOption(empId ?? '').catch(() => {})
+          await a.page.getByTestId('absence-kind').selectOption('ferie').catch(() => {})
+          await a.page.getByTestId('absence-from').fill(d).catch(() => {})
+          await a.page.getByTestId('absence-to').fill(d).catch(() => {})
+          await a.page.getByTestId('absence-add').click({ timeout: 30_000 }).catch(() => {})
+          let abs: Array<{ id: string }> = []
+          for (let i = 0; i < 15 && !abs.length; i++) {
+            abs = ((await c.admin.from('employee_absences').select('id').eq('employee_id', empId ?? '')).data ?? []) as Array<{ id: string }>
+            if (!abs.length) await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.registreret = abs.length === 1
+          await gotoSafe(a.page, `${base}/dashboard/calendar?view=week&date=${d}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const row = a.page.locator('tr', { hasText: empName }).first()
+          r.vist_i_kalender = (await row.getByTestId('calendar-absence').count()) >= 1
+          // planlæg på fraværsdagen fra sagen — først afvis, så bekræft
+          const planOnce = async (accept: boolean) => {
+            await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await a.page.getByRole('button', { name: /Planlæg medarbejder/ }).first().click({ timeout: 30_000 }).catch(() => {})
+            await a.page.locator('input[type="date"]').first().fill(d).catch(() => {})
+            await a.page.locator('select').filter({ has: a.page.locator(`option[value="${empId}"]`) }).first().selectOption(empId ?? '').catch(() => {})
+            const titleInput = a.page.getByPlaceholder(/El-installation/).first()
+            if (await titleInput.count()) await titleInput.fill(`Fraværsjob ${stamp}`).catch(() => {})
+            let msg = ''
+            a.page.once('dialog', (dl) => { msg = dl.message(); (accept ? dl.accept() : dl.dismiss()).catch(() => {}) })
+            await a.page.getByRole('button', { name: 'Opret arbejdsordre' }).click({ timeout: 30_000 }).catch(() => {})
+            await a.page.waitForTimeout(2500)
+            return msg
+          }
+          const m1 = await planOnce(false)
+          const n1 = ((await c.admin.from('work_orders').select('id').eq('case_id', caseId ?? '')).data ?? []).length
+          r.advarsel_vist = /har ferie/.test(m1)
+          r.afvist_intet_oprettet = n1 === 0
+          await planOnce(true)
+          let wos: Array<{ id: string }> = []
+          for (let i = 0; i < 10 && !wos.length; i++) {
+            wos = ((await c.admin.from('work_orders').select('id').eq('case_id', caseId ?? '')).data ?? []) as Array<{ id: string }>
+            if (!wos.length) await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.bekraeftet_oprettet = wos.length === 1
+          const aud = wos[0] ? ((await c.admin.from('audit_logs').select('action').eq('entity_id', wos[0].id).eq('action', 'planning_absence_override')).data ?? []) : []
+          r.override_audit = aud.length === 1
+          // bogholderi læser, kan ikke skrive; montør ingen adgang
+          const bog = await login(await mkUser('bogholderi'))
+          try {
+            await gotoSafe(bog.page, `${base}/dashboard/absences`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await bog.page.getByTestId('absence-list').waitFor({ timeout: 30_000 }).catch(() => {})
+            r.bogholderi_laeser = (await bog.page.getByTestId('absence-row').filter({ hasText: empName }).count()) === 1
+            r.bogholderi_ingen_form = (await bog.page.getByTestId('absence-form').count()) === 0
+          } finally { await bog.ctx.close().catch(() => {}) }
+          const mo = await login(montor)
+          try {
+            await gotoSafe(mo.page, `${base}/dashboard/absences`, { waitUntil: 'networkidle', timeout: 180_000 })
+            r.montoer_ingen_adgang = (await mo.page.getByTestId('absences-page').count()) === 0
+          } finally { await mo.ctx.close().catch(() => {}) }
+        } finally {
+          if (caseId) { const w = ((await c.admin.from('work_orders').select('id').eq('case_id', caseId)).data ?? []) as Array<{ id: string }>; if (w.length) await c.admin.from('work_orders').delete().in('id', w.map((x) => x.id)) }
+          if (empId) { await c.admin.from('employee_absences').delete().eq('employee_id', empId); await c.admin.from('employees').delete().eq('id', empId) }
+        }
+        out.push({ id: 'U163 fravær: kalender, advarsel + override + audit, roller', ok: !!empId && !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U48 lukke-værn: sag med ufaktureret materiale lukkes ikke stille
       if (want('U48') && profitCustomerId) {
         const r: Record<string, boolean> = {}

@@ -2168,6 +2168,13 @@ async function main() {
     process.exitCode = fails ? 2 : 0
     return
   }
+  if (SUB === 'absence-rls-check') {
+    const { runAbsenceRlsCheck, formatAbsenceRlsCheck } = await import('./absence-rls-check')
+    const checks = await runAbsenceRlsCheck({ admin, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })
+    log(formatAbsenceRlsCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'vat-guard-check') {
     const { runVatGuardCheck, formatVatGuardCheck } = await import('./vat-guard-check')
     const checks = await runVatGuardCheck({ admin })
