@@ -385,6 +385,7 @@ export function CalendarWorkforceClient({
           date={anchorDate}
           byDateThenEmployee={byDateThenEmployee}
           hasUnassigned={hasUnassigned}
+          filtersActive={Boolean(filters.employee || filters.status)}
         />
       )}
 
@@ -395,6 +396,7 @@ export function CalendarWorkforceClient({
           weekDates={weekDates}
           byDateThenEmployee={byDateThenEmployee}
           hasUnassigned={hasUnassigned}
+          filtersActive={Boolean(filters.employee || filters.status)}
         />
       )}
 
@@ -419,11 +421,13 @@ function DayView({
   date,
   byDateThenEmployee,
   hasUnassigned,
+  filtersActive,
 }: {
   employees: EmployeeRow[]
   date: string
   byDateThenEmployee: Map<string, Map<string, WorkOrderForCalendar[]>>
   hasUnassigned: boolean
+  filtersActive: boolean
 }) {
   const empMap = byDateThenEmployee.get(date) ?? new Map<string, WorkOrderForCalendar[]>()
   const totalCount = Array.from(empMap.values()).reduce((s, arr) => s + arr.length, 0)
@@ -433,8 +437,9 @@ function DayView({
       <div className="text-center py-16 bg-white rounded-lg ring-1 ring-gray-200">
         <h3 className="text-base font-medium text-gray-700">Ingen planlagte opgaver</h3>
         <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-          Der er ikke planlagt nogen arbejdsordrer for {fmtDate(date)}. Åbn en
-          sag og brug "Planlæg medarbejder" til at tilføje en.
+          {filtersActive
+            ? 'Ingen arbejdsordrer matcher filtrene denne dag. Nulstil filtrene for at se resten.'
+            : <>Der er ikke planlagt nogen arbejdsordrer for {fmtDate(date)}. Åbn en sag og brug &quot;Planlæg medarbejder&quot; til at tilføje en.</>}
         </p>
       </div>
     )
@@ -555,11 +560,13 @@ function WeekView({
   weekDates,
   byDateThenEmployee,
   hasUnassigned,
+  filtersActive,
 }: {
   employees: EmployeeRow[]
   weekDates: string[]
   byDateThenEmployee: Map<string, Map<string, WorkOrderForCalendar[]>>
   hasUnassigned: boolean
+  filtersActive: boolean
 }) {
   const today = todayKey()
   return (
@@ -582,7 +589,7 @@ function WeekView({
               {WEEKDAY_NAMES[i]} {fmtShortDate(d)}
             </h3>
             {named.length === 0 && loose.length === 0 ? (
-              <p className="text-xs text-gray-400 mt-1">Ingen planlagte job denne dag</p>
+              <p className="text-xs text-gray-400 mt-1">{filtersActive ? 'Ingen job matcher filtrene.' : 'Ingen planlagte job denne dag'}</p>
             ) : (
               <div className="mt-2 space-y-2">
                 {named.map((group) => (
