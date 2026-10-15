@@ -32,10 +32,12 @@ type Client = { from: (t: string) => any }
  * `catalogClient` (kalderen giver admin-klienten bag sin gate); faktura og linjer læses fortsat med `client` (RLS).
  */
 export async function loadInvoiceControl(client: Client, invoiceId: string, catalogClient: Client = client): Promise<InvoiceControlResult | null> {
-  const { data: inv } = await client.from('incoming_invoices').select('id, supplier_id, invoice_date, amount_excl_vat, vat_amount, amount_incl_vat').eq('id', invoiceId).maybeSingle()
+  const { data: inv, error: invError } = await client.from('incoming_invoices').select('id, supplier_id, invoice_date, amount_excl_vat, vat_amount, amount_incl_vat').eq('id', invoiceId).maybeSingle()
+  if (invError) throw new Error('Kunne ikke hente fakturaen')
   if (!inv) return null
-  const { data: rows } = await client.from('incoming_invoice_lines')
+  const { data: rows, error: linesError } = await client.from('incoming_invoice_lines')
     .select('line_number, description, quantity, unit_price, total_price, supplier_product_id, raw_line').eq('incoming_invoice_id', invoiceId).order('line_number')
+  if (linesError) throw new Error('Kunne ikke hente fakturalinjer')
   const lines = (rows ?? []) as Array<{ line_number: number; description: string | null; quantity: number | null; unit_price: number | null; total_price: number | string | null; supplier_product_id: string | null; raw_line: string | null }>
 
   const toMatch = lines.map((l) => ({ lineNumber: l.line_number, description: l.description, supplierProductCode: codeFromRawLine(l.raw_line) }))
@@ -48,11 +50,16 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
         catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', inv.supplier_id).in('supplier_sku', chunk),
         catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', inv.supplier_id).in('ean', chunk),
       ])
+      if (a.error || b.error) throw new Error('Kunne ikke hente katalogpriser')
       products.push(...((a.data ?? []) as ProductRef[]), ...((b.data ?? []) as ProductRef[]))
     }
   }
   const storedIds = [...new Set(lines.map((l) => l.supplier_product_id).filter(Boolean) as string[])]
-  const stored = storedIds.length ? (((await catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').in('id', storedIds)).data ?? []) as ProductRef[]) : []
+  const storedRes = storedIds.length
+    ? await catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').in('id', storedIds)
+    : { data: [] as ProductRef[], error: null }
+  if (storedRes.error) throw new Error('Kunne ikke hente katalogpriser')
+  const stored = (storedRes.data ?? []) as ProductRef[]
   const storedById = new Map(stored.map((p) => [p.id, p]))
   products = [...new Map(products.map((p) => [p.id, p])).values()]
 

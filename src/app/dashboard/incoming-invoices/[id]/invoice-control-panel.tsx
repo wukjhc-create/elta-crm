@@ -33,6 +33,11 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
   const [tryKey, setTryKey] = useState(0)
 
   useEffect(() => {
+    setRes(null)
+    setError(null)
+  }, [invoiceId])
+
+  useEffect(() => {
     let alive = true
     setError(null)
     getInvoiceControl(invoiceId).then((r) => {
