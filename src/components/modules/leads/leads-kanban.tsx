@@ -119,6 +119,9 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
                 <p className="font-semibold text-gray-900 break-words">{lead.company_name}</p>
                 {lead.contact_person && <p className="text-sm text-gray-500 break-words">{lead.contact_person}</p>}
                 {lead.value ? <p className="text-sm text-gray-700 mt-1">{formatCurrency(lead.value)}</p> : null}
+                {lead.assigned_to_profile?.full_name && (
+                  <p className="text-xs text-gray-500 break-words mt-1">Ansvarlig: {lead.assigned_to_profile.full_name}</p>
+                )}
               </button>
               {next.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
@@ -204,7 +207,7 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
                     </div>
 
                     {/* Meta row */}
-                    <div className="flex items-center justify-between mt-2">
+                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mt-2">
                       {lead.value ? (
                         <span className="text-xs font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded">
                           {formatCurrency(lead.value)}

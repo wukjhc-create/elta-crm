@@ -21,6 +21,8 @@ eq('vaerdi bliver', src.includes('formatCurrency(lead.value)'), true)
 eq('traek bliver', src.includes('handleDragStart(e, lead.id)'), true)
 eq('tom fase bliver', src.includes('Ingen leads i denne fase.'), true)
 eq('tom fase siger naeste skridt', mobile.includes('Vælg en anden fase, eller brug Ny Lead.'), true)
+eq('mobil viser ansvarlig', mobile.includes('Ansvarlig: {lead.assigned_to_profile.full_name}'), true)
+eq('desktop-meta kan ombrydes', src.includes('flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mt-2'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nleads-kanban-mobile-test OK')
 process.exitCode = fail ? 1 : 0
