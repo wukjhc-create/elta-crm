@@ -38,6 +38,7 @@ import { OrderNotesTab } from './order-notes-tab'
 import { OrderTasksTab } from './order-tasks-tab'
 import { InlineStatusChanger } from './inline-status-changer'
 import { CaseCloseReadiness, CaseStartHint } from './case-close-readiness'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import { OfferAgentButton } from '@/components/modules/agents/offer-agent-button'
 import { WeatherWidget } from '@/components/shared/weather-widget'
 
@@ -871,11 +872,5 @@ function fmtDateLong(s: string | null | undefined) {
   if (!s) return '—'
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleString('da-DK', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return copenhagenDateTimeLabel(s)
 }
