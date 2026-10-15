@@ -10,6 +10,7 @@ import {
   changeWorkOrderStatus,
   getWorkOrderCapabilitiesAction,
   deletePlannedWorkOrder,
+  updateWorkOrderPlanning,
   type WorkOrderWithEmployee,
 } from '@/lib/actions/work-orders'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
@@ -171,6 +172,20 @@ export function OrderPlanningTab({
     }
     await reload()
     startTransition(() => router.refresh())
+  }
+
+  const onReplan = async (
+    woId: string,
+    patch: { scheduled_date?: string | null; assigned_employee_id?: string | null },
+  ) => {
+    setIsWorking(true)
+    const res = await updateWorkOrderPlanning(woId, patch)
+    setIsWorking(false)
+    if (res.success) {
+      await reload()
+      startTransition(() => router.refresh())
+    }
+    return { success: res.success, error: res.error }
   }
 
   const onDelete = async (woId: string) => {
@@ -393,6 +408,9 @@ export function OrderPlanningTab({
                 key={wo.id}
                 caps={caps}
                 wo={wo}
+                canPlan={canPlan}
+                employees={employees}
+                onReplan={onReplan}
                 canSeeCost={showCost && canSeeLaborCostDetail}
                 onChangeStatus={onChangeStatus}
                 onDelete={onDelete}
@@ -440,6 +458,9 @@ function WorkOrderRow({
   onLogsChange,
   canSeeCost = false,
   caps,
+  canPlan,
+  employees,
+  onReplan,
 }: {
   caps: WorkOrderCaps
   wo: WorkOrderWithEmployee
@@ -448,7 +469,40 @@ function WorkOrderRow({
   disabled?: boolean
   onLogsChange?: () => void
   canSeeCost?: boolean
+  canPlan: boolean
+  employees: { id: string; name: string }[]
+  onReplan: (
+    woId: string,
+    patch: { scheduled_date?: string | null; assigned_employee_id?: string | null },
+  ) => Promise<{ success: boolean; error?: string }>
 }) {
+  const initialDate = wo.scheduled_date ? wo.scheduled_date.slice(0, 10) : ''
+  const initialEmployee = wo.assigned_employee_id ?? ''
+  const [date, setDate] = useState(initialDate)
+  const [employeeId, setEmployeeId] = useState(initialEmployee)
+  const [saving, setSaving] = useState(false)
+  const [rowError, setRowError] = useState<string | null>(null)
+  useEffect(() => {
+    setDate(initialDate)
+    setEmployeeId(initialEmployee)
+  }, [initialDate, initialEmployee])
+  const editable = canPlan && (wo.status === 'planned' || wo.status === 'in_progress')
+
+  const saveReplan = async () => {
+    const patch: { scheduled_date?: string | null; assigned_employee_id?: string | null } = {}
+    if (date !== initialDate) patch.scheduled_date = date || null
+    if (employeeId !== initialEmployee) patch.assigned_employee_id = employeeId || null
+    if (Object.keys(patch).length === 0) {
+      setRowError('Ingen ændringer')
+      return
+    }
+    setSaving(true)
+    setRowError(null)
+    const res = await onReplan(wo.id, patch)
+    setSaving(false)
+    if (!res.success) setRowError(res.error || 'Kunne ikke opdatere arbejdsordre')
+  }
+
   // Kun knapper brugeren faktisk kan bruge — afgjort af serveren (rolle + N11-flag), samme regel som changeWorkOrderStatus.
   const { canStart, canComplete, canCancel, canDelete } = caps
   const transitions = NEXT_TRANSITIONS[wo.status].filter((t) => (t === 'done' ? canComplete : t === 'in_progress' ? canStart : canCancel))
@@ -529,6 +583,48 @@ function WorkOrderRow({
           )}
         </div>
       </div>
+
+      {editable && (
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2" data-testid="work-order-replan">
+          <div className="space-y-1">
+            <label className="text-xs text-gray-600">Planlagt dato</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              aria-label="Ret planlagt dato"
+              disabled={disabled || saving}
+              className="w-full px-3 py-2 border rounded-md text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-gray-600">Medarbejder</label>
+            <select
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+              aria-label="Ret medarbejder"
+              disabled={disabled || saving || employees.length === 0}
+              className="w-full px-3 py-2 border rounded-md text-sm bg-white"
+            >
+              <option value="">— Ingen tildelt —</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={saveReplan}
+              disabled={disabled || saving}
+              className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50 disabled:opacity-50"
+            >
+              {saving ? 'Gemmer…' : 'Gem dato og montør'}
+            </button>
+            {rowError && <span className="text-xs text-red-700 break-words">{rowError}</span>}
+          </div>
+        </div>
+      )}
 
       {/* Time logs (Sprint 4C) */}
       {wo.status !== 'cancelled' && (

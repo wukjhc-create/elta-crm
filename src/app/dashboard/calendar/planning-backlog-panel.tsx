@@ -12,6 +12,12 @@ const REASON: Record<PlanningBacklogItem['reason'], string> = {
   missing_employee: 'Arbejdsordre uden montør',
 }
 
+const NEXT: Record<PlanningBacklogItem['reason'], string> = {
+  no_work_order: 'Åbn Planlægning og opret en arbejdsordre.',
+  missing_date: 'Åbn Planlægning og sæt en dato.',
+  missing_employee: 'Åbn Planlægning og vælg en montør.',
+}
+
 export function PlanningBacklogPanel({ items, total }: { items: PlanningBacklogItem[]; total: number }) {
   if (total === 0) return null
   return (
@@ -29,6 +35,7 @@ export function PlanningBacklogPanel({ items, total }: { items: PlanningBacklogI
                 {it.case_number ? `${it.case_number} · ` : ''}{it.title}
               </Link>
               <div className="text-xs text-gray-500 break-words">{it.customer_name ?? '—'}</div>
+              <div className="text-xs text-gray-600 mt-0.5 break-words">{NEXT[it.reason]}</div>
             </div>
             <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-800 ring-1 ring-amber-200">{REASON[it.reason]}</span>
           </li>

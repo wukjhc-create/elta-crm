@@ -21,6 +21,9 @@ eq('job med sag siger registrer tid', jobs.includes('Åbn Planlægning / Timer o
 eq('job uden sag siger naeste skridt', jobs.includes('Jobbet har ingen sag, så tiden kan ikke åbnes herfra.'), true)
 eq('dato er lokal middag', jobs.includes('T12:00:00') && !jobs.includes('T12:00:00Z'), true)
 eq('aarsag bliver', src.includes('Arbejdsordre uden montør') && jobs.includes('Afsluttet uden tid') && backlog.includes('REASON[it.reason]'), true)
+eq('ko uden ordre siger opret', src.includes('Åbn Planlægning og opret en arbejdsordre.') && backlog.includes('NEXT[it.reason]'), true)
+eq('ko uden dato siger saet dato', src.includes('Åbn Planlægning og sæt en dato.'), true)
+eq('ko uden montor siger vaelg', src.includes('Åbn Planlægning og vælg en montør.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nplanning-backlog-mobile-test OK')
 process.exitCode = fail ? 1 : 0
