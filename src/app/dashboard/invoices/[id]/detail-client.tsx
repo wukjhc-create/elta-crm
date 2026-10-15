@@ -629,27 +629,25 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
             {detail.lines.map((l) => {
               const src = lineSourceLabel(l)
               return (
-                <li key={l.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 break-words text-gray-900">{l.position}. {l.description}</p>
-                    <p className="shrink-0 tabular-nums font-medium">{fmtKr(l.total_price, inv.currency)}</p>
-                  </div>
+                <li key={l.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm min-w-0">
+                  <p className="min-w-0 break-words text-gray-900">{l.position}. {l.description}</p>
+                  <p className="mt-1 tabular-nums font-medium text-gray-900 break-words">{fmtKr(l.total_price, inv.currency)}</p>
                   <p className={`mt-1 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${src.color}`}>
                     {src.label}
                   </p>
-                  <p className="mt-1 text-xs tabular-nums text-gray-700">
+                  <p className="mt-1 text-xs tabular-nums text-gray-700 break-words">
                     {fmtNum(Number(l.quantity), 2)} {l.unit ?? '—'} · {fmtKr(l.unit_price, inv.currency)}
                   </p>
                 </li>
               )
             })}
           </ul>
-          <div className="md:hidden mt-2 space-y-1 text-sm">
-            <p className="flex justify-between gap-2"><span className="text-gray-600">Subtotal (ex moms)</span><span className="tabular-nums font-medium">{fmtKr(inv.total_amount, inv.currency)}</span></p>
-            <p className="flex justify-between gap-2"><span className="text-gray-600">Moms</span><span className="tabular-nums font-medium">{fmtKr(inv.tax_amount, inv.currency)}</span></p>
-            <p className="flex justify-between gap-2"><span className="text-gray-700 font-medium">Total inkl. moms</span><span className="tabular-nums font-bold">{fmtKr(inv.final_amount, inv.currency)}</span></p>
+          <div className="md:hidden mt-2 space-y-1 text-sm min-w-0">
+            <p className="flex flex-wrap justify-between gap-2 min-w-0"><span className="text-gray-600">Subtotal (ex moms)</span><span className="min-w-0 tabular-nums font-medium break-words">{fmtKr(inv.total_amount, inv.currency)}</span></p>
+            <p className="flex flex-wrap justify-between gap-2 min-w-0"><span className="text-gray-600">Moms</span><span className="min-w-0 tabular-nums font-medium break-words">{fmtKr(inv.tax_amount, inv.currency)}</span></p>
+            <p className="flex flex-wrap justify-between gap-2 min-w-0"><span className="text-gray-700 font-medium">Total inkl. moms</span><span className="min-w-0 tabular-nums font-bold break-words">{fmtKr(inv.final_amount, inv.currency)}</span></p>
             {inv.amount_paid > 0 && (
-              <p className="flex justify-between gap-2 text-emerald-700"><span>Betalt</span><span className="tabular-nums font-medium">{fmtKr(inv.amount_paid, inv.currency)}</span></p>
+              <p className="flex flex-wrap justify-between gap-2 min-w-0 text-emerald-700"><span>Betalt</span><span className="min-w-0 tabular-nums font-medium break-words">{fmtKr(inv.amount_paid, inv.currency)}</span></p>
             )}
           </div>
           <div className="hidden md:block overflow-x-auto">
