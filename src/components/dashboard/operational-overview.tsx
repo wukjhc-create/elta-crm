@@ -85,6 +85,7 @@ const SERVICE_LABEL: Record<string, string> = {
   bank: 'Bank',
   economic: 'e-conomic',
   health_check: 'Health',
+  ui: 'Brugerfejl',
 }
 
 export function OperationalOverview() {

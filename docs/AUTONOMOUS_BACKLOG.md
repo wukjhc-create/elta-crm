@@ -46,7 +46,7 @@ Kilde: read-only review. [H] = kræver Henrik. NB: selvregistrering er STADIG sl
 | R-6 (S3) | Vilkårlig tekst kan injiceres på login-siden via ?error= | DONE — kun kendte fejlkoder; callback sender `link_expired` (UI U156) |
 | R-7 (S3) | Pilot-tjeklisten mangler "Graph-mail konfigureret" og "App-URL sat" | DONE — punkter "Mail-afsendelse (Graph)" og "App-adresse sat" (kun ja/nej; U53) |
 | R-8 (S3) | Notifikationsklokken: tilbuds-/leverandøradvarsler kan ikke klikkes | DONE — tilbud/leverandør/leverandørvare-advarsler navigerer |
-| R-9 (S3) | Klient-crashes når aldrig admin (error boundary kun console) | TODO |
+| R-9 (S3) | Klient-crashes når aldrig admin (error boundary kun console) | DONE — error boundary rapporterer til system_health_log service 'ui' (throttlet, afkortet, kun indloggede); vises som "Brugerfejl" |
 | R-10 (S3) | Dashboard N+1 (~125 forespørgsler ved hver forsideindlæsning) | TODO |
 | R-11 (S4) | Admin-alarmmail kun én gang i døgnet | [H] plan/rutine |
 | R-12 (S4) | Småting: rå permission-nøgler i fejl, ubrugt mapDatabaseError, x-last-active-cookie, AI-budget UTC-dag, "inviteret men aldrig logget ind" | TODO |

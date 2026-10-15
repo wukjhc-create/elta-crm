@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { reportClientErrorAction } from '@/lib/actions/client-errors'
 import { AlertTriangle, RefreshCw, Home, LogOut } from 'lucide-react'
 
 interface ErrorProps {
@@ -11,8 +12,17 @@ interface ErrorProps {
 
 export default function DashboardError({ error, reset }: ErrorProps) {
   useEffect(() => {
-    // Log error to monitoring service
     console.error('Dashboard error:', error)
+    // R-9: rapportér til Pilot Health (system_health_log 'ui') — højst én gang pr. fejlkode/side pr. session
+    try {
+      const key = `client-error:${error.digest ?? error.message?.slice(0, 60)}:${window.location.pathname}`
+      if (!window.sessionStorage.getItem(key)) {
+        window.sessionStorage.setItem(key, '1')
+        void reportClientErrorAction({ digest: error.digest ?? null, path: window.location.pathname, message: error.message ?? null }).catch(() => {})
+      }
+    } catch {
+      // sessionStorage kan være blokeret — ingen rapport
+    }
   }, [error])
 
   return (

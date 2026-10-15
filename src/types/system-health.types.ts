@@ -8,6 +8,8 @@ export type HealthService =
   | 'economic'
   | 'health_check'
   | 'cron'
+  // R-9: klient-crashes fra error boundaries
+  | 'ui'
 
 export type HealthStatus = 'ok' | 'warning' | 'error'
 
