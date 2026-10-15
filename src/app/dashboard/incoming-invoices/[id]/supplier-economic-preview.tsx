@@ -49,38 +49,48 @@ export function SupplierEconomicPreview({ invoiceId }: { invoiceId: string }) {
           {error && <div className="text-xs text-red-800">{error}</div>}
           {data && !loading && (
             <>
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-gray-600 break-words">
                 Leverandørfakturakladde · dato {data.draft.body.date ?? '—'} · fakturanr. {data.draft.body.supplierInvoiceNumber ?? '—'} ·{' '}
                 {data.draft.body.supplier.supplierNumber != null ? `leverandør nr. ${data.draft.body.supplier.supplierNumber}` : 'leverandør ikke koblet'}
               </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-left text-gray-500">
-                    <th className="py-1 pr-2">Linje</th>
-                    <th className="py-1 pr-2 text-right">Konto</th>
-                    <th className="py-1 text-right">Beløb</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.draft.body.lines.map((l) => (
-                    <tr key={l.lineNumber} className="border-t border-gray-200">
-                      <td className="py-1 pr-2">{l.description}</td>
-                      <td className="py-1 pr-2 text-right tabular-nums">{l.costAccount.accountNumber ?? '—'}</td>
-                      <td className="py-1 text-right tabular-nums">{fmt(l.amount)}</td>
+              <ul className="md:hidden divide-y" data-testid="supplier-economic-lines-mobile">
+                {data.draft.body.lines.map((l) => (
+                  <li key={l.lineNumber} className="py-1.5">
+                    <p className="break-words">{l.description}</p>
+                    <p className="text-gray-600">Konto {l.costAccount.accountNumber ?? '—'} · {fmt(l.amount)}</p>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-500">
+                      <th className="py-1 pr-2">Linje</th>
+                      <th className="py-1 pr-2 text-right">Konto</th>
+                      <th className="py-1 text-right">Beløb</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="text-xs flex justify-between border-t border-gray-300 pt-1">
+                  </thead>
+                  <tbody>
+                    {data.draft.body.lines.map((l) => (
+                      <tr key={l.lineNumber} className="border-t border-gray-200">
+                        <td className="py-1 pr-2 break-words">{l.description}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums">{l.costAccount.accountNumber ?? '—'}</td>
+                        <td className="py-1 text-right tabular-nums">{fmt(l.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="text-xs flex flex-wrap justify-between gap-2 border-t border-gray-300 pt-1">
                 <span>Omkostning ekskl. moms</span>
                 <span className="tabular-nums font-medium" data-testid="supplier-economic-net">{fmt(data.draft.economicNet)} kr</span>
               </div>
-              <div className="text-xs flex justify-between text-gray-500">
+              <div className="text-xs flex flex-wrap justify-between gap-2 text-gray-500">
                 <span>Fakturaen ekskl. moms</span>
                 <span className="tabular-nums">{data.draft.invoiceNet == null ? '—' : `${fmt(data.draft.invoiceNet)} kr`}</span>
               </div>
               {data.draft.issues.map((i, k) => (
-                <div key={k} className={`text-xs rounded px-2 py-1 ring-1 ${i.severity === 'error' ? 'bg-red-50 text-red-900 ring-red-200' : 'bg-blue-50 text-blue-900 ring-blue-200'}`}>
+                <div key={k} className={`text-xs break-words rounded px-2 py-1 ring-1 ${i.severity === 'error' ? 'bg-red-50 text-red-900 ring-red-200' : 'bg-blue-50 text-blue-900 ring-blue-200'}`}>
                   {i.message}
                 </div>
               ))}
