@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
 import { useConfirm } from '@/components/shared/confirm-dialog'
 import { useUserRole } from '@/lib/hooks/use-user-role'
@@ -255,7 +256,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                       {cf.address && <span className="block" data-testid="lead-source-address">Adresse: {[cf.address, [cf.postal_code, cf.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</span>}
                       {cf.source_email_received_at && (
                         <span className="ml-2">
-                          — modtaget {format(new Date(cf.source_email_received_at), 'd. MMM yyyy HH:mm', { locale: da })}
+                          — modtaget {copenhagenDateTimeLabel(cf.source_email_received_at)}
                         </span>
                       )}
                     </p>
@@ -440,11 +441,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                           </span>
                           <span>•</span>
                           <span>
-                            {format(
-                              new Date(activity.created_at),
-                              'd. MMM yyyy HH:mm',
-                              { locale: da }
-                            )}
+                            {copenhagenDateTimeLabel(activity.created_at)}
                           </span>
                         </div>
                       </div>
@@ -544,20 +541,16 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Metadata</h2>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <span className="text-gray-500">Oprettet</span>
-                  <span>
-                    {format(new Date(lead.created_at), 'd. MMM yyyy HH:mm', {
-                      locale: da,
-                    })}
+                  <span className="whitespace-nowrap">
+                    {copenhagenDateTimeLabel(lead.created_at)}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <span className="text-gray-500">Opdateret</span>
-                  <span>
-                    {format(new Date(lead.updated_at), 'd. MMM yyyy HH:mm', {
-                      locale: da,
-                    })}
+                  <span className="whitespace-nowrap">
+                    {copenhagenDateTimeLabel(lead.updated_at)}
                   </span>
                 </div>
               </div>
