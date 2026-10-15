@@ -135,7 +135,20 @@ export function OfferDetail({
               <h2 className="text-lg font-semibold">Tilbuddets indhold</h2>
             </div>
 
-            <div className="overflow-x-auto">
+            <ul className="md:hidden space-y-2 p-4" data-testid="portal-offer-lines-mobile">
+              {(offer.line_items || []).map((item) => (
+                <li key={item.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 break-words text-gray-900">{item.description}</p>
+                    <p className="shrink-0 tabular-nums font-medium">{formatCurrency(item.total, currency, 2)}</p>
+                  </div>
+                  <p className="mt-1 text-xs tabular-nums text-gray-600">
+                    {item.quantity} {item.unit} · {formatCurrency(item.unit_price, currency, 2)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 text-sm">
                   <tr>
