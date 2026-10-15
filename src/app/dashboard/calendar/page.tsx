@@ -192,6 +192,15 @@ export default async function CalendarPage({ searchParams }: PageProps) {
       }}
       loadError={!workOrdersRes.success ? workOrdersRes.error ?? null : null}
       employeesError={employeesResult.error}
+      relationsError={
+        workOrdersRes.success && workOrdersRes.employees_failed && workOrdersRes.cases_failed
+          ? 'Medarbejdere og sager kunne ikke hentes. Det tælles ikke som ikke tildelt.'
+          : workOrdersRes.success && workOrdersRes.employees_failed
+            ? 'Medarbejdere kunne ikke hentes. Det tælles ikke som ikke tildelt.'
+            : workOrdersRes.success && workOrdersRes.cases_failed
+              ? 'Sager kunne ikke hentes. Det tælles ikke som uden sag.'
+              : null
+      }
       agenda={agenda.items}
       agendaError={agenda.error}
     />

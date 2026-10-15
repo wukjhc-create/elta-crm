@@ -96,6 +96,7 @@ export function CalendarWorkforceClient({
   filters,
   loadError,
   employeesError = null,
+  relationsError = null,
   agenda,
   agendaError = null,
 }: {
@@ -108,6 +109,7 @@ export function CalendarWorkforceClient({
   filters: FiltersState
   loadError: string | null
   employeesError?: string | null
+  relationsError?: string | null
   agenda: AgendaDay[]
   agendaError?: string | null
 }) {
@@ -365,6 +367,11 @@ export function CalendarWorkforceClient({
       {employeesError && (
         <p className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900" data-testid="calendar-employees-load-error">
           {employeesError}
+        </p>
+      )}
+      {!loadError && relationsError && (
+        <p className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900" data-testid="calendar-relations-error">
+          {relationsError}
         </p>
       )}
 

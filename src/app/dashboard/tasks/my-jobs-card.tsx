@@ -62,6 +62,13 @@ export async function MyJobsCard() {
           {noTimeRes?.error ?? 'Kunne ikke tjekke timer'}. Det tælles ikke som at tiden er registreret.
         </p>
       )}
+      {(res.employees_failed || res.cases_failed) && (
+        <p className="mb-3 text-sm text-red-700" data-testid="my-jobs-relations-error">
+          {res.cases_failed
+            ? 'Sager kunne ikke hentes. Det tælles ikke som uden sag.'
+            : 'Medarbejdere kunne ikke hentes. Det tælles ikke som ikke tildelt.'}
+        </p>
+      )}
       {doneWithoutTime.length > 0 && (
         <div className="mb-4" data-testid="my-jobs-no-time">
           <JobGroup title="Afsluttet uden timer — registrér din tid" jobs={doneWithoutTime} warn />
@@ -95,7 +102,7 @@ function JobGroup({ title, jobs, warn, emptyText }: { title: string; jobs: WorkO
           {jobs.map((w) => (
             <li key={w.id} className="flex items-stretch">
               <Link
-                href={w.case ? `/dashboard/orders/${w.case.id}?tab=planlaegning` : '/dashboard/calendar'}
+                href={w.case_id ? `/dashboard/orders/${w.case_id}?tab=planlaegning` : '/dashboard/calendar'}
                 className="flex flex-1 min-w-0 items-start gap-3 px-3 py-3 hover:bg-gray-50 active:bg-gray-100"
                 data-testid="my-job"
               >

@@ -521,7 +521,7 @@ export async function listWorkOrdersByDateRange(
      */
     includeOpenOutsideRange?: boolean
   }
-): Promise<ActionResult<WorkOrderForCalendar[]>> {
+): Promise<ActionResult<WorkOrderForCalendar[]> & { employees_failed?: boolean; cases_failed?: boolean }> {
   try {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
       return { success: false, error: 'Datoer skal være i formatet YYYY-MM-DD' }
@@ -576,10 +576,10 @@ export async function listWorkOrdersByDateRange(
 
     const [empRes, caseRes] = await Promise.all([
       empIds.length === 0
-        ? Promise.resolve({ data: [] as any[] })
+        ? Promise.resolve({ data: [] as any[], error: null })
         : supabase.from('employees').select('id, name, email').in('id', empIds),
       caseIds.length === 0
-        ? Promise.resolve({ data: [] as any[] })
+        ? Promise.resolve({ data: [] as any[], error: null })
         : supabase
             .from('service_cases')
             .select(`
@@ -588,6 +588,8 @@ export async function listWorkOrdersByDateRange(
             `)
             .in('id', caseIds),
     ])
+    if (empRes.error) logger.error('listWorkOrdersByDateRange employees failed', { error: empRes.error })
+    if (caseRes.error) logger.error('listWorkOrdersByDateRange cases failed', { error: caseRes.error })
 
     const empMap = new Map(
       (empRes.data || []).map((e: any) => [
@@ -622,7 +624,7 @@ export async function listWorkOrdersByDateRange(
       case: w.case_id ? caseMap.get(w.case_id) ?? null : null,
     }))
 
-    return { success: true, data: enriched }
+    return { success: true, data: enriched, employees_failed: !!empRes.error, cases_failed: !!caseRes.error }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
