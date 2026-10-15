@@ -777,6 +777,24 @@ export function RoomCalculatorClient() {
           {/* Cable Summary */}
           <div className="bg-white rounded-lg border p-4">
             <h4 className="font-semibold text-sm mb-3">Kabeloversigt</h4>
+            <ul className="md:hidden space-y-2" data-testid="room-cables-mobile">
+              {estimate.cable_summary.cable_types.map((ct, i) => (
+                <li key={i} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 break-words font-medium text-gray-900">{ct.type}</p>
+                    <p className="shrink-0 tabular-nums font-medium">{formatCurrency(ct.total_cost)}</p>
+                  </div>
+                  <p className="mt-1 text-xs tabular-nums text-gray-700">
+                    {ct.total_meters.toFixed(1)} m · {formatCurrency(ct.estimated_cost_per_meter)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <p className="md:hidden mt-2 flex justify-between gap-2 text-sm font-semibold">
+              <span>Total {estimate.cable_summary.total_meters.toFixed(1)} m</span>
+              <span className="tabular-nums">{formatCurrency(estimate.cable_summary.total_cable_cost)}</span>
+            </p>
+            <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-500 border-b">
@@ -803,6 +821,7 @@ export function RoomCalculatorClient() {
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Actions */}
