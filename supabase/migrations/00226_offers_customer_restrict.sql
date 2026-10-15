@@ -1,7 +1,7 @@
 -- =====================================================
 -- Migration 00226: offers.customer_id ON DELETE CASCADE → RESTRICT (resten af 00191)
 --
--- STATUS: UDKAST — kræver Henriks EKSPLICITTE godkendelse (branch offers-customer-restrict-00226). Ikke kørt i prod.
+-- STATUS: GODKENDT af Henrik 2026-10-15 ("00226 GODKENDT TIL PROD").
 --
 -- Baggrund: 00191 (branch fk-delete-safety, aldrig kørt) havde to dele. Delen customers.created_by → SET NULL er i prod
 -- via 00199 (2026-10-07). Delen offers.customer_id → RESTRICT kom ALDRIG i prod (prod-fk-delete-rules 2026-10-15:

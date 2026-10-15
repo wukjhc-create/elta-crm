@@ -70,6 +70,7 @@ const APPROVED: Record<string, string> = {
   '00225': '2026-10-15', // ACL-rettelse til 00222: trg_cost_rows_snapshot_profit uden anon/authenticated EXECUTE (DB-audit HØJ) — del af Henriks 00222-godkendelse 2026-10-15
   '00223': '2026-10-15', // calculation_settings: indkøbsavancer kun for admin/serviceleder/bogholderi (GP-1), godkendt af Henrik i chat 2026-10-15
   '00224': '2026-10-15', // apply_package_to_offer: rå leverandørkost + faktisk avance, EXECUTE fjernet for anon/PUBLIC (GP-6), godkendt af Henrik i chat 2026-10-15 (kode + migration samlet)
+  '00226': '2026-10-15', // offers.customer_id ON DELETE CASCADE → RESTRICT (rest af 00191), godkendt af Henrik i chat 2026-10-15 ("00226 GODKENDT TIL PROD")
 }
 
 async function main() {

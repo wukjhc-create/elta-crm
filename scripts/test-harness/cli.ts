@@ -2121,6 +2121,30 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'offers-restrict-check') {
+    // 00226: kunde med tilbud kan ikke slettes i databasen (23503); tilbuddet slettes aldrig implicit
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const fk = await stagingSql(`SELECT confdeltype::text AS t FROM pg_constraint WHERE conname = 'offers_customer_id_fkey' AND conrelid = 'public.offers'::regclass`)
+    check('R1 FK = RESTRICT på staging', fk[0]?.t === 'r', `confdeltype=${fk[0]?.t}`)
+    const cust = ((await admin.from('customers').insert({ customer_number: `RS-${stamp}`, company_name: `[HARNESS] restrict ${stamp}`, contact_person: 'X', email: `rs-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const offer = ((await admin.from('offers').insert({ offer_number: `RS-${stamp}`, title: '[HARNESS] restrict', customer_id: cust, status: 'draft', created_by: owner }).select('id').single()).data as { id: string }).id
+    try {
+      const del = await admin.from('customers').delete().eq('id', cust)
+      check('R2 sletning af kunde med tilbud afvises (23503)', del.error?.code === '23503', String(del.error?.code ?? 'slettet!'))
+      const still = await admin.from('offers').select('id').eq('id', offer).maybeSingle()
+      check('R3 tilbuddet findes stadig', !!still.data)
+    } finally {
+      await admin.from('offers').delete().eq('id', offer)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    const gone = await admin.from('customers').select('id').eq('id', cust).maybeSingle()
+    check('R4 kunde UDEN tilbud kan stadig slettes', !gone.data)
+    process.exitCode = fails ? 2 : 0
+    return
+  }
   if (SUB === 'alert-policy-check') {
     const { runAlertPolicyCheck, formatAlertPolicyCheck } = await import('./alert-policy-check')
     const checks = await runAlertPolicyCheck({ admin })
