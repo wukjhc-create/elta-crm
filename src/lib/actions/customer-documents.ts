@@ -425,11 +425,15 @@ export async function setCustomerDocumentPortalVisibility(
   try {
     const { supabase } = await requireGate('customers.edit')
     validateUUID(documentId, 'dokument-ID')
-    const { data: doc } = await supabase
+    const { data: doc, error: docErr } = await supabase
       .from('customer_documents')
       .select('id, customer_id, source_email_id, document_type, description')
       .eq('id', documentId)
       .maybeSingle()
+    if (docErr) {
+      logger.error('setCustomerDocumentPortalVisibility read failed', { error: docErr, entityId: documentId })
+      return { success: false, error: 'Kunne ikke læse dokumentet. Delingen er ikke ændret.' }
+    }
     if (!doc) return { success: false, error: 'Dokumentet blev ikke fundet' }
     const d = doc as { id: string; customer_id: string; source_email_id: string | null; document_type: string | null; description: string | null }
     if (d.source_email_id) return { success: false, error: 'Mail-vedhæftninger kan ikke deles med kunden' }
