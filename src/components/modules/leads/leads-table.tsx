@@ -20,7 +20,6 @@ import { LeadStatusBadge } from './lead-status-badge'
 import { LeadForm } from './lead-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
-import { TruncatedCell } from '@/components/shared/truncated-cell'
 import { useConfirm } from '@/components/shared/confirm-dialog'
 import { deleteLead, updateLeadStatus } from '@/lib/actions/leads'
 import { useToast } from '@/components/ui/toast'
@@ -299,23 +298,24 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                     <div>
                       <Link
                         href={`/dashboard/leads/${lead.id}`}
-                        className="font-medium text-gray-900 hover:text-primary"
+                        className="font-medium text-gray-900 hover:text-primary break-words"
                       >
                         {lead.company_name}
                       </Link>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-gray-500 break-words">
                         {lead.contact_person}
                       </div>
-                      {/* N94: hvad webhenvendelsen handler om (type · besked fra formularen, N93) — triage uden at åbne leadet */}
+                      {/* N94: hvad webhenvendelsen handler om (type · besked fra formularen, N93) — triage uden at åbne leadet.
+                          Tre linjer i kolonnen; hele teksten bliver i title. */}
                       {lead.notes?.startsWith('Webhenvendelse — ') && (
-                        <div className="text-xs text-emerald-800 mt-0.5 max-w-[320px] truncate" title={lead.notes} data-testid="lead-row-inquiry">
+                        <div className="text-xs text-emerald-800 mt-0.5 break-words line-clamp-3" title={lead.notes} data-testid="lead-row-inquiry">
                           {lead.notes.replace(/^Webhenvendelse — /, '')}
                         </div>
                       )}
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                         <span className="flex items-center gap-1 min-w-0">
                           <Mail className="w-3 h-3 shrink-0" />
-                          <TruncatedCell text={lead.email} maxWidth="max-w-[160px]" className="text-xs text-gray-400" />
+                          <span className="break-all min-w-0">{lead.email || '-'}</span>
                         </span>
                         {lead.phone && (
                           <span className="flex items-center gap-1">
@@ -348,7 +348,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
+                  <td className="px-6 py-4 text-sm text-gray-500 hidden lg:table-cell break-words">
                     {lead.assigned_to_profile?.full_name ||
                       lead.assigned_to_profile?.email ||
                       '-'}

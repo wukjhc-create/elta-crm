@@ -21,5 +21,15 @@ eq('vaerdi bliver', mobile.includes('formatValue(lead.value)'), true)
 eq('status bliver', mobile.includes('LeadStatusBadge'), true)
 eq('vaelg har et navn', mobile.includes('aria-label={`Vælg ${lead.company_name}`}'), true)
 
+const desk = src.slice(src.indexOf('hidden md:block', start))
+eq('desktop-henvendelse klippes ikke til 320', desk.includes('max-w-[320px] truncate'), false)
+eq('desktop-henvendelse viser tre linjer', desk.includes('break-words line-clamp-3" title={lead.notes} data-testid="lead-row-inquiry"'), true)
+eq('desktop-firma ombrydes', desk.includes('font-medium text-gray-900 hover:text-primary break-words'), true)
+eq('desktop-kontakt ombrydes', desk.includes('className="text-sm text-gray-500 break-words"') && desk.includes('{lead.contact_person}'), true)
+eq('desktop-mail ombrydes', desk.includes('break-all min-w-0">{lead.email || \'-\'}'), true)
+eq('desktop-ansvarlig ombrydes', desk.includes('text-sm text-gray-500 hidden lg:table-cell break-words'), true)
+eq('vaerdi bliver paa desktop', desk.includes('formatValue(lead.value)'), true)
+eq('status bliver paa desktop', desk.includes('LeadStatusBadge'), true)
+
 console.log(fail ? `\n${fail} fejl` : '\nleads-list-mobile-test OK')
 process.exitCode = fail ? 1 : 0
