@@ -32,6 +32,8 @@ eq('fakturanummer ombrydes', mobile.includes('break-all'), true)
 eq('tom forfald siger forfald', text.includes('Ingen godkendte fakturaer med dette forfald.'), true)
 eq('tom kategori bliver', text.includes('Ingen fakturaer i denne kategori.'), true)
 eq('tom tekst bruges begge steder', text.split('emptyListText(due)').length === 3, true)
+eq('listen lover ikke tvungen bogfoering', text.includes('auto-pushed til e-conomic ved godkendelse'), false)
+eq('listen siger at bogfoering forsøges', text.includes('Ved godkendelse forsøges bogføring til e-conomic. Lykkes det ikke, er fakturaen stadig godkendt.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nincoming-invoices-mobile-test OK')
 process.exitCode = fail ? 1 : 0

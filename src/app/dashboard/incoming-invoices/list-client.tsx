@@ -139,8 +139,8 @@ export function IncomingInvoicesListClient({
       <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-semibold">Indgående fakturaer</h1>
-          <p className="text-xs text-gray-500">
-            Godkend leverandørfakturaer · auto-pushed til e-conomic ved godkendelse.
+          <p className="text-xs text-gray-500 break-words max-w-xl">
+            Godkend leverandørfakturaer. Ved godkendelse forsøges bogføring til e-conomic. Lykkes det ikke, er fakturaen stadig godkendt.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
