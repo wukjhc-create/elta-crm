@@ -145,7 +145,7 @@ function TopCustomersTable({ data, error }: { data: RevenueByCustomer[]; error: 
               <p className="font-medium text-gray-900 break-words">{c.customer_name}</p>
               <p className="text-xs text-gray-600">{c.total_offers} tilbud</p>
               <p className={`text-sm font-medium ${c.acceptance_rate >= 50 ? 'text-green-600' : 'text-amber-600'}`}>Accept {c.acceptance_rate.toFixed(0)}%</p>
-              <p className="tabular-nums font-medium text-gray-900">{formatCurrency(c.total_revenue)}</p>
+              <p className="tabular-nums font-medium text-gray-900 break-words">{formatCurrency(c.total_revenue)}</p>
             </article>
           ))}
         </div>
