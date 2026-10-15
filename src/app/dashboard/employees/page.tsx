@@ -31,11 +31,17 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
   const roleFilter = params.role ?? ''
   const search = params.q ?? ''
 
-  const all = await listEmployeesAction({
-    active: activeFilter,
-    q: search,
-    limit: 500,
-  })
+  let all: Awaited<ReturnType<typeof listEmployeesAction>> = []
+  let employeesError: string | null = null
+  try {
+    all = await listEmployeesAction({
+      active: activeFilter,
+      q: search,
+      limit: 500,
+    })
+  } catch {
+    employeesError = 'Kunne ikke hente medarbejdere. Det tælles ikke som ingen.'
+  }
 
   // Role filter is client-side since the action doesn't expose it; the
   // result set is small (single tenant, max few hundred employees).
@@ -46,6 +52,7 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
   return (
     <EmployeesListClient
       employees={filtered}
+      loadError={employeesError}
       filters={{ q: search, active: activeFilter, role: roleFilter }}
     />
   )

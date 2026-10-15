@@ -95,6 +95,7 @@ export function CalendarWorkforceClient({
   workOrders,
   filters,
   loadError,
+  employeesError = null,
   agenda,
   agendaError = null,
 }: {
@@ -106,6 +107,7 @@ export function CalendarWorkforceClient({
   workOrders: WorkOrderForCalendar[]
   filters: FiltersState
   loadError: string | null
+  employeesError?: string | null
   agenda: AgendaDay[]
   agendaError?: string | null
 }) {
@@ -360,8 +362,14 @@ export function CalendarWorkforceClient({
         </div>
       )}
 
+      {employeesError && (
+        <p className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900" data-testid="calendar-employees-load-error">
+          {employeesError}
+        </p>
+      )}
+
       {/* Empty state — no employees */}
-      {employeesWithRows.length === 0 && (
+      {!employeesError && employeesWithRows.length === 0 && (
         <div className="text-center py-16 bg-white rounded-lg ring-1 ring-gray-200">
           {!canManageEmployees ? (
             <>

@@ -31,9 +31,11 @@ interface FiltersState {
 export function EmployeesListClient({
   employees,
   filters,
+  loadError = null,
   canSeePayroll = false,
 }: {
   employees: EmployeeRow[]
+  loadError?: string | null
   filters: FiltersState
   /** Sprint 7D — gate til hourly_rate / cost_rate kolonner i listen.
    *  Server-action stripper allerede felterne hvis ingen payroll.view,
@@ -151,7 +153,9 @@ export function EmployeesListClient({
       </div>
 
       {/* List or empty state */}
-      {employees.length === 0 ? (
+      {loadError ? (
+        <p className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900" data-testid="employees-list-load-error">{loadError}</p>
+      ) : employees.length === 0 ? (
         <EmptyState hasFilters={!!(filters.q || filters.role)} />
       ) : (
         <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">

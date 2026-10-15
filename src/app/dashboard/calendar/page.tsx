@@ -150,11 +150,14 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     rangeEnd = anchorDate
   }
 
-  const [workOrdersRes, employees, agenda] = await Promise.all([
+  const [workOrdersRes, employeesResult, agenda] = await Promise.all([
     listWorkOrdersByDateRange(rangeStart, rangeEnd),
-    listCalendarEmployeesAction(),
+    listCalendarEmployeesAction()
+      .then((rows) => ({ rows, error: null as string | null }))
+      .catch(() => ({ rows: [], error: 'Kunne ikke hente medarbejdere. Det tælles ikke som ingen.' })),
     loadAgenda(datesFrom(rangeStart, rangeEnd)),
   ])
+  const employees = employeesResult.rows
 
   const workOrders = workOrdersRes.success && workOrdersRes.data ? workOrdersRes.data : []
   // N48: sager der mangler planlægning (kun planlæggere)
@@ -188,6 +191,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
         status: params.status ?? '',
       }}
       loadError={!workOrdersRes.success ? workOrdersRes.error ?? null : null}
+      employeesError={employeesResult.error}
       agenda={agenda.items}
       agendaError={agenda.error}
     />

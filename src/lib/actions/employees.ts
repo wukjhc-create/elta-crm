@@ -113,7 +113,11 @@ export async function listEmployeesAction(filter: ListFilter = {}): Promise<Empl
     )
   }
 
-  const { data } = await q
+  const { data, error } = await q
+  if (error) {
+    logger.error('listEmployeesAction failed', { error })
+    throw new Error('Kunne ikke hente medarbejdere')
+  }
   void canSeeRates
   // Privacy (Henrik 2026-10-03): satser vises aldrig på oversigter — heller ikke for løn-roller. De hentes kun i
   // fanen "Økonomi & løn" via getEmployeeCompensationAction.
@@ -129,7 +133,11 @@ export async function listCalendarEmployeesAction(): Promise<EmployeeRow[]> {
   const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (hasPermission('employees.view')) return listEmployeesAction({ active: 'active', limit: 200 })
   if (!hasPermission('calendar.view.own')) return []
-  const { data } = await supabase.from('employees').select('*').eq('profile_id', userId).eq('active', true).limit(1)
+  const { data, error } = await supabase.from('employees').select('*').eq('profile_id', userId).eq('active', true).limit(1)
+  if (error) {
+    logger.error('listCalendarEmployeesAction failed', { error })
+    throw new Error('Kunne ikke hente medarbejdere')
+  }
   return (data ?? []).map(normaliseEmployee).map((r) => ({ ...r, hourly_rate: null, cost_rate: null }))
 }
 
