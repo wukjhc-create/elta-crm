@@ -334,7 +334,7 @@ export function CustomerInvoiceOverview({
             {events.map((e) => {
               const v = eventVisual(e)
               return (
-                <li key={e.id} className="px-3 py-2 flex items-start gap-2.5">
+                <li key={e.id} className="px-3 py-2 flex flex-wrap items-start gap-2.5 min-w-0">
                   <span className={`shrink-0 mt-0.5 ${v.cls}`}>{v.icon}</span>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm text-gray-800 break-words">
@@ -344,7 +344,7 @@ export function CustomerInvoiceOverview({
                     <div className="text-[11px] text-gray-400">{fmtDate(e.created_at)}</div>
                   </div>
                   {e.amount_incl_vat != null && (
-                    <span className="text-xs font-medium tabular-nums text-gray-700 shrink-0">{kr(e.amount_incl_vat)}</span>
+                    <span className="text-xs font-medium tabular-nums text-gray-700 break-words min-w-0">{kr(e.amount_incl_vat)}</span>
                   )}
                 </li>
               )
