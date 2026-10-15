@@ -52,7 +52,11 @@ export function OfferConversionWidget() {
           <Loader2 className="w-4 h-4 animate-spin" /> Henter tilbudsstatus…
         </div>
       ) : !data || !data.ok ? (
-        <p className="text-sm text-gray-400 py-4">Kunne ikke hente tilbudsstatus.</p>
+        <p className="text-sm text-amber-800 py-4" data-testid="offer-conversion-load-error">
+          {data?.message?.includes('Manglende tilladelse')
+            ? data.message
+            : 'Kunne ikke hente tilbudsstatus. Det tælles ikke som 0.'}
+        </p>
       ) : data.ready_count === 0 ? (
         // Positiv tom-state.
         <div className="rounded-lg ring-1 ring-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 flex items-center gap-2">
