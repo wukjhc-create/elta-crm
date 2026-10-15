@@ -153,7 +153,7 @@ export function CalculationPreview({
             >
               <div className={`border rounded-lg bg-white ${hasOverrides ? 'border-orange-300' : ''}`}>
                 <div className="flex items-center gap-3 p-3">
-                  <CollapsibleTrigger className="p-1 hover:bg-gray-100 rounded">
+                  <CollapsibleTrigger className="p-1 hover:bg-gray-100 rounded shrink-0" aria-label={isExpanded ? 'Skjul detaljer' : 'Vis detaljer'}>
                     {isExpanded ? (
                       <ChevronDown className="w-4 h-4" />
                     ) : (
@@ -166,8 +166,8 @@ export function CalculationPreview({
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">{item.componentName}</span>
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium break-words min-w-0">{item.componentName}</span>
                       {item.variantName && (
                         <Badge variant="outline" className="text-xs">
                           {item.variantName}
@@ -268,9 +268,9 @@ export function CalculationPreview({
                           {item.materials!.map((mat, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center justify-between text-xs bg-gray-50 rounded px-2 py-1"
+                              className="flex items-start justify-between text-xs bg-gray-50 rounded px-2 py-1 gap-2"
                             >
-                              <span className="text-gray-700 flex-1 min-w-0 truncate">{mat.name}</span>
+                              <span className="text-gray-700 flex-1 min-w-0 break-words">{mat.name}</span>
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 <span className="text-gray-500">
                                   {mat.quantity * item.quantity} {mat.unit}
