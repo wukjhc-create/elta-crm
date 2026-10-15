@@ -112,10 +112,10 @@ export function OperationalOverview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold">Operationelt overblik</h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 break-words">
             Auto-refresh hvert 5 min · pauser når fanen er skjult
             {lastFetched && ` · sidst opdateret ${fmtRelative(lastFetched.toISOString())} siden`}
             {error && <span className="text-red-600 ml-2">· kunne ikke hente data</span>}
@@ -140,10 +140,10 @@ export function OperationalOverview() {
           render={(r) => (
             <div key={r.id} className="py-2 border-b last:border-b-0 text-sm">
               <div className="flex justify-between gap-2">
-                <span className="font-medium truncate">{r.subject || '(uden emne)'}</span>
-                <span className="text-xs text-gray-500 whitespace-nowrap">{fmtRelative(r.received_at)}</span>
+                <span className="font-medium break-words min-w-0">{r.subject || '(uden emne)'}</span>
+                <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">{fmtRelative(r.received_at)}</span>
               </div>
-              <div className="text-xs text-gray-500 truncate">
+              <div className="text-xs text-gray-500 break-words">
                 {r.sender_name || r.sender_email || 'Ukendt afsender'}
               </div>
             </div>
@@ -208,7 +208,7 @@ function AiInsightsPanel() {
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h3 className="text-sm font-semibold">AI-anbefalinger</h3>
         <span className="text-[11px] text-gray-400">forslag — anvend manuelt</span>
       </div>
@@ -285,10 +285,10 @@ function StatCard({ icon, label, value, tone, href }: {
   const cls = toneClasses(tone)
   const inner = (
     <div className={`p-4 rounded-lg bg-white ring-1 ${cls.ring} hover:shadow-sm transition`}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-500 flex items-center gap-1.5">
-          <span className={`inline-block h-2 w-2 rounded-full ${cls.dot}`} />
-          {label}
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xs text-gray-500 flex items-start gap-1.5 min-w-0">
+          <span className={`inline-block h-2 w-2 rounded-full shrink-0 mt-1 ${cls.dot}`} />
+          <span className="break-words">{label}</span>
         </span>
         <span className={cls.text}>{icon}</span>
       </div>
@@ -341,7 +341,7 @@ function SystemHealthPanel({ health }: { health: DashboardPayload['system_health
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h3 className="text-sm font-semibold">System status</h3>
         <span className={`text-xs font-medium flex items-center gap-1.5 ${overallTone.text}`}>
           <span className={`inline-block h-2 w-2 rounded-full ${overallTone.dot}`} />
@@ -362,7 +362,7 @@ function SystemHealthPanel({ health }: { health: DashboardPayload['system_health
                 {s.errorsLastHour} fejl · {s.warningsLastHour} warn (1t)
               </div>
               {s.lastErrorMessage && s.status !== 'ok' && (
-                <div className="mt-1 text-[11px] text-red-700 truncate" title={s.lastErrorMessage}>
+                <div className="mt-1 text-[11px] text-red-700 break-words" title={s.lastErrorMessage}>
                   {s.lastErrorMessage}
                 </div>
               )}
