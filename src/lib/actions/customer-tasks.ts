@@ -42,7 +42,11 @@ async function taskWriteDenied(taskId: string): Promise<string | null> {
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission('customers.view')) return 'Manglende tilladelse: customers.view'
     if (ctx.hasPermission('customers.edit')) return null
-    const { data } = await ctx.supabase.from('customer_tasks').select('assigned_to, created_by').eq('id', taskId).maybeSingle()
+    const { data, error } = await ctx.supabase.from('customer_tasks').select('assigned_to, created_by').eq('id', taskId).maybeSingle()
+    if (error) {
+      logger.error('taskWriteDenied read failed', { error, entityId: taskId })
+      return 'Kunne ikke læse opgaven. Den er ikke ændret.'
+    }
     const t = data as { assigned_to: string | null; created_by: string | null } | null
     if (!t) return 'Opgaven blev ikke fundet'
     return t.assigned_to === ctx.userId || t.created_by === ctx.userId ? null : 'Du kan kun ændre dine egne opgaver'
