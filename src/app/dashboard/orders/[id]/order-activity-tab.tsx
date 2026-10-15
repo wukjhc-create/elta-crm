@@ -24,24 +24,33 @@ const ACTION_LABELS: Record<string, string> = {
 export function OrderActivityTab({ caseId }: { caseId: string }) {
   const [entries, setEntries] = useState<ServiceCaseActivityEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
+    setEntries(null)
+    setError(null)
     async function load() {
-      const res = await getServiceCaseActivity(caseId)
-      if (cancelled) return
-      if (!res.success) {
-        setError(res.error || 'Kunne ikke hente aktivitet')
+      try {
+        const res = await getServiceCaseActivity(caseId)
+        if (cancelled) return
+        if (!res.success) {
+          setError(res.error || 'Kunne ikke hente aktivitet')
+          setEntries([])
+          return
+        }
+        setEntries(res.data ?? [])
+      } catch {
+        if (cancelled) return
+        setError('Kunne ikke hente aktivitet')
         setEntries([])
-        return
       }
-      setEntries(res.data ?? [])
     }
     load()
     return () => {
       cancelled = true
     }
-  }, [caseId])
+  }, [caseId, reloadKey])
 
   if (entries === null) {
     return (
@@ -51,8 +60,17 @@ export function OrderActivityTab({ caseId }: { caseId: string }) {
 
   if (error) {
     return (
-      <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">
-        {error}
+      <div className="text-center py-6">
+        <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">
+          {error}. Det tælles ikke som ingen aktivitet.
+        </div>
+        <button
+          type="button"
+          onClick={() => setReloadKey((key) => key + 1)}
+          className="mt-3 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+        >
+          Prøv igen
+        </button>
       </div>
     )
   }

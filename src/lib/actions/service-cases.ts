@@ -1837,9 +1837,8 @@ export async function getServiceCaseActivity(
       .limit(100)
 
     if (error) {
-      // Some non-admin users may see RLS-empty results — return empty list.
       logger.warn('Could not fetch service case activity', { error })
-      return { success: true, data: [] }
+      return { success: false, error: 'Kunne ikke hente aktivitet' }
     }
 
     return {
@@ -1892,7 +1891,7 @@ export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNot
       .limit(100)
     if (error) {
       logger.warn('Could not fetch case notes', { error })
-      return { success: true, data: [] }
+      return { success: false, error: 'Kunne ikke hente noter' }
     }
 
     const rows = data || []
