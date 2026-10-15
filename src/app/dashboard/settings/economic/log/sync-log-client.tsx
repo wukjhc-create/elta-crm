@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CheckCircle2, XCircle, MinusCircle, RefreshCw, ExternalLink, FileText, Briefcase, Loader2 } from 'lucide-react'
 import { retryInvoiceExportAction, type SyncLogResult, type SyncLogEntry, type SyncLogStatusFilter } from '@/lib/actions/accounting'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 const STATUS_FILTERS: { key: SyncLogStatusFilter; label: string }[] = [
   { key: 'all', label: 'Alle' },
@@ -28,10 +29,7 @@ const STATUS_SKIN: Record<string, { label: string; cls: string; Icon: typeof Che
   skipped: { label: 'Sprunget over', cls: 'bg-gray-100 text-gray-600 ring-gray-200', Icon: MinusCircle },
 }
 
-const dkDateTime = (iso: string) =>
-  new Intl.DateTimeFormat('da-DK', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  }).format(new Date(iso))
+const dkDateTime = (iso: string) => copenhagenDateTimeLabel(iso)
 
 export function SyncLogClient({ initial }: { initial: SyncLogResult }) {
   const router = useRouter()
