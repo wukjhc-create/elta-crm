@@ -279,15 +279,15 @@ export function CustomerLinkDialog({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
-                            <span className="truncate">{c.company_name}</span>
+                          <div className="text-sm font-medium text-gray-900 flex items-start gap-1.5">
+                            <span className="break-words min-w-0">{c.company_name}</span>
                             {isSenderMatch && (
                               <span className="shrink-0 text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
                                 Match på afsender
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-gray-500 truncate">
+                          <div className="text-xs text-gray-500 break-words">
                             {c.customer_number ? `${c.customer_number} · ` : ''}
                             {c.contact_person ? `${c.contact_person} · ` : ''}
                             {c.email || c.phone || '—'}
@@ -309,9 +309,9 @@ export function CustomerLinkDialog({
         <div className="px-5 py-3 border-t flex items-center justify-between gap-3 bg-gray-50">
           <div className="flex-1 min-w-0">
             {error && (
-              <p className="text-xs text-red-600 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                <span className="truncate">{error}</span>
+              <p className="text-xs text-red-600 flex items-start gap-1">
+                <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                <span className="break-words min-w-0">{error}</span>
               </p>
             )}
             {!error && orderedResults.length > 0 && (
