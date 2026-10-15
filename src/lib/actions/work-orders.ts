@@ -304,7 +304,8 @@ export async function updateWorkOrderPlanning(
     }
 
     // X4: udførte/annullerede arbejdsordrer kan ikke omplanlægges (UI'et skjuler det; serveren håndhævede det ikke)
-    const { data: curWo } = await supabase.from('work_orders').select('status').eq('id', workOrderId).maybeSingle()
+    const { data: curWo, error: curErr } = await supabase.from('work_orders').select('status').eq('id', workOrderId).maybeSingle()
+    if (curErr) return { success: false, error: 'Kunne ikke hente arbejdsordre' }
     if (!curWo) return { success: false, error: 'Arbejdsordre ikke fundet' }
     if (['done', 'cancelled'].includes((curWo as { status: string }).status)) {
       return { success: false, error: 'En udført eller annulleret arbejdsordre kan ikke omplanlægges' }
