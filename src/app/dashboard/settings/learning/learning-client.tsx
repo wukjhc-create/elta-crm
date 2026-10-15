@@ -409,15 +409,15 @@ export function LearningDashboardClient() {
                    <Zap className="w-4 h-4 text-amber-600" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 break-words">
                     {adj.component || adj.factor || adj.type}
                   </p>
-                  <p className="text-xs text-gray-500">{adj.reason}</p>
+                  <p className="text-xs text-gray-500 break-words">{adj.reason}</p>
                 </div>
-                <div className="text-sm text-right shrink-0">
-                  <span className="text-gray-400 line-through">{adj.old_value}</span>
+                <div className="text-sm text-right min-w-0">
+                  <span className="text-gray-400 line-through break-words">{adj.old_value}</span>
                   {' → '}
-                  <span className="font-medium text-gray-900">{adj.new_value}</span>
+                  <span className="font-medium text-gray-900 break-words">{adj.new_value}</span>
                 </div>
                 <span className="text-xs text-gray-400 shrink-0">
                   {new Date(adj.applied_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short' })}
