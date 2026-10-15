@@ -22,7 +22,7 @@ const ctxEnd = action.indexOf('export async function setIncomingInvoiceSupplierA
 const ctx = action.slice(ctxStart, ctxEnd)
 eq('liste siger stadig fejl', ctx.includes('Kunne ikke hente leverandører. Det tælles ikke som ingen.'), true)
 eq('afsender skjuler ikke listen', ctx.includes('sender_failed: domain.failed') && ctx.includes('options:'), true)
-eq('fejlet afsender soeger ikke samme domaene', ctx.indexOf('domain.failed ? 0') < ctx.indexOf('sameDomainOpenInvoices(ctx, domain.domain'), true)
+eq('fejlet afsender soeger ikke samme domaene', ctx.indexOf('? { ids: [] as string[], failed: false }') < ctx.indexOf('sameDomainOpenInvoices(ctx, domain.domain'), true)
 
 const createStart = action.indexOf('export async function createSupplierFromIncomingInvoiceAction')
 const create = action.slice(createStart)

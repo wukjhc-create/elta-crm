@@ -31,6 +31,8 @@ export interface IncomingInvoiceSupplierContext {
   sender_failed: boolean
   /** N66b: andre åbne fakturaer uden leverandør fra samme afsenderdomæne (kan kobles i samme omgang) */
   sameDomainOpen: number
+  /** Mailsøgningen fejlede. 0 er så ikke "ingen andre fakturaer". */
+  same_domain_failed: boolean
 }
 
 type Ctx = Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>
@@ -58,23 +60,27 @@ async function senderOf(ctx: Ctx, sourceEmailId: string | null): Promise<{ domai
 }
 
 /** N66b: åbne fakturaer uden leverandør fra samme afsenderdomæne (ekskl. den aktuelle). Gratis-mail giver aldrig et domæne. */
-async function sameDomainOpenInvoices(ctx: Ctx, domain: string | null, excludeId: string): Promise<string[]> {
-  if (!domain) return []
-  const { data: mails } = await ctx.supabase.from('incoming_emails').select('id, sender_email')
+async function sameDomainOpenInvoices(ctx: Ctx, domain: string | null, excludeId: string): Promise<{ ids: string[]; failed: boolean }> {
+  if (!domain) return { ids: [], failed: false }
+  const { data: mails, error: mailError } = await ctx.supabase.from('incoming_emails').select('id, sender_email')
     .ilike('sender_email', `%@${domain.replace(/[%_\\]/g, (c) => `\\${c}`)}`).limit(500)
+  if (mailError) {
+    logger.error('incoming-invoice-supplier: same-domain mails failed', { error: mailError })
+    return { ids: [], failed: true }
+  }
   const ids = ((mails ?? []) as Array<{ id: string; sender_email: string | null }>).filter((m) => senderDomain(m.sender_email) === domain).map((m) => m.id)
-  if (!ids.length) return []
-  // X4n: i bidder af 200 (op til 500 mail-id'er i én .in() sprængte URL-grænsen → de øvrige fakturaer blev ikke fundet)
-  // best-effort som før: en opslagsfejl må ikke vælte selve leverandørvalget (logges i stedet for stille tom liste)
+  if (!ids.length) return { ids: [], failed: false }
+  // X4n: i bidder af 200 (op til 500 mail-id'er i én .in() sprængte URL-grænsen → de øvrige fakturaer blev ikke fundet).
+  // Opslaget må ikke vælte leverandørvalget. En fejl er ikke 0 andre fakturaer.
   let inv: Array<{ id: string; status: string }>
   try {
     inv = await selectInChunks<{ id: string; status: string }>(ids, (chunk) => ctx.supabase.from('incoming_invoices').select('id, status')
       .in('source_email_id', chunk).is('supplier_id', null).neq('id', excludeId))
   } catch (error) {
     logger.error('incoming-invoice-supplier: same-domain lookup failed', { error })
-    return []
+    return { ids: [], failed: true }
   }
-  return inv.filter((i) => !TERMINAL.includes(i.status)).map((i) => i.id)
+  return { ids: inv.filter((i) => !TERMINAL.includes(i.status)).map((i) => i.id), failed: false }
 }
 
 async function linkSupplier(ctx: Ctx, invoiceId: string, previous: string | null, supplierId: string | null, label: string | null, onlyIfUnset = false) {
@@ -104,7 +110,9 @@ async function linkSupplier(ctx: Ctx, invoiceId: string, previous: string | null
 async function linkSameDomain(ctx: Ctx, inv: { id: string; source_email_id: string | null }, supplierId: string, label: string | null): Promise<number | null> {
   const sender = await senderOf(ctx, inv.source_email_id)
   if (sender.failed) return null
-  const ids = await sameDomainOpenInvoices(ctx, sender.domain, inv.id)
+  const found = await sameDomainOpenInvoices(ctx, sender.domain, inv.id)
+  if (found.failed) return null
+  const ids = found.ids
   let n = 0
   for (const id of ids) if (!(await linkSupplier(ctx, id, null, supplierId, label, true))) n++
   return n
@@ -125,6 +133,9 @@ export async function getIncomingInvoiceSupplierContextAction(invoiceId: string)
       logger.error('incoming-invoice-supplier: options failed', { error: sup.error })
       return { success: false, error: 'Kunne ikke hente leverandører. Det tælles ikke som ingen.' }
     }
+    const sameDomain = domain.failed
+      ? { ids: [] as string[], failed: false }
+      : await sameDomainOpenInvoices(ctx, domain.domain, inv.id)
     return {
       success: true,
       data: {
@@ -135,7 +146,8 @@ export async function getIncomingInvoiceSupplierContextAction(invoiceId: string)
         sender_failed: domain.failed,
         locked: TERMINAL.includes(inv.status),
         canCreate: ctx.hasPermission('settings.suppliers'),
-        sameDomainOpen: domain.failed ? 0 : (await sameDomainOpenInvoices(ctx, domain.domain, inv.id)).length,
+        sameDomainOpen: sameDomain.ids.length,
+        same_domain_failed: sameDomain.failed,
       },
     }
   } catch (err) {

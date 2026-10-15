@@ -19,7 +19,7 @@ eq('fejl foer succes', fn.indexOf('if (sup.error)') < fn.indexOf('success: true'
 eq('uden ret bliver', fn.includes("error: 'Manglende tilladelse: incoming_invoices.edit'"), true)
 eq('ikke fundet bliver', fn.includes("error: 'Faktura ikke fundet'"), true)
 eq('graense bliver', fn.includes('.limit(500)'), true)
-eq('samme-domaene vaelter ikke valget', action.includes('return []') && action.includes('same-domain lookup failed'), true)
+eq('samme-domaene vaelter ikke valget', action.includes('return { ids: [], failed: true }') && action.includes('same-domain lookup failed') && action.includes('options:'), true)
 
 const view = fs.readFileSync('src/app/dashboard/incoming-invoices/[id]/incoming-invoice-supplier-picker.tsx', 'utf8')
 eq('banner', view.includes('data-testid="invoice-supplier-load-error"') && view.includes(msg), true)
