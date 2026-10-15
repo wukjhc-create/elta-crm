@@ -83,12 +83,10 @@ export function DraftLinesEditor({ invoiceId, lines, onChanged }: { invoiceId: s
             </div>
           </li>
         ) : (
-          <li key={l.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-            <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 break-words text-gray-900">{l.position}. {l.description}{sourced(l) && <span className="ml-1 text-[10px] text-gray-400">(fra sagen)</span>}</p>
-              <p className="shrink-0 tabular-nums font-medium">{fmt(l.total_price)}</p>
-            </div>
-            <p className="mt-1 text-xs tabular-nums text-gray-700">
+          <li key={l.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm min-w-0">
+            <p className="min-w-0 break-words text-gray-900">{l.position}. {l.description}{sourced(l) && <span className="ml-1 text-[10px] text-gray-400">(fra sagen)</span>}</p>
+            <p className="mt-1 tabular-nums font-medium text-gray-900 break-words">{fmt(l.total_price)}</p>
+            <p className="mt-1 text-xs tabular-nums text-gray-700 break-words">
               {String(l.quantity).replace('.', ',')} {l.unit ?? ''} · {fmt(l.unit_price)}
             </p>
             <div className="mt-2 flex gap-2">
