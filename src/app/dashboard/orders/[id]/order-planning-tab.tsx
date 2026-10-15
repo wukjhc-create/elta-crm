@@ -44,7 +44,7 @@ const NEXT_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
 }
 
 const fmtDate = (s: string | null | undefined) =>
-  s ? new Date(s).toLocaleDateString('da-DK', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  s ? new Date(s).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 export function OrderPlanningTab({
   caseId,
@@ -522,13 +522,13 @@ function WorkOrderRow({
             )}
             {wo.completed_at && (
               <span className="text-xs text-gray-500">
-                · afsluttet {new Date(wo.completed_at).toLocaleString('da-DK')}
+                · afsluttet {new Date(wo.completed_at).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
           </div>
           <div className="text-sm font-medium text-gray-900 break-words">{wo.title}</div>
           {wo.description && (
-            <div className="text-sm text-gray-600 whitespace-pre-wrap">{wo.description}</div>
+            <div className="text-sm text-gray-600 whitespace-pre-wrap break-words">{wo.description}</div>
           )}
           <div className="text-xs text-gray-500 break-words">
             Medarbejder:{' '}
