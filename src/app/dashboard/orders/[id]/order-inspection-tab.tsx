@@ -150,10 +150,10 @@ export function OrderInspectionTab({
           </div>
           <div className="divide-y">
             {reports.map((doc) => (
-              <div key={doc.id} className="p-4 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{doc.title || doc.file_name}</p>
-                  <p className="text-xs text-gray-500 truncate">{doc.file_name}</p>
+              <div key={doc.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 break-words">{doc.title || doc.file_name}</p>
+                  <p className="text-xs text-gray-500 break-all">{doc.file_name}</p>
                 </div>
                 <button
                   onClick={() => setSendDoc(doc)}
