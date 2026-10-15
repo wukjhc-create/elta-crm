@@ -527,23 +527,23 @@ export function WorkOrderTimeLogs({
                   </div>
                 )}
                 {(canSeeCost || canSeeSale) && (
-                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0">
                     {canSeeCost && (
-                      <div>
+                      <div className="min-w-0">
                         <dt className="text-gray-500">Intern kost</dt>
-                        <dd className="tabular-nums">{l.cost_amount == null && l.hours != null ? <span className="text-amber-600">Mangler kostpris</span> : fmtAmount(l.cost_amount)}</dd>
+                        <dd className="tabular-nums break-words">{l.cost_amount == null && l.hours != null ? <span className="text-amber-600">Mangler kostpris</span> : fmtAmount(l.cost_amount)}</dd>
                       </div>
                     )}
                     {canSeeSale && (
-                      <div>
+                      <div className="min-w-0">
                         <dt className="text-gray-500">Salgspris</dt>
-                        <dd className="tabular-nums">{sale == null && l.hours != null ? <span className="text-amber-600">Mangler salgspris</span> : fmtAmount(sale)}</dd>
+                        <dd className="tabular-nums break-words">{sale == null && l.hours != null ? <span className="text-amber-600">Mangler salgspris</span> : fmtAmount(sale)}</dd>
                       </div>
                     )}
                     {canSeeCost && (
-                      <div>
+                      <div className="min-w-0">
                         <dt className="text-gray-500">DB</dt>
-                        <dd className={`tabular-nums ${db == null ? 'text-gray-400' : db >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{db == null ? '—' : fmtAmount(db)}</dd>
+                        <dd className={`tabular-nums break-words ${db == null ? 'text-gray-400' : db >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{db == null ? '—' : fmtAmount(db)}</dd>
                       </div>
                     )}
                   </dl>
