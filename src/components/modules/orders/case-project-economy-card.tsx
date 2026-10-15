@@ -33,9 +33,10 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
 
   return (
     <div className="bg-white rounded-lg border p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-800">
-          <Wallet className="w-4 h-4 text-emerald-600" /> Projektøkonomi
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-800 min-w-0">
+          <Wallet className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span className="break-words">Projektøkonomi</span>
         </h3>
         {caseNumber && (
           <Link href={`/dashboard/invoices?search=${encodeURIComponent(caseNumber)}`} className="text-xs text-emerald-700 hover:underline inline-flex items-center gap-1">
@@ -52,7 +53,7 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
         <p className="text-sm text-gray-400 py-2">{error || 'Ingen data'}</p>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Stat label="Kontraktsum" value={data.has_contract_sum ? kr(data.contract_sum) : '—'} />
             <Stat label="Faktureret (netto)" value={kr(data.net_invoiced)} />
             <Stat label="Betalt" value={kr(data.paid_total)} tone="emerald" />
@@ -65,7 +66,7 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
               Sagen mangler en kontraktsum — “rest at fakturere” kan ikke beregnes.
             </div>
           ) : (
-            <div className="rounded-md bg-blue-50 ring-1 ring-blue-100 px-3 py-2 flex items-center justify-between">
+            <div className="rounded-md bg-blue-50 ring-1 ring-blue-100 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-gray-600">Rest at fakturere</span>
               <span className={`text-sm font-semibold ${(data.remaining_to_invoice ?? 0) > 0 ? 'text-blue-700' : 'text-gray-700'}`}>
                 {kr(data.remaining_to_invoice)}
@@ -73,7 +74,7 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
             </div>
           )}
 
-          <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 pt-1 border-t border-gray-100">
             <span className="inline-flex items-center gap-1">
               <Receipt className="w-3.5 h-3.5" />
               {data.invoice_count} faktura(er)
