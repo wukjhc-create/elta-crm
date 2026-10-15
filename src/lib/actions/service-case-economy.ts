@@ -1053,11 +1053,12 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
         .in('id', chunk))
       addRows(data as never)
     }
-    const { data: closedRows } = await supabase
+    const { data: closedRows, error: closedErr } = await supabase
       .from('service_cases')
       .select('id, status, contract_sum, revised_sum')
       .eq('status', 'closed')
       .limit(BILLING_FOLLOWUP_CAP)
+    if (closedErr) return { success: false, error: 'Kunne ikke hente faktureringsopfølgning' }
     addRows((closedRows ?? []) as never)
 
     const capped = invoicedIds.length > BILLING_FOLLOWUP_CAP || (closedRows?.length ?? 0) >= BILLING_FOLLOWUP_CAP
