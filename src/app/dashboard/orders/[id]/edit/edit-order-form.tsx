@@ -206,7 +206,7 @@ export function EditOrderForm({
           </Field>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 min-w-0">
           <Field label="Status">
             <select
               {...register('status')}
@@ -356,12 +356,12 @@ export function EditOrderForm({
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-gray-700">Planlægning</legend>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 min-w-0">
           <Field label="Planlagt start">
             <input
               {...register('start_date')}
               type="date"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full min-w-0 max-w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               disabled={isSubmitting}
             />
           </Field>
@@ -370,7 +370,7 @@ export function EditOrderForm({
             <input
               {...register('end_date')}
               type="date"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full min-w-0 max-w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               disabled={isSubmitting}
             />
           </Field>
@@ -391,7 +391,7 @@ export function EditOrderForm({
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-gray-700">Økonomi (DKK)</legend>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 min-w-0">
           <Field label="Tilbudt beløb">
             <input
               {...register('contract_sum')}
@@ -480,8 +480,8 @@ function Field({
   error?: string
 }) {
   return (
-    <div className="space-y-1">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+    <div className="space-y-1 min-w-0">
+      <label className="text-sm font-medium text-gray-700 break-words">{label}</label>
       {children}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
