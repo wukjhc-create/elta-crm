@@ -43,8 +43,11 @@ interface ComponentWithPricing {
 
 interface QuickCalculationClientProps {
   templates: ProjectTemplate[]
+  templatesError?: string | null
   roomTypes: RoomType[]
+  roomTypesError?: string | null
   components: ComponentWithPricing[]
+  componentsError?: string | null
   settings: CalculationSettings | null
 }
 
@@ -75,8 +78,11 @@ const STEPS = [
 
 export default function QuickCalculationClient({
   templates,
+  templatesError = null,
   roomTypes,
+  roomTypesError = null,
   components,
+  componentsError = null,
   settings,
 }: QuickCalculationClientProps) {
   const router = useRouter()
@@ -359,6 +365,11 @@ export default function QuickCalculationClient({
         {currentStep === 0 && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">Vælg projekttype</h2>
+            {templatesError && (
+              <p className="text-sm text-red-700" data-testid="quick-templates-load-error">
+                {templatesError}. Det tælles ikke som ingen projekttyper.
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {templates.map(template => (
                 <Card
@@ -417,6 +428,17 @@ export default function QuickCalculationClient({
                   ))}
                 </div>
               </div>
+
+              {roomTypesError && (
+                <p className="text-sm text-red-700" data-testid="quick-rooms-load-error">
+                  {roomTypesError}. Det tælles ikke som ingen rumtyper.
+                </p>
+              )}
+              {componentsError && (
+                <p className="text-sm text-red-700" data-testid="quick-components-load-error">
+                  {componentsError}. Det tælles ikke som ingen komponenter.
+                </p>
+              )}
 
               {rooms.length === 0 ? (
                 <Card>
