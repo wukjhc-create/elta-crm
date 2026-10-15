@@ -185,15 +185,15 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
+                  <div className="flex items-start justify-between gap-2 mb-0.5">
+                    <span className={`text-sm line-clamp-2 break-all min-w-0 ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
                       {email.sender_name || email.sender_email}
                     </span>
                     <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">
                       {format(new Date(email.received_at), 'd. MMM yyyy HH:mm', { locale: da })}
                     </span>
                   </div>
-                  <p className={`text-sm truncate ${!email.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+                  <p className={`text-sm line-clamp-2 break-words ${!email.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
                     {email.subject || '(Intet emne)'}
                   </p>
                   <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
@@ -479,7 +479,7 @@ function ExpandedMailDetail({
                             <ExternalLink className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 drop-shadow" />
                           </div>
                         </div>
-                        <div className="p-1.5 text-[11px] text-gray-700 truncate">{att.filename}</div>
+                        <div className="p-1.5 text-[11px] text-gray-700 break-all">{att.filename}</div>
                       </button>
                     ))}
                   </div>
@@ -494,7 +494,7 @@ function ExpandedMailDetail({
                         className="rounded-lg border border-dashed bg-amber-50/50 p-3 flex flex-col items-center justify-center text-center"
                       >
                         <ImageIcon className="w-6 h-6 text-amber-500 mb-1" />
-                        <p className="text-[11px] text-amber-800 font-medium truncate w-full">{att.filename}</p>
+                        <p className="text-[11px] text-amber-800 font-medium break-all w-full">{att.filename}</p>
                         <p className="text-[10px] text-amber-600 mt-0.5">Ikke downloadet</p>
                       </div>
                     ))}
@@ -507,10 +507,10 @@ function ExpandedMailDetail({
                     {nonImages.map((att, idx) => {
                       const isDownloaded = !!(att.url && att.storagePath)
                       return (
-                        <div key={`file-${att.filename}-${idx}`} className="flex items-center justify-between gap-3 py-2">
-                          <div className="flex items-center gap-2 min-w-0">
+                        <div key={`file-${att.filename}-${idx}`} className="flex items-start justify-between gap-3 py-2">
+                          <div className="flex items-start gap-2 min-w-0">
                             <FileText className="w-4 h-4 text-gray-500 shrink-0" />
-                            <span className="text-sm truncate">{att.filename}</span>
+                            <span className="text-sm break-all min-w-0">{att.filename}</span>
                             <span className="text-xs text-gray-400 shrink-0">{formatSize(att.size)}</span>
                             {!isDownloaded && (
                               <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
@@ -568,8 +568,8 @@ function ExpandedMailDetail({
           }}
         >
           <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
-            <div className="flex items-center justify-between w-full mb-2 px-1 gap-2">
-              <span className="text-sm text-white/80 truncate max-w-[60%]" title={lightbox.name}>
+            <div className="flex items-start justify-between w-full mb-2 px-1 gap-2">
+              <span className="text-sm text-white/80 break-all min-w-0 flex-1" title={lightbox.name}>
                 {lightbox.name}
               </span>
               <div className="flex items-center gap-2">
@@ -579,6 +579,7 @@ function ExpandedMailDetail({
                   rel="noopener noreferrer"
                   className="p-1.5 rounded-full bg-white/10 hover:bg-white/20"
                   title="Åbn i ny fane / Download"
+                  aria-label="Download"
                 >
                   <Download className="w-4 h-4 text-white" />
                 </a>
