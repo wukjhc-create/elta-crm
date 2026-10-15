@@ -38,6 +38,7 @@ export function OrderDocumentsTab({
   customerId: string | null
 }) {
   const [documents, setDocuments] = useState<CaseDocument[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -46,17 +47,25 @@ export function OrderDocumentsTab({
   // Kontor (cases.edit) og montør på egne sager (cases.edit.own; serveren tjekker scope)
   const canUpload = hasPermission(role, 'cases.edit') || hasPermission(role, 'cases.edit.own')
 
+  const applyDocs = useCallback((res: { documents: CaseDocument[]; error: string | null }) => {
+    if (res.error) {
+      setLoadError(res.error)
+      return
+    }
+    setLoadError(null)
+    setDocuments(res.documents)
+  }, [])
+
   const load = useCallback(async () => {
-    const data = await getDocumentsForCase(caseId)
-    setDocuments(data)
-  }, [caseId])
+    applyDocs(await getDocumentsForCase(caseId))
+  }, [applyDocs, caseId])
 
   useEffect(() => {
     let cancelled = false
     setIsLoading(true)
     getDocumentsForCase(caseId)
-      .then((data) => {
-        if (!cancelled) setDocuments(data)
+      .then((res) => {
+        if (!cancelled) applyDocs(res)
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -64,7 +73,7 @@ export function OrderDocumentsTab({
     return () => {
       cancelled = true
     }
-  }, [caseId])
+  }, [applyDocs, caseId])
 
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -134,7 +143,13 @@ export function OrderDocumentsTab({
         </div>
       )}
 
-      {documents.length === 0 && (
+      {loadError && (
+        <p className="text-sm text-red-700" data-testid="case-documents-load-error">
+          {loadError}. Det tælles ikke som ingen dokumenter.
+        </p>
+      )}
+
+      {!loadError && documents.length === 0 && (
         <div className="bg-white rounded-lg border p-12 text-center text-gray-500">
           <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">Ingen dokumenter på denne sag</p>

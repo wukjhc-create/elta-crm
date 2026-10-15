@@ -43,13 +43,20 @@ export function OrderInspectionTab({
   const [loading, setLoading] = useState(true)
   const [showFuldmagt, setShowFuldmagt] = useState(false)
   const [reports, setReports] = useState<CaseDocument[]>([])
+  const [reportsError, setReportsError] = useState<string | null>(null)
   const [sendDoc, setSendDoc] = useState<CaseDocument | null>(null)
 
   // Sagens besigtigelsesrapporter → "Send rapport" pr. rapport (Dialog B).
   const loadReports = useCallback(() => {
     let active = true
-    getDocumentsForCase(caseId).then((docs) => {
-      if (active) setReports(docs.filter(isBesigtigelseReport))
+    getDocumentsForCase(caseId).then((res) => {
+      if (!active) return
+      if (res.error) {
+        setReportsError(res.error)
+        return
+      }
+      setReportsError(null)
+      setReports(res.documents.filter(isBesigtigelseReport))
     })
     return () => {
       active = false
@@ -141,6 +148,11 @@ export function OrderInspectionTab({
 
       {/* Send rapport fra sagen — samme modtager-vælger som kundekortet
           (underskriver default, + kontaktperson på stedet + samarbejdspartner). */}
+      {reportsError && (
+        <p className="text-sm text-red-700" data-testid="case-reports-load-error">
+          {reportsError}. Det tælles ikke som ingen rapporter.
+        </p>
+      )}
       {reports.length > 0 && (
         <div className="bg-white rounded-lg border">
           <div className="p-4 border-b flex items-center gap-2">

@@ -1139,13 +1139,15 @@ export async function archiveEmailAttachmentsToCase(
 
 export async function getDocumentsForCase(
   serviceCaseId: string
-): Promise<CaseDocument[]> {
+): Promise<{ documents: CaseDocument[]; error: string | null }> {
   try {
     const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
-      return []
+      return { documents: [], error: null }
     }
-    if (!hasPermission('cases.view.all') && !(await userCanViewCase(serviceCaseId, { role, userId, supabase }))) return []
+    if (!hasPermission('cases.view.all') && !(await userCanViewCase(serviceCaseId, { role, userId, supabase }))) {
+      return { documents: [], error: null }
+    }
 
     const { data, error } = await supabase
       .from('customer_documents')
@@ -1156,7 +1158,7 @@ export async function getDocumentsForCase(
 
     if (error) {
       logger.error('getDocumentsForCase failed', { error, entityId: serviceCaseId })
-      return []
+      return { documents: [], error: 'Kunne ikke hente dokumenter' }
     }
 
     // Phase β.2.3: lazy-refresh file_url via signed-URL helper for hver row
@@ -1171,9 +1173,12 @@ export async function getDocumentsForCase(
       if (paths[i]) { freshByIdx[i] = fresh[fIdx]; fIdx++ }
     }
     // IDOR-sweep 2026-10-09 (#2): ingen CPR/underskrift fra fuldmagter i listen
-    return rows.map((r, idx) => ({ ...r, description: safeDocumentDescription(r.description), file_url: freshByIdx[idx] ?? r.file_url ?? '' }))
+    return {
+      documents: rows.map((r, idx) => ({ ...r, description: safeDocumentDescription(r.description), file_url: freshByIdx[idx] ?? r.file_url ?? '' })),
+      error: null,
+    }
   } catch {
-    return []
+    return { documents: [], error: 'Kunne ikke hente dokumenter' }
   }
 }
 
