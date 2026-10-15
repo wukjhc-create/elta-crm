@@ -197,23 +197,23 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
 
       {/* Summary stats (globale, uafhængigt af filter) */}
       {data && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <button onClick={() => setParams({ reason: 'action_required' })} className="text-left rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3 hover:ring-blue-300">
-            <div className="text-xs text-gray-500">Sager med handling</div>
-            <div className="text-2xl font-bold mt-0.5 text-blue-700">{data.summary.total_cases_with_action}</div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 min-w-0">
+          <button onClick={() => setParams({ reason: 'action_required' })} className="text-left rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3 hover:ring-blue-300 min-w-0">
+            <div className="text-xs text-gray-500 break-words">Sager med handling</div>
+            <div className="text-2xl font-bold mt-0.5 text-blue-700 break-words">{data.summary.total_cases_with_action}</div>
           </button>
-          <button onClick={() => setParams({ reason: 'approved_unconverted' })} className="text-left rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3 hover:ring-amber-300">
-            <div className="text-xs text-gray-500">Ukonverterede linjer</div>
-            <div className="text-2xl font-bold mt-0.5 text-amber-700">{data.summary.total_unconverted_lines}</div>
-            {canAmt && data.summary.total_unconverted_amount != null && <div className="text-xs text-gray-500 mt-0.5">{kr(data.summary.total_unconverted_amount)}</div>}
+          <button onClick={() => setParams({ reason: 'approved_unconverted' })} className="text-left rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3 hover:ring-amber-300 min-w-0">
+            <div className="text-xs text-gray-500 break-words">Ukonverterede linjer</div>
+            <div className="text-2xl font-bold mt-0.5 text-amber-700 break-words">{data.summary.total_unconverted_lines}</div>
+            {canAmt && data.summary.total_unconverted_amount != null && <div className="text-xs text-gray-500 mt-0.5 break-words">{kr(data.summary.total_unconverted_amount)}</div>}
           </button>
-          <button onClick={() => setParams({ reason: 'overdue' })} className="text-left rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3 hover:ring-red-300">
-            <div className="text-xs text-gray-500">Forfaldne fakturaer</div>
-            <div className="text-2xl font-bold mt-0.5 text-red-700">{data.summary.overdue_invoice_count}</div>
+          <button onClick={() => setParams({ reason: 'overdue' })} className="text-left rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3 hover:ring-red-300 min-w-0">
+            <div className="text-xs text-gray-500 break-words">Forfaldne fakturaer</div>
+            <div className="text-2xl font-bold mt-0.5 text-red-700 break-words">{data.summary.overdue_invoice_count}</div>
           </button>
-          <button onClick={() => setParams({ reason: 'due_soon' })} className="text-left rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3 hover:ring-amber-300">
-            <div className="text-xs text-gray-500">Forfalder inden 7 dage</div>
-            <div className="text-2xl font-bold mt-0.5 text-amber-700">{data.summary.due_soon_invoice_count}</div>
+          <button onClick={() => setParams({ reason: 'due_soon' })} className="text-left rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3 hover:ring-amber-300 min-w-0">
+            <div className="text-xs text-gray-500 break-words">Forfalder inden 7 dage</div>
+            <div className="text-2xl font-bold mt-0.5 text-amber-700 break-words">{data.summary.due_soon_invoice_count}</div>
           </button>
         </div>
       )}
