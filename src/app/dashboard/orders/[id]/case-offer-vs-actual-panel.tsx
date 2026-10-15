@@ -102,14 +102,14 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                         </div>
                         <p className="mt-2 text-xs text-gray-600">Tilbudt antal {qty(r.offered_qty)} · faktisk antal {qty(r.actual_qty)}</p>
                         <p className="text-xs text-gray-700">Tilbudt kost {kr(r.offered_cost)} · faktisk kost {kr(r.actual_cost)}</p>
-                        <p className="text-xs">Afvigelse {r.cost_deviation == null ? '—' : `${r.cost_deviation > 0 ? '+' : ''}${kr(r.cost_deviation)}`}</p>
+                        <p className="text-xs">Afvigelse {r.cost_deviation == null ? 'Kan ikke beregnes' : `${r.cost_deviation > 0 ? '+' : ''}${kr(r.cost_deviation)}`}</p>
                       </div>
                     )
                   })}
                   <div className="p-3 text-sm">
                     <p className="text-xs uppercase tracking-wide text-gray-600">I alt</p>
                     <p className="text-gray-800">Tilbudt kost {kr(figures.offered_cost)} · faktisk kost {kr(figures.actual_cost)}</p>
-                    <p>Afvigelse {figures.cost_deviation == null ? '—' : `${figures.cost_deviation > 0 ? '+' : ''}${kr(figures.cost_deviation)}`}</p>
+                    <p>Afvigelse {figures.cost_deviation == null ? 'Kan ikke beregnes' : `${figures.cost_deviation > 0 ? '+' : ''}${kr(figures.cost_deviation)}`}</p>
                   </div>
                 </div>
                 <div className="hidden md:block overflow-x-auto">
@@ -137,7 +137,7 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                           <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.offered_cost)}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.actual_cost)}</td>
                           <td className={`px-2 py-1.5 text-right tabular-nums ${r.cost_deviation != null && r.cost_deviation > 0 ? 'text-red-700' : 'text-gray-700'}`}>
-                            {r.cost_deviation == null ? '—' : `${r.cost_deviation > 0 ? '+' : ''}${kr(r.cost_deviation)}`}
+                            {r.cost_deviation == null ? 'Kan ikke beregnes' : `${r.cost_deviation > 0 ? '+' : ''}${kr(r.cost_deviation)}`}
                           </td>
                           <td className="px-2 py-1.5 text-center">
                             <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${visibleStatus(r).cls}`}>{visibleStatus(r).label}</span>
@@ -151,7 +151,7 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                         <td className="px-2 py-1.5 text-right tabular-nums">{kr(figures.offered_cost)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{kr(figures.actual_cost)}</td>
                         <td className={`px-2 py-1.5 text-right tabular-nums ${figures.cost_deviation == null ? 'text-gray-500' : figures.cost_deviation > 0 ? 'text-red-700' : 'text-emerald-700'}`} data-testid="offer-vs-actual-deviation">
-                          {figures.cost_deviation == null ? '—' : `${figures.cost_deviation > 0 ? '+' : ''}${kr(figures.cost_deviation)}`}
+                          {figures.cost_deviation == null ? 'Kan ikke beregnes' : `${figures.cost_deviation > 0 ? '+' : ''}${kr(figures.cost_deviation)}`}
                         </td>
                         <td />
                       </tr>
