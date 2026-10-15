@@ -131,13 +131,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Importens produktnavn og varenummer ombrydes. Priser og udsnit er de samme. | DONE — `import-name-wrap-test` |
 | Sync-jobbets navn og beskrivelse ombrydes. Fejlteksten på leverandørstatus ombrydes. | DONE — `sync-jobs-mobile-test` |
 | Portalen ombryder dokument, fuldmagt og velkomst. PDF og fuldmagtstekst er de samme. | DONE — `portal-identity-wrap-test` |
+| Efterkalk-tabellens sagstitel ombrydes. Omsætning og DB er de samme. | DONE — `aftercalc-overview-mobile-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: portal-identity-wrap efter 60ca8e34
+LAST_COMMIT: aftercalc-title-wrap efter b59287de
 TESTS: inspection-list-test, offer-product-name-test, title-wrap-test, close-button-label-test, case-notes-empty-test, customer-notes-empty-test, messages-empty-test, invoices-empty-search-test, aftercalc-empty-filter-test, calendar-mobile-test, reports-empty-test, sync-jobs-mobile-test, activity-empty-test, missing-date-test, inspection-calendar-test, tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2 (migrationer, ikke kørt her). 00223 er kørt af Claude på main (bc5705a2) — køres ikke igen. 00224 er kørt af Claude på main (725df30d) — køres ikke igen. 00225 ACL er Claudes (8f97e621). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: efterkalk-tabellens sagstitel ombrydes inden for 16 rem. Tallene bliver. Kalenderchips i ugevisningen bliver afkortet med vilje. Indbakkens forhåndsvisning bliver på én linje med vilje. Kalenderchips i ugevisningen bliver afkortet med vilje. Mailens forhåndsvisning bliver på én linje med vilje. Kundens sidehoved klipper ikke. Scan 2026-10-15 fortsat: tomme chats, tom plan og sagsopgaver forklarer allerede næste skridt.
+NEXT_QUEUE: rapportens skrivebordssag og kunde ombrydes. Kost bliver bag costOpen. Kalenderchips i ugevisningen bliver afkortet med vilje. Indbakkens forhåndsvisning bliver på én linje med vilje. Kalenderchips i ugevisningen bliver afkortet med vilje. Mailens forhåndsvisning bliver på én linje med vilje. Kundens sidehoved klipper ikke. Scan 2026-10-15 fortsat: tomme chats, tom plan og sagsopgaver forklarer allerede næste skridt.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.

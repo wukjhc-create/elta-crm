@@ -23,6 +23,8 @@ eq('kortet viser omsætning og db-afvigelse', mobile.includes('quoted_revenue') 
 eq('advarsel vises som tekst, ikke kun titel', mobile.includes('DATA_QUALITY_LABELS'), true)
 eq('række-testid ligger ikke på kortet', mobile.includes('data-testid="aftercalc-overview-row"'), false)
 eq('desktop-rækken beholder testid og datakvalitet', src.includes('data-testid="aftercalc-overview-row"') && src.includes('data-quality={r.data_quality}'), true)
+eq('desktop-titel ombrydes', src.includes('text-[11px] text-gray-500 break-words max-w-[16rem]">{r.title}'), true)
+eq('desktop-titel klippes ikke', src.includes('truncate max-w-[16rem]'), false)
 
 console.log(fail ? `\n${fail} fejl` : '\naftercalc-overview-mobile-test OK')
 process.exitCode = fail ? 1 : 0
