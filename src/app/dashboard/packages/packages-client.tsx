@@ -25,6 +25,7 @@ import { formatCurrency, formatTimeMinutes } from '@/lib/utils/format'
 interface PackagesClientProps {
   initialPackages: PaginatedResponse<PackageSummary> | null
   categories: PackageCategory[]
+  loadError?: string | null
   initialFilters: {
     search: string
     category_id: string
@@ -34,6 +35,7 @@ interface PackagesClientProps {
 export default function PackagesClient({
   initialPackages,
   categories,
+  loadError = null,
   initialFilters,
 }: PackagesClientProps) {
   const router = useRouter()
@@ -107,7 +109,9 @@ export default function PackagesClient({
         <div>
           <h1 className="text-2xl font-bold">Pakker</h1>
           <p className="text-muted-foreground">
-            Opret og administrer genanvendelige pakker ({total} pakker)
+            {loadError
+              ? 'Antallet kunne ikke hentes. Det tælles ikke som 0 pakker.'
+              : `Opret og administrer genanvendelige pakker (${total} pakker)`}
           </p>
         </div>
         <button
@@ -163,7 +167,11 @@ export default function PackagesClient({
       </div>
 
       {/* Package Grid */}
-      {packages.length === 0 ? (
+      {loadError ? (
+        <p className="text-sm text-amber-800 py-8 text-center" data-testid="packages-load-error">
+          {loadError}. Det tælles ikke som ingen pakker.
+        </p>
+      ) : packages.length === 0 ? (
         <div className="text-center py-12 border rounded-lg bg-muted/50">
           <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">

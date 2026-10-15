@@ -34,6 +34,7 @@ export function PackagePickerDialog({
 }: PackagePickerDialogProps) {
   const [packages, setPackages] = useState<PackageSummary[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const toast = useToast()
 
@@ -52,8 +53,12 @@ export function PackagePickerDialog({
       })
       if (result.success && result.data) {
         setPackages(result.data.data)
+        setLoadError(null)
+      } else {
+        setLoadError(result.error || 'Kunne ikke hente pakker')
       }
     } catch {
+      setLoadError('Kunne ikke hente pakker')
       toast.error('Kunne ikke hente pakker')
     } finally {
       setIsLoading(false)
@@ -95,6 +100,10 @@ export function PackagePickerDialog({
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
             </div>
+          ) : loadError && packages.length === 0 ? (
+            <p className="text-sm text-amber-800 text-center py-8" data-testid="package-picker-load-error">
+              {loadError}. Det tælles ikke som ingen pakker.
+            </p>
           ) : packages.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-8">
               Ingen pakker fundet

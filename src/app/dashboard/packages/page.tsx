@@ -36,6 +36,7 @@ export default async function PackagesPage({ searchParams }: PageProps) {
     <Suspense fallback={<PackagesLoading />}>
       <PackagesClient
         initialPackages={packagesResult.success && packagesResult.data ? packagesResult.data : null}
+        loadError={packagesResult.success ? null : (packagesResult.error || 'Kunne ikke hente pakker')}
         categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
         initialFilters={{
           search: params.search || '',
