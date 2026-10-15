@@ -133,7 +133,7 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
       </div>
 
       {/* Table header */}
-      <div className="grid grid-cols-[1fr_60px_80px_90px_90px_70px_32px] gap-2 text-xs font-medium text-gray-500 px-1">
+      <div className="hidden sm:grid grid-cols-[1fr_60px_80px_90px_90px_70px_32px] gap-2 text-xs font-medium text-gray-500 px-1">
         <div>Beskrivelse</div>
         <div className="text-right">Antal</div>
         <div>Enhed</div>
@@ -158,9 +158,9 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
               </div>
             )}
 
-            <div className="grid grid-cols-[1fr_60px_80px_90px_90px_70px_32px] gap-2 items-start">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_60px_80px_90px_90px_70px_32px] gap-2 items-start">
               {/* Description + supplier info */}
-              <div>
+              <div className="min-w-0">
                 <DescriptionInput
                   value={item.description}
                   onChange={(val) => updateItem(index, 'description', val)}
@@ -177,46 +177,65 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
                 )}
               </div>
 
-              <input
-                type="number"
-                value={item.quantity}
-                onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
-                min={0}
-                step={1}
-                className="px-2 py-1.5 border rounded text-sm text-right"
-              />
-              <select
-                value={item.unit}
-                onChange={(e) => updateItem(index, 'unit', e.target.value)}
-                className="px-2 py-1.5 border rounded text-sm"
-              >
+              <div>
+                <div className="sm:hidden text-[11px] text-gray-500 mb-0.5">Antal</div>
+                <input
+                  type="number"
+                  value={item.quantity}
+                  onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
+                  min={0}
+                  step={1}
+                  aria-label="Antal"
+                  className="w-full px-2 py-1.5 border rounded text-sm text-right"
+                />
+              </div>
+              <div>
+                <div className="sm:hidden text-[11px] text-gray-500 mb-0.5">Enhed</div>
+                <select
+                  value={item.unit}
+                  onChange={(e) => updateItem(index, 'unit', e.target.value)}
+                  aria-label="Enhed"
+                  className="w-full px-2 py-1.5 border rounded text-sm"
+                >
                 {OFFER_UNITS.map((u) => (
                   <option key={u.value} value={u.value}>
                     {u.label}
                   </option>
                 ))}
-              </select>
-
-              {/* Vejledende pris */}
-              <div className="text-right py-1.5 text-sm text-gray-400">
-                {item.listPrice ? formatCurrency(item.listPrice, 'DKK', 0) : '—'}
+                </select>
               </div>
 
-              <input
-                type="number"
-                value={item.unitPrice}
-                onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                min={0}
-                step={0.01}
-                className="px-2 py-1.5 border rounded text-sm text-right"
-              />
-              <div className="text-right text-sm font-medium text-gray-700 py-1.5">
-                {formatCurrency(lineTotal, 'DKK', 0)}
+              {/* Vejledende pris */}
+              <div>
+                <div className="sm:hidden text-[11px] text-gray-500 mb-0.5">Vejl. pris</div>
+                <div className="sm:text-right py-1.5 text-sm text-gray-400">
+                  {item.listPrice ? formatCurrency(item.listPrice, 'DKK', 0) : '—'}
+                </div>
+              </div>
+
+              <div>
+                <div className="sm:hidden text-[11px] text-gray-500 mb-0.5">Enhedspris</div>
+                <input
+                  type="number"
+                  value={item.unitPrice}
+                  onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                  min={0}
+                  step={0.01}
+                  aria-label="Enhedspris"
+                  className="w-full px-2 py-1.5 border rounded text-sm text-right"
+                />
+              </div>
+              <div>
+                <div className="sm:hidden text-[11px] text-gray-500 mb-0.5">Total</div>
+                <div className="sm:text-right text-sm font-medium text-gray-700 py-1.5">
+                  {formatCurrency(lineTotal, 'DKK', 0)}
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => removeItem(index)}
-                className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                className="p-1.5 text-gray-400 hover:text-red-500 transition-colors justify-self-start sm:justify-self-end"
+                aria-label="Slet linje"
                 title="Slet linje"
               >
                 <Trash2 className="w-4 h-4" />
@@ -227,7 +246,7 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
       })}
 
       {/* Action buttons */}
-      <div className="flex gap-2 pt-2">
+      <div className="flex flex-wrap gap-2 pt-2">
         <button
           type="button"
           onClick={addLine}
