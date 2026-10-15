@@ -132,7 +132,7 @@ export function EmployeeJobTab({ employeeId }: { employeeId: string }) {
       </div>
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4 lg:col-span-2">
         <h3 className="text-sm font-semibold mb-2">Job</h3>
-        {data.jobs.length === 0 ? <p className="text-sm text-gray-500">Ingen job tildelt.</p> : (
+        {data.jobs.length === 0 ? <p className="text-sm text-gray-500">Ingen job tildelt. Planlæg jobbet i kalenderen.</p> : (
           <ul className="divide-y text-sm">
             {data.jobs.map((j) => (
               <li key={j.id} className="py-1.5 flex flex-wrap items-center gap-2">

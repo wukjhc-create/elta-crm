@@ -30,6 +30,7 @@ eq('overskriften ombrydes', text.includes('flex flex-wrap items-start justify-be
 const jobs = fs.readFileSync('src/app/dashboard/employees/[id]/employee-tabs.tsx', 'utf8')
 eq('jobtitel ombrydes', jobs.includes('break-words min-w-0 flex-1">{j.title ?? \'Job\'}'), true)
 eq('tom jobliste bliver', jobs.includes('Ingen job tildelt.'), true)
+eq('tom jobliste siger naeste skridt', jobs.includes('Planlæg jobbet i kalenderen.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nemployees-mobile-test OK')
 process.exitCode = fail ? 1 : 0

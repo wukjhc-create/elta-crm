@@ -180,13 +180,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Kalkia-knuden ombryder leverandørvarens navn. Kost og fjern-link bliver. | DONE — `kalkia-node-name-test` |
 | Mine job siger at kontoret planlægger, når ugen er tom. Links bliver. | DONE — `my-jobs-mobile-test` |
 | Mine timer siger at tiden registreres under Planlægning, når ugen er tom. | DONE — `my-hours-wrap-test` |
+| Medarbejderens tomme jobliste siger at jobbet planlægges i kalenderen. | DONE — `employees-mobile-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: my-hours-empty efter d370a50a
+LAST_COMMIT: employee-jobs-empty efter d3836f2d
 TESTS: inspection-list-test, offer-product-name-test, title-wrap-test, close-button-label-test, case-notes-empty-test, customer-notes-empty-test, messages-empty-test, invoices-empty-search-test, aftercalc-empty-filter-test, calendar-mobile-test, reports-empty-test, reports-mobile-test, sync-jobs-mobile-test, activity-empty-test, missing-date-test, inspection-calendar-test, tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, pricing-name-wrap-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 er kørt af Claude på main (d318ebe5) — køres ikke igen. 00222 er kørt af Claude på main (47a5a977) — køres ikke igen. 00223 er kørt af Claude på main (bc5705a2) — køres ikke igen. 00224 er kørt af Claude på main (725df30d) — køres ikke igen. 00225 ACL er Claudes (8f97e621). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic. Claudes mail-feedback (67b1997d), påmindelsesbekræftelse (af645e9b), prisparser (80b9bdef) og FloatingMenu (287d616f) duplikeres ikke.
-NEXT_QUEUE: Mine timer siger nu at tiden registreres under Planlægning. Næste scan er personlige påmindelser og medarbejdervisningens tomme job. Resterende klip er ugechips, indbakke-forhåndsvisning, mail-forhåndsvisning, sagsvælger i mail og revisionsloggens 40-tegns uddrag — de bliver med vilje. Claudes nye main (21fcd31e, ed4b7e9c, 5fbd779c, 81ce5c03) duplikeres ikke.
+NEXT_QUEUE: Medarbejderens tomme jobliste siger nu at jobbet planlægges i kalenderen. Næste scan er mailforslag og pakker uden næste skridt. Resterende klip er ugechips, indbakke-forhåndsvisning, mail-forhåndsvisning, sagsvælger i mail og revisionsloggens 40-tegns uddrag — de bliver med vilje. Claudes nye main (83b2742d, b9077dd1, b8281df2, f6cdb197, 21fcd31e, ed4b7e9c, 5fbd779c, 81ce5c03) duplikeres ikke.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
