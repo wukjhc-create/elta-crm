@@ -419,11 +419,11 @@ export default async function DashboardPage() {
                             {r.reason_label}
                           </p>
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-xs font-medium text-gray-700">
+                        <div className="text-right min-w-0">
+                          <p className="text-xs font-medium text-gray-700 break-words">
                             {formatCurrency(r.final_amount)}
                           </p>
-                          <p className="text-[10px] text-gray-400">
+                          <p className="text-[10px] text-gray-400 break-words">
                             {format(new Date(r.rejected_at), 'd. MMM', { locale: da })}
                           </p>
                         </div>
