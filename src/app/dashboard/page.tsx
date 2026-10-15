@@ -77,7 +77,7 @@ export default async function DashboardPage() {
   // Fetch all dashboard data in parallel
   const [
     stats,
-    activities,
+    recentActivityResult,
     tasks,
     personalReminders,
     pendingOffersResult,
@@ -325,7 +325,7 @@ export default async function DashboardPage() {
         {/* Middle Column - Recent Activity */}
         <div className="lg:col-span-1 bg-white p-6 rounded-lg border">
           <h2 className="text-lg font-semibold mb-4">Seneste aktivitet</h2>
-          <RecentActivity activities={activities} />
+          <RecentActivity activities={recentActivityResult.activities} loadError={recentActivityResult.error} />
         </div>
 
         {/* Right Column - Tasks & Offers */}

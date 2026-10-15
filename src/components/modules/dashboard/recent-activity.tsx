@@ -12,6 +12,8 @@ import type { RecentActivity as RecentActivityType } from '@/lib/actions/dashboa
 
 interface RecentActivityProps {
   activities: RecentActivityType[]
+  /** Sat når mindst én kilde fejlede. En tom liste må ikke ligne "ingen aktivitet". */
+  loadError?: string | null
 }
 
 const TYPE_CONFIG = {
@@ -42,7 +44,15 @@ const TYPE_CONFIG = {
   },
 }
 
-export function RecentActivity({ activities }: RecentActivityProps) {
+export function RecentActivity({ activities, loadError = null }: RecentActivityProps) {
+  if (loadError && activities.length === 0) {
+    return (
+      <p className="text-sm text-red-700" data-testid="recent-activity-load-error">
+        {loadError}. Det tælles ikke som ingen aktivitet.
+      </p>
+    )
+  }
+
   if (activities.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -54,7 +64,13 @@ export function RecentActivity({ activities }: RecentActivityProps) {
   }
 
   return (
-    <div className="divide-y">
+    <div>
+      {loadError ? (
+        <p className="text-sm text-red-700 mb-3" data-testid="recent-activity-load-error">
+          {loadError}. Listen er ufuldstændig.
+        </p>
+      ) : null}
+      <div className="divide-y">
       {activities.map((activity) => {
         const config = TYPE_CONFIG[activity.type]
         const Icon = config.icon
@@ -85,6 +101,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

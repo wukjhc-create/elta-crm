@@ -202,7 +202,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   }
 }
 
-export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_ACTIVITY): Promise<RecentActivity[]> {
+export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_ACTIVITY): Promise<{
+  activities: RecentActivity[]
+  error: string | null
+}> {
   const { supabase } = await getAuthenticatedClient()
 
   // Fetch recent items from each table in parallel
@@ -300,7 +303,11 @@ export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   )
 
-  return activities.slice(0, limit)
+  const failed = !!(leadsResult.error || customersResult.error || offersResult.error || projectsResult.error)
+  return {
+    activities: activities.slice(0, limit),
+    error: failed ? 'Kunne ikke hente al aktivitet' : null,
+  }
 }
 
 export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_OFFERS): Promise<{
