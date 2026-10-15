@@ -157,9 +157,28 @@ function PackageEditor({
   const [isActive, setIsActive] = useState(pkg.is_active)
   const [sortOrder, setSortOrder] = useState(String(pkg.sort_order ?? 0))
   const [options, setOptions] = useState<PackageOptionRow[]>([])
+  const [optionsError, setOptionsError] = useState<string | null>(null)
+
+  const loadOptions = async () => {
+    try {
+      setOptions(await listOptionsForPackageAction(pkg.id))
+      setOptionsError(null)
+    } catch {
+      setOptionsError('Kunne ikke hente tilvalg')
+    }
+  }
 
   useEffect(() => {
-    listOptionsForPackageAction(pkg.id).then(setOptions).catch(() => setOptions([]))
+    let alive = true
+    listOptionsForPackageAction(pkg.id).then((rows) => {
+      if (!alive) return
+      setOptions(rows)
+      setOptionsError(null)
+    }).catch(() => {
+      if (!alive) return
+      setOptionsError('Kunne ikke hente tilvalg')
+    })
+    return () => { alive = false }
   }, [pkg.id])
 
   const save = () => startTransition(async () => {
@@ -234,19 +253,24 @@ function PackageEditor({
                 is_active: true,
               })
               if (r.ok) {
-                setOptions(await listOptionsForPackageAction(pkg.id))
+                await loadOptions()
                 flash(true, r.message)
               } else flash(false, r.message)
             })}
             disabled={busy}>+ Nyt tilvalg</Button>
         </div>
         <div className="space-y-2">
-          {options.length === 0 && <p className="text-xs text-gray-400">Ingen tilvalg endnu.</p>}
+          {optionsError && (
+            <p className="text-sm text-red-700" data-testid="package-options-load-error">
+              {optionsError}. Det tælles ikke som ingen tilvalg.
+            </p>
+          )}
+          {!optionsError && options.length === 0 && <p className="text-xs text-gray-400">Ingen tilvalg endnu.</p>}
           {options.map((o) => (
             <OptionRow key={o.id} option={o} busy={busy}
               startTransition={startTransition}
               flash={flash}
-              onChanged={async () => setOptions(await listOptionsForPackageAction(pkg.id))}
+              onChanged={loadOptions}
             />
           ))}
         </div>

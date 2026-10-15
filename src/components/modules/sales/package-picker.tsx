@@ -34,8 +34,10 @@ interface Props {
 
 export function PackagePicker({ offerId, customerId, customerName, onApplied }: Props) {
   const [packages, setPackages] = useState<SalesPackageRow[]>([])
+  const [packagesError, setPackagesError] = useState<string | null>(null)
   const [selectedPkgId, setSelectedPkgId] = useState<string | null>(null)
   const [pkgDetails, setPkgDetails] = useState<SalesPackageWithOptions | null>(null)
+  const [detailsError, setDetailsError] = useState<string | null>(null)
   const [optionIds, setOptionIds] = useState<string[]>([])
   const [textPreview, setTextPreview] = useState<OfferTextResult | null>(null)
   const [writeOfferText, setWriteOfferText] = useState<boolean>(true)
@@ -43,7 +45,16 @@ export function PackagePicker({ offerId, customerId, customerName, onApplied }: 
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
-    listActivePackagesAction().then(setPackages).catch(() => setPackages([]))
+    let alive = true
+    listActivePackagesAction().then((rows) => {
+      if (!alive) return
+      setPackages(rows)
+      setPackagesError(null)
+    }).catch(() => {
+      if (!alive) return
+      setPackagesError('Kunne ikke hente pakker')
+    })
+    return () => { alive = false }
   }, [])
 
   useEffect(() => {
@@ -51,14 +62,23 @@ export function PackagePicker({ offerId, customerId, customerName, onApplied }: 
       setPkgDetails(null)
       setOptionIds([])
       setTextPreview(null)
+      setDetailsError(null)
       return
     }
+    let alive = true
+    setPkgDetails(null)
+    setDetailsError(null)
     getPackageWithOptionsAction(selectedPkgId)
       .then((p) => {
+        if (!alive) return
         setPkgDetails(p)
         setOptionIds([])
       })
-      .catch(() => setPkgDetails(null))
+      .catch(() => {
+        if (!alive) return
+        setDetailsError('Kunne ikke hente pakken')
+      })
+    return () => { alive = false }
   }, [selectedPkgId])
 
   // Live text preview whenever options change.
@@ -106,7 +126,11 @@ export function PackagePicker({ offerId, customerId, customerName, onApplied }: 
           <span className="text-xs text-gray-500">Ændringer er additive — eksisterende linjer bevares.</span>
         </div>
 
-        {packages.length === 0 ? (
+        {packagesError ? (
+          <p className="text-sm text-red-700" data-testid="package-list-load-error">
+            {packagesError}. Det tælles ikke som ingen pakker.
+          </p>
+        ) : packages.length === 0 ? (
           <p className="text-xs text-gray-400">Ingen aktive pakker — opret en under Indstillinger → Pakker.</p>
         ) : (
           <>
@@ -123,6 +147,11 @@ export function PackagePicker({ offerId, customerId, customerName, onApplied }: 
                 </option>
               ))}
             </select>
+            {detailsError && (
+              <p className="mt-2 text-sm text-red-700" data-testid="package-detail-load-error">
+                {detailsError}. Det tælles ikke som en pakke uden tilvalg.
+              </p>
+            )}
 
             {pkgDetails && (
               <div className="mt-3 space-y-3">
