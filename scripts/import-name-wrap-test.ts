@@ -21,6 +21,10 @@ eq('historik ombryder navn', history.includes('max-w-[150px] break-words'), true
 eq('historik klipper ikke navn', history.includes('truncate'), false)
 eq('historik viser foer-pris', history.includes('formatCurrency(change.old_cost_price)'), true)
 eq('tom historik bliver', history.includes('Ingen prisændringer i denne import'), true)
+eq('tom import siger naeste skridt', history.includes('Brug Importer produkter ovenfor.'), true)
+eq('filnavn ombrydes', history.includes('font-medium break-all">{batch.filename'), true)
+eq('detaljer har et navn', history.includes('aria-label="Vis importdetaljer"') && history.includes('handleViewDetails(batch)'), true)
+eq('raekker bliver', history.includes("batch.total_rows?.toLocaleString('da-DK')"), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nimport-name-wrap-test OK')
 process.exitCode = fail ? 1 : 0

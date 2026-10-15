@@ -119,11 +119,11 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
       {batches.length === 0 ? (
         <div className="bg-white rounded-lg border p-12 text-center">
           <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500">Ingen tidligere imports</p>
+          <p className="text-gray-500">Ingen tidligere imports. Brug Importer produkter ovenfor.</p>
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-lg border overflow-hidden">
+          <div className="bg-white rounded-lg border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -142,7 +142,7 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
                   <TableRow key={batch.id}>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{batch.filename || 'Unavngivet'}</p>
+                        <p className="font-medium break-all">{batch.filename || 'Unavngivet'}</p>
                         <p className="text-xs text-gray-500">
                           {formatDateTimeDK(batch.created_at)}
                         </p>
@@ -179,6 +179,7 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
                       <Button
                         variant="ghost"
                         size="sm"
+                        aria-label="Vis importdetaljer"
                         onClick={() => handleViewDetails(batch)}
                       >
                         <Eye className="w-4 h-4" />
