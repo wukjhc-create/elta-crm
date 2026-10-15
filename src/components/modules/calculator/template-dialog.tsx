@@ -220,19 +220,21 @@ export function LoadTemplateDialog({
                   }}
                   className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium">{template.name}</h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium break-words">{template.name}</h3>
                       {template.description && (
-                        <p className="text-sm text-gray-600 mt-1">{template.description}</p>
+                        <p className="text-sm text-gray-600 mt-1 break-words">{template.description}</p>
                       )}
                       <div className="flex gap-4 mt-2 text-sm text-gray-500">
                         <span>{template.template_data?.systemSize} kWp</span>
                         <span>{formatCurrency(template.template_data?.totalPrice || 0)}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
+                        type="button"
+                        aria-label="Slet skabelon"
                         onClick={(e) => handleDelete(template.id, e)}
                         disabled={isDeleting === template.id}
                         className="p-1.5 hover:bg-red-100 rounded text-gray-400 hover:text-red-600 disabled:opacity-50"
