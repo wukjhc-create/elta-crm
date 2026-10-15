@@ -200,10 +200,10 @@ export function OrderPlanningTab({
       )}
 
       {/* Header row with CTA */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="text-base font-semibold">Planlagte arbejdsordrer</h3>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 break-words">
             {workOrders.length === 0
               ? 'Ingen arbejdsordrer planlagt endnu'
               : `${workOrders.length} arbejdsordr${workOrders.length === 1 ? 'e' : 'er'} på sagen`}
@@ -238,6 +238,7 @@ export function OrderPlanningTab({
                 onChange={(e) => setFormTitle(e.target.value)}
                 placeholder="Fx 'El-installation dag 1'"
                 className="w-full px-3 py-2 border rounded-md text-sm"
+                aria-label="Titel"
                 disabled={isWorking}
                 autoFocus
               />
@@ -250,6 +251,7 @@ export function OrderPlanningTab({
                 value={formDate}
                 onChange={(e) => setFormDate(e.target.value)}
                 className="w-full px-3 py-2 border rounded-md text-sm"
+                aria-label="Planlagt dato"
                 disabled={isWorking}
               />
             </div>
@@ -261,6 +263,7 @@ export function OrderPlanningTab({
                 onChange={(e) => setFormEmployee(e.target.value)}
                 disabled={isWorking || employees.length === 0}
                 className="w-full px-3 py-2 border rounded-md text-sm bg-white"
+                aria-label="Medarbejder"
               >
                 <option value="">— Ingen tildelt —</option>
                 {employees.map((e) => (
@@ -276,13 +279,14 @@ export function OrderPlanningTab({
                 onChange={(e) => setFormDescription(e.target.value)}
                 rows={2}
                 className="w-full px-3 py-2 border rounded-md text-sm resize-none"
+                aria-label="Beskrivelse"
                 placeholder="Hvad skal medarbejderen lave på dagen?"
                 disabled={isWorking}
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={() => {
@@ -472,15 +476,15 @@ function WorkOrderRow({
           {wo.description && (
             <div className="text-sm text-gray-600 whitespace-pre-wrap">{wo.description}</div>
           )}
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-gray-500 break-words">
             Medarbejder:{' '}
             {wo.employee ? (
-              <span className="font-medium text-gray-700">
+              <span className="font-medium text-gray-700 break-words">
                 {wo.employee.name}
                 {wo.employee.email ? (
                   <a
                     href={`mailto:${wo.employee.email}`}
-                    className="ml-1 text-emerald-700 hover:underline"
+                    className="ml-1 text-emerald-700 hover:underline break-all"
                   >
                     ({wo.employee.email})
                   </a>
