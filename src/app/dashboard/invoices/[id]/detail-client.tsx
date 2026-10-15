@@ -252,7 +252,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
         </div>
       )}
       {/* Breadcrumb */}
-      <div className="flex items-center gap-3 text-xs text-gray-500">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
         <Link href="/dashboard/invoices" className="text-emerald-700 hover:underline inline-flex items-center gap-1">
           <ArrowLeft className="w-3 h-3" />
           Fakturaer
@@ -262,11 +262,11 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
             <span>/</span>
             <Link
               href={`/dashboard/orders/${detail.case.case_number}`}
-              className="text-emerald-700 hover:underline inline-flex items-center gap-1"
+              className="text-emerald-700 hover:underline inline-flex flex-wrap items-center gap-1 min-w-0 break-words"
             >
               <span className="font-mono">{detail.case.case_number}</span>
               {detail.case.project_name || detail.case.title ? (
-                <span>· {detail.case.project_name || detail.case.title}</span>
+                <span className="min-w-0 break-words">· {detail.case.project_name || detail.case.title}</span>
               ) : null}
             </Link>
           </>
@@ -277,9 +277,9 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-5">
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-semibold flex items-center gap-2">
-              <FileText className="w-6 h-6 text-emerald-600" />
-              {inv.invoice_number}
+            <h1 className="text-2xl font-semibold flex flex-wrap items-center gap-2">
+              <FileText className="w-6 h-6 text-emerald-600 shrink-0" />
+              <span className="break-all">{inv.invoice_number}</span>
               <span
                 className={`text-[11px] uppercase tracking-wide px-2 py-0.5 rounded ring-1 ${
                   STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-700 ring-gray-300'
@@ -344,7 +344,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               </p>
             )}
           </div>
-          <div className="text-right">
+          <div className="text-right shrink-0">
             <div className="text-3xl font-bold tabular-nums">{fmtKr(inv.final_amount, inv.currency)}</div>
             <div className="text-xs text-gray-500">incl. {fmtKr(inv.tax_amount, inv.currency)} moms</div>
           </div>
