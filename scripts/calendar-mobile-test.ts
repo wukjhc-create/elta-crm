@@ -20,6 +20,8 @@ const nav = src.slice(src.indexOf('{/* Date nav */}'), src.indexOf('<CalendarAge
 const filters = src.slice(src.indexOf('{/* Filters */}'), src.indexOf('Nulstil filtre'))
 eq('datonav ombrydes', nav.includes('flex-wrap') && nav.includes('aria-label="Forrige"') && nav.includes('aria-label="Næste"'), true)
 eq('filtre fylder bredden paa mobil', filters.includes('w-full sm:w-auto') && filters.split('w-full sm:w-auto').length >= 3, true)
+const chip = src.slice(src.indexOf('function WorkOrderChip'))
+eq('jobkort viser ansvarlig', chip.includes('wo.employee?.name') && chip.includes('Ikke tildelt') && chip.includes('!compact'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncalendar-mobile-test OK')
 process.exitCode = fail ? 1 : 0

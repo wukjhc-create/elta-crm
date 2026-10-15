@@ -51,13 +51,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Tomt tilbud siger at der ingen linjer er. Tilføj-linje og skygge-DB er de samme. | DONE — `line-items-empty-test` |
 | Dashboard-kort siger tomt, når tallet er 0. Beløb vises stadig, når det ikke er 0. | DONE — `dashboard-empty-stats-test` |
 | Leverandørfakturaens linjer er kort under `md`. Antal, pris og konvertering er de samme. | DONE — `incoming-invoice-lines-mobile-test` |
+| Kalenderens jobkort viser den ansvarlige. Den tætte ugevisning gør det ikke igen. | DONE — `calendar-mobile-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: incoming-invoice-lines-mobile efter 8b48ac47
-TESTS: incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, tsc --noEmit
+LAST_COMMIT: calendar-responsible efter d91a9d9d
+TESTS: calendar-mobile-test, incoming-invoice-lines-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00223 GP-1 RLS, 00224 GP-6 (migrationer, ikke kørt). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: kalenderuge ansvarlig; aria-label på ikonknapper; afvisningsanalyse på mobil; tomme filterresultater i rapporter; sagsdokumenter som kort; produktsøgning uden træf; indstillinger leverandørliste kort; produktkatalog kort med canSeeCost; sagsoverblik manglende ansvarlig; indbakke tom søgning; påmindelse uden dato; kundehistorik tom tekst.
+NEXT_QUEUE: aria-label på ikonknapper; afvisningsanalyse på mobil; tomme filterresultater i rapporter; sagsdokumenter som kort; produktsøgning uden træf; indstillinger leverandørliste kort; produktkatalog kort med canSeeCost; sagsoverblik manglende ansvarlig; indbakke tom søgning; påmindelse uden dato; kundehistorik tom tekst.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.

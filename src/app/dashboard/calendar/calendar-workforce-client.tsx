@@ -780,6 +780,9 @@ function WorkOrderChip({
       {customerLabel && (
         <div className="truncate text-[11px] opacity-70">{customerLabel}</div>
       )}
+      {!compact && (
+        <div className="truncate text-[11px] opacity-70">{wo.employee?.name || 'Ikke tildelt'}</div>
+      )}
       <div className="flex items-center justify-between gap-1 mt-0.5">
         {caseNumber && (
           <span className="font-mono text-[10px] opacity-60">{caseNumber}</span>
