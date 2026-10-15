@@ -65,6 +65,7 @@ const APPROVED: Record<string, string> = {
   '00218': '2026-10-14', // kundedokumenter interne som standard (visible_in_portal + backfill), godkendt af Henrik i chat 2026-10-14 ("00218 CUSTOMER DOCUMENT SHARING GODKENDT TIL PROD")
   '00219': '2026-10-14', // kalkulationsrækker offer_mode + totals-trigger, godkendt af Henrik i chat 2026-10-14 ("00219 CALCULATION OFFER MODE GODKENDT TIL PROD")
   '00220': '2026-10-14', // profiles.notification_preferences + kolonne-grant, godkendt af Henrik i chat 2026-10-14 ("00220 NOTIFICATION PREFERENCES GODKENDT TIL PROD")
+  '00221': '2026-10-15', // leverandørfaktura-nr. unikt kun blandt aktive (L-10), godkendt af Henrik i chat 2026-10-15 ("Alle fire migrationer er GODKENDT TIL PROD")
 }
 
 async function main() {

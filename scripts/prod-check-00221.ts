@@ -9,4 +9,6 @@ withProdReadOnly('prod-check-00221', async (run) => {
   console.log(`(leverandør, nr.)-par delt af en afvist og en anden række: ${pairs[0]?.n ?? 0}`)
   const dupOfRejected = (await run(`SELECT count(*)::int n FROM incoming_invoices d JOIN incoming_invoices o ON o.id = d.duplicate_of_id WHERE d.status = 'cancelled' AND o.status = 'rejected'`)) as Array<{ n: number }>
   console.log(`annullerede "dubletter" af en afvist faktura (L-10-tilfælde): ${dupOfRejected[0]?.n ?? 0}`)
+  const ck = (await run(`SELECT count(*)::int n, md5(string_agg(id::text || '|' || status || '|' || coalesce(invoice_number,'') || '|' || coalesce(supplier_id::text,'') || '|' || coalesce(amount_incl_vat::text,''), ',' ORDER BY id)) h FROM incoming_invoices`)) as Array<{ n: number; h: string }>
+  console.log(`checksum incoming_invoices: n=${ck[0]?.n} md5=${ck[0]?.h}`)
 }).catch((e) => { console.error(maskDbError(e)); process.exitCode = 1 })
