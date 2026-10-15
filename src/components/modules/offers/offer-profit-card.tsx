@@ -54,7 +54,7 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
   }
   if (error || !data) {
     return (
-      <div className="bg-white rounded-lg border p-6 text-sm text-muted-foreground">Lønsomhed: {error ?? 'ingen data'}</div>
+      <div className="bg-white rounded-lg border p-6 text-sm text-muted-foreground break-words">Lønsomhed: {error ?? 'kunne ikke hentes. Åbn tilbuddet igen.'}</div>
     )
   }
   if (data.lines.length === 0) return null
@@ -63,22 +63,22 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
   const missingCost = data.lines.filter((l) => l.costSource === 'unknown' && l.sale > 0)
   return (
     <div className="bg-white rounded-lg border p-6" data-testid="offer-profit-card">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 font-medium"><TrendingUp className="w-4 h-4" /> Lønsomhed</div>
-        <span className={`text-xs px-2 py-1 rounded border ${v.cls}`}>{v.label}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2 font-medium min-w-0"><TrendingUp className="w-4 h-4 shrink-0" /> Lønsomhed</div>
+        <span className={`text-xs px-2 py-1 rounded border shrink-0 ${v.cls}`}>{v.label}</span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-3">
-        <div><div className="text-muted-foreground">Salg efter rabat</div><div className="font-semibold">{kr(data.sale)}</div></div>
-        <div><div className="text-muted-foreground">Realistisk DB</div><div className="font-semibold">{kr(data.dbRealistic)} · {data.dbRealisticPct} %</div></div>
-        <div><div className="text-muted-foreground">DB (kun kendt kost)</div><div className="font-semibold">{data.dbKnownPct} %</div></div>
-        <div><div className="text-muted-foreground">Kostdækning</div><div className="font-semibold">{data.costCoveragePct} %</div></div>
+        <div><div className="text-muted-foreground break-words">Salg efter rabat</div><div className="font-semibold break-words">{kr(data.sale)}</div></div>
+        <div><div className="text-muted-foreground break-words">Realistisk DB</div><div className="font-semibold break-words">{kr(data.dbRealistic)} · {data.dbRealisticPct} %</div></div>
+        <div><div className="text-muted-foreground break-words">DB (kun kendt kost)</div><div className="font-semibold break-words">{data.dbKnownPct} %</div></div>
+        <div><div className="text-muted-foreground break-words">Kostdækning</div><div className="font-semibold break-words">{data.costCoveragePct} %</div></div>
       </div>
 
       {data.warnings.length > 0 && (
         <ul className="space-y-1 mb-3">
           {data.warnings.map((w) => (
-            <li key={w} className="flex items-start gap-2 text-sm text-amber-800"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />{w}</li>
+            <li key={w} className="flex items-start gap-2 text-sm text-amber-800 break-words"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />{w}</li>
           ))}
         </ul>
       )}
@@ -88,7 +88,7 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
           <p className="font-medium">Linjer uden kostpris</p>
           <ul className="mt-1 space-y-0.5">
             {missingCost.map((l, i) => (
-              <li key={`${l.description}-${i}`}>
+              <li key={`${l.description}-${i}`} className="break-words">
                 {l.description || 'Linje uden tekst'}{l.isLabour ? ' (timer)' : ''} — salg {kr(l.sale)}
               </li>
             ))}
@@ -96,7 +96,7 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
         </div>
       )}
 
-      <div className="text-xs text-muted-foreground mb-2">
+      <div className="text-xs text-muted-foreground mb-2 break-words">
         Timekost: {data.hourlyCost != null ? `${data.hourlyCost} kr/t` : 'ikke sat'} ({data.hourlyCostSource})
         {data.minimumDbPct != null && ` · minimum-DB ${data.minimumDbPct} %`}{data.targetDbPct != null && ` · mål-DB ${data.targetDbPct} %`}
       </div>
@@ -109,7 +109,7 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
           <ul className="md:hidden mt-2 space-y-2 text-sm" data-testid="offer-profit-lines-mobile">
             {data.lines.map((l, i) => (
               <li key={i} className="rounded border p-2">
-                <p className="font-medium">{l.description || 'Linje uden tekst'}{l.isLabour ? ' (timer)' : ''}</p>
+                <p className="font-medium break-words">{l.description || 'Linje uden tekst'}{l.isLabour ? ' (timer)' : ''}</p>
                 <p>Salg {kr(l.sale)}</p>
                 <p>{l.cost != null ? `Kost ${kr(l.cost)}` : 'Kost ukendt'}</p>
                 <p>Kilde {SOURCE[l.costSource] ?? l.costSource}</p>
@@ -123,7 +123,7 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
               <tbody>
                 {data.lines.map((l, i) => (
                   <tr key={i} className="border-t">
-                    <td className="py-1">{l.description}{l.isLabour ? ' (timer)' : ''}</td>
+                    <td className="py-1 break-words">{l.description}{l.isLabour ? ' (timer)' : ''}</td>
                     <td className="text-right">{kr(l.sale)}</td>
                     <td className="text-right">{l.cost != null ? kr(l.cost) : '—'}</td>
                     <td className={`text-right ${l.costSource === 'unknown' ? 'text-orange-700' : ''}`}>{SOURCE[l.costSource]}</td>
