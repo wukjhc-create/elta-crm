@@ -92,7 +92,7 @@ export default function ProductForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="category_id">Kategori</Label>
           <Select name="category_id" defaultValue={product?.category_id || ''}>
@@ -126,7 +126,7 @@ export default function ProductForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="cost_price">Kostpris (DKK)</Label>
           <Input
