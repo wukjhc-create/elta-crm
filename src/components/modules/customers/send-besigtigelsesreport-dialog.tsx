@@ -249,11 +249,12 @@ export function SendBesigtigelsesreportDialog({
         if (failed === 0) {
           toast.success(`Besigtigelsesrapport sendt til ${sent} modtager${sent === 1 ? '' : 'e'}`)
         } else {
-          toast.success(
+          // U-15 (pilot-sweep 2026-10-15): navngiv de modtagere der fejlede (før "se browser console")
+          const failedRecipients = (result.data.errors ?? []).map((e) => e.split(':')[0]?.trim()).filter((x) => x && x.includes('@'))
+          toast.error(
             `Sendt til ${sent} af ${sent + failed}`,
-            'Nogle modtagere fejlede — se browser console for detaljer.'
+            failedRecipients.length ? `Ikke sendt til: ${failedRecipients.join(', ')} — prøv igen for dem` : 'Nogle modtagere fejlede — prøv igen'
           )
-          console.error('[BESIGTIGELSE-SEND] partial failure', result.data.errors)
         }
         onSent?.()
         onClose()

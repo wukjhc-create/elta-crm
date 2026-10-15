@@ -116,19 +116,23 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
     if (!files || files.length === 0) return
     setIsUploading(true)
     let uploadedCount = 0
+    // U-16 (pilot-sweep 2026-10-15): årsag pr. fil (størrelse/type) i stedet for samlet "Upload fejlede"
+    const failures: string[] = []
     for (const file of Array.from(files)) {
       const formData = new FormData()
       formData.append('file', file)
       const result = await uploadCustomerDocument(customerId, formData)
       if (result.success) uploadedCount++
+      else failures.push(`${file.name}: ${result.error ?? 'kunne ikke uploades'}`)
     }
     setIsUploading(false)
     if (uploadedCount > 0) {
       toast.success(`${uploadedCount} fil${uploadedCount > 1 ? 'er' : ''} uploadet`)
       load()
       router.refresh()
-    } else {
-      toast.error('Upload fejlede')
+    }
+    if (failures.length > 0) {
+      toast.error(`${failures.length} fil${failures.length > 1 ? 'er' : ''} blev ikke uploadet`, failures.slice(0, 3).join(' · '))
     }
   }
 
@@ -168,7 +172,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
       if (paths.length === 0) { setIsDownloading(false); return }
 
       const urlResult = await getDocumentDownloadUrls(paths)
-      if (!urlResult.success || !urlResult.data) { setIsDownloading(false); return }
+      if (!urlResult.success || !urlResult.data) { toast.error('Dokumenterne kunne ikke hentes', urlResult.error); setIsDownloading(false); return }
 
       const { default: JSZip } = await import('jszip').catch(() => ({ default: null }))
 
@@ -193,7 +197,9 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
           window.open(item.url, '_blank')
         }
       }
-    } catch { /* silent */ } finally {
+    } catch {
+      toast.error('Download fejlede', 'Prøv igen, eller hent dokumenterne enkeltvis')
+    } finally {
       setIsDownloading(false)
     }
   }

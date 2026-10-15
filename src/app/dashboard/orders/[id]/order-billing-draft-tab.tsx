@@ -83,6 +83,17 @@ function fmtDate(s: string | null): string {
 
 type BillingMode = 'standard' | 'deposit' | 'progress' | 'final'
 
+const SKIP_KIND_LABEL: Record<string, string> = { time_log: 'Timer', case_material: 'Materiale', case_other_cost: 'Øvrig omkostning' }
+const SKIP_REASON_LABEL: Record<string, string> = {
+  already_billed: 'allerede faktureret',
+  belongs_to_different_case: 'hører til en anden sag',
+  missing_employee_rate: 'medarbejderen mangler timepris',
+  not_billable: 'markeret som ikke-fakturerbar',
+  not_found: 'findes ikke længere',
+  open_timer: 'tiden er ikke afsluttet',
+  rejected: 'timerne er afvist',
+}
+
 export function OrderBillingDraftTab({
   caseId,
   canCreate = false,
@@ -1358,7 +1369,8 @@ export function BillingStandardMode({
     if (!res.ok || !res.invoice_id) {
       setSubmitError(res.message)
       if (res.skipped_lines.length > 0) {
-        setSubmitSkipped(res.skipped_lines.map((s) => `${s.kind} ${s.source_id.slice(0, 8)} — ${s.reason}${s.detail ? `: ${s.detail}` : ''}`))
+        // U-13 (pilot-sweep 2026-10-15): danske tekster i stedet for "time_log 3fa2b1c9 — already_billed"
+        setSubmitSkipped(res.skipped_lines.map((s) => `${SKIP_KIND_LABEL[s.kind] ?? 'Linje'} — ${SKIP_REASON_LABEL[s.reason] ?? 'kunne ikke medtages'}${s.detail ? ` (${s.detail})` : ''}`))
       }
       return
     }

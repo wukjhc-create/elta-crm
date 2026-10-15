@@ -665,8 +665,9 @@ function OverblikTab({
         <Row label="Planlagt timer" value={sag.planned_hours == null ? '—' : `${sag.planned_hours}`} />
         {sag.source_offer_id && (
           <Row label="Fra tilbud" value={
-            <Link href={`/dashboard/offers/${sag.source_offer_id}`} className="text-emerald-700 hover:underline font-mono text-xs">
-              {sag.source_offer_id.slice(0, 8)}…
+            <Link href={`/dashboard/offers/${sag.source_offer_id}`} className="text-emerald-700 hover:underline text-xs">
+              {/* U-12: ikke et UUID-fragment */}
+              Åbn tilbuddet →
             </Link>
           } />
         )}

@@ -101,9 +101,16 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
   const handleBulkStatusChange = async (status: OfferStatus) => {
     setIsBulkActing(true)
     const results = await Promise.allSettled(Array.from(selectedIds).map((id) => updateOfferStatus(id, status)))
-    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+    const failedResults = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success))
+    const failed = failedResults.length
     if (failed > 0) {
-      toast.error(`${failed} af ${selectedIds.size} tilbud kunne ikke opdateres`)
+      // U-14 (pilot-sweep 2026-10-15): årsag — tilbud med lav DB kræver bekræftelse og skal sendes enkeltvis
+      const lowDb = failedResults.filter((r) => r.status === 'fulfilled' && (r.value.error ?? '').startsWith(LOW_DB_ACK_REQUIRED)).length
+      const otherErr = failedResults.map((r) => (r.status === 'fulfilled' ? r.value.error : undefined)).find((e) => e && !e.startsWith(LOW_DB_ACK_REQUIRED))
+      toast.error(
+        `${failed} af ${selectedIds.size} tilbud kunne ikke opdateres`,
+        [lowDb ? `${lowDb} har lav dækningsbidrag — skift status på dem enkeltvis for at bekræfte` : '', otherErr ?? ''].filter(Boolean).join(' · ') || undefined,
+      )
     } else {
       toast.success(`${selectedIds.size} tilbud opdateret til ${OFFER_STATUS_LABELS[status]}`)
     }

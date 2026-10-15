@@ -26,9 +26,9 @@ Kilde: to opfølgende read-only sweeps til pilot-reviewet.
 | U-7 (S3) | Personlige påmindelser: slet uden bekræftelse, ingen pending | DONE — bekræft slet, knapper låst mens der arbejdes |
 | U-8/9 (S3) | Arbejdsordre "Annullér"/"Afslut" (endelige) uden bekræftelse — kalender + planlægningsfane | DONE — bekræftelse i kalender og planlægningsfane (U11 verificerer dialogen) |
 | U-11 (S3) | Kundenoter: slet uden bekræftelse | DONE — bekræft |
-| U-12/13 (S3) | UUID-fragmenter vist til brugere (sag "Fra tilbud", fakturakladdens sprungne linjer med engelske koder) | TODO |
-| U-14 (S3) | Tilbud: masse-statusskift håndterer ikke lav-DB-bekræftelse, ingen årsag | TODO |
-| U-15/16 (S3) | Besigtigelsesrapport "se browser console"; kundedokument-upload/ZIP-fejl tavse | TODO |
+| U-12/13 (S3) | UUID-fragmenter vist til brugere (sag "Fra tilbud", fakturakladdens sprungne linjer med engelske koder) | DONE — "Åbn tilbuddet" i stedet for UUID; sprungne fakturalinjer med danske årsager |
+| U-14 (S3) | Tilbud: masse-statusskift håndterer ikke lav-DB-bekræftelse, ingen årsag | DONE — årsag i toast (lav DB → enkeltvis) |
+| U-15/16 (S3) | Besigtigelsesrapport "se browser console"; kundedokument-upload/ZIP-fejl tavse | DONE — fejlede modtagere navngives; upload-fejl pr. fil; ZIP-fejl vises |
 | U-17/18/19 (S3) | Team: deaktivér uden bekræftelse, gensend-invitation dobbelt; medarbejder-login deaktivér/rolleskift uden bekræftelse | DONE — bekræft deaktivering/rolleskift, gensend kun én ad gangen |
 | U-20 (S3) | Medarbejder-handlinger returnerer rå Postgres-fejl | DONE — dansk tekst via mapDatabaseError (nu uden "FK/unique violation") |
 | U-21 (S3) | revalidatePath uden /dashboard-præfiks (offers/customers/leads/messages/projects/calc) → forældede sider | DONE — 70 kald rettet til /dashboard/…; /calculator → /dashboard/calculations, solcelle → /dashboard/calc |
