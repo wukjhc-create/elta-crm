@@ -200,7 +200,43 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
       {/* ---------- Autopilot rule list ---------- */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4">
         <h2 className="text-sm font-semibold mb-3">Autopilot regler</h2>
-        <div className="overflow-x-auto">
+        {status.autopilot.rules_error ? (
+          <p className="md:hidden py-3 text-center text-sm text-amber-800">Kunne ikke hente autopilot-regler. Det tælles ikke som ingen regler.</p>
+        ) : status.autopilot.rules.length === 0 ? (
+          <p className="md:hidden py-3 text-center text-sm text-gray-400">Ingen regler.</p>
+        ) : (
+          <ul className="md:hidden space-y-2" data-testid="golive-rules-mobile">
+            {status.autopilot.rules.map((r) => (
+              <li key={r.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                <p className="font-medium text-gray-900 break-words">{r.name}</p>
+                <p className="mt-1 text-xs text-gray-600 break-words">{r.trigger}</p>
+                <p className="text-xs text-gray-600 break-words">{r.action}</p>
+                <p className="mt-1 text-xs text-gray-700">Aktiv {r.active ? 'ja' : 'nej'}</p>
+                <span className={`mt-1 inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                  r.dry_run ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {r.dry_run ? 'dry_run' : 'LIVE'}
+                </span>
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant={r.dry_run ? 'default' : 'outline'}
+                    disabled={writeDisabled}
+                    onClick={() =>
+                      run(
+                        r.dry_run ? `Sæt LIVE: ${r.name}` : `Sæt dry_run: ${r.name}`,
+                        () => toggleRuleDryRunAction(r.id, !r.dry_run)
+                      )
+                    }
+                  >
+                    {r.dry_run ? 'Sæt LIVE' : 'Sæt dry_run'}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-gray-500">
               <tr>
