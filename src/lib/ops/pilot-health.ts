@@ -187,13 +187,13 @@ async function agentItems(admin: Admin, stuckMinutes: number): Promise<HealthIte
     { label: 'AUTO_CREATE_CASES_ENABLED', level: autoCreate ? 'red' : 'green', detail: autoCreate ? 'TIL (pilot-kontrakt: OFF)' : 'OFF' },
     { label: 'AGENT_LIVE_SEND_ENABLED', level: isLiveSendEnabled() ? 'red' : 'green', detail: isLiveSendEnabled() ? 'TIL — agenter kan sende mail efter godkendelse (pilot-kontrakt: OFF)' : 'OFF (ingen agent-afsendelse mulig)' },
     { label: 'INVOICE_ATTACHMENT_FETCH_ENABLED', level: process.env.INVOICE_ATTACHMENT_FETCH_ENABLED === 'true' ? 'yellow' : 'green', detail: process.env.INVOICE_ATTACHMENT_FETCH_ENABLED === 'true' ? 'TIL — faktura-mails henter vedhæftninger via Graph' : 'OFF (fakturaer parses fra mailtekst)' },
-    { label: 'Forslag afventer review', level: 'green', detail: `${awaiting.count ?? 0}` },
-    { label: 'Fejlede handlinger 7 d', level: (failed.count ?? 0) > 0 ? 'yellow' : 'green', detail: `${failed.count ?? 0}` },
-    { label: 'Afventer verifikation', level: (verify.count ?? 0) > 0 ? 'yellow' : 'green', detail: `${verify.count ?? 0}` },
+    { label: 'Forslag afventer review', level: awaiting.error ? 'unknown' : 'green', detail: awaiting.error ? 'Kunne ikke tælles. Det tælles ikke som 0.' : `${awaiting.count ?? 0}` },
+    { label: 'Fejlede handlinger 7 d', level: failed.error ? 'unknown' : ((failed.count ?? 0) > 0 ? 'yellow' : 'green'), detail: failed.error ? 'Kunne ikke tælles. Det tælles ikke som 0.' : `${failed.count ?? 0}` },
+    { label: 'Afventer verifikation', level: verify.error ? 'unknown' : ((verify.count ?? 0) > 0 ? 'yellow' : 'green'), detail: verify.error ? 'Kunne ikke tælles. Det tælles ikke som 0.' : `${verify.count ?? 0}` },
     // P2 #12: en action der haenger i 'executing' (proces-crash midt i udfoerelse) genoptages ALDRIG automatisk
     // (bevidst: ingen auto-retry) — den skal ses og vurderes af et menneske.
-    { label: `Hængende udførelser (>${stuckMinutes} min)`, level: (stuck.count ?? 0) > 0 ? 'red' : 'green',
-      detail: (stuck.count ?? 0) > 0 ? `${stuck.count} action(s) står i 'executing' — kontrollér om effekten skete, før noget gentages` : '0' },
+    { label: `Hængende udførelser (>${stuckMinutes} min)`, level: stuck.error ? 'unknown' : ((stuck.count ?? 0) > 0 ? 'red' : 'green'),
+      detail: stuck.error ? 'Kunne ikke tælles. Det tælles ikke som 0.' : ((stuck.count ?? 0) > 0 ? `${stuck.count} action(s) står i 'executing' — kontrollér om effekten skete, før noget gentages` : '0') },
   ]
 }
 
