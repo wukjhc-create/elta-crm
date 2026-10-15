@@ -398,6 +398,11 @@ export function LineItemsTable({
 
   return (
     <div>
+      {items.length === 0 && (
+        <p className="px-2 py-2 text-sm text-gray-500" data-testid="line-items-empty">
+          {editable ? 'Ingen linjer endnu. Tilføj den første linje nedenfor.' : 'Ingen linjer på tilbuddet.'}
+        </p>
+      )}
       <div className="overflow-x-auto">
         <table className="min-w-full">
           <thead>
