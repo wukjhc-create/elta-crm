@@ -68,8 +68,8 @@ export function EmployeesListClient({
         <span className="text-gray-900">Medarbejdere</span>
       </nav>
 
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold">Medarbejdere</h1>
           <p className="text-xs text-gray-500">
             {employees.length} medarbejder{employees.length === 1 ? '' : 'e'} ·{' '}
@@ -102,7 +102,8 @@ export function EmployeesListClient({
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="fx Lars, lars@..."
-              className="border rounded px-2 py-1.5 text-sm w-64"
+              aria-label="Søg medarbejdere"
+              className="border rounded px-2 py-1.5 text-sm w-full sm:w-64"
             />
           </form>
         </div>
@@ -155,8 +156,8 @@ export function EmployeesListClient({
             {employees.map((e) => (
               <div key={e.id} className="p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <Link href={`/dashboard/employees/${e.id}`} className="font-medium text-gray-900 hover:text-emerald-700 hover:underline">
+                  <div className="min-w-0">
+                    <Link href={`/dashboard/employees/${e.id}`} className="font-medium text-gray-900 hover:text-emerald-700 hover:underline break-words">
                       {e.name || '—'}
                     </Link>
                     {e.employee_number && (
@@ -169,7 +170,7 @@ export function EmployeesListClient({
                   </span>
                 </div>
                 <div className="mt-2 text-sm">
-                  {e.email ? <a href={`mailto:${e.email}`} className="text-emerald-700 hover:underline">{e.email}</a> : <span className="text-gray-400">—</span>}
+                  {e.email ? <a href={`mailto:${e.email}`} className="text-emerald-700 hover:underline break-all">{e.email}</a> : <span className="text-gray-400">—</span>}
                 </div>
                 <div className="text-sm">
                   {e.phone ? <a href={`tel:${e.phone}`} className="text-emerald-700 hover:underline">{e.phone}</a> : <span className="text-gray-400">—</span>}
@@ -205,7 +206,7 @@ export function EmployeesListClient({
                     <td className="px-3 py-2">
                       <Link
                         href={`/dashboard/employees/${e.id}`}
-                        className="font-medium text-gray-900 hover:text-emerald-700 hover:underline"
+                        className="font-medium text-gray-900 hover:text-emerald-700 hover:underline break-words"
                       >
                         {e.name || '—'}
                       </Link>
@@ -220,7 +221,7 @@ export function EmployeesListClient({
                       {e.email ? (
                         <a
                           href={`mailto:${e.email}`}
-                          className="text-emerald-700 hover:underline"
+                          className="text-emerald-700 hover:underline break-all"
                         >
                           {e.email}
                         </a>

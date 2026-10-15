@@ -135,9 +135,9 @@ export function EmployeeJobTab({ employeeId }: { employeeId: string }) {
         {data.jobs.length === 0 ? <p className="text-sm text-gray-500">Ingen job tildelt.</p> : (
           <ul className="divide-y text-sm">
             {data.jobs.map((j) => (
-              <li key={j.id} className="py-1.5 flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-24 shrink-0">{j.scheduled_date ?? '—'}</span>
-                <span className="truncate flex-1">{j.title ?? 'Job'}</span>
+              <li key={j.id} className="py-1.5 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-500 shrink-0">{j.scheduled_date ?? '—'}</span>
+                <span className="break-words min-w-0 flex-1">{j.title ?? 'Job'}</span>
                 {j.case_id && <Link href={`/dashboard/orders/${j.case_id}`} className="text-xs text-emerald-700 hover:underline">{j.case_number ?? 'Sag'}</Link>}
                 <span className="text-xs text-gray-500">{WO_STATUS[j.status] ?? j.status}</span>
               </li>
