@@ -23,6 +23,10 @@ eq('personlig paamindelse ombrydes', personal.includes('flex flex-col gap-2 sm:f
 eq('tidspunktet formateres stadig', personal.includes('fmt(r.due_at)'), true)
 eq('tom paamindelse siger naeste skridt', personal.includes('Ingen aktive påmindelser. Skriv en ovenfor.'), true)
 eq('opret bliver', personal.includes('createPersonalReminder({ title, dueAt: copenhagenLocalToIso(date, clock) })'), true)
+eq('udfoert siger titlen', personal.includes('aria-label={`Marker udført: ${r.title}`}'), true)
+eq('udsaet siger titlen', personal.includes('aria-label={`Udsæt påmindelse: ${r.title}`}'), true)
+eq('slet siger titlen', personal.includes('aria-label={`Slet påmindelse: ${r.title}`}'), true)
+eq('handlingerne bliver', personal.includes('completePersonalReminder(r.id)') && personal.includes('snoozePersonalReminder(r.id)') && personal.includes('deletePersonalReminder(r.id)'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nmissing-date-test OK')
 process.exitCode = fail ? 1 : 0

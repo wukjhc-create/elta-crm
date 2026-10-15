@@ -82,10 +82,10 @@ export function PersonalRemindersCard() {
                   <p className="text-xs text-gray-500">{fmt(r.due_at)}{r.reminder_at && r.reminder_at !== r.due_at ? ` · påmindelse ${fmt(r.reminder_at)}` : ''}{SOURCE[r.source]}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
-                  <button title="Udført" aria-label="Udført" onClick={() => run(() => completePersonalReminder(r.id))} className="p-1.5 text-green-600 hover:bg-green-50 rounded"><Check className="w-4 h-4" /></button>
-                  <button title="Udsæt 1 time" aria-label="Udsæt" onClick={() => run(() => snoozePersonalReminder(r.id))} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded"><Clock className="w-4 h-4" /></button>
-                  <button title="Ret tidspunkt" aria-label="Ret tidspunkt" onClick={() => { const p = copenhagenParts(r.due_at); setEditId(r.id); setEditDate(p.date); setEditClock(p.clock) }} className="px-2 py-1 text-xs text-sky-700 hover:bg-sky-50 rounded">Ret</button>
-                  <button title="Slet" aria-label="Slet påmindelse" onClick={() => run(() => deletePersonalReminder(r.id))} className="p-1.5 text-gray-400 hover:text-red-600 rounded"><Trash2 className="w-4 h-4" /></button>
+                  <button type="button" title={`Udført: ${r.title}`} aria-label={`Marker udført: ${r.title}`} onClick={() => run(() => completePersonalReminder(r.id))} className="p-1.5 text-green-600 hover:bg-green-50 rounded"><Check className="w-4 h-4" /></button>
+                  <button type="button" title={`Udsæt 1 time: ${r.title}`} aria-label={`Udsæt påmindelse: ${r.title}`} onClick={() => run(() => snoozePersonalReminder(r.id))} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded"><Clock className="w-4 h-4" /></button>
+                  <button type="button" title={`Ret tidspunkt for ${r.title}`} aria-label={`Ret tidspunkt for ${r.title}`} onClick={() => { const p = copenhagenParts(r.due_at); setEditId(r.id); setEditDate(p.date); setEditClock(p.clock) }} className="px-2 py-1 text-xs text-sky-700 hover:bg-sky-50 rounded">Ret</button>
+                  <button type="button" title={`Slet ${r.title}`} aria-label={`Slet påmindelse: ${r.title}`} onClick={() => run(() => deletePersonalReminder(r.id))} className="p-1.5 text-gray-400 hover:text-red-600 rounded"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
               {editId === r.id && (
