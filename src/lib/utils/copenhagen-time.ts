@@ -30,6 +30,16 @@ export function copenhagenLocalToIso(date: string, clock: string): string {
   return new Date(ms).toISOString()
 }
 
+/** Synlig dato i dansk lokaltid. Værdien i databasen ændres ikke. */
+export function copenhagenDateLabel(value: string | Date, month: 'short' | 'long' | 'numeric' = 'short'): string {
+  return new Date(value).toLocaleDateString('da-DK', {
+    timeZone: TZ,
+    day: 'numeric',
+    month,
+    year: 'numeric',
+  })
+}
+
 /** ISO/Date -> { date: 'YYYY-MM-DD', clock: 'HH:mm' } i dansk lokaltid. */
 export function copenhagenParts(value: string | Date): { date: string; clock: string } {
   const p = parts(new Date(value).getTime())

@@ -1,5 +1,6 @@
 /** Unit: dansk lokaltid <-> UTC (sommertid). Kør: npx tsx scripts/copenhagen-time-test.ts */
-import { copenhagenLocalToIso, copenhagenParts, calendarDaysSince, copenhagenDatePlusDays } from '../src/lib/utils/copenhagen-time'
+import fs from 'fs'
+import { copenhagenLocalToIso, copenhagenParts, calendarDaysSince, copenhagenDatePlusDays, copenhagenDateLabel } from '../src/lib/utils/copenhagen-time'
 
 let fail = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -28,5 +29,14 @@ eq('fremtidig dato = negativ', calendarDaysSince('2026-10-20', new Date('2026-10
 eq('betalingsfrist: 5/10 kl. 01:30 dansk (4/10 23:30Z) + 14 = 19/10', copenhagenDatePlusDays(14, new Date('2026-10-04T23:30:00Z')), '2026-10-19')
 eq('betalingsfrist over sommertid-ophør: 20/10 23:30 dansk + 14 = 3/11', copenhagenDatePlusDays(14, new Date('2026-10-20T21:30:00Z')), '2026-11-03')
 eq('betalingsfrist over månedsskifte: 31/1 + 30 = 2/3', copenhagenDatePlusDays(30, new Date('2026-01-31T12:00:00Z')), '2026-03-02')
+const shifted = copenhagenDateLabel('2026-11-30T23:30:00.000Z')
+eq('synlig dato er naeste dag i koebenhavn', shifted.startsWith('1'), true)
+eq('synlig dato er ikke utc-dagen', shifted.startsWith('30'), false)
+const docs = fs.readFileSync('src/components/modules/customers/customer-documents-tab.tsx', 'utf8')
+const fuldmagt = fs.readFileSync('src/components/modules/portal/portal-fuldmagt.tsx', 'utf8')
+eq('dokumentdato bruger hjaelperen', docs.includes('copenhagenDateLabel(doc.created_at)'), true)
+eq('underskriftsdato bruger hjaelperen', docs.includes('copenhagenDateLabel(doc.fuldmagt_signed_at)'), true)
+eq('portalens underskrift bruger hjaelperen', fuldmagt.includes('copenhagenDateLabel(f.signed_at)'), true)
+eq('fuldmagtstekst bliver', fuldmagt.includes('Undertegnede giver hermed'), true)
 console.log(fail ? `\n❌ ${fail} fejl` : '\n✅ alle copenhagen-time tests PASS')
 process.exitCode = fail ? 1 : 0

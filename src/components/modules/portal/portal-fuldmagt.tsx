@@ -6,6 +6,7 @@ import { FileSignature, RotateCcw, Loader2, CheckCircle } from 'lucide-react'
 import { submitSignedFuldmagt } from '@/lib/actions/fuldmagt'
 import type { FuldmagtData } from '@/lib/actions/fuldmagt'
 import { BRAND_COMPANY_NAME, BRAND_CVR } from '@/lib/brand'
+import { copenhagenDateLabel } from '@/lib/utils/copenhagen-time'
 
 interface PortalFuldmagtProps {
   token: string
@@ -59,7 +60,7 @@ export function PortalFuldmagtSection({ token, fuldmagter }: PortalFuldmagtProps
               <div>
                 <p className="font-medium text-green-800">Fuldmagt underskrevet</p>
                 <p className="text-sm text-green-600">
-                  Ordrenr. {f.order_number} — underskrevet {f.signed_at ? new Date(f.signed_at).toLocaleDateString('da-DK') : ''}
+                  Ordrenr. {f.order_number} — underskrevet {f.signed_at ? copenhagenDateLabel(f.signed_at) : ''}
                 </p>
               </div>
               {f.pdf_url && (

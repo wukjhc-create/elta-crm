@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { copenhagenDateLabel } from '@/lib/utils/copenhagen-time'
 import { useRouter } from 'next/navigation'
 import {
   FileText,
@@ -275,7 +276,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     <p className="text-sm font-medium break-words">{doc.title}</p>
                     <p className="text-xs text-gray-500">
                       {doc.fuldmagt_status === 'signed'
-                        ? `Underskrevet ${doc.fuldmagt_signed_at ? new Date(doc.fuldmagt_signed_at).toLocaleDateString('da-DK') : ''}`
+                        ? `Underskrevet ${doc.fuldmagt_signed_at ? copenhagenDateLabel(doc.fuldmagt_signed_at) : ''}`
                         : 'Afventer kundens underskrift'}
                     </p>
                   </div>
@@ -310,7 +311,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     <div className="min-w-0">
                       <p className="text-sm font-medium break-words">{doc.title}</p>
                       <p className="text-xs text-gray-500">
-                        {new Date(doc.created_at).toLocaleDateString('da-DK')}
+                        {copenhagenDateLabel(doc.created_at)}
                         {doc.file_size ? ` — ${Math.round(doc.file_size / 1024)} KB` : ''}
                       </p>
                     </div>
@@ -408,7 +409,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     <p className="text-sm font-medium break-all">{doc.file_name}</p>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-xs text-gray-500">
-                        {new Date(doc.created_at).toLocaleDateString('da-DK')}
+                        {copenhagenDateLabel(doc.created_at)}
                         {doc.file_size ? ` — ${Math.round(doc.file_size / 1024)} KB` : ''}
                       </p>
                       {doc.service_case && (
@@ -461,7 +462,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                   <div className="min-w-0">
                     <p className="text-sm font-medium break-words">{doc.title}</p>
                     <p className="text-xs text-gray-500">
-                      {new Date(doc.created_at).toLocaleDateString('da-DK')}
+                      {copenhagenDateLabel(doc.created_at)}
                       {doc.file_size ? ` — ${Math.round(doc.file_size / 1024)} KB` : ''}
                     </p>
                     {displayDesc && (
