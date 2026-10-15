@@ -72,7 +72,7 @@ export function PersonalRemindersCard() {
         <button type="submit" disabled={busy || !title.trim()} className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50">Tilføj</button>
       </form>
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-      {pending.length === 0 ? <p className="text-sm text-gray-500">Ingen aktive påmindelser.</p> : (
+      {pending.length === 0 ? <p className="text-sm text-gray-500">Ingen aktive påmindelser. Skriv en ovenfor.</p> : (
         <ul className="divide-y">
           {pending.map((r) => (
             <li key={r.id} className="py-2" data-testid="personal-reminder-row">

@@ -21,6 +21,8 @@ eq('paamindelsestitel ombrydes', overlay.includes('break-words">{reminder.title}
 eq('prisadvarsel kan lukkes med navn', overlay.includes('aria-label="Luk prisadvarsel"'), true)
 eq('personlig paamindelse ombrydes', personal.includes('flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'), true)
 eq('tidspunktet formateres stadig', personal.includes('fmt(r.due_at)'), true)
+eq('tom paamindelse siger naeste skridt', personal.includes('Ingen aktive påmindelser. Skriv en ovenfor.'), true)
+eq('opret bliver', personal.includes('createPersonalReminder({ title, dueAt: copenhagenLocalToIso(date, clock) })'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nmissing-date-test OK')
 process.exitCode = fail ? 1 : 0
