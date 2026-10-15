@@ -412,10 +412,10 @@ export default function QuickCalculationClient({
         {currentStep === 1 && (
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-xl font-semibold">Konfigurer rum</h2>
-                <div className="flex gap-2">
-                  {roomTypes.slice(0, 4).map(rt => (
+                <div className="flex flex-wrap gap-2 min-w-0">
+                  {roomTypes.map(rt => (
                     <Button
                       key={rt.code}
                       variant="outline"
