@@ -51,7 +51,7 @@ export function IncomingInvoiceDueWidget() {
           <Loader2 className="w-4 h-4 animate-spin" /> Henter…
         </div>
       ) : error || !data ? (
-        <p className="text-sm text-red-800 py-4" data-testid="incoming-due-load-error">{error || 'Ingen data'}</p>
+        <p className="text-sm text-red-800 break-words py-4" data-testid="incoming-due-load-error">{error || 'Kunne ikke hente forfaldsoverblik. Det tælles ikke som 0 kr.'}</p>
       ) : data.overdue_count === 0 && data.due_7_count === 0 ? (
         <div className="rounded-lg ring-1 ring-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-emerald-600" />
