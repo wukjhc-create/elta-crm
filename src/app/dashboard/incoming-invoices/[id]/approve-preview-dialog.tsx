@@ -215,7 +215,7 @@ export function ApprovePreviewDialog({
 
           {/* Sag-status */}
           {hasCase && detail.case ? (
-            <div className="rounded ring-1 ring-emerald-200 bg-emerald-50 px-3 py-2 text-sm flex items-center justify-between">
+            <div className="rounded ring-1 ring-emerald-200 bg-emerald-50 px-3 py-2 text-sm flex flex-wrap items-center justify-between gap-2 min-w-0">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-wide text-emerald-700">
                   Tilknyttet sag
@@ -224,24 +224,24 @@ export function ApprovePreviewDialog({
                   href={`/dashboard/orders/${detail.case.case_number}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-emerald-900 hover:underline inline-flex items-center gap-1"
+                  className="text-emerald-900 hover:underline inline-flex flex-wrap items-center gap-1 break-words min-w-0"
                 >
                   <span className="font-mono text-xs">{detail.case.case_number}</span>
-                  <span className="font-medium">{detail.case.project_name || detail.case.title}</span>
+                  <span className="font-medium break-words">{detail.case.project_name || detail.case.title}</span>
                   {detail.case.customer_name && (
-                    <span className="text-emerald-700">· {detail.case.customer_name}</span>
+                    <span className="text-emerald-700 break-words">· {detail.case.customer_name}</span>
                   )}
-                  <ExternalLink className="w-3 h-3 opacity-60" />
+                  <ExternalLink className="w-3 h-3 opacity-60 shrink-0" />
                 </Link>
               </div>
             </div>
           ) : (
-            <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2.5 flex items-center justify-between gap-3">
-              <div className="flex items-start gap-2 text-sm text-amber-900">
+            <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2.5 flex flex-wrap items-center justify-between gap-3 min-w-0">
+              <div className="flex items-start gap-2 text-sm text-amber-900 min-w-0">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <div>
-                  <div className="font-medium">Match fakturaen til en sag før godkendelse</div>
-                  <div className="text-xs text-amber-800 mt-0.5">
+                <div className="min-w-0">
+                  <div className="font-medium break-words">Match fakturaen til en sag før godkendelse</div>
+                  <div className="text-xs text-amber-800 mt-0.5 break-words">
                     En leverandørfaktura skal være knyttet til en service_case for at den kan godkendes
                     og senere konverteres til materiale-/omkostningslinjer på sagen.
                   </div>
