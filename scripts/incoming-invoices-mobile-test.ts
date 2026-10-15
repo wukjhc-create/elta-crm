@@ -1,5 +1,6 @@
 /** Mobilkort på leverandørfaktura-listen. Kør: npx tsx scripts/incoming-invoices-mobile-test.ts */
 import fs from 'fs'
+import { incomingInvoiceStatusLabel } from '../src/lib/invoices/incoming-invoice-status'
 
 let fail = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -35,6 +36,14 @@ eq('tom liste siger naeste skridt', text.includes('Vælg Alle under Forfald, ell
 eq('tom tekst bruges begge steder', text.split('emptyListText(due)').length === 3, true)
 eq('listen lover ikke tvungen bogfoering', text.includes('auto-pushed til e-conomic ved godkendelse'), false)
 eq('listen siger at bogfoering forsøges', text.includes('Ved godkendelse forsøges bogføring til e-conomic. Lykkes det ikke, er fakturaen stadig godkendt.'), true)
+eq('afventer hedder dansk', incomingInvoiceStatusLabel('awaiting_approval'), 'Afventer godkendelse')
+eq('bogfoert hedder dansk', incomingInvoiceStatusLabel('posted'), 'Bogført')
+eq('ukendt status bliver raa', incomingInvoiceStatusLabel('mystery'), 'mystery')
+eq('listen viser etiketten', text.includes('incomingInvoiceStatusLabel(row.status)'), true)
+eq('kraever gennemgang bliver', text.includes('Kræver gennemgang'), true)
+const detail = fs.readFileSync('src/app/dashboard/incoming-invoices/[id]/detail-client.tsx', 'utf8')
+eq('detaljen viser etiketten', detail.includes('incomingInvoiceStatusLabel(value)'), true)
+eq('handlingsteksten er dansk', detail.includes("incomingInvoiceStatusLabel(inv.status).toLocaleLowerCase('da-DK')"), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nincoming-invoices-mobile-test OK')
 process.exitCode = fail ? 1 : 0

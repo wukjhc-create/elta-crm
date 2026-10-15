@@ -17,6 +17,7 @@ import {
   type IncomingInvoiceDetail,
 } from '@/lib/actions/incoming-invoices'
 import { useUserRole } from '@/lib/hooks/use-user-role'
+import { incomingInvoiceStatusLabel } from '@/lib/invoices/incoming-invoice-status'
 
 const TEST_INVOICE_PREFIX = 'TEST-'
 const TEST_SUPPLIER_NAME = 'TEST Leverandør ApS'
@@ -572,7 +573,7 @@ export function IncomingInvoiceDetailClient({
       <Panel title="Handlinger">
         {terminal ? (
           <p className="text-xs text-gray-500">
-            Faktura er allerede {inv.status} — ingen yderligere handlinger.
+            Faktura er allerede {incomingInvoiceStatusLabel(inv.status).toLocaleLowerCase('da-DK')} — ingen yderligere handlinger.
           </p>
         ) : showReject ? (
           <div className="space-y-2">
@@ -735,7 +736,7 @@ function StatusBadge({ value }: { value: string }) {
     : value === 'cancelled'        ? 'bg-gray-100 text-gray-700'
     : value === 'awaiting_approval' ? 'bg-blue-100 text-blue-800'
     : 'bg-gray-100 text-gray-700'
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${colour}`}>{value}</span>
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${colour}`}>{incomingInvoiceStatusLabel(value)}</span>
 }
 
 /** PV9: IBAN maskeret; "Vis" (bank.view) henter den fulde værdi og skjuler den igen ved vindues-/fanebytte. */

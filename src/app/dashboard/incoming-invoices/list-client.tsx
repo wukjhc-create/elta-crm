@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { UploadInvoiceButton } from './upload-invoice-button'
+import { incomingInvoiceStatusLabel } from '@/lib/invoices/incoming-invoice-status'
 import {
   incomingDueBadge,
   matchesIncomingDueFilter,
@@ -369,5 +370,5 @@ function StatusBadge({ row }: { row: IncomingInvoiceListItem }) {
     : row.status === 'cancelled'        ? 'bg-gray-100 text-gray-700'
     : row.status === 'awaiting_approval' ? 'bg-blue-100 text-blue-800'
     : 'bg-gray-100 text-gray-700'
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${colour}`}>{row.status}</span>
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${colour}`}>{incomingInvoiceStatusLabel(row.status)}</span>
 }
