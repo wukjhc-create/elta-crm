@@ -1,7 +1,6 @@
 'use client'
 
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import {
   Plus,
   Pencil,
@@ -81,16 +80,12 @@ export function OfferActivityTimeline({ activities }: OfferActivityTimelineProps
 
                   {/* Content */}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-900">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                      <p className="text-sm font-medium text-gray-900 break-words">
                         {OFFER_ACTIVITY_LABELS[activity.activity_type]}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        {format(
-                          new Date(activity.created_at),
-                          'd. MMM HH:mm',
-                          { locale: da }
-                        )}
+                      <p className="text-xs text-gray-500 whitespace-nowrap">
+                        {copenhagenDateTimeLabel(activity.created_at, 'short', false)}
                       </p>
                     </div>
                     <p className="mt-0.5 text-sm text-gray-600">
