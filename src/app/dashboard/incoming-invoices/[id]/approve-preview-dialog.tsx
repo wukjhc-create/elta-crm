@@ -343,7 +343,7 @@ export function ApprovePreviewDialog({
                             ))}
                           </select>
                         ) : (
-                          <span className="text-[11px] text-gray-400">—</span>
+                          <span className="text-[11px] text-gray-500">Ikke relevant</span>
                         )}
                       </li>
                     )
@@ -447,7 +447,7 @@ export function ApprovePreviewDialog({
                                 ))}
                               </select>
                             ) : (
-                              <span className="text-[11px] text-gray-400">—</span>
+                              <span className="text-[11px] text-gray-500">Ikke relevant</span>
                             )}
                           </td>
                         </tr>
