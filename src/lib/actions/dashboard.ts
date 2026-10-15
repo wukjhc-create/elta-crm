@@ -69,12 +69,7 @@ export interface RecentActivity {
   link?: string
 }
 
-/** Som før: en fejlende forespørgsel giver tomme tal frem for at vælte dashboardet. */
-function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
-  return fetchAllRows(page).catch(() => [] as T[])
-}
-
-/** Samme sidevisning som allRows, men fejlen skjules ikke som en tom liste. */
+/** Sidevisning. En fejl bliver et flag, så kalderen ikke viser 0 som et rigtigt tal. */
 async function rowsOrFail<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<{ rows: T[]; failed: boolean }> {
   try {
     return { rows: await fetchAllRows(page), failed: false }
@@ -398,13 +393,14 @@ export async function getMonthlyOfferStats(): Promise<{
   acceptedValue: number
   sentCount: number
   acceptedCount: number
+  error: string | null
 }> {
   const { supabase } = await getAuthenticatedClient()
 
   // Rapport-review 2026-10-09 (#9): dansk månedsstart (før serverens UTC → 00–02 den 1. tabt), alle rækker, ekskl. moms
   const firstDayOfMonth = copenhagenLocalToIso(`${copenhagenParts(new Date()).date.slice(0, 7)}-01`, '00:00')
 
-  const offers = await allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase
+  const loaded = await rowsOrFail<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase
     .from('offers')
     .select('id, status, final_amount, tax_amount')
     .eq('is_proposal', false)
@@ -413,6 +409,17 @@ export async function getMonthlyOfferStats(): Promise<{
     .order('id')
     .range(f, t))
 
+  if (loaded.failed) {
+    return {
+      sentValue: 0,
+      acceptedValue: 0,
+      sentCount: 0,
+      acceptedCount: 0,
+      error: 'Kunne ikke hente tilbudsoversigt',
+    }
+  }
+
+  const offers = loaded.rows
   const sentOffers = offers.filter((o) => o.status === 'sent' || o.status === 'viewed')
   const acceptedOffers = offers.filter((o) => o.status === 'accepted')
 
@@ -421,6 +428,7 @@ export async function getMonthlyOfferStats(): Promise<{
     acceptedValue: acceptedOffers.reduce((sum, o) => sum + offerExVat(o), 0),
     sentCount: sentOffers.length,
     acceptedCount: acceptedOffers.length,
+    error: null,
   }
 }
 

@@ -21,6 +21,10 @@ export function MonthlyOfferChart() {
   const loadStats = useCallback(async () => {
     try {
       const data = await getMonthlyOfferStats()
+      if (data.error) {
+        setFailed(true)
+        return
+      }
       setStats(data)
       setFailed(false)
     } catch {

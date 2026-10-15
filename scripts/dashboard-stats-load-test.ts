@@ -22,7 +22,7 @@ eq('beskedfejl taelles', body.includes('const messagesFailed = !!messagesResult.
 eq('afviste timer bliver ude', body.includes(".neq('approval_status', 'rejected')"), true)
 eq('dansk maaned bliver', body.includes('copenhagenParts(new Date()).date.slice(0, 7)'), true)
 eq('ekskl moms bliver', action.includes('return Number(o.final_amount ?? 0) - Number(o.tax_amount ?? 0)'), true)
-eq('maanedsgrafen vaelter ikke', action.includes('function allRows'), true)
+eq('raekkefejl kaster ikke noegletallene', action.includes('return { rows: [], failed: true }'), true)
 
 const page = fs.readFileSync('src/app/dashboard/page.tsx', 'utf8')
 eq('leads er ikke nul', page.includes("stats.loadErrors.leads ? '—' : (stats.leads.total - stats.leads.won - stats.leads.lost)"), true)
