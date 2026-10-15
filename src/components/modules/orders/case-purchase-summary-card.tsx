@@ -78,6 +78,11 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
                   <span className="font-medium text-gray-700 shrink-0 ml-2">{kr(b.total_cost)}</span>
                 </div>
               ))}
+              {data.supplier_breakdown.length > 6 && (
+                <p className="text-xs text-gray-600 break-words" data-testid="purchase-suppliers-capped">
+                  Viser 6 af {data.supplier_breakdown.length} leverandører. De øvrige {data.supplier_breakdown.length - 6} er ikke med i listen.
+                </p>
+              )}
             </div>
           )}
 
@@ -97,6 +102,11 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
                   </span>
                 </Link>
               ))}
+              {data.invoices.length > 5 && (
+                <p className="text-xs text-gray-600 break-words" data-testid="purchase-invoices-capped">
+                  Viser 5 af {data.invoices.length} fakturaer. De øvrige {data.invoices.length - 5} er ikke med i listen.
+                </p>
+              )}
             </div>
           )}
         </div>
