@@ -26,6 +26,16 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 | 3ee44583 | DB pr. kunde / pr. lukkemåned |
 | 1f7ea1c6 | Dashboard "Sager over estimat" |
 
+## Beslutninger NEXT-15 (2026-10-15 aften)
+| Commit | Indhold |
+|---|---|
+| c9a15099 | PR-2 e-conomic kill-switch (standard fra, 0 HTTP-kald) |
+| a7effa69 | PR-3 kun godkendte timer faktureres |
+| c1202319 | PR-1 godkend (bogholderi/admin) adskilt fra fordel til sag (admin/serviceleder) |
+| 59650486 | PR-4b ingen tid uden timepris (app); DB-trigger = forslag 00230 |
+| 7c775e9e | PR-6 slutfaktura på fastprissag = restbeløb af kontraktsum |
+| 287f1202 | PR-10 midlertidigt momsværn + forslag 00231; beslutningstabel 00227–00230 |
+
 **Manuelle blokere (Henrik):** selvregistrering OFF i Supabase · "Email OTP expiry" = 86400 s. Arbejdet fortsætter uden at vente.
 
  → (løbende checkpoint)
