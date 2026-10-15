@@ -69,6 +69,8 @@ eq('dato', parsed?.fields.invoiceDate, '2026-10-04')
 eq('ekskl. moms', parsed?.fields.amountExclVat, 100)
 eq('moms', parsed?.fields.vatAmount, 25)
 eq('inkl. moms', parsed?.fields.amountInclVat, 125)
+eq('faktura er ikke en kreditnota', parsed?.fields.isCreditNote, false)
+eq('hovedet stemmer', parsed?.fields.amountsConsistent, true)
 eq('betalings-id afkodes', parsed?.fields.paymentReference, '+71<000000000000001>')
 eq('IBAN', parsed?.fields.iban, 'DK5000400440116243')
 eq('ordrereference bliver hint', parsed?.fields.workOrderHints.includes('SAG-42'), true)
@@ -106,6 +108,8 @@ const broken = parseOioubl(`<CreditNote xmlns="urn:oioubl:names">
 </CreditNote>`)
 eq('kreditnota', broken?.kind, 'credit')
 eq('ulæseligt hovedbeløb er null, ikke 0', broken?.fields.amountExclVat, null)
+eq('kreditnota kræver kontrol', broken?.fields.isCreditNote, true)
+eq('uden alle tre beløb er konsistens ukendt', broken?.fields.amountsConsistent, null)
 eq('kreditlinjen beholdes positiv', broken?.lines[0]?.totalPrice, 40)
 const brokenCheck = headerLineCheck({
   amountExclVat: broken!.fields.amountExclVat,
@@ -121,6 +125,18 @@ const comma = parseOioubl(`<Invoice xmlns="urn:oasis:names:specification:ubl:sch
   <cac:LegalMonetaryTotal><cbc:TaxExclusiveAmount>100,50</cbc:TaxExclusiveAmount></cac:LegalMonetaryTotal>
 </Invoice>`)
 eq('ét komma er decimal', comma?.fields.amountExclVat, 100.5)
+
+const mismatch = parseOioubl(`<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
+  <cbc:ID>AFV</cbc:ID>
+  <cac:TaxTotal><cbc:TaxAmount>25.00</cbc:TaxAmount></cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:TaxExclusiveAmount>100.00</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount>200.00</cbc:TaxInclusiveAmount>
+  </cac:LegalMonetaryTotal>
+</Invoice>`)
+eq('afvigende hoved er ikke en kreditnota', mismatch?.fields.isCreditNote, false)
+eq('afvigende hoved er inkonsistent', mismatch?.fields.amountsConsistent, false)
+eq('afvigende beløb vendes ikke', mismatch?.fields.amountInclVat, 200)
 
 eq('regex-parseren bruges stadig på almindelig tekst', parseSupplierInvoiceText('Fakturanr 12345\nI alt 100,00').invoiceNumber, '12345')
 

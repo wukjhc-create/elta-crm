@@ -101,7 +101,7 @@ function round3(n: number): number {
   return Math.round(n * 1000) / 1000
 }
 
-function fieldsFrom(header: string, supplier: string): ParsedInvoiceFields {
+function fieldsFrom(header: string, supplier: string, kind: 'invoice' | 'credit'): ParsedInvoiceFields {
   const monetary = extractBlocks(header, 'LegalMonetaryTotal')[0] ?? ''
   const tax = extractBlocks(header, 'TaxTotal')[0] ?? ''
   const payment = extractBlocks(header, 'PaymentMeans')[0] ?? ''
@@ -118,6 +118,7 @@ function fieldsFrom(header: string, supplier: string): ParsedInvoiceFields {
     ? ibanRaw.replace(/\s/g, '').toUpperCase()
     : null
   const hints = [firstText(order, 'ID'), firstText(header, 'BuyerReference')].filter((v): v is string => !!v)
+  const negative = [excl, vat, incl].some((v) => v != null && v < 0)
   const out: ParsedInvoiceFields = {
     supplierName: name,
     supplierVatNumber: normalizeVatNumber(companyId),
@@ -130,6 +131,13 @@ function fieldsFrom(header: string, supplier: string): ParsedInvoiceFields {
     paymentReference: firstText(payment, 'PaymentID'),
     iban,
     currency: (firstText(header, 'DocumentCurrencyCode') ?? 'DKK').toUpperCase(),
+    // Samme flag som tekstparseren, så kreditnota og et hoved der ikke stemmer kræver manuel kontrol.
+    // Beløbene vendes ikke. En OIOUBL-kreditnota bliver stående som den er skrevet.
+    isCreditNote: kind === 'credit' || negative,
+    amountsConsistent:
+      excl != null && vat != null && incl != null
+        ? Math.abs(excl + vat - incl) <= 0.05 && Math.abs(vat) <= Math.abs(excl) * 0.25 + 1
+        : null,
     workOrderHints: hints,
     supplierOrderRefs: [],
     deliveryAddressHints: [],
@@ -198,7 +206,7 @@ export function parseOioubl(raw: string | null | undefined): OioublParsed | null
   const header = removeBlocks(removeBlocks(body, 'InvoiceLine'), 'CreditNoteLine')
   const supplier = extractBlocks(header, 'AccountingSupplierParty')[0] ?? ''
   const lines = extractBlocks(body, lineTag).map((block, i) => lineFrom(block, i + 1, qtyTag))
-  return { kind, fields: fieldsFrom(header, supplier), lines }
+  return { kind, fields: fieldsFrom(header, supplier, kind), lines }
 }
 
 /** Rækker til incoming_invoice_lines. Produktkoblingen sættes af kalderen. */
