@@ -23,6 +23,7 @@ import {
 import type { EconomicInvoicePreview } from '@/lib/services/economic-client'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 const STATUS_SKIN: Record<
   InvoiceAccountingState['status'],
@@ -130,7 +131,7 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
       </div>
 
       <div className="px-4 py-3 space-y-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className={`text-[11px] uppercase tracking-wide px-2 py-0.5 rounded ring-1 ${skin.cls}`}>
             {skin.label}
           </span>
@@ -140,8 +141,8 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
         </div>
 
         {state.status === 'exported' && state.exported_at && (
-          <p className="text-xs text-gray-500">
-            Eksporteret {new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(state.exported_at))}.
+          <p className="text-xs text-gray-500 break-words">
+            Eksporteret {copenhagenDateTimeLabel(state.exported_at)}.
           </p>
         )}
         {state.status === 'error' && state.error && (
