@@ -35,6 +35,8 @@ export interface InvoiceAccountingState {
   error: string | null
   provider: string
   integration_ready: boolean
+  /** Sat når opslaget kaster. integration_ready er da false, men det er ikke "ikke opsat". */
+  integration_error?: string | null
   /** Fakturaspecifikke fejl der ville få eksporten afvist (beløbsafvigelse, ingen linjer/kunde). */
   blocking_issues: string[]
 }
@@ -85,11 +87,13 @@ export async function getInvoiceAccountingStatusAction(
 
   // Integrations-parathed (uden at eksponere hemmeligheder).
   let integrationReady = false
+  let integrationError: string | null = null
   try {
     const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
     integrationReady = isEconomicReady(await getEconomicSettings())
   } catch (e) {
     logger.error('getInvoiceAccountingStatusAction: settings read failed', { error: e })
+    integrationError = 'Kunne ikke tjekke e-conomic'
   }
 
   const exported = !!inv.external_invoice_id && inv.external_provider === PROVIDER
@@ -125,6 +129,7 @@ export async function getInvoiceAccountingStatusAction(
     error: status === 'error' ? ((log?.error_message as string | null) ?? null) : null,
     provider: PROVIDER,
     integration_ready: integrationReady,
+    integration_error: integrationError,
     blocking_issues: blockingIssues,
   }
 }

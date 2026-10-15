@@ -160,7 +160,13 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
           </div>
         )}
 
-        {!state.integration_ready && (
+        {state.integration_error && (
+          <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-800 flex items-start gap-1" data-testid="invoice-accounting-ready-error">
+            <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            {state.integration_error}. Det tælles ikke som at e-conomic mangler. Eksport er deaktiveret.
+          </div>
+        )}
+        {!state.integration_error && !state.integration_ready && (
           <div className="rounded ring-1 ring-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 flex items-start gap-1">
             <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             e-conomic er ikke opsat endnu. Når integrationen er konfigureret, kan fakturaer eksporteres herfra.
