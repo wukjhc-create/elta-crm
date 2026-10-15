@@ -187,9 +187,14 @@ export async function deleteHandoverPhotoAction(caseId: string, attachmentId: st
     if (att.storage_path) await db.storage.from('service-case-files').remove([att.storage_path as string])
     const { error } = await db.from('service_case_attachments').delete().eq('id', attachmentId)
     if (error) return { success: false, error: 'Kunne ikke slette billedet' }
-    // Punktet er ikke længere dokumenteret, hvis det var det eneste billede
-    const { count } = await db.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', caseId).eq('category', att.category as string)
-    if ((count ?? 0) === 0 && typeof att.category === 'string' && att.category.endsWith('_photo')) await setItem(caseId, att.category, false, null)
+    // Punktet er ikke længere dokumenteret, hvis det var det eneste billede.
+    // En fejlet resttælling må ikke fjerne fluebenet — billederne kan stadig ligge der.
+    const { count, error: leftError } = await db.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', caseId).eq('category', att.category as string)
+    if (leftError) {
+      logger.error('deleteHandoverPhotoAction: remaining count failed', { error: leftError })
+    } else if ((count ?? 0) === 0 && typeof att.category === 'string' && att.category.endsWith('_photo')) {
+      await setItem(caseId, att.category, false, null)
+    }
     revalidateCase(caseId)
     return { success: true }
   } catch (err) {
