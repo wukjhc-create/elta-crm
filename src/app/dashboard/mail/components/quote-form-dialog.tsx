@@ -269,10 +269,11 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
               {step === 0 && (
                 <div className="space-y-4">
                   <h3 className="font-medium mb-3">Kundeinformation</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Firmanavn *</label>
+                      <label htmlFor="mail-quote-company" className="block text-xs font-medium text-gray-500 mb-1">Firmanavn *</label>
                       <input
+                        id="mail-quote-company"
                         type="text"
                         value={customer.companyName}
                         onChange={(e) => setCustomer({ ...customer, companyName: e.target.value })}
@@ -281,8 +282,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Kontaktperson *</label>
+                      <label htmlFor="mail-quote-contact" className="block text-xs font-medium text-gray-500 mb-1">Kontaktperson *</label>
                       <input
+                        id="mail-quote-contact"
                         type="text"
                         value={customer.contactPerson}
                         onChange={(e) => setCustomer({ ...customer, contactPerson: e.target.value })}
@@ -291,8 +293,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Email *</label>
+                      <label htmlFor="mail-quote-email" className="block text-xs font-medium text-gray-500 mb-1">Email *</label>
                       <input
+                        id="mail-quote-email"
                         type="email"
                         value={customer.email}
                         onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
@@ -301,8 +304,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Telefon</label>
+                      <label htmlFor="mail-quote-phone" className="block text-xs font-medium text-gray-500 mb-1">Telefon</label>
                       <input
+                        id="mail-quote-phone"
                         type="tel"
                         value={customer.phone || ''}
                         onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
@@ -310,9 +314,10 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                         placeholder="12 34 56 78"
                       />
                     </div>
-                    <div className="col-span-2">
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Adresse</label>
+                    <div className="sm:col-span-2">
+                      <label htmlFor="mail-quote-address" className="block text-xs font-medium text-gray-500 mb-1">Adresse</label>
                       <input
+                        id="mail-quote-address"
                         type="text"
                         value={customer.address || ''}
                         onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
@@ -321,8 +326,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Postnummer</label>
+                      <label htmlFor="mail-quote-postal" className="block text-xs font-medium text-gray-500 mb-1">Postnummer</label>
                       <input
+                        id="mail-quote-postal"
                         type="text"
                         value={customer.postalCode || ''}
                         onChange={(e) => setCustomer({ ...customer, postalCode: e.target.value })}
@@ -331,8 +337,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">By</label>
+                      <label htmlFor="mail-quote-city" className="block text-xs font-medium text-gray-500 mb-1">By</label>
                       <input
+                        id="mail-quote-city"
                         type="text"
                         value={customer.city || ''}
                         onChange={(e) => setCustomer({ ...customer, city: e.target.value })}
@@ -365,8 +372,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                   <h3 className="font-medium mb-3">Tilbudsdetaljer</h3>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Tilbudstitel *</label>
+                    <label htmlFor="mail-quote-title" className="block text-xs font-medium text-gray-500 mb-1">Tilbudstitel *</label>
                     <input
+                      id="mail-quote-title"
                       type="text"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
@@ -376,8 +384,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Beskrivelse</label>
+                    <label htmlFor="mail-quote-description" className="block text-xs font-medium text-gray-500 mb-1">Beskrivelse</label>
                     <textarea
+                      id="mail-quote-description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={3}
@@ -387,8 +396,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Bemærkninger</label>
+                    <label htmlFor="mail-quote-notes" className="block text-xs font-medium text-gray-500 mb-1">Bemærkninger</label>
                     <textarea
+                      id="mail-quote-notes"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       rows={2}
@@ -397,10 +407,11 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                     />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Gyldighedsdage</label>
+                      <label htmlFor="mail-quote-validity" className="block text-xs font-medium text-gray-500 mb-1">Gyldighedsdage</label>
                       <input
+                        id="mail-quote-validity"
                         type="number"
                         value={validityDays}
                         onChange={(e) => setValidityDays(parseInt(e.target.value) || 30)}
@@ -409,8 +420,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Moms %</label>
+                      <label htmlFor="mail-quote-tax" className="block text-xs font-medium text-gray-500 mb-1">Moms %</label>
                       <input
+                        id="mail-quote-tax"
                         type="number"
                         value={taxPercentage}
                         onChange={(e) => setTaxPercentage(parseFloat(e.target.value) || 0)}
@@ -420,8 +432,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Rabat %</label>
+                      <label htmlFor="mail-quote-discount" className="block text-xs font-medium text-gray-500 mb-1">Rabat %</label>
                       <input
+                        id="mail-quote-discount"
                         type="number"
                         value={discountPercentage}
                         onChange={(e) => setDiscountPercentage(parseFloat(e.target.value) || 0)}
@@ -433,10 +446,11 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                    <label htmlFor="mail-quote-sender" className="block text-xs font-medium text-gray-500 mb-1">
                       Afsender {senderName ? '(auto-udfyldt)' : '*'}
                     </label>
                     <input
+                      id="mail-quote-sender"
                       type="text"
                       value={senderName}
                       onChange={(e) => setSenderName(e.target.value)}
@@ -452,10 +466,11 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                   {templateType === 'sales' && (
                     <div className="border-t pt-4 mt-4">
                       <h4 className="text-sm font-medium text-blue-700 mb-3">Solcelledata</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Systemstørrelse (kWp) *</label>
+                          <label htmlFor="mail-quote-kwp" className="block text-xs font-medium text-gray-500 mb-1">Systemstørrelse (kWp) *</label>
                           <input
+                            id="mail-quote-kwp"
                             type="number"
                             value={solarData.systemSizeKwp || ''}
                             onChange={(e) => setSolarData({ ...solarData, systemSizeKwp: parseFloat(e.target.value) || 0 })}
@@ -465,8 +480,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Årsproduktion (kWh) *</label>
+                          <label htmlFor="mail-quote-kwh" className="block text-xs font-medium text-gray-500 mb-1">Årsproduktion (kWh) *</label>
                           <input
+                            id="mail-quote-kwh"
                             type="number"
                             value={solarData.estimatedAnnualProductionKwh || ''}
                             onChange={(e) => setSolarData({ ...solarData, estimatedAnnualProductionKwh: parseFloat(e.target.value) || 0 })}
@@ -476,8 +492,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Paneltype</label>
+                          <label htmlFor="mail-quote-panel" className="block text-xs font-medium text-gray-500 mb-1">Paneltype</label>
                           <input
+                            id="mail-quote-panel"
                             type="text"
                             value={solarData.panelType || ''}
                             onChange={(e) => setSolarData({ ...solarData, panelType: e.target.value })}
@@ -486,8 +503,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Inverter</label>
+                          <label htmlFor="mail-quote-inverter" className="block text-xs font-medium text-gray-500 mb-1">Inverter</label>
                           <input
+                            id="mail-quote-inverter"
                             type="text"
                             value={solarData.inverterType || ''}
                             onChange={(e) => setSolarData({ ...solarData, inverterType: e.target.value })}
@@ -496,8 +514,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Batteri</label>
+                          <label htmlFor="mail-quote-battery" className="block text-xs font-medium text-gray-500 mb-1">Batteri</label>
                           <input
+                            id="mail-quote-battery"
                             type="text"
                             value={solarData.batteryType || ''}
                             onChange={(e) => setSolarData({ ...solarData, batteryType: e.target.value })}
@@ -506,8 +525,9 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Tagtype</label>
+                          <label htmlFor="mail-quote-roof" className="block text-xs font-medium text-gray-500 mb-1">Tagtype</label>
                           <input
+                            id="mail-quote-roof"
                             type="text"
                             value={solarData.roofType || ''}
                             onChange={(e) => setSolarData({ ...solarData, roofType: e.target.value })}
@@ -515,9 +535,10 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                             placeholder="F.eks. Tegltag, Trapeztag"
                           />
                         </div>
-                        <div className="col-span-2">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Estimeret årlig besparelse (DKK)</label>
+                        <div className="sm:col-span-2">
+                          <label htmlFor="mail-quote-savings" className="block text-xs font-medium text-gray-500 mb-1">Estimeret årlig besparelse (DKK)</label>
                           <input
+                            id="mail-quote-savings"
                             type="number"
                             value={solarData.estimatedSavingsPerYear || ''}
                             onChange={(e) => setSolarData({ ...solarData, estimatedSavingsPerYear: parseFloat(e.target.value) || undefined })}
