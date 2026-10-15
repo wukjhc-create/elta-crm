@@ -114,11 +114,11 @@ export function OrderNotesTab({
         <div className="bg-white rounded-lg ring-1 ring-gray-200 p-3 space-y-2">
           <textarea
             value={content} onChange={(e) => setContent(e.target.value)} rows={3} maxLength={4000}
-            placeholder="Skriv en intern note til sagen…" disabled={saving}
+            placeholder="Skriv en intern note til sagen…" aria-label="Ny note" disabled={saving}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
           />
           {formError && <div className="text-sm text-red-700">⚠ {formError}</div>}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <select value={kind} onChange={(e) => setKind(e.target.value as CaseNoteKind)} disabled={saving}
               className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
               {CASE_NOTE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k] ?? k}</option>)}
@@ -142,7 +142,9 @@ export function OrderNotesTab({
           <StickyNote className="w-8 h-8 text-gray-300 mx-auto mb-2" />
           <h3 className="text-base font-medium text-gray-700">Ingen noter endnu</h3>
           <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-            Noter på sagen — fx når den oprettes fra et tilbud — vises her.
+            {canAddNote
+              ? 'Skriv en note i feltet ovenfor. Noter fra tilbud vises også her.'
+              : 'Noter på sagen — fx når den oprettes fra et tilbud — vises her.'}
           </p>
         </div>
       ) : (
