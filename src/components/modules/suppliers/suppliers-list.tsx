@@ -80,7 +80,7 @@ export function SuppliersList() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Leverandører</h2>
           <p className="text-sm text-gray-500">
@@ -106,12 +106,16 @@ export function SuppliersList() {
 
       {/* Suppliers Grid */}
       {filteredSuppliers.length === 0 ? (
-        <div className="bg-white rounded-lg border p-12 text-center">
+        <div className="bg-white rounded-lg border p-12 text-center" data-testid="suppliers-empty">
           <Building2 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500 mb-4">
             {search ? 'Ingen leverandører matcher din søgning' : 'Ingen leverandører endnu'}
           </p>
-          {!search && (
+          {search ? (
+            <Button type="button" variant="outline" onClick={() => setSearch('')} data-testid="suppliers-clear-search">
+              Ryd søgning
+            </Button>
+          ) : (
             <Button variant="outline" onClick={() => setShowCreateDialog(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Opret din første leverandør
@@ -127,13 +131,13 @@ export function SuppliersList() {
             >
               {/* Card Header */}
               <div className="p-4 border-b">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-10 h-10 shrink-0 rounded-lg bg-blue-100 flex items-center justify-center">
                       <Building2 className="w-5 h-5 text-blue-600" />
                     </div>
-                    <div>
-                      <h3 className="font-medium">{supplier.name}</h3>
+                    <div className="min-w-0">
+                      <h3 className="font-medium break-words">{supplier.name}</h3>
                       {supplier.code && (
                         <p className="text-xs text-gray-500">Kode: {supplier.code}</p>
                       )}
@@ -152,14 +156,14 @@ export function SuppliersList() {
                     href={supplier.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                    className="flex items-start gap-2 text-sm text-blue-600 hover:underline break-all min-w-0"
                   >
                     <ExternalLink className="w-3 h-3" />
                     {supplier.website.replace(/^https?:\/\//, '')}
                   </a>
                 )}
                 {supplier.contact_email && (
-                  <p className="text-sm text-gray-500">{supplier.contact_email}</p>
+                  <p className="text-sm text-gray-500 break-all">{supplier.contact_email}</p>
                 )}
                 {supplier.notes && (
                   <p className="text-sm text-gray-400 line-clamp-2">{supplier.notes}</p>
@@ -167,8 +171,8 @@ export function SuppliersList() {
               </div>
 
               {/* Card Actions */}
-              <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
-                <div className="flex gap-2">
+              <div className="p-4 border-t bg-gray-50 flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Link href={`/dashboard/settings/suppliers/${supplier.id}/products`}>
                     <Button variant="outline" size="sm">
                       <Package className="w-4 h-4 mr-1" />
