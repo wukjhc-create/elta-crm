@@ -47,6 +47,7 @@ export function FuldmagtModal({
   const [isSending, setIsSending] = useState(false)
   const [selectedCaseId, setSelectedCaseId] = useState(lockCase && lockedCaseId ? lockedCaseId : '')
   const [cases, setCases] = useState<FuldmagtCaseOption[]>([])
+  const [casesError, setCasesError] = useState<string | null>(null)
   const [loadingCases, setLoadingCases] = useState(!lockCase)
 
   // Kundekort-flow: hent kundens sager til vælgeren. Låst sag (fra sagen)
@@ -55,10 +56,17 @@ export function FuldmagtModal({
     if (lockCase) return
     let active = true
     setLoadingCases(true)
+    setCasesError(null)
     listCustomerServiceCasesForBesigtigelse(customerId)
       .then((res) => {
         if (!active) return
-        const list = res.success && res.data ? res.data : []
+        if (!res.success) {
+          setCases([])
+          setCasesError(res.error || 'Kunne ikke hente sager')
+          return
+        }
+        const list = res.data ?? []
+        setCasesError(null)
         setCases(list)
         if (list.length === 1) setSelectedCaseId(list[0].id)
       })
@@ -110,6 +118,10 @@ export function FuldmagtModal({
             </div>
           ) : loadingCases ? (
             <p className="text-sm text-gray-400">Henter sager…</p>
+          ) : casesError ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" data-testid="fuldmagt-cases-load-error">
+              {casesError}. Det tælles ikke som ingen sager.
+            </div>
           ) : cases.length === 0 ? (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
               Denne kunde har ingen sager endnu. Opret en sag, før du opretter en fuldmagt.
