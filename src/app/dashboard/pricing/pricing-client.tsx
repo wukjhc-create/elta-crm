@@ -540,7 +540,42 @@ function TrendsTab({
       ) : trends.length === 0 ? (
         <EmptyState message="Ingen pristendenser fundet for denne leverandør" />
       ) : (
-        <div className="bg-white rounded-lg border overflow-hidden">
+        <>
+        <ul className="md:hidden space-y-2" data-testid="price-trends-mobile">
+          {trends.map((trend) => (
+            <li key={trend.supplier_product_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
+              <p className="font-medium text-gray-900 break-words">{trend.product_name}</p>
+              <p className="mt-1 tabular-nums font-medium">{formatCurrency(trend.current_price)}</p>
+              <p className="mt-1 text-xs">
+                30 dage{' '}
+                {trend.trend_30_days !== null ? (
+                  <span className={trend.trend_30_days > 0 ? 'text-red-600' : trend.trend_30_days < 0 ? 'text-green-600' : 'text-gray-500'}>
+                    {trend.trend_30_days > 0 ? '+' : ''}{trend.trend_30_days}%
+                  </span>
+                ) : (
+                  <span className="text-gray-400">-</span>
+                )}
+              </p>
+              <p className="text-xs">
+                90 dage{' '}
+                {trend.trend_90_days !== null ? (
+                  <span className={trend.trend_90_days > 0 ? 'text-red-600' : trend.trend_90_days < 0 ? 'text-green-600' : 'text-gray-500'}>
+                    {trend.trend_90_days > 0 ? '+' : ''}{trend.trend_90_days}%
+                  </span>
+                ) : (
+                  <span className="text-gray-400">-</span>
+                )}
+              </p>
+              <p className="mt-1 text-xs">
+                <span className={`font-medium px-2 py-0.5 rounded-full ${volatilityStyles[trend.volatility]}`}>
+                  {volatilityLabels[trend.volatility]}
+                </span>
+                {' '}· {trend.change_count_30_days} ændringer
+              </p>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -592,6 +627,7 @@ function TrendsTab({
             </table>
           </div>
         </div>
+        </>
       )}
     </div>
   )
