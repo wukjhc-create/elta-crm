@@ -253,9 +253,13 @@ export function MailDetail({
       if (result.success) {
         setReplyMsg('Svar sendt!')
       } else {
-        setReplyMsg(`Fejl: ${result.error || 'Ukendt'}`)
+        // U-6: konfigurationsfejl (env-navne/Azure) vises kun for admin — andre får en almindelig besked
+        const isConfigErr = !!(result.error?.includes('env vars') || result.error?.includes('konfigureret'))
+        setReplyMsg(isConfigErr && currentRole !== 'admin'
+          ? 'Fejl: Mailafsendelse er ikke sat op — kontakt en administrator'
+          : `Fejl: ${result.error || 'Ukendt'}`)
         // Auto-diagnose on config errors
-        if (result.error?.includes('env vars') || result.error?.includes('konfigureret')) {
+        if (isConfigErr && currentRole === 'admin') {
           const diag = await checkGraphEnvVars()
           setGraphDiag(diag.vars)
         }
@@ -578,7 +582,7 @@ export function MailDetail({
               )}
             </div>
           )}
-          {!replyMsg && (
+          {!replyMsg && currentRole === 'admin' && (
             <button
               onClick={handleDiagnoseGraph}
               className="text-[10px] text-gray-400 hover:text-blue-600 underline"

@@ -1,5 +1,6 @@
 'use client'
 
+import { useUserRole } from '@/lib/hooks/use-user-role'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -146,6 +147,8 @@ export function MailClient() {
   const [graphStatus, setGraphStatus] = useState<{ tested: boolean; success: boolean; error?: string; mailbox?: string }>({ tested: false, success: false })
   const [graphDiag, setGraphDiag] = useState<{ configured: boolean; vars: Record<string, boolean>; mailbox: string; mailboxes?: string[] } | null>(null)
 
+  const { role: viewerRole } = useUserRole()
+  const isAdminUser = viewerRole === 'admin'
   // Debug diagnostic panel
   const [showDebug, setShowDebug] = useState(false)
   const [diagnostic, setDiagnostic] = useState<SyncDiagnostic | null>(null)
@@ -815,6 +818,8 @@ export function MailClient() {
         </div>
         <div className="flex items-center gap-2">
           <GoldenButton selectedEmail={selectedEmail} />
+          {/* U-5 (pilot-sweep 2026-10-15): fejlsøgning (Graph/delta-sync) kun for admin — før vist for alle */}
+          {isAdminUser && (<>
           <button
             onClick={async () => {
               setShowDebug(!showDebug)
@@ -836,6 +841,7 @@ export function MailClient() {
             <ShieldAlert className="w-4 h-4" />
             Test
           </button>
+          </>)}
           {/* Sprint 8C-3: auto-sync indikator */}
           <span className="hidden sm:inline-flex items-center text-xs text-gray-500 mr-1" title="Auto-sync koerer hvert 60. sekund mens siden er aaben">
             Auto-sync • sidst {lastRefreshLabel}
@@ -899,7 +905,7 @@ export function MailClient() {
       )}
 
       {/* ========== SYNC DEBUG PANEL ========== */}
-      {showDebug && (
+      {showDebug && isAdminUser && (
         <div className="bg-gray-900 text-gray-100 rounded-lg border border-gray-700 text-xs font-mono overflow-hidden">
           <div className="p-3 border-b border-gray-700 flex items-center justify-between">
             <span className="text-amber-400 font-bold text-sm">Sync Diagnostic</span>
@@ -935,12 +941,19 @@ export function MailClient() {
               </button>
               <button
                 onClick={async () => {
+                  // U-5: springer ALLE historiske mails over — bekræft, og vis kun "OK" hvis det faktisk lykkedes
+                  if (!window.confirm('Spring alle eksisterende mails over og synkronisér kun nye fremover? Det kan ikke fortrydes.')) return
                   setIsFastForwarding(true)
                   try {
                     const r = await fastForwardAllMailboxes()
+                    if (!r.success || r.results.length === 0) {
+                      toast.error('Spring til nye fejlede', 'Ingen postkasser blev opdateret')
+                      setIsFastForwarding(false)
+                      return
+                    }
                     const total = r.results.reduce((s, x) => s + x.messagesScanned, 0)
                     const saved = r.results.filter(x => x.deltaLinkSaved).length
-                    toast.success('Fast-forward OK', `${saved}/${r.results.length} postkasser — ${total} historiske beskeder sprunget over. Kun nye emails synces fra nu af.`)
+                    toast.success('Sprunget til nye mails', `${saved}/${r.results.length} postkasser — ${total} historiske beskeder sprunget over. Kun nye emails synces fra nu af.`)
                     setDiagnostic(await runSyncDiagnostic())
                   } catch (e) {
                     toast.error('Fast-forward fejlede', e instanceof Error ? e.message : 'Ukendt fejl')

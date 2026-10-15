@@ -21,8 +21,8 @@ Kilde: to opfølgende read-only sweeps til pilot-reviewet.
 | U-2 (S2) | Leads-kanban: mislykket træk giver ingen besked | DONE — fejltoast |
 | U-3 (S2) | Mail: arkivér/ignorér/læst er fire-and-forget uden tilbagerulning | DONE — handlinger returnerer resultat; UI ruller tilbage + besked |
 | U-4 (S2) | Mail: "Kunde tildelt" vises selvom intet blev koblet (void-handling); cockpit-knap uden feedback | DONE — "Kunde tildelt" kun ved succes; cockpit-knap med besked |
-| U-5 (S3) | Mail-debugpanel på engelsk, vist for alle, "Fast-forward OK" ved fejl, "Spring til nye" uden bekræftelse | TODO |
-| U-6 (S3) | Mail-svar-fejl viser Graph/Azure-internals og env-navne for alle | TODO |
+| U-5 (S3) | Mail-debugpanel på engelsk, vist for alle, "Fast-forward OK" ved fejl, "Spring til nye" uden bekræftelse | DONE — Debug/Test kun admin; "Spring til nye" kræver bekræftelse og melder kun OK ved succes |
+| U-6 (S3) | Mail-svar-fejl viser Graph/Azure-internals og env-navne for alle | DONE — Graph-diagnostik og env-navne kun for admin; andre får "kontakt en administrator" |
 | U-7 (S3) | Personlige påmindelser: slet uden bekræftelse, ingen pending | DONE — bekræft slet, knapper låst mens der arbejdes |
 | U-8/9 (S3) | Arbejdsordre "Annullér"/"Afslut" (endelige) uden bekræftelse — kalender + planlægningsfane | DONE — bekræftelse i kalender og planlægningsfane (U11 verificerer dialogen) |
 | U-11 (S3) | Kundenoter: slet uden bekræftelse | DONE — bekræft |
