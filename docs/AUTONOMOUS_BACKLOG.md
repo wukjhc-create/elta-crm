@@ -37,9 +37,9 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-1 | Planlægning: ingen advarsel ved dobbeltbooking af samme montør samme dag | DONE — `getEmployeeDayLoadAction` + `EmployeeDayLoadHint` i opret-/omplanlæg-dialog og sagens planlægningsfane (varsel, blokerer ikke). UI U43 (udvidet) |
 | E-2 | Ugevisning uden belastning pr. medarbejder | DONE — "N aktive job denne uge" pr. medarbejder + "N job samme dag" ved ≥2. UI U43 |
 | E-3 | Montør: uafsluttede job fra tidligere dage forsvinder fra kalenderen; tom dag henviste til planlægning montøren ikke må | DONE — banner "N uafsluttede job … se Mine job"; rolleafhængig tomtekst. UI U21/U96/U151 |
-| E-4 | Arbejdsordrer har kun dato (ingen tidspunkt/varighed) → ingen dagsrækkefølge/overlap | BLOCKED_APPROVAL — kræver migration (`work_orders.start_time/end_time` el. `estimated_hours`) |
-| E-5 | Fravær/ferie/helligdage findes ikke → planlægning på syge/ferierende montører | BLOCKED_APPROVAL — kræver ny tabel (fravær) + helligdagsliste; forslag udarbejdes |
-| E-6 | Kapacitet pr. uge (normtimer) | BLOCKED_APPROVAL — kræver `employees.weekly_hours` (eller lign.) |
+| E-4 | Arbejdsordrer har kun dato (ingen tidspunkt/varighed) → ingen dagsrækkefølge/overlap | BLOCKED_APPROVAL — forslag 00227 i docs/runbooks/planning-migrations-proposal.md |
+| E-5 | Fravær/ferie/helligdage findes ikke → planlægning på syge/ferierende montører | BLOCKED_APPROVAL — forslag 00228 (employee_absences + RLS) i planning-migrations-proposal.md; helligdage i kode |
+| E-6 | Kapacitet pr. uge (normtimer) | BLOCKED_APPROVAL — forslag 00229 i planning-migrations-proposal.md |
 | E-7 | Træk-og-slip omplanlægning, klik på tom celle for at planlægge | TODO |
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
