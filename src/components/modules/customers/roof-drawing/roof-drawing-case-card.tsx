@@ -6,7 +6,7 @@
  * billedet i ny fane via den signed URL.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LayoutGrid, Loader2, Sun } from 'lucide-react'
 import { listRoofDrawings } from '@/lib/actions/roof-drawings'
 import type { RoofDrawingWithUrl } from '@/types/roof-drawings.types'
@@ -21,24 +21,42 @@ export function RoofDrawingCaseCard({ customerId, serviceCaseId }: RoofDrawingCa
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tryKey, setTryKey] = useState(0)
+  const drawingsKey = useRef<string | null>(null)
 
   useEffect(() => {
     if (!customerId && !serviceCaseId) {
       setLoading(false)
       setLoadError(null)
+      setDrawings([])
+      drawingsKey.current = null
       return
     }
     let active = true
+    const term = `${customerId ?? ''}:${serviceCaseId ?? ''}`
     setLoading(true)
     setLoadError(null)
     listRoofDrawings({ customerId: customerId ?? null, serviceCaseId: serviceCaseId ?? null })
       .then((res) => {
         if (!active) return
-        if (res.success) setDrawings(res.data ?? [])
-        else setLoadError(res.error ?? 'Kunne ikke hente tagtegninger')
+        if (res.success) {
+          setDrawings(res.data ?? [])
+          drawingsKey.current = term
+          setLoadError(null)
+        } else if (drawingsKey.current === term) {
+          setLoadError(res.error ?? 'Kunne ikke hente tagtegninger')
+        } else {
+          setDrawings([])
+          setLoadError(res.error ?? 'Kunne ikke hente tagtegninger')
+        }
       })
       .catch(() => {
-        if (active) setLoadError('Kunne ikke hente tagtegninger')
+        if (!active) return
+        if (drawingsKey.current === term) {
+          setLoadError('Kunne ikke hente tagtegninger')
+        } else {
+          setDrawings([])
+          setLoadError('Kunne ikke hente tagtegninger')
+        }
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -77,6 +95,18 @@ export function RoofDrawingCaseCard({ customerId, serviceCaseId }: RoofDrawingCa
 
   return (
     <div className="bg-white rounded-lg border">
+      {loadError && (
+        <div className="p-4 border-b" data-testid="roof-drawing-stale-error">
+          <p className="text-sm text-red-700 break-words">{loadError}. De tidligere tegninger bliver.</p>
+          <button
+            type="button"
+            onClick={() => setTryKey((n) => n + 1)}
+            className="mt-2 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800"
+          >
+            Prøv igen
+          </button>
+        </div>
+      )}
       <div className="p-4 border-b flex items-center gap-2">
         <LayoutGrid className="w-4 h-4 text-primary" />
         <h3 className="font-semibold text-sm">Tagtegninger</h3>

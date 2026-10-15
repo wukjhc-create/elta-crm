@@ -59,11 +59,13 @@ export function RoofDrawingSection({ customerId, serviceCaseId }: RoofDrawingSec
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tryKey, setTryKey] = useState(0)
+  const drawingsKey = useRef<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
+    const term = `${customerId}:${serviceCaseId ?? ''}`
     setLoading(true)
     setLoadError(null)
     ;(async () => {
@@ -74,10 +76,24 @@ export function RoofDrawingSection({ customerId, serviceCaseId }: RoofDrawingSec
         ])
         if (!active) return
         if (panelsRes.success && panelsRes.data) setPanels(panelsRes.data.panels)
-        if (drawingsRes.success) setDrawings(drawingsRes.data ?? [])
-        else setLoadError(drawingsRes.error ?? 'Kunne ikke hente tagtegninger')
+        if (drawingsRes.success) {
+          setDrawings(drawingsRes.data ?? [])
+          drawingsKey.current = term
+          setLoadError(null)
+        } else if (drawingsKey.current === term) {
+          setLoadError(drawingsRes.error ?? 'Kunne ikke hente tagtegninger')
+        } else {
+          setDrawings([])
+          setLoadError(drawingsRes.error ?? 'Kunne ikke hente tagtegninger')
+        }
       } catch {
-        if (active) setLoadError('Kunne ikke hente tagtegninger')
+        if (!active) return
+        if (drawingsKey.current === term) {
+          setLoadError('Kunne ikke hente tagtegninger')
+        } else {
+          setDrawings([])
+          setLoadError('Kunne ikke hente tagtegninger')
+        }
       } finally {
         if (active) setLoading(false)
       }
@@ -195,6 +211,19 @@ export function RoofDrawingSection({ customerId, serviceCaseId }: RoofDrawingSec
           Ingen tagtegninger endnu. Brug Tilføj tagflade ovenfor.
         </div>
       ) : (
+        <>
+        {loadError && (
+          <div className="text-sm text-red-700 break-words border border-red-200 rounded-lg p-3" data-testid="roof-section-stale-error">
+            {loadError}. De tidligere tegninger bliver.
+            <button
+              type="button"
+              onClick={() => setTryKey((n) => n + 1)}
+              className="block mt-2 min-h-[44px] px-3 font-medium underline"
+            >
+              Prøv igen
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {drawings.map((d) => (
             <button
@@ -224,6 +253,7 @@ export function RoofDrawingSection({ customerId, serviceCaseId }: RoofDrawingSec
             </button>
           ))}
         </div>
+        </>
       )}
 
       {editing && (
