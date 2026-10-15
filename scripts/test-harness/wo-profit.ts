@@ -14,18 +14,18 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface WoProfitCheck { id: string; ok: boolean; note: string }
 
-type Calc = { revenue: number; total_cost: number; material_cost: number; labor_cost: number; revenue_source: string }
+type Calc = { revenue: number; total_cost: number; material_cost: number; other_cost: number; labor_cost: number; revenue_source: string }
 
 export async function runWoProfit(c: { admin: SupabaseClient }): Promise<WoProfitCheck[]> {
   const out: WoProfitCheck[] = []
   const a = c.admin
   const stamp = Date.now()
-  const ids = { cust: '', caseId: '', wo: '', emp: '', tl: '', mats: [] as string[], invs: [] as string[] }
+  const ids = { cust: '', caseId: '', wo: '', emp: '', tl: '', mats: [] as string[], ocs: [] as string[], invs: [] as string[] }
   const calc = async () => {
     const { data, error } = await a.rpc('calculate_work_order_profit', { p_work_order_id: ids.wo })
     if (error) throw new Error(`rpc: ${error.message}`)
     const d = data as Record<string, unknown>
-    return { revenue: Number(d.revenue), total_cost: Number(d.total_cost), material_cost: Number(d.material_cost), labor_cost: Number(d.labor_cost), revenue_source: String(d.revenue_source) } as Calc
+    return { revenue: Number(d.revenue), total_cost: Number(d.total_cost), material_cost: Number(d.material_cost), other_cost: Number(d.other_cost), labor_cost: Number(d.labor_cost), revenue_source: String(d.revenue_source) } as Calc
   }
   const snaps = async () => ((await a.from('work_order_profit').select('revenue, total_cost, source').eq('work_order_id', ids.wo).order('created_at')).data ?? []) as Array<{ revenue: number; total_cost: number; source: string }>
   const addMat = async (cost: number, sale: number) => {
@@ -57,11 +57,16 @@ export async function runWoProfit(c: { admin: SupabaseClient }): Promise<WoProfi
     const tlSale = Number(t.sale_amount ?? 0)
 
     await addMat(600, 1000)
+    // øvrig omkostning på ordren (kost 200, fakturerbar til 300)
+    const oc = await a.from('case_other_costs').insert([{ case_id: ids.caseId, work_order_id: ids.wo, category: 'parkering', description: `[HARNESS] P oc ${stamp}`, quantity: 1, unit: 'stk',
+      unit_cost: 200, unit_sales_price: 300, billable: true, source: 'manual', cost_date: '2026-10-01' }]).select('id')
+    if (oc.error) throw new Error(`case_other_costs: ${oc.error.message}`)
+    ids.ocs.push((oc.data?.[0] as { id: string }).id)
     const c1 = await calc()
-    out.push({ id: 'P1 materialer på ordren = kost', ok: c1.material_cost === 600 && c1.total_cost === Math.round((tlCost + 600) * 100) / 100,
-      note: `materialer ${c1.material_cost} · kost ${c1.total_cost} (timer ${tlCost})` })
-    out.push({ id: 'P2 planlagt omsætning = frossen timesalg + materialesalg', ok: c1.revenue_source === 'planned' && c1.revenue === Math.round((tlSale + 1000) * 100) / 100,
-      note: `${c1.revenue_source} ${c1.revenue} (timer ${tlSale} + 1000)` })
+    out.push({ id: 'P1 materialer + øvrige på ordren = kost', ok: c1.material_cost === 600 && c1.other_cost === 200 && c1.total_cost === Math.round((tlCost + 600 + 200) * 100) / 100,
+      note: `materialer ${c1.material_cost} · øvrige ${c1.other_cost} · kost ${c1.total_cost} (timer ${tlCost})` })
+    out.push({ id: 'P2 planlagt omsætning = frossen timesalg + materiale-/øvrig salg', ok: c1.revenue_source === 'planned' && c1.revenue === Math.round((tlSale + 1000 + 300) * 100) / 100,
+      note: `${c1.revenue_source} ${c1.revenue} (timer ${tlSale} + 1000 + 300)` })
 
     const inv = await addInv('draft', 2000)
     const c2 = await calc()
@@ -90,6 +95,12 @@ export async function runWoProfit(c: { admin: SupabaseClient }): Promise<WoProfi
     const lastS4 = s4[s4.length - 1]
     out.push({ id: 'P7 kreditnota udstedt på udført ordre → nyt snapshot', ok: s4.length === s3.length + 1 && Number(lastS4?.revenue) === 1200,
       note: `${s3.length} → ${s4.length}, omsætning ${lastS4?.revenue ?? '-'}` })
+    // P8 lav-avance-flag (trg_profit_snapshot_flag_low, < 15 %): omsætning 1.200 mod kost > 2.000 → flag sat; ny faktura-
+    // omsætning der giver høj avance → flag fjernet
+    const low1 = ((await a.from('work_orders').select('low_profit').eq('id', ids.wo).single()).data as { low_profit: boolean }).low_profit
+    await a.from('invoices').update({ total_amount: 20000, tax_amount: 5000, final_amount: 25000 }).eq('id', inv)
+    const low2 = ((await a.from('work_orders').select('low_profit').eq('id', ids.wo).single()).data as { low_profit: boolean }).low_profit
+    out.push({ id: 'P8 lav-avance-flag sættes og fjernes', ok: low1 === true && low2 === false, note: `efter kreditnota=${low1} · efter høj omsætning=${low2}` })
   } finally {
     if (ids.wo) {
       await a.from('ai_suggestions').delete().eq('entity_id', ids.wo)
@@ -97,6 +108,7 @@ export async function runWoProfit(c: { admin: SupabaseClient }): Promise<WoProfi
     }
     for (const id of [...ids.invs].reverse()) await a.from('invoices').delete().eq('id', id)
     for (const id of ids.mats) await a.from('case_materials').delete().eq('id', id)
+    for (const id of ids.ocs) await a.from('case_other_costs').delete().eq('id', id)
     if (ids.tl) await a.from('time_logs').delete().eq('id', ids.tl)
     if (ids.wo) { await a.from('work_order_profit').delete().eq('work_order_id', ids.wo); await a.from('work_orders').delete().eq('id', ids.wo) }
     if (ids.caseId) await a.from('service_cases').delete().eq('id', ids.caseId)
