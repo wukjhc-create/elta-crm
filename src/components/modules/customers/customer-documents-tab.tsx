@@ -183,7 +183,11 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
       if (paths.length === 0) { setIsDownloading(false); return }
 
       const urlResult = await getDocumentDownloadUrls(paths)
-      if (!urlResult.success || !urlResult.data) { setIsDownloading(false); return }
+      if (!urlResult.success || !urlResult.data) {
+        toast.error(urlResult.error || 'Kunne ikke hente download-links')
+        setIsDownloading(false)
+        return
+      }
 
       const { default: JSZip } = await import('jszip').catch(() => ({ default: null }))
 

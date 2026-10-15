@@ -232,7 +232,11 @@ export async function getDocumentDownloadUrls(
     for (let i = 0; i < docPaths.length; i += 200) {
       let q = supabase.from('customer_documents').select('storage_path').in('storage_path', docPaths.slice(i, i + 200))
       if (!hasPermission('customers.emails.view')) q = q.is('source_email_id', null)
-      const { data: rows } = await q
+      const { data: rows, error: rowsErr } = await q
+      if (rowsErr) {
+        logger.error('getDocumentDownloadUrls document check failed', { error: rowsErr })
+        return { success: false, error: 'Kunne ikke tjekke dokumenterne. Ingen link er udleveret.' }
+      }
       for (const r of (rows ?? []) as Array<{ storage_path: string | null }>) if (r.storage_path) allowed.add(r.storage_path)
     }
 
