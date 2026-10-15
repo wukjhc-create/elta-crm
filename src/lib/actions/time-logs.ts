@@ -33,6 +33,7 @@ import {
 import { getWorkOrderScope } from '@/lib/auth/case-scope'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import type { ActionResult } from '@/types/common.types'
 import { type TimeLogRow, type PayRateType, PAY_RATE_TYPE_LABEL } from '@/types/workforce.types'
@@ -336,7 +337,7 @@ export async function updateTimeLog(
     // Read current row + check invoice lock.
     const { data: cur, error: readErr } = await supabase
       .from('time_logs')
-      .select('id, work_order_id, employee_id, start_time, end_time, invoice_line_id, pay_rate_type, employee_rate_id, approval_status')
+      .select('id, work_order_id, employee_id, start_time, end_time, invoice_line_id, pay_rate_type, employee_rate_id, approval_status, rejection_reason, description, billable')
       .eq('id', timeLogId)
       .maybeSingle()
     if (readErr || !cur) return { success: false, error: 'Timeregistrering ikke fundet' }
@@ -359,6 +360,11 @@ export async function updateTimeLog(
         success: false,
         error: 'Kan ikke ændre — timeregistreringen er allerede faktureret',
       }
+    }
+    // Henrik 2026-10-15: en GODKENDT registrering kan kun ændres af en godkender (montøren retter afviste/afventende;
+    // godkendt tid må ikke ændres bag om godkenderen). Fakturerede er låst ovenfor for alle.
+    if ((cur as { approval_status?: string }).approval_status === 'approved' && !hasPermission('time_logs.approve')) {
+      return { success: false, error: 'Godkendte timer kan ikke ændres — bed en godkender om at rette dem' }
     }
 
     // Compose new start/end if any time-fields were touched.
@@ -450,21 +456,37 @@ export async function updateTimeLog(
       }
     }
 
+    // Compare-and-set også på godkendelsesstatus: godkendt mellem læsning og opdatering → ingen ændring
     const { data, error } = await supabase
       .from('time_logs')
       .update(patch)
       .eq('id', timeLogId)
       // montør-review: faktureret mellem læsning og opdatering → ingen ændring (før kun tjekket ved læsning)
       .is('invoice_line_id', null)
+      .eq('approval_status', (cur as { approval_status: string }).approval_status)
       .select(TIME_LOG_PUBLIC_COLUMNS)
       .maybeSingle()
 
     if (!error && !data) {
-      return { success: false, error: 'Kan ikke ændre — timeregistreringen er allerede faktureret' }
+      return { success: false, error: 'Kan ikke ændre — timeregistreringen er faktureret eller behandlet imens. Genindlæs og prøv igen' }
     }
     if (error || !data) {
       logger.error('updateTimeLog failed', { error })
       return { success: false, error: 'Kunne ikke opdatere timeregistrering' }
+    }
+
+    // Henrik 2026-10-15: rettelse af en AFVIST registrering — DB-triggeren (00185) sætter den til "afventer" igen; spor
+    // før/efter og den tidligere afvisning i audit-loggen (afvisningsårsagen ryddes på rækken)
+    if ((cur as { approval_status?: string }).approval_status === 'rejected') {
+      const before: Record<string, unknown> = {}
+      for (const k of Object.keys(patch)) before[k] = (cur as Record<string, unknown>)[k] ?? null
+      await insertAuditRow({
+        user_id: userId, entity_type: 'time_log', entity_id: timeLogId, entity_name: null,
+        action: 'time_log_corrected',
+        action_description: 'Afvist timeregistrering rettet — afventer ny godkendelse',
+        changes: { before, after: patch, approval_status: { old: 'rejected', new: (data as { approval_status?: string }).approval_status ?? 'pending' } },
+        metadata: { previous_rejection_reason: (cur as { rejection_reason?: string | null }).rejection_reason ?? null },
+      })
     }
 
     // Sprint Ø2.9 — log satstype-skift i medarbejderhistorik (ikke ved backfill).
@@ -489,6 +511,70 @@ export async function updateTimeLog(
     }
 
     return { success: true, data: { ...(data as unknown as TimeLogRow), cost_amount: null, cost_rate_snapshot: null } as TimeLogRow }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+/**
+ * Henrik 2026-10-15: en montør kan SLETTE sin egen AFVISTE timeregistrering (fx registreret på forkert job — han
+ * registrerer den korrekt på ny). Kun afviste og ikke-fakturerede rækker; godkendte/afventende/fakturerede kan ikke
+ * slettes her. Admin (time_logs.delete) kan slette andres afviste. Fuldt øjebliksbillede i audit-loggen. Afviste timer
+ * tæller aldrig i løn/kost/avance/faktura (00202), så ingen økonomisk historik ændres.
+ */
+export async function deleteRejectedTimeLogAction(timeLogId: string): Promise<ActionResult<{ deleted: true }>> {
+  try {
+    validateUUID(timeLogId, 'tidsregistrering')
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('time_logs.edit.own') && !hasPermission('time_logs.delete')) {
+      return { success: false, error: 'Manglende tilladelse: time_logs.edit.own' }
+    }
+    // Læs med brugerens session (RLS-scope): en montør ser kun egne rækker
+    const { data: cur } = await supabase
+      .from('time_logs')
+      .select('id, work_order_id, employee_id, start_time, end_time, hours, description, billable, pay_rate_type, approval_status, approved_by, approved_at, rejection_reason, invoice_line_id, employee:employees(profile_id)')
+      .eq('id', timeLogId)
+      .maybeSingle()
+    const row = cur as (Record<string, unknown> & { employee?: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }) | null
+    if (!row) return { success: false, error: 'Timeregistrering ikke fundet' }
+    const emp = Array.isArray(row.employee) ? row.employee[0] : row.employee
+    const isOwn = !!emp?.profile_id && emp.profile_id === userId
+    if (!isOwn && !hasPermission('time_logs.delete')) {
+      return { success: false, error: 'Du kan kun slette dine egne timeregistreringer' }
+    }
+    if (row.approval_status !== 'rejected') {
+      return { success: false, error: 'Kun afviste timeregistreringer kan slettes — afventende kan rettes, godkendte kun af en godkender' }
+    }
+    if (row.invoice_line_id) return { success: false, error: 'Kan ikke slette — timeregistreringen er faktureret' }
+
+    // Ingen DELETE-politik for brugere på time_logs → admin-klient efter tjekkene, compare-and-set på status/faktura
+    const { data: del, error } = await createAdminClient()
+      .from('time_logs')
+      .delete()
+      .eq('id', timeLogId)
+      .eq('approval_status', 'rejected')
+      .is('invoice_line_id', null)
+      .select('id')
+    if (error) {
+      logger.error('deleteRejectedTimeLog failed', { error, entityId: timeLogId })
+      return { success: false, error: 'Kunne ikke slette timeregistreringen' }
+    }
+    if (!del || del.length === 0) {
+      return { success: false, error: 'Timeregistreringen er ændret imens (fx godkendt eller faktureret) — genindlæs' }
+    }
+    const { employee: _e, ...snapshot } = row
+    void _e
+    await insertAuditRow({
+      user_id: userId, entity_type: 'time_log', entity_id: timeLogId, entity_name: null,
+      action: 'time_log_rejected_deleted',
+      action_description: isOwn ? 'Egen afvist timeregistrering slettet' : 'Afvist timeregistrering slettet (admin)',
+      changes: { deleted: snapshot },
+      metadata: { rejection_reason: row.rejection_reason ?? null },
+    })
+    const { data: wo } = await supabase.from('work_orders').select('case_id').eq('id', row.work_order_id as string).maybeSingle()
+    if (wo?.case_id) revalidatePath(`/dashboard/orders/${wo.case_id}`)
+    revalidatePath('/dashboard/tasks')
+    return { success: true, data: { deleted: true } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

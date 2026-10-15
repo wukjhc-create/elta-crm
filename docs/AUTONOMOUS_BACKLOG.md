@@ -65,7 +65,7 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 ### Planlægning / montør (PL)
 | # | Fund | Status |
 |---|---|---|
-| PL-1 (S2) | Afvist timeregistrering kan ikke rettes/slettes af montøren og blokerer genindtastning (overlap tæller afviste) | DONE (overlap ignorerer afviste; `time-overlap-rejected-check`) — redigér/slet egne afviste: LATER |
+| PL-1 (S2) | Afvist timeregistrering kan ikke rettes/slettes af montøren og blokerer genindtastning (overlap tæller afviste) | DONE — overlap ignorerer afviste; montør retter (→ afventer, audit `time_log_corrected`) eller sletter (audit med øjebliksbillede) sin EGEN afviste, ufakturerede række; godkendte kan kun ændres af godkender; admin kan slette afviste (UI U155) |
 | PL-2 (S2) | Godkender ser ikke satstype (overtid) → overtid godkendes uset | DONE — badge pr. række + ændret satstype efter visning springes over |
 | PL-3 (S3) | Montør ser planlægnings-/statusknapper der altid fejler (kalenderdialog, "Planlæg medarbejder") | DONE — statusknapper efter getWorkOrderCapabilities, felter/Gem og "Planlæg medarbejder" kun med work_orders.plan |
 | PL-4 (S3) | Montør ser "salgspris mangler"-advarsler (salg er skjult for ham) | DONE — kolonne/sum/advarsel kun med invoices.view.own_cases |

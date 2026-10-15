@@ -2580,6 +2580,75 @@ ${m.text()}`) })
         out.push({ id: 'U151 Mine job: udaterede og gamle åbne job (PL-8)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${ins.error ? ` · ${ins.error.message.slice(0, 80)}` : ''}` })
       }
 
+      // U155 (Henrik 2026-10-15): montør retter/sletter sin EGEN afviste timeregistrering — rettelse → "afventer" + audit;
+      // godkendt række kan ikke rettes (ingen knap); sletning bevarer øjebliksbillede i audit; admin kan slette en afvist
+      if (want('U155') && jobCaseId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const wo = ((await c.admin.from('work_orders').select('id').eq('case_id', jobCaseId).limit(1).maybeSingle()).data as { id?: string } | null)?.id ?? null
+        const mk = async (day: string, status: 'rejected' | 'approved') => {
+          const ins = await c.admin.from('time_logs').insert([{ work_order_id: wo, employee_id: jobEmployeeId, start_time: `${day}T06:00:00Z`, end_time: `${day}T10:00:00Z`, billable: true, description: `[HARNESS] U155 ${status} ${stamp}` }]).select('id')
+          const id = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+          if (id) await c.admin.from('time_logs').update({ approval_status: status, approved_by: adminUser.id, approved_at: new Date().toISOString(), rejection_reason: status === 'rejected' ? 'Forkert job U155' : null }).eq('id', id)
+          return id
+        }
+        const rej = wo ? await mk('2026-09-02', 'rejected') : null
+        const appr = wo ? await mk('2026-09-03', 'approved') : null
+        const rej2 = wo ? await mk('2026-09-04', 'rejected') : null
+        r.seed = !!rej && !!appr && !!rej2
+        type T = { approval_status: string; end_time: string; rejection_reason: string | null } | null
+        const read = async (id: string | null) => (await c.admin.from('time_logs').select('approval_status, end_time, rejection_reason').eq('id', id ?? '').maybeSingle()).data as T
+        try {
+          await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const rows = m.page.getByTestId('time-log-rejected-row')
+          await rows.first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.afviste_vises = (await rows.count()) >= 2
+          r.aarsag_vises = (await m.page.getByText('Forkert job U155').count()) > 0
+          // godkendt række: ingen Ret/Slet (kun afviste har knapperne)
+          r.godkendt_uden_knapper = (await m.page.getByTestId('time-log-fix').count()) === (await rows.count())
+          r.godkendt_laast_for_montoer = (await m.page.getByTestId('time-log-approved-locked').count()) >= 1
+          // ret den første afviste (sluttid 10:00 → 11:00 dansk tid ⇒ 09:00Z)
+          await rows.filter({ hasText: '2. sep' }).getByTestId('time-log-fix').first().click({ timeout: 15_000 }).catch(() => {})
+          await m.page.getByTestId('time-log-fix-end').fill('11:00').catch(() => {})
+          await m.page.getByTestId('time-log-fix-save').click({ timeout: 15_000 }).catch(() => {})
+          let t1: T = null
+          for (let i = 0; i < 15; i++) { t1 = await read(rej); if (t1?.approval_status === 'pending') break; await new Promise((res) => setTimeout(res, 1000)) }
+          r.rettet_til_afventer = t1?.approval_status === 'pending' && new Date(t1.end_time).toISOString() === '2026-09-02T09:00:00.000Z'
+          const aud1 = ((await c.admin.from('audit_logs').select('action, metadata').eq('entity_id', rej ?? '')).data ?? []) as Array<{ action: string; metadata: Record<string, unknown> | null }>
+          r.audit_rettelse = aud1.some((x) => x.action === 'time_log_corrected' && x.metadata?.previous_rejection_reason === 'Forkert job U155')
+          // slet den anden afviste
+          m.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+          await m.page.getByTestId('time-log-delete-rejected').first().click({ timeout: 15_000 }).catch(() => {})
+          let gone = false
+          for (let i = 0; i < 15; i++) { gone = !(await read(rej2)); if (gone) break; await new Promise((res) => setTimeout(res, 1000)) }
+          r.slettet = gone
+          const aud2 = ((await c.admin.from('audit_logs').select('action, changes').eq('entity_id', rej2 ?? '')).data ?? []) as Array<{ action: string; changes: Record<string, unknown> | null }>
+          r.audit_sletning_med_snapshot = aud2.some((x) => x.action === 'time_log_rejected_deleted' && !!(x.changes as { deleted?: { start_time?: string } } | null)?.deleted?.start_time)
+          const ap = await read(appr)
+          r.godkendt_uaendret = ap?.approval_status === 'approved'
+          // serviceleder: kan ikke slette en ANDENS afviste (server); admin kan
+          const rej3 = await mk('2026-09-05', 'rejected')
+          const slp = await login(await mkUser('serviceleder'))
+          try {
+            await gotoSafe(slp.page, `${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+            slp.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+            await slp.page.getByTestId('time-log-delete-rejected').first().click({ timeout: 30_000 }).catch(() => {})
+            await slp.page.getByText(/kun slette dine egne/).first().waitFor({ timeout: 20_000 }).catch(() => {})
+            r.serviceleder_afvist = !!(await read(rej3)) && (await slp.page.getByText(/kun slette dine egne/).count()) > 0
+          } finally { await slp.ctx.close().catch(() => {}) }
+          await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+          a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+          await a.page.getByTestId('time-log-delete-rejected').first().click({ timeout: 30_000 }).catch(() => {})
+          let gone3 = false
+          for (let i = 0; i < 15; i++) { gone3 = !(await read(rej3)); if (gone3) break; await new Promise((res) => setTimeout(res, 1000)) }
+          r.admin_kan_slette_afvist = gone3
+          if (rej3 && !gone3) { await c.admin.from('time_logs').delete().eq('id', rej3) }
+          if (rej3) await c.admin.from('audit_logs').delete().eq('entity_id', rej3)
+        } finally {
+          for (const id of [rej, appr, rej2]) if (id) { await c.admin.from('audit_logs').delete().eq('entity_id', id); await c.admin.from('time_logs').delete().eq('id', id) }
+        }
+        out.push({ id: 'U155 montør retter/sletter egen afvist time', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U62 N2: timegodkendelse — montør registrerer (U11) → admin afviser med begrundelse → montør ser "Afvist" → godkend
       if (want('U62') && jobCaseId) {
         const r: Record<string, boolean> = {}
