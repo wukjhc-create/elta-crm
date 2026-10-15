@@ -2002,7 +2002,7 @@ export async function searchSupplierProductsLive(
     if (!suppliers || suppliers.length === 0) {
       // No suppliers with API credentials — fallback to local DB
       const fallback = await searchSupplierProductsForOffer(query, { limit: options?.limit })
-      if (!fallback.success || !fallback.data) return { success: true, data: [] }
+      if (!fallback.success || !fallback.data) return { success: false, error: fallback.error || 'Kunne ikke søge produkter' }
       return {
         success: true,
         data: fallback.data.map((p) => ({
@@ -2071,7 +2071,7 @@ export async function searchSupplierProductsLive(
     // If no live results, fallback to local DB
     if (allProducts.length === 0) {
       const fallback = await searchSupplierProductsForOffer(query, { limit: options?.limit })
-      if (!fallback.success || !fallback.data) return { success: true, data: [] }
+      if (!fallback.success || !fallback.data) return { success: false, error: fallback.error || 'Kunne ikke søge produkter' }
       return {
         success: true,
         data: fallback.data.map((p) => ({

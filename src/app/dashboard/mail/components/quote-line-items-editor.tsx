@@ -313,6 +313,7 @@ function DescriptionInput({
   const [results, setResults] = useState<SupplierProduct[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [noResults, setNoResults] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -321,6 +322,7 @@ function DescriptionInput({
       setResults([])
       setShowDropdown(false)
       setNoResults(false)
+      setSearchError(null)
       return
     }
 
@@ -329,28 +331,35 @@ function DescriptionInput({
       if (searchMode === 'live') {
         const result = await searchSupplierProductsLive(query, { limit: 10 })
         if (result.success && result.data) {
+          setSearchError(null)
           setResults(result.data)
           setNoResults(result.data.length === 0)
           setShowDropdown(true)
         } else {
           setResults([])
-          setNoResults(true)
+          setNoResults(false)
+          setSearchError(result.error || 'Kunne ikke søge produkter')
           setShowDropdown(true)
         }
       } else {
         const result = await searchSupplierProductsForOffer(query, { limit: 8 })
         if (result.success && result.data) {
+          setSearchError(null)
           setResults(result.data)
           setNoResults(result.data.length === 0)
           setShowDropdown(true)
         } else {
           setResults([])
-          setNoResults(true)
+          setNoResults(false)
+          setSearchError(result.error || 'Kunne ikke søge produkter')
           setShowDropdown(true)
         }
       }
     } catch {
       setResults([])
+      setNoResults(false)
+      setSearchError('Kunne ikke søge produkter')
+      setShowDropdown(true)
     } finally {
       setIsSearching(false)
     }
@@ -404,7 +413,11 @@ function DescriptionInput({
 
       {showDropdown && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg max-h-80 overflow-auto">
-          {noResults && results.length === 0 ? (
+          {searchError && results.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-red-700" data-testid="quote-product-search-error">
+              {searchError}. Det tælles ikke som ingen produkter.
+            </div>
+          ) : noResults && results.length === 0 ? (
             <div className="px-3 py-2 text-xs text-gray-400">
               {searchMode === 'live' ? 'Ingen produkter fundet via API' : 'Ingen produkter fundet'}
             </div>
