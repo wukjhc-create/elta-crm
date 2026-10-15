@@ -101,10 +101,10 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Kunde</label>
             {selectedCustomerId ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border rounded-md">
-                <Building className="w-4 h-4 text-gray-400" />
-                <span className="flex-1">{selectedCustomerName}</span>
-                <button onClick={() => { setSelectedCustomerId(null); setSelectedCustomerName(''); setCustomerSearch('') }} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+              <div className="flex items-start gap-2 px-3 py-2 bg-gray-50 border rounded-md">
+                <Building className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                <span className="flex-1 min-w-0 break-words">{selectedCustomerName}</span>
+                <button type="button" onClick={() => { setSelectedCustomerId(null); setSelectedCustomerName(''); setCustomerSearch('') }} className="text-gray-400 hover:text-red-500 shrink-0" aria-label="Fjern valgt kunde"><X className="w-4 h-4" /></button>
               </div>
             ) : (
               <div className="relative">

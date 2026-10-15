@@ -493,6 +493,7 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
                                         className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
                                         onClick={() => handleUnlink(material.id)}
                                         disabled={linking === material.id}
+                                        aria-label="Fjern link"
                                         title="Fjern link"
                                       >
                                         {linking === material.id ? (
