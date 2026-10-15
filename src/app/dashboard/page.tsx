@@ -343,7 +343,7 @@ export default async function DashboardPage() {
 
           {/* Phase 12A — Seneste afviste tilbud */}
           <div className="bg-white p-6 rounded-lg border">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-lg font-semibold">Seneste afviste tilbud</h2>
               {recentRejections.length > 0 && (
                 <Link
@@ -366,14 +366,14 @@ export default async function DashboardPage() {
                     >
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-sm font-medium text-gray-900 break-words">
                             {r.offer_number}
                             {r.title ? ` — ${r.title}` : ''}
                           </p>
-                          <p className="text-xs text-gray-500 truncate">
+                          <p className="text-xs text-gray-500 break-words">
                             {r.customer_name || 'Ukendt kunde'}
                           </p>
-                          <p className="text-xs text-red-600 mt-0.5 truncate">
+                          <p className="text-xs text-red-600 mt-0.5 break-words">
                             {r.reason_label}
                           </p>
                         </div>

@@ -84,6 +84,8 @@ eq('opgavesiden sender egne påmindelser særskilt', tasksPage.includes('reminde
 const view = fs.readFileSync('src/components/modules/dashboard/my-day-tasks.tsx', 'utf8')
 eq('visningen klassificerer ikke med servertid', view.includes('isToday') || view.includes('date-fns'), false)
 eq('påmindelsesrækken linker til kortet', view.includes('/dashboard/tasks#personal-reminders'), true)
+eq('dagens opgave ombrydes', view.includes('text-sm font-medium break-words">{row.title}'), true)
+eq('undertekst ombrydes', view.includes('text-xs text-gray-500 break-words">{row.subtitle}'), true)
 const card = fs.readFileSync('src/app/dashboard/tasks/personal-reminders-card.tsx', 'utf8')
 eq('påmindelseskortet har anker', card.includes('id="personal-reminders"'), true)
 

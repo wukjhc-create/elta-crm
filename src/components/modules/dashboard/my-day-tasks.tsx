@@ -76,13 +76,13 @@ function List({
             <li key={row.id}>
               <Link
                 href={row.href}
-                className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50"
+                className="flex items-start gap-3 px-3 py-2.5 hover:bg-gray-50"
                 data-testid="my-day-row"
                 data-kind={row.kind}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium truncate">{row.title}</span>
-                  {row.subtitle && <span className="block text-xs text-gray-500 truncate">{row.subtitle}</span>}
+                  <span className="block text-sm font-medium break-words">{row.title}</span>
+                  {row.subtitle && <span className="block text-xs text-gray-500 break-words">{row.subtitle}</span>}
                 </span>
                 <span className={`text-xs shrink-0 ${warn ? 'text-red-700' : 'text-gray-600'}`}>
                   {when(row.at, !warn)}
