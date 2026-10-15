@@ -46,8 +46,8 @@ export function CaseUnconvertedSupplierLinesCard({ caseId }: { caseId: string })
 
   return (
     <div className={`bg-white rounded-lg border p-5 ${data?.has_action_required ? 'border-amber-300 ring-1 ring-amber-100' : ''}`}>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-800">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h3 className="text-sm font-semibold flex flex-wrap items-center gap-2 text-gray-800 min-w-0">
           {data?.has_action_required
             ? <AlertTriangle className="w-4 h-4 text-amber-600" />
             : <Receipt className="w-4 h-4 text-blue-600" />}
@@ -83,7 +83,7 @@ export function CaseUnconvertedSupplierLinesCard({ caseId }: { caseId: string })
           <div className="space-y-1">
             {data.invoices.slice(0, 8).map((iv) => (
               <Link key={iv.id} href={iv.link}
-                className="flex items-start justify-between gap-2 text-sm hover:bg-gray-50 rounded px-1.5 py-1">
+                className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 text-sm hover:bg-gray-50 rounded px-1.5 py-1">
                 <span className="text-gray-700 inline-flex flex-wrap items-center gap-1.5 min-w-0">
                   {iv.action_required && <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />}
                   <span className="text-xs text-gray-500 shrink-0">{fmtDate(iv.invoice_date)}</span>
