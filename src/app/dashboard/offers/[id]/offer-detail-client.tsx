@@ -1740,10 +1740,10 @@ function OfferPdfView({
                 <li key={item.id} className="py-2">
                   <p className="text-xs text-gray-500">#{item.position}</p>
                   <p className="break-words">{item.description}</p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 break-words">
                     {item.quantity} {item.unit} · {formatCurrency(item.unit_price, currency, 2)}
                   </p>
-                  <p className="text-sm font-medium tabular-nums">{formatCurrency(item.total, currency, 2)}</p>
+                  <p className="text-sm font-medium tabular-nums break-words">{formatCurrency(item.total, currency, 2)}</p>
                 </li>
               ))}
             </ul>
