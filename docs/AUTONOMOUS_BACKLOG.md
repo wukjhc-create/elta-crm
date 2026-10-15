@@ -17,17 +17,18 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 Prod: `disable_signup=false` (`scripts/prod-auth-signup-status.ts`, 2026-10-15). Henrik slår "Allow new users to sign up" fra i
 Supabase (Authentication → Sign In / Providers). Derefter (read-only): `disable_signup=true` · `/register` giver ingen offentlig
 oprettelse · invitation/onboarding virker stadig (admin-genererede links påvirkes ikke af signup-flaget). Først da: P1 CLOSED.
-Status: **BLOCKED_MANUAL (Henrik)**
+Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 
 ## NEXT-14 (beslutninger 2026-10-15 efter NEXT-12/13)
 | # | Opgave | Status |
 |---|---|---|
-| D-1 | Selvregistrering → se blokeren øverst | BLOCKED_MANUAL |
+| D-1 | Selvregistrering → se blokeren øverst | MANUAL_BLOCKER (Henrik) |
+| D-9 | Supabase "Email OTP expiry" = 86400 s (24 t). Team-statusens 24 t er app-side; faktisk linklevetid styres af Supabase — antag ikke at de stemmer før Henrik har verificeret | MANUAL_BLOCKER (Henrik) |
 | D-2 | 00225 bliver i prod; hver ny prod-migration kræver egen godkendelse (nr./formål/risiko/pre-post) | DONE (regel) |
-| D-3/D-4 | Invitationer: Team/Brugerstyring er den officielle vej; Supabase genererer linket, **Graph sender** (Supabase-SMTP kun som fallback hvis Graph ikke er sat op). Gensend = nyt link (gamle token ugyldigt), audit `user_invitation_resent`, status i Team (Sendt/Gensendt/Udløbet efter 24 t/Mail ikke sendt). Medarbejder-invitation samme model; navnet i adgangsmailen HTML-escapes nu. Ingen migration (status i auth user_metadata) | DONE — staging invite-link-check 7/7 (gammelt link → otp_expired), UI U157 · [H] Supabase "Email OTP expiry" = 86400 s (24 t) skal bekræftes i dashboardet |
+| D-3/D-4 | Invitationer: Team/Brugerstyring er den officielle vej; Supabase genererer linket, **Graph sender** (Supabase-SMTP kun som fallback hvis Graph ikke er sat op). Gensend = nyt link (gamle token ugyldigt), audit `user_invitation_resent`, status i Team (Sendt/Gensendt/Udløbet efter 24 t/Mail ikke sendt). Medarbejder-invitation samme model; navnet i adgangsmailen HTML-escapes nu. Ingen migration (status i auth user_metadata). Opfølgning 2026-10-15: Graph-fejl → Pilot Health + kritisk alarm (logHealth email/error); Supabase-nødfallback logges (email/warning med kanal); audit med kanal også ved medarbejder-invitation; ingen automatisk Supabase-gensendelse efter Graph-fejl (ingen dobbelte mails) | DONE — staging invite-link-check 7/7 (gammelt link → otp_expired), UI U157 · [H] Supabase "Email OTP expiry" = 86400 s (24 t) skal bekræftes i dashboardet |
 | D-5 | Alarmer: kritiske straks til admin + serviceleder; ikke-kritiske til Pilot Health/klokken; daglig digest senere; ingen spam | DONE — `lib/alerts/alert-policy.ts`: fejl i invoice/bank/economic/email/cron → straks-mail (højst 1/service/time) + kritisk række i klokken; advarsler → kun klokken (én åben pr. nøgle) — fjerner de 2–3 daglige advarselsmails i prod (14 d: 0 fejl, kun advarsler); modtagere = aktive admin+serviceleder via Auth-login-mail (ikke redigerbar profiles.email); daglig scanning mailer kun kritiske. Staging alert-policy-check 6/6 (ingen mail) |
 | D-6 | Pilotfejl-flow: Pilot Health, S1/S2/S3-klassifikation, checkpoint pr. fejl (runbook) | DONE — `docs/runbooks/pilot-incident-flow.md` (kilder, S1/S2/S3, hvad må rettes uden godkendelse, daglig rutine) + register `docs/pilot-incidents.md` |
-| D-7 | 00191-branchen: IKKE fuldt erstattet af 00199 — `offers.customer_id` CASCADE → RESTRICT kom aldrig i prod → udkast **00226** (branch `offers-customer-restrict-00226`, staging-testet) | BLOCKED_APPROVAL (00226) — branch `fk-delete-safety` slettes når 00226 er afgjort |
+| D-7 | 00191-branchen: IKKE fuldt erstattet af 00199 — `offers.customer_id` CASCADE → RESTRICT kom aldrig i prod → udkast **00226** (branch `offers-customer-restrict-00226`, staging-testet) | DONE — 00226 kørt i prod 2026-10-15 (godkendt): FK RESTRICT, offers 15/signaturer 3/checksum identisk, DB-audit 0/0/0, staging offers-restrict-check 4/4; 00191 = 00199 + 00226 (intet andet unikt) → `fk-delete-safety` + worktree `C:\Dev\elta-fk` og `offers-customer-restrict-00226` slettet (lokalt + remote, ingen --force) |
 | D-8 | U135 = testfejl, accepteret; ingen ny fuld regression | DONE |
 
 ## NEXT-13 (2026-10-15 — tavse fejl/feedback + døde revalidateringer + doc-drift)

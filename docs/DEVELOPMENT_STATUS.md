@@ -12,6 +12,10 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 | 00223 (GP-1) | Før: montør læste 3 avance-rækker; efter: montør 26/26 øvrige + 0 avance, admin 29/29; data uændret. Salg/serviceleder/bogholderi verificeret på staging (calc-settings-rls 3/3) — prod har kun aktive admin/montør. |
 | 00224 (GP-6) | Kode + migration samlet. Diff = rå kost, faktisk avance, ACL uden anon/PUBLIC; anon-kald → 42501; ingen falsk "pris ændret" (staging package-pricing-check 5/5); 0 pakkelinjer i prod. Rollback må ikke genåbne anon. |
 
+| 00226 | offers.customer_id CASCADE → RESTRICT (rest af 00191; særskilt godkendt). Pre CASCADE → post RESTRICT; offers 15, signaturer 3, checksum identisk; DB-audit 0/0/0; staging offers-restrict-check 4/4; appens sletning giver dansk besked ("…kan ikke slettes — deaktivér kunden i stedet"). |
+
+**Manuelle blokere (Henrik):** selvregistrering OFF i Supabase · "Email OTP expiry" = 86400 s. Arbejdet fortsætter uden at vente.
+
  → (løbende checkpoint)
 **Start:** 2026-10-01 20:18 dansk (18:18 UTC) · start-commit `4606dde`
 

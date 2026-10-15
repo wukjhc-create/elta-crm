@@ -20,7 +20,8 @@ import { isGraphConfigured } from '@/lib/services/microsoft-graph'
 import { resetPasswordRedirect, buildSetPasswordLink } from '@/lib/auth/set-password-link'
 import { logger } from '@/lib/utils/logger'
 import { authErrorText } from '@/lib/auth/auth-error-text'
-import { createInviteLink, markInviteSent, sendAccessMail } from '@/lib/auth/access-mail'
+import { createInviteLink, markInviteSent, noteSupabaseFallback, sendAccessMail } from '@/lib/auth/access-mail'
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type { UserRole } from '@/types/auth.types'
@@ -176,6 +177,7 @@ export async function inviteEmployeeLogin(
         return { success: false, error: authErrorText(invErr, 'Invitationen kunne ikke sendes. Prøv igen om lidt.') }
       }
       newUserId = invited.user.id
+      await noteSupabaseFallback('employee_invite')
     }
 
     // Trigger handle_new_user opretter profilen; sæt rolle eksplicit + knyt.
@@ -204,6 +206,15 @@ export async function inviteEmployeeLogin(
     }
     const { error: metaErr } = await markInviteSent(admin, newUserId, inviteData, ctx.userId, viaGraph ? 'graph' : 'supabase')
     if (metaErr) logger.warn('inviteEmployeeLogin: invite_sent_at kunne ikke gemmes', { error: metaErr, entityId: employeeId })
+    await insertAuditRow({
+      user_id: ctx.userId,
+      entity_type: 'user',
+      entity_id: newUserId,
+      entity_name: fullName ?? 'Medarbejder',
+      action: 'user_invited',
+      action_description: 'Medarbejder-login oprettet og invitation sendt',
+      changes: { role, channel: viaGraph ? 'graph' : 'supabase', employee_id: employeeId },
+    })
     return { success: true, data: { profile_id: newUserId } }
   } catch (e) {
     return { success: false, error: formatError(e, 'Kunne ikke invitere bruger') }

@@ -68,6 +68,15 @@ export async function runInviteLinkCheck(c: { admin: SupabaseClient; url: string
 
     const third = await createInviteLink(c.admin, email, { role: 'montør' })
     out.push({ id: 'I7 bekræftet bruger kan ikke geninviteres', ok: !third.link && !!third.error, note: third.error?.code ?? third.error?.message ?? 'fik link' })
+
+    // I8 nødfallback er aldrig tavs: Pilot Health får en 'email'-advarsel med kanal + kontekst (ingen e-mailadresse)
+    const { noteSupabaseFallback } = await import('../../src/lib/auth/access-mail')
+    const since = new Date().toISOString()
+    await noteSupabaseFallback('team_invite')
+    const { data: hl } = await c.admin.from('system_health_log').select('id, status, metadata').eq('service', 'email').like('message', 'Invitation sendt via Supabase-mail%').gte('created_at', since)
+    const row = (hl ?? [])[0] as { id: string; status: string; metadata: Record<string, unknown> } | undefined
+    out.push({ id: 'I8 Supabase-fallback logges (Pilot Health)', ok: !!row && row.status === 'warning' && row.metadata?.channel === 'supabase' && row.metadata?.context === 'team_invite', note: row ? `${row.status} ${String(row.metadata?.channel)}` : 'ingen række' })
+    if (row) await c.admin.from('system_health_log').delete().eq('id', row.id)
   } finally {
     if (userId) await c.admin.auth.admin.deleteUser(userId)
   }

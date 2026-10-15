@@ -20,7 +20,7 @@ import { MAX_IMAGE_SIZE, APP_URL } from '@/lib/constants'
 import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
 import { logger } from '@/lib/utils/logger'
 import { authErrorText } from '@/lib/auth/auth-error-text'
-import { createInviteLink, inviteExpired, isGraphConfigured, markInviteSent, sendAccessMail } from '@/lib/auth/access-mail'
+import { createInviteLink, inviteExpired, isGraphConfigured, markInviteSent, noteSupabaseFallback, sendAccessMail } from '@/lib/auth/access-mail'
 import { resetPasswordRedirect } from '@/lib/auth/set-password-link'
 import { validateUUID } from '@/lib/validations/common'
 import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
@@ -1207,6 +1207,7 @@ export async function inviteTeamMember(
         return { success: false, error: authErrorText(inviteError, 'Kunne ikke sende invitation. Tjek at email er gyldig.') }
       }
       newId = invited?.user?.id ?? null
+      await noteSupabaseFallback('team_invite')
     }
 
     // handle_new_user opretter profilen som montør; den valgte rolle sættes her (kræver users.edit som rolleskift i øvrigt)
@@ -1391,6 +1392,7 @@ export async function resendInvitation(invitationId: string): Promise<ActionResu
         logger.error('Error resending invitation', { error: inviteError })
         return { success: false, error: authErrorText(inviteError, 'Kunne ikke gensende invitation') }
       }
+      await noteSupabaseFallback('team_resend')
     }
 
     const { error: metaErr, meta: newMeta } = await markInviteSent(admin, u.id, meta, userId, viaGraph ? 'graph' : 'supabase')

@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { escapeHtml } from '@/lib/utils/html-escape'
 import { resetPasswordRedirect } from '@/lib/auth/set-password-link'
+import { logHealth } from '@/lib/services/system-health'
 
 /** Invitationer regnes som udløbet efter 24 t (Supabase Auth "Email OTP expiry" skal stå til 86400 s) */
 export const INVITE_TTL_HOURS = 24
@@ -64,5 +65,16 @@ export async function sendAccessMail(input: { email: string; name: string | null
         <p style="color:#6b7280;font-size:12px;word-break:break-all">${link}</p>
       </div>`
   const res = await sendEmailViaGraph({ to: input.email, subject, html })
-  return res.success ? { success: true } : { success: false, error: 'Mailen kunne ikke sendes' }
+  if (!res.success) {
+    // Henrik 2026-10-15: Graph-fejl må ikke være tavs → Pilot Health (+ straks-alarm, 'email' er kritisk). Ingen
+    // automatisk Supabase-mail bagefter (risiko for dobbelte mails) — admin gensender.
+    await logHealth('email', 'error', `Adgangsmail (${input.mode === 'invite' ? 'invitation' : 'nulstil kode'}) kunne ikke sendes via Graph`, { channel: 'graph', mode: input.mode })
+    return { success: false, error: 'Mailen kunne ikke sendes' }
+  }
+  return { success: true }
+}
+
+/** Nødfallback (Graph ikke sat op): Supabase-SMTP sendte invitationen — aldrig tavst */
+export async function noteSupabaseFallback(context: 'team_invite' | 'team_resend' | 'employee_invite'): Promise<void> {
+  await logHealth('email', 'warning', 'Invitation sendt via Supabase-mail (nødfallback) — Microsoft Graph er ikke sat op', { channel: 'supabase', context })
 }
