@@ -70,6 +70,8 @@ export interface UnbilledTimeLogRow {
   billable: boolean
   description: string | null
   has_rate: boolean
+  /** Henrik 2026-10-15 (PR-3): kun godkendte timer kan faktureres — afventende vises men kan ikke vælges */
+  approved: boolean
 }
 
 export interface UnbilledMaterialRow {
@@ -177,7 +179,7 @@ export async function listUnbilledForCaseAction(
           .from('time_logs')
           .select(
             'id, employee_id, work_order_id, start_time, end_time, hours, billable, description, invoice_line_id, ' +
-              'sale_amount, sale_rate_snapshot, employee:employees(name, hourly_rate)'
+              'sale_amount, sale_rate_snapshot, approval_status, employee:employees(name, hourly_rate)'
           )
           .in('work_order_id', woIds)
           .is('invoice_line_id', null)
@@ -235,6 +237,7 @@ export async function listUnbilledForCaseAction(
       billable: !!t.billable,
       description: t.description,
       has_rate,
+      approved: (t as { approval_status?: string | null }).approval_status === 'approved',
     }
   })
 

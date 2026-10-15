@@ -1445,6 +1445,20 @@ export async function createInvoiceFromWorkOrder(
     dueDays = await resolvePaymentTermsDays(supabase, wo?.customer_id ?? null)
   }
 
+  // Henrik 2026-10-15 (PR-3): kun GODKENDTE timer faktureres. SQL-funktionen udelader kun afviste (00202) — indtil den
+  // rettes (migration), afvises fakturering helt når arbejdsordren har afsluttede, fakturerbare timer der afventer godkendelse
+  const { count: pending } = await supabase
+    .from('time_logs')
+    .select('id', { count: 'exact', head: true })
+    .eq('work_order_id', workOrderId)
+    .is('invoice_line_id', null)
+    .not('end_time', 'is', null)
+    .eq('billable', true)
+    .not('approval_status', 'in', '(approved,rejected)')
+  if ((pending ?? 0) > 0) {
+    throw new Error(`createInvoiceFromWorkOrder: ${pending} timer afventer godkendelse — godkend dem før fakturering`)
+  }
+
   const { data, error } = await supabase.rpc('create_invoice_from_work_order', {
     p_work_order_id: workOrderId,
     p_due_days: dueDays,

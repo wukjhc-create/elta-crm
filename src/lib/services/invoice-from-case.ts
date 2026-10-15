@@ -52,6 +52,7 @@ export type SkipReason =
   /** Henrik 2026-10-07: afviste timer faktureres aldrig */
   | 'rejected'
   | 'missing_employee_rate'
+  | 'not_approved'
   | 'not_found'
   | 'belongs_to_different_case'
   | 'invalid_source_kind'
@@ -267,6 +268,11 @@ export async function createInvoiceDraftFromCase(
       // Henrik 2026-10-07: afviste timer må aldrig komme på en faktura
       if (tl.approval_status === 'rejected') {
         skipped.push({ kind: 'time_log', source_id: id, reason: 'rejected', detail: 'timen er afvist i timegodkendelsen' })
+        continue
+      }
+      // Henrik 2026-10-15 (PR-3): KUN godkendte timer faktureres — afventende springes over (forbliver ufaktureret)
+      if (tl.approval_status !== 'approved') {
+        skipped.push({ kind: 'time_log', source_id: id, reason: 'not_approved', detail: 'timen afventer godkendelse' })
         continue
       }
 

@@ -1652,6 +1652,29 @@ async function main() {
       const hrs = lines.filter((l) => l.unit === 'time').reduce((a, l) => a + Number(l.quantity), 0)
       const rejLeft = ((await admin.from('time_logs').select('invoice_line_id').eq('id', ids.rej).single()).data as { invoice_line_id: string | null }).invoice_line_id
       check('faktura fra arbejdsordre: 2 t faktureret, afvist time ikke bundet', !wErr && hrs === 2 && rejLeft === null, wErr?.message ?? `timer=${hrs}`)
+      for (const iid of invoiceIds.splice(0)) { await admin.from('time_logs').update({ invoice_line_id: null }).eq('work_order_id', ids.wo); await admin.from('invoice_lines').delete().eq('invoice_id', iid); await admin.from('invoices').delete().eq('id', iid) }
+
+      // PR-3 (Henrik 2026-10-15): KUN godkendte timer faktureres — en afventende time (1 t)
+      ids.pend = await ins('time_logs', { employee_id: ids.emp, work_order_id: ids.wo, start_time: at(7), end_time: at(8), billable: true })
+      const pst = ((await admin.from('time_logs').select('approval_status').eq('id', ids.pend).single()).data as { approval_status: string }).approval_status
+      check('seed: ny time er afventende (pending)', pst === 'pending', pst)
+      const res2 = await createInvoiceDraftFromCase(ids.case, owner, { time_log_ids: [ids.ok, ids.pend] })
+      if (res2.invoice_id) invoiceIds.push(res2.invoice_id)
+      const pendBound = ((await admin.from('time_logs').select('invoice_line_id').eq('id', ids.pend).single()).data as { invoice_line_id: string | null }).invoice_line_id
+      check('PR-3 kladde: afventende time sprunget over (not_approved), godkendt med', res2.skipped_lines.some((x) => x.source_id === ids.pend && x.reason === 'not_approved') && res2.created_lines.some((x) => x.source_id === ids.ok) && pendBound === null, res2.message)
+      for (const iid of invoiceIds.splice(0)) { await admin.from('time_logs').update({ invoice_line_id: null }).eq('work_order_id', ids.wo); await admin.from('invoice_lines').delete().eq('invoice_id', iid); await admin.from('invoices').delete().eq('id', iid) }
+      const { createFinalInvoiceForCase } = await import('../../src/lib/services/invoice-stage')
+      const fin = await createFinalInvoiceForCase({ case_id: ids.case }, owner)
+      if (fin.invoice_id) invoiceIds.push(fin.invoice_id)
+      check('PR-3 slutfaktura: blokeret mens timer afventer godkendelse', !fin.ok && !fin.invoice_id && /afventer godkendelse/.test(fin.message), fin.message)
+      const { createInvoiceFromWorkOrder } = await import('../../src/lib/services/invoices')
+      let woErr = ''
+      try { const iid = await createInvoiceFromWorkOrder(ids.wo, { dueDays: 14 }); invoiceIds.push(iid) } catch (e) { woErr = e instanceof Error ? e.message : String(e) }
+      check('PR-3 faktura fra arbejdsordre: afvist mens timer afventer godkendelse', /afventer godkendelse/.test(woErr), woErr || 'oprettet!')
+      await admin.from('time_logs').update({ approval_status: 'approved', approved_by: owner, approved_at: new Date().toISOString() }).eq('id', ids.pend)
+      const res3 = await createInvoiceDraftFromCase(ids.case, owner, { time_log_ids: [ids.pend] })
+      if (res3.invoice_id) invoiceIds.push(res3.invoice_id)
+      check('PR-3 efter godkendelse: timen faktureres', res3.created_lines.some((x) => x.source_id === ids.pend), res3.message)
     } finally {
       for (const iid of invoiceIds) { await admin.from('time_logs').update({ invoice_line_id: null }).eq('work_order_id', ids.wo); await admin.from('invoice_lines').delete().eq('invoice_id', iid); await admin.from('invoices').delete().eq('id', iid) }
       if (ids.wo) { await admin.from('work_order_profit').delete().eq('work_order_id', ids.wo); await admin.from('time_logs').delete().eq('work_order_id', ids.wo); await admin.from('work_orders').delete().eq('id', ids.wo) }

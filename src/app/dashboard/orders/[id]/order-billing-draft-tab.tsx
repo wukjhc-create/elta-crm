@@ -92,6 +92,7 @@ const SKIP_REASON_LABEL: Record<string, string> = {
   not_found: 'findes ikke længere',
   open_timer: 'tiden er ikke afsluttet',
   rejected: 'timerne er afvist',
+  not_approved: 'timerne afventer godkendelse',
 }
 
 export function OrderBillingDraftTab({
@@ -983,7 +984,8 @@ function BillingFinalMode({
   const positiveSubtotal = (() => {
     if (!unbilled || !includeLines) return 0
     let s = 0
-    for (const t of unbilled.time_logs) if (t.has_rate) s += t.total_sales_price
+    // PR-3: kun godkendte timer (samme regel som slutfakturaen)
+    for (const t of unbilled.time_logs) if (t.has_rate && t.approved) s += t.total_sales_price
     for (const m of unbilled.materials) if (m.has_sale_price) s += m.total_sales_price
     for (const o of unbilled.other_costs) if (o.has_sale_price) s += o.total_sales_price
     return Math.round(s * 100) / 100
@@ -1283,7 +1285,7 @@ export function BillingStandardMode({
     }
     setData(res.data)
     // Default selection: every billable row that HAS a sales price
-    setSelectedTimeLogs(new Set(res.data.time_logs.filter((t) => t.has_rate).map((t) => t.id)))
+    setSelectedTimeLogs(new Set(res.data.time_logs.filter((t) => t.has_rate && t.approved).map((t) => t.id)))
     setSelectedMaterials(new Set(res.data.materials.filter((m) => m.has_sale_price).map((m) => m.id)))
     setSelectedOtherCosts(new Set(res.data.other_costs.filter((o) => o.has_sale_price).map((o) => o.id)))
   }, [caseId])
@@ -1320,7 +1322,7 @@ export function BillingStandardMode({
     let subtotal = 0
     let count = 0
     for (const t of data.time_logs) {
-      if (selectedTimeLogs.has(t.id)) {
+      if (selectedTimeLogs.has(t.id) && t.approved) {
         subtotal += t.total_sales_price
         count += 1
       }
@@ -1478,8 +1480,18 @@ export function BillingStandardMode({
         icon={<Clock className="w-4 h-4 text-emerald-600" />}
         rowCount={data.time_logs.length}
         selectedCount={data.time_logs.filter((t) => selectedTimeLogs.has(t.id)).length}
-        onToggleAll={() => toggleAll(data.time_logs, selectedTimeLogs, setSelectedTimeLogs)}
+        onToggleAll={() => toggleAll(data.time_logs.filter((t) => t.approved), selectedTimeLogs, setSelectedTimeLogs)}
       >
+        {/* PR-3 (Henrik 2026-10-15): kun godkendte timer kan faktureres */}
+        {data.time_logs.some((t) => !t.approved) && (
+          <div className="mx-2 my-1.5 rounded bg-amber-50 ring-1 ring-amber-200 px-2 py-1.5 text-xs text-amber-900" data-testid="billing-pending-hours">
+            {(() => {
+              const p = data.time_logs.filter((t) => !t.approved)
+              const h = p.reduce((a, t) => a + t.hours, 0)
+              return `${p.length} timerække${p.length === 1 ? '' : 'r'} (${h.toLocaleString('da-DK', { maximumFractionDigits: 2 })} t) afventer godkendelse og kommer ikke med — godkend dem under Timegodkendelse først.`
+            })()}
+          </div>
+        )}
         {data.time_logs.length === 0 ? (
           <Empty>Ingen ufakturerede timer på sagen.</Empty>
         ) : (
@@ -1500,16 +1512,18 @@ export function BillingStandardMode({
                 return (
                   <tr
                     key={t.id}
-                    className={`align-top ${!t.has_rate ? 'bg-amber-50/40' : ''}`}
+                    className={`align-top ${!t.has_rate || !t.approved ? 'bg-amber-50/40' : ''}`}
+                    data-testid={t.approved ? 'billing-time-row' : 'billing-time-row-pending'}
                   >
                     <td className="px-2 py-1.5">
                       <input
                         type="checkbox"
-                        checked={checked}
+                        checked={checked && t.approved}
                         onChange={() =>
                           toggleSet(selectedTimeLogs, setSelectedTimeLogs, t.id)
                         }
-                        disabled={submitting}
+                        disabled={submitting || !t.approved}
+                        title={t.approved ? undefined : 'Timen afventer godkendelse og kan ikke faktureres endnu'}
                       />
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{fmtDate(t.date)}</td>
@@ -1523,6 +1537,11 @@ export function BillingStandardMode({
                       {!t.has_rate && (
                         <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
                           Mangler timesats
+                        </span>
+                      )}
+                      {!t.approved && (
+                        <span className="inline-block mt-0.5 ml-1 text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                          Afventer godkendelse
                         </span>
                       )}
                     </td>

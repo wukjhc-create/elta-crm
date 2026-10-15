@@ -461,6 +461,7 @@ export async function createFinalInvoiceForCase(
       invoice_line_id: string | null
       sale_amount: number | string | null
       sale_rate_snapshot: number | string | null
+      approval_status?: string | null
       employee:
         | { name: string | null; hourly_rate: number | string | null }
         | { name: string | null; hourly_rate: number | string | null }[]
@@ -474,7 +475,7 @@ export async function createFinalInvoiceForCase(
         : fetchAllRows<TimeLogJoin>((from, to) => supabase
             .from('time_logs')
             .select(
-              'id, hours, end_time, billable, invoice_line_id, sale_amount, sale_rate_snapshot, start_time, ' +
+              'id, hours, end_time, billable, invoice_line_id, sale_amount, sale_rate_snapshot, start_time, approval_status, ' +
                 'employee:employees(name, hourly_rate)'
             )
             .in('work_order_id', woIds)
@@ -507,8 +508,14 @@ export async function createFinalInvoiceForCase(
     const timeRows = (tlRes.data ?? []) as unknown as TimeLogJoin[]
     let missingRateHours = 0
     const missingRateNames = new Set<string>()
+    // Henrik 2026-10-15 (PR-3): kun GODKENDTE timer faktureres — afventende blokerer slutfakturaen (den er endelig)
+    let pendingHours = 0
     for (const t of timeRows) {
       const emp = Array.isArray(t.employee) ? t.employee[0] : t.employee
+      if (t.approval_status !== 'approved') {
+        pendingHours += Number(t.hours ?? 0) || 0
+        continue
+      }
       // Fælles prisregel (frosset snapshot → live sats → fallback) — før brugte
       // slutfakturaen altid live sats og ignorerede rate engine-snapshottet.
       const { hours, rate, total, source } = priceTimeLog({
@@ -582,6 +589,14 @@ export async function createFinalInvoiceForCase(
       unbilledLinesCount += 1
     }
 
+    if (pendingHours > 0) {
+      return {
+        ...empty,
+        message: `${pendingHours.toLocaleString('da-DK', { maximumFractionDigits: 2 })} timer afventer godkendelse — godkend eller afvis dem under Timegodkendelse før slutfakturaen oprettes`,
+        predecessor_count: predRows.length,
+        unbilled_lines_count: unbilledLinesCount,
+      }
+    }
     if (missingRateHours > 0) {
       return {
         ...empty,

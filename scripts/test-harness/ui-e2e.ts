@@ -1349,14 +1349,20 @@ ${m.text()}`) })
           { employee_id: u31.employeeId, work_order_id: u31.woId, start_time: iso(t0), end_time: iso(t0 + 2 * 3600_000), billable: true, description: 'fakturerbar' },
           { employee_id: u31.employeeId, work_order_id: u31.woId, start_time: iso(t0 + 3 * 3600_000), end_time: iso(t0 + 4 * 3600_000), billable: false, description: 'intern' },
           { employee_id: u31.employeeId, work_order_id: u31.woId, start_time: iso(Date.now() - 600_000), end_time: null, billable: true, description: 'åben timer' },
+          // PR-3 (Henrik 2026-10-15): afventende time — vises, men kommer ikke med på fakturaen
+          { employee_id: u31.employeeId, work_order_id: u31.woId, start_time: iso(t0 + 5 * 3600_000), end_time: iso(t0 + 6 * 3600_000), billable: true, description: 'afventer' },
         ]).select('id, description, sale_amount, hours') : null
         const tls = (tl?.data ?? []) as Array<{ id: string; description: string; sale_amount: number | null; hours: number | null }>
+        // kun godkendte timer faktureres (PR-3) — den fakturerbare er godkendt af serviceleder
+        const fbId = tls.find((x) => x.description === 'fakturerbar')?.id
+        if (fbId) await c.admin.from('time_logs').update({ approval_status: 'approved', approved_by: adminUser.id, approved_at: new Date().toISOString() }).eq('id', fbId)
         const billable = tls.find((x) => x.description === 'fakturerbar')
         const expected = billable?.sale_amount != null ? Number(billable.sale_amount) : 1000
-        const seedErr = !u31.caseId ? `sag: ${sc.error?.message}` : !u31.woId ? `ordre: ${wo?.error?.message}` : tls.length !== 3 ? `timer: ${tl?.error?.message}` : ''
+        const seedErr = !u31.caseId ? `sag: ${sc.error?.message}` : !u31.woId ? `ordre: ${wo?.error?.message}` : tls.length !== 4 ? `timer: ${tl?.error?.message}` : ''
         await gotoSafe(a.page, `${base}/dashboard/orders/${u31.caseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Opret del-faktura/ }).first().waitFor({ timeout: 90_000 }).catch(() => {})
         r.aaben_timer_advarer = (await a.page.getByText(/åben timer/i).count()) > 0
+        r.afventer_vist = (await a.page.getByTestId('billing-pending-hours').count()) > 0 && (await a.page.getByTestId('billing-time-row-pending').count()) === 1
         r.intern_ikke_vist = (await a.page.getByText('intern', { exact: true }).count()) === 0
         // montøren stopper timeren: her fjernes den åbne række (stop ville give en ny fakturerbar række)
         await c.admin.from('time_logs').delete().eq('work_order_id', u31.woId ?? '').is('end_time', null)
@@ -1380,6 +1386,7 @@ ${m.text()}`) })
         r.beloeb_snapshot = expected > 0 && lines.length === 1 && Number(lines[0].total_price) === expected && Number(inv?.total_amount) === expected
         const after = ((await c.admin.from('time_logs').select('description, invoice_line_id').eq('work_order_id', u31.woId ?? '')).data ?? []) as Array<{ description: string; invoice_line_id: string | null }>
         r.time_laast = after.some((x) => x.description === 'fakturerbar' && !!lines[0] && x.invoice_line_id === lines[0].id)
+        r.afventer_ikke_faktureret = after.some((x) => x.description === 'afventer' && x.invoice_line_id === null)
         r.oevrige_ikke_faktureret = after.filter((x) => x.description !== 'fakturerbar').every((x) => !x.invoice_line_id)
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u31-timer-faktura.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U31 timer → faktura', ok: !seedErr && Object.values(r).every(Boolean),
@@ -1401,6 +1408,8 @@ ${m.text()}`) })
           start_time: new Date(t0).toISOString(), end_time: new Date(t0 + 2 * 3600_000).toISOString(), billable: true }]).select('id, sale_amount') : null
         const tlRow = (tl?.data?.[0] as { id?: string; sale_amount?: number | null } | undefined)
         r.snapshot_sat = Number(tlRow?.sale_amount) === 1000
+        // PR-3: kun godkendte timer faktureres — timen er godkendt
+        if (tlRow?.id) await c.admin.from('time_logs').update({ approval_status: 'approved', approved_by: adminUser.id, approved_at: new Date().toISOString() }).eq('id', tlRow.id)
         // satsen hæves EFTER arbejdet — fakturaen skal bruge den frosne
         if (u32.employeeId) await c.admin.from('employees').update({ hourly_rate: 700 }).eq('id', u32.employeeId)
         const dep = u32.caseId ? await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-F-${stamp}`, customer_id: profitCustomerId, case_id: u32.caseId,
@@ -1419,7 +1428,13 @@ ${m.text()}`) })
           fin = ((await c.admin.from('invoices').select('id, status, total_amount').eq('id', fin.id).maybeSingle()).data as typeof fin)
         }
         r.slutfaktura_kladde = fin?.status === 'draft'
-        const lines = fin?.id ? ((await c.admin.from('invoice_lines').select('id, description, total_price, source_time_log_id').eq('invoice_id', fin.id)).data ?? []) as Array<{ id: string; description: string; total_price: number; source_time_log_id: string | null }> : []
+        // linjerne kan blive læst før de er skrevet (set 2026-10-15: total=700, linjer=[]) — poll til begge er der
+        type FL = { id: string; description: string; total_price: number; source_time_log_id: string | null }
+        let lines: FL[] = []
+        for (let i = 0; i < 15 && fin?.id && lines.length < 2; i++) {
+          if (i) await new Promise((res) => setTimeout(res, 1000))
+          lines = ((await c.admin.from('invoice_lines').select('id, description, total_price, source_time_log_id').eq('invoice_id', fin.id)).data ?? []) as FL[]
+        }
         const timeLine = lines.find((l) => l.source_time_log_id === tlRow?.id)
         r.timelinje_frosset_sats = Number(timeLine?.total_price) === 1000
         r.fradrag_forskud = lines.some((l) => Number(l.total_price) === -300)
