@@ -13,6 +13,9 @@ const lead = fs.readFileSync('src/app/dashboard/leads/[id]/lead-detail-client.ts
 const offer = fs.readFileSync('src/components/modules/offers/offer-activity-timeline.tsx', 'utf8')
 
 eq('kunden siger hvad der mangler', customer.includes('Ingen tilbud, sager eller leads på kunden endnu'), true)
+eq('sagen aabnes', customer.includes('href={`/dashboard/orders/${sc.id}`}'), true)
+eq('sagsnavn ombrydes', customer.includes('break-words">{sc.title}'), true)
+eq('tilbudsbeloeb bliver', customer.includes('offer.final_amount'), true)
 eq('lead siger at noter lander i loggen', lead.includes('Noter og statusskift lander her.'), true)
 eq('tilbud siger hvornår aktivitet kommer', offer.includes('når tilbuddet sendes, ændres eller accepteres'), true)
 

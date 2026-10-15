@@ -113,8 +113,8 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
           {leads.map((lead) => (
             <div key={lead.id} className="flex items-center justify-between py-2 px-3 text-sm bg-gray-50 rounded">
               <div className="min-w-0 flex-1">
-                <span className="font-medium">{lead.company_name}</span>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                <span className="font-medium break-words">{lead.company_name}</span>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-0.5">
                   <StatusBadge status={lead.status} />
                   {lead.source && <span>{lead.source}</span>}
                   <span>{format(new Date(lead.created_at), 'd. MMM yyyy', { locale: da })}</span>
@@ -134,14 +134,14 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
             <Link
               key={offer.id}
               href={`/dashboard/offers/${offer.id}`}
-              className="flex items-center justify-between py-3 px-4 text-sm rounded-lg border border-gray-100 hover:border-green-200 hover:bg-green-50/30 transition-all group"
+              className="flex flex-wrap items-center justify-between gap-2 py-3 px-4 text-sm rounded-lg border border-gray-100 hover:border-green-200 hover:bg-green-50/30 transition-all group"
             >
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-gray-900 group-hover:text-green-800">{offer.title}</span>
-                  <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-semibold text-gray-900 group-hover:text-green-800 break-words">{offer.title}</span>
+                  <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 shrink-0" />
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
                   {offer.offer_number && <span className="font-mono">{offer.offer_number}</span>}
                   <StatusBadge status={offer.status} />
                   {offer.created_at && (
@@ -150,7 +150,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
                 </div>
               </div>
               {offer.final_amount != null && (
-                <span className="text-sm font-bold whitespace-nowrap ml-3" style={{ color: '#2D8A2D' }}>
+                <span className="text-sm font-bold whitespace-nowrap shrink-0 ml-3" style={{ color: '#2D8A2D' }}>
                   {Number(offer.final_amount).toLocaleString('da-DK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} kr.
                 </span>
               )}
@@ -172,11 +172,11 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
               className="flex items-center justify-between py-2 px-3 text-sm bg-gray-50 rounded hover:bg-blue-50 transition-colors group"
             >
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{project.name}</span>
-                  <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium break-words">{project.name}</span>
+                  <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 shrink-0" />
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-0.5">
                   {project.project_number && <span>{project.project_number}</span>}
                   <StatusBadge status={project.status} />
                 </div>
@@ -194,8 +194,8 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
           {sentQuotes.map((sq) => (
             <div key={sq.id} className="flex items-center justify-between py-2 px-3 text-sm bg-gray-50 rounded">
               <div className="min-w-0 flex-1">
-                <span className="font-medium">{sq.title}</span>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                <span className="font-medium break-words">{sq.title}</span>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-0.5">
                   <span>{sq.quote_reference}</span>
                   {sq.total != null && (
                     <span className="font-medium">
@@ -218,15 +218,15 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
           {serviceCases.map((sc) => (
             <Link
               key={sc.id}
-              href="/dashboard/orders"
-              className="flex items-center justify-between py-2 px-3 text-sm bg-gray-50 rounded hover:bg-purple-50 transition-colors group"
+              href={`/dashboard/orders/${sc.id}`}
+              className="flex flex-wrap items-center justify-between gap-2 py-2 px-3 text-sm bg-gray-50 rounded hover:bg-purple-50 transition-colors group"
             >
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{sc.title}</span>
-                  <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium break-words">{sc.title}</span>
+                  <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 shrink-0" />
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-0.5">
                   <span className="font-mono">{sc.case_number}</span>
                   <StatusBadge status={sc.status} />
                   <span>{SERVICE_CASE_PRIORITY_LABELS[sc.priority]}</span>
