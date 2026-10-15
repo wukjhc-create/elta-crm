@@ -204,7 +204,7 @@ function OrderEconomyTabContent({
       <BillingStatusBanner billing={data.billing} onSwitchTab={onSwitchTab} />
 
       {/* Hero row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 min-w-0">
         <HeroCard
           label="Tilbudt beløb"
           icon={<FileText className="w-4 h-4" />}
@@ -224,7 +224,7 @@ function OrderEconomyTabContent({
           sub={`Registreret salg ${fmtKr(data.totals.registered_sales_price)}`}
         />
         <div
-          className={`rounded-lg ring-1 ${palette.border} ${palette.bg} px-4 py-3`}
+          className={`min-w-0 rounded-lg ring-1 ${palette.border} ${palette.bg} px-4 py-3`}
         >
           <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-600">
             <span className="flex items-center gap-1">
@@ -241,14 +241,14 @@ function OrderEconomyTabContent({
               </span>
             )}
           </div>
-          <div className={`mt-1 text-xl font-semibold tabular-nums ${palette.text}`}>
+          <div className={`mt-1 text-xl font-semibold tabular-nums break-words ${palette.text}`}>
             {fmtKr(data.totals.contribution_margin)}
           </div>
           <div className="mt-0.5 text-xs">
             <span className={`px-1.5 py-0.5 rounded ${palette.pill}`}>
               {fmtPct(data.totals.margin_percentage)}
             </span>
-            <span className="text-gray-500 ml-1.5" data-testid="case-db-basis">
+            <span className="text-gray-500 ml-1.5 break-words" data-testid="case-db-basis">
               {data.totals.revenue_basis === 'contract'
                 ? `af kontraktsum ${fmtKr(data.totals.sales_price)}`
                 : data.totals.revenue_basis === 'invoiced'
@@ -265,7 +265,7 @@ function OrderEconomyTabContent({
           {data.budget != null && (
             <span>
               <span className="text-gray-500">Internt budget:</span>{' '}
-              <span className="tabular-nums font-medium">{fmtKr(data.budget)}</span>
+              <span className="tabular-nums font-medium break-words">{fmtKr(data.budget)}</span>
             </span>
           )}
           {data.planned_hours != null && (
@@ -647,7 +647,7 @@ function RealizedDbCard({ realized }: { realized: ServiceCaseEconomy['realized']
         <Mini label="Faktisk kost" value={fmtKr(realized.actual_cost)} />
         <div>
           <div className="text-xs text-gray-500">Realiseret DB</div>
-          <div className={`font-semibold tabular-nums ${tone}`} data-testid="realized-db-value">{fmtKr(realized.realized_db)}</div>
+          <div className={`font-semibold tabular-nums break-words ${tone}`} data-testid="realized-db-value">{fmtKr(realized.realized_db)}</div>
         </div>
         <Mini label="Realiseret DB %" value={realized.realized_db_pct == null ? '—' : fmtPct(realized.realized_db_pct)} />
       </div>
@@ -668,13 +668,13 @@ function HeroCard({
   icon?: React.ReactNode
 }) {
   return (
-    <div className="rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3">
+    <div className="min-w-0 rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3">
       <div className="text-xs uppercase tracking-wide text-gray-500 flex items-center gap-1">
         {icon}
         {label}
       </div>
-      <div className="mt-1 text-xl font-semibold text-gray-900 tabular-nums">{value}</div>
-      {sub && <div className="text-xs text-gray-500 mt-0.5">{sub}</div>}
+      <div className="mt-1 text-xl font-semibold text-gray-900 tabular-nums break-words">{value}</div>
+      {sub && <div className="text-xs text-gray-500 mt-0.5 break-words">{sub}</div>}
     </div>
   )
 }
@@ -729,16 +729,16 @@ function BreakdownCard({
           <ArrowRight className="w-3 h-3" />
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <div>
+      <div className="grid grid-cols-2 gap-2 mb-2 min-w-0">
+        <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-wide text-gray-500">Kost</div>
-          <div className="tabular-nums text-base font-semibold text-gray-900">
+          <div className="tabular-nums text-base font-semibold text-gray-900 break-words">
             {fmtKr(cost)}
           </div>
         </div>
-        <div>
+        <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-wide text-gray-500">Salg</div>
-          <div className="tabular-nums text-base font-semibold text-gray-900">
+          <div className="tabular-nums text-base font-semibold text-gray-900 break-words">
             {fmtKr(sale)}
           </div>
         </div>
@@ -747,7 +747,7 @@ function BreakdownCard({
         <div className="rounded ring-1 ring-gray-100 bg-gray-50 px-2 py-1 text-xs flex items-center justify-between mb-2">
           <span className="text-gray-600 uppercase tracking-wide text-[10px]">DB</span>
           <span className="flex items-center gap-1.5">
-            <span className={`tabular-nums font-medium ${palette.text}`}>
+            <span className={`min-w-0 tabular-nums font-medium break-words ${palette.text}`}>
               {fmtKr(cm)}
             </span>
             <span className={`px-1.5 py-0.5 rounded ${palette.pill}`}>
@@ -763,12 +763,12 @@ function BreakdownCard({
           rows.map((r, i) => (
             <div
               key={i}
-              className={`flex items-center justify-between text-xs ${
+              className={`flex flex-wrap items-center justify-between gap-x-3 min-w-0 text-xs ${
                 r.warning ? 'text-red-700' : 'text-gray-600'
               }`}
             >
-              <span>{r.label}</span>
-              <span className={`tabular-nums ${r.warning ? 'font-medium' : ''}`}>
+              <span className="min-w-0 break-words">{r.label}</span>
+              <span className={`min-w-0 tabular-nums break-words ${r.warning ? 'font-medium' : ''}`}>
                 {r.value}
               </span>
             </div>
@@ -793,10 +793,10 @@ function Mini({
   hint?: string
 }) {
   return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-gray-500">{label}</div>
-      <div className="tabular-nums text-base font-semibold text-gray-900">{value}</div>
-      {hint && <div className="text-[10px] text-gray-400 mt-0.5">{hint}</div>}
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wide text-gray-500 break-words">{label}</div>
+      <div className="tabular-nums text-base font-semibold text-gray-900 break-words">{value}</div>
+      {hint && <div className="text-[10px] text-gray-400 mt-0.5 break-words">{hint}</div>}
     </div>
   )
 }
