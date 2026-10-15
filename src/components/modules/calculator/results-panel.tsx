@@ -23,7 +23,7 @@ export function ResultsPanel({ results, showInternal = true }: ResultsPanelProps
   return (
     <div className="space-y-6">
       {/* System Overview */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg p-4">
           <div className="flex items-center gap-2 text-cyan-700 mb-1">
             <Sun className="w-4 h-4" />
@@ -43,7 +43,7 @@ export function ResultsPanel({ results, showInternal = true }: ResultsPanelProps
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-green-50 rounded-lg p-3 text-center">
           <PiggyBank className="w-5 h-5 text-green-600 mx-auto mb-1" />
           <p className="text-xs text-green-700 mb-1">Årlig besparelse</p>
@@ -72,15 +72,15 @@ export function ResultsPanel({ results, showInternal = true }: ResultsPanelProps
           Besparelser (første år)
         </h4>
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <span className="text-muted-foreground">Egetforbrug besparelse</span>
             <span className="font-medium">{formatCurrency(results.selfConsumptionSavings)}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <span className="text-muted-foreground">Salg til net</span>
             <span className="font-medium">{formatCurrency(results.feedInIncome)}</span>
           </div>
-          <div className="flex justify-between border-t pt-2 font-semibold">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-t pt-2 font-semibold">
             <span>Total årlig besparelse</span>
             <span className="text-green-600">{formatCurrency(results.annualSavings)}</span>
           </div>
@@ -96,64 +96,64 @@ export function ResultsPanel({ results, showInternal = true }: ResultsPanelProps
         <div className="space-y-2 text-sm">
           {/* D51: komponent-/arbejdsløn-kost, subtotal og avance kun for kostpris-roller (ikke salg) */}
           {showInternal && (<>
-          <div className="flex justify-between">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <span className="text-muted-foreground">Solpaneler</span>
             <span>{formatCurrency(results.panelsCost)}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <span className="text-muted-foreground">Inverter</span>
             <span>{formatCurrency(results.inverterCost)}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <span className="text-muted-foreground">Montering</span>
             <span>{formatCurrency(results.mountingCost)}</span>
           </div>
           {results.batteryCost > 0 && (
-            <div className="flex justify-between">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
               <span className="text-muted-foreground">Batteri</span>
               <span>{formatCurrency(results.batteryCost)}</span>
             </div>
           )}
-          <div className="flex justify-between">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <span className="text-muted-foreground">Arbejdsløn</span>
             <span>{formatCurrency(results.laborCost)}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <span className="text-muted-foreground">Installation</span>
             <span>{formatCurrency(results.installationCost)}</span>
           </div>
-          <div className="flex justify-between border-t pt-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-t pt-2">
             <span className="text-muted-foreground">Subtotal</span>
             <span>{formatCurrency(results.subtotal)}</span>
           </div>
           {results.margin > 0 && (
-            <div className="flex justify-between">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
               <span className="text-muted-foreground">Avance</span>
               <span>{formatCurrency(results.margin)}</span>
             </div>
           )}
           </>)}
           {results.discount > 0 && (
-            <div className="flex justify-between text-green-600">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-green-600">
               <span>Rabat</span>
               <span>-{formatCurrency(results.discount)}</span>
             </div>
           )}
-          <div className="flex justify-between">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <span className="text-muted-foreground">Før moms</span>
             <span>{formatCurrency(results.totalBeforeVat)}</span>
           </div>
           {results.vat > 0 && (
-            <div className="flex justify-between">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
               <span className="text-muted-foreground">Moms (25%)</span>
               <span>{formatCurrency(results.vat)}</span>
             </div>
           )}
-          <div className="flex justify-between border-t pt-2 font-bold text-lg">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-t pt-2 font-bold text-lg">
             <span>Totalpris</span>
             <span className="text-purple-700">{formatCurrency(results.totalPrice)}</span>
           </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span>Pris per Wp</span>
             <span>{results.pricePerWp.toLocaleString('da-DK')} kr/Wp</span>
           </div>
@@ -168,7 +168,7 @@ export function ResultsPanel({ results, showInternal = true }: ResultsPanelProps
         </h4>
         <div className="space-y-3">
           <div>
-            <div className="flex justify-between text-sm mb-1">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm mb-1">
               <span>Tilbagebetalingstid</span>
               <span className="font-semibold">{results.paybackYears} år</span>
             </div>
@@ -179,7 +179,7 @@ export function ResultsPanel({ results, showInternal = true }: ResultsPanelProps
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Total besparelse (25 år)</span>
               <p className="font-bold text-lg text-green-600">
