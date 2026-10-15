@@ -324,7 +324,7 @@ function TeamTable({ data }: { data: TeamProductivity[] }) {
         Team-produktivitet (seneste 30 dage)
       </h3>
       {data.length === 0 ? (
-        <p className="text-sm text-gray-400 py-8 text-center">Ingen tidsregistreringer endnu</p>
+        <p className="text-sm text-gray-400 py-8 text-center">Ingen tidsregistreringer endnu. Registrér tiden på sagen under Planlægning.</p>
       ) : (
         <>
         <div className="md:hidden space-y-2" data-testid="report-team-mobile">

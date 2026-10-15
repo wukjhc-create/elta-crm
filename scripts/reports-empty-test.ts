@@ -12,6 +12,7 @@ const src = fs.readFileSync('src/app/dashboard/reports/reports-client.tsx', 'utf
 eq('topkunder forklarer kladder', src.includes('Ingen tilbud ud over kladder med en kunde endnu.'), true)
 eq('sager forklarer det tomme overblik', src.includes('Ingen sager i overblikket endnu.'), true)
 eq('team forklarer stadig timer', src.includes('Ingen tidsregistreringer endnu'), true)
+eq('team siger naeste skridt', src.includes('Registrér tiden på sagen under Planlægning.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nreports-empty-test OK')
 process.exitCode = fail ? 1 : 0
