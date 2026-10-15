@@ -409,16 +409,14 @@ export function LineItemsTable({
             const costPrice = item.cost_price || item.supplier_cost_price_at_creation || null
             const marginPct = getLineItemMargin(item)
             return (
-              <li key={item.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 break-words font-medium text-gray-900">{item.description}</p>
-                  <p className="shrink-0 tabular-nums font-semibold">{formatCurrency(item.total, currency, 2)}</p>
-                </div>
-                <p className="mt-1 text-xs tabular-nums text-gray-600">
+              <li key={item.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm min-w-0">
+                <p className="min-w-0 break-words font-medium text-gray-900">{item.description}</p>
+                <p className="mt-1 tabular-nums font-semibold text-gray-900 break-words">{formatCurrency(item.total, currency, 2)}</p>
+                <p className="mt-1 text-xs tabular-nums text-gray-600 break-words">
                   {item.position ?? idx + 1} · {item.quantity} {item.unit || 'stk'} · {formatCurrency(item.unit_price, currency, 2)}
                 </p>
                 {showCostData && (
-                  <p className="mt-1 text-xs tabular-nums text-gray-500">
+                  <p className="mt-1 text-xs tabular-nums text-gray-500 break-words">
                     {costPrice ? formatCurrency(costPrice, currency, 2) : <span className="text-gray-300">-</span>}
                     {marginPct != null ? ` · ${marginPct}%` : ''}
                   </p>
