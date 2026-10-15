@@ -153,10 +153,10 @@ export function MessagesList({
 
               {/* Content */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <span
-                      className={`truncate ${isUnread ? 'font-semibold' : 'font-medium'}`}
+                      className={`break-words min-w-0 ${isUnread ? 'font-semibold' : 'font-medium'}`}
                     >
                       {isSentFolder
                         ? message.to_user?.full_name || message.to_user?.email || 'Ukendt'
@@ -175,11 +175,11 @@ export function MessagesList({
                   </span>
                 </div>
 
-                <p className={`text-sm truncate ${isUnread ? 'font-medium' : ''}`}>
+                <p className={`text-sm line-clamp-2 ${isUnread ? 'font-medium' : ''}`}>
                   {message.subject}
                 </p>
 
-                <p className="text-sm text-muted-foreground truncate">
+                <p className="text-sm text-muted-foreground break-words">
                   {message.body.substring(0, 100)}...
                 </p>
 
