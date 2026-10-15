@@ -516,11 +516,15 @@ export async function deleteTestIncomingInvoiceAction(
     return { ok: false, message: err instanceof Error ? err.message : 'Adgang nægtet' }
   }
 
-  const { data: inv } = await supabase
+  const { data: inv, error: invErr } = await supabase
     .from('incoming_invoices')
     .select('id, invoice_number, supplier_name_extracted')
     .eq('id', invoiceId)
     .maybeSingle()
+  if (invErr) {
+    logger.error('deleteTestIncomingInvoiceAction read failed', { error: invErr })
+    return { ok: false, message: 'Kunne ikke læse fakturaen. Det tælles ikke som at den ikke findes.' }
+  }
   if (!inv) return { ok: false, message: 'Faktura ikke fundet' }
 
   const isTest =
@@ -534,26 +538,32 @@ export async function deleteTestIncomingInvoiceAction(
   }
 
   // Find lines first so we can purge any conversions created by 5E-3.
-  const { data: lines } = await supabase
+  const { data: lines, error: lineErr } = await supabase
     .from('incoming_invoice_lines')
     .select('id, converted_case_material_id, converted_case_other_cost_id')
     .eq('incoming_invoice_id', invoiceId)
+  if (lineErr) {
+    logger.error('deleteTestIncomingInvoiceAction lines failed', { error: lineErr })
+    return { ok: false, message: 'Kunne ikke læse linjerne. Fakturaen er ikke slettet.' }
+  }
 
   let removedMaterials = 0
   let removedOther = 0
   for (const ln of lines ?? []) {
     if (ln.converted_case_material_id) {
-      const { count } = await supabase
+      const { count, error: matErr } = await supabase
         .from('case_materials')
         .delete({ count: 'exact' })
         .eq('id', ln.converted_case_material_id)
+      if (matErr) return { ok: false, message: 'Kunne ikke rydde konverteret materiale. Fakturaen er ikke slettet.' }
       removedMaterials += count ?? 0
     }
     if (ln.converted_case_other_cost_id) {
-      const { count } = await supabase
+      const { count, error: otherErr } = await supabase
         .from('case_other_costs')
         .delete({ count: 'exact' })
         .eq('id', ln.converted_case_other_cost_id)
+      if (otherErr) return { ok: false, message: 'Kunne ikke rydde konverteret udlæg. Fakturaen er ikke slettet.' }
       removedOther += count ?? 0
     }
   }
