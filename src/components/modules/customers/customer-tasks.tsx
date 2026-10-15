@@ -40,19 +40,26 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>([])
   const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string }>>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingTask, setEditingTask] = useState<CustomerTaskWithRelations | null>(null)
   const [showDone, setShowDone] = useState(false)
 
   const loadData = async () => {
     setIsLoading(true)
-    const [tasksData, profilesData] = await Promise.all([
-      getCustomerTasks(customerId),
-      getActiveProfiles(),
-    ])
-    setTasks(tasksData)
-    setProfiles(profilesData)
-    setIsLoading(false)
+    try {
+      const [tasksData, profilesData] = await Promise.all([
+        getCustomerTasks(customerId),
+        getActiveProfiles(),
+      ])
+      setLoadError(null)
+      setTasks(tasksData)
+      setProfiles(profilesData)
+    } catch {
+      setLoadError('Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -124,6 +131,8 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
             </div>
           ))}
         </div>
+      ) : loadError && tasks.length === 0 ? (
+        <p className="text-sm text-red-700 py-6 text-center" data-testid="customer-tasks-load-error">{loadError}</p>
       ) : activeTasks.length === 0 && doneTasks.length === 0 ? (
         <div className="text-center py-6" data-testid="customer-tasks-empty">
           <p className="text-gray-700 font-medium">Ingen opgaver endnu</p>

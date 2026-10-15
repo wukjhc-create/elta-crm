@@ -127,7 +127,7 @@ export async function getCustomerTasks(
 
   if (error) {
     logger.error('Failed to fetch customer tasks', { error, entityId: customerId })
-    return []
+    throw new Error('Kunne ikke hente opgaver')
   }
 
   return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
