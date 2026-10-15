@@ -14,6 +14,8 @@ eq('filtreret dag siger nulstil', src.includes('Ingen arbejdsordrer matcher filt
 eq('ufiltreret dag bliver', src.includes('Der er ikke planlagt nogen arbejdsordrer for'), true)
 eq('filtreret uge siger filter', src.includes("filtersActive ? 'Ingen job matcher filtrene.' : 'Ingen planlagte job denne dag'"), true)
 eq('arbejdsordrer taelles stadig', src.includes('filteredWOs.length'), true)
+eq('uge-bordet siger filtret', src.includes('Tomme celler kan skyldes filtrene. Nulstil filtrene for at se resten.'), true)
+eq('ugechips bliver afkortet', src.includes('truncate'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncalendar-filter-empty-test OK')
 process.exitCode = fail ? 1 : 0
