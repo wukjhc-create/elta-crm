@@ -45,7 +45,9 @@ export function BillingFollowupWidget() {
           <Loader2 className="w-4 h-4 animate-spin" /> Henter…
         </div>
       ) : error || !data ? (
-        <p className="text-sm text-gray-400 py-4">{error || 'Ingen data'}</p>
+        <p className="text-sm text-red-700 break-words py-4" data-testid="billing-followup-load-error">
+          {error || 'Kunne ikke hente faktureringsopfølgning'}. Det tælles ikke som 0 sager.
+        </p>
       ) : data.total_action === 0 ? (
         <div className="rounded-lg ring-1 ring-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-emerald-600" />
