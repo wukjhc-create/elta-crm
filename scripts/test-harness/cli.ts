@@ -2114,6 +2114,13 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'wo-profit') {
+    const { runWoProfit, formatWoProfit } = await import('./wo-profit')
+    const checks = await runWoProfit({ admin })
+    log(formatWoProfit(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'supplier-vat') {
     const { runSupplierVat, formatSupplierVat } = await import('./supplier-vat')
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
