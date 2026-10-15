@@ -37,3 +37,22 @@ const SOURCE_LABELS: Record<string, string> = {
 export function incomingInvoiceSourceLabel(source: string): string {
   return SOURCE_LABELS[source] ?? source
 }
+
+/** Visningsnavn for revisionsloggen. Handlingskoden i databasen ændres ikke. */
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  ingested: 'Indlæst',
+  matched: 'Matchet',
+  header_edited: 'Hoved rettet',
+  posted: 'Bogført',
+  error: 'Fejl',
+  upgraded_from_attachment: 'Opgraderet fra bilag',
+  file_attached: 'Fil vedhæftet',
+  duplicate_detected: 'Dublet fundet',
+  parsed: 'Læst',
+  approved: 'Godkendt',
+  rejected: 'Afvist',
+}
+
+export function incomingInvoiceAuditActionLabel(action: string): string {
+  return AUDIT_ACTION_LABELS[action] ?? action
+}

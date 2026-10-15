@@ -17,7 +17,7 @@ import {
   type IncomingInvoiceDetail,
 } from '@/lib/actions/incoming-invoices'
 import { useUserRole } from '@/lib/hooks/use-user-role'
-import { incomingInvoiceParseStatusLabel, incomingInvoiceSourceLabel, incomingInvoiceStatusLabel } from '@/lib/invoices/incoming-invoice-status'
+import { incomingInvoiceAuditActionLabel, incomingInvoiceParseStatusLabel, incomingInvoiceSourceLabel, incomingInvoiceStatusLabel } from '@/lib/invoices/incoming-invoice-status'
 
 const TEST_INVOICE_PREFIX = 'TEST-'
 const TEST_SUPPLIER_NAME = 'TEST Leverandør ApS'
@@ -629,22 +629,22 @@ export function IncomingInvoiceDetailClient({
         )}
       </Panel>
 
-      <Panel title={`Audit log (${detail.audit.length})`}>
+      <Panel title={`Revisionslog (${detail.audit.length})`}>
         {detail.audit.length === 0 ? (
-          <p className="text-xs text-gray-400">Ingen log-poster.</p>
+          <p className="text-xs text-gray-400">Ingen log-poster endnu. De vises her, når fakturaen ændres.</p>
         ) : (
           <div className="space-y-2">
             {detail.audit.map((a) => (
               <div key={a.id} className={`text-xs rounded p-2 ring-1 ${
                 a.ok ? 'bg-gray-50 ring-gray-200' : 'bg-red-50 ring-red-200'
               }`}>
-                <div className="flex justify-between gap-2">
-                  <span className="font-medium">
-                    {a.action} {a.actor_name && <span className="text-gray-500">· {a.actor_name}</span>}
+                <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5">
+                  <span className="font-medium break-words min-w-0">
+                    {incomingInvoiceAuditActionLabel(a.action)} {a.actor_name && <span className="text-gray-500">· {a.actor_name}</span>}
                   </span>
-                  <span className="text-gray-500">{fmtDate(a.created_at)} {a.created_at.slice(11, 19)}</span>
+                  <span className="text-gray-500 shrink-0">{fmtDate(a.created_at)} {a.created_at.slice(11, 19)}</span>
                 </div>
-                {a.message && <div className="mt-0.5 text-gray-700">{a.message}</div>}
+                {a.message && <div className="mt-0.5 text-gray-700 break-words">{a.message}</div>}
               </div>
             ))}
           </div>
