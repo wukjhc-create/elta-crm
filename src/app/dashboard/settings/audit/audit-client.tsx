@@ -212,13 +212,13 @@ export function AuditLogClient() {
 
         {/* Expanded Filters */}
         {showFilters && (
-          <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
+          <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 min-w-0">
+            <div className="min-w-0">
               <label className="block text-xs font-medium text-gray-500 mb-1">Entitetstype</label>
               <select
                 value={filters.entity_type || ''}
                 onChange={(e) => updateFilter('entity_type', e.target.value as AuditEntityType)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full min-w-0 max-w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               >
                 <option value="">Alle typer</option>
                 {ENTITY_TYPE_OPTIONS.map(opt => (
@@ -227,12 +227,12 @@ export function AuditLogClient() {
               </select>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-medium text-gray-500 mb-1">Handling</label>
               <select
                 value={filters.action || ''}
                 onChange={(e) => updateFilter('action', e.target.value as AuditAction)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full min-w-0 max-w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               >
                 <option value="">Alle handlinger</option>
                 {ACTION_OPTIONS.map(opt => (
@@ -241,23 +241,23 @@ export function AuditLogClient() {
               </select>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-medium text-gray-500 mb-1">Fra dato</label>
               <input
                 type="date"
                 value={filters.from_date || ''}
                 onChange={(e) => updateFilter('from_date', e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full min-w-0 max-w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-medium text-gray-500 mb-1">Til dato</label>
               <input
                 type="date"
                 value={filters.to_date || ''}
                 onChange={(e) => updateFilter('to_date', e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full min-w-0 max-w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
           </div>
