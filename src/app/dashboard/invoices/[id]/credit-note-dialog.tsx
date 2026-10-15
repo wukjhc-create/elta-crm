@@ -294,10 +294,11 @@ export function CreditNoteDialog({
 
           {mode === 'partial-amount' && (
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="credit-note-amount" className="block text-xs font-medium text-gray-700 mb-1">
                 Beløb at kreditere (ekskl. moms) <span className="text-red-500">*</span>
               </label>
               <input
+                id="credit-note-amount"
                 type="text"
                 inputMode="decimal"
                 value={customAmountStr}
@@ -314,10 +315,11 @@ export function CreditNoteDialog({
 
           {/* Reason — påkrævet i alle modes */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label htmlFor="credit-note-reason" className="block text-xs font-medium text-gray-700 mb-1">
               Begrundelse <span className="text-red-500">*</span>
             </label>
             <textarea
+              id="credit-note-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               maxLength={1000}
@@ -330,10 +332,11 @@ export function CreditNoteDialog({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="credit-note-due" className="block text-xs font-medium text-gray-700 mb-1">
                 Betalingsfrist (dage)
               </label>
               <input
+                id="credit-note-due"
                 type="number"
                 min={0}
                 max={120}
@@ -346,10 +349,11 @@ export function CreditNoteDialog({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="credit-note-notes" className="block text-xs font-medium text-gray-700 mb-1">
                 Intern note (valgfri)
               </label>
               <input
+                id="credit-note-notes"
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -361,7 +365,7 @@ export function CreditNoteDialog({
           </div>
 
           {/* Live preview */}
-          <div className="rounded ring-1 ring-red-200 bg-red-50 p-3 grid grid-cols-3 gap-3 text-sm">
+          <div className="rounded ring-1 ring-red-200 bg-red-50 p-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
             <div>
               <div className="text-[10px] uppercase tracking-wide text-red-700">Subtotal</div>
               <div className="tabular-nums font-semibold text-red-900">
