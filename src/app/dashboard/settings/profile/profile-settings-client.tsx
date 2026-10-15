@@ -51,8 +51,8 @@ export function ProfileSettingsClient({ profile }: ProfileSettingsClientProps) {
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Profile header with avatar */}
       <div className="bg-white rounded-lg border p-6">
-        <div className="flex items-center gap-4">
-          <div className="relative group">
+        <div className="flex items-start gap-4">
+          <div className="relative group shrink-0">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
                 <img
@@ -96,21 +96,21 @@ export function ProfileSettingsClient({ profile }: ProfileSettingsClientProps) {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="absolute inset-0 bg-black/0 group-hover:bg-black/40 rounded-full flex items-center justify-center transition-colors"
+              className="absolute inset-0 bg-black/30 sm:bg-black/0 sm:group-hover:bg-black/40 rounded-full flex items-center justify-center transition-colors"
               aria-label="Skift profilbillede"
             >
               {isUploading ? (
                 <Loader2 className="w-6 h-6 text-white animate-spin" />
               ) : (
-                <Camera className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                <Camera className="w-6 h-6 text-white opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" />
               )}
             </button>
           </div>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-gray-900 break-words">
               {profile.full_name || 'Ikke angivet'}
             </h2>
-            <p className="text-gray-500">{profile.email}</p>
+            <p className="text-gray-500 break-all">{profile.email}</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                 {getRoleLabel(profile.role as UserRole)}
