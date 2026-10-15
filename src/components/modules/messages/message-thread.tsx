@@ -16,8 +16,7 @@ import {
   Mail,
   MailOpen,
 } from 'lucide-react'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import {
   markAsRead,
   markAsUnread,
@@ -224,9 +223,9 @@ export function MessageThread({
                 </div>
                 <MessageTypeBadge type={message.message_type} />
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-1">
                 <Calendar className="w-4 h-4" />
-                {format(new Date(message.created_at), 'PPPp', { locale: da })}
+                {copenhagenDateTimeLabel(message.created_at, 'long')}
               </div>
             </div>
           </div>
@@ -286,12 +285,12 @@ export function MessageThread({
                     <User className="w-4 h-4 text-muted-foreground" />
                   </div>
                   <div className="flex-1 bg-muted/30 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-sm">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 mb-2">
+                      <span className="font-medium text-sm break-words">
                         {replyWithRelations.from_user?.full_name || 'Ukendt'}
                       </span>
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(reply.created_at), 'Pp', { locale: da })}
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {copenhagenDateTimeLabel(reply.created_at)}
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{reply.body}</p>
