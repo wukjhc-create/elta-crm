@@ -17,6 +17,9 @@ eq('backlog-kunde ombrydes', backlog.includes('text-xs text-gray-500 break-words
 eq('backlog-raekke ombrydes', backlog.includes('flex flex-wrap items-center justify-between gap-3'), true)
 eq('job-titel ombrydes', jobs.includes('break-words" data-testid="jobs-without-time-item"'), true)
 eq('job uden sag ombrydes', jobs.includes('break-words" data-testid="jobs-without-time-item">{it.title}'), true)
+eq('job med sag siger registrer tid', jobs.includes('Åbn Planlægning / Timer og registrér tiden.'), true)
+eq('job uden sag siger naeste skridt', jobs.includes('Jobbet har ingen sag, så tiden kan ikke åbnes herfra.'), true)
+eq('dato er lokal middag', jobs.includes('T12:00:00') && !jobs.includes('T12:00:00Z'), true)
 eq('aarsag bliver', src.includes('Arbejdsordre uden montør') && jobs.includes('Afsluttet uden tid') && backlog.includes('REASON[it.reason]'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nplanning-backlog-mobile-test OK')

@@ -65,6 +65,11 @@ export function JobsWithoutTimePanel({ items, total }: { items: JobWithoutTimeIt
                 <span className="font-medium text-gray-900 break-words" data-testid="jobs-without-time-item">{it.title}</span>
               )}
               <div className="text-xs text-gray-500 break-words">{it.employee_name ?? 'Ukendt montør'} · {fmt(it.scheduled_date)}</div>
+              <div className="text-xs text-gray-600 mt-0.5 break-words">
+                {it.case_id
+                  ? 'Åbn Planlægning / Timer og registrér tiden.'
+                  : 'Jobbet har ingen sag, så tiden kan ikke åbnes herfra.'}
+              </div>
             </div>
             <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-rose-50 text-rose-800 ring-1 ring-rose-200">
               {it.status === 'done' ? 'Afsluttet uden tid' : `${it.days_ago} d siden`}
