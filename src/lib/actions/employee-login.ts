@@ -19,6 +19,7 @@ import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import { sendEmailViaGraph, isGraphConfigured } from '@/lib/services/microsoft-graph'
 import { resetPasswordRedirect, buildSetPasswordLink } from '@/lib/auth/set-password-link'
 import { logger } from '@/lib/utils/logger'
+import { authErrorText } from '@/lib/auth/auth-error-text'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type { UserRole } from '@/types/auth.types'
@@ -159,7 +160,8 @@ export async function inviteEmployeeLogin(
     )
     if (invErr || !invited?.user) {
       logger.error('inviteEmployeeLogin: invite failed', { error: invErr, entityId: employeeId })
-      return { success: false, error: invErr?.message ?? 'Invitation fejlede' }
+      // R-3: dansk tekst (fx "findes allerede" / mail-rate-limit) i stedet for rå Supabase-engelsk
+      return { success: false, error: authErrorText(invErr, 'Invitationen kunne ikke sendes. Prøv igen om lidt.') }
     }
     const newUserId = invited.user.id
 

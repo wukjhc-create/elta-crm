@@ -19,6 +19,7 @@ import type { ActionResult } from '@/types/common.types'
 import { MAX_IMAGE_SIZE, APP_URL } from '@/lib/constants'
 import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
 import { logger } from '@/lib/utils/logger'
+import { authErrorText } from '@/lib/auth/auth-error-text'
 import { validateUUID } from '@/lib/validations/common'
 import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { setProfileLoginActive } from '@/lib/auth/login-access'
@@ -1188,7 +1189,8 @@ export async function inviteTeamMember(
 
     if (inviteError) {
       logger.error('Error inviting user', { error: inviteError })
-      return { success: false, error: 'Kunne ikke sende invitation. Tjek at email er gyldig.' }
+      // R-3: rigtig årsag på dansk (fx mail-rate-limit) i stedet for altid "tjek e-mail"
+      return { success: false, error: authErrorText(inviteError, 'Kunne ikke sende invitation. Tjek at email er gyldig.') }
     }
 
     // handle_new_user opretter profilen som montør; den valgte rolle sættes her (kræver users.edit som rolleskift i øvrigt)

@@ -1,5 +1,6 @@
 'use client'
 
+import { authErrorText } from '@/lib/auth/auth-error-text'
 import { useHydrated } from '@/lib/hooks/use-hydrated'
 import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -96,11 +97,8 @@ function ResetPasswordForm() {
       })
 
       if (updateError) {
-        if (updateError.message.includes('same as')) {
-          setError('Den nye adgangskode må ikke være den samme som den gamle.')
-        } else {
-          setError(updateError.message)
-        }
+        // R-4: dansk tekst pr. fejlkode (same_password/weak_password m.fl. — "same as" matchede aldrig Supabases tekst)
+        setError(authErrorText(updateError, 'Adgangskoden kunne ikke gemmes. Prøv igen, eller bed om et nyt link.'))
         return
       }
 

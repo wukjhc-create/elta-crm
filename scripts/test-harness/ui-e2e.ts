@@ -509,6 +509,34 @@ ${m.text()}`) })
       return { ctx, page, ok }
     }
 
+    // U156 pilot-review R-5/R-6: logget ud → åbner et sagslink → login → lander på sagslinket (inkl. ?tab=); login-siden
+    // viser ALDRIG fritekst fra ?error= (kun kendte koder)
+    if (want('U156')) {
+      const r: Record<string, boolean> = {}
+      const ctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+      const page = await ctx.newPage()
+      try {
+        await page.goto(`${base}/login?error=${encodeURIComponent('Kontoen er spærret, ring 12345678')}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.fritekst_vises_ikke = (await page.getByText('ring 12345678').count()) === 0
+        await page.goto(`${base}/login?error=link_expired`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.kendt_kode_vises = (await page.getByText('Linket er ugyldigt eller udløbet').count()) > 0
+        await page.goto(`${base}/dashboard/orders?status=open`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.sendt_til_login = /\/login/.test(page.url()) && decodeURIComponent(page.url()).includes('redirect=/dashboard/orders?status=open')
+        for (let attempt = 0; attempt < 5; attempt++) {
+          await page.locator('input[type="email"]').fill(adminUser.email)
+          await page.locator('input[type="password"]').fill(adminUser.password)
+          await page.waitForTimeout(300)
+          if ((await page.locator('input[type="email"]').inputValue()) === adminUser.email) break
+          await page.waitForTimeout(1000)
+        }
+        await page.locator('button[type="submit"]').click()
+        await page.waitForURL(/\/dashboard\/orders/, { timeout: 120_000 }).catch(() => {})
+        const u = new URL(page.url())
+        r.landet_paa_sagslisten = u.pathname === '/dashboard/orders' && u.searchParams.get('status') === 'open'
+      } finally { await ctx.close().catch(() => {}) }
+      out.push({ id: 'U156 login: deep link + ingen fritekst (R-5/R-6)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+    }
+
     // U22 — S2: login-formularen før hydrering. JS slået fra = værste fald; hverken klik eller Enter må give GET med adgangskoden.
     if (want('U22')) {
       const nojs = await browser.newContext({ viewport: { width: 1400, height: 1000 }, javaScriptEnabled: false })

@@ -9,7 +9,7 @@ export async function proxy(request: NextRequest) {
     if (!user) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
-      url.searchParams.set('redirect', request.nextUrl.pathname)
+      url.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search) // R-5: inkl. ?tab=… (valideres ved login)
       return NextResponse.redirect(url)
     }
   }

@@ -31,8 +31,11 @@ interface TeamSettingsClientProps {
   currentUserId: string
 }
 
+// R-1 (pilot-review 2026-10-15): alle 5 roller (før kun 3 → salg/bogholderi blev oprettet som montør)
 const ROLES = [
   { value: 'montør', label: 'Montør', icon: User },
+  { value: 'salg', label: 'Salg', icon: User },
+  { value: 'bogholderi', label: 'Bogholderi', icon: User },
   { value: 'serviceleder', label: 'Serviceleder', icon: Shield },
   { value: 'admin', label: 'Administrator', icon: ShieldCheck },
 ]
@@ -314,9 +317,9 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
               onChange={(e) => setInviteRole(e.target.value)}
               className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="montør">Montør</option>
-              <option value="serviceleder">Serviceleder</option>
-              <option value="admin">Administrator</option>
+              {ROLES.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
             </select>
             <Button type="submit" disabled={isInviting || !inviteEmail.trim()}>
               {isInviting ? (
@@ -332,6 +335,11 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
               )}
             </Button>
           </form>
+          {inviteRole === 'montør' && (
+            <p className="mt-2 text-xs text-amber-800" data-testid="invite-montor-hint">
+              En montør skal også kobles til en medarbejder (Medarbejdere → Login) — ellers ser han ingen job.
+            </p>
+          )}
         </div>
       )}
 

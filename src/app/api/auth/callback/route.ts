@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     if (error) {
       // Redirect to login with error message
       return NextResponse.redirect(
-        `${origin}/login?error=${encodeURIComponent('Linket er ugyldigt eller udløbet.')}`
+        `${origin}/login?error=link_expired` // R-6: fejlkode, ikke fritekst
       )
     }
 

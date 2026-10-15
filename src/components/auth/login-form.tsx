@@ -1,5 +1,6 @@
 'use client'
 
+import { authErrorText, loginUrlErrorText, safeDashboardRedirect } from '@/lib/auth/auth-error-text'
 import { useHydrated } from '@/lib/hooks/use-hydrated'
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -21,9 +22,10 @@ export function LoginForm() {
 
   // Check for error message in URL (e.g., from auth callback)
   useEffect(() => {
-    const urlError = searchParams.get('error')
+    // R-6: kun kendte fejlkoder — aldrig vilkårlig tekst fra URL'en
+    const urlError = loginUrlErrorText(searchParams.get('error'))
     if (urlError) {
-      setError(decodeURIComponent(urlError))
+      setError(urlError)
     }
   }, [searchParams])
 
@@ -52,7 +54,8 @@ export function LoginForm() {
         } else if (authError.message.includes('Email not confirmed')) {
           setError(authTranslations.errors.emailNotConfirmed)
         } else {
-          setError(authError.message)
+          // R-2: dansk tekst pr. fejlkode (før fx "User is banned" / "Request rate limit reached")
+          setError(authErrorText(authError))
         }
         return
       }
@@ -71,7 +74,8 @@ export function LoginForm() {
           setError('Din konto er deaktiveret. Kontakt en administrator.')
           return
         }
-        router.push('/dashboard')
+        // R-5: tilbage til den side brugeren kom fra (fx et sagslink fra en mail) — kun interne /dashboard-stier
+        router.push(safeDashboardRedirect(searchParams.get('redirect')) ?? '/dashboard')
         router.refresh()
       }
     } catch (err) {

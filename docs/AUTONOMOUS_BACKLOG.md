@@ -13,6 +13,24 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## NEXT-12 (pilot readiness review 2026-10-15)
+Kilde: read-only review. [H] = kræver Henrik. NB: selvregistrering er STADIG slået til i prod (prod-auth-signup-status 2026-10-15) — G-1.
+| # | Fund | Status |
+|---|---|---|
+| R-1 (S2) | Indstillinger → Team kan ikke invitere/tildele salg eller bogholderi (kun 3 roller) | DONE — alle 5 roller i Team (invitation + rolleskift) + hint om montør-kobling |
+| R-2 (S2) | Deaktiveret bruger / rate limit ser rå engelsk ved login ("User is banned") | DONE — fælles `authErrorText` (danske tekster pr. fejlkode) |
+| R-3 (S2) | Medarbejder-invitation viser rå Supabase-engelsk; Supabase-SMTP rate-limit | DONE (mapping i medarbejder- og team-invitation) · [H] afsender (Graph vs SMTP) |
+| R-4 (S3) | Nulstil adgangskode: svag/genbrugt adgangskode vises på engelsk | DONE |
+| R-5 (S3) | Deep links tabes ved login (?redirect ignoreres) | DONE — sikker ?redirect (kun /dashboard), proxy bevarer query (UI U156) |
+| R-6 (S3) | Vilkårlig tekst kan injiceres på login-siden via ?error= | DONE — kun kendte fejlkoder; callback sender `link_expired` (UI U156) |
+| R-7 (S3) | Pilot-tjeklisten mangler "Graph-mail konfigureret" og "App-URL sat" | TODO |
+| R-8 (S3) | Notifikationsklokken: tilbuds-/leverandøradvarsler kan ikke klikkes | TODO |
+| R-9 (S3) | Klient-crashes når aldrig admin (error boundary kun console) | TODO |
+| R-10 (S3) | Dashboard N+1 (~125 forespørgsler ved hver forsideindlæsning) | TODO |
+| R-11 (S4) | Admin-alarmmail kun én gang i døgnet | [H] plan/rutine |
+| R-12 (S4) | Småting: rå permission-nøgler i fejl, ubrugt mapDatabaseError, x-last-active-cookie, AI-budget UTC-dag, "inviteret men aldrig logget ind" | TODO |
+| R-B1..B5 | Beslutninger: invitationsafsender, alarmmodtagere/-frekvens, link-levetid/gensend, kanonisk brugeroprettelse, incident-rutine | [H] |
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
