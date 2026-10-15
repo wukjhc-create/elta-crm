@@ -164,13 +164,14 @@ export function InvoicesOverviewClient({
     for (const r of localRows) {
       const active = !r.voided_at && !r.is_credit_note
       if (r.status === 'draft' && !r.voided_at) draftCount += 1
+      // B-3: åbent beløb (indbetalinger og kreditnotaer trukket fra) — samme tal som dashboardet
       if (active && r.status === 'sent') {
-        sentUnpaid += r.final_amount
-        outstanding += r.final_amount
+        sentUnpaid += r.open_amount
+        outstanding += r.open_amount
       }
-      if (r.is_overdue) {
+      if (r.is_overdue && r.open_amount > 0) {
         overdueCount += 1
-        overdueSum += r.final_amount
+        overdueSum += r.open_amount
       }
       if (r.status === 'paid' && r.paid_at && copenhagenParts(r.paid_at).date.slice(0, 7) === ym) {
         paidThisMonth += r.final_amount
@@ -227,7 +228,7 @@ export function InvoicesOverviewClient({
     if (
       !window.confirm(
         `Send betalingspåmindelse for faktura ${r.invoice_number} til ${r.customer_email ?? 'kunden'}?\n\n` +
-          `Beløb: ${kr(r.final_amount, r.currency)} · forfald ${fmtDate(r.due_date)} (${r.days_overdue} dage over).\n` +
+          `Åbent beløb: ${kr(r.open_amount, r.currency)} · forfald ${fmtDate(r.due_date)} (${r.days_overdue} dage over).\n` +
           `Der sendes en mail med påmindelse til kunden.`
       )
     )

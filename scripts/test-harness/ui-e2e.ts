@@ -1409,7 +1409,13 @@ ${m.text()}`) })
           await new Promise((res) => setTimeout(res, 1000))
         }
         r.betalt = row?.status === 'paid'
-        const audits = u29InvoiceId ? ((await c.admin.from('audit_logs').select('action, user_id').eq('entity_id', u29InvoiceId)).data ?? []) as Array<{ action: string; user_id: string | null }> : []
+        // audit skrives efter statusopdateringen — poll (før: læst straks → sporadisk tom)
+        let audits: Array<{ action: string; user_id: string | null }> = []
+        for (let i = 0; i < 15 && u29InvoiceId; i++) {
+          audits = ((await c.admin.from('audit_logs').select('action, user_id').eq('entity_id', u29InvoiceId)).data ?? []) as Array<{ action: string; user_id: string | null }>
+          if (audits.some((x) => x.user_id === adminUser.id)) break
+          await new Promise((res) => setTimeout(res, 1000))
+        }
         r.audit_med_bruger = audits.some((x) => x.user_id === adminUser.id)
         out.push({ id: 'U29 betaling på faktura', ok: !!u29InvoiceId && Object.values(r).every(Boolean),
           note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · audit=${JSON.stringify(audits.map((x) => x.action))}` })

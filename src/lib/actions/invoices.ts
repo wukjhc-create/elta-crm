@@ -1423,6 +1423,8 @@ export interface InvoiceOverviewRow {
   /** Sprint Ø6.1 — afledt regnskabsstatus (cost-free). */
   accounting_status: 'not_exported' | 'ready' | 'exported' | 'error'
   accounting_external_id: string | null
+  /** B-3 (pilot-review 2026-10-15): åbent beløb (final − indbetalt − kreditnotaer), samme regel som dashboardet */
+  open_amount: number
 }
 
 export interface InvoiceOverviewResult {
@@ -1446,7 +1448,7 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
   const { data, error } = await supabase
     .from('invoices')
     .select(
-      'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, reminder_count, last_reminder_at, customer_id, case_id, external_invoice_id, external_provider'
+      'id, invoice_number, invoice_type, status, payment_status, final_amount, amount_paid, currency, created_at, sent_at, paid_at, due_date, voided_at, reminder_count, last_reminder_at, customer_id, case_id, external_invoice_id, external_provider'
     )
     .order('created_at', { ascending: false })
     .limit(OVERVIEW_LIMIT)
@@ -1507,6 +1509,15 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
       }),
   ])
 
+  // B-3: kreditnotaer mod de viste fakturaer (åbent beløb)
+  const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
+  let credited = new Map<string, number>()
+  try {
+    credited = await creditedByOriginal(supabase, invoiceIds)
+  } catch (err) {
+    logger.error('listInvoicesOverviewAction: credit lookup failed', { error: err })
+  }
+
   // Forfald beregnes server-side: status='sent', ikke betalt, ikke annulleret,
   // ikke kreditnota, due_date < i dag.
   const todayMs = Date.now()
@@ -1556,6 +1567,7 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
         return 'not_exported' as const
       })(),
       accounting_external_id: (r.external_invoice_id as string | null) ?? null,
+      open_amount: isCredit || r.voided_at ? 0 : openAmount({ id: r.id as string, final_amount: r.final_amount as number | null, amount_paid: (r as { amount_paid?: number | null }).amount_paid ?? null }, credited),
     }
   })
 
