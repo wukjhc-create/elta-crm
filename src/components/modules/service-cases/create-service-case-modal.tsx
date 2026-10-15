@@ -89,17 +89,17 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Titel *</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Beskriv kort problemet..." />
+            <label htmlFor="case-create-title" className="block text-sm font-medium text-gray-700 mb-1">Titel *</label>
+            <input id="case-create-title" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Beskriv kort problemet..." />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Beskrivelse</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Uddybende beskrivelse..." />
+            <label htmlFor="case-create-description" className="block text-sm font-medium text-gray-700 mb-1">Beskrivelse</label>
+            <textarea id="case-create-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Uddybende beskrivelse..." />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Kunde</label>
+            <label htmlFor="case-create-customer" className="block text-sm font-medium text-gray-700 mb-1">Kunde</label>
             {selectedCustomerId ? (
               <div className="flex items-start gap-2 px-3 py-2 bg-gray-50 border rounded-md">
                 <Building className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
@@ -108,7 +108,7 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
               </div>
             ) : (
               <div className="relative">
-                <input value={customerSearch} onChange={(e) => searchCustomers(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Søg kunde..." />
+                <input id="case-create-customer" value={customerSearch} onChange={(e) => searchCustomers(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Søg kunde..." />
                 {customers.length > 0 && (
                   <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
                     {customers.map((c) => (
@@ -127,18 +127,18 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Prioritet</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value as ServiceCasePriority)} className="w-full px-3 py-2 border rounded-md">
+              <label htmlFor="case-create-priority" className="block text-sm font-medium text-gray-700 mb-1">Prioritet</label>
+              <select id="case-create-priority" value={priority} onChange={(e) => setPriority(e.target.value as ServiceCasePriority)} className="w-full px-3 py-2 border rounded-md">
                 {SERVICE_CASE_PRIORITIES.map((p) => (
                   <option key={p} value={p}>{SERVICE_CASE_PRIORITY_LABELS[p]}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Kilde</label>
-              <select value={source} onChange={(e) => setSource(e.target.value as 'email' | 'phone' | 'portal' | 'manual')} className="w-full px-3 py-2 border rounded-md">
+              <label htmlFor="case-create-source" className="block text-sm font-medium text-gray-700 mb-1">Kilde</label>
+              <select id="case-create-source" value={source} onChange={(e) => setSource(e.target.value as 'email' | 'phone' | 'portal' | 'manual')} className="w-full px-3 py-2 border rounded-md">
                 <option value="manual">Manuel</option>
                 <option value="phone">Telefon</option>
                 <option value="email">Email</option>
@@ -149,8 +149,9 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
 
           {/* Address (DAWA) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+            <label htmlFor="case-create-address" className="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
             <DawaAddressInput
+              id="case-create-address"
               value={address}
               onSelect={(addr) => {
                 setAddress(addr.address)
@@ -164,10 +165,11 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Postnr.</label>
+              <label htmlFor="case-create-postal" className="block text-sm font-medium text-gray-700 mb-1">Postnr.</label>
               <input
+                id="case-create-postal"
                 value={postalCode}
                 onChange={async (e) => {
                   setPostalCode(e.target.value)
@@ -181,12 +183,13 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">By</label>
-              <input value={city} readOnly className="w-full px-3 py-2 border rounded-md bg-gray-50" />
+              <label htmlFor="case-create-city" className="block text-sm font-medium text-gray-700 mb-1">By</label>
+              <input id="case-create-city" value={city} readOnly className="w-full px-3 py-2 border rounded-md bg-gray-50" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Etage/dør</label>
+              <label htmlFor="case-create-floor" className="block text-sm font-medium text-gray-700 mb-1">Etage/dør</label>
               <input
+                id="case-create-floor"
                 value={floorDoor}
                 onChange={(e) => setFloorDoor(e.target.value)}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -195,10 +198,11 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">KSR-nr.</label>
+              <label htmlFor="case-create-ksr" className="block text-sm font-medium text-gray-700 mb-1">KSR-nr.</label>
               <input
+                id="case-create-ksr"
                 value={ksrNumber}
                 onChange={(e) => setKsrNumber(e.target.value.replace(/[^\d]/g, ''))}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -206,8 +210,9 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">EAN-nr.</label>
+              <label htmlFor="case-create-ean" className="block text-sm font-medium text-gray-700 mb-1">EAN-nr.</label>
               <input
+                id="case-create-ean"
                 value={eanNumber}
                 onChange={(e) => setEanNumber(e.target.value.replace(/[^\d]/g, ''))}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
