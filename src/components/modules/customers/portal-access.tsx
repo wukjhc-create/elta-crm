@@ -100,7 +100,7 @@ export function PortalAccess({
 
   return (
     <div className="bg-white rounded-lg border p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
           <Globe className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold">Kundeportal</h2>
@@ -132,17 +132,19 @@ export function PortalAccess({
               key={token.id}
               className="p-3 bg-gray-50 rounded-lg space-y-2"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-gray-600 break-all min-w-0">
                   {token.email}
                 </span>
                 <div className="flex items-center gap-1">
                   {/* P-009: tokenet vises kun for roller der administrerer adgangen (ellers udeladt fra serveren) */}
                   {token.token && (<>
                   <button
+                    type="button"
                     onClick={() => handleCopy(token.token)}
                     className="p-1.5 hover:bg-gray-200 rounded text-gray-500"
                     title="Kopier link"
+                    aria-label="Kopier link"
                   >
                     {copiedToken === token.token ? (
                       <Check className="w-4 h-4 text-green-500" />
@@ -156,22 +158,25 @@ export function PortalAccess({
                     rel="noopener noreferrer"
                     className="p-1.5 hover:bg-gray-200 rounded text-gray-500"
                     title="Åbn portal"
+                    aria-label="Åbn portal"
                   >
                     <ExternalLink className="w-4 h-4" />
                   </a>
                   </>)}
                   <button
+                    type="button"
                     onClick={() => handleDeactivate(token.id)}
                     disabled={deactivatingId === token.id}
                     className="p-1.5 hover:bg-red-100 rounded text-red-500 disabled:opacity-50"
                     title="Deaktiver"
+                    aria-label="Deaktiver"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 text-xs text-gray-400">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   Oprettet: {formatDateTimeDK(token.created_at) || '-'}
