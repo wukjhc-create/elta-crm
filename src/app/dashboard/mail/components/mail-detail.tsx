@@ -718,7 +718,7 @@ export function MailDetail({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={att.url} alt={att.filename} className="w-full h-full object-cover" />
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
-                          <p className="text-[11px] text-white truncate">{att.filename}</p>
+                          <p className="text-[11px] text-white line-clamp-2 break-all">{att.filename}</p>
                           <p className="text-[10px] text-white/70">{formatFileSize(att.size)}</p>
                         </div>
                       </button>
@@ -738,10 +738,10 @@ export function MailDetail({
                           href={att.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="group flex items-center gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                          className="group flex items-start gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors"
                         >
                           <Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0" />
-                          <span className="truncate flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium">
+                          <span className="break-all min-w-0 flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium">
                             {att.filename}
                           </span>
                           <span className="text-xs text-gray-400 shrink-0">{formatFileSize(att.size)}</span>
@@ -801,13 +801,13 @@ export function MailDetail({
       {lightboxUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
-            <div className="flex items-center justify-between w-full mb-2 px-1">
-              <span className="text-sm text-white/80 truncate max-w-[60%]">{lightboxName}</span>
-              <div className="flex items-center gap-2">
-                <a href={lightboxUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-full bg-white/10 hover:bg-white/20" title="Download">
+            <div className="flex items-start justify-between w-full mb-2 px-1 gap-2">
+              <span className="text-sm text-white/80 break-all min-w-0 flex-1">{lightboxName}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <a href={lightboxUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-full bg-white/10 hover:bg-white/20" title="Download" aria-label="Download">
                   <Download className="w-4 h-4 text-white" />
                 </a>
-                <button onClick={() => setLightboxUrl(null)} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20" title="Luk">
+                <button type="button" onClick={() => setLightboxUrl(null)} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20" title="Luk" aria-label="Luk">
                   <X className="w-4 h-4 text-white" />
                 </button>
               </div>
