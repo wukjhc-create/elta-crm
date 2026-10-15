@@ -1567,9 +1567,9 @@ export function BillingStandardMode({
                       className="mt-1"
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-gray-900 break-words">{t.employee_name ?? '—'}</p>
-                        <p className="shrink-0 tabular-nums font-medium">{fmtKr(t.total_sales_price)}</p>
+                      <div className="flex flex-wrap items-start justify-between gap-2 min-w-0">
+                        <p className="min-w-0 font-medium text-gray-900 break-words">{t.employee_name ?? '—'}</p>
+                        <p className="min-w-0 tabular-nums font-medium break-words">{fmtKr(t.total_sales_price)}</p>
                       </div>
                       <p className="text-xs text-gray-600">{fmtDate(t.date)}</p>
                       {t.description && (
@@ -1580,7 +1580,7 @@ export function BillingStandardMode({
                           Mangler timesats
                         </span>
                       )}
-                      <p className="mt-1 text-xs tabular-nums text-gray-700">
+                      <p className="mt-1 text-xs tabular-nums text-gray-700 break-words">
                         {t.hours.toLocaleString('da-DK', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
@@ -1684,9 +1684,9 @@ export function BillingStandardMode({
                     className="mt-1"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium text-gray-900 break-words">{m.description}</p>
-                      <p className="shrink-0 tabular-nums font-medium">{fmtKr(m.total_sales_price)}</p>
+                    <div className="flex flex-wrap items-start justify-between gap-2 min-w-0">
+                      <p className="min-w-0 font-medium text-gray-900 break-words">{m.description}</p>
+                      <p className="min-w-0 tabular-nums font-medium break-words">{fmtKr(m.total_sales_price)}</p>
                     </div>
                     <p className="text-xs text-gray-600 break-words">{m.supplier_name ?? '—'}</p>
                     {!m.has_sale_price && (
@@ -1694,7 +1694,7 @@ export function BillingStandardMode({
                         Mangler salgspris
                       </span>
                     )}
-                    <p className="mt-1 text-xs tabular-nums text-gray-700">
+                    <p className="mt-1 text-xs tabular-nums text-gray-700 break-words">
                       {m.quantity.toLocaleString('da-DK', { maximumFractionDigits: 2 })} {m.unit} · {fmtKr(m.unit_sales_price)}
                     </p>
                   </div>
@@ -1786,9 +1786,9 @@ export function BillingStandardMode({
                       className="mt-1"
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-gray-900 break-words">{o.description}</p>
-                        <p className="shrink-0 tabular-nums font-medium">{fmtKr(o.total_sales_price)}</p>
+                      <div className="flex flex-wrap items-start justify-between gap-2 min-w-0">
+                        <p className="min-w-0 font-medium text-gray-900 break-words">{o.description}</p>
+                        <p className="min-w-0 tabular-nums font-medium break-words">{fmtKr(o.total_sales_price)}</p>
                       </div>
                       <p className="text-xs text-gray-600">{fmtDate(o.cost_date)}</p>
                       <p
@@ -1806,7 +1806,7 @@ export function BillingStandardMode({
                           Mangler salgspris
                         </span>
                       )}
-                      <p className="mt-1 text-xs tabular-nums text-gray-700">
+                      <p className="mt-1 text-xs tabular-nums text-gray-700 break-words">
                         {o.quantity.toLocaleString('da-DK', { maximumFractionDigits: 2 })} {o.unit}
                       </p>
                     </div>
