@@ -24,7 +24,20 @@ const STATUS: Record<string, string> = { planned: 'Planlagt', in_progress: 'I ga
 export async function MyJobsCard() {
   const today = copenhagenParts(new Date()).date
   const res = await listWorkOrdersByDateRange(shiftDay(today, -14), shiftDay(today, 7), { includeOpenOutsideRange: true })
-  if (!res.success) return null
+  if (!res.success) {
+    return (
+      <section className="bg-white rounded-lg border p-4 sm:p-5 mb-6" data-testid="my-jobs-card">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
+          <CalendarCheck className="w-5 h-5 text-emerald-700 shrink-0" />
+          <h2 className="font-semibold">Mine job</h2>
+          <Link href="/dashboard/calendar" className="ml-auto text-xs text-emerald-700 hover:underline">Kalender</Link>
+        </div>
+        <p className="text-sm text-red-700" data-testid="my-jobs-load-error">
+          {res.error ?? 'Kunne ikke hente dine job'}. Det tælles ikke som ingen job.
+        </p>
+      </section>
+    )
+  }
   const open = (res.data ?? []).filter((w) => w.status === 'planned' || w.status === 'in_progress')
   // PL-8: udaterede åbne job hører også under "Ikke afsluttet" (før forsvandt de + job ældre end 14 dage)
   const overdue = open.filter((w) => !w.scheduled_date || w.scheduled_date < today)
@@ -33,6 +46,7 @@ export async function MyJobsCard() {
   // N64: afsluttede job (seneste 14 dage) uden en eneste timelinje — påmind montøren før timerne glemmes
   const pastDone = (res.data ?? []).filter((w) => w.status === 'done' && w.scheduled_date && w.scheduled_date <= today)
   const noTimeRes = pastDone.length ? await getWorkOrdersWithoutTimeAction(pastDone.map((w) => w.id)) : null
+  const timeCheckFailed = !!noTimeRes && !noTimeRes.success
   const noTimeIds = new Set(noTimeRes?.success ? noTimeRes.data ?? [] : [])
   const doneWithoutTime = pastDone.filter((w) => noTimeIds.has(w.id))
 
@@ -43,6 +57,11 @@ export async function MyJobsCard() {
         <h2 className="font-semibold">Mine job</h2>
         <Link href="/dashboard/calendar" className="ml-auto text-xs text-emerald-700 hover:underline">Kalender</Link>
       </div>
+      {timeCheckFailed && (
+        <p className="mb-3 text-sm text-amber-800" data-testid="my-jobs-time-check-error">
+          {noTimeRes?.error ?? 'Kunne ikke tjekke timer'}. Det tælles ikke som at tiden er registreret.
+        </p>
+      )}
       {doneWithoutTime.length > 0 && (
         <div className="mb-4" data-testid="my-jobs-no-time">
           <JobGroup title="Afsluttet uden timer — registrér din tid" jobs={doneWithoutTime} warn />
