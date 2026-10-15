@@ -337,7 +337,7 @@ export function ComponentBrowser({
                   {components.map((comp) => (
                     <div
                       key={comp.id}
-                      className={`w-full p-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-3 ${
+                      className={`w-full p-3 text-left hover:bg-gray-50 transition-colors flex items-start gap-3 ${
                         selectedComponent?.id === comp.id ? 'bg-blue-50' : ''
                       }`}
                     >
@@ -351,8 +351,8 @@ export function ComponentBrowser({
                         onClick={() => handleSelectComponent(comp)}
                         disabled={loadingComponent}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium truncate">{comp.name}</span>
+                        <div className="flex items-start gap-2">
+                          <span className="font-medium break-words min-w-0">{comp.name}</span>
                           {comp.code && (
                             <Badge variant="outline" className="text-xs flex-shrink-0">
                               {comp.code}
@@ -381,6 +381,7 @@ export function ComponentBrowser({
                         onClick={() => handleQuickAdd(comp)}
                         disabled={loadingComponent}
                         title="Tilføj til kalkulation"
+                        aria-label="Tilføj til kalkulation"
                       >
                         <Plus className="w-5 h-5" />
                       </button>
