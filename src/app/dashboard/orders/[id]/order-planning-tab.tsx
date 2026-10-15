@@ -282,8 +282,8 @@ export function OrderPlanningTab({
         <div className="bg-emerald-50/50 ring-1 ring-emerald-200 rounded-lg p-4 space-y-3">
           <div className="text-sm font-semibold text-emerald-900">Ny arbejdsordre</div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1 sm:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
+            <div className="space-y-1 sm:col-span-2 min-w-0">
               <label className="text-xs text-gray-600">Titel *</label>
               <input
                 type="text"
@@ -297,19 +297,19 @@ export function OrderPlanningTab({
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <label className="text-xs text-gray-600">Planlagt dato</label>
               <input
                 type="date"
                 value={formDate}
                 onChange={(e) => setFormDate(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md text-sm"
+                className="w-full min-w-0 max-w-full px-3 py-2 border rounded-md text-sm"
                 aria-label="Planlagt dato"
                 disabled={isWorking}
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <label className="text-xs text-gray-600">Medarbejder</label>
               <select
                 value={formEmployee}
@@ -325,7 +325,7 @@ export function OrderPlanningTab({
               </select>
             </div>
 
-            <div className="space-y-1 sm:col-span-2">
+            <div className="space-y-1 sm:col-span-2 min-w-0">
               <label className="text-xs text-gray-600">Beskrivelse / opgave</label>
               <textarea
                 value={formDescription}
@@ -628,8 +628,8 @@ function WorkOrderRow({
       </div>
 
       {editable && (
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2" data-testid="work-order-replan">
-          <div className="space-y-1">
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0" data-testid="work-order-replan">
+          <div className="space-y-1 min-w-0">
             <label className="text-xs text-gray-600">Planlagt dato</label>
             <input
               type="date"
@@ -637,10 +637,10 @@ function WorkOrderRow({
               onChange={(e) => setDate(e.target.value)}
               aria-label="Ret planlagt dato"
               disabled={disabled || saving}
-              className="w-full px-3 py-2 border rounded-md text-sm"
+              className="w-full min-w-0 max-w-full px-3 py-2 border rounded-md text-sm"
             />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <label className="text-xs text-gray-600">Medarbejder</label>
             <select
               value={employeeId}
@@ -655,7 +655,7 @@ function WorkOrderRow({
               ))}
             </select>
           </div>
-          <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
+          <div className="sm:col-span-2 min-w-0 flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={saveReplan}
