@@ -54,9 +54,11 @@ export function SupplierProductSearch({
 }: SupplierProductSearchProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SupplierProductResult[]>([])
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchSeq = useRef(0)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Click outside to close
@@ -71,23 +73,41 @@ export function SupplierProductSearch({
   }, [])
 
   const doSearch = useCallback(async (searchQuery: string) => {
+    const seq = ++searchSeq.current
     if (searchQuery.length < 2) {
       setResults([])
+      setSearchError(null)
+      setShowResults(false)
+      setIsSearching(false)
       return
     }
 
     setIsSearching(true)
-    const result = await searchSupplierProductsForOffer(searchQuery, {
-      customerId,
-      supplierId,
-      limit: 20,
-    })
-
-    if (result.success && result.data) {
-      setResults(result.data as SupplierProductResult[])
+    setSearchError(null)
+    try {
+      const result = await searchSupplierProductsForOffer(searchQuery, {
+        customerId,
+        supplierId,
+        limit: 20,
+      })
+      if (seq !== searchSeq.current) return
+      if (result.success && result.data) {
+        setResults(result.data as SupplierProductResult[])
+        setSearchError(null)
+        setShowResults(true)
+      } else {
+        setResults([])
+        setSearchError(result.success ? null : (result.error || 'Kunne ikke søge produkter'))
+        setShowResults(true)
+      }
+    } catch {
+      if (seq !== searchSeq.current) return
+      setResults([])
+      setSearchError('Kunne ikke søge produkter')
       setShowResults(true)
+    } finally {
+      if (seq === searchSeq.current) setIsSearching(false)
     }
-    setIsSearching(false)
   }, [customerId, supplierId])
 
   const handleInputChange = useCallback((value: string) => {
@@ -177,7 +197,13 @@ export function SupplierProductSearch({
         </div>
       )}
 
-      {showResults && query.length >= 2 && results.length === 0 && !isSearching && (
+      {showResults && searchError && !isSearching && (
+        <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg p-4 text-sm text-red-700 break-words text-center" data-testid="supplier-search-load-error">
+          {searchError}. Det tælles ikke som ingen produkter.
+        </div>
+      )}
+
+      {showResults && !searchError && query.length >= 2 && results.length === 0 && !isSearching && (
         <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg p-4 text-sm text-gray-500 text-center">
           Ingen produkter fundet for &quot;{query}&quot;
         </div>
