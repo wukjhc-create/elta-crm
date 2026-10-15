@@ -1249,6 +1249,12 @@ ${m.text()}`) })
         r.kunde_oprettet = !!cust && cust.email === mail && !!cust.customer_number
         const l1 = ((await c.admin.from('leads').select('custom_fields').eq('id', u27LeadIds[0]).maybeSingle()).data as { custom_fields?: Record<string, unknown> } | null)
         r.lead_koblet = l1?.custom_fields?.customer_id === c1
+        // W-10: lead 2 er 'qualified' → kun Tilbud/Tabt klikbare; Vundet (ugyldigt spring) deaktiveret
+        if (u27LeadIds[1]) {
+          await gotoSafe(a.page, `${base}/dashboard/leads/${u27LeadIds[1]}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.status_won_deaktiveret = await a.page.getByTestId('lead-status-won').isDisabled().catch(() => false)
+          r.status_proposal_aktiv = !(await a.page.getByTestId('lead-status-proposal').isDisabled().catch(() => true))
+        }
         if (leadOfferId) {
           const lof = (await c.admin.from('offers').select('customer_id, payer_customer_id').eq('id', leadOfferId).maybeSingle()).data as { customer_id?: string | null; payer_customer_id?: string | null } | null
           r.tilbud_koblet = !!c1 && lof?.customer_id === c1 && lof?.payer_customer_id === c1

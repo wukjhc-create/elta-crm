@@ -43,6 +43,7 @@ import {
   LEAD_SOURCE_LABELS,
   LEAD_STATUSES,
   LEAD_STATUS_LABELS,
+  isValidLeadTransition,
   type LeadWithRelations,
   type LeadActivity,
   type LeadStatus,
@@ -186,6 +187,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                 <FilePlus className="w-4 h-4" /> Opret tilbud
               </button>
             )}
+            {hasPermission(role, 'leads.edit') && (
             <button
               onClick={() => setShowEditForm(true)}
               className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50"
@@ -193,6 +195,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
               <Pencil className="w-4 h-4" />
               Rediger
             </button>
+            )}
             {hasPermission(role, 'leads.delete') && (
             <button
               onClick={handleDelete}
@@ -215,11 +218,14 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                 Opdater status
               </h3>
               <div className="flex flex-wrap gap-2">
+                {/* W-10 (pilot-review 2026-10-15): kun tilladte statusskift er klikbare (serveren afviste resten med en fejl) */}
                 {LEAD_STATUSES.map((status) => (
                   <button
                     key={status}
                     onClick={() => handleStatusChange(status)}
-                    disabled={isUpdatingStatus || lead.status === status}
+                    disabled={isUpdatingStatus || lead.status === status || !hasPermission(role, 'leads.edit') || !isValidLeadTransition(lead.status as LeadStatus, status)}
+                    title={lead.status !== status && !isValidLeadTransition(lead.status as LeadStatus, status) ? `Kan ikke gå direkte fra ${LEAD_STATUS_LABELS[lead.status as LeadStatus] ?? lead.status} til ${LEAD_STATUS_LABELS[status]}` : undefined}
+                    data-testid={`lead-status-${status}`}
                     className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
                       lead.status === status
                         ? 'bg-primary text-primary-foreground border-primary'

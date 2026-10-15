@@ -57,7 +57,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | W-7 (S2) | Opgaver genindlæser alt pr. tastetryk; getAllTasks uden limit/guard | DONE — søgning debounces (300 ms), profiler hentes én gang, loft 1.000, escapeLike. UI U151/U140/U101/U102 |
 | W-8 (S2) | Salg/bogholderi kan oprette opgaver men ikke se en opgaveliste; getAllTasks uden rettighedstjek | DELVIS — guard DONE: uden tasks.view ses kun egne oprettede/tildelte opgaver (liste + tællere; før så alle indloggede alle opgaver). Rettighedsudvidelse (opgavemenu for salg/bogholderi) = [H] |
 | W-9 (S2) | Ingen genkald/opfølgning på leads | TODO (interim "Påmind mig"); felt next_follow_up_at = [H] migration |
-| W-10 (S3) | Lead-statusknapper tillader ugyldige skift; Rediger ikke gated | TODO |
+| W-10 (S3) | Lead-statusknapper tillader ugyldige skift; Rediger ikke gated | DONE — kun tilladte skift klikbare (forklaring i tooltip), knapper + Rediger kræver leads.edit. UI U27 |
 | W-11 (S3) | Leverandørsøgning: hele sætningen som én ILIKE, sorteret efter pris, "bedste pris" på tværs af forskellige varer | TODO |
 | W-12 (S3) | Tilbudseditorens søgning: race, tavse fejl, antal låst til 1 | TODO |
 | W-13 (S3) | Sags-/kundefaner ikke i URL (refresh/tilbage → Overblik) | TODO |
