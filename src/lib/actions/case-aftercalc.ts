@@ -363,7 +363,11 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
     }
 
     const assignees = new Map<string, string | null>()
-    if (!assigneeRes.error) {
+    let assigneesFailed = false
+    if (assigneeRes.error) {
+      assigneesFailed = true
+      logger.error('getAftercalcOverview: assignees failed', { error: assigneeRes.error })
+    } else {
       for (const row of (assigneeRes.data ?? []) as Array<{ assigned_to: string | null; assignee: { id: string; full_name: string | null } | Array<{ id: string; full_name: string | null }> | null }>) {
         const person = one(row.assignee)
         const id = person?.id ?? row.assigned_to
@@ -371,6 +375,7 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
         assignees.set(id, person?.full_name ?? null)
       }
     }
+    const assigneeList = [...assignees.entries()].map(([id, full_name]) => ({ id, full_name })).sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '', 'da'))
 
     type CaseRow = {
       id: string
@@ -397,7 +402,8 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
           truncated: false,
           cases_considered: 0,
           query_ms: Math.round(performance.now() - started),
-          assignees: [...assignees.entries()].map(([id, full_name]) => ({ id, full_name })).sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '', 'da')),
+          assignees: assigneeList,
+          assignees_failed: assigneesFailed,
         },
       }
     }
@@ -500,7 +506,8 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
         truncated: windowed.truncated,
         cases_considered: cases.length,
         query_ms: Math.round(performance.now() - started),
-        assignees: [...assignees.entries()].map(([id, full_name]) => ({ id, full_name })).sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '', 'da')),
+        assignees: assigneeList,
+        assignees_failed: assigneesFailed,
       },
     }
   } catch (error) {

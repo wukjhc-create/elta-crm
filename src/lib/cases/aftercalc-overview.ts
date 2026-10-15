@@ -94,6 +94,8 @@ export interface AftercalcOverviewResult {
   cases_considered: number
   query_ms: number
   assignees: { id: string; full_name: string | null }[]
+  /** Navneopslaget fejlede. En tom liste er så ikke "ingen ansvarlige". */
+  assignees_failed: boolean
 }
 
 export function selectOverviewPage(

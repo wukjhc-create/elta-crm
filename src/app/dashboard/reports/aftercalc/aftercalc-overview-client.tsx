@@ -43,6 +43,7 @@ export function AftercalcOverviewClient() {
   const [filters, setFilters] = useState<AftercalcOverviewFilters>({ sort: 'worst_db', page: 1, variance: 'all' })
   const [data, setData] = useState<AftercalcOverviewResult | null>(null)
   const [assignees, setAssignees] = useState<AftercalcOverviewResult['assignees']>([])
+  const [assigneesError, setAssigneesError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -56,9 +57,11 @@ export function AftercalcOverviewClient() {
       setLoading(false)
       if (res.success && res.data) {
         setData(res.data)
-        setAssignees(res.data.assignees)
+        if (!res.data.assignees_failed) setAssignees(res.data.assignees)
+        setAssigneesError(res.data.assignees_failed ? 'Ansvarlige kunne ikke hentes. Det tælles ikke som ingen.' : null)
       } else {
         setData(null)
+        setAssigneesError(null)
         setError(res.error ?? 'Kunne ikke hente oversigten')
       }
     })
@@ -139,6 +142,9 @@ export function AftercalcOverviewClient() {
                 </select>
               </label>
             </div>
+            {assigneesError && (
+              <p className="text-sm text-red-800" data-testid="aftercalc-assignees-error">{assigneesError}</p>
+            )}
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" checked={filters.missingCostOnly === true} onChange={(e) => setFilter({ missingCostOnly: e.target.checked })} />
               Kun manglende kostdata
