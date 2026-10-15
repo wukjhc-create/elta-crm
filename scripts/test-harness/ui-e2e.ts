@@ -2917,6 +2917,8 @@ ${m.text()}`) })
         const tabNames = (await m.page.locator('button').allInnerTexts().catch(() => [] as string[])).map((t) => t.trim())
         r.ingen_kontorfaner = !tabNames.some((t) => /^(Fakturakladde|Handlinger|Økonomi)/.test(t))
         r.ingen_kostkolonne = (await m.page.getByRole('columnheader', { name: 'Kostpris' }).count()) === 0
+        // W-5: ingen statusskift/Rediger for montøren (fik "Manglende tilladelse"/ingen adgang før)
+        r.ingen_rediger = (await m.page.getByRole('link', { name: /^Rediger$/ }).count()) === 0 && (await m.page.getByTestId('case-status-static').count()) === 1
         await m.page.getByRole('button', { name: /Tilføj (første )?materiale/ }).first().click({ timeout: 30_000 }).catch(() => {})
         const dlg = m.page.locator('[aria-labelledby="case-material-dialog-title"]')
         await dlg.getByPlaceholder('F.eks. Solpanel 425W LR4-72HPH').fill(`Kabel brugt ${stamp}`).catch(() => {})

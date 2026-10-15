@@ -146,18 +146,22 @@ export function OrderDetailClient({
           <div className="flex items-center gap-2">
             {/* N9c: "Foreslå tilbud (agent)" — før kun i Service-modulet; knappen viser sig selv kun for admin */}
             <OfferAgentButton caseId={sag.id} />
-            <InlineStatusChanger caseId={sag.id} current={sag.status} />
+            {/* W-5 (pilot-review 2026-10-15): statusskift og Rediger kun for dem der må (cases.edit) — montøren fik
+                "Manglende tilladelse" / ingen-adgang-siden */}
+            {canEditCase ? <InlineStatusChanger caseId={sag.id} current={sag.status} /> : <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${SERVICE_CASE_STATUS_COLORS[sag.status]}`} data-testid="case-status-static">{SERVICE_CASE_STATUS_LABELS[sag.status]}</span>}
             <span
               className={`inline-block px-3 py-1 rounded text-xs font-medium ${SERVICE_CASE_PRIORITY_COLORS[sag.priority]}`}
             >
               {SERVICE_CASE_PRIORITY_LABELS[sag.priority]}
             </span>
-            <Link
-              href={`/dashboard/orders/${sag.case_number}/edit`}
-              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Rediger
-            </Link>
+            {canEditCase && (
+              <Link
+                href={`/dashboard/orders/${sag.case_number}/edit`}
+                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Rediger
+              </Link>
+            )}
           </div>
         </div>
 
@@ -238,6 +242,7 @@ export function OrderDetailClient({
         <div className="p-5">
           {active === 'overblik' && (
             <OverblikTab
+              canEditCase={canEditCase}
               sag={sag}
               customerName={customerName}
               fullAddress={fullAddress}
@@ -331,7 +336,9 @@ function OverblikTab({
   creator,
   canSeeBilling = false,
   onOpenFakturakladde,
+  canEditCase = false,
 }: {
+  canEditCase?: boolean
   sag: ServiceCaseWithRelations
   customerName: string
   fullAddress: string
@@ -364,7 +371,7 @@ function OverblikTab({
         <Row label="Sag/Ordre nr" value={<code className="text-xs">{sag.case_number}</code>} />
         <Row
           label="Status"
-          value={<InlineStatusChanger caseId={sag.id} current={sag.status} />}
+          value={canEditCase ? <InlineStatusChanger caseId={sag.id} current={sag.status} /> : <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${SERVICE_CASE_STATUS_COLORS[sag.status]}`} >{SERVICE_CASE_STATUS_LABELS[sag.status]}</span>}
         />
         <Row label="Prioritet" value={
           <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${SERVICE_CASE_PRIORITY_COLORS[sag.priority]}`}>
@@ -475,7 +482,7 @@ function OverblikTab({
       {/* Sprint 9E Phase 2 — Sagspartner-overblik (Phase 3: redigerbar) */}
       <Panel
         title="Sagspartnere"
-        action={
+        action={canEditCase ? (
           <button
             type="button"
             onClick={() => setEditingParties(true)}
@@ -484,6 +491,7 @@ function OverblikTab({
             <Pencil className="w-3 h-3" />
             Rediger
           </button>
+        ) : undefined
         }
       >
         <Row label="Ordregiver" value={renderPartyLink(sag.orderer_customer, 'Samme som nuværende kunde')} />
@@ -524,7 +532,7 @@ function OverblikTab({
       {/* Sprint 8G — Leveringskontakt / arbejdssted */}
       <Panel
         title="Leveringskontakt / arbejdssted"
-        action={
+        action={canEditCase ? (
           <button
             type="button"
             onClick={() => setEditingSite(true)}
@@ -534,6 +542,7 @@ function OverblikTab({
             <Pencil className="w-3 h-3" />
             Rediger
           </button>
+        ) : undefined
         }
       >
         {sag.site_customer ? (
