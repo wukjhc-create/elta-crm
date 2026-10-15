@@ -140,8 +140,9 @@ export function OrderDocumentsTab({
           <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">Ingen dokumenter på denne sag</p>
           <p className="text-sm mt-1">
-            Tilføj fotos og dokumenter ovenfor. Mail-vedhæftninger fra mails koblet til sagen
-            dukker også op her.
+            {canUpload
+              ? 'Tilføj fotos og dokumenter ovenfor. Mail-vedhæftninger fra mails koblet til sagen dukker også op her.'
+              : 'Mail-vedhæftninger fra mails koblet til sagen vises her. Upload kræver rettighed til at redigere sagen.'}
           </p>
         </div>
       )}

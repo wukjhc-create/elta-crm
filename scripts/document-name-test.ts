@@ -16,6 +16,7 @@ eq('raekken stables paa mobil', row.includes('flex flex-col gap-2 sm:flex-row sm
 eq('filnavnet ombrydes', row.includes('break-all') && row.includes('doc.file_name'), true)
 eq('filnavnet klippes ikke', row.includes('truncate'), false)
 eq('tom liste forklarer stadig', src.includes('Ingen dokumenter på denne sag') && src.includes('Tilføj fotos og dokumenter'), true)
+eq('uden ret siger ikke ovenfor', src.includes('Upload kræver rettighed til at redigere sagen.') && src.includes('canUpload'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ndocument-name-test OK')
 process.exitCode = fail ? 1 : 0
