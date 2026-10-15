@@ -53,7 +53,7 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
         <p className="text-sm text-gray-400 py-2">Ingen leverandørfaktura-linjer konverteret til denne sag endnu.</p>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
             <Stat label="Materialer" value={kr(data.supplier_material_cost_total)} />
             <Stat label="Udlæg" value={kr(data.supplier_other_cost_total)} />
             <Stat label="Indkøb i alt" value={kr(data.supplier_purchase_total)} strong />
@@ -62,11 +62,11 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
           {data.budget_reference != null && (
             <div className="rounded-md bg-gray-50 ring-1 ring-gray-200 px-3 py-2 text-xs text-gray-600 flex flex-wrap items-center justify-between gap-2">
               <span>{data.budget_reference_kind === 'budget' ? 'Budget' : 'Kontraktsum'} (reference)</span>
-              <span className="font-medium text-gray-800">{kr(data.budget_reference)}</span>
+              <span className="font-medium text-gray-800 break-words">{kr(data.budget_reference)}</span>
             </div>
           )}
 
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-gray-500 break-words">
             {data.converted_line_count} konverteret leverandørfaktura-linje(r)
             {' · '}{data.converted_material_count} materiale(r){' · '}{data.converted_other_cost_count} udlæg
           </div>
@@ -123,9 +123,9 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
 
 function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div>
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`${strong ? 'text-lg font-bold text-gray-900' : 'text-base font-semibold text-gray-800'}`}>{value}</div>
+    <div className="min-w-0">
+      <div className="text-xs text-gray-500 break-words">{label}</div>
+      <div className={`break-words ${strong ? 'text-lg font-bold text-gray-900' : 'text-base font-semibold text-gray-800'}`}>{value}</div>
     </div>
   )
 }
