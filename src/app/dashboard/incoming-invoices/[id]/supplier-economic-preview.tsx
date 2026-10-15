@@ -51,7 +51,15 @@ export function SupplierEconomicPreview({ invoiceId }: { invoiceId: string }) {
             <>
               <div className="text-xs text-gray-600 break-words">
                 Leverandørfakturakladde · dato {data.draft.body.date ?? '—'} · fakturanr. {data.draft.body.supplierInvoiceNumber ?? '—'} ·{' '}
-                {data.draft.body.supplier.supplierNumber != null ? `leverandør nr. ${data.draft.body.supplier.supplierNumber}` : 'leverandør ikke koblet'}
+                {data.supplier_error && (
+                  <span data-testid="supplier-economic-supplier-error">{data.supplier_error}. Det tælles ikke som at leverandøren mangler.</span>
+                )}
+                {!data.supplier_error && data.draft.body.supplier.supplierNumber != null && (
+                  <>leverandør nr. {data.draft.body.supplier.supplierNumber}</>
+                )}
+                {!data.supplier_error && data.draft.body.supplier.supplierNumber == null && (
+                  <>leverandør ikke koblet</>
+                )}
               </div>
               <ul className="md:hidden divide-y" data-testid="supplier-economic-lines-mobile">
                 {data.draft.body.lines.map((l) => (
@@ -94,7 +102,12 @@ export function SupplierEconomicPreview({ invoiceId }: { invoiceId: string }) {
                   {i.message}
                 </div>
               ))}
-              {!data.integration_ready && (
+              {data.integration_error && (
+                <div className="text-xs text-red-800" data-testid="supplier-economic-ready-error">
+                  {data.integration_error}. Det tælles ikke som at e-conomic mangler. Godkendelse bogfører intet herfra.
+                </div>
+              )}
+              {!data.integration_error && !data.integration_ready && (
                 <div className="text-xs text-amber-900">e-conomic er ikke opsat — godkendelse bogfører intet endnu.</div>
               )}
               <p className="text-[11px] text-gray-400">Forhåndsvisning — intet sendes til e-conomic herfra.</p>

@@ -609,6 +609,10 @@ export async function previewInvoiceForEconomic(
 
 export interface EconomicSupplierInvoicePreview {
   integration_ready: boolean
+  /** Sat når indstillingsopslaget fejler. integration_ready er da false, men det er ikke "ikke opsat". */
+  integration_error?: string | null
+  /** Sat når leverandøropslaget fejler. Det er ikke "ikke koblet". */
+  supplier_error?: string | null
   external_id: string | null
   draft: SupplierInvoiceDraft
 }
@@ -624,26 +628,32 @@ export async function previewSupplierInvoiceForEconomic(
     .eq('id', incomingInvoiceId)
     .maybeSingle()
   if (!inv) return { ok: false, error: 'Faktura ikke fundet' }
-  const [{ data: settingsRow }, { data: sup }, { data: lineRows }] = await Promise.all([
+  const [settingsRes, supplierRes, linesRes] = await Promise.all([
     supabase.from('accounting_integration_settings').select('active, config, api_token, agreement_grant_token').eq('provider', PROVIDER).maybeSingle(),
     inv.supplier_id
       ? supabase.from('suppliers').select('external_supplier_id, external_provider').eq('id', inv.supplier_id).maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
     supabase.from('incoming_invoice_lines').select('line_number, description, quantity, unit_price, total_price').eq('incoming_invoice_id', incomingInvoiceId).order('line_number', { ascending: true }),
   ])
+  if (linesRes.error) return { ok: false, error: 'Kunne ikke hente fakturalinjer' }
+  const settingsRow = settingsRes.data
   const s = settingsRow as { active?: boolean; config?: EconomicConfig | null; api_token?: string | null; agreement_grant_token?: string | null } | null
-  const sp = sup as { external_supplier_id?: string | null; external_provider?: string | null } | null
+  const integrationError = settingsRes.error ? 'Kunne ikke tjekke e-conomic' : null
+  const supplierError = supplierRes.error ? 'Kunne ikke hente leverandøren' : null
+  const sp = supplierError ? null : supplierRes.data as { external_supplier_id?: string | null; external_provider?: string | null } | null
   const n = sp?.external_supplier_id && sp.external_provider === PROVIDER ? Number(sp.external_supplier_id) : NaN
   const draft = buildEconomicSupplierInvoiceDraft({
     invoice: inv,
     supplierNumber: Number.isFinite(n) ? n : null,
-    lines: lineRows ?? [],
-    config: { costAccountNumber: (s?.config as { costAccountNumber?: number } | null)?.costAccountNumber ?? null },
+    lines: linesRes.data ?? [],
+    config: { costAccountNumber: integrationError ? null : ((s?.config as { costAccountNumber?: number } | null)?.costAccountNumber ?? null) },
   })
   return {
     ok: true,
     data: {
-      integration_ready: Boolean(s?.active && s?.api_token && s?.agreement_grant_token),
+      integration_ready: integrationError ? false : Boolean(s?.active && s?.api_token && s?.agreement_grant_token),
+      integration_error: integrationError,
+      supplier_error: supplierError,
       external_id: inv.external_provider === PROVIDER ? inv.external_invoice_id : null,
       draft,
     },
