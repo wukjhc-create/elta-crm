@@ -2,6 +2,7 @@
 
 import { User, Clock, Shield, ShieldCheck, Phone, Mail } from 'lucide-react'
 import type { UserActivityEntry } from '@/lib/actions/user-activity'
+import { copenhagenDateLabel, copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 function formatLastActive(iso: string | null): { text: string; color: string } {
   if (!iso) return { text: 'Aldrig logget ind', color: 'text-gray-400' }
@@ -20,7 +21,7 @@ function formatLastActive(iso: string | null): { text: string; color: string } {
   if (diffDays < 30) return { text: `${diffDays} dage siden`, color: 'text-orange-600' }
 
   return {
-    text: new Date(iso).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric' }),
+    text: copenhagenDateLabel(iso),
     color: 'text-red-500',
   }
 }
@@ -87,7 +88,7 @@ export function UserActivityPanel({ users }: UserActivityPanelProps) {
           return (
             <div
               key={user.id}
-              className={`p-4 flex items-center gap-4 ${!user.is_active ? 'opacity-50' : ''}`}
+              className={`p-4 flex flex-wrap items-center gap-4 ${!user.is_active ? 'opacity-50' : ''}`}
             >
               {/* Avatar with online indicator */}
               <div className="relative">
@@ -120,7 +121,7 @@ export function UserActivityPanel({ users }: UserActivityPanelProps) {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mt-0.5">
                   {user.email && (
                     <span className="flex items-center gap-1 break-all min-w-0">
                       <Mail className="w-3 h-3 shrink-0" />
@@ -137,18 +138,13 @@ export function UserActivityPanel({ users }: UserActivityPanelProps) {
               </div>
 
               {/* Last active */}
-              <div className="text-right shrink-0">
+              <div className="text-left sm:text-right">
                 <span className={`text-sm font-medium ${lastActive.color}`}>
                   {lastActive.text}
                 </span>
                 {user.last_sign_in_at && (
-                  <div className="text-[10px] text-gray-400 mt-0.5">
-                    {new Date(user.last_sign_in_at).toLocaleDateString('da-DK', {
-                      day: 'numeric',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                  <div className="text-[10px] text-gray-400 mt-0.5 break-words">
+                    {copenhagenDateTimeLabel(user.last_sign_in_at, 'short', false)}
                   </div>
                 )}
               </div>

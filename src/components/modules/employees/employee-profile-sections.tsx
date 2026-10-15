@@ -20,6 +20,7 @@ import {
   EQUIPMENT_CATEGORY_OPTIONS, EQUIPMENT_STATUS_OPTIONS, CERTIFICATE_CATEGORY_OPTIONS,
   type EmployeeOvertimeRate, type EmployeeEquipment, type EmployeeCertificate, type EmployeeEvent,
 } from '@/types/employees.types'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 const dkk = (n: number | null) =>
   n == null ? '—' : new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 2 }).format(n)
@@ -27,7 +28,7 @@ const day = (s: string | null) => (s ? s.slice(0, 10) : '—')
 const dt = (s: string | null) => {
   if (!s) return '—'
   const d = new Date(s); if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleString('da-DK', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return copenhagenDateTimeLabel(s)
 }
 const eqCat = new Map(EQUIPMENT_CATEGORY_OPTIONS.map((o) => [o.value, o.label]))
 const eqStat = new Map(EQUIPMENT_STATUS_OPTIONS.map((o) => [o.value, o.label]))
@@ -46,9 +47,9 @@ function Card({ icon, title, children }: { icon: React.ReactNode; title: string;
 }
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-3 py-1 text-sm border-b last:border-b-0">
+    <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 py-1 text-sm border-b last:border-b-0">
       <span className="text-gray-500">{k}</span>
-      <span className="text-gray-900 text-right">{v}</span>
+      <span className="text-gray-900 text-left sm:text-right break-words">{v}</span>
     </div>
   )
 }
@@ -233,11 +234,11 @@ export function EmployeeHistoryView({ employeeId }: { employeeId: string }) {
       ) : (
         <ul className="space-y-2">
           {events.map((ev) => (
-            <li key={ev.id} className="flex gap-3 text-sm border-b last:border-b-0 pb-2">
-              <span className="text-xs text-gray-400 whitespace-nowrap w-32 shrink-0">{dt(ev.created_at)}</span>
+            <li key={ev.id} className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm border-b last:border-b-0 pb-2">
+              <span className="text-xs text-gray-400 break-words">{dt(ev.created_at)}</span>
               <div className="min-w-0">
-                <span className="font-medium text-gray-900">{ev.title}</span>
-                {ev.description && <p className="text-xs text-gray-500">{ev.description}</p>}
+                <span className="font-medium text-gray-900 break-words">{ev.title}</span>
+                {ev.description && <p className="text-xs text-gray-500 break-words">{ev.description}</p>}
               </div>
             </li>
           ))}
