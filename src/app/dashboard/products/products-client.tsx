@@ -136,9 +136,9 @@ export default function ProductsClient({
 
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Produktkatalog</h1>
           <p className="text-gray-500">
@@ -152,7 +152,7 @@ export default function ProductsClient({
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row gap-4">
         <form onSubmit={handleSearch} className="flex-1">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -171,7 +171,7 @@ export default function ProductsClient({
             updateFilters({ category_id: value })
           }}
         >
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="Alle kategorier" />
           </SelectTrigger>
           <SelectContent>
@@ -205,7 +205,45 @@ export default function ProductsClient({
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-lg border">
+        <>
+          <div className="md:hidden space-y-3" data-testid="products-mobile">
+            {products.map((product) => (
+              <article key={product.id} className="bg-white rounded-lg border p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link href={`/dashboard/products/${product.id}`} className="font-medium hover:text-blue-600 break-words">
+                      {product.name}
+                    </Link>
+                    {product.description && (
+                      <p className="text-sm text-gray-500 line-clamp-2">{product.description}</p>
+                    )}
+                  </div>
+                  <Badge variant={product.is_active ? 'default' : 'secondary'}>
+                    {product.is_active ? 'Aktiv' : 'Inaktiv'}
+                  </Badge>
+                </div>
+                <p className="text-xs text-gray-500">SKU {product.sku || '-'}</p>
+                {product.category && <Badge variant="outline">{product.category.name}</Badge>}
+                <dl className="grid grid-cols-2 gap-2 text-sm">
+                  {canSeeCost && (
+                    <div>
+                      <dt className="text-xs text-gray-500">Kostpris</dt>
+                      <dd>{product.cost_price ? formatCurrency(product.cost_price) : '-'}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-xs text-gray-500">Listepris</dt>
+                    <dd className="font-medium">{formatCurrency(product.list_price)}</dd>
+                  </div>
+                </dl>
+                <div className="flex gap-3 text-sm">
+                  <button type="button" onClick={() => setEditingProduct(product)} className="text-blue-700">Rediger</button>
+                  <button type="button" onClick={() => handleDelete(product)} className="text-red-600">Slet</button>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="hidden md:block bg-white rounded-lg border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -260,7 +298,7 @@ export default function ProductsClient({
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" aria-label="Flere handlinger">
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -283,10 +321,9 @@ export default function ProductsClient({
               ))}
             </TableBody>
           </Table>
-
-          {/* Pagination */}
+          </div>
           {totalPages > 1 && (
-            <div className="px-4 py-3 border-t">
+            <div className="px-4 py-3 border-t bg-white rounded-lg border">
               <Pagination
                 currentPage={page}
                 totalPages={totalPages}
@@ -297,7 +334,7 @@ export default function ProductsClient({
               />
             </div>
           )}
-        </div>
+        </>
       )}
 
       {/* Create Dialog */}

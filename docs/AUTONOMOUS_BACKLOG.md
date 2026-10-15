@@ -53,13 +53,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Leverandørfakturaens linjer er kort under `md`. Antal, pris og konvertering er de samme. | DONE — `incoming-invoice-lines-mobile-test` |
 | Kalenderens jobkort viser den ansvarlige. Den tætte ugevisning gør det ikke igen. | DONE — `calendar-mobile-test` |
 | Afvisningsårsager og seneste afviste tilbud ombrydes på mobil. Beløbet er det samme. | DONE — `rejection-mobile-test` |
+| Produktkataloget er kort under `md`. Kostpris kræver `canSeeCost`. Paging er fælles. | DONE — `products-mobile-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: rejection-mobile efter 832fc6c3
-TESTS: rejection-mobile-test, reports-mobile-test, calendar-mobile-test
+LAST_COMMIT: products-mobile efter 49311140
+TESTS: products-mobile-test, rejection-mobile-test, reports-mobile-test, calendar-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00223 GP-1 RLS, 00224 GP-6 (migrationer, ikke kørt). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: aria-label på ikonknapper; tomme filterresultater i rapporter; sagsdokumenter som kort; produktsøgning uden træf; indstillinger leverandørliste kort; produktkatalog kort med canSeeCost; sagsoverblik manglende ansvarlig; indbakke tom søgning; påmindelse uden dato; kundehistorik tom tekst.
+NEXT_QUEUE: aria-label på ikonknapper; tomme filterresultater i rapporter; sagsdokumenter som kort; produktsøgning uden træf; indstillinger leverandørliste kort; sagsoverblik manglende ansvarlig; indbakke tom søgning; påmindelse uden dato; kundehistorik tom tekst; salgstragt kort; kundeprisaftaler kort; sync-log kort; dokumentnavn ombrydes; opgavefilter ombrydes.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
