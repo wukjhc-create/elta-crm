@@ -42,7 +42,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-6 | Kapacitet pr. uge (normtimer) | BLOCKED_APPROVAL — kræver `employees.weekly_hours` (eller lign.) |
 | E-7 | Træk-og-slip omplanlægning, klik på tom celle for at planlægge | TODO |
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
-| E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | TODO |
+| E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
 ## NEXT-13 (2026-10-15 — tavse fejl/feedback + døde revalidateringer + doc-drift)
 Kilde: to opfølgende read-only sweeps til pilot-reviewet.

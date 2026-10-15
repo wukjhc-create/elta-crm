@@ -571,6 +571,25 @@ ${m.text()}`) })
       out.push({ id: 'U157 team: invitationsstatus (udløbet/gensendt)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
     }
 
+    // U160 E-9 (fokus E 2026-10-15): kalenderens ugevisning på mobil (375 px) = dag-for-dag-agenda uden vandret sidescroll
+    if (want('U160')) {
+      const r: Record<string, boolean> = {}
+      const s = await login(adminUser)
+      try {
+        await s.page.setViewportSize({ width: 375, height: 812 })
+        await gotoSafe(s.page, `${base}/dashboard/calendar?view=week`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await s.page.getByTestId('week-agenda').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.agenda_synlig = await s.page.getByTestId('week-agenda').isVisible().catch(() => false)
+        r.syv_dage = (await s.page.getByTestId('week-agenda').locator(':scope > div').count()) === 7
+        const overflow = await s.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)
+        r.ingen_vandret_scroll = overflow <= 2
+        await s.page.setViewportSize({ width: 1400, height: 1000 })
+        await s.page.waitForTimeout(300)
+        r.desktop_tabel = !(await s.page.getByTestId('week-agenda').isVisible().catch(() => true))
+      } finally { await s.ctx.close().catch(() => {}) }
+      out.push({ id: 'U160 kalender-uge på mobil = agenda', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+    }
+
     // U158 fokus C 2026-10-15: prisafvigelser på tværs af leverandørfakturaer — kabel 500 m faktureret 4,45 mod aftalt
     // 4,00 → leverandøren står med 225 kr merbetaling i overblikket (foldet ind; hentes ved åbning)
     if (want('U158')) {

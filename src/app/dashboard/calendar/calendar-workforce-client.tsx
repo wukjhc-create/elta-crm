@@ -527,8 +527,38 @@ function WeekView({
   hasUnassigned: boolean
 }) {
   const today = todayKey()
+  const empName = new Map(employees.map((e) => [e.id, e.name || '—']))
   return (
-    <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
+    <>
+    {/* E-9 (fokus E 2026-10-15): på mobil en dag-for-dag-agenda i stedet for 7 × 140 px kolonner med sidelæns scroll */}
+    <div className="md:hidden space-y-2" data-testid="week-agenda">
+      {weekDates.map((d, i) => {
+        const empMap = byDateThenEmployee.get(d) ?? new Map<string, WorkOrderForCalendar[]>()
+        const entries = Array.from(empMap.entries()).filter(([, wos]) => wos.length > 0)
+        return (
+          <div key={d} className={`bg-white rounded-lg ring-1 ring-gray-200 p-3 ${d === today ? 'ring-emerald-300' : ''}`}>
+            <div className={`text-sm font-medium mb-1.5 ${d === today ? 'text-emerald-800' : 'text-gray-800'}`}>
+              {WEEKDAY_NAMES[i]} <span className="text-xs text-gray-500 font-normal">{fmtShortDate(d)}</span>
+            </div>
+            {entries.length === 0 ? (
+              <p className="text-xs text-gray-400">Intet planlagt</p>
+            ) : (
+              <div className="space-y-2">
+                {entries.map(([empId, wos]) => (
+                  <div key={empId}>
+                    <div className="text-[11px] text-gray-500 mb-0.5">{empId === '__unassigned__' ? 'Ikke tildelt / inaktiv' : empName.get(empId) ?? '—'}</div>
+                    <div className="space-y-1">
+                      {wos.map((wo) => <WorkOrderChip key={wo.id} wo={wo} compact />)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+    <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
       <table className="w-full text-sm border-collapse">
         <thead className="bg-gray-50 text-xs text-gray-600 sticky top-0">
           <tr>
@@ -569,6 +599,7 @@ function WeekView({
         </tbody>
       </table>
     </div>
+    </>
   )
 }
 
