@@ -133,8 +133,8 @@ export function CaseInvoicesList({ caseId }: { caseId: string }) {
               <article key={it.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-mono text-gray-900">{it.invoice_number ?? '—'}</p>
-                    <p className="text-xs text-gray-600">{it.customer_name ?? '—'}</p>
+                    <p className="font-mono text-gray-900 break-all">{it.invoice_number ?? '—'}</p>
+                    <p className="text-xs text-gray-600 break-words">{it.customer_name ?? '—'}</p>
                   </div>
                   <span className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${sb.cls}`}>
                     {it.voided_at && <Ban className="w-3 h-3" />}
@@ -146,7 +146,7 @@ export function CaseInvoicesList({ caseId }: { caseId: string }) {
                 {it.sent_at && <p className="text-xs text-gray-500">Sendt {fmtDate(it.sent_at)}</p>}
                 {it.paid_at && <p className="text-xs text-emerald-700">Betalt {fmtDate(it.paid_at)}</p>}
                 {!it.paid_at && it.due_date && <p className="text-xs text-gray-500">Forfald {fmtDate(it.due_date)}</p>}
-                <p className="mt-2 tabular-nums font-medium text-gray-900">{kr(it.final_amount, it.currency)} inkl. moms</p>
+                <p className="mt-2 tabular-nums font-medium text-gray-900 break-words">{kr(it.final_amount, it.currency)} inkl. moms</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Link href={`/dashboard/invoices/${it.id}`} className="inline-flex items-center gap-1 px-2 py-1.5 rounded ring-1 ring-emerald-300 text-emerald-700">
                     <FileText className="w-3.5 h-3.5" /> Åbn
