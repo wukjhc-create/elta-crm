@@ -216,8 +216,10 @@ function TaskRow({
   return (
     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg group">
       <button
+        type="button"
         onClick={onComplete}
         className="mt-0.5 shrink-0"
+        aria-label={isDone ? 'Genåbn' : 'Marker som udført'}
         title={isDone ? 'Genåbn' : 'Marker som udført'}
       >
         {isDone ? (
@@ -228,7 +230,7 @@ function TaskRow({
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+        <p className={`text-sm font-medium break-words ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
           {task.title}
         </p>
         <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -241,7 +243,7 @@ function TaskRow({
             </span>
           )}
           {task.assigned_profile && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 break-words">
               {task.assigned_profile.full_name || task.assigned_profile.email}
             </span>
           )}
