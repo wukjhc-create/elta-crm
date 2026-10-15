@@ -571,6 +571,38 @@ ${m.text()}`) })
       out.push({ id: 'U157 team: invitationsstatus (udløbet/gensendt)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
     }
 
+    // U158 fokus C 2026-10-15: prisafvigelser på tværs af leverandørfakturaer — kabel 500 m faktureret 4,45 mod aftalt
+    // 4,00 → leverandøren står med 225 kr merbetaling i overblikket (foldet ind; hentes ved åbning)
+    if (want('U158')) {
+      const r: Record<string, boolean> = {}
+      const supName = `HARNESS U158 ${stamp}`
+      const sup = await c.admin.from('suppliers').insert([{ name: supName, code: `HU158${stamp}` }]).select('id')
+      const supId = (sup.data?.[0] as { id?: string } | undefined)?.id ?? null
+      const sp = supId ? await c.admin.from('supplier_products').insert([{ supplier_id: supId, supplier_sku: `HU158-${stamp}`, supplier_name: 'Kabel', cost_price: 4 }]).select('id') : null
+      const spId = (sp?.data?.[0] as { id?: string } | undefined)?.id ?? null
+      const inv = supId ? await c.admin.from('incoming_invoices').insert([{ source: 'manual', supplier_id: supId, invoice_number: `UI-E2E-DEV-${stamp}`,
+        invoice_date: new Date().toISOString().slice(0, 10), parse_status: 'parsed', status: 'awaiting_approval', amount_excl_vat: 2225 }]).select('id') : null
+      const invId = (inv?.data?.[0] as { id?: string } | undefined)?.id ?? null
+      if (invId) await c.admin.from('incoming_invoice_lines').insert([{ incoming_invoice_id: invId, line_number: 1, description: 'Kabel', quantity: 500, unit: 'm', unit_price: 4.45, total_price: 2225, supplier_product_id: spId }])
+      const s = await login(adminUser)
+      try {
+        await gotoSafe(s.page, `${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const panel = s.page.getByTestId('invoice-deviation-overview')
+        r.foldet = (await panel.getByTestId('invoice-deviation-summary').count()) === 0
+        await panel.getByTestId('invoice-deviation-toggle').click({ timeout: 60_000 }).catch(() => {})
+        await panel.getByTestId('invoice-deviation-summary').waitFor({ timeout: 120_000 }).catch(() => {})
+        const supRow = panel.locator('tr', { hasText: supName }).first()
+        r.leverandoer_225 = /225,00/.test(((await supRow.innerText().catch(() => '')) ?? ''))
+        r.faktura_link = (await panel.getByRole('link', { name: new RegExp(`UI-E2E-DEV-${stamp}`) }).count()) === 1
+      } finally {
+        await s.ctx.close().catch(() => {})
+        if (invId) { await c.admin.from('incoming_invoice_lines').delete().eq('incoming_invoice_id', invId); await c.admin.from('incoming_invoices').delete().eq('id', invId) }
+        if (spId) await c.admin.from('supplier_products').delete().eq('id', spId)
+        if (supId) await c.admin.from('suppliers').delete().eq('id', supId)
+      }
+      out.push({ id: 'U158 prisafvigelser på tværs af leverandørfakturaer', ok: !!invId && !!spId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+    }
+
     // U22 — S2: login-formularen før hydrering. JS slået fra = værste fald; hverken klik eller Enter må give GET med adgangskoden.
     if (want('U22')) {
       const nojs = await browser.newContext({ viewport: { width: 1400, height: 1000 }, javaScriptEnabled: false })

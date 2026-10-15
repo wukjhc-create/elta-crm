@@ -1,5 +1,6 @@
 'use client'
 
+import { DeviationOverviewPanel } from './deviation-overview-panel'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -154,6 +155,8 @@ export function IncomingInvoicesListClient({
         )}
         </div>
       </div>
+
+      <DeviationOverviewPanel />
 
       {seedMsg && (
         <div
