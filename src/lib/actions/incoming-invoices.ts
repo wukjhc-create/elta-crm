@@ -619,8 +619,11 @@ export async function convertIncomingInvoiceLinesAction(
   plan: LinePlanInput[]
 ): Promise<ConvertAndApproveResult> {
   const { userId, supabase, hasPermission } = await getAuthenticatedClientWithRole()
-  if (!hasPermission('incoming_invoices.approve')) {
-    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.approve', invoiceStatusFlipped: false, perLine: [], caseId: null }
+  // Henrik 2026-10-15 (PR-1): godkendelse og fordeling til sag er SEPARATE handlinger. Fordeling (materiale/udlæg på
+  // sagen) kræver adgang til leverandørfakturaer + materialeret — ikke godkenderret (admin + serviceleder; bogholderi
+  // godkender men fordeler ikke; montør/salg ser ikke leverandørfakturaer)
+  if (!hasPermission('incoming_invoices.view')) {
+    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.view', invoiceStatusFlipped: false, perLine: [], caseId: null }
   }
   if (!hasPermission('materials.add_to_case')) {
     return { ok: false, message: 'Manglende tilladelse: materials.add_to_case', invoiceStatusFlipped: false, perLine: [], caseId: null }

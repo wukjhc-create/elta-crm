@@ -44,7 +44,7 @@
  *       materialet låst til fakturalinjen (ingen dobbeltfakturering)
  *   U27 lead → kunde: "Opret som kunde" → kundesiden; leadet viser "Gå til kunde"; 2. lead med samme mail kobles til
  *       SAMME kunde (ingen dublet)
- *   U28 leverandørfaktura → sag: "Forhåndsvis & godkend" → godkendt, linjer konverteret til sagsmaterialer (kobling
+ *   U28 leverandørfaktura → sag (PR-1): bogholderi godkender (ingen auto-konvertering), serviceleder fordeler linjer til sagsmaterialer (kobling
  *       begge veje), INGEN e-conomic-bogføring
  *   U29 betaling: sendt faktura → "Markér som betalt" (m. reference) → status betalt + audit-række (D1 i praksis)
  *   U30 planlægning: kalender → "Planlæg opgave" (sag, montør, dato, titel) → arbejdsordre i DB og synlig i kalenderen
@@ -1258,21 +1258,54 @@ ${m.text()}`) })
           { incoming_invoice_id: u28.invoiceId, line_number: 2, description: 'Dåse', quantity: 5, unit: 'stk', unit_price: 8, total_price: 40 },
         ])
         const seedErr = !u28.invoiceId ? `seed: ${inv?.error?.message ?? sc.error?.message ?? sup.error?.message ?? '?'}` : ''
+        // PR-1 (Henrik 2026-10-15): godkendelse (bogholderi/admin) og fordeling til sag (admin/serviceleder) er separate;
+        // godkendelse konverterer ALDRIG linjer automatisk. Negativ: serviceleder kan ikke godkende; montør/salg ingen adgang
+        const sl = await login(await mkUser('serviceleder'))
+        try {
+          await gotoSafe(sl.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await sl.page.getByText(`UI-E2E-U28-${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.serviceleder_kan_ikke_godkende = (await sl.page.getByTestId('invoice-approve').count()) === 0
+        } finally { await sl.ctx.close().catch(() => {}) }
         await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
-        await a.page.getByRole('button', { name: /Forhåndsvis & godkend/ }).click({ timeout: 60_000 }).catch(() => {})
-        const ack = a.page.locator('input[type="checkbox"]').last()
-        if (await ack.isVisible().catch(() => false)) await ack.check().catch(() => {})
-        await a.page.getByRole('button', { name: /^(Godkend|Konvertér linjer)$/ }).last().click({ timeout: 60_000 }).catch(() => {})
-        let st = ''
-        for (let i = 0; i < 20 && st !== 'approved'; i++) {
-          st = String(((await c.admin.from('incoming_invoices').select('status').eq('id', u28.invoiceId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
-          if (st !== 'approved') await new Promise((res) => setTimeout(res, 1000))
-        }
-        r.godkendt = st === 'approved'
+        r.admin_ser_godkend = (await a.page.getByTestId('invoice-approve').count()) === 1
+        const bog = await login(await mkUser('bogholderi'))
+        try {
+          await gotoSafe(bog.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await bog.page.getByTestId('invoice-approve').click({ timeout: 60_000 }).catch(() => {})
+          // markeret til manuel gennemgang → bekræftelse
+          const yes = bog.page.getByRole('button', { name: 'Ja, godkend' })
+          if (await yes.isVisible().catch(() => false)) await yes.click().catch(() => {})
+          let st = ''
+          for (let i = 0; i < 20 && st !== 'approved'; i++) {
+            st = String(((await c.admin.from('incoming_invoices').select('status').eq('id', u28.invoiceId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+            if (st !== 'approved') await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.bogholderi_godkendt = st === 'approved'
+          r.ingen_auto_konvertering = (((await c.admin.from('case_materials').select('id').eq('case_id', u28.caseId)).data ?? []).length) === 0
+          await gotoSafe(bog.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.bogholderi_kan_ikke_fordele = (await bog.page.getByTestId('invoice-allocate').count()) === 0
+        } finally { await bog.ctx.close().catch(() => {}) }
+        const aud = ((await c.admin.from('incoming_invoice_audit_log').select('action').eq('incoming_invoice_id', u28.invoiceId)).data ?? []) as Array<{ action: string }>
+        r.audit_godkendt = aud.some((x) => x.action === 'approved')
+        // fordeling til sag som separat handling (serviceleder)
+        const sl2 = await login(await mkUser('serviceleder'))
+        try {
+          await gotoSafe(sl2.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await sl2.page.getByTestId('invoice-allocate').click({ timeout: 60_000 }).catch(() => {})
+          await sl2.page.getByRole('button', { name: /^Konvertér linjer$/ }).last().click({ timeout: 60_000 }).catch(() => {})
+          for (let i = 0; i < 20 && (((await c.admin.from('case_materials').select('id').eq('case_id', u28.caseId)).data ?? []).length) < 2; i++) await new Promise((res) => setTimeout(res, 1000))
+        } finally { await sl2.ctx.close().catch(() => {}) }
         const mats = ((await c.admin.from('case_materials').select('id, source, source_incoming_invoice_line_id, quantity, unit_cost').eq('case_id', u28.caseId)).data ?? []) as Array<{ id: string; source: string; source_incoming_invoice_line_id: string | null; quantity: number; unit_cost: number }>
-        r.materialer = mats.length === 2 && mats.every((m0) => m0.source === 'supplier_invoice' && !!m0.source_incoming_invoice_line_id)
+        r.serviceleder_fordelte = mats.length === 2 && mats.every((m0) => m0.source === 'supplier_invoice' && !!m0.source_incoming_invoice_line_id)
         const lines = ((await c.admin.from('incoming_invoice_lines').select('converted_case_material_id').eq('incoming_invoice_id', u28.invoiceId)).data ?? []) as Array<{ converted_case_material_id: string | null }>
         r.kobling_begge_veje = lines.length === 2 && lines.every((l) => !!l.converted_case_material_id && mats.some((m0) => m0.id === l.converted_case_material_id))
+        for (const u of [montor, salg]) {
+          const x = await login(u)
+          try {
+            await gotoSafe(x.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            r[`${u === montor ? 'montoer' : 'salg'}_ingen_adgang`] = (await x.page.getByTestId('invoice-approve').count()) === 0 && (await x.page.getByTestId('invoice-allocate').count()) === 0 && (await x.page.getByText(`UI-E2E-U28-${stamp}`).count()) === 0
+          } finally { await x.ctx.close().catch(() => {}) }
+        }
         const ext = ((await c.admin.from('incoming_invoices').select('external_invoice_id, posted_at').eq('id', u28.invoiceId).maybeSingle()).data as { external_invoice_id?: string | null; posted_at?: string | null } | null)
         r.ingen_bogfoering = !ext?.external_invoice_id && !ext?.posted_at
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u28-godkend-faktura.png'), fullPage: true }).catch(() => {})

@@ -9,8 +9,8 @@
  * (incoming_invoices.view; beløb bag economy.cost_prices). URL-drevne filtre/
  * search/sort/page så links kan deles. Konvertér-handlingen genbruger det
  * eksisterende Ø9.2-flow (preview/godkend) — ingen parallelle regler:
- *   • received/awaiting → approveIncomingInvoiceWithConversionAction (konvertér + godkend)
- *   • approved/posted   → convertIncomingInvoiceLinesAction (konvertér kun, ingen status-flip)
+ *   • approved/posted → convertIncomingInvoiceLinesAction (fordel kun, ingen status-flip)
+ *   • ikke-godkendte godkendes på fakturaen — PR-1 (Henrik 2026-10-15): godkendelse konverterer aldrig automatisk
  */
 
 import Link from 'next/link'
@@ -30,7 +30,6 @@ import {
 } from '@/lib/actions/service-case-economy'
 import {
   getIncomingInvoiceDetailAction,
-  approveIncomingInvoiceWithConversionAction,
   convertIncomingInvoiceLinesAction,
   type IncomingInvoiceDetail,
 } from '@/lib/actions/incoming-invoices'
@@ -152,18 +151,16 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
     setModalError(null)
   }
 
-  // received/awaiting → konvertér + godkend (Ø9.2). approved/posted → konvertér kun.
-  const isApproveMode = !!modalInvoice && ['received', 'awaiting_approval'].includes(modalInvoice.status)
-  const requireReviewAck = isApproveMode && (modalDetail?.invoice.requires_manual_review ?? false)
+  // PR-1 (Henrik 2026-10-15): kun fordeling af godkendte/bogførte fakturaer herfra — godkendelse sker på fakturaen og
+  // konverterer aldrig linjer automatisk
+  const requireReviewAck = false
 
   const confirmConvert = async (plan: LinePlan[]) => {
     if (!modalInvoice) return
     setModalBusy(true)
     setModalError(null)
     const mapped = plan.map((p) => ({ lineId: p.lineId, disposition: p.disposition, category: p.category }))
-    const r = isApproveMode
-      ? await approveIncomingInvoiceWithConversionAction(modalInvoice.id, mapped, requireReviewAck)
-      : await convertIncomingInvoiceLinesAction(modalInvoice.id, mapped)
+    const r = await convertIncomingInvoiceLinesAction(modalInvoice.id, mapped)
     setModalBusy(false)
     if (!r.ok) {
       const failed = r.perLine.filter((l) => !l.ok)
@@ -409,7 +406,7 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
           <ApprovePreviewDialog
             open
             detail={modalDetail}
-            mode={isApproveMode ? 'approve' : 'convert_only'}
+            mode="convert_only"
             requireReviewAck={requireReviewAck}
             busy={modalBusy}
             errorText={modalError}
@@ -468,12 +465,12 @@ function ExpandedInvoices({
               {iv.unconverted_line_count} linje(r)
               {d.can_view_amounts && iv.unconverted_amount != null && <span className="text-gray-500"> · {kr(iv.unconverted_amount)}</span>}
             </span>
-            {showConvert ? (
+            {showConvert && (iv.status === 'approved' || iv.status === 'posted') ? (
               <button
                 onClick={() => onConvert(iv.id, iv.status)}
                 className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
               >
-                <Wand2 className="w-3 h-3" /> Konvertér
+                <Wand2 className="w-3 h-3" /> Fordel til sag
               </button>
             ) : (
               <Link href={iv.link} className="inline-flex items-center gap-1 text-xs text-blue-700 hover:underline">
@@ -485,7 +482,7 @@ function ExpandedInvoices({
       ))}
       <p className="text-[11px] text-gray-400 mt-1">
         Intern indkøbsøkonomi — ikke kundevendt. Konvertering fører linjer ind som materiale/udlæg på sagen
-        {showConvert ? '' : ' (kræver godkendelses- og materialerettighed)'}.
+        {showConvert ? ' — ikke-godkendte fakturaer godkendes først på fakturaen' : ' (kræver materialeret)'}.
       </p>
     </div>
   )

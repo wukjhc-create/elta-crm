@@ -19,9 +19,9 @@ export default async function PurchaseOperationsPage() {
 
   // Sprint Ø9.7 — inline konvertér+godkend kræver BEGGE rettigheder (samme dual-
   // gate som Ø9.2-flowet). Side-gate er defense-in-depth ud over server action.
-  const canConvert =
-    (await pageHasPermission('incoming_invoices.approve')) &&
-    (await pageHasPermission('materials.add_to_case'))
+  // PR-1 (Henrik 2026-10-15): fordeling til sag er adskilt fra godkendelse — kræver materialeret (siden kræver allerede
+  // incoming_invoices.view); kun godkendte/bogførte fakturaer kan fordeles herfra
+  const canConvert = await pageHasPermission('materials.add_to_case')
 
   // Suspense: klienten bruger useSearchParams (URL-drevne filtre).
   return (

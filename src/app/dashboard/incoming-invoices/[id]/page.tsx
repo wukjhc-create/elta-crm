@@ -30,5 +30,7 @@ export default async function IncomingInvoiceDetailPage({
     economicReady = false
   }
   const canEditHeader = await pageHasPermission('incoming_invoices.edit')
-  return <IncomingInvoiceDetailClient initial={detail} canPost={canPost} canEditHeader={canEditHeader} economicReady={economicReady} />
+  // PR-1 (Henrik 2026-10-15): godkend (bogholderi/admin) og fordel til sag (admin/serviceleder) er separate handlinger
+  const canAllocate = await pageHasPermission('materials.add_to_case')
+  return <IncomingInvoiceDetailClient initial={detail} canPost={canPost} canEditHeader={canEditHeader} economicReady={economicReady} canApprove={canPost} canAllocate={canAllocate} />
 }

@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   approveIncomingInvoiceAction,
-  approveIncomingInvoiceWithConversionAction,
+  convertIncomingInvoiceLinesAction,
   deleteTestIncomingInvoiceAction,
   getIncomingInvoiceDetailAction,
   reparseIncomingInvoiceAction,
@@ -55,11 +55,15 @@ export function IncomingInvoiceDetailClient({
   canPost = false,
   canEditHeader = false,
   economicReady = false,
+  canApprove = false,
+  canAllocate = false,
 }: {
   initial: IncomingInvoiceDetail
   canPost?: boolean
   canEditHeader?: boolean
   economicReady?: boolean
+  canApprove?: boolean
+  canAllocate?: boolean
 }) {
   const router = useRouter()
   const { role } = useUserRole()
@@ -142,17 +146,17 @@ export function IncomingInvoiceDetailClient({
    * before flipping status. If any conversion fails, the invoice
    * stays awaiting_approval and the operator sees per-line errors.
    */
+  // PR-1 (Henrik 2026-10-15): fordeling til sag sker EFTER godkendelse som egen handling (ingen automatisk konvertering)
   const approveFromPreview = async (plan: LinePlan[]) => {
     setApprovePreviewError(null)
     setApprovePreviewBusy(true)
-    const r = await approveIncomingInvoiceWithConversionAction(
+    const r = await convertIncomingInvoiceLinesAction(
       inv.id,
       plan.map((p) => ({
         lineId: p.lineId,
         disposition: p.disposition,
         category: p.category,
       })),
-      review
     )
     setApprovePreviewBusy(false)
     if (!r.ok) {
@@ -548,9 +552,25 @@ export function IncomingInvoiceDetailClient({
 
       <Panel title="Handlinger">
         {terminal ? (
-          <p className="text-xs text-gray-500">
-            Faktura er allerede {inv.status} — ingen yderligere handlinger.
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500">
+              Faktura er {inv.status === 'approved' ? 'godkendt' : inv.status === 'posted' ? 'bogført' : inv.status === 'rejected' ? 'afvist' : 'annulleret'}.
+            </p>
+            {/* PR-1 (Henrik 2026-10-15): fordeling til sag er en separat handling efter godkendelse */}
+            {(inv.status === 'approved' || inv.status === 'posted') && canAllocate && detail.lines.length > 0 && (
+              detail.case ? (
+                <Button
+                  data-testid="invoice-allocate"
+                  onClick={() => { setApprovePreviewError(null); setShowApprovePreview(true) }}
+                  disabled={busy || approvePreviewBusy}
+                >
+                  Fordel linjer til sag
+                </Button>
+              ) : (
+                <p className="text-xs text-amber-800">Fakturaen er ikke matchet til en sag — linjerne kan ikke fordeles.</p>
+              )
+            )}
+          </div>
         ) : showReject ? (
           <div className="space-y-2">
             <textarea
@@ -572,26 +592,33 @@ export function IncomingInvoiceDetailClient({
                 <AlertCircleIcon />
                 <span>
                   <span className="font-medium">Faktura kræver manuel gennemgang.</span>{' '}
-                  Bekræft i forhåndsvisningen før godkendelse.
+                  Du bekræfter gennemgangen ved godkendelse.
                 </span>
               </div>
             )}
             {!detail.case && (
               <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Match fakturaen til en sag før du forhåndsviser godkendelse.
+                Fakturaen er ikke matchet til en sag. Den kan godkendes, men linjerne kan først fordeles til en sag efter match.
               </div>
             )}
 
+            {confirmReview && (
+              <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 flex items-center gap-2 flex-wrap" data-testid="invoice-approve-review-confirm">
+                <span>Fakturaen er markeret til manuel gennemgang. Har du kontrolleret leverandør, beløb og linjer?</span>
+                <Button size="sm" onClick={() => approve(true)} disabled={busy}>Ja, godkend</Button>
+                <Button size="sm" variant="outline" onClick={() => setConfirmReview(false)} disabled={busy}>Fortryd</Button>
+              </div>
+            )}
             <div className="flex gap-2 flex-wrap">
-              <Button
-                onClick={() => {
-                  setApprovePreviewError(null)
-                  setShowApprovePreview(true)
-                }}
-                disabled={busy || approvePreviewBusy}
-              >
-                Forhåndsvis & godkend
-              </Button>
+              {canApprove && (
+                <Button
+                  data-testid="invoice-approve"
+                  onClick={() => (review ? setConfirmReview(true) : approve(false))}
+                  disabled={busy}
+                >
+                  Godkend
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setShowReject(true)} disabled={busy}>Afvis</Button>
               {/* N79: genvej for kundemails/ansøgninger der er havnet som "faktura" (N68 "Ikke en faktura?") —
                   udfylder kun begrundelsen; afvisningen bekræftes som altid */}
@@ -654,6 +681,7 @@ export function IncomingInvoiceDetailClient({
           }
         }}
         onConfirm={approveFromPreview}
+        mode="convert_only"
         onMatchCase={() => {
           setShowApprovePreview(false)
           setCasePickerError(null)
