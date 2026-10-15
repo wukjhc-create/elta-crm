@@ -309,10 +309,10 @@ function UnbilledCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Klar til fakturering"
       icon={<FileText className="h-4 w-4" />}
-      tone={caseCount > 0 ? 'amber' : 'green'}
+      tone={err ? 'gray' : caseCount > 0 ? 'amber' : 'green'}
       href="/dashboard/orders"
-      headline={caseCount}
-      headlineLabel={caseCount > 0 ? `sager · ${kr(saleTotal)} ufaktureret` : 'sager med ufaktureret arbejde'}
+      headline={err ? '—' : caseCount}
+      headlineLabel={err ? 'Det tælles ikke som 0.' : caseCount > 0 ? `sager · ${kr(saleTotal)} ufaktureret` : 'sager med ufaktureret arbejde'}
       error={err}
     >
       {cases.length === 0 ? (
@@ -347,10 +347,10 @@ function WebInquiriesCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Henvendelser fra hjemmesiden"
       icon={<Mail className="h-4 w-4" />}
-      tone={count > 0 ? 'red' : 'green'}
+      tone={err ? 'gray' : count > 0 ? 'red' : 'green'}
       href="/dashboard/mail?filter=webform"
-      headline={count}
-      headlineLabel={count > 0 ? 'uden kunde eller lead (90 dage)' : 'henvendelser at følge op'}
+      headline={err ? '—' : count}
+      headlineLabel={err ? 'Det tælles ikke som 0.' : count > 0 ? 'uden kunde eller lead (90 dage)' : 'henvendelser at følge op'}
       error={err}
     >
       {count > 1 && <CockpitBulkLeadsButton count={count} />}
@@ -435,10 +435,10 @@ function OverdueInvoicesCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Forfaldne fakturaer"
       icon={<FileText className="h-4 w-4" />}
-      tone={count > 0 ? 'red' : 'green'}
+      tone={err ? 'gray' : count > 0 ? 'red' : 'green'}
       href="/dashboard/invoices?filter=overdue"
-      headline={count}
-      headlineLabel={count > 0 ? `fakturaer · ${kr(total)} over forfald` : 'fakturaer over forfald'}
+      headline={err ? '—' : count}
+      headlineLabel={err ? 'Det tælles ikke som 0.' : count > 0 ? `fakturaer · ${kr(total)} over forfald` : 'fakturaer over forfald'}
       error={err}
     >
       {items.length === 0 ? (
@@ -480,10 +480,10 @@ function PortalMessagesCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Kundebeskeder (portal)"
       icon={<Mail className="h-4 w-4" />}
-      tone={unreadCount > 0 ? 'amber' : 'green'}
+      tone={err ? 'gray' : unreadCount > 0 ? 'amber' : 'green'}
       href="/dashboard/customers"
-      headline={unreadCount}
-      headlineLabel="ulæste fra kunder"
+      headline={err ? '—' : unreadCount}
+      headlineLabel={err ? 'Det tælles ikke som 0.' : 'ulæste fra kunder'}
       error={err}
     >
       {customers.length === 0 ? (
@@ -515,10 +515,10 @@ function NewCustomersCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Nye kunder uden tilbud"
       icon={<FileText className="h-4 w-4" />}
-      tone={count > 0 ? 'amber' : 'green'}
+      tone={err ? 'gray' : count > 0 ? 'amber' : 'green'}
       href="/dashboard/customers"
-      headline={count}
-      headlineLabel="seneste 30 dage — intet tilbud/sag"
+      headline={err ? '—' : count}
+      headlineLabel={err ? 'Det tælles ikke som 0.' : 'seneste 30 dage — intet tilbud/sag'}
       error={err}
     >
       {items.length === 0 ? (
@@ -551,10 +551,10 @@ function VisitsCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Kommende besigtigelser"
       icon={<CalendarClock className="h-4 w-4" />}
-      tone={upcoming.length > 0 ? 'blue' : 'gray'}
+      tone={err ? 'gray' : upcoming.length > 0 ? 'blue' : 'gray'}
       href="/dashboard/calendar"
-      headline={upcoming.length}
-      headlineLabel="planlagte"
+      headline={err ? '—' : upcoming.length}
+      headlineLabel={err ? 'Det tælles ikke som 0.' : 'planlagte'}
       error={err}
     >
       {empty ? (
