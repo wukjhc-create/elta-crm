@@ -178,7 +178,10 @@ export async function getCustomerImages(
       .from('attachments')
       .list(folderPath, { limit: 200 })
 
-    if (error || !files) {
+    if (error) {
+      return { success: false, error: 'Kunne ikke hente billeder' }
+    }
+    if (!files) {
       return { success: true, data: [] }
     }
 

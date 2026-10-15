@@ -53,19 +53,33 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
 
   const [documents, setDocuments] = useState<CustomerDocument[]>([])
   const [images, setImages] = useState<CustomerImage[]>([])
+  const [docsError, setDocsError] = useState<string | null>(null)
+  const [imagesError, setImagesError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
 
   const load = async () => {
     setIsLoading(true)
-    const [docsResult, imgsResult] = await Promise.all([
-      getCustomerDocuments(customerId),
-      getCustomerImages(customerId),
-    ])
-    if (docsResult.success) setDocuments(docsResult.data || [])
-    if (imgsResult.success) setImages(imgsResult.data || [])
-    setIsLoading(false)
+    try {
+      const [docsResult, imgsResult] = await Promise.all([
+        getCustomerDocuments(customerId),
+        getCustomerImages(customerId),
+      ])
+      if (docsResult.success) {
+        setDocuments(docsResult.data || [])
+        setDocsError(null)
+      } else setDocsError(docsResult.error || 'Kunne ikke hente dokumenter')
+      if (imgsResult.success) {
+        setImages(imgsResult.data || [])
+        setImagesError(null)
+      } else setImagesError(imgsResult.error || 'Kunne ikke hente billeder')
+    } catch {
+      setDocsError('Kunne ikke hente dokumenter')
+      setImagesError('Kunne ikke hente billeder')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [customerId])
@@ -213,9 +227,20 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
     <div className="space-y-4 sm:space-y-6">
       {/* Action bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <p className="text-sm text-gray-500">
-          {documents.length} dokument{documents.length !== 1 ? 'er' : ''} &bull; {images.length} billede{images.length !== 1 ? 'r' : ''}
-        </p>
+        {docsError || imagesError ? (
+          <div className="text-sm text-red-700">
+            <p data-testid="customer-documents-load-error">
+              {[docsError, imagesError].filter(Boolean).join('. ')}. Det tælles ikke som ingen dokumenter.
+            </p>
+            <button type="button" onClick={() => void load()} className="mt-2 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800">
+              Prøv igen
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">
+            {documents.length} dokument{documents.length !== 1 ? 'er' : ''} &bull; {images.length} billede{images.length !== 1 ? 'r' : ''}
+          </p>
+        )}
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -490,7 +515,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
       )}
 
       {/* Empty state */}
-      {!hasContent && (
+      {!hasContent && !docsError && !imagesError && (
         <div className="bg-white rounded-lg border p-8 sm:p-12 text-center">
           <FolderOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500 font-medium">Ingen dokumenter eller billeder endnu</p>
