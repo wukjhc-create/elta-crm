@@ -23,6 +23,14 @@ type InvoiceCandidate = {
 const fmtAmount = (n: number, currency = 'DKK') =>
   new Intl.NumberFormat('da-DK', { style: 'currency', currency, maximumFractionDigits: 2 }).format(n)
 
+const STATUS_LABEL: Record<string, string> = {
+  unmatched: 'Uden match',
+  ambiguous: 'Tvetydig',
+  partial: 'Delvist',
+  overpayment: 'Overbetaling',
+  matched: 'Matchet',
+}
+
 export function BankTransactionsClient({ initialRows }: { initialRows: BankTxListRow[] }) {
   const [rows, setRows] = useState<BankTxListRow[]>(initialRows)
   const [busy, startTransition] = useTransition()
@@ -38,10 +46,10 @@ export function BankTransactionsClient({ initialRows }: { initialRows: BankTxLis
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">Bankafstemning</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setCsvOpen((o) => !o)}>
             Importér CSV
           </Button>
@@ -50,7 +58,7 @@ export function BankTransactionsClient({ initialRows }: { initialRows: BankTxLis
               startTransition(async () => {
                 const summary = await runAutoMatchAction()
                 setMatchMsg(
-                  `Scannede ${summary.scanned} · matched ${summary.matched} · partial ${summary.partial} · over ${summary.overpayment} · ambiguous ${summary.ambiguous} · unmatched ${summary.unmatched}`
+                  `Gennemgik ${summary.scanned}. Matchet ${summary.matched}. Delvist ${summary.partial}. Overbetaling ${summary.overpayment}. Tvetydige ${summary.ambiguous}. Uden match ${summary.unmatched}.`
                 )
                 await refresh()
               })
@@ -94,7 +102,17 @@ export function BankTransactionsClient({ initialRows }: { initialRows: BankTxLis
       {importMsg && <div className="text-sm text-gray-700">{importMsg}</div>}
       {matchMsg && <div className="text-sm text-gray-700">{matchMsg}</div>}
 
-      <div className="border rounded overflow-hidden">
+      {rows.length === 0 && (
+        <p className="text-sm text-gray-500">Ingen umatchede transaktioner.</p>
+      )}
+
+      <div className="md:hidden space-y-2" data-testid="bank-tx-mobile">
+        {rows.map((r) => (
+          <BankTxCard key={r.id} row={r} onMatched={refresh} />
+        ))}
+      </div>
+
+      <div className="hidden md:block border rounded overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-100 text-left">
             <tr>
@@ -107,9 +125,6 @@ export function BankTransactionsClient({ initialRows }: { initialRows: BankTxLis
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">Ingen umatchede transaktioner.</td></tr>
-            )}
             {rows.map((r) => (
               <BankTxRow key={r.id} row={r} onMatched={refresh} />
             ))}
@@ -120,7 +135,7 @@ export function BankTransactionsClient({ initialRows }: { initialRows: BankTxLis
   )
 }
 
-function BankTxRow({ row, onMatched }: { row: BankTxListRow; onMatched: () => Promise<void> }) {
+function useManualMatch(rowId: string, onMatched: () => Promise<void>) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<InvoiceCandidate[]>([])
@@ -136,11 +151,83 @@ function BankTxRow({ row, onMatched }: { row: BankTxListRow; onMatched: () => Pr
 
   const apply = (invoiceId: string) => {
     startTransition(async () => {
-      await manualMatchAction(row.id, invoiceId)
+      await manualMatchAction(rowId, invoiceId)
       setOpen(false)
       await onMatched()
     })
   }
+
+  return { open, setOpen, query, search, results, apply }
+}
+
+function MatchPanel({
+  query,
+  search,
+  results,
+  apply,
+}: {
+  query: string
+  search: (q: string) => void
+  results: InvoiceCandidate[]
+  apply: (invoiceId: string) => void
+}) {
+  return (
+    <div>
+      <input
+        value={query}
+        onChange={(e) => search(e.target.value)}
+        className="border rounded px-2 py-1 text-sm w-full mb-2"
+        placeholder="Søg fakturanummer (F-2026-…)"
+        aria-label="Søg fakturanummer"
+      />
+      <div className="space-y-1 max-h-64 overflow-auto">
+        {results.length === 0 && <div className="text-xs text-gray-500">Ingen kandidater.</div>}
+        {results.map((inv) => (
+          <div key={inv.id} className="flex flex-wrap items-center justify-between gap-2 border rounded px-2 py-1 bg-white text-xs">
+            <div>
+              <span className="font-medium">{inv.invoice_number}</span>
+              <span className="ml-2 text-gray-500">
+                {fmtAmount(Number(inv.final_amount), inv.currency)} · {inv.status} / {inv.payment_status}
+              </span>
+            </div>
+            <Button size="sm" onClick={() => apply(inv.id)}>Match</Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BankTxCard({ row, onMatched }: { row: BankTxListRow; onMatched: () => Promise<void> }) {
+  const match = useManualMatch(row.id, onMatched)
+  return (
+    <article className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium text-gray-900">{fmtAmount(Number(row.amount))}</p>
+          <p className="text-xs text-gray-500">{row.date}</p>
+        </div>
+        <StatusBadge status={row.match_status} />
+      </div>
+      <p className="mt-2 text-gray-800">{row.reference_text || '—'}</p>
+      <p className="text-xs text-gray-600">{row.sender_name || '—'}</p>
+      {row.candidate_invoice_ids && row.candidate_invoice_ids.length > 0 && (
+        <p className="text-xs text-gray-500">{row.candidate_invoice_ids.length} kandidater</p>
+      )}
+      <Button size="sm" variant="outline" className="mt-2" onClick={() => match.setOpen((o) => !o)}>
+        {match.open ? 'Luk' : 'Find faktura'}
+      </Button>
+      {match.open && (
+        <div className="mt-2">
+          <MatchPanel query={match.query} search={match.search} results={match.results} apply={match.apply} />
+        </div>
+      )}
+    </article>
+  )
+}
+
+function BankTxRow({ row, onMatched }: { row: BankTxListRow; onMatched: () => Promise<void> }) {
+  const match = useManualMatch(row.id, onMatched)
 
   return (
     <>
@@ -156,37 +243,15 @@ function BankTxRow({ row, onMatched }: { row: BankTxListRow; onMatched: () => Pr
           )}
         </td>
         <td className="px-3 py-2">
-          <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>
-            {open ? 'Luk' : 'Find faktura'}
+          <Button size="sm" variant="outline" onClick={() => match.setOpen((o) => !o)}>
+            {match.open ? 'Luk' : 'Find faktura'}
           </Button>
         </td>
       </tr>
-      {open && (
+      {match.open && (
         <tr className="bg-gray-50 border-t">
           <td colSpan={6} className="px-3 py-3">
-            <div className="flex gap-2 mb-2">
-              <input
-                value={query}
-                onChange={(e) => search(e.target.value)}
-                className="border rounded px-2 py-1 text-sm w-64"
-                placeholder="Søg fakturanummer (F-2026-…)"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1 max-h-64 overflow-auto">
-              {results.length === 0 && <div className="text-xs text-gray-500">Ingen kandidater.</div>}
-              {results.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between border rounded px-2 py-1 bg-white text-xs">
-                  <div>
-                    <span className="font-medium">{inv.invoice_number}</span>
-                    <span className="ml-2 text-gray-500">
-                      {fmtAmount(Number(inv.final_amount), inv.currency)} · {inv.status} / {inv.payment_status}
-                    </span>
-                  </div>
-                  <Button size="sm" onClick={() => apply(inv.id)}>Match</Button>
-                </div>
-              ))}
-            </div>
+            <MatchPanel query={match.query} search={match.search} results={match.results} apply={match.apply} />
           </td>
         </tr>
       )}
@@ -205,5 +270,5 @@ function StatusBadge({ status }: { status: string }) {
       : status === 'overpayment'
       ? 'bg-purple-100 text-purple-800'
       : 'bg-emerald-100 text-emerald-800'
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{status}</span>
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{STATUS_LABEL[status] ?? status}</span>
 }

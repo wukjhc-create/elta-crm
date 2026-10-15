@@ -37,6 +37,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Sagens øvrige omkostninger vises som kort under `md`. Kost og foreløbig DB kræver `showCost`. DB-testid bliver i tabellen. | DONE — `other-costs-mobile-test` |
 | Timer på arbejdsordren vises som kort under `md`. Kost kræver `canSeeCost`. Salg kræver `canSeeSale`, også i overskriften. Satstype bruger samme skift. | DONE — `time-logs-mobile-test` |
 | Fakturaer på sagen vises som kort under `md`. Beløb er inkl. moms. Hent har en synlig tekst. Kost vises ikke. | DONE — `case-invoices-mobile-test` |
+| Bankafstemning viser kort under `md`. Status og auto-match er på dansk. Find faktura bruger samme match. | DONE — `bank-mobile-test` |
+
+AGENT: GROK
+BRANCH: grok-next
+LAST_COMMIT: bank-mobile (denne omgang)
+TESTS: oioubl-test, aftercalc-overview-mobile-test, case-supplier-invoices-mobile-test, other-costs-mobile-test, time-logs-mobile-test, case-invoices-mobile-test, bank-mobile-test, tsc --noEmit
+BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00223 GP-1 RLS, 00224 GP-6 (migrationer, ikke kørt). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
+NEXT_QUEUE: rapport top-kunder kort; rapportens øvrige tabeller; indkøbsdrift kort; medarbejderøkonomi kort bag kost-gate; prisliste kort med kost-gate; tilbuds-profit manglende kost som tekst; fakturakontrol fragt/gebyr-tekst; kundeopgaver tom tilstand; planlægningsfiltre på 375px; lead næste handling; tilbudstom tilstand; dashboard tomme nøgletal; leverandørfaktura-linjer kort; kalenderuge ansvarlig; aria-label på ikonknapper.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
