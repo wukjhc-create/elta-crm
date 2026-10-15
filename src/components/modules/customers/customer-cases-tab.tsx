@@ -7,7 +7,7 @@
  * lukkede sidst) og derefter created_at desc. Klik åbner /dashboard/orders/{id}.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Briefcase, ChevronRight, Plus } from 'lucide-react'
 import { format } from 'date-fns'
@@ -54,9 +54,15 @@ function fmtDate(s: string | null | undefined): string | null {
 export function CustomerCasesTab({ customerId }: { customerId: string }) {
   const [cases, setCases] = useState<ServiceCase[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const loadedFor = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    if (loadedFor.current !== customerId) {
+      setCases([])
+      setError(null)
+    }
     setIsLoading(true)
     getCustomerServiceCases(customerId)
       .then((data) => {
@@ -68,7 +74,13 @@ export function CustomerCasesTab({ customerId }: { customerId: string }) {
           if (rankA !== rankB) return rankA - rankB
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         })
+        loadedFor.current = customerId
+        setError(null)
         setCases(sorted)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setError('Kunne ikke hente sager. Det tælles ikke som ingen sager.')
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -78,10 +90,18 @@ export function CustomerCasesTab({ customerId }: { customerId: string }) {
     }
   }, [customerId])
 
-  if (isLoading) {
+  if (isLoading && cases.length === 0) {
     return (
       <div className="bg-white rounded-lg border p-12 flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  if (error && cases.length === 0) {
+    return (
+      <div className="bg-white rounded-lg border p-12 text-center" data-testid="customer-cases-load-error">
+        <p className="font-medium text-red-700">{error}</p>
       </div>
     )
   }
@@ -103,6 +123,9 @@ export function CustomerCasesTab({ customerId }: { customerId: string }) {
 
   return (
     <div className="bg-white rounded-lg border">
+      {error && (
+        <p className="px-4 pt-3 text-sm text-red-700" data-testid="customer-cases-load-error">{error}</p>
+      )}
       <div className="p-4 border-b flex items-center gap-2">
         <Briefcase className="w-4 h-4 text-blue-600" />
         <h3 className="font-semibold text-sm">Sager</h3>

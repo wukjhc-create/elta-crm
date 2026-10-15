@@ -3,7 +3,7 @@
 import { CreateLeadFromMailButton } from './create-lead-from-mail-button'
 import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import { WebInquiryCard } from './web-inquiry-card'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Mail,
   Bot,
@@ -841,6 +841,8 @@ function EmailCasePicker({
   const [isSaving, setIsSaving] = useState(false)
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(currentCaseId)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [casesError, setCasesError] = useState<string | null>(null)
+  const loadedCustomer = useRef<string | null>(null)
 
   useEffect(() => {
     setSelectedCaseId(currentCaseId)
@@ -848,6 +850,10 @@ function EmailCasePicker({
 
   useEffect(() => {
     let cancelled = false
+    if (loadedCustomer.current !== customerId) {
+      setCases([])
+      setCasesError(null)
+    }
     setIsLoading(true)
     getCustomerServiceCases(customerId)
       .then((data) => {
@@ -859,10 +865,12 @@ function EmailCasePicker({
           if (aClosed !== bClosed) return aClosed - bClosed
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         })
+        loadedCustomer.current = customerId
+        setCasesError(null)
         setCases(sorted)
       })
       .catch(() => {
-        if (!cancelled) setCases([])
+        if (!cancelled) setCasesError('Kunne ikke hente sager. Det tælles ikke som ingen sager.')
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -897,7 +905,7 @@ function EmailCasePicker({
 
   // Sprint 8D-1 bug-fix: hvis kunden ingen sager har, vis tydelig
   // vejledning i stedet for tom dropdown.
-  const hasNoCases = !isLoading && cases.length === 0
+  const hasNoCases = !isLoading && !casesError && cases.length === 0
 
   return (
     <div className="flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 p-2.5 rounded-md flex-wrap">
@@ -916,11 +924,16 @@ function EmailCasePicker({
         <span className="text-amber-700">
           Kunden har ingen sager endnu — brug <strong>&quot;Opret sag&quot;</strong>-knappen nedenfor for at oprette en
         </span>
+      ) : casesError && cases.length === 0 ? (
+        <span className="text-red-700" data-testid="mail-case-picker-load-error">{casesError}</span>
       ) : (
         <span className="text-gray-600">Ingen sag tilknyttet</span>
       )}
       <div className="ml-auto flex items-center gap-2 shrink-0">
-        {!hasNoCases && (
+        {casesError && cases.length > 0 && (
+          <span className="text-xs text-red-700" data-testid="mail-case-picker-load-error">{casesError}</span>
+        )}
+        {!hasNoCases && cases.length > 0 && (
           <select
             value={selectedCaseId || ''}
             onChange={(e) => handleChange(e.target.value || null)}
