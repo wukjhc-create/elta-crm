@@ -27,6 +27,10 @@ eq('bekraeft og annuller bliver', card.includes('aria-label="Bekræft sletning"'
 eq('dybt link rammer det synlige kort', src.includes('getClientRects().length > 0'), true)
 eq('tom liste uden filter bliver', src.includes('Ingen opgaver fundet') && src.includes('Klik "Ny opgave" for at oprette en'), true)
 eq('filter uden traef kan stadig ryddes', src.includes('data-testid="tasks-clear-filters"'), true)
+eq('kortet siger ansvarlig', card.includes('Ansvarlig: {assignee}'), true)
+eq('kortet siger forfald', card.includes('Forfald {format(new Date(task.due_date)'), true)
+eq('kortet siger naar dato mangler', card.includes('Ingen forfaldsdato'), true)
+eq('forfald sammenlignes stadig', src.includes('new Date(task.due_date) < new Date()'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ntasks-mobile-card-test OK')
 process.exitCode = fail ? 1 : 0

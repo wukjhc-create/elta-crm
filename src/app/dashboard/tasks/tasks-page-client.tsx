@@ -797,15 +797,15 @@ function TaskRow({
           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${priorityCfg.bgColor} ${priorityCfg.color}`}>
             {priorityCfg.label}
           </span>
-          <span className="text-sm text-gray-600 break-words">{assignee}</span>
+          <span className="text-sm text-gray-600 break-words">Ansvarlig: {assignee}</span>
           {task.due_date ? (
             <span className={`inline-flex items-center gap-1 text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
               {isOverdue && <AlertTriangle className="w-3.5 h-3.5" />}
               <Clock className="w-3.5 h-3.5" />
-              {format(new Date(task.due_date), 'd. MMM yyyy', { locale: da })}
+              Forfald {format(new Date(task.due_date), 'd. MMM yyyy', { locale: da })}
             </span>
           ) : (
-            <span className="text-sm text-gray-400">—</span>
+            <span className="text-sm text-gray-400">Ingen forfaldsdato</span>
           )}
           {canManage && isDeleting ? (
             <>
