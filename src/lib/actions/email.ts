@@ -14,6 +14,7 @@ import { permissionDenied } from '@/lib/actions/action-helpers'
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
@@ -1255,12 +1256,7 @@ export async function getEmailStats(options?: {
   try {
     const { supabase } = await getAuthenticatedClient()
 
-    let query = supabase
-      .from('email_messages')
-      .select('status, opened_at, clicked_at')
-      .eq('direction', 'outbound')
-      .neq('status', 'draft')
-
+    let threadIds: string[] | null = null
     if (options?.offer_id) {
       // Get threads for this offer first
       const { data: threads, error: threadError } = await supabase
@@ -1270,18 +1266,26 @@ export async function getEmailStats(options?: {
 
       if (threadError) throw new Error('Kunne ikke hente mailstatistik')
       if (threads && threads.length > 0) {
-        query = query.in('thread_id', threads.map(t => t.id))
+        threadIds = threads.map(t => t.id)
       }
     }
 
-    if (options?.days) {
-      const since = new Date()
-      since.setDate(since.getDate() - options.days)
-      query = query.gte('created_at', since.toISOString())
-    }
+    const since = new Date()
+    if (options?.days) since.setDate(since.getDate() - options.days)
 
-    const { data: messages, error } = await query
-    if (error) throw new Error('Kunne ikke hente mailstatistik')
+    // PostgREST giver højst 1000 rækker. En periode over loftet må ikke se for lille ud.
+    const messages = await fetchAllRows<{ status: string; opened_at: string | null; clicked_at: string | null }>((from, to) => {
+      let page = supabase
+        .from('email_messages')
+        .select('status, opened_at, clicked_at')
+        .eq('direction', 'outbound')
+        .neq('status', 'draft')
+        .order('id')
+        .range(from, to)
+      if (threadIds && threadIds.length > 0) page = page.in('thread_id', threadIds)
+      if (options?.days) page = page.gte('created_at', since.toISOString())
+      return page
+    })
 
     if (!messages || messages.length === 0) {
       return {
