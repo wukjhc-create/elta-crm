@@ -29,7 +29,9 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   const params = await searchParams
   const isKanban = params.view === 'kanban'
   const page = isKanban ? 1 : (params.page ? parseInt(params.page, 10) : 1)
-  const pageSize = isKanban ? 500 : (params.pageSize ? parseInt(params.pageSize, 10) : 25)
+  // W-18: pageSize fra URL'en begrænses (1–100); ugyldig → 25
+  const reqSize = params.pageSize ? parseInt(params.pageSize, 10) : 25
+  const pageSize = isKanban ? 500 : (Number.isFinite(reqSize) ? Math.min(100, Math.max(1, reqSize)) : 25)
   const search = params.search || undefined
   const status = params.status || undefined
   const source = params.source || undefined

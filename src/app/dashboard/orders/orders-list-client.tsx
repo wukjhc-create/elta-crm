@@ -56,6 +56,7 @@ const fmtDateRange = (start: string | null, end: string | null) => {
 }
 
 export function OrdersListClient({
+  billingCapHit = null,
   cases,
   employees,
   pagination,
@@ -64,6 +65,7 @@ export function OrdersListClient({
   canSeeBilling = false,
   statusCounts = null,
 }: {
+  billingCapHit?: number | null
   cases: ServiceCaseWithRelations[]
   employees: EmployeeOption[]
   pagination: PaginationState
@@ -194,6 +196,12 @@ export function OrdersListClient({
           </button>
         )}
       </div>
+
+      {billingCapHit != null && (
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-xs text-amber-900" data-testid="orders-billing-cap">
+          Faktureringsfilteret gennemgår de {billingCapHit} nyeste sager — ældre sager er ikke med. Søg eller filtrér på status for at finde dem.
+        </div>
+      )}
 
       {/* Table */}
       <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">

@@ -148,6 +148,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       employees={Array.from(employeeMap.values())}
       economy={economy}
       canSeeBilling={canSeeBilling}
+      // W-16: filteret dækker kun de nyeste N sager — sig det, når der findes flere
+      billingCapHit={!!billingFilter && canSeeBilling && casesResult.data.total > BILLING_FILTER_CAP ? BILLING_FILTER_CAP : null}
       statusCounts={statusCounts}
       pagination={pag}
       filters={{

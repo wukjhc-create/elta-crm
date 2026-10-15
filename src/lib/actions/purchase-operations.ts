@@ -394,7 +394,11 @@ async function fetchPurchaseOpsViaRpc(opts: {
     p_offset: opts.offset,
     p_case_ids: null, // altid NULL i produktion (kun test-scoping)
   })
-  if (error) return { error: error.message, canViewAmounts }
+  // W-18: ingen rå DB-fejl til brugeren
+  if (error) {
+    logger.error('purchase operations rpc failed', { error })
+    return { error: 'Indkøbsdriften kunne ikke hentes — prøv igen', canViewAmounts }
+  }
 
   const payload = (data ?? {}) as Record<string, unknown>
   const rawItems = Array.isArray(payload.items) ? (payload.items as Record<string, unknown>[]) : []
