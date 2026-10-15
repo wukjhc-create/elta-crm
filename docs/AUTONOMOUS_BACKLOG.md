@@ -46,13 +46,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Tilbuddets lønsomhed navngiver linjer uden kostpris. Tallene er de samme. Foldede linjer er kort under `md`. | DONE — `offer-profit-missing-cost-test` |
 | Fakturakontrol markerer fragt og gebyr i teksten. Overpris og motor er uændret. | DONE — `invoice-charge-label-test` |
 | Kundens opgaver forklarer den tomme tilstand og åbner den samme formular. Kun udførte siges højt. | DONE — `customer-tasks-empty-test` |
+| Kalenderens filtre og datovalg ombrydes på mobil. Forrige og næste har et navn. | DONE — `calendar-mobile-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: customer-tasks-empty efter 5ba8db79
-TESTS: customer-tasks-empty-test, invoice-charge-label-test, header-totals-test, tsc --noEmit
+LAST_COMMIT: calendar-filters-mobile efter 62e1cb31
+TESTS: calendar-mobile-test, customer-tasks-empty-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00223 GP-1 RLS, 00224 GP-6 (migrationer, ikke kørt). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: planlægningsfiltre på 375px; lead næste handling; tilbudstom tilstand; dashboard tomme nøgletal; leverandørfaktura-linjer kort; kalenderuge ansvarlig; aria-label på ikonknapper; afvisningsanalyse på mobil; tomme filterresultater i rapporter; sagsdokumenter som kort; produktsøgning uden træf; indstillinger leverandørliste kort; produktkatalog kort med canSeeCost.
+NEXT_QUEUE: lead næste handling; tilbudstom tilstand; dashboard tomme nøgletal; leverandørfaktura-linjer kort; kalenderuge ansvarlig; aria-label på ikonknapper; afvisningsanalyse på mobil; tomme filterresultater i rapporter; sagsdokumenter som kort; produktsøgning uden træf; indstillinger leverandørliste kort; produktkatalog kort med canSeeCost; sagsoverblik manglende ansvarlig; indbakke tom søgning; påmindelse uden dato.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.

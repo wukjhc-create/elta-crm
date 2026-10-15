@@ -261,11 +261,12 @@ export function CalendarWorkforceClient({
       />
 
       {/* Date nav */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={() => updateParam({ date: stepBack() })}
           className="p-2 hover:bg-gray-100 rounded-lg"
           title="Forrige"
+          aria-label="Forrige"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -281,12 +282,13 @@ export function CalendarWorkforceClient({
           onChange={(e) => {
             if (e.target.value) updateParam({ date: e.target.value })
           }}
-          className="px-2 py-1 border rounded text-sm"
+          className="px-2 py-1 border rounded text-sm min-w-0 max-w-full"
         />
         <button
           onClick={() => updateParam({ date: stepForward() })}
           className="p-2 hover:bg-gray-100 rounded-lg"
           title="Næste"
+          aria-label="Næste"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -296,12 +298,12 @@ export function CalendarWorkforceClient({
 
       {/* Filters */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-3 flex flex-wrap items-end gap-3">
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="block text-xs text-gray-500 mb-1">Medarbejder</label>
           <select
             value={filters.employee ?? ''}
             onChange={(e) => updateParam({ employee: e.target.value || null })}
-            className="border rounded px-2 py-1.5 text-sm bg-white"
+            className="border rounded px-2 py-1.5 text-sm bg-white w-full sm:w-auto"
           >
             <option value="">Alle</option>
             {employees.map((e) => (
@@ -310,12 +312,12 @@ export function CalendarWorkforceClient({
           </select>
         </div>
 
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="block text-xs text-gray-500 mb-1">Status</label>
           <select
             value={filters.status ?? ''}
             onChange={(e) => updateParam({ status: e.target.value || null })}
-            className="border rounded px-2 py-1.5 text-sm bg-white"
+            className="border rounded px-2 py-1.5 text-sm bg-white w-full sm:w-auto"
           >
             <option value="">Alle</option>
             {(['planned', 'in_progress', 'done', 'cancelled'] as WorkOrderStatus[]).map((s) => (
@@ -333,7 +335,7 @@ export function CalendarWorkforceClient({
           </button>
         )}
 
-        <div className="ml-auto text-xs text-gray-500">
+        <div className="w-full sm:w-auto sm:ml-auto text-xs text-gray-500">
           {filteredWOs.length} arbejdsordre{filteredWOs.length === 1 ? '' : 'r'} i visningen
         </div>
       </div>

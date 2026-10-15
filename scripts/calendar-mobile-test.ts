@@ -16,6 +16,10 @@ eq('i dag bruger ikke browserens lokale dato', todayFn.includes('dateKey(new Dat
 eq('dagsvisning har mobil-liste', src.includes('data-testid="calendar-day-mobile"'), true)
 eq('ugevisning har mobil-liste', src.includes('data-testid="calendar-week-mobile"'), true)
 eq('uge-tabellen er skjult under md', src.includes('hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto'), true)
+const nav = src.slice(src.indexOf('{/* Date nav */}'), src.indexOf('<CalendarAgenda'))
+const filters = src.slice(src.indexOf('{/* Filters */}'), src.indexOf('Nulstil filtre'))
+eq('datonav ombrydes', nav.includes('flex-wrap') && nav.includes('aria-label="Forrige"') && nav.includes('aria-label="Næste"'), true)
+eq('filtre fylder bredden paa mobil', filters.includes('w-full sm:w-auto') && filters.split('w-full sm:w-auto').length >= 3, true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncalendar-mobile-test OK')
 process.exitCode = fail ? 1 : 0
