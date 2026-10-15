@@ -157,24 +157,39 @@ export function EmployeeOvertimeRatesView({ employeeId }: { employeeId: string }
       {!read.loaded ? <p className="text-sm text-gray-400">Henter…</p> : read.error ? <FetchNote message={read.error} /> : rates.length === 0 ? (
         <p className="text-sm text-gray-500">Ingen satser. Oprettes/redigeres på Rediger medarbejder-siden.</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead><tr className="text-gray-500 text-left border-b">
-            <th className="py-1 pr-2 font-medium">Sats</th><th className="py-1 px-2 text-right font-medium">Faktor</th>
-            <th className="py-1 px-2 text-right font-medium">Kost</th><th className="py-1 px-2 text-right font-medium">Salg</th>
-            <th className="py-1 pl-2 text-center font-medium">Aktiv</th>
-          </tr></thead>
-          <tbody className="divide-y">
+        <>
+          <ul className="md:hidden space-y-2" data-testid="employee-overtime-mobile">
             {rates.map((r) => (
-              <tr key={r.id} className={r.is_active ? '' : 'opacity-50'}>
-                <td className="py-1 pr-2 font-medium">{r.name}</td>
-                <td className="py-1 px-2 text-right tabular-nums">{r.multiplier}×</td>
-                <td className="py-1 px-2 text-right tabular-nums">{dkk(r.cost_rate)}</td>
-                <td className="py-1 px-2 text-right tabular-nums">{dkk(r.sale_rate)}</td>
-                <td className="py-1 pl-2 text-center">{r.is_active ? 'Ja' : 'Nej'}</td>
-              </tr>
+              <li key={r.id} className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${r.is_active ? '' : 'opacity-50'}`}>
+                <p className="font-medium break-words">{r.name}</p>
+                <p className="mt-1 text-xs tabular-nums text-gray-600">Faktor {r.multiplier}×</p>
+                <p className="mt-1 text-xs tabular-nums text-gray-600">Kost {dkk(r.cost_rate)}</p>
+                <p className="mt-1 text-xs tabular-nums text-gray-600">Salg {dkk(r.sale_rate)}</p>
+                <p className="mt-1 text-xs text-gray-600">Aktiv {r.is_active ? 'Ja' : 'Nej'}</p>
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-gray-500 text-left border-b">
+                <th className="py-1 pr-2 font-medium">Sats</th><th className="py-1 px-2 text-right font-medium">Faktor</th>
+                <th className="py-1 px-2 text-right font-medium">Kost</th><th className="py-1 px-2 text-right font-medium">Salg</th>
+                <th className="py-1 pl-2 text-center font-medium">Aktiv</th>
+              </tr></thead>
+              <tbody className="divide-y">
+                {rates.map((r) => (
+                  <tr key={r.id} className={r.is_active ? '' : 'opacity-50'}>
+                    <td className="py-1 pr-2 font-medium">{r.name}</td>
+                    <td className="py-1 px-2 text-right tabular-nums">{r.multiplier}×</td>
+                    <td className="py-1 px-2 text-right tabular-nums">{dkk(r.cost_rate)}</td>
+                    <td className="py-1 px-2 text-right tabular-nums">{dkk(r.sale_rate)}</td>
+                    <td className="py-1 pl-2 text-center">{r.is_active ? 'Ja' : 'Nej'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </Card>
   )
@@ -190,7 +205,19 @@ export function EmployeeEquipmentView({ employeeId }: { employeeId: string }) {
       {!read.loaded ? <p className="text-sm text-gray-400">Henter…</p> : read.error ? <FetchNote message={read.error} /> : items.length === 0 ? (
         <p className="text-sm text-gray-500">Intet udstyr registreret.</p>
       ) : (
-        <div className="overflow-x-auto"><table className="w-full text-sm">
+        <>
+          <ul className="md:hidden space-y-2" data-testid="employee-equipment-mobile">
+            {items.map((e) => (
+              <li key={e.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                <p className="font-medium break-words">{e.name}</p>
+                <p className="mt-1 text-xs break-words text-gray-600">{eqCat.get(e.category) ?? e.category}</p>
+                <p className="mt-1 font-mono text-xs break-all text-gray-600">{e.serial_number ?? '—'}</p>
+                <p className="mt-1 text-xs text-gray-600">Udleveret {day(e.issued_date)}</p>
+                <p className={`mt-1 text-xs ${statusTone(e.status)}`}>{eqStat.get(e.status) ?? e.status}</p>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block overflow-x-auto"><table className="w-full text-sm">
           <thead><tr className="text-gray-500 text-left border-b">
             <th className="py-1 pr-2 font-medium">Udstyr</th><th className="py-1 px-2 font-medium">Kategori</th>
             <th className="py-1 px-2 font-medium">Serienr.</th><th className="py-1 px-2 font-medium">Udleveret</th>
@@ -208,6 +235,7 @@ export function EmployeeEquipmentView({ employeeId }: { employeeId: string }) {
             ))}
           </tbody>
         </table></div>
+        </>
       )}
     </Card>
   )
