@@ -74,13 +74,14 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | Tom notelog siger at man skriver ovenfor, når man må. Noten ombrydes. | DONE — `customer-notes-empty-test` |
 | Tom sagslog siger at man skriver ovenfor, når man må. Uden rettighed er teksten den samme. | DONE — `case-notes-empty-test` |
 | Luk-ikoner i opgave, projekt, tilbud, sol, besigtigelse og prisaftale har et navn. | DONE — `close-button-label-test` |
+| Sagstitel og nøgletal ombrydes. Tildelt og sælger er de samme. | DONE — `case-assignee-test` |
 
 AGENT: GROK
 BRANCH: grok-next
-LAST_COMMIT: close-button-label efter 080af6a6
+LAST_COMMIT: case-title-wrap efter 962ad479
 TESTS: close-button-label-test, case-notes-empty-test, customer-notes-empty-test, messages-empty-test, invoices-empty-search-test, aftercalc-empty-filter-test, calendar-mobile-test, reports-empty-test, sync-jobs-mobile-test, activity-empty-test, missing-date-test, inspection-calendar-test, tasks-filter-mobile-test, suppliers-list-mobile-test, document-name-test, case-assignee-test, products-empty-search-test, customer-pricing-mobile-test, sales-funnel-mobile-test, mail-empty-search-test, products-mobile-test, rejection-mobile-test, incoming-invoice-lines-mobile-test, dashboard-empty-stats-test, line-items-empty-test, lead-next-hint-test, customer-tasks-empty-test, invoice-charge-label-test, offer-profit-missing-cost-test, supplier-products-mobile-test, time-logs-mobile-test, tsc --noEmit
 BLOCKED_APPROVAL: 00221 L-10, 00222 PE-1/PE-2, 00223 GP-1 RLS, 00224 GP-6 (migrationer, ikke kørt). F-4, F-5 (migration). PE-3/PE-4 og P-8 (arbejdskost-beslutning). GP-4 (avance-forrang). OIOUBL-kreditnota vendes ikke (beløb bliver stående). Ingen live mail, SMS, Telegram eller e-conomic.
-NEXT_QUEUE: sagstitel ombrydes; flere formular-luk uden navn; indbakke-filter ombrydes. Scan 2026-10-15: tilbud og leads rydder allerede tom søgning; portal-chat og medarbejderchat forklarer tom samtale; planlægningens tomme dag forklarer næste skridt; sagsopgaver forklarer tjeklisten.
+NEXT_QUEUE: flere formular-luk uden navn; indbakke-filter ombrydes; sagsplan titel ombrydes; kundens sager titel ombrydes. Scan 2026-10-15: tilbud og leads rydder allerede tom søgning; portal-chat og medarbejderchat forklarer tom samtale; planlægningens tomme dag forklarer næste skridt; sagsopgaver forklarer tjeklisten.
 
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.

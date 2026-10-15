@@ -21,6 +21,7 @@ eq('handlinger ombrydes', actions.includes('flex-wrap'), true)
 eq('panelet beholder saelgeren', panel.includes('Ansvarlig (sælger)') && panel.includes('creator?.full_name'), true)
 eq('panelet siger naar ingen er tildelt', panel.includes('Ikke tildelt'), true)
 eq('formand bliver i panelet', panel.includes('label="Formand"'), true)
+eq('titel og noegletal ombrydes', src.includes('text-2xl font-semibold leading-tight break-words') && src.includes('text-sm font-medium text-gray-900 break-words'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncase-assignee-test OK')
 process.exitCode = fail ? 1 : 0

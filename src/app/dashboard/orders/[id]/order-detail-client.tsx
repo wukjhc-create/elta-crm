@@ -136,11 +136,11 @@ export function OrderDetailClient({
             <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
               <span>{sag.case_number}</span>
             </div>
-            <h1 className="text-2xl font-semibold leading-tight">
+            <h1 className="text-2xl font-semibold leading-tight break-words">
               {sag.project_name || sag.title}
             </h1>
             {sag.project_name && sag.title !== sag.project_name && (
-              <p className="text-sm text-gray-500">{sag.title}</p>
+              <p className="text-sm text-gray-500 break-words">{sag.title}</p>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -862,7 +862,7 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="space-y-0.5">
       <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-sm font-medium text-gray-900 truncate">{value}</div>
+      <div className="text-sm font-medium text-gray-900 break-words">{value}</div>
     </div>
   )
 }
