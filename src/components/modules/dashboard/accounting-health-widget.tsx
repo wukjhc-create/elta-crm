@@ -61,7 +61,9 @@ export function AccountingHealthWidget() {
           <Loader2 className="w-4 h-4 animate-spin" /> Henter regnskabsstatus…
         </div>
       ) : !data || !data.ok ? (
-        <p className="text-sm text-gray-400 py-4">Kunne ikke hente regnskabsstatus.</p>
+        <p className="text-sm text-red-700 break-words py-4" data-testid="accounting-health-load-error">
+          Kunne ikke hente regnskabsstatus. Det tælles ikke som at e-conomic mangler, og det tælles ikke som 0.
+        </p>
       ) : (
         <div className="space-y-3">
           {data.integration_error && (
