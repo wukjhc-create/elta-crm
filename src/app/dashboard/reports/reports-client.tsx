@@ -316,14 +316,18 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
 // Team Productivity Table
 // =====================================================
 
-function TeamTable({ data }: { data: TeamProductivity[] }) {
+function TeamTable({ data, error }: { data: TeamProductivity[]; error: boolean }) {
   return (
     <div className="bg-white rounded-lg border p-4 md:p-6">
       <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
         <Users className="w-5 h-5 text-gray-400" />
         Team-produktivitet (seneste 30 dage)
       </h3>
-      {data.length === 0 ? (
+      {error ? (
+        <p className="text-sm text-red-700 py-8 text-center" data-testid="report-team-load-error">
+          Kunne ikke hente teamets timer. Det tælles ikke som ingen tidsregistreringer.
+        </p>
+      ) : data.length === 0 ? (
         <p className="text-sm text-gray-400 py-8 text-center">Ingen tidsregistreringer endnu. Registrér tiden på sagen under Planlægning.</p>
       ) : (
         <>
@@ -478,6 +482,7 @@ export default function ReportsClient() {
   const [customers, setCustomers] = useState<RevenueByCustomer[]>([])
   const [projects, setProjects] = useState<ProjectProfitability[]>([])
   const [team, setTeam] = useState<TeamProductivity[]>([])
+  const [teamError, setTeamError] = useState(false)
   const [rejections, setRejections] = useState<RejectionStats | null>(null)
   const [funnel, setFunnel] = useState<SalesFunnel | null>(null)
   const [funnelError, setFunnelError] = useState(false)
@@ -511,6 +516,9 @@ export default function ReportsClient() {
       }
       if (teamRes.status === 'fulfilled' && teamRes.value.success) {
         setTeam(teamRes.value.data || [])
+        setTeamError(false)
+      } else {
+        setTeamError(true)
       }
       if (rejectionsRes.status === 'fulfilled' && rejectionsRes.value.success) {
         setRejections(rejectionsRes.value.data || null)
@@ -606,7 +614,7 @@ export default function ReportsClient() {
       <ProjectTable data={projects} />
 
       {/* Team Productivity */}
-      <TeamTable data={team} />
+      <TeamTable data={team} error={teamError} />
 
       {/* CSV Export Section */}
       <div className="bg-white rounded-lg border p-6">
