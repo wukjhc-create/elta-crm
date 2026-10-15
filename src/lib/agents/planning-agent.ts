@@ -124,19 +124,22 @@ const TECH_COLUMNS = 'id, name, role, active, termination_date'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function loadPlanningContext(admin: any, today: string) {
   const days = nextWorkingDays(today, PLANNING_DEFAULTS.horizonWorkingDays)
-  const [{ data: techs }, { data: workload }] = await Promise.all([
+  const [techRes, loadRes] = await Promise.all([
     admin.from('employees').select(TECH_COLUMNS).eq('active', true),
     admin.from('work_orders').select('assigned_employee_id, scheduled_date, status')
       .in('status', ACTIVE_WO_STATUSES).gte('scheduled_date', days[0]).lte('scheduled_date', days[days.length - 1]),
   ])
-  return { techs: (techs ?? []) as Technician[], workload: (workload ?? []) as WorkloadEntry[] }
+  if (techRes.error || loadRes.error) return null
+  return { techs: (techRes.data ?? []) as Technician[], workload: (loadRes.data ?? []) as WorkloadEntry[] }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function activeWorkOrderCount(admin: any, caseId: string): Promise<number> {
+async function activeWorkOrderCount(admin: any, caseId: string): Promise<number | null> {
   // X4 (planlægnings-review 2026-10-07): tæller alle IKKE-annullerede arbejdsordrer (som planlægningsbackloggen) — en sag
-  // hvis job er udført (status 'done'), men som stadig er åben pga. fakturering, må ikke få en ny arbejdsordre foreslået
-  const { count } = await admin.from('work_orders').select('id', { count: 'exact', head: true }).eq('case_id', caseId).neq('status', 'cancelled')
+  // hvis job er udført (status 'done'), men som stadig er åben pga. fakturering, må ikke få en ny arbejdsordre foreslået.
+  // Fejl er null — ikke 0 — saa et ukendt tal ikke ligner "ingen arbejdsordre".
+  const { count, error } = await admin.from('work_orders').select('id', { count: 'exact', head: true }).eq('case_id', caseId).neq('status', 'cancelled')
+  if (error) return null
   return count ?? 0
 }
 
@@ -157,7 +160,8 @@ async function unplannedCases(admin: any, limit: number, caseIds?: string[]): Pr
   const withWo = new Set<string>()
   for (let k = 0; k < cases.length; k += 200) {
     const ids = cases.slice(k, k + 200).map((c) => c.id)
-    const { data } = await admin.from('work_orders').select('case_id').in('case_id', ids).neq('status', 'cancelled')
+    const { data, error } = await admin.from('work_orders').select('case_id').in('case_id', ids).neq('status', 'cancelled')
+    if (error) throw new Error('Kunne ikke tælle arbejdsordrer')
     for (const w of (data ?? []) as Array<{ case_id: string }>) withWo.add(w.case_id)
   }
   return cases.filter((c) => !withWo.has(c.id)).slice(0, limit)
@@ -182,7 +186,9 @@ export async function executePlanningProposal(ctx: CapabilityContext): Promise<C
   if (!row) return { ok: false, error: 'forældet forslag: sagen findes ikke' }
   const c = row as PlanningCase
   if (c.customer_id !== p.customer_id) return { ok: false, error: 'forældet forslag: sagens kunde er ændret' }
-  const blocker = planningBlocker(c, await activeWorkOrderCount(admin, c.id))
+  const active = await activeWorkOrderCount(admin, c.id)
+  if (active == null) return { ok: false, error: 'forældet forslag: kunne ikke tælle arbejdsordrer' }
+  const blocker = planningBlocker(c, active)
   if (blocker) return { ok: false, error: `forældet forslag: ${blocker}` }
 
   // Stale: dato og montoer
@@ -190,8 +196,9 @@ export async function executePlanningProposal(ctx: CapabilityContext): Promise<C
   if (p.scheduled_date <= today) return { ok: false, error: `forældet forslag: datoen ${p.scheduled_date} er passeret — kør agenten igen` }
   const { data: tech } = await admin.from('employees').select(TECH_COLUMNS).eq('id', p.assigned_employee_id).maybeSingle()
   if (!tech || !isFieldTechnician(tech as Technician, today)) return { ok: false, error: 'forældet forslag: montøren er ikke længere aktiv' }
-  const { count: sameDay } = await admin.from('work_orders').select('id', { count: 'exact', head: true })
+  const { count: sameDay, error: sameDayError } = await admin.from('work_orders').select('id', { count: 'exact', head: true })
     .eq('assigned_employee_id', p.assigned_employee_id).eq('scheduled_date', p.scheduled_date).in('status', ACTIVE_WO_STATUSES)
+  if (sameDayError) return { ok: false, error: 'forældet forslag: kunne ikke tælle dagens job' }
   if ((sameDay ?? 0) >= PLANNING_DEFAULTS.maxPerDay) {
     return { ok: false, error: `forældet forslag: ${p.employee_name ?? 'montøren'} er fuldt booket ${p.scheduled_date} — kør agenten igen` }
   }
@@ -218,19 +225,24 @@ export async function runPlanningAgent(
   let rows: PlanningCase[]
   try {
     rows = await unplannedCases(admin, PLANNING_DEFAULTS.maxCasesPerRun * 3, opts.caseIds)
-  } catch {
-    return { success: false, error: 'Kunne ikke hente sager' }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ''
+    return { success: false, error: msg === 'Kunne ikke tælle arbejdsordrer' ? msg : 'Kunne ikke hente sager' }
   }
 
-  const { techs, workload } = await loadPlanningContext(admin, today)
+  const loaded = await loadPlanningContext(admin, today)
+  if (!loaded) return { success: false, error: 'Kunne ikke hente planlægning' }
+  const { techs, workload } = loaded
   const skipped: Array<{ case_id: string; reason: string }> = []
   const proposals: PlanningPayload[] = []
   for (const c of rows) {
     if (proposals.length >= PLANNING_DEFAULTS.maxCasesPerRun) break
     const active = await activeWorkOrderCount(admin, c.id)
+    if (active == null) { skipped.push({ case_id: c.id, reason: 'kunne ikke tælle arbejdsordrer' }); continue }
     const blocker = planningBlocker(c, active)
     if (blocker) { skipped.push({ case_id: c.id, reason: blocker }); continue }
-    const { data: open } = await admin.from('agent_actions').select('status').eq('capability', PLANNING_CAPABILITY).eq('payload->>case_id', c.id)
+    const { data: open, error: openError } = await admin.from('agent_actions').select('status').eq('capability', PLANNING_CAPABILITY).eq('payload->>case_id', c.id)
+    if (openError) { skipped.push({ case_id: c.id, reason: 'kunne ikke tjekke eksisterende forslag' }); continue }
     if (((open ?? []) as Array<{ status: string }>).some((a) => !INACTIVE_ACTION_STATUSES.includes(a.status) && a.status !== 'executed')) {
       skipped.push({ case_id: c.id, reason: 'der findes allerede et planlaegningsforslag' }); continue
     }
