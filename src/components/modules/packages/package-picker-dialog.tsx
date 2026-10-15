@@ -88,6 +88,7 @@ export function PackagePickerDialog({
         <div className="flex gap-2 mb-4">
           <Input
             placeholder="Søg efter pakke..."
+            aria-label="Søg efter pakke"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}

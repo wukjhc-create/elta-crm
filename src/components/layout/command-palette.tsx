@@ -311,6 +311,7 @@ export function CommandPalette() {
             }}
             onKeyDown={handleKeyDown}
             placeholder="Søg eller hop til..."
+            aria-label="Søg eller hop til"
             className="flex-1 text-sm outline-none placeholder:text-gray-400"
           />
           <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-gray-400 bg-gray-100 rounded border">

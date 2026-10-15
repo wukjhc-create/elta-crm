@@ -234,6 +234,7 @@ export function MaterialSummary({ items, className = '' }: MaterialSummaryProps)
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
             placeholder="Søg i materialer..."
+            aria-label="Søg i materialer"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
