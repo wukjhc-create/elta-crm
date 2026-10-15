@@ -65,8 +65,8 @@ const fmtPct = (n: number | null) =>
   n == null ? '—' : `${Math.round(n * 100)} %`
 
 function emptyListText(due: IncomingDueFilter | null): string {
-  if (due) return 'Ingen godkendte fakturaer med dette forfald.'
-  return 'Ingen fakturaer i denne kategori.'
+  if (due) return 'Ingen godkendte fakturaer med dette forfald. Vælg Alle under Forfald, eller en anden kategori.'
+  return 'Ingen fakturaer i denne kategori. Vælg en anden kategori, eller Alle.'
 }
 
 export function IncomingInvoicesListClient({
