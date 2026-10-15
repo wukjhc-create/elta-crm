@@ -659,14 +659,22 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
     if (!hasPermission('customers.create') || !hasPermission('leads.edit')) {
       return { success: false, error: 'Manglende tilladelse: customers.create + leads.edit' }
     }
-    const { data: lead } = await supabase.from('leads')
+    const { data: lead, error: leadErr } = await supabase.from('leads')
       .select('id, company_name, contact_person, email, phone, notes, custom_fields, updated_at').eq('id', leadId).maybeSingle()
+    if (leadErr) {
+      logger.error('convertLeadToCustomer: lead read failed', { error: leadErr })
+      return { success: false, error: 'Kunne ikke læse leadet. Det tælles ikke som at det ikke findes.' }
+    }
     if (!lead) return { success: false, error: 'Lead ikke fundet' }
     const cf = (lead.custom_fields ?? {}) as Record<string, unknown>
 
     // Allerede koblet → samme kunde (hvis den stadig findes)
     if (typeof cf.customer_id === 'string') {
-      const { data: existing } = await supabase.from('customers').select('id').eq('id', cf.customer_id).maybeSingle()
+      const { data: existing, error: existingErr } = await supabase.from('customers').select('id').eq('id', cf.customer_id).maybeSingle()
+      if (existingErr) {
+        logger.error('convertLeadToCustomer: linked customer read failed', { error: existingErr })
+        return { success: false, error: 'Kunne ikke tjekke den koblede kunde. Der er ikke oprettet en ny.' }
+      }
       if (existing) return { success: true, data: { customer_id: existing.id as string, created: false } }
     }
 
@@ -678,12 +686,20 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
 
     // Kunde-review: dobbeltklik/to brugere samtidig oprettede to kunder (læs → tjek → indsæt uden lås). Optimistisk lås:
     // kun den anmodning der "rører" leadet med den læste updated_at fortsætter.
-    const { data: claimed } = await supabase.from('leads').update({ updated_at: new Date().toISOString() })
+    const { data: claimed, error: claimErr } = await supabase.from('leads').update({ updated_at: new Date().toISOString() })
       .eq('id', leadId).eq('updated_at', lead.updated_at as string).select('id').maybeSingle()
+    if (claimErr) {
+      logger.error('convertLeadToCustomer: lock failed', { error: claimErr })
+      return { success: false, error: 'Kunne ikke låse leadet. Der er ikke oprettet en kunde.' }
+    }
     if (!claimed) return { success: false, error: 'Leadet er netop ændret eller konverteres allerede — genindlæs siden' }
 
     // Dublet-værn: eksisterende kunde med samme mail
-    const { data: same } = await supabase.from('customers').select('id').ilike('email', escapeLike(email)).limit(1).maybeSingle()
+    const { data: same, error: sameErr } = await supabase.from('customers').select('id').ilike('email', escapeLike(email)).limit(1).maybeSingle()
+    if (sameErr) {
+      logger.error('convertLeadToCustomer: duplicate check failed', { error: sameErr })
+      return { success: false, error: 'Kunne ikke tjekke om e-mailen allerede er kunde. Der er ikke oprettet en ny.' }
+    }
     let customerId = (same?.id as string | undefined) ?? null
     let created = false
     if (!customerId) {
