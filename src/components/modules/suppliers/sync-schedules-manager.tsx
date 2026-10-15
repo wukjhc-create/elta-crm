@@ -336,31 +336,39 @@ export function SyncSchedulesManager({ supplierId, supplierName }: SyncSchedules
                     {/* Actions */}
                     <div className="flex items-center gap-1 shrink-0">
                       <button
+                        type="button"
                         onClick={() => handleRunNow(schedule)}
                         disabled={isRunning}
                         className="p-1.5 rounded hover:bg-green-50 text-gray-400 hover:text-green-600 disabled:opacity-50"
                         title="Kør nu"
+                        aria-label="Kør nu"
                       >
                         <Play className={`h-4 w-4 ${isRunning ? 'animate-spin' : ''}`} />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleToggle(schedule)}
                         className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
                         title={schedule.is_enabled ? 'Deaktiver' : 'Aktiver'}
+                        aria-label={schedule.is_enabled ? 'Deaktiver plan' : 'Aktiver plan'}
                       >
                         {schedule.is_enabled ? <Pause className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
                       </button>
                       <button
+                        type="button"
                         onClick={() => { setEditingSchedule(schedule); setShowForm(true) }}
                         className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
                         title="Rediger"
+                        aria-label="Rediger plan"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(schedule)}
                         className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"
                         title="Slet"
+                        aria-label="Slet plan"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -369,7 +377,7 @@ export function SyncSchedulesManager({ supplierId, supplierName }: SyncSchedules
 
                   {/* Retry & notification info */}
                   {schedule.is_enabled && (
-                    <div className="flex items-center gap-4 text-xs text-gray-400 mt-2 ml-12">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400 mt-2 sm:ml-12">
                       {schedule.retry_on_failure && (
                         <span>Genforsøg: {schedule.max_retries}x ({schedule.retry_delay_minutes} min interval)</span>
                       )}
@@ -386,7 +394,7 @@ export function SyncSchedulesManager({ supplierId, supplierName }: SyncSchedules
                   <div className="border-t bg-gray-50 p-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-3">Synkroniseringshistorik</h4>
                     {history.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-3">Ingen kørsler endnu</p>
+                      <p className="text-sm text-gray-400 text-center py-3">Ingen kørsler endnu. Brug Kør nu, eller vent på planen.</p>
                     ) : (
                       <div className="space-y-2">
                         {history.slice(0, 10).map(entry => {

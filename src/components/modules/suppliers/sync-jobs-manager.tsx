@@ -265,7 +265,7 @@ export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerPro
                   <div className="border-t bg-gray-50 p-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-3">Seneste kørsler</h4>
                     {logs.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-3">Ingen kørsler endnu</p>
+                      <p className="text-sm text-gray-400 text-center py-3">Ingen kørsler endnu. De vises her, når jobbet har kørt.</p>
                     ) : (
                       <div className="space-y-2">
                         {logs.map(log => {
