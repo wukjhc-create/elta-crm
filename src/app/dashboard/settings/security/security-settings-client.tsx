@@ -115,12 +115,13 @@ export function SecuritySettingsClient() {
                   value={formData.currentPassword}
                   onChange={(e) => handleChange('currentPassword', e.target.value)}
                   placeholder="Indtast nuværende adgangskode"
-                  className={errors.currentPassword ? 'border-red-500' : ''}
+                  className={`pr-10 ${errors.currentPassword ? 'border-red-500' : ''}`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  aria-label={showCurrentPassword ? 'Skjul nuværende adgangskode' : 'Vis nuværende adgangskode'}
                 >
                   {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -140,12 +141,13 @@ export function SecuritySettingsClient() {
                   value={formData.newPassword}
                   onChange={(e) => handleChange('newPassword', e.target.value)}
                   placeholder="Indtast ny adgangskode"
-                  className={errors.newPassword ? 'border-red-500' : ''}
+                  className={`pr-10 ${errors.newPassword ? 'border-red-500' : ''}`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowNewPassword(!showNewPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  aria-label={showNewPassword ? 'Skjul ny adgangskode' : 'Vis ny adgangskode'}
                 >
                   {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -184,12 +186,13 @@ export function SecuritySettingsClient() {
                   value={formData.confirmPassword}
                   onChange={(e) => handleChange('confirmPassword', e.target.value)}
                   placeholder="Bekræft ny adgangskode"
-                  className={errors.confirmPassword ? 'border-red-500' : ''}
+                  className={`pr-10 ${errors.confirmPassword ? 'border-red-500' : ''}`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  aria-label={showConfirmPassword ? 'Skjul bekræftelse af adgangskode' : 'Vis bekræftelse af adgangskode'}
                 >
                   {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
