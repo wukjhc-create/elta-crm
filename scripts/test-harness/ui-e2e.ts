@@ -589,6 +589,11 @@ ${m.text()}`) })
         // danske helligdage i ugehovedet (juleugen 2026)
         await gotoSafe(s.page, `${base}/dashboard/calendar?view=week&date=2026-12-25`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.helligdag_vist = (await s.page.getByTestId('calendar-holiday').filter({ hasText: 'Juledag' }).count()) >= 1
+        // W-4: sagslisten på mobil = kort uden vandret scroll
+        await s.page.setViewportSize({ width: 375, height: 812 })
+        await gotoSafe(s.page, `${base}/dashboard/orders`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.sager_mobil_kort = await s.page.getByTestId('orders-mobile-list').isVisible().catch(() => false)
+        r.sager_mobil_ingen_scroll = (await s.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)) <= 2
       } finally { await s.ctx.close().catch(() => {}) }
       out.push({ id: 'U160 kalender-uge på mobil = agenda', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
     }

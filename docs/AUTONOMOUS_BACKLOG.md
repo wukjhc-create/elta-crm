@@ -51,7 +51,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | W-1 (S2) | Sagssøgning ignorerer kunde/adresse trods label "titel · kunde · case nr" | DONE — søger også kundenavn/-nr./kontakt, projektnavn, adresse, postnr., by, reference. UI U165/U20 |
 | W-2 (S2) | Lead → kunde efterlader leadets tilbud uden kunde (ingen Send, kan ikke blive sag) | DONE — konvertering kobler leadets tilbud uden kunde (+ parti-roller), aktivitetslog; tilbudssiden siger "mangler kunde". UI U27 |
 | W-3 (S2) | Materiale på sag: kun manuel indtastning (ingen leverandørsøgning) → pris 0 | TODO |
-| W-4 (S2) | Sagslisten 13 kolonner på mobil — montørens bundnav går dertil | TODO |
+| W-4 (S2) | Sagslisten 13 kolonner på mobil — montørens bundnav går dertil | DONE — kortliste under md (nr., status, haster, titel, kunde, adresse, datoer), tabellen fra md; søgefelt fuld bredde. UI U160 (375 px uden scroll) + U20/U165/U12 |
 | W-5 (S2) | Montør ser statusskift/Rediger på sag han ikke må bruge | DONE — statusskift + Rediger (hoved, sagsoplysninger, sagspartnere, adresse) kun med cases.edit; ellers statusmærke. UI U40/U12/U11 |
 | W-6 (S2) | "Manglende tilladelse: x.y"-literaler | DELVIS — vises allerede dansk via humanizeErrorText i toast/action-helpers (R-12); resterende direkte visninger tjekkes |
 | W-7 (S2) | Opgaver genindlæser alt pr. tastetryk; getAllTasks uden limit/guard | TODO |
