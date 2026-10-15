@@ -40,20 +40,29 @@ export default function CalculationForm({
   const [isPending, startTransition] = useTransition()
   const [isTemplate, setIsTemplate] = useState(calculation?.is_template ?? false)
   const [customers, setCustomers] = useState<{ id: string; company_name: string }[]>([])
+  const [customerLoadError, setCustomerLoadError] = useState<string | null>(null)
+  const [customerTry, setCustomerTry] = useState(0)
   const [calculationMode, setCalculationMode] = useState<CalculationMode>(
     calculation?.calculation_mode || 'standard'
   )
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   useEffect(() => {
+    let alive = true
+    setCustomerLoadError(null)
     async function loadCustomers() {
-      const result = await getCustomersForSelect()
-      if (result.success && result.data) {
-        setCustomers(result.data)
+      try {
+        const result = await getCustomersForSelect()
+        if (!alive) return
+        if (result.success) setCustomers(result.data ?? [])
+        else setCustomerLoadError(result.error ?? 'Kunne ikke hente kunder')
+      } catch {
+        if (alive) setCustomerLoadError('Kunne ikke hente kunder')
       }
     }
     loadCustomers()
-  }, [])
+    return () => { alive = false }
+  }, [customerTry])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -145,6 +154,14 @@ export default function CalculationForm({
               ))}
             </SelectContent>
           </Select>
+          {customerLoadError && (
+            <p className="mt-1 text-xs text-red-700" data-testid="calculation-customer-load-error">
+              {customerLoadError}. Det tælles ikke som ingen kunder.{' '}
+              <button type="button" onClick={() => setCustomerTry((n) => n + 1)} className="min-h-[44px] px-2 font-medium underline">
+                Prøv igen
+              </button>
+            </p>
+          )}
         </div>
       </div>
 
