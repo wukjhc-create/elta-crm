@@ -115,7 +115,7 @@ export function IncomingInvoicesListClient({
   // scope); ellers brug det valgte statusfilter.
   useEffect(() => {
     startTransition(async () => {
-      const next = await listIncomingInvoicesAction({ status: due ? 'approved' : filter })
+      const next = await listIncomingInvoicesAction(due ? { status: 'approved', due } : { status: filter })
       setRows(next)
     })
   }, [filter, due])
