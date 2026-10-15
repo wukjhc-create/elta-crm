@@ -162,7 +162,17 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   return (
     <>
     {backlog?.success && backlog.data && <div className="px-4 sm:px-6 pt-4"><PlanningBacklogPanel items={backlog.data.items} total={backlog.data.total} /></div>}
+    {canPlan && backlog && !backlog.success && (
+      <p className="px-4 sm:px-6 pt-4 text-sm text-red-700" data-testid="planning-backlog-load-error">
+        {backlog.error ?? 'Kunne ikke hente sager uden plan'}. Det tælles ikke som ingen sager.
+      </p>
+    )}
     {noTime?.success && noTime.data && <div className="px-4 sm:px-6 pt-4"><JobsWithoutTimePanel items={noTime.data.items} total={noTime.data.total} /></div>}
+    {canPlan && noTime && !noTime.success && (
+      <p className="px-4 sm:px-6 pt-4 text-sm text-red-700" data-testid="jobs-without-time-load-error">
+        {noTime.error ?? 'Kunne ikke hente job uden timer'}. Det tælles ikke som at tiden er registreret.
+      </p>
+    )}
     <CalendarWorkforceClient
       view={view}
       anchorDate={anchorDate}
