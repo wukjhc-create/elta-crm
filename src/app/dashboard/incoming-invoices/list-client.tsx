@@ -98,9 +98,11 @@ export function IncomingInvoicesListClient({
   const todayIso = copenhagenParts(new Date()).date
 
   const [rows, setRows] = useState<IncomingInvoiceListItem[]>(initialRows)
+  const [rowsTerm, setRowsTerm] = useState('all:needs_review')
   const [listError, setListError] = useState<string | null>(initialListError)
   const [sendersFailed, setSendersFailed] = useState(initialSendersFailed)
   const [filter, setFilter] = useState<FilterKey>('needs_review')
+  const listTerm = `${due ?? 'all'}:${due ? 'approved' : filter}`
   const [busy, startTransition] = useTransition()
   const [counts] = useState<CountMap>(initialCounts)
   const [countsError] = useState<string | null>(initialCountsError)
@@ -118,13 +120,14 @@ export function IncomingInvoicesListClient({
     } else {
       // Refresh the current view in case it just appeared at top
       try {
-        const next = await listIncomingInvoicesAction({ status: filter })
+        const next = await listIncomingInvoicesAction({ status: due ? 'approved' : filter })
         if (next.error) {
           setListError(next.error)
           setSendersFailed(false)
         } else {
           setListError(null)
           setRows(next.rows)
+          setRowsTerm(listTerm)
           setSendersFailed(!!next.senders_failed)
         }
       } catch {
@@ -146,6 +149,7 @@ export function IncomingInvoicesListClient({
         } else {
           setListError(null)
           setRows(next.rows)
+          setRowsTerm(listTerm)
           setSendersFailed(!!next.senders_failed)
         }
       } catch {
@@ -258,8 +262,8 @@ export function IncomingInvoicesListClient({
         </p>
       )}
       {listError && (
-        <p className="text-sm text-red-700" data-testid="incoming-invoices-load-error">
-          {listError}. Det tælles ikke som ingen fakturaer.
+        <p className="text-sm text-red-700 break-words" data-testid="incoming-invoices-load-error">
+          {listError}{rowsTerm === listTerm && rows.length > 0 ? '. De tidligere fakturaer bliver.' : '. Det tælles ikke som ingen fakturaer.'}
         </p>
       )}
       {!listError && sendersFailed && (
@@ -275,7 +279,7 @@ export function IncomingInvoicesListClient({
         {!busy && !listError && displayRows.length === 0 && (
           <p className="px-3 py-6 text-center text-gray-400 text-xs">{emptyListText(due)}</p>
         )}
-        {!busy && displayRows.map((r) => {
+        {!busy && rowsTerm === listTerm && displayRows.map((r) => {
           const isTest = isTestRow(r)
           return (
             <div key={r.id} className={`p-4 ${isTest ? 'bg-amber-50/40' : ''}`}>
@@ -330,7 +334,7 @@ export function IncomingInvoicesListClient({
             {!busy && !listError && displayRows.length === 0 && (
               <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400 text-xs">{emptyListText(due)}</td></tr>
             )}
-            {!busy && displayRows.map((r) => {
+            {!busy && rowsTerm === listTerm && displayRows.map((r) => {
               const isTest = isTestRow(r)
               return (
               <tr key={r.id} className={`border-t hover:bg-gray-50 ${isTest ? 'bg-amber-50/40' : ''}`}>
