@@ -279,6 +279,7 @@ export function CalendarWorkforceClient({
         <input
           type="date"
           value={anchorDate}
+          aria-label="Dato"
           onChange={(e) => {
             if (e.target.value) updateParam({ date: e.target.value })
           }}
@@ -301,6 +302,7 @@ export function CalendarWorkforceClient({
         <div className="w-full sm:w-auto">
           <label className="block text-xs text-gray-500 mb-1">Medarbejder</label>
           <select
+            aria-label="Medarbejder"
             value={filters.employee ?? ''}
             onChange={(e) => updateParam({ employee: e.target.value || null })}
             className="border rounded px-2 py-1.5 text-sm bg-white w-full sm:w-auto"
@@ -315,6 +317,7 @@ export function CalendarWorkforceClient({
         <div className="w-full sm:w-auto">
           <label className="block text-xs text-gray-500 mb-1">Status</label>
           <select
+            aria-label="Status"
             value={filters.status ?? ''}
             onChange={(e) => updateParam({ status: e.target.value || null })}
             className="border rounded px-2 py-1.5 text-sm bg-white w-full sm:w-auto"
@@ -328,6 +331,7 @@ export function CalendarWorkforceClient({
 
         {(filters.employee || filters.status) && (
           <button
+            type="button"
             className="text-xs text-emerald-700 hover:underline pb-2"
             onClick={() => updateParam({ employee: null, status: null })}
           >
