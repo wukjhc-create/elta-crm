@@ -38,8 +38,8 @@ export async function MyJobsCard() {
 
   return (
     <section className="bg-white rounded-lg border p-4 sm:p-5 mb-6" data-testid="my-jobs-card">
-      <div className="flex items-center gap-2 mb-3">
-        <CalendarCheck className="w-5 h-5 text-emerald-700" />
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
+        <CalendarCheck className="w-5 h-5 text-emerald-700 shrink-0" />
         <h2 className="font-semibold">Mine job</h2>
         <Link href="/dashboard/calendar" className="ml-auto text-xs text-emerald-700 hover:underline">Kalender</Link>
       </div>
@@ -77,21 +77,21 @@ function JobGroup({ title, jobs, warn, emptyText }: { title: string; jobs: WorkO
             <li key={w.id} className="flex items-stretch">
               <Link
                 href={w.case ? `/dashboard/orders/${w.case.id}?tab=planlaegning` : '/dashboard/calendar'}
-                className="flex flex-1 min-w-0 items-center gap-3 px-3 py-3 hover:bg-gray-50 active:bg-gray-100"
+                className="flex flex-1 min-w-0 items-start gap-3 px-3 py-3 hover:bg-gray-50 active:bg-gray-100"
                 data-testid="my-job"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{w.title}</p>
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className="text-sm font-medium break-words">{w.title}</p>
+                  <p className="text-xs text-gray-500 break-words">
                     {w.scheduled_date ? fmtDay(w.scheduled_date) : 'Uden dato'}
                     {w.case ? ` · ${w.case.case_number}` : ''}
                     {w.case?.customer_name ? ` · ${w.case.customer_name}` : ''}
                   </p>
                 </div>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full ${w.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
+                <span className={`shrink-0 text-[11px] px-2 py-0.5 rounded-full ${w.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
                   {STATUS[w.status] ?? w.status}
                 </span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
               </Link>
               {/* N49: navigation direkte fra dagsoversigten (stor trykflade til mobil) */}
               {w.case?.address && (
