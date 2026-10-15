@@ -131,7 +131,7 @@ export function CustomerCasesTab({ customerId }: { customerId: string }) {
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
+                <div className="flex flex-wrap items-center gap-2 mb-0.5">
                   <span className="font-mono text-xs font-semibold text-gray-500">
                     {sag.case_number}
                   </span>
@@ -146,7 +146,7 @@ export function CustomerCasesTab({ customerId }: { customerId: string }) {
                     </span>
                   )}
                 </div>
-                <p className="text-sm font-medium text-gray-900 truncate">{displayTitle}</p>
+                <p className="text-sm font-medium text-gray-900 break-words">{displayTitle}</p>
                 <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-gray-500">
                   <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold ${statusCls}`}>
                     {statusLabel}
