@@ -19,6 +19,7 @@ import {
   decideErrorNotification,
   type NotificationDecisionReason,
 } from '@/lib/invoices/export-error-notification-config'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 
 const FROM_MAILBOX = 'kontakt@eltasolar.dk'
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').replace(/\/$/, '')
@@ -31,9 +32,7 @@ export interface ExportErrorNotificationResult {
 }
 
 function fmtDateTime(s: string): string {
-  return new Intl.DateTimeFormat('da-DK', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  }).format(new Date(s))
+  return copenhagenDateTimeLabel(s)
 }
 
 export async function sendExportErrorNotification(opts: {
