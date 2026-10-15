@@ -79,20 +79,20 @@ export function OrderActivityTab({ caseId }: { caseId: string }) {
       {entries.map((e) => (
         <div
           key={e.id}
-          className="bg-gray-50 rounded ring-1 ring-gray-200 p-3 flex items-start gap-3"
+          className="bg-gray-50 rounded ring-1 ring-gray-200 p-3 flex flex-wrap items-start gap-x-3 gap-y-1"
         >
-          <div className="text-xs text-gray-500 font-mono w-36 shrink-0">
+          <div className="text-xs text-gray-500 font-mono shrink-0">
             {fmtDateTime(e.created_at)}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-900">
+          <div className="flex-1 min-w-[12rem]">
+            <div className="text-sm font-medium text-gray-900 break-words">
               {ACTION_LABELS[e.action] ?? e.action}
               {e.user_name && (
                 <span className="text-gray-500 font-normal"> · {e.user_name}</span>
               )}
             </div>
             {e.action_description && (
-              <div className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+              <div className="text-sm text-gray-700 mt-1 whitespace-pre-wrap break-words">
                 {e.action_description}
               </div>
             )}
