@@ -23,7 +23,7 @@ import {
   getReportsSummary,
   getRevenueByPeriod,
   getRevenueByCustomer,
-  getProjectProfitability,
+  getProjectProfitabilityReport,
   getTeamProductivity,
   getRejectionStats,
   getSalesFunnel,
@@ -31,6 +31,7 @@ import {
   type RevenueByPeriod,
   type RevenueByCustomer,
   type ProjectProfitability,
+  type ProjectProfitabilityReport,
   type TeamProductivity,
   type RejectionStats,
 } from '@/lib/actions/reports'
@@ -165,21 +166,74 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
 // Project Profitability Table
 // =====================================================
 
-function ProjectTable({ data }: { data: ProjectProfitability[] }) {
+const PERIODS: Array<{ value: string; label: string; days: number | null }> = [
+  { value: '90', label: 'Seneste 90 dage', days: 90 },
+  { value: '365', label: 'Seneste 12 mdr.', days: 365 },
+  { value: 'all', label: 'Alle', days: null },
+]
+const d1 = (v: number) => v.toFixed(1).replace('.', ',')
+const pct = (v: number | null, signed = false) => (v == null ? '—' : `${signed && v > 0 ? '+' : ''}${d1(v)} %`)
+
+/**
+ * Efterkalkulation (fokus A/B 2026-10-15): tilbudt vs. faktisk pr. sag med filtre og opsummering. Henter selv
+ * (getProjectProfitabilityReport) — før de 50 nyeste sager, 15 vist, uden periode/status.
+ */
+function ProjectTable() {
   // PV8/N26d: budget og tilbudt/faktisk kost er interne tal → sammenfoldet som standard (shoulder-surfing)
   const [costOpen, toggleCost] = useCostReveal()
   const [byDeviation, setByDeviation] = useState(false)
+  const [period, setPeriod] = useState('365')
+  const [status, setStatus] = useState<'all' | 'open' | 'closed'>('all')
+  const [onlyIssues, setOnlyIssues] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+  const [report, setReport] = useState<ProjectProfitabilityReport | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    setError(null)
+    getProjectProfitabilityReport({ sinceDays: PERIODS.find((x) => x.value === period)?.days ?? null, status, limit: 500 })
+      .then((res) => {
+        if (!alive) return
+        if (res.success && res.data) setReport(res.data)
+        else setError(res.error || 'Kunne ikke hente sagsrentabilitet')
+      })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [period, status])
+
+  const minDb = report?.minimum_db_pct ?? 0
+  const isIssue = (p: ProjectProfitability) =>
+    (p.hours_deviation_pct ?? 0) > 10 || (p.cost_deviation ?? 0) > 0 || (p.realized_db_pct != null && p.realized_db_pct < minDb)
+  const data = (report?.rows ?? []).filter((p) => !onlyIssues || isIssue(p))
   const rows = byDeviation
     ? [...data].sort((a, b) => Math.abs(b.cost_deviation ?? 0) - Math.abs(a.cost_deviation ?? 0))
     : data
+  const visible = showAll ? rows : rows.slice(0, 25)
+  const sum = report?.summary
+
   return (
-    <div className="bg-white rounded-lg border p-6" data-testid="report-case-profitability">
+    <div className="bg-white rounded-lg border p-4 sm:p-6" data-testid="report-case-profitability">
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
           <Briefcase className="w-5 h-5 text-gray-400" />
-          Sagsrentabilitet
+          Sagsrentabilitet — tilbudt vs. faktisk
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <select value={period} onChange={(e) => setPeriod(e.target.value)} className="text-xs border rounded px-2 py-1" aria-label="Periode" data-testid="report-period">
+            {PERIODS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+          </select>
+          <select value={status} onChange={(e) => setStatus(e.target.value as 'all' | 'open' | 'closed')} className="text-xs border rounded px-2 py-1" aria-label="Status" data-testid="report-status">
+            <option value="all">Alle sager</option>
+            <option value="open">Åbne</option>
+            <option value="closed">Lukkede</option>
+          </select>
+          <label className="text-xs text-gray-600 flex items-center gap-1">
+            <input type="checkbox" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} data-testid="report-only-issues" />
+            Kun afvigelser
+          </label>
           {costOpen && (
             <label className="text-xs text-gray-600 flex items-center gap-1">
               <input type="checkbox" checked={byDeviation} onChange={(e) => setByDeviation(e.target.checked)} data-testid="report-sort-deviation" />
@@ -189,8 +243,45 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
           <CostRevealToggle open={costOpen} onToggle={toggleCost} />
         </div>
       </div>
-      {data.length === 0 ? (
-        <p className="text-sm text-gray-400 py-8 text-center">Ingen sager endnu</p>
+
+      {sum && sum.cases > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4" data-testid="report-aftercalc-summary">
+          <div className="rounded border p-2">
+            <div className="text-xs text-gray-500">Timer vs. estimat (lukkede)</div>
+            <div className={`font-semibold ${(sum.avg_hours_deviation_pct ?? 0) > 10 ? 'text-red-600' : 'text-gray-900'}`}>{pct(sum.avg_hours_deviation_pct, true)}</div>
+            <div className="text-[11px] text-gray-400">{sum.hours_basis} sager med estimat</div>
+          </div>
+          <div className="rounded border p-2">
+            <div className="text-xs text-gray-500">Over estimat (&gt;10 %)</div>
+            <div className="font-semibold text-gray-900">{sum.over_hours} af {sum.cases}</div>
+          </div>
+          {costOpen ? (
+            <>
+              <div className="rounded border p-2">
+                <div className="text-xs text-gray-500">DB realiseret vs. tilbudt (lukkede)</div>
+                <div className={`font-semibold ${(sum.avg_db_deviation_pp ?? 0) < 0 ? 'text-red-600' : 'text-gray-900'}`} data-testid="report-db-deviation-avg">
+                  {sum.avg_db_deviation_pp == null ? '—' : `${sum.avg_db_deviation_pp > 0 ? '+' : ''}${d1(sum.avg_db_deviation_pp)} pp`}
+                </div>
+                <div className="text-[11px] text-gray-400">{sum.db_basis} sager med tilbud + faktura</div>
+              </div>
+              <div className="rounded border p-2">
+                <div className="text-xs text-gray-500">Under minimum-DB ({minDb} %)</div>
+                <div className={`font-semibold ${sum.low_db > 0 ? 'text-red-600' : 'text-gray-900'}`}>{sum.low_db} sager</div>
+                <div className="text-[11px] text-gray-400">{sum.over_cost} over tilbudt kost</div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded border p-2 col-span-2 text-xs text-gray-400 flex items-center">Vis beløb for DB-afvigelse og kost</div>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-sm text-gray-400 py-8 text-center">Henter…</p>
+      ) : error ? (
+        <p className="text-sm text-red-600 py-8 text-center">{error}</p>
+      ) : data.length === 0 ? (
+        <p className="text-sm text-gray-400 py-8 text-center">{onlyIssues ? 'Ingen sager med afvigelser' : 'Ingen sager i perioden'}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -200,74 +291,62 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
                 <th className="pb-2 font-medium text-gray-500">Kunde</th>
                 {costOpen && (
                   <>
-                    <th className="pb-2 font-medium text-gray-500 text-right">Budget</th>
                     <th className="pb-2 font-medium text-gray-500 text-right">Tilbudt kost</th>
                     <th className="pb-2 font-medium text-gray-500 text-right">Faktisk kost</th>
                     <th className="pb-2 font-medium text-gray-500 text-right">Afvigelse</th>
                     <th className="pb-2 font-medium text-gray-500 text-right">Faktureret netto</th>
+                    <th className="pb-2 font-medium text-gray-500 text-right">Tilbudt DB</th>
                     <th className="pb-2 font-medium text-gray-500 text-right">Realiseret DB</th>
+                    <th className="pb-2 font-medium text-gray-500 text-right">DB-afvigelse</th>
                   </>
                 )}
                 <th className="pb-2 font-medium text-gray-500 text-right">Est. timer</th>
                 <th className="pb-2 font-medium text-gray-500 text-right">Faktiske timer</th>
-                <th className="pb-2 font-medium text-gray-500 text-right">Udnyttelse</th>
+                <th className="pb-2 font-medium text-gray-500 text-right">Timeafvigelse</th>
               </tr>
             </thead>
             <tbody>
-              {rows.slice(0, 15).map((p) => {
-                const utilization =
-                  p.estimated_hours && p.estimated_hours > 0
-                    ? (p.actual_hours / p.estimated_hours) * 100
-                    : null
-                return (
-                  <tr key={p.project_id} className="border-b last:border-b-0">
-                    <td className="py-2.5">
-                      <div className="font-medium text-gray-900">{p.project_name}</div>
-                      <div className="text-xs text-gray-400">{p.project_number}</div>
-                    </td>
-                    <td className="py-2.5 text-gray-600">{p.customer_name || '—'}</td>
-                    {costOpen && (
-                      <>
-                        <td className="py-2.5 text-right text-gray-600">
-                          {p.budget ? formatCurrency(p.budget) : '—'}
-                        </td>
-                        <td className="py-2.5 text-right text-gray-600">{p.offered_cost != null ? formatCurrency(p.offered_cost) : '—'}</td>
-                        <td className="py-2.5 text-right text-gray-600">{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</td>
-                        <td className={`py-2.5 text-right font-medium ${p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}`} data-testid="report-case-deviation">
-                          {p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : '—'}
-                        </td>
-                        <td className="py-2.5 text-right text-gray-600">{p.net_invoiced ? formatCurrency(p.net_invoiced) : '—'}</td>
-                        <td className={`py-2.5 text-right font-medium ${p.realized_db == null ? 'text-gray-400' : p.realized_db >= 0 ? 'text-green-700' : 'text-red-600'}`} data-testid="report-case-realized">
-                          {p.realized_db == null ? '—' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${p.realized_db_pct.toFixed(1)} %)` : ''}`}
-                        </td>
-                      </>
-                    )}
-                    <td className="py-2.5 text-right text-gray-600">
-                      {p.estimated_hours != null ? `${p.estimated_hours}t` : '—'}
-                    </td>
-                    <td className="py-2.5 text-right text-gray-600">{p.actual_hours}t</td>
-                    <td className="py-2.5 text-right">
-                      {utilization !== null ? (
-                        <span
-                          className={`font-medium ${
-                            utilization > 110
-                              ? 'text-red-600'
-                              : utilization > 90
-                                ? 'text-amber-600'
-                                : 'text-green-600'
-                          }`}
-                        >
-                          {utilization.toFixed(0)}%
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
+              {visible.map((p) => (
+                <tr key={p.project_id} className="border-b last:border-b-0" data-testid="report-case-row">
+                  <td className="py-2.5">
+                    <a href={`/dashboard/orders/${p.project_id}`} className="font-medium text-gray-900 hover:underline">{p.project_name || p.project_number}</a>
+                    <div className="text-xs text-gray-400">{p.project_number}{p.status === 'closed' ? ' · lukket' : ''}</div>
+                  </td>
+                  <td className="py-2.5 text-gray-600">{p.customer_name || '—'}</td>
+                  {costOpen && (
+                    <>
+                      <td className="py-2.5 text-right text-gray-600">{p.offered_cost != null ? formatCurrency(p.offered_cost) : '—'}</td>
+                      <td className="py-2.5 text-right text-gray-600">{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</td>
+                      <td className={`py-2.5 text-right font-medium ${p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}`} data-testid="report-case-deviation">
+                        {p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : '—'}
+                      </td>
+                      <td className="py-2.5 text-right text-gray-600">{p.net_invoiced ? formatCurrency(p.net_invoiced) : '—'}</td>
+                      <td className="py-2.5 text-right text-gray-600" data-testid="report-case-offered-db">
+                        {p.offered_db == null ? '—' : `${formatCurrency(p.offered_db)}${p.offered_db_pct != null ? ` (${d1(p.offered_db_pct)} %)` : ''}`}
+                      </td>
+                      <td className={`py-2.5 text-right font-medium ${p.realized_db == null ? 'text-gray-400' : p.realized_db_pct != null && p.realized_db_pct < minDb ? 'text-red-600' : 'text-green-700'}`} data-testid="report-case-realized">
+                        {p.realized_db == null ? '—' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${d1(p.realized_db_pct)} %)` : ''}`}
+                      </td>
+                      <td className={`py-2.5 text-right font-medium ${(p.db_deviation_pp ?? 0) < 0 ? 'text-red-600' : 'text-gray-700'}`} data-testid="report-case-db-deviation">
+                        {p.db_deviation_pp == null ? '—' : `${p.db_deviation_pp > 0 ? '+' : ''}${d1(p.db_deviation_pp)} pp`}
+                      </td>
+                    </>
+                  )}
+                  <td className="py-2.5 text-right text-gray-600">{p.estimated_hours != null ? `${p.estimated_hours}t` : '—'}</td>
+                  <td className="py-2.5 text-right text-gray-600">{p.actual_hours}t</td>
+                  <td className={`py-2.5 text-right font-medium ${(p.hours_deviation_pct ?? 0) > 10 ? 'text-red-600' : (p.hours_deviation_pct ?? 0) > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                    {pct(p.hours_deviation_pct, true)}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
+          {rows.length > visible.length && (
+            <button type="button" onClick={() => setShowAll(true)} className="mt-3 text-sm text-primary hover:underline" data-testid="report-show-all">
+              Vis alle {rows.length} sager
+            </button>
+          )}
+          {report?.truncated && <p className="mt-2 text-xs text-amber-600">Viser de 500 nyeste sager — vælg en kortere periode for resten.</p>}
         </div>
       )}
     </div>
@@ -427,7 +506,6 @@ export default function ReportsClient() {
   const [summary, setSummary] = useState<ReportsSummary | null>(null)
   const [revenue, setRevenue] = useState<RevenueByPeriod[]>([])
   const [customers, setCustomers] = useState<RevenueByCustomer[]>([])
-  const [projects, setProjects] = useState<ProjectProfitability[]>([])
   const [team, setTeam] = useState<TeamProductivity[]>([])
   const [rejections, setRejections] = useState<RejectionStats | null>(null)
   const [funnel, setFunnel] = useState<SalesFunnel | null>(null)
@@ -436,12 +514,11 @@ export default function ReportsClient() {
   useEffect(() => {
     async function load() {
       setIsLoading(true)
-      const [summaryRes, revenueRes, customersRes, projectsRes, teamRes, rejectionsRes, funnelRes] =
+      const [summaryRes, revenueRes, customersRes, teamRes, rejectionsRes, funnelRes] =
         await Promise.allSettled([
           getReportsSummary(),
           getRevenueByPeriod(6),
           getRevenueByCustomer(10),
-          getProjectProfitability(),
           getTeamProductivity(1),
           getRejectionStats(),
           getSalesFunnel(6),
@@ -455,9 +532,6 @@ export default function ReportsClient() {
       }
       if (customersRes.status === 'fulfilled' && customersRes.value.success) {
         setCustomers(customersRes.value.data || [])
-      }
-      if (projectsRes.status === 'fulfilled' && projectsRes.value.success) {
-        setProjects(projectsRes.value.data || [])
       }
       if (teamRes.status === 'fulfilled' && teamRes.value.success) {
         setTeam(teamRes.value.data || [])
@@ -545,7 +619,7 @@ export default function ReportsClient() {
       {/* N53: salgstragt pr. måned */}
       <SalesFunnelTable data={funnel} />
 
-      <ProjectTable data={projects} />
+      <ProjectTable />
 
       {/* Team Productivity */}
       <TeamTable data={team} />

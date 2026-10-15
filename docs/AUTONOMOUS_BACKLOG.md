@@ -30,6 +30,8 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | D-6 | Pilotfejl-flow: Pilot Health, S1/S2/S3-klassifikation, checkpoint pr. fejl (runbook) | DONE — `docs/runbooks/pilot-incident-flow.md` (kilder, S1/S2/S3, hvad må rettes uden godkendelse, daglig rutine) + register `docs/pilot-incidents.md` |
 | D-7 | 00191-branchen: IKKE fuldt erstattet af 00199 — `offers.customer_id` CASCADE → RESTRICT kom aldrig i prod → udkast **00226** (branch `offers-customer-restrict-00226`, staging-testet) | DONE — 00226 kørt i prod 2026-10-15 (godkendt): FK RESTRICT, offers 15/signaturer 3/checksum identisk, DB-audit 0/0/0, staging offers-restrict-check 4/4; 00191 = 00199 + 00226 (intet andet unikt) → `fk-delete-safety` + worktree `C:\Dev\elta-fk` og `offers-customer-restrict-00226` slettet (lokalt + remote, ingen --force) |
 | D-8 | U135 = testfejl, accepteret; ingen ny fuld regression | DONE |
+| A/B-1 | Efterkalkulation tilbudt vs. faktisk: rapporten viste kun de 50 nyeste sager (15 synlige), uden filtre; fakturaer/øvrige omkostninger hentet uden paginering; ingen tilbudt DB | DONE — `getProjectProfitabilityReport` (op til 500 sager, periode/status, bidder à 200 + fetchAllRows), tilbudt DB (tilbud ekskl. moms − tilbudt kost), DB-afvigelse i pp, timeafvigelse %, opsummering kun over lukkede sager (`lib/profit/aftercalc-summary.ts`), "Kun afvigelser", link til sagen, danske decimaler. Unit aftercalc-summary-test 13/13, UI U88 (udvidet) + U91 |
+| C-1 | Leverandørfaktura-kontrol kun pr. faktura — intet overblik over merbetaling pr. leverandør | IN_PROGRESS |
 
 ## NEXT-13 (2026-10-15 — tavse fejl/feedback + døde revalidateringer + doc-drift)
 Kilde: to opfølgende read-only sweeps til pilot-reviewet.

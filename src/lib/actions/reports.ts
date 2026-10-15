@@ -9,6 +9,8 @@
 
 import { compareOfferToActual, type ActualMaterialInput, type OfferLineInput } from '@/lib/cases/offer-vs-actual'
 import { computeRealizedDb, type RealizedInvoiceInput } from '@/lib/cases/realized-db'
+import { hoursDeviationPct, offeredDb, summarizeAftercalc, type AftercalcSummary } from '@/lib/profit/aftercalc-summary'
+import { loadDbThresholds } from '@/lib/profit/db-thresholds'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
@@ -51,6 +53,8 @@ export interface ProjectProfitability {
   actual_hours: number
   billable_hours: number
   estimated_hours: number | null
+  /** (faktiske − estimerede) / estimerede i % — null uden estimat */
+  hours_deviation_pct: number | null
   /** N26d: tilbudt kost (tilbudslinjer) vs. faktisk kost (materialer + aggregeret timekost) — null uden tilbud/forbrug */
   offered_cost: number | null
   actual_cost: number | null
@@ -59,6 +63,12 @@ export interface ProjectProfitability {
   net_invoiced: number
   realized_db: number | null
   realized_db_pct: number | null
+  /** tilbudt salg ekskl. moms, tilbudt DB og DB % (fra kildetilbuddet) */
+  offered_sale: number | null
+  offered_db: number | null
+  offered_db_pct: number | null
+  /** realiseret DB % − tilbudt DB % (procentpoint) */
+  db_deviation_pp: number | null
 }
 
 export interface TeamProductivity {
@@ -398,114 +408,157 @@ export async function getRevenueByCustomer(
 // Project Profitability
 // =====================================================
 
+export interface ProjectProfitabilityOptions {
+  /** kun sager oprettet inden for de seneste N dage (null = alle) */
+  sinceDays?: number | null
+  status?: 'all' | 'open' | 'closed'
+  /** højst så mange sager (nyeste først); 1–500, standard 200 */
+  limit?: number
+}
+
+export interface ProjectProfitabilityReport {
+  rows: ProjectProfitability[]
+  summary: AftercalcSummary
+  minimum_db_pct: number
+  /** true når der findes flere sager end grænsen */
+  truncated: boolean
+}
+
+const PP_CHUNK = 200
+
 export async function getProjectProfitability(): Promise<ActionResult<ProjectProfitability[]>> {
+  const res = await getProjectProfitabilityReport({ limit: 50 })
+  return res.success ? { success: true, data: res.data?.rows ?? [] } : { success: false, error: res.error }
+}
+
+/**
+ * Efterkalkulation pr. sag (fokus A/B 2026-10-15): tilbudt vs. faktisk timer/kost/DB. Før: kun de 50 nyeste sager og
+ * .in() uden bidder/paginering på fakturaer og øvrige omkostninger.
+ */
+export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOptions = {}): Promise<ActionResult<ProjectProfitabilityReport>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('economy.view')) {
       return { success: false, error: 'Manglende tilladelse: economy.view' }
     }
+    const limit = Math.min(500, Math.max(1, Math.floor(opts.limit ?? 200)))
+    const status = opts.status ?? 'all'
 
     // N26b: bygger på sager (service_cases + time_logs). Før: den gamle projects/time_entries-model, som ikke bruges
     // længere → rapporten var tom/forkert for alle rigtige sager.
-    const { data: cases } = await supabase
+    let q = supabase
       .from('service_cases')
-      .select('id, case_number, title, status, budget, planned_hours, source_offer_id, customer:customers!service_cases_customer_id_fkey(company_name)')
+      .select('id, case_number, title, status, budget, planned_hours, source_offer_id, created_at, customer:customers!service_cases_customer_id_fkey(company_name)')
       .neq('status', 'converted')
       .eq('is_proposal', false) // rapport-review 2026-10-09 (#6): AI-forslag er ikke projekter
-      .order('created_at', { ascending: false })
-      .limit(50)
+    if (status === 'closed') q = q.eq('status', 'closed')
+    if (status === 'open') q = q.neq('status', 'closed')
+    if (opts.sinceDays && opts.sinceDays > 0) q = q.gte('created_at', new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString())
+    const { data: casesRaw, error: casesErr } = await q.order('created_at', { ascending: false }).order('id').limit(limit + 1)
+    if (casesErr) throw casesErr
+    const truncated = (casesRaw ?? []).length > limit
+    const cases = (casesRaw ?? []).slice(0, limit)
 
-    if (!cases || cases.length === 0) {
-      return { success: true, data: [] }
+    const thresholds = await loadDbThresholds(supabase)
+    if (cases.length === 0) {
+      return { success: true, data: { rows: [], summary: summarizeAftercalc([], thresholds.minimum), minimum_db_pct: thresholds.minimum, truncated: false } }
     }
 
     const caseIds = cases.map((c) => c.id as string)
-    // rapport-review: side for side (> 1.000 timeregistreringer på 50 sager blev skåret af → realiseret DB for høj)
-    // 00192: kostkolonnen (cost_amount) læses med admin-klienten bag economy.view (samme roller som economy.cost_prices)
-    const logs = await fetchAllRows<Record<string, unknown>>((from, to) => createAdminClient()
-      .from('time_logs')
-      .select('id, hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
-      .in('work_order.case_id', caseIds)
-      .not('end_time', 'is', null)
-      .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
-      .order('id')
-      .range(from, to))
+    const chunks = <T,>(xs: T[]) => Array.from({ length: Math.ceil(xs.length / PP_CHUNK) }, (_, i) => xs.slice(i * PP_CHUNK, i * PP_CHUNK + PP_CHUNK))
+    const admin = createAdminClient()
 
     const actual = new Map<string, number>()
     const billable = new Map<string, number>()
     const labourCost = new Map<string, number>()
-    for (const l of (logs ?? []) as unknown as Array<{ hours: number | string | null; billable: boolean | null; cost_amount: number | string | null; work_order: { case_id: string } | Array<{ case_id: string }> }>) {
-      const wo = Array.isArray(l.work_order) ? l.work_order[0] : l.work_order
-      if (!wo) continue
-      const h = Number(l.hours ?? 0) || 0
-      actual.set(wo.case_id, (actual.get(wo.case_id) ?? 0) + h)
-      if (l.billable !== false) billable.set(wo.case_id, (billable.get(wo.case_id) ?? 0) + h)
-      if (l.cost_amount != null) labourCost.set(wo.case_id, (labourCost.get(wo.case_id) ?? 0) + (Number(l.cost_amount) || 0))
+    const matsByCase = new Map<string, ActualMaterialInput[]>()
+    const invByCase = new Map<string, RealizedInvoiceInput[]>()
+    const otherCost = new Map<string, number>()
+    for (const ids of chunks(caseIds)) {
+      // rapport-review: side for side (> 1.000 timeregistreringer blev skåret af → realiseret DB for høj)
+      // 00192: kostkolonnen (cost_amount) læses med admin-klienten bag economy.view (samme roller som economy.cost_prices)
+      const [logs, mats, invs, others] = await Promise.all([
+        fetchAllRows<Record<string, unknown>>((from, to) => admin
+          .from('time_logs')
+          .select('id, hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
+          .in('work_order.case_id', ids)
+          .not('end_time', 'is', null)
+          .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
+          .order('id')
+          .range(from, to)),
+        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', ids).order('id').range(from, to)),
+        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('invoices').select('id, case_id, total_amount, status, invoice_type, voided_at').in('case_id', ids).order('id').range(from, to)),
+        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_other_costs').select('id, case_id, total_cost').in('case_id', ids).order('id').range(from, to)),
+      ])
+      for (const l of logs as unknown as Array<{ hours: number | string | null; billable: boolean | null; cost_amount: number | string | null; work_order: { case_id: string } | Array<{ case_id: string }> }>) {
+        const wo = Array.isArray(l.work_order) ? l.work_order[0] : l.work_order
+        if (!wo) continue
+        const h = Number(l.hours ?? 0) || 0
+        actual.set(wo.case_id, (actual.get(wo.case_id) ?? 0) + h)
+        if (l.billable !== false) billable.set(wo.case_id, (billable.get(wo.case_id) ?? 0) + h)
+        if (l.cost_amount != null) labourCost.set(wo.case_id, (labourCost.get(wo.case_id) ?? 0) + (Number(l.cost_amount) || 0))
+      }
+      for (const m of mats as unknown as Array<ActualMaterialInput & { case_id: string }>) matsByCase.set(m.case_id, [...(matsByCase.get(m.case_id) ?? []), m])
+      for (const i of invs as unknown as Array<RealizedInvoiceInput & { case_id: string }>) invByCase.set(i.case_id, [...(invByCase.get(i.case_id) ?? []), i])
+      for (const o of others as unknown as Array<{ case_id: string; total_cost: number | string | null }>) otherCost.set(o.case_id, (otherCost.get(o.case_id) ?? 0) + (Number(o.total_cost ?? 0) || 0))
     }
 
     // N26d: tilbudt vs. faktisk kost pr. sag (samme matching som Økonomi-fanens linjevisning; timekost aggregeret, D50)
     const offerIds = Array.from(new Set(cases.map((c) => c.source_offer_id as string | null).filter((x): x is string => !!x)))
-    const [linesRes, matsRes, invRes, otherRes] = await Promise.all([
-      offerIds.length
-        // 00192: kostkolonner — admin-klient bag economy.view
-        // side for side (profit-review 2026-10-07): 50 tilbud × 20–40 linjer passerer 1.000 → tilbudt kost manglede stille
-        ? fetchAllRows<Record<string, unknown>>((from, to) => createAdminClient().from('offer_line_items')
-            .select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id, position')
-            .in('offer_id', offerIds).order('id').range(from, to))
-            .then((data) => ({ data: data.sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0)) }))
-        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-      fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds).order('id').range(from, to)).then((data) => ({ data })),
-      supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at').in('case_id', caseIds),
-      supabase.from('case_other_costs').select('case_id, total_cost').in('case_id', caseIds),
-    ])
-    const invByCase = new Map<string, RealizedInvoiceInput[]>()
-    for (const i of (invRes.data ?? []) as Array<RealizedInvoiceInput & { case_id: string }>) invByCase.set(i.case_id, [...(invByCase.get(i.case_id) ?? []), i])
-    const otherCost = new Map<string, number>()
-    for (const o of (otherRes.data ?? []) as Array<{ case_id: string; total_cost: number | string | null }>) otherCost.set(o.case_id, (otherCost.get(o.case_id) ?? 0) + (Number(o.total_cost ?? 0) || 0))
     const linesByOffer = new Map<string, OfferLineInput[]>()
-    for (const l of (linesRes.data ?? []) as unknown as Array<OfferLineInput & { offer_id: string }>) {
-      linesByOffer.set(l.offer_id, [...(linesByOffer.get(l.offer_id) ?? []), l])
-    }
-    const matsByCase = new Map<string, ActualMaterialInput[]>()
-    for (const m of (matsRes.data ?? []) as unknown as Array<ActualMaterialInput & { case_id: string }>) {
-      matsByCase.set(m.case_id, [...(matsByCase.get(m.case_id) ?? []), m])
+    const offerById = new Map<string, { final_amount: number | null; tax_amount: number | null }>()
+    for (const ids of chunks(offerIds)) {
+      // 00192: kostkolonner — admin-klient bag economy.view
+      const [lines, offers] = await Promise.all([
+        fetchAllRows<Record<string, unknown>>((from, to) => admin.from('offer_line_items')
+          .select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id, position')
+          .in('offer_id', ids).order('id').range(from, to)),
+        supabase.from('offers').select('id, final_amount, tax_amount').in('id', ids),
+      ])
+      for (const l of [...lines].sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0)) as unknown as Array<OfferLineInput & { offer_id: string }>) {
+        linesByOffer.set(l.offer_id, [...(linesByOffer.get(l.offer_id) ?? []), l])
+      }
+      for (const o of (offers.data ?? []) as Array<{ id: string; final_amount: number | null; tax_amount: number | null }>) offerById.set(o.id, o)
     }
     const r1 = (n: number) => Math.round(n * 10) / 10
 
-    const result: ProjectProfitability[] = cases.map((c) => {
+    const rows: ProjectProfitability[] = cases.map((c) => {
       const customer = (Array.isArray(c.customer) ? c.customer[0] : c.customer) as { company_name: string } | null
+      const id = c.id as string
+      const lines = c.source_offer_id ? linesByOffer.get(c.source_offer_id as string) ?? [] : []
+      const mats = matsByCase.get(id) ?? []
+      const cmp = compareOfferToActual(lines, mats, { hours: actual.get(id) ?? 0, cost: labourCost.has(id) ? labourCost.get(id)! : null })
+      const hasOffered = cmp.rows.some((r) => r.offered_cost != null)
+      const hasActual = cmp.rows.some((r) => r.actual_cost != null)
+      const realized = computeRealizedDb(invByCase.get(id) ?? [], (hasActual ? cmp.totals.actual_cost : 0) + (otherCost.get(id) ?? 0), false)
+      const offeredCost = hasOffered ? cmp.totals.offered_cost : null
+      const od = offeredDb(c.source_offer_id ? offerById.get(c.source_offer_id as string) ?? null : null, offeredCost)
+      const actualHours = r1(actual.get(id) ?? 0)
+      const estimated = c.planned_hours == null ? null : Number(c.planned_hours)
+      const realizedPct = realized.issued_invoice_count > 0 ? realized.realized_db_pct : null
       return {
-        project_id: c.id as string,
+        project_id: id,
         project_number: (c.case_number as string | null) || '',
         project_name: (c.title as string | null) || '',
         customer_name: customer?.company_name || null,
         status: c.status as string,
         budget: c.budget == null ? null : Number(c.budget),
-        actual_hours: r1(actual.get(c.id as string) ?? 0),
-        billable_hours: r1(billable.get(c.id as string) ?? 0),
-        estimated_hours: c.planned_hours == null ? null : Number(c.planned_hours),
-        ...(() => {
-          const id = c.id as string
-          const lines = c.source_offer_id ? linesByOffer.get(c.source_offer_id as string) ?? [] : []
-          const mats = matsByCase.get(id) ?? []
-          const cmp = compareOfferToActual(lines, mats, { hours: actual.get(id) ?? 0, cost: labourCost.has(id) ? labourCost.get(id)! : null })
-          const hasOffered = cmp.rows.some((r) => r.offered_cost != null)
-          const hasActual = cmp.rows.some((r) => r.actual_cost != null)
-          const invs = invByCase.get(id) ?? []
-          const realized = computeRealizedDb(invs, (hasActual ? cmp.totals.actual_cost : 0) + (otherCost.get(id) ?? 0), false)
-          return {
-            offered_cost: hasOffered ? cmp.totals.offered_cost : null,
-            actual_cost: hasActual ? cmp.totals.actual_cost : null,
-            cost_deviation: hasOffered && hasActual ? cmp.totals.deviation : null,
-            net_invoiced: realized.net_invoiced_ex_vat,
-            realized_db: realized.issued_invoice_count > 0 ? realized.realized_db : null,
-            realized_db_pct: realized.issued_invoice_count > 0 ? realized.realized_db_pct : null,
-          }
-        })(),
+        actual_hours: actualHours,
+        billable_hours: r1(billable.get(id) ?? 0),
+        estimated_hours: estimated,
+        hours_deviation_pct: hoursDeviationPct(estimated, actualHours),
+        offered_cost: offeredCost,
+        actual_cost: hasActual ? cmp.totals.actual_cost : null,
+        cost_deviation: hasOffered && hasActual ? cmp.totals.deviation : null,
+        ...od,
+        net_invoiced: realized.net_invoiced_ex_vat,
+        realized_db: realized.issued_invoice_count > 0 ? realized.realized_db : null,
+        realized_db_pct: realizedPct,
+        db_deviation_pp: od.offered_db_pct != null && realizedPct != null ? r1(realizedPct - od.offered_db_pct) : null,
       }
     })
 
-    return { success: true, data: result }
+    return { success: true, data: { rows, summary: summarizeAftercalc(rows, thresholds.minimum), minimum_db_pct: thresholds.minimum, truncated } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente sagsdata') }
   }

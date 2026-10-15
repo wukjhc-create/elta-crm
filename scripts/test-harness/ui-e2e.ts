@@ -3079,7 +3079,7 @@ ${m.text()}`) })
       if (want('U88') && profitCustomerId) {
         const r: Record<string, boolean> = {}
         const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-RP-${stamp}`, title: `[HARNESS] rapport ${stamp}`, customer_id: profitCustomerId,
-          status: 'accepted', created_by: adminUser.id, tax_percentage: 25 }]).select('id')
+          status: 'accepted', created_by: adminUser.id, tax_percentage: 25, final_amount: 9375, tax_amount: 1875 }]).select('id')
         u88OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
         const L = (position: number, description: string, quantity: number, unit: string, cost: number) =>
           ({ offer_id: u88OfferId, position, description, quantity, unit, unit_price: cost * 1.5, total: quantity * cost * 1.5, cost_price: cost, margin_percentage: 33, sale_price: cost * 1.5 })
@@ -3107,6 +3107,12 @@ ${m.text()}`) })
         const row = card.locator('tr', { hasText: caseTitle }).first()
         r.afvigelse = ((await row.getByTestId('report-case-deviation').textContent().catch(() => '')) ?? '').includes('4.340')
         r.sortering_vises = (await card.getByTestId('report-sort-deviation').count()) === 1
+        // Efterkalkulation 2026-10-15: tilbudt DB = 7.500 − 5.000 = 2.500 (33,3 %), opsummering, "Kun afvigelser"
+        r.tilbudt_db = /2\.500.*33,3 %/.test(((await row.getByTestId('report-case-offered-db').textContent().catch(() => '')) ?? '').replace(/\s/g, ' '))
+        r.opsummering = (await card.getByTestId('report-aftercalc-summary').count()) === 1
+        await card.getByTestId('report-only-issues').check({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(500)
+        r.kun_afvigelser_skjuler = (await card.locator('tr', { hasText: caseTitle }).count()) === 0
         out.push({ id: 'U88 N26d rapport: tilbudt vs. faktisk kost pr. sag (foldet)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
