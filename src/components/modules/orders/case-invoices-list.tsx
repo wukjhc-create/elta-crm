@@ -119,7 +119,45 @@ export function CaseInvoicesList({ caseId }: { caseId: string }) {
           Der er endnu ingen fakturaer på sagen. Opret en faktura via fanerne ovenfor.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="md:hidden space-y-2 p-2" data-testid="case-invoices-mobile">
+          {items.map((it) => {
+            const sb = statusBadge(it)
+            const pill = it.invoice_type ? TYPE_PILL[it.invoice_type] : undefined
+            return (
+              <article key={it.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-gray-900">{it.invoice_number ?? '—'}</p>
+                    <p className="text-xs text-gray-600">{it.customer_name ?? '—'}</p>
+                  </div>
+                  <span className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${sb.cls}`}>
+                    {it.voided_at && <Ban className="w-3 h-3" />}
+                    {sb.label}
+                  </span>
+                </div>
+                {pill && <p className={`mt-1 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${pill.cls}`}>{pill.label}</p>}
+                <p className="mt-2 text-xs text-gray-500">Oprettet {fmtDate(it.created_at)}</p>
+                {it.sent_at && <p className="text-xs text-gray-500">Sendt {fmtDate(it.sent_at)}</p>}
+                {it.paid_at && <p className="text-xs text-emerald-700">Betalt {fmtDate(it.paid_at)}</p>}
+                {!it.paid_at && it.due_date && <p className="text-xs text-gray-500">Forfald {fmtDate(it.due_date)}</p>}
+                <p className="mt-2 tabular-nums font-medium text-gray-900">{kr(it.final_amount, it.currency)} inkl. moms</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Link href={`/dashboard/invoices/${it.id}`} className="inline-flex items-center gap-1 px-2 py-1.5 rounded ring-1 ring-emerald-300 text-emerald-700">
+                    <FileText className="w-3.5 h-3.5" /> Åbn
+                  </Link>
+                  <a href={`/api/invoices/${it.id}/pdf?view=1`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1.5 rounded ring-1 ring-gray-300 text-gray-700">
+                    <Eye className="w-3.5 h-3.5" /> PDF
+                  </a>
+                  <a href={`/api/invoices/${it.id}/pdf`} className="inline-flex items-center gap-1 px-2 py-1.5 rounded ring-1 ring-gray-300 text-gray-700">
+                    <FileDown className="w-3.5 h-3.5" /> Hent
+                  </a>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-left text-gray-600">
               <tr>
@@ -200,6 +238,7 @@ export function CaseInvoicesList({ caseId }: { caseId: string }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <p className="px-3 py-2 text-[11px] text-gray-400 border-t border-gray-100">
