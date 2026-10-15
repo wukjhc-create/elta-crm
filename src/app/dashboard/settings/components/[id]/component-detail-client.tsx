@@ -477,7 +477,7 @@ export default function ComponentDetailClient({
                     return (
                       <div key={variant.id} className="border rounded-lg">
                         <div
-                          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
+                          className="flex flex-wrap items-start justify-between gap-2 p-4 cursor-pointer hover:bg-gray-50"
                           onClick={() => toggleVariantExpanded(variant.id)}
                         >
                           <div className="flex items-center gap-3">
@@ -488,7 +488,7 @@ export default function ComponentDetailClient({
                             )}
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-medium">{variant.name}</span>
+                                <span className="font-medium break-words">{variant.name}</span>
                                 {variant.code && (
                                   <Badge variant="outline" className="text-xs">{variant.code}</Badge>
                                 )}
@@ -514,7 +514,7 @@ export default function ComponentDetailClient({
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label="Rediger variant"
+                              aria-label={`Rediger variant ${variant.name}`}
                               onClick={() => openVariantDialog(variant)}
                             >
                               <Pencil className="w-4 h-4" />
@@ -522,7 +522,7 @@ export default function ComponentDetailClient({
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label="Slet variant"
+                              aria-label={`Slet variant ${variant.name}`}
                               className="text-red-500"
                               onClick={() => handleDeleteVariant(variant)}
                             >
@@ -547,17 +547,17 @@ export default function ComponentDetailClient({
                               </Button>
                             </div>
                             {variantMaterials.length === 0 ? (
-                              <p className="text-sm text-gray-500">Ingen ekstra materialer</p>
+                              <p className="text-sm text-gray-500">Ingen ekstra materialer. Tilføj et, hvis varianten skal bruge noget ud over basis.</p>
                             ) : (
                               <div className="space-y-2">
                                 {variantMaterials.map(vm => (
                                   <div
                                     key={vm.id}
-                                    className="flex items-center justify-between text-sm bg-white rounded p-2"
+                                    className="flex flex-wrap items-center justify-between gap-2 text-sm bg-white rounded p-2"
                                   >
                                     <div className="flex items-center gap-2">
                                       <Package className="w-4 h-4 text-gray-400" />
-                                      <span>{vm.material_name}</span>
+                                      <span className="break-words">{vm.material_name}</span>
                                       <span className="text-gray-500">
                                         {vm.quantity} {vm.unit}
                                       </span>
@@ -569,7 +569,7 @@ export default function ComponentDetailClient({
                                       variant="ghost"
                                       size="icon"
                                       className="h-6 w-6 text-red-500"
-                                      aria-label="Fjern materiale"
+                                      aria-label={`Fjern materiale ${vm.material_name}`}
                                       onClick={() => handleDeleteVariantMaterial(vm.id)}
                                     >
                                       <Trash2 className="w-3 h-3" />
@@ -597,23 +597,23 @@ export default function ComponentDetailClient({
                 <Package className="w-5 h-5" />
                 Basis materialer
               </CardTitle>
-              <Button size="sm" variant="outline" onClick={() => openMaterialDialog()}>
+              <Button size="sm" variant="outline" onClick={() => openMaterialDialog()} aria-label="Tilføj basismateriale">
                 <Plus className="w-4 h-4" />
               </Button>
             </CardHeader>
             <CardContent>
               {component.materials.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">Ingen materialer</p>
+                <p className="text-gray-500 text-center py-4">Ingen materialer endnu. Tilføj et basismateriale, hvis komponenten altid bruger det.</p>
               ) : (
                 <div className="space-y-3">
                   {component.materials.map(material => (
                     <div
                       key={material.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg"
                     >
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{material.material_name}</span>
+                          <span className="font-medium text-sm break-words">{material.material_name}</span>
                           {material.is_optional && (
                             <Badge variant="outline" className="text-xs">Valgfri</Badge>
                           )}
@@ -632,7 +632,7 @@ export default function ComponentDetailClient({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          aria-label="Rediger materiale"
+                          aria-label={`Rediger materiale ${material.material_name}`}
                           onClick={() => openMaterialDialog(material)}
                         >
                           <Pencil className="w-3 h-3" />
@@ -641,7 +641,7 @@ export default function ComponentDetailClient({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-red-500"
-                          aria-label="Slet materiale"
+                          aria-label={`Slet materiale ${material.material_name}`}
                           onClick={() => handleDeleteMaterial(material)}
                         >
                           <Trash2 className="w-3 h-3" />
