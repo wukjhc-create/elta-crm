@@ -100,7 +100,7 @@ export function OrdersListClient({
   }
 
   return (
-    <div className="p-6 space-y-4 max-w-[1400px]">
+    <div className="p-0 md:p-6 space-y-4 max-w-[1400px]">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Sager / Ordrer</h1>

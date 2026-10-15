@@ -38,7 +38,9 @@ export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const { role } = useUserRole()
+  const { role, fullName, email } = useUserRole()
+  // NEXT-11 (M-20): avataren viste altid "U" — initialer fra profilens navn (ellers e-mail)
+  const initials = ((fullName ?? '').trim().split(/\s+/).filter(Boolean).map((p) => p[0]).slice(0, 2).join('') || (email ?? '?')[0] || '?').toUpperCase()
   const visibleMobileLinks = mobileNavLinks.filter((l) => !l.permission || hasPermission(role, l.permission))
 
   const handleLogout = async () => {
@@ -90,8 +92,8 @@ export function Header() {
               aria-label="Brugermenu"
               aria-expanded={isMenuOpen}
             >
-              <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-medium text-sm">
-                U
+              <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-medium text-sm" title={fullName ?? email ?? undefined} data-testid="user-avatar">
+                {initials}
               </div>
               <svg className="w-4 h-4 text-gray-600 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

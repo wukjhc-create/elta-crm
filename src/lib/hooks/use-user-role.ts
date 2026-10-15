@@ -24,11 +24,13 @@ import type { UserRole } from '@/types/auth.types'
  * If we ever want to eliminate the flash, the right fix is to pass
  * the role from a server component via context, NOT module-scope cache.
  */
-export function useUserRole(): { role: UserRole; loading: boolean } {
+export function useUserRole(): { role: UserRole; loading: boolean; fullName: string | null; email: string | null } {
   // Always start with the most restrictive default so SSR and client
   // hydration produce identical HTML for the initial render.
   const [role, setRole] = useState<UserRole>('montør')
   const [loading, setLoading] = useState(true)
+  const [fullName, setFullName] = useState<string | null>(null)
+  const [email, setEmail] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -38,6 +40,8 @@ export function useUserRole(): { role: UserRole; loading: boolean } {
         const result = await getProfile()
         if (mounted && result.success && result.data) {
           setRole(result.data.role as UserRole)
+          setFullName((result.data as { full_name?: string | null }).full_name ?? null)
+          setEmail((result.data as { email?: string | null }).email ?? null)
         }
       } catch {
         // Default 'montør' is already set; keep it.
@@ -51,5 +55,5 @@ export function useUserRole(): { role: UserRole; loading: boolean } {
     }
   }, [])
 
-  return { role, loading }
+  return { role, loading, fullName, email }
 }

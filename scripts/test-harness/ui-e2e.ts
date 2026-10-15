@@ -3279,6 +3279,11 @@ ${m.text()}`) })
           r.tilbud_uden_vandret_scroll = overflow <= 2
           r.salg_ingen_slet_paa_tilbud = (await sp.page.getByRole('button', { name: /^Slet$/ }).count()) === 0
           r.salg_ingen_eksporter = (await sp.page.getByRole('button', { name: /Eksporter/ }).count()) === 0
+          // M-20: avataren viser initialer fra profilen (før altid "U")
+          const prof = (await c.admin.from('profiles').select('full_name, email').eq('id', salg.id).maybeSingle()).data as { full_name: string | null; email: string | null } | null
+          const want = ((prof?.full_name ?? '').trim().split(/\s+/).filter(Boolean).map((x) => x[0]).slice(0, 2).join('') || (prof?.email ?? '?')[0]).toUpperCase()
+          const avatar = ((await sp.page.getByTestId('user-avatar').first().textContent().catch(() => '')) ?? '').trim()
+          r.avatar_initialer = avatar === want
           await gotoSafe(sp.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
           await sp.page.getByRole('button', { name: /Nyt tilbud/ }).first().waitFor({ timeout: 60_000 }).catch(() => {})
           r.salg_kundekort_nyt_tilbud = (await sp.page.getByRole('button', { name: /Nyt tilbud/ }).count()) > 0

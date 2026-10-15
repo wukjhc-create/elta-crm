@@ -32,7 +32,7 @@ Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | M-16 (S3) | Ny sag: "Ansvarlig" tom for serviceleder/salg (users.view); "+ Ny sag" vises for bogholderi | DONE (UI U153) |
 | M-17 (S3) | Inline-linjer: dobbelt "Tilføj linje"; fejlet gem markeres som gemt | DONE (UI U153) |
 | M-18 (S3) | Opgavedialog lukker ved tryk på baggrunden (tab af input) | DONE (UI U153) |
-| M-19/20 (S4) | Skraldespand som luk-ikon; "Låst"-årsag kun hover; avatar "U"; padding | DONE (X-ikon, Låst ved tryk); avatar/padding: LATER |
+| M-19/20 (S4) | Skraldespand som luk-ikon; "Låst"-årsag kun hover; avatar "U"; padding | DONE — X-ikon, Låst ved tryk, avatar med initialer (U153), sagslisten uden ekstra padding på mobil |
 
 ## Checkpoint 2026-10-14 aften (long-run)
 - **I prod (push = deploy):** L-7 ret fakturahoved · PE-6 kontraktsum-DB · PE-7 fælles DB-tærskler · arbejdskost trin 2 (adfærdsneutralt)
