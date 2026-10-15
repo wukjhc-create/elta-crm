@@ -285,9 +285,9 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
                 const isExpanded = expandedCaseId === c.case_id
                 return (
                   <article key={c.case_id} className="bg-white rounded-lg ring-1 ring-gray-200 p-3 text-sm">
-                    <p className="font-medium text-gray-900">{c.case_number ?? c.case_id.slice(0, 8)}</p>
-                    <p className="text-xs text-gray-500">{c.customer_label ?? c.case_title ?? '—'}</p>
-                    <p className="mt-1 text-xs text-gray-600">{c.supplier_names.length ? c.supplier_names.join(', ') : '—'}</p>
+                    <p className="font-medium text-gray-900 break-words">{c.case_number ?? c.case_id.slice(0, 8)}</p>
+                    <p className="text-xs text-gray-500 break-words">{c.customer_label ?? c.case_title ?? '—'}</p>
+                    <p className="mt-1 text-xs text-gray-600 break-words">{c.supplier_names.length ? c.supplier_names.join(', ') : '—'}</p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {c.action_reasons.map((r) => (
                         <span key={r} className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ${REASON_BADGE[r].cls}`}>{REASON_BADGE[r].label}</span>
@@ -343,10 +343,10 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
                         <Fragment key={c.case_id}>
                           <tr className="hover:bg-gray-50">
                             <td className="px-4 py-2.5">
-                              <div className="font-medium text-gray-900">{c.case_number ?? c.case_id.slice(0, 8)}</div>
-                              <div className="text-xs text-gray-500 truncate max-w-[200px]">{c.customer_label ?? c.case_title ?? '—'}</div>
+                              <div className="font-medium text-gray-900 break-words">{c.case_number ?? c.case_id.slice(0, 8)}</div>
+                              <div className="text-xs text-gray-500 break-words">{c.customer_label ?? c.case_title ?? '—'}</div>
                             </td>
-                            <td className="px-4 py-2.5 text-gray-600 text-xs truncate max-w-[160px]">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs break-words max-w-[16rem]">
                               {c.supplier_names.length ? c.supplier_names.join(', ') : '—'}
                             </td>
                             <td className="px-4 py-2.5">
@@ -499,11 +499,11 @@ function ExpandedInvoices({
     <div className="space-y-1.5">
       <div className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">Leverandørfakturaer med ukonverterede linjer</div>
       {d.invoices.map((iv) => (
-        <div key={iv.id} className="flex items-center justify-between gap-3 rounded-md bg-white ring-1 ring-gray-200 px-3 py-2">
-          <div className="min-w-0 flex items-center gap-2 text-sm">
+        <div key={iv.id} className="flex items-start justify-between gap-3 rounded-md bg-white ring-1 ring-gray-200 px-3 py-2">
+          <div className="min-w-0 flex flex-wrap items-center gap-2 text-sm">
             {iv.action_required && <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
             <span className="text-xs text-gray-500 shrink-0">{fmtDate(iv.invoice_date)}</span>
-            <span className="truncate text-gray-800">{iv.supplier_name ?? iv.invoice_number ?? '—'}</span>
+            <span className="break-words text-gray-800 min-w-0">{iv.supplier_name ?? iv.invoice_number ?? '—'}</span>
             <span className="text-[10px] text-gray-500 bg-gray-100 rounded px-1 py-0.5 shrink-0">{STATUS_LABEL[iv.status] ?? iv.status}</span>
           </div>
           <div className="flex items-center gap-3 shrink-0">

@@ -21,6 +21,11 @@ eq('beloeb paa kortet kraever canAmt', amount > mobile.lastIndexOf('canAmt', amo
 eq('linjer kan foldes ud med samme komponent', mobile.includes('toggleExpand') && mobile.includes('ExpandedInvoices'), true)
 eq('paging ligger uden for kortet', mobile.includes('data.total_pages'), false)
 eq('paging findes stadig', src.includes('Side {data.page} / {data.total_pages}'), true)
+eq('kunde og leverandoer ombrydes', mobile.includes('break-words">{c.customer_label') && mobile.includes('break-words">{c.supplier_names.length'), true)
+eq('desktop klipper ikke kunde', src.includes('truncate max-w-[200px]'), false)
+eq('desktop-leverandoer ombrydes', src.includes('text-gray-600 text-xs break-words max-w-[16rem]'), true)
+eq('fakturanavn ombrydes', src.includes('break-words text-gray-800 min-w-0">{iv.supplier_name'), true)
+eq('beloeb og tom tekst er de samme', src.includes('kr(c.unconverted_amount)') && src.includes('Ingen sager kræver indkøbshandling lige nu.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\npurchase-ops-mobile-test OK')
 process.exitCode = fail ? 1 : 0
