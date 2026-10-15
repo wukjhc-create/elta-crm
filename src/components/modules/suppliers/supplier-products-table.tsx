@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -69,7 +69,12 @@ export function SupplierProductsTable({
   const [sortBy, setSortBy] = useState<SortColumn>('supplier_name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [shownKey, setShownKey] = useState<string | null>(null)
+  const loadedKey = useRef<string | null>(null)
+  const seq = useRef(0)
   const pageSize = 25
+  const queryKey = `${supplierId}|${search}|${category}|${page}|${sortBy}|${sortOrder}`
+  const showingThisQuery = shownKey === queryKey && products.length > 0
 
   useEffect(() => {
     loadProducts()
@@ -98,6 +103,8 @@ export function SupplierProductsTable({
   }
 
   const loadProducts = async () => {
+    const my = ++seq.current
+    const key = `${supplierId}|${search}|${category}|${page}|${sortBy}|${sortOrder}`
     setLoading(true)
     const result = await getSupplierProducts({
       supplier_id: supplierId,
@@ -108,16 +115,24 @@ export function SupplierProductsTable({
       page,
       pageSize,
     })
+    if (my !== seq.current) return
     if (result.success && result.data) {
       setLoadError(null)
       setProducts(result.data.data)
       setTotalPages(result.data.totalPages)
       setTotal(result.data.total)
+      loadedKey.current = key
+      setShownKey(key)
     } else {
-      setProducts([])
-      setTotalPages(1)
-      setTotal(0)
-      setLoadError(result.success ? 'Kunne ikke hente produkter' : (result.error || 'Kunne ikke hente produkter'))
+      const message = result.success ? 'Kunne ikke hente produkter' : (result.error || 'Kunne ikke hente produkter')
+      if (message.includes('Manglende tilladelse') || message.includes('Ikke logget ind') || loadedKey.current !== key) {
+        setProducts([])
+        setTotalPages(1)
+        setTotal(0)
+        loadedKey.current = null
+        setShownKey(null)
+      }
+      setLoadError(message)
     }
     setLoading(false)
   }
@@ -169,23 +184,29 @@ export function SupplierProductsTable({
       {/* Stats */}
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>
-          {total.toLocaleString('da-DK')} produkter
-          {category && <> i &quot;{category}&quot;</>}
-          {search && <> matchende &quot;{search}&quot;</>}
+          {loadError && !showingThisQuery ? (
+            'Antallet kunne ikke hentes. Det tælles ikke som 0 produkter.'
+          ) : (
+            <>
+              {total.toLocaleString('da-DK')} produkter
+              {category && <> i &quot;{category}&quot;</>}
+              {search && <> matchende &quot;{search}&quot;</>}
+            </>
+          )}
         </span>
       </div>
 
       {loadError && (
         <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2" role="alert">
-          {loadError}
+          {loadError}. Det tælles ikke som ingen produkter.
         </p>
       )}
 
-      {loading ? (
+      {loading && !showingThisQuery ? (
         <div className="h-32 flex items-center justify-center bg-white rounded-lg border">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
-      ) : loadError ? null : products.length === 0 ? (
+      ) : loadError && !showingThisQuery ? null : products.length === 0 ? (
         <div className="h-32 flex flex-col items-center justify-center text-center text-gray-500 bg-white rounded-lg border">
           <Package className="w-12 h-12 mb-2 text-gray-300" />
           <p>Ingen produkter fundet</p>
