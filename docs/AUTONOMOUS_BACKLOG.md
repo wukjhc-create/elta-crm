@@ -50,16 +50,16 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 |---|---|---|
 | W-1 (S2) | Sagssøgning ignorerer kunde/adresse trods label "titel · kunde · case nr" | DONE — søger også kundenavn/-nr./kontakt, projektnavn, adresse, postnr., by, reference. UI U165/U20 |
 | W-2 (S2) | Lead → kunde efterlader leadets tilbud uden kunde (ingen Send, kan ikke blive sag) | DONE — konvertering kobler leadets tilbud uden kunde (+ parti-roller), aktivitetslog; tilbudssiden siger "mangler kunde". UI U27 |
-| W-3 (S2) | Materiale på sag: kun manuel indtastning (ingen leverandørsøgning) → pris 0 | TODO |
+| W-3 (S2) | Materiale på sag: kun manuel indtastning (ingen leverandørsøgning) → pris 0 | DONE — "Søg i leverandørkatalog" i Tilføj materiale (ny action searchProductsForCaseMaterialAction, gate materials.add_to_case + sagsadgang; kost/salg kun med materials.view.cost_prices, salgspris med kundens gyldige aftale) udfylder felter og kobler supplier_product_id. UI U167/U34 |
 | W-4 (S2) | Sagslisten 13 kolonner på mobil — montørens bundnav går dertil | DONE — kortliste under md (nr., status, haster, titel, kunde, adresse, datoer), tabellen fra md; søgefelt fuld bredde. UI U160 (375 px uden scroll) + U20/U165/U12 |
 | W-5 (S2) | Montør ser statusskift/Rediger på sag han ikke må bruge | DONE — statusskift + Rediger (hoved, sagsoplysninger, sagspartnere, adresse) kun med cases.edit; ellers statusmærke. UI U40/U12/U11 |
 | W-6 (S2) | "Manglende tilladelse: x.y"-literaler | DELVIS — vises allerede dansk via humanizeErrorText i toast/action-helpers (R-12); resterende direkte visninger tjekkes |
 | W-7 (S2) | Opgaver genindlæser alt pr. tastetryk; getAllTasks uden limit/guard | DONE — søgning debounces (300 ms), profiler hentes én gang, loft 1.000, escapeLike. UI U151/U140/U101/U102 |
 | W-8 (S2) | Salg/bogholderi kan oprette opgaver men ikke se en opgaveliste; getAllTasks uden rettighedstjek | DELVIS — guard DONE: uden tasks.view ses kun egne oprettede/tildelte opgaver (liste + tællere; før så alle indloggede alle opgaver). Rettighedsudvidelse (opgavemenu for salg/bogholderi) = [H] |
-| W-9 (S2) | Ingen genkald/opfølgning på leads | TODO (interim "Påmind mig"); felt next_follow_up_at = [H] migration |
+| W-9 (S2) | Ingen genkald/opfølgning på leads | DELVIS — interim "Påmind mig" på leadet: kalenderfil (.ics, Københavnstid, alarm) med kontakt/tlf/link — intet gemmes i CRM. UI U167, unit work-order-ics. Rigtigt felt next_follow_up_at (eller 00197 personal_reminders til prod) = [H] migration |
 | W-10 (S3) | Lead-statusknapper tillader ugyldige skift; Rediger ikke gated | DONE — kun tilladte skift klikbare (forklaring i tooltip), knapper + Rediger kræver leads.edit. UI U27 |
 | W-11 (S3) | Leverandørsøgning: hele sætningen som én ILIKE, sorteret efter pris, "bedste pris" på tværs af forskellige varer | DONE — hvert ord skal matche varenr./navn/EAN, rangering: præcist varenr./EAN → navn starter med → alle ord i navnet → resten (pris som tie-breaker); "billigst" kun inden for samme EAN. Unit search-rank-test 9/9, UI U51/U77/U84 |
-| W-12 (S3) | Tilbudseditorens søgning: race, tavse fejl, antal låst til 1 | TODO |
+| W-12 (S3) | Tilbudseditorens søgning: race, tavse fejl, antal låst til 1 | DONE — kun seneste søgning skriver resultatet (tilbud + mail-tilbudseditor), fejl vises i stedet for "Ingen produkter fundet", "Antal ved tilføj"; "billigst" fra serveren (samme EAN). UI U51 (antal 3) |
 | W-13 (S3) | Sags-/kundefaner ikke i URL (refresh/tilbage → Overblik) | DONE — ?tab= skrives ved fanevalg (sag + kunde) og læses ved indlæsning. UI U166 |
 | W-14 (S3) | "Ansvarlig" = opretter i sagshovedet men tildelt i listen | DONE — hovedet viser den tildelte (opretter kun som fallback) |
 | W-15 (S3) | Advarselsnoter gemt i Noter-fanen; noter tavst begrænset til 100; små tap-mål | DONE — advarselsnoter som banner øverst på Overblik (link til Noter), loft 500 med besked, rediger/slet med større tap-mål og afstand. UI U166/U40 |

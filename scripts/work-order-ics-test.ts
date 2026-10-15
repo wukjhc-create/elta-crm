@@ -2,7 +2,7 @@
  * Unit-tests for arbejdsordrer som kalenderfil (src/lib/utils/ics.ts generateWorkOrdersICS). Ingen DB.
  *   npx tsx scripts/work-order-ics-test.ts
  */
-import { generateWorkOrdersICS, icsUtcStamp } from '../src/lib/utils/ics'
+import { generateFollowUpICS, generateWorkOrdersICS, icsUtcStamp } from '../src/lib/utils/ics'
 
 let bad = 0
 const ok = (c: boolean, label: string, extra = '') => { if (!c) bad++; console.log(`${c ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`) }
@@ -30,6 +30,15 @@ const timed = generateWorkOrdersICS([
 ok(timed.includes('DTSTART;TZID=Europe/Copenhagen:20261031T223000') && timed.includes('DTEND;TZID=Europe/Copenhagen:20261101T013000'), 'start + varighed over midnat')
 ok(timed.includes('DTSTART;TZID=Europe/Copenhagen:20261020T080000') && timed.filter((l) => l.startsWith('DTEND')).length === 1, 'uden varighed: ingen DTEND')
 ok(timed.includes('BEGIN:VTIMEZONE') && timed.includes('TZID:Europe/Copenhagen'), 'tidszone-blok med')
+
+// W-9: opfølgning på lead — tidsbestemt, 15 min, alarm, tekst escapes
+const fu = generateFollowUpICS({ id: 'lead-x', date: '2026-12-31', startTime: '23:50', title: 'Opfølgning: A, B', description: 'Tlf: 1\nlinje 2' }, now).split('\r\n')
+ok(fu.includes('DTSTART;TZID=Europe/Copenhagen:20261231T235000') && fu.includes('DTEND;TZID=Europe/Copenhagen:20270101T000500'), 'opfølgning: 15 min over årsskifte')
+ok(fu.includes('BEGIN:VALARM') && fu.includes('TRIGGER:PT0M') && fu.includes('SUMMARY:Opfølgning: A\\, B'), 'alarm + escapet titel')
+ok(fu.includes('DESCRIPTION:Tlf: 1\\nlinje 2') && fu.includes('BEGIN:VTIMEZONE'), 'beskrivelse escapet + tidszone')
+let threw = false
+try { generateFollowUpICS({ id: 'x', date: '31-12-2026', startTime: '9', title: 't' }) } catch { threw = true }
+ok(threw, 'ugyldig dato/tid afvises')
 
 console.log(bad ? `\n${bad} FEJL` : '\nalle bestået')
 process.exitCode = bad ? 1 : 0

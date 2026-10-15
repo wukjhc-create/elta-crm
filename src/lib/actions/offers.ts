@@ -1154,7 +1154,7 @@ export async function getCustomersForSelect(): Promise<
 
 // Get leads for dropdown
 export async function getLeadsForSelect(): Promise<
-  ActionResult<{ id: string; company_name: string }[]>
+  ActionResult<{ id: string; company_name: string; contact_person: string | null }[]>
 > {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -1164,16 +1164,18 @@ export async function getLeadsForSelect(): Promise<
 
     const { data, error } = await supabase
       .from('leads')
-      .select('id, company_name')
+      .select('id, company_name, contact_person')
       .not('status', 'in', '("won","lost")')
-      .order('company_name')
+      // W-18 (pilot-review 2026-10-15): nyeste åbne leads (loft 300) — før alle åbne alfabetisk uden loft
+      .order('created_at', { ascending: false })
+      .limit(300)
 
     if (error) {
       logger.error('Database error fetching leads', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data || [] }
+    return { success: true, data: (data || []).sort((a, b) => (a.company_name || '').localeCompare(b.company_name || '', 'da')) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente leads') }
   }

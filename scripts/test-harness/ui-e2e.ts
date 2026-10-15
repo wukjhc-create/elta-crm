@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -2004,6 +2004,59 @@ ${m.text()}`) })
         out.push({ id: 'U166 faner i URL (sag + kunde)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U167 W-3/W-11/W-9: materiale på sag fra leverandørkatalog (søgning med ord i omvendt rækkefølge → valg udfylder og
+      // kobler varen), og "Påmind mig" på et lead giver en kalenderfil med alarm
+      if (want('U167') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U167 grossist ${stamp}`, code: `HU167${stamp}` }]).select('id')
+        const supId = (sup.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sp = supId ? await c.admin.from('supplier_products').insert([{ supplier_id: supId, supplier_sku: `H167-${stamp}`, supplier_name: `Kabel PVIK 3G1,5 U167 ${stamp}`,
+          cost_price: 10, unit: 'm', is_available: true }]).select('id') : null
+        const spId = (sp?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] katalogmateriale ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        const ld = await c.admin.from('leads').insert([{ company_name: `[HARNESS] påmind ${stamp}`, contact_person: 'Påmind Kontakt', email: `u167-${stamp}@harness.test`,
+          phone: '12345678', created_by: adminUser.id }]).select('id')
+        const leadId = (ld.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const seedErr = spId && caseId && leadId ? '' : `SEED: ${sp?.error?.message ?? sc.error?.message ?? ld.error?.message ?? sup.error?.message ?? '?'} · `
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: /Tilføj materiale/ }).first().click({ timeout: 60_000 }).catch(() => {})
+          const dlg = a.page.locator('[aria-labelledby="case-material-dialog-title"]')
+          await dlg.getByTestId('case-material-product-search').fill(`${stamp} pvik kabel`).catch(() => {})
+          const hit = dlg.getByTestId('case-material-product-hits').getByText(`Kabel PVIK 3G1,5 U167 ${stamp}`)
+          await hit.waitFor({ timeout: 60_000 }).catch(() => {})
+          r.fundet_ord_i_vilkaarlig_orden = (await hit.count()) > 0
+          await hit.first().click({ timeout: 30_000 }).catch(() => {})
+          r.koblet = (await dlg.getByTestId('case-material-linked').count()) > 0
+          await dlg.getByRole('button', { name: 'Tilføj', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+          type MatRow = { supplier_product_id?: string | null; sku_snapshot?: string | null; unit?: string; unit_cost?: number; unit_sales_price?: number }
+          const readMat = async (): Promise<MatRow | null> => ((await c.admin.from('case_materials').select('supplier_product_id, sku_snapshot, unit, unit_cost, unit_sales_price').eq('case_id', caseId ?? '').maybeSingle()).data as MatRow | null)
+          let m0 = await readMat()
+          for (let i = 0; i < 20 && !m0; i++) { await new Promise((res) => setTimeout(res, 1000)); m0 = await readMat() }
+          r.gemt_med_vare = !!m0 && m0.supplier_product_id === spId && m0.sku_snapshot === `H167-${stamp}` && m0.unit === 'm'
+          r.kost_10_salg_over = Number(m0?.unit_cost) === 10 && Number(m0?.unit_sales_price) > 10
+          await a.page.screenshot({ caret: 'initial', path: join(shots, 'u167-katalogmateriale.png'), fullPage: false }).catch(() => {})
+
+          await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('lead-follow-up').click({ timeout: 60_000 }).catch(() => {})
+          const dl = a.page.waitForEvent('download', { timeout: 30_000 }).catch(() => null)
+          await a.page.getByTestId('lead-follow-up-download').click({ timeout: 30_000 }).catch(() => {})
+          const d = await dl
+          const p = d ? await d.path().catch(() => null) : null
+          const ics = p ? (await import('node:fs')).readFileSync(p, 'utf8') : ''
+          r.ics_alarm = /BEGIN:VALARM/.test(ics) && /DTSTART;TZID=Europe\/Copenhagen:\d{8}T090000/.test(ics)
+          r.ics_lead = ics.includes(`Opfølgning: [HARNESS] påmind ${stamp}`) && ics.includes('Tlf: 12345678')
+        } finally {
+          if (caseId) await c.admin.from('case_materials').delete().eq('case_id', caseId)
+          if (supId) { await c.admin.from('supplier_products').delete().eq('supplier_id', supId); await c.admin.from('suppliers').delete().eq('id', supId) }
+          if (leadId) await c.admin.from('leads').delete().eq('id', leadId)
+        }
+        out.push({ id: 'U167 katalogmateriale på sag + påmind lead', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
       // U164 00231 (Henrik 2026-10-15): momsmode på kunden — admin vælger "Omvendt betalingspligt" i kundeformularen → gemt
       // + mærkat på kundesiden; nyt tilbud arver mode og viser at fakturering er blokeret
       if (want('U164')) {
@@ -2215,6 +2268,7 @@ ${m.text()}`) })
         const seedErr = spId && u51.offerId ? '' : `SEED: ${sp?.error?.message ?? off.error?.message ?? sup.error?.message ?? '?'} · `
         await gotoSafe(a.page, `${base}/dashboard/offers/${u51.offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Fra leverandør/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('supplier-add-qty').fill('3').catch(() => {}) // W-12: antal ved tilføj (før låst til 1)
         await a.page.getByPlaceholder(/Indtast varenummer eller produktnavn/).fill(sku).catch(() => {})
         const hit = a.page.getByText(`Harness stikkontakt ${stamp}`).first()
         await hit.waitFor({ timeout: 60_000 }).catch(() => {})
@@ -2229,6 +2283,7 @@ ${m.text()}`) })
         r.linje_tilfoejet = lines.length === 1 && lines[0].supplier_product_id === spId
         r.kost_gemt = Number(lines[0]?.supplier_cost_price_at_creation) === 40
         r.salgspris_over_kost = Number(lines[0]?.unit_price) > 40
+        r.antal_3 = Number(lines[0]?.quantity) === 3
         out.push({ id: 'U51 tilbudslinje fra grossist', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · stk-pris=${lines[0]?.unit_price}` })
       }
 

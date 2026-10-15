@@ -162,11 +162,17 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     is_available: boolean
     image_url: string | null
     price_updated_at?: string | null
+    is_cheapest?: boolean
   }>>([])
   const [isSearchingSupplier, setIsSearchingSupplier] = useState(false)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
   const [isAddingSupplierProduct, setIsAddingSupplierProduct] = useState<string | null>(null)
   const supplierSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // W-12 (pilot-review 2026-10-15): kun seneste søgning må skrive resultatet (før kunne et langsomt svar på "ka"
+  // overskrive svaret på "kabel"), fejl vises (før: "Ingen produkter fundet"), og antal kan vælges (før låst til 1)
+  const supplierSearchSeq = useRef(0)
+  const [supplierSearchError, setSupplierSearchError] = useState<string | null>(null)
+  const [supplierAddQty, setSupplierAddQty] = useState('1')
 
   // Price optimization state
   const [isOptimizing, setIsOptimizing] = useState(false)
@@ -354,26 +360,46 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   const handleSupplierSearch = (query: string) => {
     setSupplierSearchQuery(query)
     if (supplierSearchTimer.current) clearTimeout(supplierSearchTimer.current)
-    if (!query || query.length < 2) {
+    const seq = ++supplierSearchSeq.current
+    setSupplierSearchError(null)
+    if (!query || query.trim().length < 2) {
       setSupplierSearchResults([])
+      setIsSearchingSupplier(false)
       return
     }
     supplierSearchTimer.current = setTimeout(async () => {
       setIsSearchingSupplier(true)
-      const result = await searchSupplierProductsForOffer(query, {
-        customerId: offer.customer_id || undefined,
-        limit: 15,
-      })
-      if (result.success && result.data) {
-        setSupplierSearchResults(result.data)
+      try {
+        const result = await searchSupplierProductsForOffer(query.trim(), {
+          customerId: offer.customer_id || undefined,
+          limit: 15,
+        })
+        if (seq !== supplierSearchSeq.current) return
+        if (result.success && result.data) {
+          setSupplierSearchResults(result.data)
+        } else {
+          setSupplierSearchResults([])
+          setSupplierSearchError(result.error || 'Søgningen fejlede')
+        }
+      } catch {
+        if (seq === supplierSearchSeq.current) {
+          setSupplierSearchResults([])
+          setSupplierSearchError('Søgningen fejlede — prøv igen')
+        }
+      } finally {
+        if (seq === supplierSearchSeq.current) setIsSearchingSupplier(false)
       }
-      setIsSearchingSupplier(false)
     }, 400)
   }
 
   const handleAddSupplierProduct = async (productId: string) => {
+    const qty = Number(supplierAddQty.replace(',', '.'))
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error('Ugyldigt antal', 'Angiv et antal større end 0')
+      return
+    }
     setIsAddingSupplierProduct(productId)
-    const result = await createLineItemFromSupplierProduct(offer.id, productId, 1)
+    const result = await createLineItemFromSupplierProduct(offer.id, productId, qty)
     if (result.success) {
       toast.success('Leverandørprodukt tilføjet')
       setSupplierSearchQuery('')
@@ -877,15 +903,27 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                       <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-blue-500" />
                     )}
                   </div>
+                  <label className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+                    Antal ved tilføj
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={supplierAddQty}
+                      onChange={(e) => setSupplierAddQty(e.target.value)}
+                      className="w-20 px-2 py-1 border rounded text-sm"
+                      data-testid="supplier-add-qty"
+                    />
+                  </label>
+                  {supplierSearchError && (
+                    <p className="mt-3 text-sm text-red-600" role="alert" data-testid="supplier-search-error">{supplierSearchError}</p>
+                  )}
 
                   {supplierSearchResults.length > 0 && (() => {
-                    // Find cheapest price across all suppliers
-                    const cheapestCost = Math.min(...supplierSearchResults.filter(p => p.cost_price > 0).map(p => p.cost_price))
-
+                    // W-11: "billigst" kommer fra serveren og gælder kun samme vare (EAN) — ikke tværs af forskellige varer
                     return (
                     <div className="mt-3 max-h-[320px] overflow-y-auto divide-y border rounded-md bg-white">
                       {supplierSearchResults.map((p) => {
-                        const isCheapest = p.cost_price > 0 && p.cost_price === cheapestCost && supplierSearchResults.filter(r => r.cost_price > 0).length > 1
+                        const isCheapest = p.is_cheapest === true
 
                         return (
                         <div
@@ -953,7 +991,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     )
                   })()}
 
-                  {supplierSearchQuery.length >= 2 && !isSearchingSupplier && supplierSearchResults.length === 0 && (
+                  {supplierSearchQuery.trim().length >= 2 && !isSearchingSupplier && !supplierSearchError && supplierSearchResults.length === 0 && (
                     <p className="mt-3 text-sm text-gray-400 text-center py-4">
                       Ingen produkter fundet for &quot;{supplierSearchQuery}&quot;
                     </p>

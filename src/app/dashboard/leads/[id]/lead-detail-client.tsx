@@ -1,6 +1,7 @@
 'use client'
 
 import { LeadCustomerCandidates } from './lead-customer-candidates'
+import { LeadFollowUpButton } from './lead-follow-up-button'
 import { getLeadAttachmentUrlAction } from '@/lib/actions/leads'
 import { useState } from 'react'
 import Link from 'next/link'
@@ -178,6 +179,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                 <Building className="w-4 h-4" /> {isConverting ? 'Opretter…' : 'Opret som kunde'}
               </button>
             )}
+            <LeadFollowUpButton lead={lead} />
             {canCreateOffer && (
               <button
                 onClick={() => setShowOfferForm(true)}

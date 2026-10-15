@@ -40,7 +40,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [leads, setLeads] = useState<{ id: string; company_name: string }[]>([])
+  const [leads, setLeads] = useState<{ id: string; company_name: string; contact_person: string | null }[]>([])
 
   const isEditing = !!offer
   const { confirm: confirmUnsaved, ConfirmDialog } = useConfirm()
@@ -272,7 +272,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
                 <option value="">Vælg lead...</option>
                 {leads.map((lead) => (
                   <option key={lead.id} value={lead.id}>
-                    {lead.company_name}
+                    {lead.company_name}{lead.contact_person && lead.contact_person !== lead.company_name ? ` — ${lead.contact_person}` : ''}
                   </option>
                 ))}
               </select>
