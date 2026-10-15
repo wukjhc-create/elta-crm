@@ -1113,7 +1113,39 @@ function BillingFinalMode({
             være de ufakturerede linjer.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <ul className="md:hidden space-y-2" data-testid="predecessor-invoices-mobile">
+            {predecessors.map((p) => (
+              <li key={p.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <Link
+                    href={`/dashboard/invoices/${p.id}`}
+                    className="font-mono text-emerald-700 hover:underline break-all"
+                  >
+                    {p.invoice_number}
+                  </Link>
+                  <span className="shrink-0 text-xs text-gray-600">{p.status}</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-700">
+                  {p.invoice_type === 'deposit' ? 'Forskud' : 'Rate'}
+                </p>
+                <p className="text-xs text-gray-700 break-words">{p.stage_label ?? '—'}</p>
+                <p className="mt-2 text-xs text-gray-600">
+                  Procent {p.billing_percentage == null ? '—' : fmtPct(p.billing_percentage)}
+                </p>
+                <p className="tabular-nums font-medium text-red-700">−{fmtKr(netDeduction(p))}</p>
+                {p.credited_amount > 0 && (
+                  <p className="text-[10px] text-gray-500">
+                    {fmtKr(p.total_amount)} − krediteret {fmtKr(p.credited_amount)}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="md:hidden mt-2 text-right text-xs font-bold text-red-700">
+            Total fradrag (ekskl. moms) −{fmtKr(deductionTotal)}
+          </p>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
@@ -1167,6 +1199,7 @@ function BillingFinalMode({
               </tfoot>
             </table>
           </div>
+          </>
         )}
       </div>
 
