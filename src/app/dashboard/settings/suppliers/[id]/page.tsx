@@ -15,6 +15,9 @@ export async function generateMetadata({ params }: SupplierPageProps) {
   const result = await getSupplier(id)
 
   if (!result.success || !result.data) {
+    if (!result.success && result.error && result.error !== 'Leverandøren blev ikke fundet') {
+      return { title: 'Leverandør' }
+    }
     return { title: 'Leverandør ikke fundet' }
   }
 
@@ -28,6 +31,15 @@ export default async function SupplierPage({ params }: SupplierPageProps) {
   const result = await getSupplier(id)
 
   if (!result.success || !result.data) {
+    if (!result.success && result.error && result.error !== 'Leverandøren blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="supplier-detail-load-error">
+            {result.error}. Det tælles ikke som at leverandøren mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
   // PV10: API-/FTP-login (krypterede credentials) kun for suppliers.credentials — serveren afviser alligevel

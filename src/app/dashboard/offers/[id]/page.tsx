@@ -26,6 +26,15 @@ export default async function OfferDetailPage({ params }: OfferDetailPageProps) 
     ])
 
   if (!offerResult.success || !offerResult.data) {
+    if (!offerResult.success && offerResult.error && offerResult.error !== 'Tilbuddet blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="offer-detail-load-error">
+            {offerResult.error}. Det tælles ikke som at tilbuddet mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
 

@@ -15,6 +15,15 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const result = await getProject(id)
   if (!result.success || !result.data) {
+    if (!result.success && result.error && result.error !== 'Projektet blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="project-detail-load-error">
+            {result.error}. Det tælles ikke som at projektet mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
 

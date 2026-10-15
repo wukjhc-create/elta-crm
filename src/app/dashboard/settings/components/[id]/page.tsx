@@ -18,6 +18,15 @@ export default async function ComponentDetailPage({ params }: Props) {
   const result = await getComponentWithDetails(id)
 
   if (!result.success || !result.data) {
+    if (!result.success && result.error && result.error !== 'Komponenten blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="component-detail-load-error">
+            {result.error}. Det tælles ikke som at komponenten mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
 

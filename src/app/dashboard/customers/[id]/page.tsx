@@ -23,6 +23,15 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
   ])
 
   if (!customerResult.success || !customerResult.data) {
+    if (!customerResult.success && customerResult.error && customerResult.error !== 'Kunden blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="customer-detail-load-error">
+            {customerResult.error}. Det tælles ikke som at kunden mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
   // D48: kundeaftaler (leverandørrabat, avance, kostpris) kun for prisværktøjet (admin, serviceleder)

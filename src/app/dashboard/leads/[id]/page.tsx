@@ -17,6 +17,15 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
   ])
 
   if (!leadResult.success || !leadResult.data) {
+    if (!leadResult.success && leadResult.error && leadResult.error !== 'Lead blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="lead-detail-load-error">
+            {leadResult.error}. Det tælles ikke som at leadet mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
 
