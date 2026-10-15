@@ -15,6 +15,7 @@
  *     credentials are missing
  */
 
+import { economicPushEnabled, economicRequestAllowed, ECONOMIC_PUSH_DISABLED_CODE } from '@/lib/accounting/economic-push-flag'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { encrypt, decrypt } from '@/lib/utils/encryption'
@@ -103,6 +104,17 @@ async function loadReadySettings(
   entityId: string,
   action: AccountingAction
 ): Promise<AccountingSettings | null> {
+  // Henrik 2026-10-15 (PR-2): kill-switch — standard fra; intet skrives til e-conomic uden ECONOMIC_PUSH_ENABLED=true
+  if (!economicPushEnabled()) {
+    await logAttempt({
+      entity_type: entityType,
+      entity_id: entityId,
+      action,
+      status: 'skipped',
+      error_message: ECONOMIC_PUSH_DISABLED_CODE,
+    })
+    return null
+  }
   const settings = await getEconomicSettings()
   if (!isEconomicReady(settings)) {
     await logAttempt({
@@ -133,6 +145,11 @@ async function economicFetch<T = unknown>(
   path: string,
   opts: FetchOptions = {}
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string; raw?: string }> {
+  // PR-2: hård stop i det eneste HTTP-punkt — ingen skrivende kald når kill-switchen er fra (også hvis en kalder
+  // springer loadReadySettings over)
+  if (!economicRequestAllowed(opts.method)) {
+    return { ok: false, status: 0, data: null, error: ECONOMIC_PUSH_DISABLED_CODE }
+  }
   const url = new URL(ECONOMIC_BASE + path)
   if (opts.query) {
     for (const [k, v] of Object.entries(opts.query)) {
@@ -233,7 +250,7 @@ export async function createCustomerInEconomic(
 ): Promise<EconomicResult<{ customerNumber: string }>> {
   const settings = await loadReadySettings('customer', customerId, 'create')
   if (!settings) {
-    return { ok: false, status: 'skipped', reason: 'ECONOMIC_NOT_CONFIGURED' }
+    return { ok: false, status: 'skipped', reason: economicPushEnabled() ? 'ECONOMIC_NOT_CONFIGURED' : ECONOMIC_PUSH_DISABLED_CODE }
   }
   const ready = settings as AccountingSettings & { api_token: string; agreement_grant_token: string }
 
@@ -321,7 +338,7 @@ export async function createInvoiceInEconomic(
 ): Promise<EconomicResult<{ draftInvoiceNumber: string; bookedNumber?: string }>> {
   const settings = await loadReadySettings('invoice', invoiceId, 'create')
   if (!settings) {
-    return { ok: false, status: 'skipped', reason: 'ECONOMIC_NOT_CONFIGURED' }
+    return { ok: false, status: 'skipped', reason: economicPushEnabled() ? 'ECONOMIC_NOT_CONFIGURED' : ECONOMIC_PUSH_DISABLED_CODE }
   }
   const ready = settings as AccountingSettings & { api_token: string; agreement_grant_token: string }
   const cfg: EconomicConfig = ready.config || {}
@@ -684,7 +701,7 @@ export async function markInvoicePaidInEconomic(
 ): Promise<EconomicResult<{ voucherNumber?: string }>> {
   const settings = await loadReadySettings('invoice', invoiceId, 'mark_paid')
   if (!settings) {
-    return { ok: false, status: 'skipped', reason: 'ECONOMIC_NOT_CONFIGURED' }
+    return { ok: false, status: 'skipped', reason: economicPushEnabled() ? 'ECONOMIC_NOT_CONFIGURED' : ECONOMIC_PUSH_DISABLED_CODE }
   }
   const ready = settings as AccountingSettings & { api_token: string; agreement_grant_token: string }
   const cfg: EconomicConfig = ready.config || {}
@@ -864,7 +881,7 @@ export async function pushSupplierInvoiceToEconomic(
 ): Promise<EconomicResult<{ draftSupplierInvoiceNumber?: string }>> {
   const settings = await loadReadySettings('invoice', incomingInvoiceId, 'create')
   if (!settings) {
-    return { ok: false, status: 'skipped', reason: 'ECONOMIC_NOT_CONFIGURED' }
+    return { ok: false, status: 'skipped', reason: economicPushEnabled() ? 'ECONOMIC_NOT_CONFIGURED' : ECONOMIC_PUSH_DISABLED_CODE }
   }
   const ready = settings as AccountingSettings & { api_token: string; agreement_grant_token: string }
   const cfg = ready.config || {}

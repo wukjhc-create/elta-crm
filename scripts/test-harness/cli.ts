@@ -2145,6 +2145,37 @@ async function main() {
     process.exitCode = fails ? 2 : 0
     return
   }
+  if (SUB === 'economic-killswitch-check') {
+    // PR-2 (Henrik 2026-10-15): med ECONOMIC_PUSH_ENABLED fra må INTET skrivende kald nå e-conomic — fetch tælles
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${note ? ` — ${note}` : ''}`) }
+    const { economicPushEnabled, economicRequestAllowed } = await import('../../src/lib/accounting/economic-push-flag')
+    check('K1 standard = fra (uden variabel)', !economicPushEnabled({}) && !economicPushEnabled({ ECONOMIC_PUSH_ENABLED: '1' }) && !economicPushEnabled({ ECONOMIC_PUSH_ENABLED: 'yes' }) && economicPushEnabled({ ECONOMIC_PUSH_ENABLED: 'true' }))
+    check('K2 kun GET tilladt når fra', economicRequestAllowed('GET', {}) && !economicRequestAllowed('POST', {}) && !economicRequestAllowed('PUT', {}) && !economicRequestAllowed('DELETE', {}))
+    delete process.env.ECONOMIC_PUSH_ENABLED
+    const realFetch = globalThis.fetch
+    let econCalls = 0
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('e-conomic')) { econCalls++; return new Response('{}', { status: 500 }) }
+      return realFetch(input as RequestInfo, init)
+    }) as typeof fetch
+    try {
+      const ec = await import('../../src/lib/services/economic-client')
+      const ids = ['00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a4']
+      const results = await Promise.all([
+        ec.createCustomerInEconomic(ids[0]), ec.createInvoiceInEconomic(ids[1]), ec.markInvoicePaidInEconomic(ids[2]), ec.pushSupplierInvoiceToEconomic(ids[3]),
+      ])
+      check('K3 alle skrivende veje springes over med ECONOMIC_PUSH_DISABLED', results.every((r) => r.status === 'skipped' && (r as { reason?: string }).reason === 'ECONOMIC_PUSH_DISABLED'), results.map((r) => `${r.status}:${(r as { reason?: string }).reason}`).join(','))
+      check('K4 nul HTTP-kald til e-conomic', econCalls === 0, `kald=${econCalls}`)
+      const { data: logs } = await admin.from('accounting_sync_log').select('entity_id').in('entity_id', ids).eq('error_message', 'ECONOMIC_PUSH_DISABLED')
+      check('K5 hvert forsøg logges (ikke tavst)', new Set(((logs ?? []) as Array<{ entity_id: string }>).map((l) => l.entity_id)).size === 4, `rækker=${(logs ?? []).length}`)
+      await admin.from('accounting_sync_log').delete().in('entity_id', ids)
+    } finally {
+      globalThis.fetch = realFetch
+    }
+    process.exitCode = fails ? 2 : 0
+    return
+  }
   if (SUB === 'alert-policy-check') {
     const { runAlertPolicyCheck, formatAlertPolicyCheck } = await import('./alert-policy-check')
     const checks = await runAlertPolicyCheck({ admin })

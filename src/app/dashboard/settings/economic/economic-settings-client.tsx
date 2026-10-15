@@ -164,6 +164,14 @@ export function EconomicSettingsClient({
         </p>
       </div>
 
+      {/* PR-2 (Henrik 2026-10-15): kill-switch — tydelig besked når intet sendes til e-conomic */}
+      {!status.push_enabled && (
+        <div className="rounded-lg ring-1 ring-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status" data-testid="economic-push-paused">
+          <div className="font-medium">e-conomic er sat på pause</div>
+          <p className="text-xs mt-0.5">Intet sendes til e-conomic (kunder, fakturaer, betalinger, leverandørfakturaer), heller ikke når integrationen er aktiv nedenfor. Aktivering kræver særskilt godkendelse og miljøvariablen ECONOMIC_PUSH_ENABLED=true.</p>
+        </div>
+      )}
+
       {/* Status-kort */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-5 space-y-3">
         {status.configured ? (

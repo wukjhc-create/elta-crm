@@ -745,6 +745,8 @@ export async function approveInvoice(
         ok: false,
         message: `e-conomic skipped: ${econ.reason ?? 'unknown'}`,
       })
+      // PR-2: kill-switch — tydelig dansk besked (ingen stille fallback)
+      if (econ.reason === 'ECONOMIC_PUSH_DISABLED') return { ok: true, message: 'Godkendt — ikke sendt til e-conomic (integrationen er sat på pause)' }
       return { ok: true, message: `approved (e-conomic skipped: ${econ.reason})` }
     }
     await auditLog({

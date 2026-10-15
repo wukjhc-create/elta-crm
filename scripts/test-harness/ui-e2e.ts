@@ -167,7 +167,7 @@ const NEUTRALIZE = [
   'GRAPH_MAILBOX', 'GRAPH_MAILBOXES', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_PORT', 'SMTP_FROM_EMAIL', 'SMTP_FROM_NAME',
   'OPENAI_API_KEY', 'OPENWEATHER_API_KEY', 'SFTP_PROXY_URL', 'AO_INVOICE_API_BASE_URL', 'AO_INVOICE_ENDPOINT_PATH', 'LM_INVOICE_DIR',
   'DATABASE_URL', 'SUPABASE_ACCESS_TOKEN', 'CRON_SECRET', 'ENCRYPTION_KEY', 'ADMIN_ALERT_EMAIL', 'CONTACT_FORM_API_KEY',
-  'AGENT_LIVE_SEND_ENABLED', 'AUTO_CREATE_CASES_ENABLED',
+  'AGENT_LIVE_SEND_ENABLED', 'AUTO_CREATE_CASES_ENABLED', 'ECONOMIC_PUSH_ENABLED',
 ]
 
 /** Navigation der ikke vælter hele suiten ved en kold kompilering: ét nyt forsøg med 'load' ved timeout.
@@ -915,6 +915,8 @@ ${m.text()}`) })
         await card.waitFor({ timeout: 60_000 }).catch(() => {})
         const txt = (await card.count()) ? await card.innerText() : ''
         r.tjekliste = /Klar til bogføring/.test(txt) && /Omkostningskonto/.test(txt) && /Kassekladde/.test(txt) && /Leverandører koblet/.test(txt) && /Kundefakturaer/.test(txt)
+        // PR-2: kill-switch fra (standard; NEUTRALIZE fjerner også variablen) → tydelig pause-besked
+        r.pause_vist = (await a.page.getByTestId('economic-push-paused').count()) === 1
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u16-economic.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U16 e-conomic-opsætning (admin)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${u16Diag.join(' | ')}` })
       }

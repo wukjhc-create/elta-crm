@@ -12,6 +12,7 @@
  * INGEN hemmeligheder eksponeres (api_token/agreement_grant_token).
  */
 
+import { economicPushEnabled } from '@/lib/accounting/economic-push-flag'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
@@ -370,6 +371,8 @@ export interface EconomicIntegrationStatus {
   message?: string
   configured: boolean
   active: boolean
+  /** PR-2 (Henrik 2026-10-15): kill-switch ECONOMIC_PUSH_ENABLED — false = intet sendes til e-conomic */
+  push_enabled: boolean
   provider: string
   last_sync_at: string | null
   /** Krypteringsnøgle (ENCRYPTION_KEY) er sat — påkrævet for at gemme nøgler. */
@@ -484,6 +487,7 @@ export async function getEconomicIntegrationStatusAction(): Promise<EconomicInte
     ok: false,
     configured: false,
     active: false,
+    push_enabled: economicPushEnabled(),
     provider: PROVIDER,
     last_sync_at: null,
     encryption_ready: false,
@@ -518,6 +522,7 @@ export async function getEconomicIntegrationStatusAction(): Promise<EconomicInte
       ok: true,
       configured: isEconomicReady(s),
       active: !!s?.active,
+      push_enabled: economicPushEnabled(),
       provider: PROVIDER,
       last_sync_at: s?.last_sync_at ?? null,
       encryption_ready: isEncryptionConfigured(),
