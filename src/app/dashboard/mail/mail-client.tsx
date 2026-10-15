@@ -118,6 +118,7 @@ export function MailClient() {
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
   const [syncState, setSyncState] = useState<GraphSyncState | null>(null)
   const [syncLoadError, setSyncLoadError] = useState<string | null>(null)
+  const [allSyncFailed, setAllSyncFailed] = useState(false)
   const [allSyncStates, setAllSyncStates] = useState<GraphSyncState[]>([])
   const [stats, setStats] = useState({
     total: 0,
@@ -186,7 +187,7 @@ export function MailClient() {
         }),
         getIncomingEmailStats(),
         getGraphSyncState().then((state) => ({ state, failed: false })).catch(() => ({ state: null, failed: true })),
-        getAllGraphSyncStates(),
+        getAllGraphSyncStates().then((states) => ({ states, failed: false })).catch(() => ({ states: [], failed: true })),
       ])
       setEmails(emailResult.data)
       setTotalCount(emailResult.count)
@@ -201,7 +202,8 @@ export function MailClient() {
         webform: statsResult.webform,
         archived: statsResult.archived,
       })
-      setAllSyncStates(allStatesResult)
+      setAllSyncStates(allStatesResult.states)
+      setAllSyncFailed(allStatesResult.failed)
       setSyncState(syncStateResult.state)
       setSyncLoadError(syncStateResult.failed ? 'Mail-sync kunne ikke hentes. Det tælles ikke som aldrig synket.' : null)
 
@@ -768,7 +770,9 @@ export function MailClient() {
             )}
           </p>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            {allSyncStates.length > 0 ? (
+            {allSyncFailed ? (
+              <span className="text-xs text-red-700 break-words" data-testid="mail-mailboxes-load-error">Postkasser kunne ikke hentes. Det tælles ikke som ingen postkasser.</span>
+            ) : allSyncStates.length > 0 ? (
               allSyncStates.map(ss => {
                 const prefix = ss.mailbox.split('@')[0]
                 const color = prefix === 'ordre' ? 'text-orange-600' : 'text-blue-600'

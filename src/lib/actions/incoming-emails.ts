@@ -1145,11 +1145,12 @@ export async function getGraphSyncState(): Promise<GraphSyncState | null> {
 /** Get sync state for ALL configured mailboxes */
 export async function getAllGraphSyncStates(): Promise<GraphSyncState[]> {
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('graph_sync_state')
     .select('*')
     .order('mailbox')
-  return (data || []) as GraphSyncState[]
+  if (error) throw new Error('Kunne ikke hente postkasser')
+  return (data ?? []) as GraphSyncState[]
 }
 
 /**
