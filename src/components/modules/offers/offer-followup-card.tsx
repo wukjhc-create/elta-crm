@@ -39,10 +39,10 @@ export function OfferFollowupCard() {
 
   return (
     <section className="bg-white rounded-lg border p-4 sm:p-5 mb-4" data-testid="offer-followup-card">
-      <div className="flex items-center gap-2 mb-3">
-        <BellRing className="w-5 h-5 text-amber-600" />
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
+        <BellRing className="w-5 h-5 text-amber-600 shrink-0" />
         <h2 className="font-semibold">Opfølgning</h2>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-gray-500 break-words min-w-0">
           {actionable.length > 0 ? `${actionable.length} tilbud kræver handling` : 'Ingen kræver handling nu'}
           {scope === 'own' ? ' · dine tilbud' : ' · alle sendte tilbud'}
         </span>
@@ -68,8 +68,8 @@ function Row({ item }: { item: OfferFollowupItem }) {
     <li className="flex flex-wrap sm:flex-nowrap items-center gap-3 px-3 py-3" data-testid="offer-followup-row">
       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ring-1 whitespace-nowrap ${STAGE_STYLE[item.stage]}`}>{item.headline}</span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium truncate">{o.offer_number ? `${o.offer_number} · ` : ''}{o.title}</p>
-        <p className="text-xs text-gray-500 truncate">{o.customer_name ?? 'Ukendt kunde'}{o.final_amount ? ` · ${kr(o.final_amount)}` : ''} — {item.detail}</p>
+        <p className="text-sm font-medium break-words">{o.offer_number ? `${o.offer_number} · ` : ''}{o.title}</p>
+        <p className="text-xs text-gray-500 break-words">{o.customer_name ?? 'Ukendt kunde'}{o.final_amount ? ` · ${kr(o.final_amount)}` : ''} — {item.detail}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {o.customer_phone && (
