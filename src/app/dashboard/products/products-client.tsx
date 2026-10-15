@@ -80,6 +80,7 @@ export default function ProductsClient({
   const total = initialProducts?.total || 0
   const page = initialProducts?.page || 1
   const totalPages = initialProducts?.totalPages || 1
+  const hasFilter = Boolean(search || categoryId)
 
   const updateFilters = (newFilters: { search?: string; category_id?: string; page?: number }) => {
     startTransition(() => {
@@ -118,6 +119,12 @@ export default function ProductsClient({
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     updateFilters({ search })
+  }
+
+  const clearFilters = () => {
+    setSearch('')
+    setCategoryId('')
+    updateFilters({ search: '', category_id: 'all' })
   }
 
   const handleDelete = async (product: ProductWithCategory) => {
@@ -187,17 +194,21 @@ export default function ProductsClient({
 
       {/* Products Table */}
       {products.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border">
+        <div className="text-center py-12 bg-white rounded-lg border" data-testid="products-empty">
           <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Ingen produkter fundet
+            {hasFilter ? 'Ingen produkter matcher søgningen' : 'Ingen produkter fundet'}
           </h3>
           <p className="text-gray-500 mb-4">
-            {search || categoryId
-              ? 'Prøv at ændre dine søgekriterier'
+            {hasFilter
+              ? 'Prøv et andet navn, varenummer eller en anden kategori.'
               : 'Kom i gang ved at oprette dit første produkt'}
           </p>
-          {!search && !categoryId && (
+          {hasFilter ? (
+            <Button type="button" variant="outline" onClick={clearFilters} data-testid="products-clear-filters">
+              Ryd søgning
+            </Button>
+          ) : (
             <Button onClick={() => setShowCreateDialog(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Opret produkt
