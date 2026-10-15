@@ -282,11 +282,11 @@ export function MaterialSummary({ items, className = '' }: MaterialSummaryProps)
           return (
             <div
               key={`${mat.name}-${mat.unit}-${idx}`}
-              className="grid grid-cols-12 gap-2 px-4 py-3 border-b hover:bg-gray-50 items-center"
+              className="grid grid-cols-12 gap-2 px-4 py-3 border-b hover:bg-gray-50 items-start"
             >
-              <div className="col-span-5">
-                <p className="font-medium text-sm truncate">{mat.name}</p>
-                <p className="text-xs text-gray-500 truncate">
+              <div className="col-span-5 min-w-0">
+                <p className="font-medium text-sm break-words">{mat.name}</p>
+                <p className="text-xs text-gray-500 break-words">
                   {mat.usedIn.length === 1 ? mat.usedIn[0] : `${mat.usedIn.length} komponenter`}
                 </p>
               </div>
