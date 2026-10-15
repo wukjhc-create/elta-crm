@@ -175,7 +175,7 @@ export function CustomerInvoiceOverview({
           </h3>
         </div>
         {invoices.length === 0 ? (
-          <p className="px-3 py-6 text-sm text-gray-500">Kunden har endnu ingen fakturaer.</p>
+          <p className="px-3 py-6 text-sm text-gray-500">Kunden har endnu ingen fakturaer. De oprettes fra sagen.</p>
         ) : (
           <>
           <div className="md:hidden divide-y" data-testid="customer-invoices-mobile">

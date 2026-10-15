@@ -37,6 +37,7 @@ eq('haendelse ombrydes', events.includes('text-sm text-gray-800 break-words') &&
 eq('haendelse klippes ikke', events.includes('truncate'), false)
 eq('haendelse viser beloeb inkl moms', events.includes('kr(e.amount_incl_vat)'), true)
 eq('fodnoten holder kost ude', customerSrc.includes('kun fakturabeløb inkl. moms') && customerSrc.includes('Ingen kost, margin eller dækningsbidrag.'), true)
+eq('tom fakturaliste siger naeste skridt', customerSrc.includes('Kunden har endnu ingen fakturaer. De oprettes fra sagen.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ninvoices-mobile-test OK')
 process.exitCode = fail ? 1 : 0
