@@ -116,8 +116,8 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
                 className="block w-full text-left"
                 onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
               >
-                <p className="font-semibold text-gray-900 truncate">{lead.company_name}</p>
-                {lead.contact_person && <p className="text-sm text-gray-500 truncate">{lead.contact_person}</p>}
+                <p className="font-semibold text-gray-900 break-words">{lead.company_name}</p>
+                {lead.contact_person && <p className="text-sm text-gray-500 break-words">{lead.contact_person}</p>}
                 {lead.value ? <p className="text-sm text-gray-700 mt-1">{formatCurrency(lead.value)}</p> : null}
               </button>
               {next.length > 0 && (
@@ -191,12 +191,12 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
                     <div className="flex items-start gap-1.5">
                       <GripVertical className="w-3.5 h-3.5 text-gray-300 mt-0.5 shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
+                        <p className="text-sm font-semibold text-gray-900 break-words">
                           {lead.company_name}
                         </p>
                         {lead.contact_person && (
-                          <p className="text-xs text-gray-500 truncate flex items-center gap-1">
-                            <User className="w-3 h-3" />
+                          <p className="text-xs text-gray-500 break-words flex items-start gap-1">
+                            <User className="w-3 h-3 shrink-0 mt-0.5" />
                             {lead.contact_person}
                           </p>
                         )}
@@ -213,7 +213,7 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
                         <span />
                       )}
                       {lead.assigned_to_profile?.full_name && (
-                        <span className="text-[10px] text-gray-400 truncate max-w-[80px]">
+                        <span className="text-[10px] text-gray-400 break-words text-right">
                           {lead.assigned_to_profile.full_name.split(' ')[0]}
                         </span>
                       )}

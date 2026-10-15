@@ -15,6 +15,11 @@ eq('mobil-kanban findes', mobile.length > 40, true)
 eq('mobil-kanban bruger de lovlige overgange', mobile.includes('LEAD_STATUS_TRANSITIONS'), true)
 eq('mobil-kanban flytter via samme handling', src.includes('updateLeadStatus(leadId, targetStatus)'), true)
 eq('skrivebordet er skjult under md', src.includes('hidden md:block overflow-x-auto'), true)
+eq('mobilnavn ombrydes', mobile.includes('break-words">{lead.company_name}'), true)
+eq('desktopnavn ombrydes', src.includes('text-sm font-semibold text-gray-900 break-words'), true)
+eq('vaerdi bliver', src.includes('formatCurrency(lead.value)'), true)
+eq('traek bliver', src.includes('handleDragStart(e, lead.id)'), true)
+eq('tom fase bliver', src.includes('Ingen leads i denne fase.'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nleads-kanban-mobile-test OK')
 process.exitCode = fail ? 1 : 0
