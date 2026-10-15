@@ -54,9 +54,10 @@ import { useToast } from '@/components/ui/toast'
 interface LeadDetailClientProps {
   lead: LeadWithRelations
   activities: LeadActivity[]
+  activitiesError?: string | null
 }
 
-export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
+export function LeadDetailClient({ lead, activities, activitiesError = null }: LeadDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -412,12 +413,18 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
             {/* Activity log */}
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Aktivitetslog</h2>
-              {activities.length === 0 ? (
+              {activitiesError && (
+                <p className="text-sm text-red-700" data-testid="lead-activities-load-error">
+                  {activitiesError}. Det tælles ikke som ingen aktiviteter.
+                </p>
+              )}
+              {!activitiesError && activities.length === 0 && (
                 <>
                   <p className="text-gray-700 text-center py-2">Ingen aktiviteter endnu</p>
                   <p className="text-xs text-gray-500 text-center">Noter og statusskift lander her.</p>
                 </>
-              ) : (
+              )}
+              {activities.length > 0 && (
                 <div className="space-y-4">
                   {activities.map((activity) => (
                     <div

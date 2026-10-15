@@ -23,7 +23,8 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
   return (
     <LeadDetailClient
       lead={leadResult.data}
-      activities={activitiesResult.data || []}
+      activities={activitiesResult.success ? activitiesResult.data || [] : []}
+      activitiesError={activitiesResult.success ? null : activitiesResult.error || 'Kunne ikke hente aktiviteter'}
     />
   )
 }
