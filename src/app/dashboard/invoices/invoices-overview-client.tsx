@@ -477,6 +477,9 @@ export function InvoicesOverviewClient({
                     <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${ACC_SKIN[r.accounting_status].cls}`}>
                       {ACC_SKIN[r.accounting_status].label}
                     </span>
+                    {r.accounting_external_id && (
+                      <span className="block mt-0.5 text-[10px] text-gray-400 font-mono break-all" data-testid="invoice-mobile-external-id">{r.accounting_external_id}</span>
+                    )}
                     {r.reminder_count > 0 && (
                       <span className="ml-2 text-[10px] text-amber-700">
                         {r.reminder_count} påmindelse{r.reminder_count === 1 ? '' : 'r'} sendt
@@ -502,10 +505,10 @@ export function InvoicesOverviewClient({
                       <FileText className="w-3.5 h-3.5" />
                       Åbn
                     </Link>
-                    <a href={`/api/invoices/${r.id}/pdf?view=1`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 text-xs" title="Vis PDF">
+                    <a href={`/api/invoices/${r.id}/pdf?view=1`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 text-xs" title="Vis PDF" aria-label="Vis PDF">
                       <Eye className="w-3.5 h-3.5" />
                     </a>
-                    <a href={`/api/invoices/${r.id}/pdf`} className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 text-xs" title="Download PDF">
+                    <a href={`/api/invoices/${r.id}/pdf`} className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 text-xs" title="Download PDF" aria-label="Download PDF">
                       <FileDown className="w-3.5 h-3.5" />
                     </a>
                     {r.is_overdue && canSend && (
@@ -631,6 +634,7 @@ export function InvoicesOverviewClient({
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 hover:bg-gray-50 text-xs"
                             title="Vis PDF"
+                            aria-label="Vis PDF"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </a>
@@ -638,6 +642,7 @@ export function InvoicesOverviewClient({
                             href={`/api/invoices/${r.id}/pdf`}
                             className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-gray-300 text-gray-700 hover:bg-gray-50 text-xs"
                             title="Download PDF"
+                            aria-label="Download PDF"
                           >
                             <FileDown className="w-3.5 h-3.5" />
                           </a>
