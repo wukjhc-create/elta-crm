@@ -76,6 +76,7 @@ function rrBadge(ageHours: number | null): { label: string; cls: string } {
 export function OrderMailsTab({ caseId }: { caseId: string }) {
   const [emails, setEmails] = useState<CaseEmail[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   // Sprint 8E-1A: requires_response status pr. mail
   const [requiresResponseMap, setRequiresResponseMap] = useState<Record<string, { requiresResponse: boolean; ageHours: number | null }>>({})
@@ -100,19 +101,35 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
   }
 
   const loadEmails = async () => {
-    const data = await getEmailsForCase(caseId)
-    setEmails(data)
-    await fetchRequiresResponse(data)
+    setIsLoading(true)
+    setLoadError(false)
+    try {
+      const data = await getEmailsForCase(caseId)
+      setEmails(data)
+      await fetchRequiresResponse(data)
+    } catch {
+      setEmails([])
+      setLoadError(true)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => {
     let cancelled = false
     setIsLoading(true)
+    setLoadError(false)
     getEmailsForCase(caseId)
       .then(async (data) => {
         if (!cancelled) {
           setEmails(data)
           await fetchRequiresResponse(data)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEmails([])
+          setLoadError(true)
         }
       })
       .finally(() => {
@@ -130,6 +147,23 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
     return (
       <div className="bg-white rounded-lg border p-12 flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="bg-white rounded-lg border p-12 text-center text-gray-700">
+        <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
+        <p className="font-medium">Kunne ikke hente mails på sagen.</p>
+        <p className="text-sm mt-1 text-gray-500">Det tælles ikke som en tom indbakke.</p>
+        <button
+          type="button"
+          onClick={() => void loadEmails()}
+          className="mt-4 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+        >
+          Prøv igen
+        </button>
       </div>
     )
   }

@@ -14,6 +14,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { createAnonClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { CASE_MAIL_LOAD_ERROR, caseEmailsOrThrow } from '@/lib/mail/case-mail-load'
 import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
@@ -918,11 +919,12 @@ export async function getEmailsForCase(
 
     if (error) {
       logger.error('getEmailsForCase failed', { error, entityId: serviceCaseId })
-      return []
+      return caseEmailsOrThrow(error, null)
     }
 
-    return (data || []) as CaseEmail[]
-  } catch {
+    return caseEmailsOrThrow(null, (data || []) as CaseEmail[])
+  } catch (err) {
+    if (err instanceof Error && err.message === CASE_MAIL_LOAD_ERROR) throw err
     return []
   }
 }
