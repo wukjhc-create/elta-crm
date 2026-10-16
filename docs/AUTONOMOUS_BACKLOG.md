@@ -62,9 +62,9 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | ST-11 | Ubrugt downloadAndStoreAttachment uden de nye værn | DONE (b8107bd2) — fjernet |
 | HT-1 | U135 (slet kunde med tilbud) flaky 2× i dag — sletteklik/alertdialog-timing (`.catch` på klik) | DONE (d95d4ccc) — venter på knap/dialog + poll på resultat; U135 grøn i første kørsel |
 | PF-1 | Klient-udløste server actions køres serielt af browseren: dashboard (~12 widgets), kundekort (5), sagsdetalje (5) | TODO — hent i server-komponent + Suspense / saml i én action (= Q-2) |
-| PF-2 | getDashboardStats summerer hele historikken (alle timer/tilbud) i JS + to serielle batches | DONE (venter commit) — én parallel runde; tilbud som HEAD-count pr. status + i alt, beløb kun sendt/set/accepteret; timer uændret (hele historikken — vindue/RPC = beslutning/[MIGRATION]). Staging dashboard-stats-equivalence 4/4 (624 tilbud, identiske tal) |
-| PF-3 | "Sager over estimat" kører fuld efterkalkulation af 200 sager pr. indlæsning (serielle bidder, kvadratisk kopi) | TODO |
-| PF-4 | "Kræver svar" genlæser hele den koblede indbakke (~45 serielle kald ved 5k mails) ved hver statistik/realtime-hændelse | DONE (venter commit) — kandidater med beregningens kolonner (ingen genhentning), bidder samtidig, cache() pr. request |
+| PF-2 | getDashboardStats summerer hele historikken (alle timer/tilbud) i JS + to serielle batches | DONE (e99f0ba0) — én parallel runde; tilbud som HEAD-count pr. status + i alt, beløb kun sendt/set/accepteret; timer uændret (hele historikken — vindue/RPC = beslutning/[MIGRATION]). Staging dashboard-stats-equivalence 4/4 (624 tilbud, identiske tal) |
+| PF-3 | "Sager over estimat" kører fuld efterkalkulation af 200 sager pr. indlæsning (serielle bidder, kvadratisk kopi) | DONE (venter commit) — sagsbidder samtidig + push i stedet for kopiering; lazy/hoursOnly-tilstand = senere |
+| PF-4 | "Kræver svar" genlæser hele den koblede indbakke (~45 serielle kald ved 5k mails) ved hver statistik/realtime-hændelse | DONE (e99f0ba0) — kandidater med beregningens kolonner (ingen genhentning), bidder samtidig, cache() pr. request |
 | PF-5 | Kundekortets postkasse sender body_html/body_text for op til 200 mails | DONE (d95d4ccc) — listen uden brødtekst; LazyEmailBody henter ved visning (cache pr. mail) |
 | PF-6 | Faktura-nøgletal scanner alle fakturaer to gange; oversigten har ~6 serielle kald | TODO |
 | PF-7 | Mine job henter afsluttede opgaver (op til 1000) og skjuler dem i klienten; realtime uden filter | TODO |

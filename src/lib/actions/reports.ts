@@ -501,10 +501,11 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
     const matsByCase = new Map<string, ActualMaterialInput[]>()
     const invByCase = new Map<string, RealizedInvoiceInput[]>()
     const otherCost = new Map<string, number>()
-    for (const ids of chunks(caseIds)) {
+    // PF-3 (performance-review 2026-10-16): bidderne hentes samtidig (før én bid ad gangen) — samles bagefter i
+    // bid-rækkefølge, så resultatet er det samme
+    const caseChunkData = await Promise.all(chunks(caseIds).map((ids) => Promise.all([
       // rapport-review: side for side (> 1.000 timeregistreringer blev skåret af → realiseret DB for høj)
       // 00192: kostkolonnen (cost_amount) læses med admin-klienten bag economy.view (samme roller som economy.cost_prices)
-      const [logs, mats, invs, others] = await Promise.all([
         fetchAllRows<Record<string, unknown>>((from, to) => admin
           .from('time_logs')
           .select('id, hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
@@ -516,7 +517,8 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
         fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', ids).order('id').range(from, to)),
         fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('invoices').select('id, case_id, total_amount, status, invoice_type, voided_at').in('case_id', ids).order('id').range(from, to)),
         fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_other_costs').select('id, case_id, total_cost').in('case_id', ids).order('id').range(from, to)),
-      ])
+    ])))
+    for (const [logs, mats, invs, others] of caseChunkData) {
       for (const l of logs as unknown as Array<{ hours: number | string | null; billable: boolean | null; cost_amount: number | string | null; work_order: { case_id: string } | Array<{ case_id: string }> }>) {
         const wo = Array.isArray(l.work_order) ? l.work_order[0] : l.work_order
         if (!wo) continue
@@ -525,8 +527,17 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
         if (l.billable !== false) billable.set(wo.case_id, (billable.get(wo.case_id) ?? 0) + h)
         if (l.cost_amount != null) labourCost.set(wo.case_id, (labourCost.get(wo.case_id) ?? 0) + (Number(l.cost_amount) || 0))
       }
-      for (const m of mats as unknown as Array<ActualMaterialInput & { case_id: string }>) matsByCase.set(m.case_id, [...(matsByCase.get(m.case_id) ?? []), m])
-      for (const i of invs as unknown as Array<RealizedInvoiceInput & { case_id: string }>) invByCase.set(i.case_id, [...(invByCase.get(i.case_id) ?? []), i])
+      // PF-3: push i stedet for at kopiere listen for hver række (kvadratisk)
+      for (const m of mats as unknown as Array<ActualMaterialInput & { case_id: string }>) {
+        const arr = matsByCase.get(m.case_id)
+        if (arr) arr.push(m)
+        else matsByCase.set(m.case_id, [m])
+      }
+      for (const i of invs as unknown as Array<RealizedInvoiceInput & { case_id: string }>) {
+        const arr = invByCase.get(i.case_id)
+        if (arr) arr.push(i)
+        else invByCase.set(i.case_id, [i])
+      }
       for (const o of others as unknown as Array<{ case_id: string; total_cost: number | string | null }>) otherCost.set(o.case_id, (otherCost.get(o.case_id) ?? 0) + (Number(o.total_cost ?? 0) || 0))
     }
 
