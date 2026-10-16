@@ -677,16 +677,17 @@ export async function approveInvoice(
   invoiceId: string,
   approverId: string,
   options: { acknowledgeReview?: boolean } = {}
-): Promise<{ ok: boolean; message: string; externalId?: string }> {
+): Promise<{ ok: boolean; message: string; externalId?: string; warning?: boolean }> {
   const supabase = createAdminClient()
   const { data: row } = await supabase
     .from('incoming_invoices')
     .select('id, status, supplier_id, amount_incl_vat, requires_manual_review, parse_status')
     .eq('id', invoiceId)
     .maybeSingle()
-  if (!row) return { ok: false, message: 'not found' }
+  // LF-9 (indkøbs-review 2026-10-16): danske beskeder (før "not found", "status is …", "approved + posted" …)
+  if (!row) return { ok: false, message: 'Fakturaen blev ikke fundet' }
   if (row.status !== 'awaiting_approval' && row.status !== 'received') {
-    return { ok: false, message: `status is ${row.status}, expected awaiting_approval` }
+    return { ok: false, message: `Fakturaen kan ikke godkendes i status "${row.status}" — kun modtagne/afventende` }
   }
   if (row.requires_manual_review && !options.acknowledgeReview) {
     await auditLog({
@@ -708,7 +709,10 @@ export async function approveInvoice(
     .eq('id', invoiceId)
     .eq('status', row.status) // race-safe
     .select('id')
-  if (error) return { ok: false, message: error.message }
+  if (error) {
+    logger.error('approveInvoice: update failed', { error, entityId: invoiceId })
+    return { ok: false, message: 'Godkendelsen kunne ikke gemmes — prøv igen' }
+  }
   // P3 #19: tabte vi racet (en anden godkendte/aendrede fakturaen imens), er der opdateret 0 raekker — saa maa
   // der hverken logges godkendelse eller skubbes til e-conomic (ellers dobbelt-bogfoering).
   if (!approvedRows || approvedRows.length !== 1) {
@@ -736,7 +740,7 @@ export async function approveInvoice(
         message: `e-conomic external_id=${econ.externalId}`,
         newValue: { external_invoice_id: econ.externalId },
       })
-      return { ok: true, message: 'approved + posted', externalId: econ.externalId }
+      return { ok: true, message: 'Godkendt og bogført i e-conomic', externalId: econ.externalId }
     }
     if (econ.status === 'skipped') {
       await auditLog({
@@ -747,7 +751,10 @@ export async function approveInvoice(
       })
       // PR-2: kill-switch — tydelig dansk besked (ingen stille fallback)
       if (econ.reason === 'ECONOMIC_PUSH_DISABLED') return { ok: true, message: 'Godkendt — ikke sendt til e-conomic (integrationen er sat på pause)' }
-      return { ok: true, message: `approved (e-conomic skipped: ${econ.reason})` }
+      // LF-9: godkendt, men IKKE bogført — vises som advarsel (før en grøn engelsk besked)
+      return { ok: true, warning: true, message: econ.reason === 'ECONOMIC_NOT_CONFIGURED'
+        ? 'Godkendt — ikke bogført, fordi e-conomic ikke er opsat'
+        : 'Godkendt — men ikke bogført i e-conomic. Bogfør manuelt, når årsagen er løst.' }
     }
     await auditLog({
       incomingInvoiceId: invoiceId,
@@ -755,11 +762,11 @@ export async function approveInvoice(
       ok: false,
       message: `e-conomic failed: ${econ.error ?? 'unknown'}`,
     })
-    return { ok: true, message: `approved (e-conomic failed: ${econ.error})` }
+    return { ok: true, warning: true, message: `Godkendt — men bogføring i e-conomic fejlede: ${econ.error ?? 'ukendt fejl'}. Prøv "Bogfør til e-conomic" igen.` }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     await auditLog({ incomingInvoiceId: invoiceId, action: 'error', ok: false, message: msg })
-    return { ok: true, message: `approved (e-conomic threw: ${msg})` }
+    return { ok: true, warning: true, message: `Godkendt — men bogføring i e-conomic fejlede (${msg}). Prøv "Bogfør til e-conomic" igen.` }
   }
 }
 
@@ -770,9 +777,9 @@ export async function rejectInvoice(invoiceId: string, rejecterId: string, reaso
     .select('id, status, external_invoice_id')
     .eq('id', invoiceId)
     .maybeSingle()
-  if (!row) return { ok: false, message: 'not found' }
+  if (!row) return { ok: false, message: 'Fakturaen blev ikke fundet' }
   if (row.status === 'posted' || row.status === 'rejected' || row.status === 'cancelled') {
-    return { ok: false, message: `cannot reject ${row.status} invoice` }
+    return { ok: false, message: row.status === 'posted' ? 'En bogført faktura kan ikke afvises' : 'Fakturaen er allerede afvist eller annulleret' }
   }
   // Leverandørfaktura-review 2026-10-14 (#6): ikke mens den bogføres i e-conomic (krav 'pending-…'), og ikke når
   // linjer er konverteret til sagens kost — en afvist faktura må ikke efterlade materialer/udlæg på sagen
@@ -798,8 +805,11 @@ export async function rejectInvoice(invoiceId: string, rejecterId: string, reaso
     .eq('id', invoiceId)
     .eq('status', row.status) // samtidig bogføring må ikke overskrives
     .select('id')
-  if (error) return { ok: false, message: error.message }
-  if ((rejRows ?? []).length === 0) return { ok: false, message: 'status ændret samtidig — genindlæs' }
+  if (error) {
+    logger.error('rejectInvoice: update failed', { error, entityId: invoiceId })
+    return { ok: false, message: 'Afvisningen kunne ikke gemmes — prøv igen' }
+  }
+  if ((rejRows ?? []).length === 0) return { ok: false, message: 'Status blev ændret samtidig — genindlæs siden' }
   await auditLog({
     incomingInvoiceId: invoiceId,
     action: 'rejected',
@@ -809,7 +819,7 @@ export async function rejectInvoice(invoiceId: string, rejecterId: string, reaso
     message: reason,
   })
   console.log('INCOMING INVOICE REJECTED:', invoiceId, '→', reason)
-  return { ok: true, message: 'rejected' }
+  return { ok: true, message: 'Fakturaen er afvist' }
 }
 
 // =====================================================

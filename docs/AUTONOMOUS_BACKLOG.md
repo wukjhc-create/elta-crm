@@ -49,22 +49,22 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | # | Fund | Status |
 |---|---|---|
 | LF-1 | Godkendt leverandørfaktura uden sag kan aldrig fordeles (sag kan ikke sættes efter godkendelse) (S2) | TODO — tillad sag på godkendt/bogført, når ingen linjer er konverteret; audit |
-| LF-2 | Udenlandsk valuta fordeles som DKK (1.000 EUR → 1.000 kr kost) (S2) | DONE (venter commit) — kun DKK kan fordeles |
-| LF-3 | Linjerabat ignoreres ved fordeling (listepris i stedet for total) — forhåndsvisning ≠ resultat (S2) | TODO — unit_cost = |total| DONE (venter commit) — totalen (efter rabat) / antal vinder over listeprisen; unit invoice-line-snapshot +3 |
-| LF-4 | Forhåndsvisning viser kreditlinjer anderledes end det der oprettes | DONE (venter commit) — forhåndsvisning bruger lineSnapshot |
+| LF-2 | Udenlandsk valuta fordeles som DKK (1.000 EUR → 1.000 kr kost) (S2) | DONE (dc8491e7) — kun DKK kan fordeles |
+| LF-3 | Linjerabat ignoreres ved fordeling (listepris i stedet for total) — forhåndsvisning ≠ resultat (S2) | TODO — unit_cost = |total| DONE (dc8491e7) — totalen (efter rabat) / antal vinder over listeprisen; unit invoice-line-snapshot +3 |
+| LF-4 | Forhåndsvisning viser kreditlinjer anderledes end det der oprettes | DONE (dc8491e7) — forhåndsvisning bruger lineSnapshot |
 | LF-5 | Materialer fra kreditnota (negativ kost) kan ikke redigeres | TODO |
-| LF-6 | Linjer kan fordeles til en lukket sag | DONE (venter commit) — lukket sag afvises |
+| LF-6 | Linjer kan fordeles til en lukket sag | DONE (dc8491e7) — lukket sag afvises |
 | LF-7 | Matcher kan sætte arbejdsordre fra en anden sag | TODO |
 | LF-8 | Adresse-fallback kan auto-matche forkert sag (leverandørens brevhoved) | TODO |
-| LF-9 | Fejl vist som succes + engelske beskeder ved godkend/afvis/e-conomic | TODO |
-| LF-10 | Godkend/bogfør uden bekræftelse (skubber til e-conomic) | TODO |
+| LF-9 | Fejl vist som succes + engelske beskeder ved godkend/afvis/e-conomic | DONE (venter commit) — danske beskeder; godkendt men ikke bogført = advarsel (warning) |
+| LF-10 | Godkend/bogfør uden bekræftelse (skubber til e-conomic) | DONE (venter commit) — bekræftelse (beløb/leverandør) før godkend og før "Bogfør til e-conomic"; U28 accepterer |
 | LF-11 | AO-API: mislykket linjeimport tavs og kan ikke genforsøges | TODO |
 | LF-12 | Lister skåret ved 200/1000 uden besked | TODO |
 | LF-13 | Delvis fejl ved fordeling: konverterede linjer bliver stående, UI siger "fejlede" | TODO |
 | DB-1 | ai_suggestions margin_alert (margin/avance) læsbar for alle indloggede (S2) | BLOCKED_APPROVAL [MIGRATION] 00238 — docs/runbooks/db-security-2026-10-16-proposal.md |
 | DB-2 | case_materials/case_other_costs kostkolonner åbne (= F-11) | BLOCKED_APPROVAL [MIGRATION] 00234 |
 | DB-3 | Kladdelås (00215) omgås via status → draft; vat_mode/billing_model ikke låst (S2) | BLOCKED_APPROVAL [MIGRATION] 00239 |
-| DB-4 | Interne dokumenter synlige i portalen efter 00218-backfill (S2) | DONE app-værn (venter commit): portal + partner udelukker internal, deling afvises · BLOCKED_APPROVAL [MIGRATION] 00240 (data + CHECK) |
+| DB-4 | Interne dokumenter synlige i portalen efter 00218-backfill (S2) | DONE app-værn (dc8491e7): portal + partner udelukker internal, deling afvises · BLOCKED_APPROVAL [MIGRATION] 00240 (data + CHECK) |
 | DB-5/6/7 | Hygiejne: REVOKE på trigger-funktion og admin-RPC'er, search_path | BLOCKED_APPROVAL [MIGRATION] (samlet) |
 | DB-8 | Bogholderi læser sygefravær for alle (GDPR) | BESLUTNING — tilsigtet? |
 
@@ -90,7 +90,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | PF-4 | "Kræver svar" genlæser hele den koblede indbakke (~45 serielle kald ved 5k mails) ved hver statistik/realtime-hændelse | DONE (e99f0ba0) — kandidater med beregningens kolonner (ingen genhentning), bidder samtidig, cache() pr. request |
 | PF-5 | Kundekortets postkasse sender body_html/body_text for op til 200 mails | DONE (d95d4ccc) — listen uden brødtekst; LazyEmailBody henter ved visning (cache pr. mail) |
 | PF-6 | Faktura-nøgletal scanner alle fakturaer to gange; oversigten har ~6 serielle kald | DONE (82ecf6b0) — oversigten: fejl-log, e-conomic-parathed, kunder/sager og kreditnotaer i én parallel runde; nøgletal-scanning (alle fakturaer) uændret = senere/aggregat-[MIGRATION] |
-| PF-7 | Mine job henter afsluttede opgaver (op til 1000) og skjuler dem i klienten; realtime uden filter | DONE (venter commit) — udførte filtreres i DB; "Udførte (N)" som HEAD-count (countDoneTasks) |
+| PF-7 | Mine job henter afsluttede opgaver (op til 1000) og skjuler dem i klienten; realtime uden filter | DONE (dc8491e7) — udførte filtreres i DB; "Udførte (N)" som HEAD-count (countDoneTasks) |
 | PF-8 | Gem tidsregistrering: ~9 serielle kald + tredobbelt genindlæsning | DONE (e30abfbd) — createTimeLog: scope (kun medarbejder-id, tjekket mod arbejdsordrens tildeling), arbejdsordre, medarbejder og timepris samtidig; overlap + sats samtidig. Klientens router.refresh beholdt (komponenten bruges på flere sider) |
 | PF-9 | Sagsdetaljen bundter alle 13 faner statisk (ingen next/dynamic) | DONE (5aeed624) — 13 faner via next/dynamic (egne bundter, stadig server-renderet); kundekortets modaler/framer-motion = senere |
 | PF-10 | Lead-tavlen: to serielle getLeads med select('*') | DONE (d95d4ccc) — åbne + lukkede leads samtidig |
@@ -129,24 +129,24 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | # | Fund | Status |
 |---|---|---|
 | Q-5 | Arbejdsordre-scope hentede alle montørens id'er nogensinde (kalender + userCanViewWorkOrder) | DONE (8584ccf9) — `getWorkOrderEmployeeScope` (kun medarbejder-id; DB-filter), ét rækkeopslag i userCanViewWorkOrder. UI U11/U70/U43/U34/U40/U12/U155 |
-| SEC-1/2/3 | Route-preview-, mail-route-resolver- og system-alert-hjælpere var 'use server' uden login (admin-klient, returnerede kundemails / skrev alarmer) | DONE (venter commit) — 'use server' fjernet (plain server-moduler); undtagelse fjernet; `scripts/assert-server-only-helpers.ts` i check:rbac (negativ-testet) |
-| SEC-4 | Kundens sagsliste (P-2) viste budget/lav-DB til salg/montør | DONE (venter commit) — D46-reglen (economy.cost_prices); assertion i check:rbac |
-| SEC-5 | Montør så dokumenter fra alle kundens sager | DONE (venter commit) — uden cases.view.all kun sager i scope + dokumenter uden sag; assertion i check:rbac |
-| SEC-6 | createAuditLog m.fl. kaldbare af alle indloggede (S4) | DONE (venter commit) — skrivning flyttet til `lib/audit/audit-log-writer.ts` (ikke 'use server'), 10 importører opdateret, undtagelse fjernet (53 bevist undtaget) |
+| SEC-1/2/3 | Route-preview-, mail-route-resolver- og system-alert-hjælpere var 'use server' uden login (admin-klient, returnerede kundemails / skrev alarmer) | DONE (dc8491e7) — 'use server' fjernet (plain server-moduler); undtagelse fjernet; `scripts/assert-server-only-helpers.ts` i check:rbac (negativ-testet) |
+| SEC-4 | Kundens sagsliste (P-2) viste budget/lav-DB til salg/montør | DONE (dc8491e7) — D46-reglen (economy.cost_prices); assertion i check:rbac |
+| SEC-5 | Montør så dokumenter fra alle kundens sager | DONE (dc8491e7) — uden cases.view.all kun sager i scope + dokumenter uden sag; assertion i check:rbac |
+| SEC-6 | createAuditLog m.fl. kaldbare af alle indloggede (S4) | DONE (dc8491e7) — skrivning flyttet til `lib/audit/audit-log-writer.ts` (ikke 'use server'), 10 importører opdateret, undtagelse fjernet (53 bevist undtaget) |
 | SEC-7 | markConfirmationMailFailed uden gate (afhænger af RLS) | NO CHANGE — server-only bevist af action-gate-audit; UPDATE rolle-begrænset af RLS (00173) |
-| A-1 | Fakturamail: Graph-tidsudløb frigav kravet → dobbelt faktura ved nyt klik | DONE (venter commit) — kravet beholdes ved ukendt udfald; besked + banner "Frigiv afsendelse" (≥2 min, invoices.send, audit `invoice_send_claim_released`) |
-| A-2 | Bankmatch overskrev fakturaens betalingsreference med banktekst | DONE (venter commit) — kun invoice_payments.reference |
+| A-1 | Fakturamail: Graph-tidsudløb frigav kravet → dobbelt faktura ved nyt klik | DONE (dc8491e7) — kravet beholdes ved ukendt udfald; besked + banner "Frigiv afsendelse" (≥2 min, invoices.send, audit `invoice_send_claim_released`) |
+| A-2 | Bankmatch overskrev fakturaens betalingsreference med banktekst | DONE (dc8491e7) — kun invoice_payments.reference |
 | A-3 | Bank-dedup uden afsendernavn → to kunders ens betaling samme dag droppes | BLOCKED_APPROVAL [MIGRATION] — unikt indeks + eksistenstjek inkl. sender_name |
 | A-4 | e-conomic: netværksfejl/timeout frigav kravet → mulig dobbelt bogføring ved genforsøg | TODO (forslag) — behold krav som uncertain + opslag i drafts/booked før ny POST; kræver test mod e-conomic sandbox |
 | A-5 | Mislykket bogføring gemt som draft-N → vist som eksporteret | DONE (visning, venter commit) — status "fejl" + forklaring, intet genforsøg herfra; TODO: eksplicit "bogfør kladden" kræver e-conomic-sandbox-test |
-| A-6 | e-conomic 'skipped' meldt som "allerede eksporteret" | DONE (venter commit) — `describeEconomicSkip` |
+| A-6 | e-conomic 'skipped' meldt som "allerede eksporteret" | DONE (dc8491e7) — `describeEconomicSkip` |
 | A-7 | Betaling registreret før eksport bogføres aldrig i e-conomic; ingen krav om cashbook-post | TODO — kræver e-conomic-test (live-skriv) |
-| A-8 | Manuelt bankmatch: kladder/kreditnotaer i søgning, fejl som succes, ingen bekræftelse | DONE (venter commit) — filter, bekræftelse, dansk udfald, escapeLike |
-| A-9 | Engelske statusser i bankafstemning | DONE (venter commit) |
-| A-10 | Forfaldne fakturaer uden paginering | DONE (venter commit) — fetchAllRows |
-| A-11 | Rykker-cooldown på rå tidsstempler | DONE (venter commit) — `copenhagenCalendarDaysBetween`; unit reminder-days-test 8/8 (midnat, sommer-/vintertid) |
-| A-12 | "Markér betalt" satte ikke amount_paid, nulstillede reference | DONE (venter commit) — BESLUTNING 2026-10-16: kun CRM-status. Restbeløb som betalingsrække (`registerPayment(..., { syncEconomic: false })`), ALDRIG automatisk e-conomic; audit med beløb + source=manual + economic_synced=false; linket faktura → "Betalingsstatus er kun ændret i ELTA CRM" (besked + bekræftelse). Separat eksplicit "Registrér også betaling i e-conomic" = senere (permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit) |
-| A-13 | findByAmount sammenlignede kun med fakturabeløbet | DONE (venter commit) — også restbeløb på delbetalte (afsender skal stadig matche) |
+| A-8 | Manuelt bankmatch: kladder/kreditnotaer i søgning, fejl som succes, ingen bekræftelse | DONE (dc8491e7) — filter, bekræftelse, dansk udfald, escapeLike |
+| A-9 | Engelske statusser i bankafstemning | DONE (dc8491e7) |
+| A-10 | Forfaldne fakturaer uden paginering | DONE (dc8491e7) — fetchAllRows |
+| A-11 | Rykker-cooldown på rå tidsstempler | DONE (dc8491e7) — `copenhagenCalendarDaysBetween`; unit reminder-days-test 8/8 (midnat, sommer-/vintertid) |
+| A-12 | "Markér betalt" satte ikke amount_paid, nulstillede reference | DONE (dc8491e7) — BESLUTNING 2026-10-16: kun CRM-status. Restbeløb som betalingsrække (`registerPayment(..., { syncEconomic: false })`), ALDRIG automatisk e-conomic; audit med beløb + source=manual + economic_synced=false; linket faktura → "Betalingsstatus er kun ændret i ELTA CRM" (besked + bekræftelse). Separat eksplicit "Registrér også betaling i e-conomic" = senere (permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit) |
+| A-13 | findByAmount sammenlignede kun med fakturabeløbet | DONE (dc8491e7) — også restbeløb på delbetalte (afsender skal stadig matche) |
 
 ## NEXT-20 (review-bølge 2026-10-16 formiddag — økonomi/profit + mobil/performance)
 | # | Fund | Status |

@@ -1443,6 +1443,8 @@ ${m.text()}`) })
         const bog = await login(await mkUser('bogholderi'))
         try {
           await gotoSafe(bog.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          // LF-10: godkendelse bekræftes (window.confirm) — accepter
+          bog.page.once('dialog', (d) => { d.accept().catch(() => {}) })
           await bog.page.getByTestId('invoice-approve').click({ timeout: 60_000 }).catch(() => {})
           // markeret til manuel gennemgang → bekræftelse
           const yes = bog.page.getByRole('button', { name: 'Ja, godkend' })

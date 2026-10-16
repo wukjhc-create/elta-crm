@@ -105,6 +105,8 @@ export function IncomingInvoiceDetailClient({
   const alreadyPosted = !!inv.external_invoice_id && !postingPending
   const canShowPost = canPost && inv.status === 'approved' && !alreadyPosted
   const handlePost = async () => {
+    // LF-10: bogføring i e-conomic kan ikke fortrydes herfra
+    if (!window.confirm(`Bogfør faktura ${inv.invoice_number ?? ''} i e-conomic?\n\nDet kan ikke fortrydes herfra.`)) return
     setMsg(null)
     setPosting(true)
     const res = await postIncomingInvoiceToEconomicAction(inv.id)
@@ -135,7 +137,8 @@ export function IncomingInvoiceDetailClient({
 
   const approve = (acknowledge: boolean) => startTransition(async () => {
     const r = await approveIncomingInvoiceAction(inv.id, acknowledge)
-    flash(r.ok, r.message)
+    // LF-9: godkendt men ikke bogført = advarsel (ikke grøn)
+    flash(r.ok && !r.warning, r.message)
     if (r.ok) {
       setConfirmReview(false)
       await refresh()
@@ -617,7 +620,12 @@ export function IncomingInvoiceDetailClient({
               {canApprove && (
                 <Button
                   data-testid="invoice-approve"
-                  onClick={() => (review ? setConfirmReview(true) : approve(false))}
+                  onClick={() => {
+                    if (review) { setConfirmReview(true); return }
+                    // LF-10 (indkøbs-review 2026-10-16): godkendelse skubber til e-conomic — bekræft beløb og leverandør
+                    if (!window.confirm(`Godkend faktura ${inv.invoice_number ?? ''} fra ${inv.supplier_name_extracted ?? 'leverandøren'}${inv.amount_incl_vat != null ? ` (${Number(inv.amount_incl_vat).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr inkl. moms)` : ''}?\n\nFakturaen bogføres i e-conomic, hvis integrationen er aktiv.`)) return
+                    approve(false)
+                  }}
                   disabled={busy}
                 >
                   Godkend

@@ -40,6 +40,8 @@ export interface ActionOutcome {
   ok: boolean
   message: string
   data?: Record<string, unknown>
+  /** LF-9: lykkedes delvist (fx godkendt men ikke bogført) — vises som advarsel */
+  warning?: boolean
 }
 
 export interface IncomingInvoiceListItem {
@@ -332,8 +334,8 @@ export async function approveIncomingInvoiceAction(
   revalidatePath('/dashboard/incoming-invoices')
   revalidatePath(`/dashboard/incoming-invoices/${id}`)
   return r.externalId
-    ? { ok: r.ok, message: r.message, data: { externalId: r.externalId } }
-    : { ok: r.ok, message: r.message }
+    ? { ok: r.ok, message: r.message, warning: r.warning, data: { externalId: r.externalId } }
+    : { ok: r.ok, message: r.message, warning: r.warning }
 }
 
 export async function rejectIncomingInvoiceAction(
