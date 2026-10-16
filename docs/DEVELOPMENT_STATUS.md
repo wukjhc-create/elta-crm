@@ -49,6 +49,12 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 
 **Manuelle blokere (Henrik):** selvregistrering OFF i Supabase · "Email OTP expiry" = 86400 s. Arbejdet fortsætter uden at vente.
 
+## Prod-kørsel 2026-10-16 — 00232 afregningsform (Henrik: "00232 BILLING MODEL GODKENDT TIL PROD")
+Pre: ingen kolonner, 8 sager (4 sikre regning, 4 tvetydige), checksum sager 575ac56603 / fakturaer 0f690878e2. Migration →
+post: service_cases.billing_model + offers.billing_model; 4 time_and_materials, 4 NULL (tvetydige — slutfaktura blokeret til
+valgt på fakturafanen), checksums identiske, DB-audit 0/0/0. Staging billing-model-check 5/5; invoice-regression
+U15/U26/U31/U32/U35/U162/U150/U91/U33/U29 grønne (U35-seed sætter nu afregningsform).
+
 ## Long-run 2026-10-15 nat — pilot-review NEXT-16 + NEXT-17 (kun kode, ingen migrationer)
 | Commit | Indhold |
 |---|---|

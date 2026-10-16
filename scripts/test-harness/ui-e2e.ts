@@ -1643,8 +1643,9 @@ ${m.text()}`) })
       // U35 slutfaktura når forskud/rate er krediteret (faktura, GO-LIVE)
       if (want('U35') && profitCustomerId) {
         const r: Record<string, boolean> = {}
+        // 00232: afregningsform skal være valgt (ellers blokeres slutfakturaen) — regning med fradrag af forskud/rate
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] kreditfradrag ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
-          priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId }]).select('id')
+          priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId, billing_model: 'time_and_materials' }]).select('id')
         u35CaseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
         const mk = async (row: Record<string, unknown>) => ((await c.admin.from('invoices').insert([{ customer_id: profitCustomerId, case_id: u35CaseId, ...row }]).select('id')).data?.[0] as { id?: string } | undefined)?.id ?? null
         const depId = u35CaseId ? await mk({ invoice_number: `UI-E2E-D-${stamp}`, invoice_type: 'deposit', status: 'sent', total_amount: 300, tax_amount: 75, final_amount: 375 }) : null

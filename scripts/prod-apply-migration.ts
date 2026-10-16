@@ -76,6 +76,7 @@ const APPROVED: Record<string, string> = {
   '00229': '2026-10-15', // employees.weekly_hours (valgfri; tom = "Norm ikke sat", ingen 37-fallback), godkendt af Henrik i chat 2026-10-15 ("00229 GODKENDT TIL PROD")
   '00230': '2026-10-15', // sats-motor uden skjult 495/400 (dansk fejl med navn), trigger SECURITY DEFINER, compute_time_log_rates lukket for anon/authenticated, godkendt af Henrik i chat 2026-10-15 ("00230 GODKENDT TIL PROD")
   '00231': '2026-10-15', // momsmode (standard_25/zero/reverse_charge) på kunder, tilbud, fakturaer; eksisterende = standard_25, godkendt af Henrik i chat 2026-10-15 ("00231 GODKENDT SOM VAT-DATAMODEL")
+  '00232': '2026-10-16', // eksplicit afregningsform (fixed_price/time_and_materials) på sager og tilbud; kun sikre sager backfilles (ingen kontraktsum → regning), tvetydige forbliver NULL og slutfakturaen blokeres til valgt — godkendt af Henrik 2026-10-16 ("00232 BILLING MODEL GODKENDT TIL PROD")
 }
 
 async function main() {
