@@ -54,88 +54,8 @@ function sanitizeFilename(name: string): string {
 // Download & store a single attachment
 // =====================================================
 
-/**
- * Download an attachment from Graph API and upload to Supabase Storage.
- * Returns the public URL and storage path.
- */
-export async function downloadAndStoreAttachment(
-  emailId: string,
-  graphMessageId: string,
-  attachmentId: string,
-  originalFilename: string
-): Promise<StoredAttachment | null> {
-  try {
-    // 1. Fetch content from Graph API
-    const attachment = await fetchAttachmentContent(graphMessageId, attachmentId)
-
-    if (!attachment.contentBytes) {
-      logger.warn('Attachment has no content bytes', {
-        metadata: { emailId, attachmentId, filename: originalFilename },
-      })
-      return null
-    }
-
-    // 2. Decode base64 to buffer
-    const buffer = Buffer.from(attachment.contentBytes, 'base64')
-
-    // 3. Build storage path: email-attachments/{emailId}/{sanitized-filename}
-    const safeName = sanitizeFilename(attachment.name || originalFilename)
-    const storagePath = `email-attachments/${emailId}/${safeName}`
-
-    // 4. Upload to Supabase Storage
-    const supabase = getServiceClient()
-
-    const { error: uploadError } = await supabase.storage
-      .from('attachments')
-      .upload(storagePath, buffer, {
-        contentType: attachment.contentType || 'application/octet-stream',
-        upsert: true,
-      })
-
-    if (uploadError) {
-      logger.error('Failed to upload attachment to storage', {
-        entity: 'incoming_emails',
-        entityId: emailId,
-        error: uploadError,
-        metadata: { filename: safeName, storagePath },
-      })
-      return null
-    }
-
-    // 5. Phase β.2.2: signed URL (1 år) i stedet for public URL.
-    //    Mail-vedhaeftninger gemmes i incoming_emails.attachment_urls
-    //    og bruges af UI; storagePath bevares saa consumer kan refreshe.
-    // Storage-review 2026-10-09: intet 1-års link gemmes — læsere signerer friskt fra storagePath (lib/mail/attachment-links)
-    const publicUrl = ''
-
-    logger.info('Attachment stored', {
-      entity: 'incoming_emails',
-      entityId: emailId,
-      metadata: {
-        filename: safeName,
-        size: attachment.size,
-        contentType: attachment.contentType,
-        storagePath,
-      },
-    })
-
-    return {
-      filename: attachment.name || originalFilename,
-      contentType: attachment.contentType || 'application/octet-stream',
-      size: attachment.size,
-      url: publicUrl,
-      storagePath,
-    }
-  } catch (error) {
-    logger.error('Failed to download/store attachment', {
-      entity: 'incoming_emails',
-      entityId: emailId,
-      error,
-      metadata: { attachmentId, filename: originalFilename },
-    })
-    return null
-  }
-}
+// ST-11 (storage-review 2026-10-16): downloadAndStoreAttachment fjernet — ubrugt, og uden de nyere værn
+// (25 MB-loft, safeContentType). Al lagring går via processEmailAttachments.
 
 // =====================================================
 // Process all attachments for an email
@@ -387,7 +307,8 @@ async function archiveAttachmentsToCustomerDocuments(
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 
-function safeContentType(contentType: string | null | undefined): string {
+/** Afsenderens content-type uden aktivt indhold (HTML/SVG/XML/script → application/octet-stream) — ST-3: delt */
+export function safeContentType(contentType: string | null | undefined): string {
   const ct = (contentType || '').toLowerCase().trim()
   if (!ct || /html|svg|xml|javascript|ecmascript/.test(ct)) return 'application/octet-stream'
   return ct

@@ -3503,6 +3503,28 @@ ${m.text()}`) })
             r.montoer_ser_dokumentet = (await m.page.getByText(`montoer-${stamp}.pdf`).count()) > 0
             r.montoer_ingen_slet = (await m.page.getByTestId('case-document-delete').count()) === 0
             if (mId) await c.admin.from('customer_documents').delete().eq('id', mId)
+            // ST-1 (storage-review 2026-10-16): montøren ser hverken interne mail-vedhæftninger (kostpriser) eller fuldmagter
+            // (CPR + underskrift) på sagens Dokumenter — admin ser dem stadig
+            const em = await c.admin.from('incoming_emails').insert([{ sender_email: `st1-${stamp}@harness.test`, sender_name: 'Leverandør', subject: `ST1 ${stamp}`,
+              body_text: 'ordrebekræftelse', customer_id: profitCustomerId, link_status: 'linked', received_at: new Date().toISOString(), is_archived: false }]).select('id')
+            const emId = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+            const hidden = await c.admin.from('customer_documents').insert([
+              { customer_id: profitCustomerId, service_case_id: jobCaseId, title: `Ordrebekræftelse ${stamp}`, document_type: 'other', file_url: '',
+                file_name: `st1-mail-${stamp}.pdf`, mime_type: 'application/pdf', source_email_id: emId, description: null },
+              { customer_id: profitCustomerId, service_case_id: jobCaseId, title: `Fuldmagt ${stamp}`, document_type: 'contract', file_url: '',
+                file_name: `st1-fuldmagt-${stamp}.pdf`, mime_type: 'application/pdf', source_email_id: null, description: JSON.stringify({ type: 'fuldmagt', status: 'signed' }) },
+            ]).select('id')
+            const hiddenIds = ((hidden.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+            r.st1_seed = !!emId && hiddenIds.length === 2
+            await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=dokumenter`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await m.page.waitForTimeout(1500)
+            r.montoer_ingen_mailvedhaeftning = (await m.page.getByText(`st1-mail-${stamp}.pdf`).count()) === 0
+            r.montoer_ingen_fuldmagt = (await m.page.getByText(`st1-fuldmagt-${stamp}.pdf`).count()) === 0
+            await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}?tab=dokumenter`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await a.page.getByText(`st1-mail-${stamp}.pdf`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+            r.admin_ser_mailvedhaeftning = (await a.page.getByText(`st1-mail-${stamp}.pdf`).count()) > 0
+            if (hiddenIds.length) await c.admin.from('customer_documents').delete().in('id', hiddenIds)
+            if (emId) await c.admin.from('incoming_emails').delete().eq('id', emId)
           }
         } finally {
           if (caseId) await c.admin.from('customer_documents').delete().eq('service_case_id', caseId)

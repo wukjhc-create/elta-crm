@@ -141,7 +141,9 @@ export async function getCustomerDocuments(
 
       // Brug lazy-refreshet URL hvis storage_path findes, ellers fald
       // tilbage paa lagret file_url (legacy/fallback).
-      const fileUrl = urlByIdx[idx] ?? doc.file_url ?? ''
+      // ST-1 (storage-review 2026-10-16): fuldmagtens PDF (CPR + underskrift) kun som link for roller med kundemail-
+      // adgang — montøren ser status, ikke filen
+      const fileUrl = fuldmagt_status && !hasPermission('customers.emails.view') ? '' : (urlByIdx[idx] ?? doc.file_url ?? '')
 
       return {
         id: doc.id,

@@ -47,6 +47,9 @@ import type {
 import { emptyRoofDrawingData } from '@/types/roof-drawings.types'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+/** ST-4: højeste tilladte størrelse på et tagtegnings-billede */
+const ROOF_IMAGE_MAX_BYTES = 15 * 1024 * 1024
+
 /**
  * Storage-review 2026-10-08 (S1): fil-adgang går via service-klienten bag action-gaten — så bucket-politikkerne kan
  * låses for direkte REST-adgang (authenticated kunne læse/overskrive alle filer i 'attachments').
@@ -91,16 +94,23 @@ export async function createRoofDrawing(
     }
 
     // Decode data-URI til buffer
-    const mimeType = input.imageBase64.split(';')[0].split(':')[1] || 'image/jpeg'
+    // ST-4 (storage-review 2026-10-16): kun PNG/JPEG — typen afgøres af filens magiske bytes, ikke af data-URI'ens
+    // påståede type (før kunne fx image/svg+xml med script gemmes og vises inline), højst 15 MB, aldrig overskrivning
     const base64Data = input.imageBase64.split(',')[1] || ''
     const buffer = Buffer.from(base64Data, 'base64')
+    if (buffer.length === 0) return { success: false, error: 'Ugyldigt billede' }
+    if (buffer.length > ROOF_IMAGE_MAX_BYTES) return { success: false, error: 'Billedet er for stort (max 15 MB)' }
+    const isPng = buffer.length > 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47
+    const isJpeg = buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+    if (!isPng && !isJpeg) return { success: false, error: 'Kun PNG- eller JPEG-billeder' }
+    const mimeType = isPng ? 'image/png' : 'image/jpeg'
 
-    const ext = mimeType.includes('png') ? 'png' : 'jpg'
+    const ext = isPng ? 'png' : 'jpg'
     const storagePath = `roof-drawings/${input.customerId}/${randomUUID()}.${ext}`
 
     const { error: uploadErr } = await storageClient().storage
       .from(BUCKET)
-      .upload(storagePath, buffer, { contentType: mimeType, upsert: true })
+      .upload(storagePath, buffer, { contentType: mimeType, upsert: false })
 
     if (uploadErr) {
       logger.error('createRoofDrawing upload failed', { error: uploadErr })

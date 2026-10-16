@@ -322,6 +322,9 @@ export async function getPartnerDocuments(
       .select('id, title, description, document_type, file_name, mime_type, service_case_id, created_at')
       .in('service_case_id', caseIds)
       .in('document_type', PARTNER_DOCUMENT_TYPES as unknown as string[])
+      // ST-6 (storage-review 2026-10-16): kun delte dokumenter, aldrig interne mail-vedhæftninger (som kundeportalen)
+      .eq('visible_in_portal', true)
+      .is('source_email_id', null)
       .order('created_at', { ascending: false })
 
     if (error) {

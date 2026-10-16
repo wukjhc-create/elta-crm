@@ -48,18 +48,19 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-23 (review-bølge 2026-10-16 sen eftermiddag — filer/storage + kunde-dubletter + performance)
 | # | Fund | Status |
 |---|---|---|
-| T-5 | Dublet-mail ved kundeoprettelse kun tjekket i klienten | DONE (venter commit) — `lib/customers/customer-email.ts` + centralt værn i insertCustomerWithRetry (normaliseret mail, pladsholdere undtaget, DUPLICATE_EMAIL, race: ældste række vinder), createCustomer/quickCreate med dansk fejl + eksplicit "Opret alligevel" (allow_duplicate_email), tilbud kobler normaliseret. Unit customer-email 10/10, staging customer-email-dup-check 5/5 (inkl. 8 samtidige → 1), concurrency 8/8 (C7/C8-seed rettet til godkendte timer + afregningsform), UI U182. Unikt indeks 00237 = BLOCKED_APPROVAL (runbook) |
-| ST-1 | Montør får downloadlinks til interne mail-vedhæftninger (kostpriser) og fuldmagt-PDF'er via sagens Dokumenter (S2) | TODO — uden customers.emails.view: .is('source_email_id', null); fuldmagt kun for kunde-relationsroller |
+| T-5 | Dublet-mail ved kundeoprettelse kun tjekket i klienten | DONE (59377465) — `lib/customers/customer-email.ts` + centralt værn i insertCustomerWithRetry (normaliseret mail, pladsholdere undtaget, DUPLICATE_EMAIL, race: ældste række vinder), createCustomer/quickCreate med dansk fejl + eksplicit "Opret alligevel" (allow_duplicate_email), tilbud kobler normaliseret. Unit customer-email 10/10, staging customer-email-dup-check 5/5 (inkl. 8 samtidige → 1), concurrency 8/8 (C7/C8-seed rettet til godkendte timer + afregningsform), UI U182. Unikt indeks 00237 = BLOCKED_APPROVAL (runbook) |
+| ST-1 | Montør får downloadlinks til interne mail-vedhæftninger (kostpriser) og fuldmagt-PDF'er via sagens Dokumenter (S2) | DONE (storage-commit) — sagens dokumenter: mail-vedhæftninger kun med customers.emails.view, fuldmagter skjult for øvrige; kundekort: fuldmagt-link kun med customers.emails.view. UI U174 (udvidet) |
 | ST-2 | 1-års signerede URL'er skrives igen til DB (quote-actions, quote-generator, service-case-attachments, avatar) | TODO — gem '' + signér ved læsning; blanking af gamle = [MIGRATION] (data) |
-| ST-3 | Mail-vedhæftning kopieret til lead: rå filnavn + afsenderens content-type (HTML/SVG inline), upsert | TODO |
-| ST-4 | Tagtegning: upload accepterer enhver MIME (SVG → XSS), ingen størrelsesgrænse, upsert | TODO |
-| ST-5 | Slet sagsbilag: ingen sagsbinding, fil slettes før rækken | TODO |
-| ST-6 | Partner-download ignorerer "Del med kunde" + mail-vedhæftninger | TODO |
+| ST-3 | Mail-vedhæftning kopieret til lead: rå filnavn + afsenderens content-type (HTML/SVG inline), upsert | DONE (storage-commit) — renset kilde-nøgle som filnavn, safeContentType, upsert false (eksisterende = ok) |
+| ST-4 | Tagtegning: upload accepterer enhver MIME (SVG → XSS), ingen størrelsesgrænse, upsert | DONE (storage-commit) — kun PNG/JPEG efter magiske bytes, 15 MB, upsert false |
+| ST-5 | Slet sagsbilag: ingen sagsbinding, fil slettes før rækken | DONE (storage-commit) — slet bundet til sagen, række først, så fil (0 rækker = fejl) |
+| ST-6 | Partner-download ignorerer "Del med kunde" + mail-vedhæftninger | DONE (storage-commit) — visible_in_portal + uden source_email_id i liste og download |
 | ST-7 | Forældreløse filer ved slet (tagtegning, kvittering, sag) | TODO |
 | ST-8 | Forældreløse filer ved mislykket insert (sagsdokument, leverandørfaktura, besigtigelse) + ingen billedgrænse | TODO |
-| ST-9 | Filendelse fra klientens filnavn i stedet for valideret MIME | TODO |
-| ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | TODO |
-| ST-11 | Ubrugt downloadAndStoreAttachment uden de nye værn | TODO — slet |
+| ST-9 | Filendelse fra klientens filnavn i stedet for valideret MIME | DONE (storage-commit) — avatar/logo: endelse fra valideret MIME (sagsdokument: renset endelse + valideret content-type, lav risiko) |
+| ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | DONE (storage-commit) — OFFER_LINE_PUBLIC_COLUMNS + COMPANY_SETTINGS_PUBLIC_COLUMNS + Cache-Control private, no-store |
+| ST-11 | Ubrugt downloadAndStoreAttachment uden de nye værn | DONE (storage-commit) — fjernet |
+| HT-1 | U135 (slet kunde med tilbud) flaky 2× i dag — sletteklik/alertdialog-timing (`.catch` på klik) | TODO — vent på dialog + poll på resultat |
 | PF-1 | Klient-udløste server actions køres serielt af browseren: dashboard (~12 widgets), kundekort (5), sagsdetalje (5) | TODO — hent i server-komponent + Suspense / saml i én action (= Q-2) |
 | PF-2 | getDashboardStats summerer hele historikken (alle timer/tilbud) i JS + to serielle batches | TODO |
 | PF-3 | "Sager over estimat" kører fuld efterkalkulation af 200 sager pr. indlæsning (serielle bidder, kvadratisk kopi) | TODO |

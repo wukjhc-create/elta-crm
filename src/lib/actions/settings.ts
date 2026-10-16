@@ -51,6 +51,11 @@ import {
 } from '@/lib/invoices/export-error-notification-config'
 
 // Get company settings (singleton)
+/** ST-9: filendelse ud fra en allerede valideret billed-MIME-type (aldrig fra klientens filnavn) */
+function imageExtForMime(mime: string): string {
+  return mime === 'image/jpeg' ? 'jpg' : mime === 'image/webp' ? 'webp' : mime === 'image/gif' ? 'gif' : 'png'
+}
+
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -754,7 +759,9 @@ export async function uploadProfileAvatar(
       await storageClient().storage.from('attachments').remove([oldAvatarPath])
     }
 
-    const ext = file.name.split('.').pop() || 'png'
+    // ST-9 (storage-review 2026-10-16): endelsen følger den validerede MIME-type — før kom den rå fra klientens
+    // filnavn (kunne indeholde "/" eller "..")
+    const ext = imageExtForMime(file.type)
     const filePath = `avatars/${userId}-${Date.now()}.${ext}`
 
     const { error: uploadError } = await storageClient().storage
@@ -856,7 +863,7 @@ export async function uploadCompanyLogo(
     }
 
     // Upload to Supabase Storage
-    const ext = file.name.split('.').pop() || 'png'
+    const ext = imageExtForMime(file.type) // ST-9
     const fileName = `company-logo-${Date.now()}.${ext}`
     const filePath = `logos/${fileName}`
 

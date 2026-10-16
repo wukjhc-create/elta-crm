@@ -47,6 +47,10 @@ export async function GET(request: NextRequest) {
       .eq('id', documentId)
       .eq('service_cases.payer_customer_id', partnerCustomerId)
       .in('document_type', PARTNER_DOCUMENT_TYPES as unknown as string[])
+      // ST-6 (storage-review 2026-10-16): samme regel som kundeportalen — kun dokumenter delt med kunden ("Del med
+      // kunde", 00218) og aldrig interne mail-vedhæftninger
+      .eq('visible_in_portal', true)
+      .is('source_email_id', null)
       .maybeSingle()
 
     // S1-review 2026-10-08: fuldmagt-PDF'er (CPR + underskrift) kan aldrig hentes via partnerportalen

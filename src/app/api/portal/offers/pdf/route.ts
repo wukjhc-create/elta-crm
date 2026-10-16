@@ -6,8 +6,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { validatePortalToken } from '@/lib/actions/portal'
 import { OfferPdfDocument } from '@/lib/pdf/offer-pdf-template'
 import type { OfferWithRelations } from '@/types/offers.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 import type { ReactElement, JSXElementConstructor } from 'react'
 import { logger } from '@/lib/utils/logger'
+import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
+import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
 
 /**
  * Portal PDF download — token-based auth (no user session required).
@@ -38,11 +41,11 @@ export async function GET(request: NextRequest) {
 
     // Hent tilbud med embedded line_items + customer; customer_id-scope
     // garanterer at en gaettet offer-UUID fra anden kunde ikke kan leakes.
-    const { data: offer, error: offerError } = await supabase
+    const { data: offerRaw, error: offerError } = await supabase
       .from('offers')
       .select(`
         *,
-        line_items:offer_line_items(*),
+        line_items:offer_line_items(${OFFER_LINE_PUBLIC_COLUMNS}),
         customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
       `)
       .eq('id', offerId)
@@ -51,6 +54,8 @@ export async function GET(request: NextRequest) {
       .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
       .single()
 
+    // kolonnelisten er en konstant → ingen statisk typeudledning (samme mønster som den interne PDF-route)
+    const offer = offerRaw as unknown as OfferWithRelations | null
     if (offerError || !offer) {
       return NextResponse.json({ error: 'Tilbud ikke fundet' }, { status: 404 })
     }
@@ -63,20 +68,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Company settings (singleton — fetched via admin)
+    // ST-10 (storage-review 2026-10-16): kun offentlige kolonner — som den interne PDF-route (før '*' inkl. SMTP-/SMS-
+    // hemmeligheder og linjernes kostkolonner i hukommelsen for en portal-forespørgsel)
     const { data: companySettings, error: settingsError } = await supabase
       .from('company_settings')
-      .select('*')
+      .select(COMPANY_SETTINGS_PUBLIC_COLUMNS)
       .maybeSingle()
 
     if (settingsError || !companySettings) {
       logger.error('Company settings not found for PDF', { error: settingsError })
       return NextResponse.json({ error: 'Indstillinger mangler' }, { status: 500 })
     }
-    const settingsResult = { success: true, data: companySettings }
+    const settingsResult = { success: true, data: companySettings as unknown as CompanySettings }
 
     // Generate PDF
     const pdfDocument = OfferPdfDocument({
-      offer: offer as OfferWithRelations,
+      offer,
       companySettings: settingsResult.data,
     }) as ReactElement<DocumentProps, string | JSXElementConstructor<DocumentProps>>
 
@@ -88,6 +95,8 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,
+        // ST-10: kundens tilbud må ikke caches af mellemled/browser (som portalens faktura-PDF)
+        'Cache-Control': 'private, no-store',
       },
     })
   } catch (error) {

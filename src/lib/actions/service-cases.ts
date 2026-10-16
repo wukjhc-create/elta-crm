@@ -892,25 +892,25 @@ export async function deleteServiceCaseAttachment(
       return { success: false, error: 'Manglende tilladelse: cases.edit' }
     }
 
-    // Get storage path first
-    const { data: att } = await supabase
-      .from('service_case_attachments')
-      .select('storage_path')
-      .eq('id', attachmentId)
-      .single()
-
-    if (att?.storage_path) {
-      await storageClient().storage
-        .from('service-case-files')
-        .remove([att.storage_path])
-    }
-
-    const { error } = await supabase
+    validateUUID(attachmentId, 'vedhæftnings-ID')
+    validateUUID(serviceCaseId, 'sags-ID')
+    // ST-5 (storage-review 2026-10-16): bundet til sagen + rækken slettes FØRST — før blev filen fjernet (service-klient)
+    // selv om rækken ikke kunne slettes (RLS/anden sag), så vedhæftningen stod tilbage uden fil
+    const { data: deleted, error } = await supabase
       .from('service_case_attachments')
       .delete()
       .eq('id', attachmentId)
+      .eq('service_case_id', serviceCaseId)
+      .select('storage_path')
 
     if (error) return { success: false, error: 'Kunne ikke slette vedhæftning' }
+    if (!deleted || deleted.length === 0) return { success: false, error: 'Vedhæftningen findes ikke på sagen eller må ikke slettes' }
+
+    const path = (deleted[0] as { storage_path?: string | null }).storage_path
+    if (path) {
+      const { error: rmErr } = await storageClient().storage.from('service-case-files').remove([path])
+      if (rmErr) logger.warn('deleteServiceCaseAttachment: fil kunne ikke fjernes (rækken er slettet)', { error: rmErr, entityId: attachmentId })
+    }
 
     revalidatePath(`/dashboard/service-cases/${serviceCaseId}`)
     return { success: true }
@@ -1185,10 +1185,15 @@ export async function getDocumentsForCase(
     }
     if (!hasPermission('cases.view.all') && !(await userCanViewCase(serviceCaseId, { role, userId, supabase }))) return []
 
-    const { data, error } = await supabase
+    // ST-1 (storage-review 2026-10-16): mail-vedhæftninger arkiveret på sagen (fx leverandørers ordrebekræftelser med
+    // kostpriser) kun for roller der må se kundemails — samme regel som getCustomerDocuments/getDocumentDownloadUrls;
+    // før fik montøren downloadlinks til dem via sagens Dokumenter-fane
+    let docsQuery = supabase
       .from('customer_documents')
       .select('id, title, file_name, file_url, storage_path, mime_type, file_size, source_email_id, document_type, description, created_at, offer_id, sent_quote_id')
       .eq('service_case_id', serviceCaseId)
+    if (!hasPermission('customers.emails.view')) docsQuery = docsQuery.is('source_email_id', null)
+    const { data, error } = await docsQuery
       .order('created_at', { ascending: false })
       .limit(200)
 
@@ -1200,7 +1205,9 @@ export async function getDocumentsForCase(
     // Phase β.2.3: lazy-refresh file_url via signed-URL helper for hver row
     // der har storage_path. Sikrer at "Dokumenter"-tab paa orders/[id] virker
     // baade foer og efter attachments bucket-privatisering (β.2.5).
-    const rows = (data || []) as CaseDocument[]
+    // ST-1: fuldmagter (CPR + underskrift) kun for roller med adgang til kundens mails/relation — øvrige ser dem ikke
+    const { isFuldmagtDocument } = await import('@/lib/documents/is-fuldmagt')
+    const rows = ((data || []) as CaseDocument[]).filter((r) => hasPermission('customers.emails.view') || !isFuldmagtDocument(r as { document_type?: string | null; description?: string | null }))
     const paths = rows.map((r) => r.storage_path ?? '')
     const fresh = await getStorageSignedUrls('attachments', paths.filter((p) => p), SIGNED_URL_TTL.SHORT)
     const freshByIdx: Record<number, string | null> = {}

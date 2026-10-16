@@ -42,7 +42,6 @@ export {
 // =====================================================
 
 export {
-  downloadAndStoreAttachment,
   processEmailAttachments,
 } from '@/lib/services/email-attachment-storage'
 

@@ -733,15 +733,22 @@ async function copyAttachmentsToLead(
       if (dlError || !fileData) continue
 
       // Upload to lead folder
-      const destPath = `lead-attachments/${leadId}/${att.filename}`
+      // ST-3 (storage-review 2026-10-16): stinavnet er den allerede rensede, unikke kilde-nøgle (ikke afsenderens rå
+      // filnavn, der kunne indeholde "/" eller overskrive en anden fil), content-type uden aktivt indhold (før kunne en
+      // HTML/SVG-vedhæftning vises inline), og intet overskriv
+      const safeName = (att.storagePath.split('/').pop() || '').replace(/[^\w.\-]+/g, '_') || `fil-${Date.now()}`
+      const destPath = `lead-attachments/${leadId}/${safeName}`
+      const { safeContentType } = await import('@/lib/services/email-attachment-storage')
       const { error: ulError } = await serviceSupabase.storage
         .from('attachments')
         .upload(destPath, fileData, {
-          contentType: att.contentType || 'application/octet-stream',
-          upsert: true,
+          contentType: safeContentType(att.contentType),
+          upsert: false,
         })
+      // samme mail kopieret til samme lead før → filen findes allerede (ikke en fejl)
+      const alreadyThere = !!ulError && /exist|duplicate/i.test(ulError.message || '')
 
-      if (!ulError) {
+      if (!ulError || alreadyThere) {
         // Phase β.2.2: signed URL (1 år) i stedet for manuelt konstrueret
         // /object/public/ URL. Sidstnaevnte virker IKKE efter bucket-
         // privatisering. storagePath bevares saa consumer kan refreshe.
