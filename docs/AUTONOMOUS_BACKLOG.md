@@ -45,17 +45,40 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-24 (review-bølge 2026-10-16 aften — leverandørfakturaer/indkøb + DB-sikkerhed)
+| # | Fund | Status |
+|---|---|---|
+| LF-1 | Godkendt leverandørfaktura uden sag kan aldrig fordeles (sag kan ikke sættes efter godkendelse) (S2) | TODO — tillad sag på godkendt/bogført, når ingen linjer er konverteret; audit |
+| LF-2 | Udenlandsk valuta fordeles som DKK (1.000 EUR → 1.000 kr kost) (S2) | TODO — kun DKK kan fordeles |
+| LF-3 | Linjerabat ignoreres ved fordeling (listepris i stedet for total) — forhåndsvisning ≠ resultat (S2) | TODO — unit_cost = |total|/antal når total findes |
+| LF-4 | Forhåndsvisning viser kreditlinjer anderledes end det der oprettes | TODO — brug lineSnapshot |
+| LF-5 | Materialer fra kreditnota (negativ kost) kan ikke redigeres | TODO |
+| LF-6 | Linjer kan fordeles til en lukket sag | TODO |
+| LF-7 | Matcher kan sætte arbejdsordre fra en anden sag | TODO |
+| LF-8 | Adresse-fallback kan auto-matche forkert sag (leverandørens brevhoved) | TODO |
+| LF-9 | Fejl vist som succes + engelske beskeder ved godkend/afvis/e-conomic | TODO |
+| LF-10 | Godkend/bogfør uden bekræftelse (skubber til e-conomic) | TODO |
+| LF-11 | AO-API: mislykket linjeimport tavs og kan ikke genforsøges | TODO |
+| LF-12 | Lister skåret ved 200/1000 uden besked | TODO |
+| LF-13 | Delvis fejl ved fordeling: konverterede linjer bliver stående, UI siger "fejlede" | TODO |
+| DB-1 | ai_suggestions margin_alert (margin/avance) læsbar for alle indloggede (S2) | BLOCKED_APPROVAL [MIGRATION] 00238 — docs/runbooks/db-security-2026-10-16-proposal.md |
+| DB-2 | case_materials/case_other_costs kostkolonner åbne (= F-11) | BLOCKED_APPROVAL [MIGRATION] 00234 |
+| DB-3 | Kladdelås (00215) omgås via status → draft; vat_mode/billing_model ikke låst (S2) | BLOCKED_APPROVAL [MIGRATION] 00239 |
+| DB-4 | Interne dokumenter synlige i portalen efter 00218-backfill (S2) | IN PROGRESS (app-værn: portal/partner udelukker internal, deling afvises) + BLOCKED_APPROVAL [MIGRATION] 00240 (data + CHECK) |
+| DB-5/6/7 | Hygiejne: REVOKE på trigger-funktion og admin-RPC'er, search_path | BLOCKED_APPROVAL [MIGRATION] (samlet) |
+| DB-8 | Bogholderi læser sygefravær for alle (GDPR) | BESLUTNING — tilsigtet? |
+
 ## NEXT-23 (review-bølge 2026-10-16 sen eftermiddag — filer/storage + kunde-dubletter + performance)
 | # | Fund | Status |
 |---|---|---|
 | T-5 | Dublet-mail ved kundeoprettelse kun tjekket i klienten | DONE (59377465) — `lib/customers/customer-email.ts` + centralt værn i insertCustomerWithRetry (normaliseret mail, pladsholdere undtaget, DUPLICATE_EMAIL, race: ældste række vinder), createCustomer/quickCreate med dansk fejl + eksplicit "Opret alligevel" (allow_duplicate_email), tilbud kobler normaliseret. Unit customer-email 10/10, staging customer-email-dup-check 5/5 (inkl. 8 samtidige → 1), concurrency 8/8 (C7/C8-seed rettet til godkendte timer + afregningsform), UI U182. Unikt indeks 00237 = BLOCKED_APPROVAL (runbook) |
 | ST-1 | Montør får downloadlinks til interne mail-vedhæftninger (kostpriser) og fuldmagt-PDF'er via sagens Dokumenter (S2) | DONE (b8107bd2) — sagens dokumenter: mail-vedhæftninger kun med customers.emails.view, fuldmagter skjult for øvrige; kundekort: fuldmagt-link kun med customers.emails.view. UI U174 (udvidet) |
-| ST-2 | 1-års signerede URL'er skrives igen til DB (quote-actions, quote-generator, service-case-attachments, avatar) | TODO — gem '' + signér ved læsning; blanking af gamle = [MIGRATION] (data) |
+| ST-2 | 1-års signerede URL'er skrives igen til DB (quote-actions, quote-generator, service-case-attachments, avatar) | DONE kode (venter commit) — nye rækker gemmer intet langtidslink (tilbud-deling, tilbudsgenerator, sagsbilag; svaret får kort link); avatar uændret; blanking af gamle = [MIGRATION] BLOCKED_APPROVAL |
 | ST-3 | Mail-vedhæftning kopieret til lead: rå filnavn + afsenderens content-type (HTML/SVG inline), upsert | DONE (b8107bd2) — renset kilde-nøgle som filnavn, safeContentType, upsert false (eksisterende = ok) |
 | ST-4 | Tagtegning: upload accepterer enhver MIME (SVG → XSS), ingen størrelsesgrænse, upsert | DONE (b8107bd2) — kun PNG/JPEG efter magiske bytes, 15 MB, upsert false |
 | ST-5 | Slet sagsbilag: ingen sagsbinding, fil slettes før rækken | DONE (b8107bd2) — slet bundet til sagen, række først, så fil (0 rækker = fejl) |
 | ST-6 | Partner-download ignorerer "Del med kunde" + mail-vedhæftninger | DONE (b8107bd2) — visible_in_portal + uden source_email_id i liste og download |
-| ST-7 | Forældreløse filer ved slet (tagtegning, kvittering, sag) | DONE (venter commit) — tagtegning og kvittering: række først, så fil (0 rækker = fejl). UI U71 (udvidet). Sletning af hel sag → filer = senere |
+| ST-7 | Forældreløse filer ved slet (tagtegning, kvittering, sag) | DONE (a400b21d) — tagtegning og kvittering: række først, så fil (0 rækker = fejl). UI U71 (udvidet). Sletning af hel sag → filer = senere |
 | ST-8 | Forældreløse filer ved mislykket insert (sagsdokument, leverandørfaktura, besigtigelse) + ingen billedgrænse | TODO |
 | ST-9 | Filendelse fra klientens filnavn i stedet for valideret MIME | DONE (b8107bd2) — avatar/logo: endelse fra valideret MIME (sagsdokument: renset endelse + valideret content-type, lav risiko) |
 | ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | DONE (b8107bd2) — OFFER_LINE_PUBLIC_COLUMNS + COMPANY_SETTINGS_PUBLIC_COLUMNS + Cache-Control private, no-store |

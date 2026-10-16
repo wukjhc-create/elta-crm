@@ -201,12 +201,10 @@ export async function shareQuoteToPortal(
       return { success: true, data: { documentId: existing.id } }
     }
 
-    // Phase β.2.3: generér fresh signed URL fra storage_path i stedet for
-    // at kopiere stored pdf_public_url. Sikrer at delt dokument virker
-    // ogsaa efter bucket-privatisering (β.2.5).
-    const freshUrl = quote.pdf_storage_path
-      ? await getStorageSignedUrlOrNull('attachments', quote.pdf_storage_path, SIGNED_URL_TTL.YEAR)
-      : null
+    // ST-2 (storage-review 2026-10-16): intet langtidslink i databasen — dokumentlisterne signerer fra storage_path ved
+    // hver visning (et gemt 1-års-link virkede videre, selv om adgangen blev fjernet). Kun ældre rækker uden sti bruger
+    // det gemte link.
+    const freshUrl = quote.pdf_storage_path ? '' : null
 
     // Insert document
     const { data: doc, error: insertError } = await supabase

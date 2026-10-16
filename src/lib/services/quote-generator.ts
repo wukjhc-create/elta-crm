@@ -250,7 +250,8 @@ export async function generateAndSendQuote(
           validity_days: input.validityDays,
           valid_until: copenhagenParts(validUntil).date,
           pdf_storage_path: storagePath,
-          pdf_public_url: pdfPublicUrl,
+          // ST-2 (storage-review 2026-10-16): linket står kun i kundens mail — ikke i databasen (signeres fra pdf_storage_path)
+          pdf_public_url: '',
           sent_by: userId,
           sender_name: input.senderName,
         })
@@ -358,7 +359,7 @@ async function autoShareToPortal(
       title: params.title,
       description: `Tilbud ${params.quoteReference}`,
       document_type: 'quote',
-      file_url: params.pdfPublicUrl,
+      file_url: '', // ST-2: signeres fra storage_path ved visning
       storage_path: params.storagePath,
       file_name: `${params.quoteReference}.pdf`,
       mime_type: 'application/pdf',

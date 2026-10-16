@@ -850,17 +850,16 @@ export async function uploadServiceCaseAttachment(
       return { success: false, error: 'Upload fejlede' }
     }
 
-    // Phase β.2.2: signed URL (1 år) i stedet for public — forberedelse
-    // til service-case-files bucket-privatisering. storage_path bevares
-    // saa consumer kan refreshe URL via helper.
-    const signedUrl = await getStorageSignedUrlOrNull('service-case-files', storagePath, SIGNED_URL_TTL.YEAR)
+    // ST-2 (storage-review 2026-10-16): intet 1-års-link i databasen (listerne signerer fra storage_path ved visning);
+    // svaret får et kort link til straks-visning
+    const signedUrl = await getStorageSignedUrlOrNull('service-case-files', storagePath, SIGNED_URL_TTL.SHORT)
 
     const { data, error } = await supabase
       .from('service_case_attachments')
       .insert({
         service_case_id: serviceCaseId,
         file_name: file.name,
-        file_url: signedUrl ?? '',
+        file_url: '',
         storage_path: storagePath,
         mime_type: file.type,
         file_size: file.size,
@@ -876,7 +875,8 @@ export async function uploadServiceCaseAttachment(
     }
 
     revalidatePath(`/dashboard/service-cases/${serviceCaseId}`)
-    return { success: true, data: data as ServiceCaseAttachment }
+    // ST-2: svaret bruger det korte link (databasen gemmer intet link)
+    return { success: true, data: { ...(data as ServiceCaseAttachment), file_url: signedUrl ?? '' } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

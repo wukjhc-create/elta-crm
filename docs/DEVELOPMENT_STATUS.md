@@ -85,6 +85,7 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **PF-11 indeks på incoming_emails** (service_case_id; is_archived/link_status/received_at) [MIGRATION]
 - **ST-2 blanking af gamle 1-års signerede URL'er** (sent_quotes.pdf_public_url, service_case_attachments.file_url) [MIGRATION, data]
 - **O-6/O-7** venter på revisionsskema 00203 i relevant miljø
+- **DB-sikkerhed 2026-10-16** (docs/runbooks/db-security-2026-10-16-proposal.md): 00238 ai_suggestions margin_alert, 00239 kladdelås via status, 00240 interne dokumenter i portal (app-værn i kode), hygiejne-REVOKE; DB-8 sygefravær for bogholderi = beslutning
 - **"Registrér også betaling i e-conomic"** (efter A-12-beslutningen) — eksplicit action: permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit
 P-2/P-4/P-8/P-10/P-11 (round 3) — UI U178/U13/U4/U5/U43/U160/U166 grønne.
 
