@@ -49,30 +49,30 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | # | Fund | Status |
 |---|---|---|
 | T-5 | Dublet-mail ved kundeoprettelse kun tjekket i klienten | DONE (59377465) — `lib/customers/customer-email.ts` + centralt værn i insertCustomerWithRetry (normaliseret mail, pladsholdere undtaget, DUPLICATE_EMAIL, race: ældste række vinder), createCustomer/quickCreate med dansk fejl + eksplicit "Opret alligevel" (allow_duplicate_email), tilbud kobler normaliseret. Unit customer-email 10/10, staging customer-email-dup-check 5/5 (inkl. 8 samtidige → 1), concurrency 8/8 (C7/C8-seed rettet til godkendte timer + afregningsform), UI U182. Unikt indeks 00237 = BLOCKED_APPROVAL (runbook) |
-| ST-1 | Montør får downloadlinks til interne mail-vedhæftninger (kostpriser) og fuldmagt-PDF'er via sagens Dokumenter (S2) | DONE (storage-commit) — sagens dokumenter: mail-vedhæftninger kun med customers.emails.view, fuldmagter skjult for øvrige; kundekort: fuldmagt-link kun med customers.emails.view. UI U174 (udvidet) |
+| ST-1 | Montør får downloadlinks til interne mail-vedhæftninger (kostpriser) og fuldmagt-PDF'er via sagens Dokumenter (S2) | DONE (b8107bd2) — sagens dokumenter: mail-vedhæftninger kun med customers.emails.view, fuldmagter skjult for øvrige; kundekort: fuldmagt-link kun med customers.emails.view. UI U174 (udvidet) |
 | ST-2 | 1-års signerede URL'er skrives igen til DB (quote-actions, quote-generator, service-case-attachments, avatar) | TODO — gem '' + signér ved læsning; blanking af gamle = [MIGRATION] (data) |
-| ST-3 | Mail-vedhæftning kopieret til lead: rå filnavn + afsenderens content-type (HTML/SVG inline), upsert | DONE (storage-commit) — renset kilde-nøgle som filnavn, safeContentType, upsert false (eksisterende = ok) |
-| ST-4 | Tagtegning: upload accepterer enhver MIME (SVG → XSS), ingen størrelsesgrænse, upsert | DONE (storage-commit) — kun PNG/JPEG efter magiske bytes, 15 MB, upsert false |
-| ST-5 | Slet sagsbilag: ingen sagsbinding, fil slettes før rækken | DONE (storage-commit) — slet bundet til sagen, række først, så fil (0 rækker = fejl) |
-| ST-6 | Partner-download ignorerer "Del med kunde" + mail-vedhæftninger | DONE (storage-commit) — visible_in_portal + uden source_email_id i liste og download |
+| ST-3 | Mail-vedhæftning kopieret til lead: rå filnavn + afsenderens content-type (HTML/SVG inline), upsert | DONE (b8107bd2) — renset kilde-nøgle som filnavn, safeContentType, upsert false (eksisterende = ok) |
+| ST-4 | Tagtegning: upload accepterer enhver MIME (SVG → XSS), ingen størrelsesgrænse, upsert | DONE (b8107bd2) — kun PNG/JPEG efter magiske bytes, 15 MB, upsert false |
+| ST-5 | Slet sagsbilag: ingen sagsbinding, fil slettes før rækken | DONE (b8107bd2) — slet bundet til sagen, række først, så fil (0 rækker = fejl) |
+| ST-6 | Partner-download ignorerer "Del med kunde" + mail-vedhæftninger | DONE (b8107bd2) — visible_in_portal + uden source_email_id i liste og download |
 | ST-7 | Forældreløse filer ved slet (tagtegning, kvittering, sag) | TODO |
 | ST-8 | Forældreløse filer ved mislykket insert (sagsdokument, leverandørfaktura, besigtigelse) + ingen billedgrænse | TODO |
-| ST-9 | Filendelse fra klientens filnavn i stedet for valideret MIME | DONE (storage-commit) — avatar/logo: endelse fra valideret MIME (sagsdokument: renset endelse + valideret content-type, lav risiko) |
-| ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | DONE (storage-commit) — OFFER_LINE_PUBLIC_COLUMNS + COMPANY_SETTINGS_PUBLIC_COLUMNS + Cache-Control private, no-store |
-| ST-11 | Ubrugt downloadAndStoreAttachment uden de nye værn | DONE (storage-commit) — fjernet |
-| HT-1 | U135 (slet kunde med tilbud) flaky 2× i dag — sletteklik/alertdialog-timing (`.catch` på klik) | TODO — vent på dialog + poll på resultat |
+| ST-9 | Filendelse fra klientens filnavn i stedet for valideret MIME | DONE (b8107bd2) — avatar/logo: endelse fra valideret MIME (sagsdokument: renset endelse + valideret content-type, lav risiko) |
+| ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | DONE (b8107bd2) — OFFER_LINE_PUBLIC_COLUMNS + COMPANY_SETTINGS_PUBLIC_COLUMNS + Cache-Control private, no-store |
+| ST-11 | Ubrugt downloadAndStoreAttachment uden de nye værn | DONE (b8107bd2) — fjernet |
+| HT-1 | U135 (slet kunde med tilbud) flaky 2× i dag — sletteklik/alertdialog-timing (`.catch` på klik) | DONE (venter commit) — venter på knap/dialog + poll på resultat; U135 grøn i første kørsel |
 | PF-1 | Klient-udløste server actions køres serielt af browseren: dashboard (~12 widgets), kundekort (5), sagsdetalje (5) | TODO — hent i server-komponent + Suspense / saml i én action (= Q-2) |
 | PF-2 | getDashboardStats summerer hele historikken (alle timer/tilbud) i JS + to serielle batches | TODO |
 | PF-3 | "Sager over estimat" kører fuld efterkalkulation af 200 sager pr. indlæsning (serielle bidder, kvadratisk kopi) | TODO |
 | PF-4 | "Kræver svar" genlæser hele den koblede indbakke (~45 serielle kald ved 5k mails) ved hver statistik/realtime-hændelse | TODO |
-| PF-5 | Kundekortets postkasse sender body_html/body_text for op til 200 mails | TODO — lazy body |
+| PF-5 | Kundekortets postkasse sender body_html/body_text for op til 200 mails | DONE (venter commit) — listen uden brødtekst; LazyEmailBody henter ved visning (cache pr. mail) |
 | PF-6 | Faktura-nøgletal scanner alle fakturaer to gange; oversigten har ~6 serielle kald | TODO |
 | PF-7 | Mine job henter afsluttede opgaver (op til 1000) og skjuler dem i klienten; realtime uden filter | TODO |
 | PF-8 | Gem tidsregistrering: ~9 serielle kald + tredobbelt genindlæsning | TODO |
 | PF-9 | Sagsdetaljen bundter alle 13 faner statisk (ingen next/dynamic) | TODO |
-| PF-10 | Lead-tavlen: to serielle getLeads med select('*') | TODO |
+| PF-10 | Lead-tavlen: to serielle getLeads med select('*') | DONE (venter commit) — åbne + lukkede leads samtidig |
 | PF-11 | Manglende indeks på incoming_emails (service_case_id; is_archived/link_status/received_at) | BLOCKED_APPROVAL [MIGRATION] — forslag |
-| PF-12 | Realtime uden filter → genindlæsningsstorme (månedsgraf, mail-siden ved hver UPDATE) | TODO |
+| PF-12 | Realtime uden filter → genindlæsningsstorme (månedsgraf, mail-siden ved hver UPDATE) | DONE (venter commit) — mail-siden kun ved nye mails (INSERT), månedsgrafen uden realtime |
 
 ## NEXT-22 (review-bølge 2026-10-16 eftermiddag — tilbud/portal + tid/leads/indbakke)
 | # | Fund | Status |

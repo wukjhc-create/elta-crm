@@ -185,7 +185,7 @@ export async function getCustomerMailbox(
   const { data, error } = await supabase
     .from('incoming_emails')
     .select(`
-      id, subject, sender_email, sender_name, to_email, body_html, body_text,
+      id, subject, sender_email, sender_name, to_email,
       body_preview, has_attachments, is_read, received_at, reply_to,
       original_sender_email, conversation_id, customer_id, service_case_id,
       service_case:service_cases!incoming_emails_service_case_id_fkey (id, case_number, title, status)
@@ -220,8 +220,10 @@ export async function getCustomerMailbox(
       sender_email: e.sender_email,
       sender_name: e.sender_name,
       to_email: e.to_email,
-      body_html: e.body_html,
-      body_text: e.body_text,
+      // PF-5 (performance-review 2026-10-16): brødteksten hentes først, når mailen åbnes (getCustomerEmailBody) — før
+      // sendte listen body_html/body_text for op til 200 mails (flere MB pr. kundekort)
+      body_html: null,
+      body_text: null,
       body_preview: e.body_preview,
       has_attachments: e.has_attachments,
       is_read: e.is_read,

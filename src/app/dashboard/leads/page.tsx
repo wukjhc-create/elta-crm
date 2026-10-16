@@ -46,20 +46,25 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   const OPEN: LeadStatus[] = ['new', 'contacted', 'qualified', 'proposal', 'negotiation']
   const kanbanSplit = isKanban && !status
   let closedNote: string | null = null
-  const result = await getLeads({
-    page,
-    pageSize,
-    search,
-    status,
-    statuses: kanbanSplit ? OPEN : undefined,
-    source,
-    sortBy,
-    sortOrder,
-    assigned_to,
-  })
-  if (kanbanSplit && result.success && result.data) {
-    const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
-    const closed = await getLeads({ page: 1, pageSize: 200, search, statuses: ['won', 'lost'], updatedSince: since, source, assigned_to })
+  // PF-10 (performance-review 2026-10-16): åbne og lukkede leads hentes samtidig (før efter hinanden)
+  const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
+  const [result, closed] = await Promise.all([
+    getLeads({
+      page,
+      pageSize,
+      search,
+      status,
+      statuses: kanbanSplit ? OPEN : undefined,
+      source,
+      sortBy,
+      sortOrder,
+      assigned_to,
+    }),
+    kanbanSplit
+      ? getLeads({ page: 1, pageSize: 200, search, statuses: ['won', 'lost'], updatedSince: since, source, assigned_to })
+      : Promise.resolve(null),
+  ])
+  if (kanbanSplit && result.success && result.data && closed) {
     if (closed.success && closed.data) {
       result.data.data = [...result.data.data, ...closed.data.data]
       closedNote = closed.data.total > closed.data.data.length ? `Vundne/tabte: de ${closed.data.data.length} nyeste af ${closed.data.total} fra de seneste 90 dage.` : null

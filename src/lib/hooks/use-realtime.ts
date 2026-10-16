@@ -30,7 +30,9 @@ function useLatestDebounced(onUpdate: () => void) {
 export function useRealtimeTable(
   table: string,
   onUpdate: () => void,
-  filter?: string
+  filter?: string,
+  /** PF-12 (performance-review 2026-10-16): kun disse hændelser (fx 'INSERT') — standard alle */
+  event: 'INSERT' | 'UPDATE' | 'DELETE' | '*' = '*'
 ) {
   const channelRef = useRef<RealtimeChannel | null>(null)
   const fire = useLatestDebounced(onUpdate)
@@ -38,9 +40,9 @@ export function useRealtimeTable(
   useEffect(() => {
     const supabase = createClient()
 
-    const channelName = `realtime-${table}-${filter || 'all'}-${Date.now()}`
+    const channelName = `realtime-${table}-${filter || 'all'}-${event}-${Date.now()}`
     const channelConfig: Record<string, unknown> = {
-      event: '*',
+      event,
       schema: 'public',
       table,
     }
@@ -60,7 +62,7 @@ export function useRealtimeTable(
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [table, filter]) // intentionally exclude onUpdate to avoid re-subscribing
+  }, [table, filter, event]) // intentionally exclude onUpdate to avoid re-subscribing
 
   return channelRef
 }

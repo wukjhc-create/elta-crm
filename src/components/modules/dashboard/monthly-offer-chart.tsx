@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { TrendingUp, FileText, CheckCircle2 } from 'lucide-react'
 import { getMonthlyOfferStats } from '@/lib/actions/dashboard'
-import { useRealtimeTable } from '@/lib/hooks/use-realtime'
 
 function formatDKK(value: number): string {
   return new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 0 }).format(value)
@@ -26,8 +25,8 @@ export function MonthlyOfferChart() {
     loadStats()
   }, [loadStats])
 
-  // Realtime: refresh when offers change
-  useRealtimeTable('offers', loadStats)
+  // PF-12 (performance-review 2026-10-16): ingen realtime — enhver ændring af et vilkårligt tilbud genhentede hele
+  // månedens tilbud for hver åben forside; grafen opdateres ved sidevisning
 
   if (!stats) return null
 

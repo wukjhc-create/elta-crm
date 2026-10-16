@@ -19,6 +19,7 @@ import {
   Inbox,
 } from 'lucide-react'
 import {
+  getCustomerEmailBody,
   getCustomerMailbox,
   getUnlinkedCustomerEmailCountAction,
   linkUnlinkedCustomerEmailsAction,
@@ -362,19 +363,8 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                               )}
                             </div>
 
-                            {/* Email body */}
-                            {msg.body_html ? (
-                              <div
-                                className="prose prose-sm max-w-none text-gray-700 overflow-auto max-h-[400px] border rounded-lg p-3 bg-white"
-                                dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(msg.body_html) }}
-                              />
-                            ) : msg.body_text ? (
-                              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans border rounded-lg p-3 bg-white overflow-auto max-h-[400px]">
-                                {msg.body_text}
-                              </pre>
-                            ) : (
-                              <p className="text-sm text-gray-400 italic">Ingen indhold</p>
-                            )}
+                            {/* Email body — PF-5: hentes ved visning */}
+                            <LazyEmailBody emailId={msg.id} boxClass="border rounded-lg p-3 bg-white overflow-auto max-h-[400px]" />
                           </div>
 
                           {/* Inline reply form */}
@@ -517,19 +507,8 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                         )}
                       </div>
 
-                      {/* HTML body */}
-                      {viewingEmail.body_html ? (
-                        <div
-                          className="prose prose-sm max-w-none text-gray-700 overflow-auto max-h-[500px] border rounded-lg p-4 bg-gray-50/50"
-                          dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(viewingEmail.body_html) }}
-                        />
-                      ) : viewingEmail.body_text ? (
-                        <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans border rounded-lg p-4 bg-gray-50/50 overflow-auto max-h-[500px]">
-                          {viewingEmail.body_text}
-                        </pre>
-                      ) : (
-                        <p className="text-sm text-gray-400 italic">Ingen indhold</p>
-                      )}
+                      {/* HTML body — PF-5: hentes ved visning */}
+                      <LazyEmailBody emailId={viewingEmail.id} boxClass="border rounded-lg p-4 bg-gray-50/50 overflow-auto max-h-[500px]" />
                     </div>
 
                     {/* Reply form */}
@@ -594,4 +573,27 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
       )}
     </div>
   )
+}
+
+/** PF-5 (performance-review 2026-10-16): brødtekst hentes først, når mailen vises — cache pr. mail i sessionen */
+const emailBodyCache = new Map<string, { html: string | null; text: string | null }>()
+function LazyEmailBody({ emailId, boxClass }: { emailId: string; boxClass: string }) {
+  const [body, setBody] = useState<{ html: string | null; text: string | null } | null>(() => emailBodyCache.get(emailId) ?? null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    if (emailBodyCache.has(emailId)) { setBody(emailBodyCache.get(emailId) ?? null); return }
+    let active = true
+    setFailed(false)
+    getCustomerEmailBody(emailId)
+      .then((b) => { emailBodyCache.set(emailId, b); if (active) setBody(b) })
+      .catch(() => { if (active) setFailed(true) })
+    return () => { active = false }
+  }, [emailId])
+  if (failed) return <p className="text-sm text-red-600">Mailens indhold kunne ikke hentes — prøv igen</p>
+  if (!body) return <p className="text-sm text-gray-400 italic">Henter indhold …</p>
+  if (body.html) {
+    return <div className={`prose prose-sm max-w-none text-gray-700 ${boxClass}`} dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(body.html) }} />
+  }
+  if (body.text) return <pre className={`text-sm text-gray-700 whitespace-pre-wrap font-sans ${boxClass}`}>{body.text}</pre>
+  return <p className="text-sm text-gray-400 italic">Ingen indhold</p>
 }

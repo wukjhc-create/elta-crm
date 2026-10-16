@@ -362,8 +362,10 @@ export function MailClient() {
     }
   }, [currentFilter, readFilter, sortOrder, search, currentPage, isSyncing])
 
-  // Realtime: incoming_emails table changes → instant refresh
-  useRealtimeTable('incoming_emails', backgroundRefresh)
+  // Realtime: NYE mails → genindlæs. PF-12 (performance-review 2026-10-16): kun INSERT — før udløste hver opdatering
+  // (også egne "markér læst", og hver række i en 60-sekunders-synk) en fuld genindlæsning af liste, 9 tællere,
+  // "kræver svar" og lead-kort; egne ændringer opdateres allerede lokalt
+  useRealtimeTable('incoming_emails', backgroundRefresh, undefined, 'INSERT')
 
   // Sprint 8C-3: Background Graph sync every 60s mens siden er aaben.
   // Reduceret fra 90s for hurtigere reply-pickup. Skip hvis manuel eller

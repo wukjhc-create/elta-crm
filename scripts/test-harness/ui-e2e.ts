@@ -5419,19 +5419,30 @@ ${m.text()}`) })
         const tryDelete = async (id: string) => {
           await gotoSafe(a.page, `${base}/dashboard/customers/${id}`, { waitUntil: 'networkidle', timeout: 120_000 })
           // knappen har aria-label "Slet kunde" (NEXT-11) — fast testid i stedet for tekst
+          // HT-1 (2026-10-16): vent på knap og dialog (før fast 2,5 s → flaky ved langsom indlæsning)
+          await a.page.getByTestId('customer-delete').first().waitFor({ timeout: 60_000 }).catch(() => {})
           await a.page.getByTestId('customer-delete').first().click({ timeout: 60_000 }).catch(() => {})
-          await a.page.getByRole('alertdialog').getByRole('button', { name: /^Slet$/ }).click({ timeout: 30_000 }).catch(() => {})
-          await a.page.waitForTimeout(2500)
+          const dlg = a.page.getByRole('alertdialog')
+          await dlg.waitFor({ timeout: 30_000 }).catch(() => {})
+          await dlg.getByRole('button', { name: /^Slet$/ }).click({ timeout: 30_000 }).catch(() => {})
+          await dlg.waitFor({ state: 'hidden', timeout: 30_000 }).catch(() => {})
+          await a.page.waitForLoadState('networkidle').catch(() => {})
         }
         if (withOffer) {
           await tryDelete(withOffer)
+          await a.page.getByText(/kan ikke slettes — deaktivér kunden i stedet/).first().waitFor({ timeout: 30_000 }).catch(() => {})
           r.afvist_med_besked = (await a.page.getByText(/kan ikke slettes — deaktivér kunden i stedet/).count()) > 0
           r.kunde_bevaret = !!(await c.admin.from('customers').select('id').eq('id', withOffer).maybeSingle()).data
           r.tilbud_bevaret = !!offerId && !!(await c.admin.from('offers').select('id').eq('id', offerId).maybeSingle()).data
         }
         if (free) {
           await tryDelete(free)
-          r.fri_kunde_slettet = !(await c.admin.from('customers').select('id').eq('id', free).maybeSingle()).data
+          let gone = false
+          for (let i = 0; i < 20 && !gone; i++) {
+            gone = !(await c.admin.from('customers').select('id').eq('id', free).maybeSingle()).data
+            if (!gone) await a.page.waitForTimeout(500)
+          }
+          r.fri_kunde_slettet = gone
         }
         if (offerId) await c.admin.from('offers').delete().eq('id', offerId)
         out.push({ id: 'U135 kunde med tilbud kan ikke slettes (cascade)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
