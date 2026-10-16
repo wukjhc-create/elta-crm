@@ -103,23 +103,29 @@ export async function getCaseScope(ctx: ScopeContext): Promise<CaseScope> {
  *                                                     employee
  * - andre                                           → tom liste
  */
-export async function getWorkOrderScope(ctx: ScopeContext): Promise<WorkOrderScope> {
-  if (hasPermission(ctx.role, 'work_orders.view.all')) {
-    return { type: 'all' }
-  }
+export type WorkOrderEmployeeScope = { type: 'all' } | { type: 'employee'; employeeId: string | null }
 
-  if (!hasPermission(ctx.role, 'work_orders.view.assigned')) {
-    return { type: 'specific', workOrderIds: [], employeeId: null }
-  }
-
+/**
+ * Q-5 (review 2026-10-16): let variant af getWorkOrderScope uden id-listen — montørens scope ER "tildelt min
+ * medarbejder", så kald der kan filtrere på assigned_employee_id i databasen behøver ikke hente alle id'er.
+ * employeeId null = ingen adgang.
+ */
+export async function getWorkOrderEmployeeScope(ctx: ScopeContext): Promise<WorkOrderEmployeeScope> {
+  if (hasPermission(ctx.role, 'work_orders.view.all')) return { type: 'all' }
+  if (!hasPermission(ctx.role, 'work_orders.view.assigned')) return { type: 'employee', employeeId: null }
   const empRes = await ctx.supabase
     .from('employees')
     .select('id')
     .eq('profile_id', ctx.userId)
     .eq('active', true)
     .maybeSingle()
-  const employeeId = (empRes.data?.id as string | undefined) ?? null
+  return { type: 'employee', employeeId: (empRes.data?.id as string | undefined) ?? null }
+}
 
+export async function getWorkOrderScope(ctx: ScopeContext): Promise<WorkOrderScope> {
+  const base = await getWorkOrderEmployeeScope(ctx)
+  if (base.type === 'all') return { type: 'all' }
+  const employeeId = base.employeeId
   if (!employeeId) {
     return { type: 'specific', workOrderIds: [], employeeId: null }
   }
@@ -157,7 +163,15 @@ export async function userCanViewWorkOrder(
   workOrderId: string,
   ctx: ScopeContext
 ): Promise<boolean> {
-  const scope = await getWorkOrderScope(ctx)
+  // Q-5: ét rækkeopslag i stedet for alle montørens arbejdsordre-id'er
+  const scope = await getWorkOrderEmployeeScope(ctx)
   if (scope.type === 'all') return true
-  return scope.workOrderIds.includes(workOrderId)
+  if (!scope.employeeId) return false
+  const { data } = await ctx.supabase
+    .from('work_orders')
+    .select('id')
+    .eq('id', workOrderId)
+    .eq('assigned_employee_id', scope.employeeId)
+    .maybeSingle()
+  return !!data
 }

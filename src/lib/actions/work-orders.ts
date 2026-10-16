@@ -10,7 +10,7 @@ import {
   getAuthenticatedClientWithRole,
   formatError,
 } from '@/lib/actions/action-helpers'
-import { getWorkOrderScope, userCanViewWorkOrder } from '@/lib/auth/case-scope'
+import { getWorkOrderScope, getWorkOrderEmployeeScope, userCanViewWorkOrder } from '@/lib/auth/case-scope'
 import { createAuditLog } from '@/lib/actions/audit'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
@@ -569,12 +569,14 @@ export async function listWorkOrdersByDateRange(
     if (!hasPermission('calendar.view.all') && !hasPermission('calendar.view.own')) {
       return { success: false, error: 'Manglende tilladelse: calendar.view' }
     }
-    const woScope = await getWorkOrderScope({ role, userId, supabase })
-    if (woScope.type === 'specific' && woScope.workOrderIds.length === 0) {
+    // Q-5 (review 2026-10-16): kun medarbejder-id'et — scope filtreres i databasen (før hentedes alle montørens
+    // arbejdsordre-id'er nogensinde til et JS-filter, der gav samme resultat)
+    const woScope = await getWorkOrderEmployeeScope({ role, userId, supabase })
+    if (woScope.type === 'employee' && !woScope.employeeId) {
       return { success: true, data: [] }
     }
 
-    const withOpen = !!options?.includeOpenOutsideRange && woScope.type === 'specific'
+    const withOpen = !!options?.includeOpenOutsideRange && woScope.type === 'employee'
     // Frisk forespørgsel pr. side (byggeren genbruges ikke mellem kald)
     const buildWoQuery = () => {
       let woQuery = supabase
@@ -585,8 +587,8 @@ export async function listWorkOrdersByDateRange(
           auto_invoice_on_done, low_profit, completed_at, created_at, updated_at
         `)
       // M-7 (pilot-review 2026-10-15): montørens scope = arbejdsordrer tildelt hans medarbejder (getWorkOrderScope) —
-      // filtreres nu i databasen (før hentedes alle åbne job i firmaet og filtreredes i JS); JS-filteret nedenfor bevares
-      if (woScope.type === 'specific' && woScope.employeeId) woQuery = woQuery.eq('assigned_employee_id', woScope.employeeId)
+      // filtreres i databasen (før hentedes alle åbne job i firmaet og filtreredes i JS)
+      if (woScope.type === 'employee' && woScope.employeeId) woQuery = woQuery.eq('assigned_employee_id', woScope.employeeId)
       woQuery = withOpen
         ? woQuery.or(`and(scheduled_date.gte.${startDate},scheduled_date.lte.${endDate}),and(scheduled_date.is.null,status.in.(planned,in_progress)),and(scheduled_date.lt.${startDate},status.in.(planned,in_progress))`)
         : woQuery.gte('scheduled_date', startDate).lte('scheduled_date', endDate)
@@ -610,11 +612,8 @@ export async function listWorkOrdersByDateRange(
       return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
     }
 
-    // Montør: kun egne — filtreres efter hentning (datointervallet afgrænser mængden). X4n: før én .in() med ALLE
-    // montørens arbejdsordrer nogensinde → URL-grænsen (~350) → tom kalender
-    const woAllowed = woScope.type === 'specific' ? new Set(woScope.workOrderIds) : null
     const showLowProfit = lowProfitVisible(hasPermission)
-    const wos = ((rows || []) as WorkOrderRow[]).filter((w) => !woAllowed || woAllowed.has(w.id)).map((w) => hideLowProfit(w, showLowProfit))
+    const wos = ((rows || []) as WorkOrderRow[]).map((w) => hideLowProfit(w, showLowProfit))
     if (wos.length === 0) return { success: true, data: [] }
 
     // Resolve employees + cases in parallel.
