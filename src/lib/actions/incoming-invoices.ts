@@ -1337,7 +1337,12 @@ export async function uploadIncomingInvoiceAction(formData: FormData): Promise<{
       await admin.storage.from('attachments').remove([path])
       return { ok: true, invoiceId: res.invoiceId ?? undefined, duplicate: true, message: 'Fakturaen findes allerede' }
     }
-    if (!res.invoiceId) return { ok: false, message: res.error ? 'Kunne ikke oprette faktura' : 'Ukendt fejl' }
+    if (!res.invoiceId) {
+      // ST-8 (storage-review 2026-10-16): ingen faktura oprettet → filen ryddes op igen (som ved dublet)
+      const { error: rmErr } = await admin.storage.from('attachments').remove([path])
+      if (rmErr) logger.warn('uploadIncomingInvoice: oprydning af fil fejlede', { error: rmErr })
+      return { ok: false, message: res.error ? 'Kunne ikke oprette faktura' : 'Ukendt fejl' }
+    }
     revalidatePath('/dashboard/incoming-invoices')
     return { ok: true, invoiceId: res.invoiceId, message: rawText ? 'Faktura oprettet og læst' : 'Faktura oprettet — ingen tekst i filen, udfyld felterne manuelt' }
   } catch (err) {

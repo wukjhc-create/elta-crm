@@ -293,7 +293,7 @@ export async function updateCaseMaterial(
     // Read current to enforce billed-lock and to know the case_id for revalidate
     const { data: cur, error: readErr } = await supabase
       .from('case_materials')
-      .select('id, case_id, invoice_line_id, description, quantity, unit_cost, unit_sales_price')
+      .select('id, case_id, invoice_line_id, description, quantity, unit_cost, unit_sales_price, source')
       .eq('id', id)
       .maybeSingle()
     if (readErr || !cur) {
@@ -326,7 +326,10 @@ export async function updateCaseMaterial(
     }
     if (patch.unit_cost !== undefined) {
       const c = Number(patch.unit_cost)
-      if (!Number.isFinite(c) || c < 0) {
+      // LF-5 (indkøbs-review 2026-10-16): returlinjer fra en leverandør-kreditnota bærer negativ kost (fratrækkes sagens
+      // kost) — de skal kunne redigeres (fx tilføje salgspris) uden at kosten tvinges positiv. Øvrige: ≥ 0.
+      const negativeAllowed = (cur as { source?: string | null }).source === 'supplier_invoice'
+      if (!Number.isFinite(c) || (c < 0 && !negativeAllowed)) {
         return { success: false, error: 'Kostpris kan ikke være negativ' }
       }
       update.unit_cost = c

@@ -128,10 +128,12 @@ export function CaseOtherCostDialog({
   const db = totalSale - totalCost
   const dbPct = totalSale > 0 ? (db / totalSale) * 100 : 0
 
+  // LF-5: returlinje fra leverandør-kreditnota må beholde sin negative kost
+  const negativeCostAllowed = (editing as { source?: string | null } | null)?.source === 'supplier_invoice'
   const canSubmit =
     form.description.trim().length > 0 &&
     Number.isFinite(parsedQty) && parsedQty > 0 &&
-    Number.isFinite(parsedCost) && parsedCost >= 0 &&
+    Number.isFinite(parsedCost) && (parsedCost >= 0 || negativeCostAllowed) &&
     Number.isFinite(parsedSale) && parsedSale >= 0 &&
     /^\d{4}-\d{2}-\d{2}$/.test(form.cost_date) &&
     !submitting

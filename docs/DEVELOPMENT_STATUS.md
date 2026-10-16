@@ -12,6 +12,8 @@
 | 59377465 | T-5 server-side dublet-værn på kunde-mail (00237-indeks = BLOCKED_APPROVAL) |
 | b8107bd2 | ST-1/3/4/5/6/9/10/11 filer/storage |
 | d95d4ccc / e99f0ba0 / 303db8e8 / 82ecf6b0 | PF-5/10/12/2/4/3/6 performance; HT-1 |
+| e30abfbd / 5aeed624 / a400b21d / dbb06659 | PF-8 tid, PF-9 faner via next/dynamic, ST-7 filer ved slet, ST-2 ingen langtidslinks i DB |
+| dc8491e7 / 55971f6b / 209701b2 / fbfb111f / b39f376e | NEXT-24: LF-1..4/6/7/9..13 leverandørfakturaer, DB-4 app-værn (interne dokumenter), PF-7 opgaver |
 Tests: UI-grupper sales/portal-mail/economy/montor/smoke grønne pr. bølge (nye U179–U182), staging-tjek offer-reminder-plan 8/8, customer-email-dup 5/5, dashboard-stats-equivalence 4/4, concurrency 8/8.
 
 ## Prod-kørsel 2026-10-15 — 00221–00225 (Henrik: "Alle fire migrationer er GODKENDT TIL PROD")

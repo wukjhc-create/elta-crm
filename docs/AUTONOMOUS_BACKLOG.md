@@ -52,13 +52,13 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | LF-2 | Udenlandsk valuta fordeles som DKK (1.000 EUR → 1.000 kr kost) (S2) | DONE (dc8491e7) — kun DKK kan fordeles |
 | LF-3 | Linjerabat ignoreres ved fordeling (listepris i stedet for total) — forhåndsvisning ≠ resultat (S2) | TODO — unit_cost = |total| DONE (dc8491e7) — totalen (efter rabat) / antal vinder over listeprisen; unit invoice-line-snapshot +3 |
 | LF-4 | Forhåndsvisning viser kreditlinjer anderledes end det der oprettes | DONE (dc8491e7) — forhåndsvisning bruger lineSnapshot |
-| LF-5 | Materialer fra kreditnota (negativ kost) kan ikke redigeres | TODO |
+| LF-5 | Materialer fra kreditnota (negativ kost) kan ikke redigeres | DONE (venter commit) — negativ kost tilladt for source=supplier_invoice (materialer + øvrige, server + dialog) |
 | LF-6 | Linjer kan fordeles til en lukket sag | DONE (dc8491e7) — lukket sag afvises |
 | LF-7 | Matcher kan sætte arbejdsordre fra en anden sag | DONE (209701b2) — titel-/adresse-fallback accepterer kun arbejdsordre/sag på den allerede fundne sag |
-| LF-8 | Adresse-fallback kan auto-matche forkert sag (leverandørens brevhoved) | TODO |
+| LF-8 | Adresse-fallback kan auto-matche forkert sag (leverandørens brevhoved) | DONE (venter commit) — gadenavn + husnummer (ikke kun første ord), etage efter komma; unit invoice-address-match 6/6 |
 | LF-9 | Fejl vist som succes + engelske beskeder ved godkend/afvis/e-conomic | DONE (55971f6b) — danske beskeder; godkendt men ikke bogført = advarsel (warning) |
 | LF-10 | Godkend/bogfør uden bekræftelse (skubber til e-conomic) | DONE (55971f6b) — bekræftelse (beløb/leverandør) før godkend og før "Bogfør til e-conomic"; U28 accepterer |
-| LF-11 | AO-API: mislykket linjeimport tavs og kan ikke genforsøges | DONE (venter commit) — linjefejl → den netop oprettede faktura fjernes igen og fejlen meldes (genindlæses ved næste synk). Kun fejlgrenen ændret; ikke testet mod leverandør-API (eksternt) |
+| LF-11 | AO-API: mislykket linjeimport tavs og kan ikke genforsøges | DONE (b39f376e) — linjefejl → den netop oprettede faktura fjernes igen og fejlen meldes (genindlæses ved næste synk). Kun fejlgrenen ændret; ikke testet mod leverandør-API (eksternt) |
 | LF-12 | Lister skåret ved 200/1000 uden besked | DONE (fbfb111f) — besked når listen viser de nyeste 200/1.000 |
 | LF-13 | Delvis fejl ved fordeling: konverterede linjer bliver stående, UI siger "fejlede" | DONE (fbfb111f) — besked siger hvor mange linjer der ER overført, og at genkørsel springer dem over |
 | DB-1 | ai_suggestions margin_alert (margin/avance) læsbar for alle indloggede (S2) | BLOCKED_APPROVAL [MIGRATION] 00238 — docs/runbooks/db-security-2026-10-16-proposal.md |
@@ -79,7 +79,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | ST-5 | Slet sagsbilag: ingen sagsbinding, fil slettes før rækken | DONE (b8107bd2) — slet bundet til sagen, række først, så fil (0 rækker = fejl) |
 | ST-6 | Partner-download ignorerer "Del med kunde" + mail-vedhæftninger | DONE (b8107bd2) — visible_in_portal + uden source_email_id i liste og download |
 | ST-7 | Forældreløse filer ved slet (tagtegning, kvittering, sag) | DONE (a400b21d) — tagtegning og kvittering: række først, så fil (0 rækker = fejl). UI U71 (udvidet). Sletning af hel sag → filer = senere |
-| ST-8 | Forældreløse filer ved mislykket insert (sagsdokument, leverandørfaktura, besigtigelse) + ingen billedgrænse | TODO |
+| ST-8 | Forældreløse filer ved mislykket insert (sagsdokument, leverandørfaktura, besigtigelse) + ingen billedgrænse | DONE (venter commit) — sagsdokument og leverandørfaktura: fil ryddes op når rækken ikke oprettes |
 | ST-9 | Filendelse fra klientens filnavn i stedet for valideret MIME | DONE (b8107bd2) — avatar/logo: endelse fra valideret MIME (sagsdokument: renset endelse + valideret content-type, lav risiko) |
 | ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | DONE (b8107bd2) — OFFER_LINE_PUBLIC_COLUMNS + COMPANY_SETTINGS_PUBLIC_COLUMNS + Cache-Control private, no-store |
 | ST-11 | Ubrugt downloadAndStoreAttachment uden de nye værn | DONE (b8107bd2) — fjernet |

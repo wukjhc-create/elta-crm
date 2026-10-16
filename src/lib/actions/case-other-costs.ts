@@ -298,7 +298,7 @@ export async function updateCaseOtherCost(
 
     const { data: cur, error: readErr } = await supabase
       .from('case_other_costs')
-      .select('id, case_id, invoice_line_id, description, quantity, unit_cost, unit_sales_price')
+      .select('id, case_id, invoice_line_id, description, quantity, unit_cost, unit_sales_price, source')
       .eq('id', id)
       .maybeSingle()
     if (readErr || !cur) {
@@ -339,7 +339,9 @@ export async function updateCaseOtherCost(
     }
     if (patch.unit_cost !== undefined) {
       const c = Number(patch.unit_cost)
-      if (!Number.isFinite(c) || c < 0) {
+      // LF-5: returlinje fra leverandør-kreditnota må beholde negativ kost
+      const negativeAllowed = (cur as { source?: string | null }).source === 'supplier_invoice'
+      if (!Number.isFinite(c) || (c < 0 && !negativeAllowed)) {
         return { success: false, error: 'Kostpris kan ikke være negativ' }
       }
       update.unit_cost = c

@@ -328,14 +328,19 @@ function round3(n: number): number {
   return Math.round(n * 1000) / 1000
 }
 
-function pickAddressCandidate(hints: string[]): { zip: string; streetToken: string } | null {
+/** Eksporteret til unit-test (LF-8) */
+export function pickAddressCandidate(hints: string[]): { zip: string; streetToken: string } | null {
   for (const raw of hints) {
-    const m = raw.match(/^(.+?\s\d{1,4}[A-Z]?)(?:,\s*[^\d]*)?\s+(\d{4})\s+[A-ZÆØÅa-zæøå]/)
+    // LF-8: etage/dør efter komma ("12, 2. th") må indeholde cifre
+    const m = raw.match(/^(.+?\s\d{1,4}[A-Z]?)(?:,[^\n]*?)?\s+(\d{4})\s+[A-ZÆØÅa-zæøå]/)
     if (!m) continue
-    const street = m[1].trim()
+    // LF-8 (indkøbs-review 2026-10-16): HELE gadenavnet + husnummer (sidste "ord + nummer" i linjen) — før kun første
+    // ord, så fx leverandørens brevhoved eller en anden sag på samme vej og postnummer kunne matches
+    const streetFull = m[1].trim()
+    const sm = streetFull.match(/([A-ZÆØÅa-zæøå][A-ZÆØÅa-zæøå.\-]*\s+\d{1,4}[A-Z]?)$/)
     const zip = m[2]
-    const streetToken = street.split(/[\s,]+/)[0]
-    if (streetToken && streetToken.length >= 4) return { zip, streetToken }
+    const streetToken = (sm ? sm[1] : streetFull).replace(/\s+/g, ' ').trim()
+    if (streetToken && streetToken.length >= 6 && /\d/.test(streetToken)) return { zip, streetToken }
   }
   return null
 }

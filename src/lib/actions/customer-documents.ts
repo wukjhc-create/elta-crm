@@ -409,6 +409,9 @@ export async function uploadCaseDocument(caseId: string, formData: FormData): Pr
     }).select('id').single()
     if (docErr || !doc) {
       logger.error('uploadCaseDocument: insert failed', { error: docErr, entityId: caseId })
+      // ST-8 (storage-review 2026-10-16): den uploadede fil fjernes igen (før blev den liggende uden dokumentrække)
+      const { error: rmErr } = await storageClient().storage.from('attachments').remove([storagePath])
+      if (rmErr) logger.warn('uploadCaseDocument: oprydning af fil fejlede', { error: rmErr, entityId: caseId })
       return { success: false, error: 'Kunne ikke gemme dokument' }
     }
 
