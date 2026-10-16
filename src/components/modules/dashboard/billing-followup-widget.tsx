@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { ClipboardList, ArrowRight, Loader2, CheckCircle2, AlertTriangle, FileCheck2, Wallet, FileQuestion } from 'lucide-react'
 import { getBillingFollowupSummaryAction, type BillingFollowupSummary } from '@/lib/actions/service-case-economy'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function BillingFollowupWidget() {
   const [data, setData] = useState<BillingFollowupSummary | null>(null)
@@ -22,7 +23,7 @@ export function BillingFollowupWidget() {
   useEffect(() => {
     let alive = true
     getBillingFollowupSummaryAction()
-      .then((r) => { if (!alive) return; if (r.success && r.data) setData(r.data); else setError(r.error || 'Kunne ikke hente faktureringsopfølgning') })
+      .then((r) => { if (!alive) return; if (r.success && r.data) setData(r.data); else setError(humanizeErrorText(r.error) || 'Kunne ikke hente faktureringsopfølgning') })
       .catch(() => { if (alive) setError('Kunne ikke hente faktureringsopfølgning') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }

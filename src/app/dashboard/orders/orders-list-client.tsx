@@ -56,6 +56,7 @@ const fmtDateRange = (start: string | null, end: string | null) => {
 }
 
 export function OrdersListClient({
+  billingCapHit = null,
   cases,
   employees,
   pagination,
@@ -64,6 +65,7 @@ export function OrdersListClient({
   canSeeBilling = false,
   statusCounts = null,
 }: {
+  billingCapHit?: number | null
   cases: ServiceCaseWithRelations[]
   employees: EmployeeOption[]
   pagination: PaginationState
@@ -134,7 +136,7 @@ export function OrdersListClient({
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="fx Møllevej, SVC-01000…"
-              className="border rounded px-2 py-1.5 text-sm w-56"
+              className="border rounded px-2 py-1.5 text-sm w-full sm:w-56"
             />
           </form>
         </div>
@@ -195,8 +197,14 @@ export function OrdersListClient({
         )}
       </div>
 
+      {billingCapHit != null && (
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-xs text-amber-900" data-testid="orders-billing-cap">
+          Faktureringsfilteret gennemgår de {billingCapHit} nyeste sager — ældre sager er ikke med. Søg eller filtrér på status for at finde dem.
+        </div>
+      )}
+
       {/* Table */}
-      <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
+      <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs text-gray-600">
@@ -311,6 +319,32 @@ export function OrdersListClient({
           </table>
         </div>
       </div>
+
+      {/* W-4 (pilot-review 2026-10-15): på mobil kort i stedet for 13-kolonne-tabel (montørens bundnav går hertil) */}
+      <div className="md:hidden space-y-2" data-testid="orders-mobile-list">
+        {cases.length === 0 ? (
+          <p className="bg-white rounded-lg ring-1 ring-gray-200 p-4 text-sm text-gray-500">Ingen sager.</p>
+        ) : cases.map((c) => {
+          const customerName = c.customer?.company_name || c.customer?.contact_person || '—'
+          const place = [c.address, [c.postal_code, c.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+          return (
+            <Link key={c.id} href={`/dashboard/orders/${c.id}`} className="block bg-white rounded-lg ring-1 ring-gray-200 p-3 active:bg-gray-50" data-testid="orders-mobile-card">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs text-emerald-700">{c.case_number}</span>
+                <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${SERVICE_CASE_STATUS_COLORS[c.status]}`}>{SERVICE_CASE_STATUS_LABELS[c.status]}</span>
+                {(c.priority === 'urgent' || c.priority === 'high') && (
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${c.priority === 'urgent' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}`}>{c.priority === 'urgent' ? 'Haster' : 'Høj'}</span>
+                )}
+              </div>
+              <div className="mt-1 font-medium text-gray-900 truncate">{c.project_name || c.title}</div>
+              <div className="text-xs text-gray-600 truncate">{customerName}</div>
+              {place && <div className="text-xs text-gray-500 truncate">{place}</div>}
+              {(c.start_date || c.end_date) && <div className="text-xs text-gray-500">{fmtDateRange(c.start_date, c.end_date)}</div>}
+            </Link>
+          )
+        })}
+      </div>
+
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (

@@ -190,3 +190,24 @@ export function generateWorkOrdersICS(events: WorkOrderICSEvent[], now: Date = n
   lines.push('END:VCALENDAR')
   return lines.join('\r\n')
 }
+
+/**
+ * W-9 (pilot-review 2026-10-15): én opfølgning (fx på et lead) som tidsbestemt kalenderbegivenhed i Københavnstid med
+ * alarm på tidspunktet. 15 min. varighed — kun en markering i kalenderen, ingen gættet arbejdstid.
+ */
+export function generateFollowUpICS(e: { id: string; date: string; startTime: string; title: string; description?: string | null }, now: Date = new Date()): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date) || !/^\d{2}:\d{2}$/.test(e.startTime)) throw new Error('Ugyldig dato/tid')
+  const [h, m] = e.startTime.split(':').map(Number)
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  const end = new Date(Date.UTC(Number(e.date.slice(0, 4)), Number(e.date.slice(5, 7)) - 1, Number(e.date.slice(8, 10)), h, m + 15))
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Elta Solar//Opfoelgning//DA', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VEVENT', `UID:${e.id}@eltasolar.dk`, `DTSTAMP:${icsUtcStamp(now)}`,
+    `DTSTART;TZID=Europe/Copenhagen:${e.date.replace(/-/g, '')}T${p2(h)}${p2(m)}00`,
+    `DTEND;TZID=Europe/Copenhagen:${end.getUTCFullYear()}${p2(end.getUTCMonth() + 1)}${p2(end.getUTCDate())}T${p2(end.getUTCHours())}${p2(end.getUTCMinutes())}00`,
+    `SUMMARY:${escapeICS(e.title)}`,
+  ]
+  if (e.description) lines.push(`DESCRIPTION:${escapeICS(e.description)}`)
+  lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeICS(e.title)}`, 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT', ...CPH_VTIMEZONE, 'END:VCALENDAR')
+  return lines.join('\r\n')
+}

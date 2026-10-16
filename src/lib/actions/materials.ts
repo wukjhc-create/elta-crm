@@ -184,7 +184,11 @@ export async function unbindMaterialSupplier(materialSlug: string): Promise<Bind
     .update({ supplier_product_id: null, updated_at: new Date().toISOString() })
     .eq('id', material.id)
 
-  if (error) return { success: false, error: error.message }
+  // W-18: ingen rå DB-fejl til brugeren
+  if (error) {
+    logger.error('unbind material failed', { error, entityId: material.id })
+    return { success: false, error: 'Koblingen kunne ikke fjernes — prøv igen' }
+  }
 
   console.log('MATERIAL UNBOUND:', material.slug)
   revalidatePath('/dashboard/settings/suppliers')

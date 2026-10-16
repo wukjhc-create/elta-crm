@@ -361,7 +361,8 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
       id,
       offer_number,
       title,
-      total_amount,
+      final_amount,
+      tax_amount,
       status,
       created_at,
       customer:customers!offers_customer_id_fkey(company_name)
@@ -381,7 +382,8 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
       offer_number: offer.offer_number,
       title: offer.title,
       customer_name: customer?.company_name || '',
-      total_amount: offer.total_amount || 0,
+      // S-3 (pilot-review 2026-10-15): samme beløb som stat-kortet (efter rabat, ekskl. moms) — før total_amount (før rabat)
+      total_amount: offerExVat(offer as { final_amount?: number | null; tax_amount?: number | null }),
       status: offer.status,
       created_at: offer.created_at,
     }

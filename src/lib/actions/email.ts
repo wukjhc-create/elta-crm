@@ -972,13 +972,27 @@ export async function sendOfferEmail(
 
     // Update offer status if it was draft
     if (offer.status === 'draft') {
-      await supabase
+      // S-6 (pilot-review 2026-10-15): samme sporbarhed som statusknappen — kun fra kladde (CAS), fejl logges,
+      // aktivitet + offer.sent-webhook (før manglede de, så integrationer missede mail-sendte tilbud)
+      const { data: flipped, error: flipErr } = await supabase
         .from('offers')
         .update({
           status: 'sent',
           sent_at: new Date().toISOString(),
         })
         .eq('id', offer.id)
+        .eq('status', 'draft')
+        .select('id')
+      if (flipErr) logger.error('sendOfferEmail: status draft→sent failed', { error: flipErr, entityId: offer.id })
+      if (flipped && flipped.length > 0) {
+        await logOfferActivity(offer.id, 'status_change', 'Status ændret til "Sendt" (sendt på mail)', userId, { newStatus: 'sent', via: 'email' })
+        try {
+          const { emitOfferEvent } = await import('@/lib/services/webhook-dispatch')
+          await emitOfferEvent(supabase, offer.id, 'offer.sent')
+        } catch (whErr) {
+          logger.warn('sendOfferEmail: offer.sent webhook failed', { error: whErr, entityId: offer.id })
+        }
+      }
       // 00203 (staging): uforanderligt snapshot af den sendte revision + forrige revision afløses (no-op uden flag)
       const { recordOfferSent } = await import('@/lib/offers/revisions')
       await recordOfferSent(offer.id, userId)
@@ -1051,6 +1065,8 @@ export async function sendOfferEmail(
           priority: 'normal',
           assigned_to: userId,
           reminder_at: reminderDate.toISOString(),
+          // S-5 (pilot-review 2026-10-15): uden due_date viste cockpittet/opgavelisterne den aldrig
+          due_date: reminderDate.toISOString(),
           created_by: userId,
         })
       }
@@ -1059,6 +1075,8 @@ export async function sendOfferEmail(
     }
 
     revalidatePath(`/dashboard/offers/${offer.id}`)
+    revalidatePath('/dashboard/offers') // S-6: listen og dashboardet viser den nye status
+    revalidatePath('/dashboard')
 
     return {
       success: true,

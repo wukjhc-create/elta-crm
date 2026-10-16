@@ -33,6 +33,7 @@ import {
 import { formatCurrency } from '@/lib/utils/format'
 import { CaseOfferVsActualPanel } from './case-offer-vs-actual-panel'
 import { useCostReveal } from '@/components/shared/sensitive-amounts'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 type SwitchTabFn = (tab: 'planlaegning' | 'materialer' | 'oevrige' | 'fakturakladde') => void
 
@@ -136,7 +137,7 @@ function OrderEconomyTabContent({
     const res = await getServiceCaseEconomy(caseId)
     setLoading(false)
     if (!res.success) {
-      setError(res.error ?? 'Kunne ikke beregne økonomi')
+      setError(humanizeErrorText(res.error) ?? 'Kunne ikke beregne økonomi')
       return
     }
     setData(res.data ?? null)

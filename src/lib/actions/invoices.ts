@@ -1465,6 +1465,8 @@ export interface InvoiceOverviewRow {
   /** Sprint Ø6.1 — afledt regnskabsstatus (cost-free). */
   accounting_status: 'not_exported' | 'ready' | 'exported' | 'error'
   accounting_external_id: string | null
+  /** B-3 (pilot-review 2026-10-15): åbent beløb (final − indbetalt − kreditnotaer), samme regel som dashboardet */
+  open_amount: number
 }
 
 export interface InvoiceOverviewResult {
@@ -1473,7 +1475,11 @@ export interface InvoiceOverviewResult {
   rows: InvoiceOverviewRow[]
   /** Sprint Ø6.1 — er e-conomic-integrationen opsat (styrer bulk-knap). */
   accounting_ready: boolean
+  /** B-2 (pilot-review 2026-10-15): listen er begrænset til de nyeste OVERVIEW_LIMIT — summerne dækker kun dem */
+  capped?: boolean
 }
+
+const OVERVIEW_LIMIT = 500
 
 export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResult> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -1484,10 +1490,10 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
   const { data, error } = await supabase
     .from('invoices')
     .select(
-      'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, reminder_count, last_reminder_at, customer_id, case_id, external_invoice_id, external_provider'
+      'id, invoice_number, invoice_type, status, payment_status, final_amount, amount_paid, currency, created_at, sent_at, paid_at, due_date, voided_at, reminder_count, last_reminder_at, customer_id, case_id, external_invoice_id, external_provider'
     )
     .order('created_at', { ascending: false })
-    .limit(500)
+    .limit(OVERVIEW_LIMIT)
 
   if (error) {
     logger.error('listInvoicesOverviewAction: query failed', { error })
@@ -1545,6 +1551,15 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
       }),
   ])
 
+  // B-3: kreditnotaer mod de viste fakturaer (åbent beløb)
+  const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
+  let credited = new Map<string, number>()
+  try {
+    credited = await creditedByOriginal(supabase, invoiceIds)
+  } catch (err) {
+    logger.error('listInvoicesOverviewAction: credit lookup failed', { error: err })
+  }
+
   // Forfald beregnes server-side: status='sent', ikke betalt, ikke annulleret,
   // ikke kreditnota, due_date < i dag.
   const todayMs = Date.now()
@@ -1594,10 +1609,11 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
         return 'not_exported' as const
       })(),
       accounting_external_id: (r.external_invoice_id as string | null) ?? null,
+      open_amount: isCredit || r.voided_at ? 0 : openAmount({ id: r.id as string, final_amount: r.final_amount as number | null, amount_paid: (r as { amount_paid?: number | null }).amount_paid ?? null }, credited),
     }
   })
 
-  return { ok: true, rows, accounting_ready: accountingReady }
+  return { ok: true, rows, accounting_ready: accountingReady, capped: list.length >= OVERVIEW_LIMIT }
 }
 
 // =====================================================
@@ -1993,11 +2009,11 @@ export async function getCustomerInvoiceOverviewAction(
   const { data: rows, error } = await supabase
     .from('invoices')
     .select(
-      'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, last_reminder_at, case_id'
+      'id, invoice_number, invoice_type, status, payment_status, final_amount, amount_paid, currency, created_at, sent_at, paid_at, due_date, voided_at, last_reminder_at, case_id'
     )
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false })
-    .limit(200)
+    .limit(500)
 
   if (error) {
     logger.error('getCustomerInvoiceOverviewAction: query failed', { entityId: customerId, error })
@@ -2005,6 +2021,14 @@ export async function getCustomerInvoiceOverviewAction(
   }
 
   const list = rows ?? []
+  // B-3: åbent beløb pr. faktura (indbetalt + kreditnotaer fratrukket)
+  const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
+  let credited = new Map<string, number>()
+  try {
+    credited = await creditedByOriginal(supabase, list.map((r) => r.id as string))
+  } catch (err) {
+    logger.error('getCustomerInvoiceOverviewAction: credit lookup failed', { entityId: customerId, error: err })
+  }
   const todayMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
   const DAY = 1000 * 60 * 60 * 24
 
@@ -2021,8 +2045,9 @@ export async function getCustomerInvoiceOverviewAction(
     const isCredit = r.invoice_type === 'credit'
     const active = !r.voided_at && !isCredit
     const amount = Number(r.final_amount ?? 0)
+    const open = active ? openAmount({ id: r.id as string, final_amount: r.final_amount as number | null, amount_paid: (r as { amount_paid?: number | null }).amount_paid ?? null }, credited) : 0
     if (r.status === 'draft' && !r.voided_at) draftCount += 1
-    if (active && r.status === 'sent') outstanding += amount
+    if (active && r.status === 'sent') outstanding += open
     if (active && r.status === 'paid') paidTotal += amount
     const createdAt = r.created_at as string
     if (!latestInvoiceAt || createdAt > latestInvoiceAt) latestInvoiceAt = createdAt
@@ -2033,11 +2058,11 @@ export async function getCustomerInvoiceOverviewAction(
     let daysOverdue: number | null = null
     if (r.due_date && r.status === 'sent' && active) {
       const days = calendarDaysSince(String(r.due_date), todayMs)
-      if (days > 0) {
+      if (days > 0 && open > 0) {
         isOverdue = true
         daysOverdue = days
         overdueCount += 1
-        overdueTotal += amount
+        overdueTotal += open
       }
     }
     return {
@@ -2133,7 +2158,7 @@ export async function getCustomerInvoiceOverviewAction(
 // — economy.cost_prices IKKE krævet. KUN salgs/faktura-data.
 // =====================================================
 
-const HEALTH_SELECT = 'status, invoice_type, final_amount, due_date, voided_at, paid_at, sent_at'
+const HEALTH_SELECT = 'id, status, invoice_type, final_amount, amount_paid, due_date, voided_at, paid_at, sent_at'
 
 export interface CustomerPaymentHealthResult {
   ok: boolean
@@ -2155,17 +2180,26 @@ export async function getCustomerPaymentHealthAction(
   if (!hasPermission('invoices.view.own_cases')) {
     return { ok: false, permitted: false, message: 'Ingen adgang til fakturastatus' }
   }
-  const { data, error } = await supabase
-    .from('invoices')
-    .select(HEALTH_SELECT)
-    .eq('customer_id', customerId)
-    .limit(500)
-  if (error) {
+  // B-3 (pilot-review 2026-10-15): alle kundens fakturaer (før .limit(500) uden rækkefølge) og åbent beløb
+  // (indbetalt + kreditnotaer fratrukket) — samme tal som dashboard og fakturaoverblik
+  let data: Array<HealthInvoice & { id: string; amount_paid?: number | null }>
+  let credited = new Map<string, number>()
+  try {
+    data = await fetchAllRows((f, t) => supabase
+      .from('invoices')
+      .select(HEALTH_SELECT)
+      .eq('customer_id', customerId)
+      .order('id')
+      .range(f, t))
+    const { creditedByOriginal } = await import('@/lib/invoices/open-amount')
+    credited = await creditedByOriginal(supabase, data.map((r) => r.id))
+  } catch (error) {
     logger.error('getCustomerPaymentHealthAction: query failed', { entityId: customerId, error })
     return { ok: false, permitted: true, message: 'Kunne ikke hente betalingsstatus' }
   }
+  const { openAmount } = await import('@/lib/invoices/open-amount')
   const nowMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
-  const health = computePaymentHealth((data ?? []) as HealthInvoice[], nowMs)
+  const health = computePaymentHealth(data.map((r) => ({ ...r, open_amount: openAmount(r, credited) })), nowMs)
   return { ok: true, permitted: true, health }
 }
 

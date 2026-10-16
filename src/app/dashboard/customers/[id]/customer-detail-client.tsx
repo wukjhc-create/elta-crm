@@ -97,10 +97,25 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
     if (typeof window !== 'undefined' && window.location.hash === '#chat') setShowChat(true)
   }, [])
   const [showBesigtigelse, setShowBesigtigelse] = useState(false)
-  const [activeTab, setActiveTab] = useState<'oversigt' | 'sager' | 'fakturaer' | 'besigtigelse' | 'dokumenter' | 'status'>('oversigt')
-  const [showFuldmagtModal, setShowFuldmagtModal] = useState(false)
   // N44: "Opret tilbud" fra styrings-cockpittet åbner formularen direkte (?nytilbud=1)
   const searchParams = useSearchParams()
+  // W-13 (pilot-review 2026-10-15): fanen i URL'en (?tab=) — refresh/tilbage/del-link lander på samme fane
+  type CustomerTab = 'oversigt' | 'sager' | 'fakturaer' | 'besigtigelse' | 'dokumenter' | 'status'
+  const CUSTOMER_TABS: CustomerTab[] = ['oversigt', 'sager', 'fakturaer', 'besigtigelse', 'dokumenter', 'status']
+  const [activeTab, setActiveTabState] = useState<CustomerTab>(() => {
+    const t = searchParams?.get('tab') as CustomerTab | null
+    return t && CUSTOMER_TABS.includes(t) ? t : 'oversigt'
+  })
+  const setActiveTab = (t: CustomerTab) => {
+    setActiveTabState(t)
+    try {
+      const url = new URL(window.location.href)
+      if (t === 'oversigt') url.searchParams.delete('tab')
+      else url.searchParams.set('tab', t)
+      window.history.replaceState(window.history.state, '', url.toString())
+    } catch { /* ignore */ }
+  }
+  const [showFuldmagtModal, setShowFuldmagtModal] = useState(false)
   const [showOfferForm, setShowOfferForm] = useState(() => searchParams?.get('nytilbud') === '1')
   const [showCaseModal, setShowCaseModal] = useState(false)
 

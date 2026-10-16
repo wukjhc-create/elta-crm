@@ -23,6 +23,8 @@ export interface HealthInvoice {
   voided_at: string | null
   paid_at: string | null
   sent_at: string | null
+  /** B-3 (pilot-review 2026-10-15): åbent beløb (final − indbetalt − kreditnotaer); uden feltet bruges final_amount */
+  open_amount?: number
 }
 
 export interface PaymentHealthMetrics {
@@ -68,7 +70,7 @@ export function summarizeInvoicesForHealth(
   for (const r of rows) {
     const isCredit = r.invoice_type === 'credit'
     const active = !r.voided_at && !isCredit
-    const amount = Number(r.final_amount ?? 0)
+    const amount = r.open_amount != null ? Number(r.open_amount) : Number(r.final_amount ?? 0)
 
     if (r.status === 'draft' && !r.voided_at) draftCount += 1
     if (active && r.status === 'sent') outstanding += amount
@@ -76,7 +78,7 @@ export function summarizeInvoicesForHealth(
 
     if (active && r.status === 'sent' && r.due_date) {
       const d = daysBetween(r.due_date, nowMs)
-      if (d > 0) { overdueCount += 1; overdueTotal += amount }
+      if (d > 0 && amount > 0) { overdueCount += 1; overdueTotal += amount }
     }
 
     if (active && r.status === 'paid' && r.paid_at) {

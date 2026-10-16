@@ -66,6 +66,8 @@ export interface IncomingInvoiceListItem {
 export interface ListFilter {
   status?: 'all' | 'awaiting_approval' | 'needs_review' | 'approved' | 'rejected' | 'posted' | 'missing_file' | 'not_invoice'
   limit?: number
+  /** B-6 (pilot-review 2026-10-15): forfaldsfilter i databasen (før klientfilter på de 200 nyeste → færre end widgetten) */
+  due?: 'overdue' | 'due_7' | 'due_14' | 'no_due_date'
 }
 
 /**
@@ -95,7 +97,7 @@ export async function listIncomingInvoicesAction(
 ): Promise<IncomingInvoiceListItem[]> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.view')) return []
-  const limit = filter.limit ?? 200
+  const limit = filter.due ? (filter.limit ?? 1000) : (filter.limit ?? 200)
 
   let q = supabase
     .from('incoming_invoices')
@@ -137,6 +139,16 @@ export async function listIncomingInvoicesAction(
       // N68: kandidater — åbne mail-fakturaer uden leverandør og beløb; afsender-reglen anvendes nedenfor
       q = q.eq('source', 'email').is('supplier_id', null).is('amount_incl_vat', null).not('status', 'in', '(approved,posted,rejected,cancelled)')
       break
+  }
+
+  if (filter.due) {
+    // Samme regler som matchesIncomingDueFilter (lib/invoices/incoming-invoice-due.ts), dansk dato
+    const { isoPlusDays } = await import('@/lib/invoices/incoming-invoice-due')
+    const todayIso = copenhagenParts(new Date()).date
+    if (filter.due === 'overdue') q = q.lt('due_date', todayIso)
+    else if (filter.due === 'due_7') q = q.gte('due_date', todayIso).lte('due_date', isoPlusDays(todayIso, 7))
+    else if (filter.due === 'due_14') q = q.gte('due_date', todayIso).lte('due_date', isoPlusDays(todayIso, 14))
+    else q = q.is('due_date', null)
   }
 
   const { data } = await q
@@ -367,6 +379,10 @@ async function requireAdminClient() {
 }
 
 export async function createTestIncomingInvoiceAction(): Promise<ActionOutcome> {
+  // B-11 (pilot-review 2026-10-15): testdata kun i miljøer der eksplicit tillader det (aldrig prod som standard)
+  if (process.env.TEST_SEED_ENABLED !== 'true') {
+    return { ok: false, message: 'Testfakturaer er slået fra i dette miljø' }
+  }
   let supabase
   let userId: string
   try {
@@ -921,7 +937,7 @@ export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem
 
 export interface PostEconomicOutcome {
   ok: boolean
-  status: 'posted' | 'not_configured' | 'already_posted' | 'not_eligible' | 'failed' | 'denied'
+  status: 'posted' | 'not_configured' | 'already_posted' | 'in_progress' | 'not_eligible' | 'failed' | 'denied'
   message: string
   external_id?: string | null
 }
@@ -955,7 +971,8 @@ export async function postIncomingInvoiceToEconomicAction(id: string): Promise<P
     .eq('id', id)
     .maybeSingle()
   if (!inv) return { ok: false, status: 'not_eligible', message: 'Faktura ikke fundet' }
-  if (inv.external_invoice_id && inv.external_provider === 'economic') {
+  const claimPending = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith('pending-')
+  if (inv.external_invoice_id && !claimPending && inv.external_provider === 'economic') {
     return { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført i e-conomic.', external_id: inv.external_invoice_id as string }
   }
   if (inv.status !== 'approved') {
@@ -985,9 +1002,11 @@ export async function postIncomingInvoiceToEconomicAction(id: string): Promise<P
   }
   if (econ.status === 'skipped') {
     const notConfigured = (econ.reason ?? '').includes('NOT_CONFIGURED')
-    return notConfigured
-      ? { ok: false, status: 'not_configured', message: 'e-conomic er ikke opsat endnu.' }
-      : { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført.', external_id: econ.externalId ?? null }
+    if (notConfigured) return { ok: false, status: 'not_configured', message: 'e-conomic er ikke opsat endnu.' }
+    if ((econ.reason ?? '') === 'export in progress') {
+      return { ok: false, status: 'in_progress', message: 'Bogføring er i gang — prøv igen om lidt (et hængt forsøg kan genoptages efter 15 min.).' }
+    }
+    return { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført.', external_id: econ.externalId ?? null }
   }
   await audit(false, `Manuel bogføring fejlede: ${econ.error ?? 'ukendt'}`, { reason: econ.reason ?? null })
   return { ok: false, status: 'failed', message: `Bogføring fejlede: ${econ.error ?? 'ukendt fejl'}` }
@@ -1085,6 +1104,8 @@ export interface IncomingDueSummary {
   overdue_amount: number
   due_7_amount: number
   currency: string
+  /** B-7: forfaldne/inden 7 dage i anden valuta end DKK — tælles, men indgår ikke i DKK-beløbene */
+  other_currency_count?: number
   top: Array<{ id: string; invoice_number: string | null; supplier_name: string | null; due_date: string | null; amount: number; overdue: boolean }>
 }
 
@@ -1100,12 +1121,20 @@ export async function getIncomingInvoiceDueSummaryAction(): Promise<IncomingDueS
   const { matchesIncomingDueFilter } = await import('@/lib/invoices/incoming-invoice-due')
   const todayIso = copenhagenParts(new Date()).date
 
-  // Ét cost-bounded query: godkendte fakturaer (afventer bogføring/betaling).
-  const { data } = await supabase
-    .from('incoming_invoices')
-    .select('id, invoice_number, supplier_name_extracted, due_date, amount_incl_vat, currency, status, supplier:supplier_id ( name )')
-    .eq('status', 'approved')
-    .limit(1000)
+  // B-7 (pilot-review 2026-10-15): fejl meldes (før "0 forfaldne"), alle godkendte hentes (pagineret)
+  let data: unknown[]
+  try {
+    const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+    data = await fetchAllRows((f, t) => supabase
+      .from('incoming_invoices')
+      .select('id, invoice_number, supplier_name_extracted, due_date, amount_incl_vat, currency, status, supplier:supplier_id ( name )')
+      .eq('status', 'approved')
+      .order('id')
+      .range(f, t))
+  } catch (err) {
+    logger.error('getIncomingInvoiceDueSummaryAction failed', { error: err })
+    return { ...empty, message: 'Kunne ikke hente leverandørfakturaer' }
+  }
 
   const rows = (data ?? []) as Array<{
     id: string; invoice_number: string | null; supplier_name_extracted: string | null
@@ -1113,15 +1142,18 @@ export async function getIncomingInvoiceDueSummaryAction(): Promise<IncomingDueS
     supplier?: { name?: string } | { name?: string }[] | null
   }>
 
-  let overdueCount = 0, due7Count = 0, overdueAmount = 0, due7Amount = 0
-  let currency = 'DKK'
+  let overdueCount = 0, due7Count = 0, overdueAmount = 0, due7Amount = 0, otherCurrency = 0
+  // B-7: beløb summeres kun i DKK (før blev valutaer lagt sammen og mærket med sidste rækkes valuta)
+  const currency = 'DKK'
   const overdueRows: Array<{ id: string; invoice_number: string | null; supplier_name: string | null; due_date: string | null; amount: number; overdue: boolean }> = []
 
   for (const r of rows) {
-    if (r.currency) currency = r.currency
-    const amt = Number(r.amount_incl_vat ?? 0)
+    const isDkk = !r.currency || r.currency.toUpperCase() === 'DKK'
+    const amt = isDkk ? Number(r.amount_incl_vat ?? 0) : 0
     const supplierJoin = Array.isArray(r.supplier) ? r.supplier[0]?.name : r.supplier?.name
     const supplierName = supplierJoin ?? r.supplier_name_extracted ?? null
+    const dueHit = matchesIncomingDueFilter(r.due_date, 'overdue', todayIso) || matchesIncomingDueFilter(r.due_date, 'due_7', todayIso)
+    if (dueHit && !isDkk) otherCurrency++
     if (matchesIncomingDueFilter(r.due_date, 'overdue', todayIso)) {
       overdueCount++; overdueAmount += amt
       overdueRows.push({ id: r.id, invoice_number: r.invoice_number, supplier_name: supplierName, due_date: r.due_date, amount: amt, overdue: true })
@@ -1135,6 +1167,7 @@ export async function getIncomingInvoiceDueSummaryAction(): Promise<IncomingDueS
   const r2 = (n: number) => Math.round(n * 100) / 100
   return {
     ok: true,
+    other_currency_count: otherCurrency,
     overdue_count: overdueCount,
     due_7_count: due7Count,
     overdue_amount: r2(overdueAmount),

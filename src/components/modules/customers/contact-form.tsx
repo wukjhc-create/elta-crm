@@ -18,6 +18,7 @@ import {
   CUSTOMER_CONTACT_ROLE_LABELS,
   type CustomerContact,
 } from '@/types/customers.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface ContactFormProps {
   customerId: string
@@ -96,7 +97,7 @@ export function ContactForm({
         : await createCustomerContact(formData)
 
       if (!result.success) {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
         return
       }
 

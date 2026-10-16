@@ -296,8 +296,11 @@ function DescriptionInput({
   const [noResults, setNoResults] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // W-12: kun seneste søgning må skrive resultatet
+  const seqRef = useRef(0)
 
   const doSearch = useCallback(async (query: string) => {
+    const seq = ++seqRef.current
     if (query.length < 2) {
       setResults([])
       setShowDropdown(false)
@@ -309,6 +312,7 @@ function DescriptionInput({
     try {
       if (searchMode === 'live') {
         const result = await searchSupplierProductsLive(query, { limit: 10 })
+        if (seq !== seqRef.current) return
         if (result.success && result.data) {
           setResults(result.data)
           setNoResults(result.data.length === 0)
@@ -320,6 +324,7 @@ function DescriptionInput({
         }
       } else {
         const result = await searchSupplierProductsForOffer(query, { limit: 8 })
+        if (seq !== seqRef.current) return
         if (result.success && result.data) {
           setResults(result.data)
           setNoResults(result.data.length === 0)
@@ -331,9 +336,9 @@ function DescriptionInput({
         }
       }
     } catch {
-      setResults([])
+      if (seq === seqRef.current) setResults([])
     } finally {
-      setIsSearching(false)
+      if (seq === seqRef.current) setIsSearching(false)
     }
   }, [searchMode])
 

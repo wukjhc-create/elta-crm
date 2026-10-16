@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { StickyNote, Trash2 } from 'lucide-react'
 import { createCustomerNote, deleteCustomerNote, getCustomerNotes, type CustomerNote } from '@/lib/actions/customer-notes'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const SOURCE_LABEL: Record<CustomerNote['source'], string> = { manual: '', assistant: 'via assistent', telegram: 'via Telegram', system: 'system' }
 
@@ -34,13 +35,13 @@ export function CustomerNotesTimeline({ customerId }: { customerId: string }) {
     setError(null)
     const r = await createCustomerNote(customerId, text)
     setBusy(false)
-    if (r.success) { setText(''); await load() } else setError(r.error ?? 'Fejl')
+    if (r.success) { setText(''); await load() } else setError(humanizeErrorText(r.error) ?? 'Fejl')
   }
   const remove = async (id: string) => {
     // U-11: bekræft — noteloggen er kundens historik
     if (!window.confirm('Slet noten?')) return
     const r = await deleteCustomerNote(id)
-    if (r.success) await load(); else setError(r.error ?? 'Fejl')
+    if (r.success) await load(); else setError(humanizeErrorText(r.error) ?? 'Fejl')
   }
 
   return (

@@ -31,6 +31,7 @@ import {
   parseCustomerFromEmail,
   type ParsedCustomerData,
 } from '@/lib/utils/email-parser'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const FREEMAIL_DOMAINS = new Set([
   'gmail.com', 'googlemail.com',
@@ -165,7 +166,7 @@ export function CreateFromMailDialog({ email, onClose, onSuccess }: CreateFromMa
         createCase,
       })
       if (!res.success || !res.customerId) {
-        setError(res.error || 'Kunne ikke oprette kunde')
+        setError(humanizeErrorText(res.error) || 'Kunne ikke oprette kunde')
         setSubmitting(false)
         return
       }

@@ -35,7 +35,7 @@ export function PendingOffers({ offers }: PendingOffersProps) {
     <div className="space-y-3">
       {/* Summary */}
       <div className="flex items-center justify-between text-sm pb-2 border-b">
-        <span className="text-muted-foreground">Samlet værdi:</span>
+        <span className="text-muted-foreground">Seneste {offers.length} (ekskl. moms):</span>
         <span className="font-semibold text-primary">{formatCurrency(totalValue)}</span>
       </div>
 

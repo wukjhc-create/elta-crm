@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { TrendingUp, Loader2, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { getOfferProfitAnalysis, type OfferProfitResult } from '@/lib/actions/profit'
 import type { OfferLineItem } from '@/types/offers.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface OfferProfitCardProps {
   offerId: string
@@ -39,7 +40,7 @@ export function OfferProfitCard({ offerId, lineItems, discountPercentage }: Offe
     setLoading(true)
     getOfferProfitAnalysis(offerId).then((r) => {
       if (!alive) return
-      if (r.success && r.data) { setData(r.data); setError(null) } else setError(r.error ?? 'Kunne ikke beregne lønsomhed')
+      if (r.success && r.data) { setData(r.data); setError(null) } else setError(humanizeErrorText(r.error) ?? 'Kunne ikke beregne lønsomhed')
       setLoading(false)
     })
     return () => { alive = false }

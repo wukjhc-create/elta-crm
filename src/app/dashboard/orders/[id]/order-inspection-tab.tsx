@@ -24,6 +24,7 @@ import { getDocumentsForCase, type CaseDocument } from '@/lib/actions/service-ca
 import { BesigtigelsesNotat } from '@/components/modules/customers/besigtigelse-notat'
 import { FuldmagtModal } from '@/components/modules/customers/fuldmagt-modal'
 import { SendBesigtigelsesreportDialog } from '@/components/modules/customers/send-besigtigelsesreport-dialog'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 /** Er dokumentet en besigtigelsesrapport? (spejler isBesigtigelseDocument serverside) */
 function isBesigtigelseReport(d: CaseDocument): boolean {
@@ -70,7 +71,7 @@ export function OrderInspectionTab({
       .then((res) => {
         if (!active) return
         if (res.success && res.data) setCustomer(res.data)
-        else setError(res.error || 'Kunne ikke hente kunde')
+        else setError(humanizeErrorText(res.error) || 'Kunne ikke hente kunde')
       })
       .finally(() => {
         if (active) setLoading(false)

@@ -27,6 +27,7 @@ import {
   ALLOWED_OUTBOUND_EXTENSIONS,
   BLOCKED_OUTBOUND_EXTENSIONS,
 } from '@/lib/services/outbound-attachments'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export interface PickerAttachment {
   document_id: string
@@ -147,7 +148,7 @@ export function AttachmentPicker({
 
       const result = await uploadOutboundAttachmentsAction(formData)
       if (!result.success || !result.attachments) {
-        setError(result.error || 'Upload fejlede')
+        setError(humanizeErrorText(result.error) || 'Upload fejlede')
         return
       }
 

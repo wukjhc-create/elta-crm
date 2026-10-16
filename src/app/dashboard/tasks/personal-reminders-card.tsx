@@ -16,6 +16,7 @@ import {
   type PersonalReminder,
 } from '@/lib/actions/personal-reminders'
 import { copenhagenLocalToIso, copenhagenParts, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const fmt = (iso: string) => {
   const p = copenhagenParts(iso)
@@ -48,7 +49,7 @@ export function PersonalRemindersCard() {
     setError(null)
     const r = await fn()
     setBusy(false)
-    if (!r.success) setError(r.error ?? 'Fejl')
+    if (!r.success) setError(humanizeErrorText(r.error) ?? 'Fejl')
     await load()
     return r.success
   }

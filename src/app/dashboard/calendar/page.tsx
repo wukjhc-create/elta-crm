@@ -147,6 +147,8 @@ export default async function CalendarPage({ searchParams }: PageProps) {
       }}
       loadError={!workOrdersRes.success ? workOrdersRes.error ?? null : null}
       absences={absencesRes.success ? (absencesRes.data ?? []) : []}
+      // M-12 (pilot-review 2026-10-15): planlæggeren skal vide, at fravær mangler (før: tavst ingen fravær = alle ledige)
+      absenceLoadFailed={canPlan && !absencesRes.success}
     />
     </>
   )

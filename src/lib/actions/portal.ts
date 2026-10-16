@@ -1,4 +1,5 @@
 'use server'
+import { closeOfferFollowUpTasks } from '@/lib/offers/follow-up-tasks'
 import { secretTokenReader, PORTAL_TOKEN_PUBLIC_COLUMNS } from '@/lib/portal/token-reader'
 
 import { revalidatePath } from 'next/cache'
@@ -667,6 +668,7 @@ export async function acceptOffer(
 
     // Webhook offer.accepted — kaster aldrig (tidligere: AUTH_REQUIRED -> kunden fik fejl efter gemt underskrift)
     await emitOfferEvent(admin, data.offer_id, 'offer.accepted')
+    await closeOfferFollowUpTasks(admin, data.offer_id) // S-5
 
     // Salgspipeline: tilknyttede leads → vundet (kaster aldrig)
     const { markLeadsWonForAcceptedOffer } = await import('@/lib/services/lead-won')
@@ -706,7 +708,7 @@ ${link}`,
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Beløb:</td><td style="font-weight:600;">${new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(offer.final_amount)}</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Tidspunkt:</td><td>${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}</td></tr>
           </table>
-          <p>Se tilbuddet i ELTA Drift: <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app'}/dashboard/offers">Gå til Tilbud</a></p>
+          <p>Se tilbuddet i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/offers/${encodeURIComponent(data.offer_id)}">Åbn tilbuddet</a></p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
           <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af ${companyName} CRM.</p>
         `,
@@ -858,6 +860,7 @@ export async function rejectOffer(
 
     // Trigger webhooks for offer.rejected (best effort)
     await emitOfferEvent(admin, offerId, 'offer.rejected')
+    await closeOfferFollowUpTasks(admin, offerId) // S-5
 
     // Send email notification to CRM mailbox (non-critical)
     try {
@@ -874,7 +877,7 @@ export async function rejectOffer(
         <p><strong>Årsag:</strong> ${escapeHtml(reasonLabel)}</p>
         ${normalized.note ? `<p><strong>Bemærkning:</strong> ${escapeHtml(normalized.note)}</p>` : ''}
         ${signerLine}
-        <p>Se tilbuddet i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/offers">Gå til Tilbud</a></p>
+        <p>Se tilbuddet i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/offers/${encodeURIComponent(offerId)}">Åbn tilbuddet</a></p>
         <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
         <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af ELTA Drift.</p>
       `

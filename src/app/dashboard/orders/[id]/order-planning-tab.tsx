@@ -15,10 +15,12 @@ import {
   type WorkOrderWithEmployee,
 } from '@/lib/actions/work-orders'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
-import { getCaseLaborCostTotal, listTimeLogsForCase } from '@/lib/actions/time-logs'
+import { getCaseLaborCostTotal, listTimeLogsForCase, type TimeLogWithEmployee } from '@/lib/actions/time-logs'
 import type { WorkOrderStatus } from '@/types/workforce.types'
 import { WorkOrderTimeLogs } from './work-order-time-logs'
 import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
+import { formatWorkOrderTime } from '@/lib/planning/work-order-time'
 
 const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   planned: 'Planlagt',
@@ -72,6 +74,9 @@ export function OrderPlanningTab({
   const [caps, setCaps] = useState<WorkOrderCaps>(NO_CAPS)
   useEffect(() => { getWorkOrderCapabilitiesAction().then(setCaps).catch(() => setCaps(NO_CAPS)) }, [])
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
+  // M-9: sagens timer + medarbejderlisten deles med alle arbejdsordre-rækker (null = ikke hentet → rækken henter selv)
+  const [caseLogs, setCaseLogs] = useState<TimeLogWithEmployee[] | null>(null)
+  const [sharedEmployees, setSharedEmployees] = useState<{ id: string; name: string }[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(false)
   const [caseTotals, setCaseTotals] = useState<{
@@ -108,7 +113,9 @@ export function OrderPlanningTab({
     ])
     if (woRes.success && woRes.data) setWorkOrders(woRes.data)
     else setError(woRes.error || 'Kunne ikke hente arbejdsordrer')
-    if (empRes.success && empRes.data) setEmployees(empRes.data)
+    if (empRes.success && empRes.data) { setEmployees(empRes.data); setSharedEmployees(empRes.data) }
+    else setSharedEmployees(null)
+    setCaseLogs(logsRes.success && logsRes.data ? logsRes.data : null)
     if (logsRes.success && logsRes.data) {
       const logs = logsRes.data
       setCaseTotals({
@@ -169,7 +176,7 @@ export function OrderPlanningTab({
     }
     setIsWorking(false)
     if (!res.success) {
-      setError(res.error || 'Kunne ikke oprette arbejdsordre')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke oprette arbejdsordre')
       return
     }
     setShowForm(false)
@@ -187,7 +194,7 @@ export function OrderPlanningTab({
     const res = await changeWorkOrderStatus(woId, next)
     setIsWorking(false)
     if (!res.success) {
-      setError(res.error || 'Kunne ikke ændre status')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke ændre status')
       return
     }
     await reload()
@@ -201,7 +208,7 @@ export function OrderPlanningTab({
     const res = await deletePlannedWorkOrder(woId)
     setIsWorking(false)
     if (!res.success) {
-      setError(res.error || 'Kunne ikke slette')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke slette')
       return
     }
     await reload()
@@ -429,6 +436,8 @@ export function OrderPlanningTab({
                   // Re-pull case totals when a time-log is added/changed
                   reload()
                 }}
+                initialLogs={caseLogs ? caseLogs.filter((l) => l.work_order_id === wo.id) : null}
+                sharedEmployees={sharedEmployees}
               />
             ))}
           </ul>
@@ -468,6 +477,8 @@ function WorkOrderRow({
   onLogsChange,
   canSeeCost = false,
   caps,
+  initialLogs,
+  sharedEmployees,
 }: {
   caps: WorkOrderCaps
   wo: WorkOrderWithEmployee
@@ -476,6 +487,8 @@ function WorkOrderRow({
   disabled?: boolean
   onLogsChange?: () => void
   canSeeCost?: boolean
+  initialLogs?: TimeLogWithEmployee[] | null
+  sharedEmployees?: { id: string; name: string }[] | null
 }) {
   // Kun knapper brugeren faktisk kan bruge — afgjort af serveren (rolle + N11-flag), samme regel som changeWorkOrderStatus.
   const { canStart, canComplete, canCancel, canDelete } = caps
@@ -492,7 +505,11 @@ function WorkOrderRow({
               {STATUS_LABELS[wo.status]}
             </span>
             {wo.scheduled_date && (
-              <span className="text-xs text-gray-500">{fmtDate(wo.scheduled_date)}</span>
+              <span className="text-xs text-gray-500">
+                {fmtDate(wo.scheduled_date)}
+                {/* M-8 (pilot-review 2026-10-15): starttid/estimat — før kun datoen */}
+                {formatWorkOrderTime(wo.start_time, wo.estimated_hours) ? ` · ${formatWorkOrderTime(wo.start_time, wo.estimated_hours)}` : ''}
+              </span>
             )}
             {wo.completed_at && (
               <span className="text-xs text-gray-500">
@@ -524,15 +541,15 @@ function WorkOrderRow({
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-col gap-1 shrink-0">
+        {/* Actions — M-10 (pilot-review 2026-10-15): større tap-mål og afstand på telefon (før ~24 px tæt stablet) */}
+        <div className="flex flex-col gap-2 sm:gap-1 shrink-0">
           {transitions.map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => onChangeStatus(wo.id, t)}
               disabled={disabled}
-              className={`px-2 py-1 text-xs rounded border whitespace-nowrap ${
+              className={`px-3 py-2.5 sm:px-2 sm:py-1 text-sm sm:text-xs rounded border whitespace-nowrap ${
                 t === 'done'
                   ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800'
                   : t === 'cancelled'
@@ -565,6 +582,8 @@ function WorkOrderRow({
           defaultEmployeeId={wo.assigned_employee_id ?? null}
           onChange={onLogsChange}
           canSeeCost={canSeeCost}
+          initialLogs={initialLogs}
+          sharedEmployees={sharedEmployees}
         />
       )}
     </li>

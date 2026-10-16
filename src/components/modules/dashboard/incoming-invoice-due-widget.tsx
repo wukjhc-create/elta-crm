@@ -72,6 +72,9 @@ export function IncomingInvoiceDueWidget() {
             </Link>
           </div>
 
+          {(data.other_currency_count ?? 0) > 0 && (
+            <p className="text-xs text-gray-500" data-testid="due-other-currency">{data.other_currency_count} i anden valuta end DKK — ikke med i beløbene</p>
+          )}
           {data.top.length > 0 && (
             <div className="border-t border-gray-100 pt-2 space-y-1">
               <div className="text-xs font-medium text-gray-500">Ældste forfaldne</div>

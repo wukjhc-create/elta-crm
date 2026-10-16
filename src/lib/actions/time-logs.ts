@@ -180,6 +180,46 @@ async function employeeSaleRateError(employeeId: string): Promise<string | null>
   return missingSaleRateError((data as { hourly_rate?: number | string | null } | null)?.hourly_rate)
 }
 
+/**
+ * M-4 (pilot-review 2026-10-15): foreslået starttid = medarbejderens seneste sluttid den dag (på tværs af alle
+ * arbejdsordrer), så en ny "kun timer"-registrering ikke rammer overlap-værnet. Kun klokkeslæt udleveres (ingen
+ * beløb/sager). Samme rettigheder som at oprette: montøren kun for sig selv.
+ */
+export async function suggestTimeLogStartAction(employeeId: string, date: string): Promise<ActionResult<{ clock: string | null }>> {
+  try {
+    validateUUID(employeeId, 'employee_id')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { success: false, error: 'Ugyldig dato' }
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('time_logs.create')) return { success: false, error: 'Manglende tilladelse: time_logs.create' }
+    if (!hasPermission('time_logs.edit.all')) {
+      const woScope = await getWorkOrderScope({ role, userId, supabase })
+      if (woScope.type === 'specific' && woScope.employeeId && woScope.employeeId !== employeeId) {
+        return { success: true, data: { clock: null } }
+      }
+    }
+    const dayStart = copenhagenLocalToIso(date, '00:00')
+    const next = new Date(`${date}T12:00:00Z`)
+    next.setUTCDate(next.getUTCDate() + 1)
+    const dayEnd = copenhagenLocalToIso(next.toISOString().slice(0, 10), '00:00')
+    const { data, error } = await supabase
+      .from('time_logs')
+      .select('end_time')
+      .eq('employee_id', employeeId)
+      .gte('start_time', dayStart)
+      .lt('start_time', dayEnd)
+      .not('end_time', 'is', null)
+      .order('end_time', { ascending: false })
+      .limit(1)
+    if (error) return { success: false, error: 'Kunne ikke hente dagens registreringer' }
+    const end = (data?.[0] as { end_time?: string | null } | undefined)?.end_time
+    if (!end) return { success: true, data: { clock: null } }
+    const p = copenhagenParts(end)
+    return { success: true, data: { clock: p.date === date ? p.clock : null } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke foreslå starttid') }
+  }
+}
+
 export async function createTimeLog(
   input: CreateTimeLogInput
 ): Promise<ActionResult<TimeLogRow>> {

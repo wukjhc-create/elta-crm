@@ -40,6 +40,7 @@ import {
   type SupportedLang,
 } from '@/lib/actions/ai-mail-assistant'
 import type { CustomerTaskWithRelations } from '@/types/customer-tasks.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface SendTaskMailDialogProps {
   task: CustomerTaskWithRelations
@@ -130,7 +131,7 @@ export function SendTaskMailDialog({
       })
 
       if (!result.success) {
-        setError(result.error || 'Mail kunne ikke sendes')
+        setError(humanizeErrorText(result.error) || 'Mail kunne ikke sendes')
         return
       }
 

@@ -8,6 +8,7 @@ import { CalendarOff, Loader2, Plus, Trash2 } from 'lucide-react'
 import { createAbsenceAction, deleteAbsenceAction, listAbsencesAction, type AbsenceWithEmployee } from '@/lib/actions/absences'
 import { ABSENCE_KINDS, absenceLabel, absencePeriodText } from '@/lib/planning/absence'
 import { useToast } from '@/components/ui/toast'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const dayKey = (offset = 0) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() + offset * 86_400_000))
 
@@ -23,7 +24,7 @@ export function AbsencesClient({ canManage, employees }: { canManage: boolean; e
 
   const load = useCallback(async () => {
     const res = await listAbsencesAction(dayKey(-30), dayKey(365))
-    if (res.success) { setRows(res.data ?? []); setError(null) } else setError(res.error ?? 'Kunne ikke hente fravær')
+    if (res.success) { setRows(res.data ?? []); setError(null) } else setError(humanizeErrorText(res.error) ?? 'Kunne ikke hente fravær')
   }, [])
   useEffect(() => { void load() }, [load])
 

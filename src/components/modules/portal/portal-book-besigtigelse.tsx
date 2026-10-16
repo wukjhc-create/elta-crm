@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { CalendarPlus, Loader2, CheckCircle } from 'lucide-react'
 import { portalBookBesigtigelse } from '@/lib/actions/portal'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const SLOTS = ['08:00–10:00', '10:00–12:00', '12:00–14:00', '14:00–16:00']
 
@@ -51,7 +52,7 @@ export function PortalBookBesigtigelse({ token, onBooked }: { token: string; onB
     setBusy(true)
     const r = await portalBookBesigtigelse(token, date, slot, notes || undefined)
     setBusy(false)
-    if (!r.success) { setError(r.error ?? 'Kunne ikke booke'); return }
+    if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke booke'); return }
     setDone(true)
     onBooked()
   }

@@ -54,7 +54,8 @@ export async function getLeads(filters?: {
     // Apply filters with sanitized search
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)}`
+      // W-18: også telefon (salg søger ofte på nummeret fra et opkald)
+      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)},phone.ilike.${pgQuote(`%${sanitized}%`)}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -369,7 +370,7 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       if (oldLead.status !== data.status) {
         activities.push({
           activity_type: 'status_change',
-          description: `Status ændret fra "${oldLead.status}" til "${data.status}"`,
+          description: `Status ændret fra "${LEAD_STATUS_LABELS[oldLead.status as LeadStatus] ?? oldLead.status}" til "${LEAD_STATUS_LABELS[data.status as LeadStatus] ?? data.status}"`,
         })
       }
 
@@ -531,7 +532,7 @@ export async function updateLeadStatus(
       await supabase.from('lead_activities').insert({
         lead_id: id,
         activity_type: 'status_change',
-        description: `Status ændret fra "${oldLead.status}" til "${status}"`,
+        description: `Status ændret fra "${LEAD_STATUS_LABELS[oldLead.status as LeadStatus] ?? oldLead.status}" til "${LEAD_STATUS_LABELS[status] ?? status}"`,
         performed_by: userId,
       })
 
@@ -725,9 +726,20 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
       if (linkErr) logger.warn('convertLeadToCustomer: kildemail ikke koblet', { error: linkErr, entityId: leadId })
       else revalidatePath('/dashboard/mail')
     }
+    // W-2 (pilot-review 2026-10-15): leadets tilbud uden kunde får kunden (og parti-roller) — før stod de uden Send-knap
+    // og kunne ikke blive sag. Kun tilbud UDEN kunde; best-effort (konverteringen lykkes uanset).
+    let offersLinked = 0
+    if (hasPermission('offers.edit')) {
+      const { data: linked, error: offerErr } = await supabase.from('offers')
+        .update({ customer_id: customerId, orderer_customer_id: customerId, end_customer_id: customerId, payer_customer_id: customerId })
+        .eq('lead_id', leadId).is('customer_id', null).select('id')
+      if (offerErr) logger.warn('convertLeadToCustomer: tilbud ikke koblet', { error: offerErr, entityId: leadId })
+      offersLinked = (linked ?? []).length
+      if (offersLinked) revalidatePath('/dashboard/offers')
+    }
     await supabase.from('lead_activities').insert({
       lead_id: leadId, activity_type: 'note', performed_by: userId,
-      description: created ? 'Kunde oprettet fra lead' : 'Lead koblet til eksisterende kunde (samme e-mail)',
+      description: `${created ? 'Kunde oprettet fra lead' : 'Lead koblet til eksisterende kunde (samme e-mail)'}${offersLinked ? ` — ${offersLinked} tilbud koblet til kunden` : ''}`,
     })
     revalidatePath(`/dashboard/leads/${leadId}`)
     revalidatePath('/dashboard/customers')

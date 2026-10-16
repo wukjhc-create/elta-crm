@@ -13,6 +13,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { CheckCircle2, Circle, Loader2, ListChecks, Sparkles } from 'lucide-react'
 import { getServiceCaseTasks, completeCustomerTask } from '@/lib/actions/customer-tasks'
 import { TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG, type CustomerTaskWithRelations } from '@/types/customer-tasks.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string; canComplete?: boolean }) {
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[] | null>(null)
@@ -35,7 +36,7 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
       if (res.success) {
         setTasks((prev) => (prev ?? []).map((t) => (t.id === taskId ? { ...t, status: 'done' } : t)))
       } else {
-        setError(res.error || 'Kunne ikke markere som udført')
+        setError(humanizeErrorText(res.error) || 'Kunne ikke markere som udført')
       }
       setBusyId(null)
     })

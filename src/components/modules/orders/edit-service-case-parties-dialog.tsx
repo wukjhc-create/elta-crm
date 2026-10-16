@@ -26,6 +26,7 @@ import {
   BILLING_MODE_LABELS,
   type ServiceCaseBillingMode,
 } from '@/types/service-cases.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface PartyRef {
   id: string
@@ -150,7 +151,7 @@ export function EditServiceCasePartiesDialog({
       }
       const res = await updateServiceCaseParties(caseId, payload)
       if (!res.success) {
-        setError(res.error || 'Kunne ikke gemme')
+        setError(humanizeErrorText(res.error) || 'Kunne ikke gemme')
         setSaving(false)
         return
       }

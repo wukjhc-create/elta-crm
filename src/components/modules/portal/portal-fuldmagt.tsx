@@ -6,6 +6,7 @@ import { FileSignature, RotateCcw, Loader2, CheckCircle } from 'lucide-react'
 import { submitSignedFuldmagt } from '@/lib/actions/fuldmagt'
 import type { FuldmagtData } from '@/lib/actions/fuldmagt'
 import { BRAND_COMPANY_NAME, BRAND_CVR } from '@/lib/brand'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface PortalFuldmagtProps {
   token: string
@@ -178,7 +179,7 @@ function FuldmagtForm({ token, fuldmagt }: { token: string; fuldmagt: FuldmagtDa
         setIsDone(true)
         router.refresh()
       } else {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
       }
     } catch {
       setError('Der opstod en fejl')

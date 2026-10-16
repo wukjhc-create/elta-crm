@@ -15,6 +15,7 @@ import {
 import { formatDate } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils/format'
 import { useToast } from '@/components/ui/toast'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 type TabKey = 'all' | 'cases' | 'offers'
 
@@ -32,7 +33,7 @@ export function ProposalsClient() {
     setLoading(true)
     const res = await getProposals()
     if (!res.success || !res.data) {
-      setError(res.error || 'Kunne ikke hente forslag')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke hente forslag')
       setLoading(false)
       return
     }

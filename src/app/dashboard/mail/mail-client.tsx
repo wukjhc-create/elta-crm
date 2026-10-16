@@ -188,6 +188,7 @@ export function MailClient() {
         getGraphSyncState(),
         getAllGraphSyncStates(),
       ])
+      if (emailResult.error) setError(emailResult.error)
       setEmails(emailResult.data)
       setTotalCount(emailResult.count)
       setStats({
@@ -317,6 +318,8 @@ export function MailClient() {
         getIncomingEmailStats(),
         getGraphSyncState(),
       ])
+      // S-8: en fejlet baggrundsopdatering må ikke tømme den viste liste
+      if (emailResult.error) return
       setEmails(emailResult.data)
       setTotalCount(emailResult.count)
       setStats({

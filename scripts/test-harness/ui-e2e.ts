@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -586,6 +586,14 @@ ${m.text()}`) })
         await s.page.setViewportSize({ width: 1400, height: 1000 })
         await s.page.waitForTimeout(300)
         r.desktop_tabel = !(await s.page.getByTestId('week-agenda').isVisible().catch(() => true))
+        // danske helligdage i ugehovedet (juleugen 2026)
+        await gotoSafe(s.page, `${base}/dashboard/calendar?view=week&date=2026-12-25`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.helligdag_vist = (await s.page.getByTestId('calendar-holiday').filter({ hasText: 'Juledag' }).count()) >= 1
+        // W-4: sagslisten på mobil = kort uden vandret scroll
+        await s.page.setViewportSize({ width: 375, height: 812 })
+        await gotoSafe(s.page, `${base}/dashboard/orders`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.sager_mobil_kort = await s.page.getByTestId('orders-mobile-list').isVisible().catch(() => false)
+        r.sager_mobil_ingen_scroll = (await s.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)) <= 2
       } finally { await s.ctx.close().catch(() => {}) }
       out.push({ id: 'U160 kalender-uge på mobil = agenda', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
     }
@@ -1222,6 +1230,13 @@ ${m.text()}`) })
           const id = (ins.data?.[0] as { id?: string } | undefined)?.id
           if (id) u27LeadIds.push(id)
         }
+        // W-2: et tilbud på lead 1 uden kunde → får kunden ved konvertering; før: tilbudssiden siger at kunden mangler
+        const lo = u27LeadIds[0] ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-LO-${stamp}`, title: `[HARNESS] leadtilbud ${stamp}`, lead_id: u27LeadIds[0], status: 'draft', created_by: adminUser.id }]).select('id') : null
+        const leadOfferId = (lo?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (leadOfferId) {
+          await gotoSafe(a.page, `${base}/dashboard/offers/${leadOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.mangler_kunde_vist = (await a.page.getByTestId('offer-missing-customer').count()) === 1
+        }
         const convert = async (leadId: string) => {
           await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByTestId('lead-convert').click({ timeout: 60_000 }).catch(() => {})
@@ -1234,6 +1249,17 @@ ${m.text()}`) })
         r.kunde_oprettet = !!cust && cust.email === mail && !!cust.customer_number
         const l1 = ((await c.admin.from('leads').select('custom_fields').eq('id', u27LeadIds[0]).maybeSingle()).data as { custom_fields?: Record<string, unknown> } | null)
         r.lead_koblet = l1?.custom_fields?.customer_id === c1
+        // W-10: lead 2 er 'qualified' → kun Tilbud/Tabt klikbare; Vundet (ugyldigt spring) deaktiveret
+        if (u27LeadIds[1]) {
+          await gotoSafe(a.page, `${base}/dashboard/leads/${u27LeadIds[1]}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.status_won_deaktiveret = await a.page.getByTestId('lead-status-won').isDisabled().catch(() => false)
+          r.status_proposal_aktiv = !(await a.page.getByTestId('lead-status-proposal').isDisabled().catch(() => true))
+        }
+        if (leadOfferId) {
+          const lof = (await c.admin.from('offers').select('customer_id, payer_customer_id').eq('id', leadOfferId).maybeSingle()).data as { customer_id?: string | null; payer_customer_id?: string | null } | null
+          r.tilbud_koblet = !!c1 && lof?.customer_id === c1 && lof?.payer_customer_id === c1
+          await c.admin.from('offers').delete().eq('id', leadOfferId)
+        }
         await gotoSafe(a.page, `${base}/dashboard/leads/${u27LeadIds[0]}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.gaa_til_kunde = (await a.page.getByTestId('lead-go-customer').count()) === 1
         const c2 = u27LeadIds[1] ? await convert(u27LeadIds[1]) : null
@@ -1368,6 +1394,11 @@ ${m.text()}`) })
           total_amount: 800, tax_amount: 200, final_amount: 1000, due_date: new Date().toISOString().slice(0, 10) }]).select('id')
         u29InvoiceId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
         await gotoSafe(a.page, `${base}/dashboard/invoices/${u29InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        // B-1: "Annuller" i prompten må IKKE markere betalt
+        a.page.once('dialog', (d) => d.dismiss().catch(() => {}))
+        await a.page.getByRole('button', { name: /Markér som betalt/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.waitForTimeout(2000)
+        r.annuller_ikke_betalt = ((await c.admin.from('invoices').select('status').eq('id', u29InvoiceId ?? '').maybeSingle()).data as { status?: string } | null)?.status === 'sent'
         a.page.once('dialog', (d) => d.accept(`REF-${stamp}`).catch(() => {}))
         await a.page.getByRole('button', { name: /Markér som betalt/ }).first().click({ timeout: 60_000 }).catch(() => {})
         type InvRow = { status?: string; payment_status?: string }
@@ -1378,7 +1409,13 @@ ${m.text()}`) })
           await new Promise((res) => setTimeout(res, 1000))
         }
         r.betalt = row?.status === 'paid'
-        const audits = u29InvoiceId ? ((await c.admin.from('audit_logs').select('action, user_id').eq('entity_id', u29InvoiceId)).data ?? []) as Array<{ action: string; user_id: string | null }> : []
+        // audit skrives efter statusopdateringen — poll (før: læst straks → sporadisk tom)
+        let audits: Array<{ action: string; user_id: string | null }> = []
+        for (let i = 0; i < 15 && u29InvoiceId; i++) {
+          audits = ((await c.admin.from('audit_logs').select('action, user_id').eq('entity_id', u29InvoiceId)).data ?? []) as Array<{ action: string; user_id: string | null }>
+          if (audits.some((x) => x.user_id === adminUser.id)) break
+          await new Promise((res) => setTimeout(res, 1000))
+        }
         r.audit_med_bruger = audits.some((x) => x.user_id === adminUser.id)
         out.push({ id: 'U29 betaling på faktura', ok: !!u29InvoiceId && Object.values(r).every(Boolean),
           note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · audit=${JSON.stringify(audits.map((x) => x.action))}` })
@@ -1854,6 +1891,7 @@ ${m.text()}`) })
       // U43 omplanlægning fra kalenderen (montør/planlægning)
       if (want('U43') && profitCustomerId) {
         const r: Record<string, boolean> = {}
+        let dndDiag = ''
         const mkEmp = async (n: string) => ((await c.admin.from('employees').insert([{ name: `Harness ${n} ${stamp}`, email: `${n.toLowerCase()}-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300 }]).select('id')).data?.[0] as { id?: string } | undefined)?.id
         const empA = await mkEmp('Anders'), empB = await mkEmp('Bente')
         u43.employeeIds = [empA, empB].filter((x): x is string => !!x)
@@ -1901,6 +1939,26 @@ ${m.text()}`) })
         r.kapacitet_norm = /Planlagt 6 t af norm 5 t/.test(((await bRow.getByTestId('week-employee-capacity').textContent().catch(() => '')) ?? ''))
         r.kapacitet_ikke_sat = /Norm ikke sat/.test(((await a.page.locator('tr', { hasText: `Harness Anders ${stamp}` }).first().getByTestId('week-employee-capacity').textContent().catch(() => '')) ?? ''))
         r.uge_belastning = (await bRow.getByTestId('week-day-overload').count()) === 1 && /2 aktive job denne uge/.test(((await bRow.getByTestId('week-employee-load').textContent().catch(() => '')) ?? ''))
+        // E-7: træk jobbet fra Bente til Anders samme dag (træk-og-slip i ugevisningen)
+        {
+          const chip = a.page.locator(`[data-testid="wo-chip"][data-wo-id="${u43.woId}"]`).first()
+          const target = a.page.locator(`[data-testid="week-cell"][data-employee-id="${empA}"][data-date="${d3}"]`).first()
+          // HTML5-træk: fælles DataTransfer (Playwrights musebaserede dragTo udløser ikke altid drop)
+          const dt = await a.page.evaluateHandle(() => new DataTransfer())
+          await chip.dispatchEvent('dragstart', { dataTransfer: dt }).catch(() => {})
+          await target.dispatchEvent('dragover', { dataTransfer: dt }).catch(() => {})
+          await target.dispatchEvent('drop', { dataTransfer: dt }).catch(() => {})
+          let moved = ''
+          for (let i = 0; i < 15 && moved !== empA; i++) {
+            moved = String(((await c.admin.from('work_orders').select('assigned_employee_id').eq('id', u43.woId ?? '').maybeSingle()).data as { assigned_employee_id?: string } | null)?.assigned_employee_id ?? '')
+            if (moved !== empA) await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.traek_og_slip = moved === empA
+          if (!r.traek_og_slip) dndDiag = `msg="${((await a.page.getByTestId('calendar-drop-msg').textContent().catch(() => '')) ?? '').slice(0, 120)}" chips=${await chip.count()} celler=${await target.count()} draggable=${await chip.getAttribute('draggable').catch(() => '?')}`
+          // tilbage til Bente (så resten af testen er uændret)
+          if (u43.woId && empB) await c.admin.from('work_orders').update({ assigned_employee_id: empB }).eq('id', u43.woId)
+          await gotoSafe(a.page, `${base}/dashboard/calendar?view=week&date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        }
         // E-7: klik på Anders' tomme celle på d3 → planlæg-dialog med Anders + d3 udfyldt
         const aRow = a.page.locator('tr', { hasText: `Harness Anders ${stamp}` }).first()
         await aRow.getByRole('button', { name: new RegExp(`Planlæg .* ${d3}`) }).click({ timeout: 30_000 }).catch(() => {})
@@ -1910,7 +1968,269 @@ ${m.text()}`) })
           && (await pdlg.locator('select').first().inputValue().catch(() => '')) === (empA ?? '-')
         await a.page.keyboard.press('Escape').catch(() => {})
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u43-omplanlaegning.png'), fullPage: true }).catch(() => {})
-        out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+        out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${dndDiag ? ` · ${dndDiag}` : ''}` })
+      }
+
+      // U165 W-1: sagssøgning finder sagen via kundenavn og adresse (ikke kun titel/nr.)
+      if (want('U165')) {
+        const r: Record<string, boolean> = {}
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-SRCH-${stamp}`, company_name: `Søgekunde ${stamp}`, contact_person: 'X', email: `srch-${stamp}@harness.test`, created_by: adminUser.id }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const title = `[HARNESS] søg ${stamp}`
+        const sc = custId ? await c.admin.from('service_cases').insert([{ title, customer_id: custId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id, address: `Søgevej ${stamp}` }]).select('id') : null
+        const caseId = (sc?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        try {
+          for (const [k, term] of [['kundenavn', `Søgekunde ${stamp}`], ['adresse', `Søgevej ${stamp}`]] as const) {
+            await gotoSafe(a.page, `${base}/dashboard/orders?search=${encodeURIComponent(term)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            r[k] = (await a.page.getByText(title).count()) > 0
+          }
+        } finally {
+          if (custId && !caseId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        out.push({ id: 'U165 sagssøgning: kundenavn + adresse', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U166 W-13: fanen står i URL'en og overlever genindlæsning (sag + kunde)
+      if (want('U166') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] faner ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /Planlægning \/ Timer/ }).first().click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(500)
+        r.sag_url = a.page.url().includes('tab=planlaegning')
+        // W-15: advarselsnote vises øverst på Overblik
+        if (caseId) await c.admin.from('case_notes').insert([{ case_id: caseId, content: `Hund på adressen ${stamp}`, kind: 'warning', created_by: adminUser.id }])
+        await a.page.reload({ waitUntil: 'networkidle' }).catch(() => {})
+        r.sag_efter_reload = (await a.page.getByRole('button', { name: /Planlæg medarbejder/ }).count()) > 0
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('case-warning-notes').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.advarsel_paa_overblik = ((await a.page.getByTestId('case-warning-notes').textContent().catch(() => '')) ?? '').includes(`Hund på adressen ${stamp}`)
+        await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /^Sager/ }).first().click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(500)
+        r.kunde_url = a.page.url().includes('tab=sager')
+        out.push({ id: 'U166 faner i URL (sag + kunde)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U173 B-3: kundekortets fakturaoverblik viser åbent beløb (delbetalt faktura 1.000 − 600 = 400)
+      if (want('U173')) {
+        let u173Diag = ''
+        const r: Record<string, boolean> = {}
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-OPEN-${stamp}`, company_name: `Delbetaler ${stamp}`, contact_person: 'X', email: `open-${stamp}@harness.test`, created_by: adminUser.id }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const { copenhagenDatePlusDays } = await import('../../src/lib/utils/copenhagen-time')
+        const inv = custId ? await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-OPEN-${stamp}`, customer_id: custId, status: 'sent',
+          total_amount: 800, tax_amount: 200, final_amount: 1000, amount_paid: 600, due_date: copenhagenDatePlusDays(-3) }]).select('id') : null
+        const invId = (inv?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/customers/${custId}?tab=fakturaer`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByText('Udestående i alt').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          // kortet = forælderen til label-div'en (label + beløb)
+          const card = a.page.getByText('Udestående i alt', { exact: true }).first().locator('xpath=../..')
+          const txt = ((await card.textContent().catch(() => '')) ?? '')
+          r.aabent_400 = /400/.test(txt) && !/1\.000/.test(txt)
+          u173Diag = txt.replace(/\s+/g, ' ').slice(0, 80)
+        } finally {
+          if (invId) await c.admin.from('invoices').delete().eq('id', invId)
+          if (custId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        out.push({ id: 'U173 kundekort: åbent beløb', ok: !!invId && Object.values(r).every(Boolean), note: `${inv?.error ? `SEED: ${inv.error.message} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${u173Diag}` })
+      }
+
+      // U172 B-6/B-7: forfaldne leverandørfakturaer — filteret i listen finder dem (DB-filter), widgetten tæller
+      // anden valuta separat
+      if (want('U172')) {
+        const r: Record<string, boolean> = {}
+        const { copenhagenDatePlusDays } = await import('../../src/lib/utils/copenhagen-time')
+        const yday = copenhagenDatePlusDays(-1)
+        const ins = await c.admin.from('incoming_invoices').insert([
+          { source: 'manual', invoice_number: `UI-E2E-DUE-${stamp}`, parse_status: 'parsed', status: 'approved', amount_incl_vat: 1234, currency: 'DKK', due_date: yday },
+          { source: 'manual', invoice_number: `UI-E2E-EUR-${stamp}`, parse_status: 'parsed', status: 'approved', amount_incl_vat: 99, currency: 'EUR', due_date: yday },
+        ]).select('id')
+        const ids = ((ins.data ?? []) as { id: string }[]).map((x) => x.id)
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/incoming-invoices?due=overdue`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByText(`UI-E2E-DUE-${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.filter_finder_forfalden = (await a.page.getByText(`UI-E2E-DUE-${stamp}`).count()) > 0
+          // B-8: fanen skrives i URL'en
+          await gotoSafe(a.page, `${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: /^Godkendt/ }).first().click({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForURL(/tab=approved/, { timeout: 15_000 }).catch(() => {})
+          r.fane_i_url = a.page.url().includes('tab=approved')
+          await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('due-other-currency').waitFor({ timeout: 60_000 }).catch(() => {})
+          r.anden_valuta_vist = (await a.page.getByTestId('due-other-currency').count()) > 0
+        } finally {
+          if (ids.length) await c.admin.from('incoming_invoices').delete().in('id', ids)
+        }
+        out.push({ id: 'U172 forfaldne leverandørfakturaer', ok: ids.length === 2 && Object.values(r).every(Boolean), note: `${ins.error ? `SEED: ${ins.error.message} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
+      // U171 S-7: manuel kobling af en mail til en kunde kobler også trådens øvrige mails uden kunde
+      if (want('U171')) {
+        let u171Diag = ''
+        const r: Record<string, boolean> = {}
+        const cname = `Trådkunde ${stamp}`
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-TRD-${stamp}`, company_name: cname, contact_person: 'X', email: `trd-${stamp}@harness.test`, created_by: adminUser.id }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const conv = `harness-conv-${stamp}`
+        const s1 = `[HARNESS] tråd A ${stamp}`
+        const em = await c.admin.from('incoming_emails').insert([
+          { sender_email: `afs-${stamp}@harness.test`, subject: s1, body_text: 'a', conversation_id: conv, received_at: new Date().toISOString(), is_archived: false, link_status: 'unidentified' },
+          { sender_email: `afs-${stamp}@harness.test`, subject: `[HARNESS] tråd B ${stamp}`, body_text: 'b', conversation_id: conv, received_at: new Date(Date.now() - 60_000).toISOString(), is_archived: false, link_status: 'unidentified' },
+        ]).select('id')
+        const ids = ((em.data ?? []) as { id: string }[]).map((x) => x.id)
+        seededEmailIds.push(...ids)
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/mail?search=${encodeURIComponent(s1)}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const step: string[] = []
+          // exact: ellers rammes filter-chippen "Søgning: …" i stedet for mailen i listen
+          await a.page.getByText(s1, { exact: true }).first().click({ timeout: 60_000 }).then(() => step.push('mail')).catch(() => {})
+          await a.page.getByRole('button', { name: /Kobl til eksisterende/ }).first().click({ timeout: 60_000 }).then(() => step.push('kobl')).catch(() => {})
+          await a.page.getByPlaceholder('Søg firmanavn, kundenr, email, kontakt...').fill(cname).then(() => step.push('søg')).catch(() => {})
+          await a.page.getByRole('button', { name: new RegExp(cname) }).first().click({ timeout: 60_000 }).then(() => step.push('valgt')).catch(() => {})
+          u171Diag = step.join('>')
+          await a.page.screenshot({ caret: 'initial', path: join(shots, 'u171-mailkobling.png'), fullPage: false }).catch(() => {})
+          let rows: { customer_id: string | null }[] = []
+          for (let i = 0; i < 20; i++) {
+            rows = ((await c.admin.from('incoming_emails').select('customer_id').in('id', ids)).data ?? []) as { customer_id: string | null }[]
+            if (rows.length === 2 && rows.every((x) => x.customer_id === custId)) break
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.begge_i_traaden_koblet = rows.length === 2 && rows.every((x) => x.customer_id === custId)
+          u171Diag += ` · koblet=${rows.filter((x) => x.customer_id === custId).length}/2`
+        } finally {
+          if (ids.length) await c.admin.from('incoming_emails').update({ customer_id: null }).in('id', ids)
+          if (custId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        out.push({ id: 'U171 manuel mailkobling kobler tråden', ok: !!custId && ids.length === 2 && Object.values(r).every(Boolean), note: `${em.error ? `SEED: ${em.error.message} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${u171Diag}` })
+      }
+
+      // U170 S-5/S-1: tilbud markeret afvist (bekræftet) → auto "Følg op: … intet svar"-opgaven lukkes
+      if (want('U170') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-FU-${stamp}`, title: `[HARNESS] opfølgning ${stamp}`, customer_id: profitCustomerId,
+          status: 'sent', created_by: adminUser.id }]).select('id')
+        const offId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const tk = offId ? await c.admin.from('customer_tasks').insert([{ customer_id: profitCustomerId, offer_id: offId, title: `Følg op: UI-E2E-FU-${stamp} — intet svar modtaget`,
+          priority: 'normal', created_by: adminUser.id, assigned_to: adminUser.id, due_date: new Date().toISOString() }]).select('id') : null
+        const taskId = (tk?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/offers/${offId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.ingen_set_knap = (await a.page.getByRole('button', { name: 'Set', exact: true }).count()) === 0
+          a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+          await a.page.getByRole('button', { name: 'Afvist', exact: true }).first().click({ timeout: 30_000 }).catch(() => {})
+          let st: string | undefined
+          for (let i = 0; i < 20; i++) {
+            st = ((await c.admin.from('customer_tasks').select('status').eq('id', taskId ?? '').maybeSingle()).data as { status?: string } | null)?.status
+            if (st === 'done') break
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.opgave_lukket = st === 'done'
+        } finally {
+          if (taskId) await c.admin.from('customer_tasks').delete().eq('id', taskId)
+          if (offId) await c.admin.from('offers').delete().eq('id', offId)
+        }
+        out.push({ id: 'U170 afvist tilbud lukker opfølgning', ok: !!taskId && Object.values(r).every(Boolean), note: `${off.error ? `SEED: ${off.error.message} · ` : tk?.error ? `SEED: ${tk.error.message} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
+      // U169 B-5/B-4: et bogføringskrav ('pending-…') vises som "i gang", ikke som bogført; fakturaoverblikket indlæses
+      if (want('U169')) {
+        const r: Record<string, boolean> = {}
+        const ins = await c.admin.from('incoming_invoices').insert([{ source: 'manual', invoice_number: `UI-E2E-PEND-${stamp}`, parse_status: 'parsed',
+          status: 'approved', amount_excl_vat: 100, external_invoice_id: `pending-${Date.now()}`, external_provider: 'economic' }]).select('id')
+        const invId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${invId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('posting-pending').waitFor({ timeout: 60_000 }).catch(() => {})
+          r.vist_som_i_gang = (await a.page.getByTestId('posting-pending').count()) > 0
+          r.ikke_allerede_bogfoert = (await a.page.getByText('e-conomic ID').count()) === 0
+          await gotoSafe(a.page, `${base}/dashboard/invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.overblik_indlaest = (await a.page.getByText('Betalt denne måned').count()) > 0
+        } finally {
+          if (invId) await c.admin.from('incoming_invoices').delete().eq('id', invId)
+        }
+        out.push({ id: 'U169 bogføringskrav i gang + fakturaoverblik', ok: !!invId && Object.values(r).every(Boolean), note: `${ins.error ? `SEED: ${ins.error.message} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
+      // U168 W-18: "Kun mine" på tilbudslisten (egne vs. andres) + ukendt ?sortBy= giver ikke fejlside
+      if (want('U168')) {
+        const r: Record<string, boolean> = {}
+        const t = `[HARNESS] kunmine ${stamp}`
+        const ins = await c.admin.from('offers').insert([
+          { offer_number: `UI-E2E-KM1-${stamp}`, title: `${t} egen`, status: 'draft', created_by: adminUser.id },
+          { offer_number: `UI-E2E-KM2-${stamp}`, title: `${t} anden`, status: 'draft', created_by: salg.id },
+        ]).select('id')
+        const ids = ((ins.data ?? []) as { id: string }[]).map((x) => x.id)
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/offers?search=${encodeURIComponent(t)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.begge_uden_filter = (await a.page.getByText(`${t} egen`).count()) > 0 && (await a.page.getByText(`${t} anden`).count()) > 0
+          await a.page.getByTestId('offers-only-mine').check({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForURL(/mine=1/, { timeout: 30_000 }).catch(() => {})
+          await a.page.waitForLoadState('networkidle').catch(() => {})
+          r.kun_egen = (await a.page.getByText(`${t} egen`).count()) > 0 && (await a.page.getByText(`${t} anden`).count()) === 0
+          await gotoSafe(a.page, `${base}/dashboard/offers?sortBy=bogus_column`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.ukendt_sort_ok = (await a.page.getByText('Kunne ikke hente tilbud').count()) === 0
+        } finally {
+          if (ids.length) await c.admin.from('offers').delete().in('id', ids)
+        }
+        out.push({ id: 'U168 tilbud: Kun mine + sikker sortering', ok: ids.length === 2 && Object.values(r).every(Boolean), note: `${ins.error ? `SEED: ${ins.error.message} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
+      // U167 W-3/W-11/W-9: materiale på sag fra leverandørkatalog (søgning med ord i omvendt rækkefølge → valg udfylder og
+      // kobler varen), og "Påmind mig" på et lead giver en kalenderfil med alarm
+      if (want('U167') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U167 grossist ${stamp}`, code: `HU167${stamp}` }]).select('id')
+        const supId = (sup.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sp = supId ? await c.admin.from('supplier_products').insert([{ supplier_id: supId, supplier_sku: `H167-${stamp}`, supplier_name: `Kabel PVIK 3G1,5 U167 ${stamp}`,
+          cost_price: 10, unit: 'm', is_available: true }]).select('id') : null
+        const spId = (sp?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] katalogmateriale ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        const ld = await c.admin.from('leads').insert([{ company_name: `[HARNESS] påmind ${stamp}`, contact_person: 'Påmind Kontakt', email: `u167-${stamp}@harness.test`,
+          phone: '12345678', created_by: adminUser.id }]).select('id')
+        const leadId = (ld.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const seedErr = spId && caseId && leadId ? '' : `SEED: ${sp?.error?.message ?? sc.error?.message ?? ld.error?.message ?? sup.error?.message ?? '?'} · `
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: /Tilføj materiale/ }).first().click({ timeout: 60_000 }).catch(() => {})
+          const dlg = a.page.locator('[aria-labelledby="case-material-dialog-title"]')
+          await dlg.getByTestId('case-material-product-search').fill(`${stamp} pvik kabel`).catch(() => {})
+          const hit = dlg.getByTestId('case-material-product-hits').getByText(`Kabel PVIK 3G1,5 U167 ${stamp}`)
+          await hit.waitFor({ timeout: 60_000 }).catch(() => {})
+          r.fundet_ord_i_vilkaarlig_orden = (await hit.count()) > 0
+          await hit.first().click({ timeout: 30_000 }).catch(() => {})
+          r.koblet = (await dlg.getByTestId('case-material-linked').count()) > 0
+          await dlg.getByRole('button', { name: 'Tilføj', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+          type MatRow = { supplier_product_id?: string | null; sku_snapshot?: string | null; unit?: string; unit_cost?: number; unit_sales_price?: number }
+          const readMat = async (): Promise<MatRow | null> => ((await c.admin.from('case_materials').select('supplier_product_id, sku_snapshot, unit, unit_cost, unit_sales_price').eq('case_id', caseId ?? '').maybeSingle()).data as MatRow | null)
+          let m0 = await readMat()
+          for (let i = 0; i < 20 && !m0; i++) { await new Promise((res) => setTimeout(res, 1000)); m0 = await readMat() }
+          r.gemt_med_vare = !!m0 && m0.supplier_product_id === spId && m0.sku_snapshot === `H167-${stamp}` && m0.unit === 'm'
+          r.kost_10_salg_over = Number(m0?.unit_cost) === 10 && Number(m0?.unit_sales_price) > 10
+          await a.page.screenshot({ caret: 'initial', path: join(shots, 'u167-katalogmateriale.png'), fullPage: false }).catch(() => {})
+
+          await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('lead-follow-up').click({ timeout: 60_000 }).catch(() => {})
+          const dl = a.page.waitForEvent('download', { timeout: 30_000 }).catch(() => null)
+          await a.page.getByTestId('lead-follow-up-download').click({ timeout: 30_000 }).catch(() => {})
+          const d = await dl
+          const p = d ? await d.path().catch(() => null) : null
+          const ics = p ? (await import('node:fs')).readFileSync(p, 'utf8') : ''
+          r.ics_alarm = /BEGIN:VALARM/.test(ics) && /DTSTART;TZID=Europe\/Copenhagen:\d{8}T090000/.test(ics)
+          r.ics_lead = ics.includes(`Opfølgning: [HARNESS] påmind ${stamp}`) && ics.includes('Tlf: 12345678')
+        } finally {
+          if (caseId) await c.admin.from('case_materials').delete().eq('case_id', caseId)
+          if (supId) { await c.admin.from('supplier_products').delete().eq('supplier_id', supId); await c.admin.from('suppliers').delete().eq('id', supId) }
+          if (leadId) await c.admin.from('leads').delete().eq('id', leadId)
+        }
+        out.push({ id: 'U167 katalogmateriale på sag + påmind lead', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
       // U164 00231 (Henrik 2026-10-15): momsmode på kunden — admin vælger "Omvendt betalingspligt" i kundeformularen → gemt
@@ -2124,6 +2444,7 @@ ${m.text()}`) })
         const seedErr = spId && u51.offerId ? '' : `SEED: ${sp?.error?.message ?? off.error?.message ?? sup.error?.message ?? '?'} · `
         await gotoSafe(a.page, `${base}/dashboard/offers/${u51.offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Fra leverandør/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('supplier-add-qty').fill('3').catch(() => {}) // W-12: antal ved tilføj (før låst til 1)
         await a.page.getByPlaceholder(/Indtast varenummer eller produktnavn/).fill(sku).catch(() => {})
         const hit = a.page.getByText(`Harness stikkontakt ${stamp}`).first()
         await hit.waitFor({ timeout: 60_000 }).catch(() => {})
@@ -2138,6 +2459,25 @@ ${m.text()}`) })
         r.linje_tilfoejet = lines.length === 1 && lines[0].supplier_product_id === spId
         r.kost_gemt = Number(lines[0]?.supplier_cost_price_at_creation) === 40
         r.salgspris_over_kost = Number(lines[0]?.unit_price) > 40
+        r.antal_3 = Number(lines[0]?.quantity) === 3
+        // S-2: inline-redigering (antal) må ikke overskrive leverandørens oprindelige kost med linjens kost (efter rabat)
+        if (lines.length === 1) {
+          await c.admin.from('offer_line_items').update({ cost_price: 35 }).eq('offer_id', u51.offerId ?? '')
+          await gotoSafe(a.page, `${base}/dashboard/offers/${u51.offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const d51 = a.page.locator('input[placeholder="Beskrivelse..."]').first()
+          await d51.waitFor({ timeout: 30_000 }).catch(() => {})
+          const row51 = d51.locator('xpath=ancestor::tr[1]')
+          await row51.locator('input[type="number"]').first().fill('5').catch(() => {})
+          await row51.locator('input[type="number"]').first().press('Tab').catch(() => {})
+          let l2: L | null = null
+          for (let i = 0; i < 20; i++) {
+            l2 = (await readL())[0] ?? null
+            if (l2 && Number(l2.quantity) === 5) break
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.redigeret_antal_5 = Number(l2?.quantity) === 5
+          r.oprindelig_kost_bevaret = Number(l2?.supplier_cost_price_at_creation) === 40
+        }
         out.push({ id: 'U51 tilbudslinje fra grossist', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · stk-pris=${lines[0]?.unit_price}` })
       }
 
@@ -2284,10 +2624,13 @@ ${m.text()}`) })
         await new Promise((res) => setTimeout(res, 4000))
         r.annulleret_forbliver_kladde = (await readStatus()) === 'draft'
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
-        a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+        // S-1: "Sendt" bekræftes først ("uden at sende"), derefter lav-DB-bekræftelsen — begge accepteres
+        const acceptAll = (d: { accept: () => Promise<void> }) => { d.accept().catch(() => {}) }
+        a.page.on('dialog', acceptAll)
         await a.page.getByRole('button', { name: 'Sendt', exact: true }).first().click({ timeout: 30_000 }).catch(() => {})
         let st: string | undefined
         for (let i = 0; i < 20; i++) { st = await readStatus(); if (st === 'sent') break; await new Promise((res) => setTimeout(res, 1000)) }
+        a.page.off('dialog', acceptAll)
         r.bekraeftet_markeret_sendt = st === 'sent'
         // audit skrives efter statusopdateringen — poll
         let audOk = false
@@ -2747,6 +3090,13 @@ ${m.text()}`) })
           const expEnd = new Date(copenhagenLocalToIso(today, '11:45')).getTime()
           r.timer_registreret = !!tl && tl.employee_id === jobEmployeeId && Number(tl.hours) === 4.25
           r.timer_dansk_tid = !!tl && new Date(tl.start_time!).getTime() === expStart && new Date(tl.end_time!).getTime() === expEnd
+          // M-4: ny registrering samme dag foreslår start efter seneste sluttid (før altid 08:00 → overlap)
+          await m.page.waitForLoadState('networkidle').catch(() => {})
+          await m.page.getByRole('button', { name: /Registrér timer/ }).first().click({ timeout: 30_000 }).catch(() => {})
+          let sugg = ''
+          for (let i = 0; i < 10 && sugg !== '11:45'; i++) { sugg = await m.page.locator('input[type="time"]').first().inputValue().catch(() => ''); if (sugg !== '11:45') await new Promise((res) => setTimeout(res, 500)) }
+          r.foreslaaet_start_efter_seneste = sugg === '11:45'
+          await m.page.getByRole('button', { name: 'Annuller' }).first().click({ timeout: 10_000 }).catch(() => {})
         }
 
         // Foto-upload på Dokumenter-fanen
@@ -2773,6 +3123,15 @@ ${m.text()}`) })
           if (!photoOk) await new Promise((res) => setTimeout(res, 1000))
         }
         r.aflevering_foto = photoOk
+        // M-1: tryk på slet + "Annuller" må ikke slette fotoet (før: ét tryk på fotoet slettede uden bekræftelse)
+        if (photoOk) {
+          await m.page.waitForLoadState('networkidle').catch(() => {})
+          m.page.once('dialog', (d) => { d.dismiss().catch(() => {}) })
+          await hov.getByTestId('checklist-photo-delete').first().click({ timeout: 30_000 }).catch(() => {})
+          await new Promise((res) => setTimeout(res, 2000))
+          const att2 = (await c.admin.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', jobCaseId).eq('category', 'inverter_photo')).count ?? 0
+          r.foto_slet_kraever_bekraeftelse = att2 === 1
+        }
         await m.page.getByTestId('handover-open-signature').click({ timeout: 30_000 }).catch(() => {})
         await m.page.getByPlaceholder('Fulde navn').fill('Kunde Harness').catch(() => {})
         // Tegn på lærredet: rul det i visning og læs positionen lige før (under last flyttede layoutet sig,
@@ -2861,6 +3220,8 @@ ${m.text()}`) })
         const tabNames = (await m.page.locator('button').allInnerTexts().catch(() => [] as string[])).map((t) => t.trim())
         r.ingen_kontorfaner = !tabNames.some((t) => /^(Fakturakladde|Handlinger|Økonomi)/.test(t))
         r.ingen_kostkolonne = (await m.page.getByRole('columnheader', { name: 'Kostpris' }).count()) === 0
+        // W-5: ingen statusskift/Rediger for montøren (fik "Manglende tilladelse"/ingen adgang før)
+        r.ingen_rediger = (await m.page.getByRole('link', { name: /^Rediger$/ }).count()) === 0 && (await m.page.getByTestId('case-status-static').count()) === 1
         await m.page.getByRole('button', { name: /Tilføj (første )?materiale/ }).first().click({ timeout: 30_000 }).catch(() => {})
         const dlg = m.page.locator('[aria-labelledby="case-material-dialog-title"]')
         await dlg.getByPlaceholder('F.eks. Solpanel 425W LR4-72HPH').fill(`Kabel brugt ${stamp}`).catch(() => {})

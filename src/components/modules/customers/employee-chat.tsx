@@ -24,6 +24,7 @@ import {
 import type { PortalMessageWithRelations, PortalAttachment } from '@/types/portal.types'
 import { MAX_FILE_SIZE } from '@/lib/constants'
 import { formatBytes } from '@/lib/utils/format'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface EmployeeChatProps {
   customerId: string
@@ -87,7 +88,7 @@ export function EmployeeChat({
         }
       } else if (!silent) {
         console.error('Failed to load messages:', result.error)
-        setError(result.error || 'Kunne ikke hente beskeder')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke hente beskeder')
       }
     } catch (err) {
       if (!silent) {
@@ -158,7 +159,7 @@ export function EmployeeChat({
             },
           ])
         } else {
-          setError(result.error || 'Kunne ikke uploade fil')
+          setError(humanizeErrorText(result.error) || 'Kunne ikke uploade fil')
         }
       }
     } catch (err) {
@@ -192,7 +193,7 @@ export function EmployeeChat({
       )
 
       if (!result.success) {
-        setError(result.error || 'Kunne ikke sende besked')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke sende besked')
         return
       }
 

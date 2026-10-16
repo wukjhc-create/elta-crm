@@ -19,6 +19,7 @@ import {
   type EmployeeEquipment, type EmployeeCertificate,
   type EquipmentCategory, type EquipmentStatus, type CertificateCategory,
 } from '@/types/employees.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const inp = 'w-full border rounded px-2 py-1 text-sm'
 type Res = { success: boolean; error?: string }
@@ -30,7 +31,7 @@ function useRunner(reload: () => Promise<void>) {
     setError(null)
     start(async () => {
       const r = await fn()
-      if (!r.success) setError(r.error ?? 'Handlingen fejlede')
+      if (!r.success) setError(humanizeErrorText(r.error) ?? 'Handlingen fejlede')
       await reload()
     })
   }, [reload])

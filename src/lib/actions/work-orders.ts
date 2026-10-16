@@ -575,25 +575,34 @@ export async function listWorkOrdersByDateRange(
     }
 
     const withOpen = !!options?.includeOpenOutsideRange && woScope.type === 'specific'
-    let woQuery = supabase
-      .from('work_orders')
-      .select(`
-        id, case_id, customer_id, title, description, status,
-        scheduled_date, start_time, estimated_hours, assigned_employee_id, source_offer_id,
-        auto_invoice_on_done, low_profit, completed_at, created_at, updated_at
-      `)
-    woQuery = withOpen
-      ? woQuery.or(`and(scheduled_date.gte.${startDate},scheduled_date.lte.${endDate}),and(scheduled_date.is.null,status.in.(planned,in_progress)),and(scheduled_date.lt.${startDate},status.in.(planned,in_progress))`)
-      : woQuery.gte('scheduled_date', startDate).lte('scheduled_date', endDate)
-    woQuery = woQuery
-      .order('scheduled_date', { ascending: true })
-      // 00227: inden for dagen efter tidspunkt (uden tidspunkt sidst)
-      .order('start_time', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: true })
+    // Frisk forespørgsel pr. side (byggeren genbruges ikke mellem kald)
+    const buildWoQuery = () => {
+      let woQuery = supabase
+        .from('work_orders')
+        .select(`
+          id, case_id, customer_id, title, description, status,
+          scheduled_date, start_time, estimated_hours, assigned_employee_id, source_offer_id,
+          auto_invoice_on_done, low_profit, completed_at, created_at, updated_at
+        `)
+      woQuery = withOpen
+        ? woQuery.or(`and(scheduled_date.gte.${startDate},scheduled_date.lte.${endDate}),and(scheduled_date.is.null,status.in.(planned,in_progress)),and(scheduled_date.lt.${startDate},status.in.(planned,in_progress))`)
+        : woQuery.gte('scheduled_date', startDate).lte('scheduled_date', endDate)
+      woQuery = woQuery
+        .order('scheduled_date', { ascending: true })
+        // 00227: inden for dagen efter tidspunkt (uden tidspunkt sidst)
+        .order('start_time', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+      return woQuery
+    }
 
-    const { data: rows, error } = await woQuery
-
-    if (error) {
+    // M-7 (pilot-review 2026-10-15): pagineret — "Mine job" (åbne job uden for perioden) kunne ramme PostgREST'
+    // 1.000-rækkers loft, og montørens egne job blev så tavst skåret fra (filtreres efter hentning nedenfor)
+    let rows: unknown[]
+    try {
+      const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+      rows = await fetchAllRows((f, t) => buildWoQuery().range(f, t), 20_000)
+    } catch (error) {
       logger.error('listWorkOrdersByDateRange failed', { error })
       return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
     }

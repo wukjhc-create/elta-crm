@@ -3,20 +3,21 @@
 /**
  * Sprint 5B — Add / edit dialog for case_materials.
  *
- * Manual entry only in this commit. Supplier/material picker may be
- * added in a follow-up commit if it doesn't bloat the bundle. The
- * fields here are sufficient to register a snapshot booking against
- * a sag and let the summary roll up cost / sale / DB.
+ * W-3 (pilot-review 2026-10-15): ved "Tilføj" kan varen søges i leverandørkataloget (varenr./navn/EAN) — udfylder
+ * beskrivelse, varenr., leverandør, enhed og (med kost-ret) priser og kobler supplier_product_id. Manuel indtastning
+ * virker som før.
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { X, Loader2, AlertCircle } from 'lucide-react'
+import { X, Loader2, AlertCircle, Search } from 'lucide-react'
 import {
   createCaseMaterial,
   updateCaseMaterial,
 } from '@/lib/actions/case-materials'
+import { searchProductsForCaseMaterialAction, type CaseMaterialProductHit } from '@/lib/actions/case-material-search'
 import type { CaseMaterialRow } from '@/types/case-materials.types'
 import { toNumberDa } from '@/lib/utils/danish-number'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface FormState {
   description: string
@@ -64,12 +65,44 @@ export function CaseMaterialDialog({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const firstInputRef = useRef<HTMLInputElement | null>(null)
+  const [supplierProductId, setSupplierProductId] = useState<string | null>(null)
+  const [productQuery, setProductQuery] = useState('')
+  const [productHits, setProductHits] = useState<CaseMaterialProductHit[]>([])
+  const [productSearching, setProductSearching] = useState(false)
+  const [productError, setProductError] = useState<string | null>(null)
+  const productSeq = useRef(0)
+
+  // Leverandørsøgning (kun ved Tilføj) — debounced, kun seneste svar vises
+  useEffect(() => {
+    if (!open || editing) return
+    const q = productQuery.trim()
+    const seq = ++productSeq.current
+    setProductError(null)
+    if (q.length < 2) { setProductHits([]); setProductSearching(false); return }
+    const t = setTimeout(async () => {
+      setProductSearching(true)
+      try {
+        const res = await searchProductsForCaseMaterialAction(caseId, q)
+        if (seq !== productSeq.current) return
+        if (res.success) setProductHits(res.data ?? [])
+        else { setProductHits([]); setProductError(res.error ?? 'Søgningen fejlede') }
+      } catch {
+        if (seq === productSeq.current) { setProductHits([]); setProductError('Søgningen fejlede — prøv igen') }
+      } finally {
+        if (seq === productSeq.current) setProductSearching(false)
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [productQuery, open, editing, caseId])
 
   // Reset form on open / editing change
   useEffect(() => {
     if (!open) return
     setError(null)
     setSubmitting(false)
+    setSupplierProductId(null)
+    setProductQuery('')
+    setProductHits([])
     if (editing) {
       setForm({
         description: editing.description,
@@ -136,11 +169,11 @@ export function CaseMaterialDialog({
 
     const res = editing
       ? await updateCaseMaterial(editing.id, payload)
-      : await createCaseMaterial({ ...payload, case_id: caseId, source: 'manual' })
+      : await createCaseMaterial({ ...payload, case_id: caseId, source: 'manual', supplier_product_id: supplierProductId })
 
     if (!res.success) {
       setSubmitting(false)
-      setError(res.error ?? 'Kunne ikke gemme materiale')
+      setError(humanizeErrorText(res.error) ?? 'Kunne ikke gemme materiale')
       return
     }
 
@@ -149,7 +182,25 @@ export function CaseMaterialDialog({
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((f) => ({ ...f, [key]: value }))
+    // Ændres varenr./leverandør efter et katalogvalg, er rækken ikke længere den valgte vare
+    if (key === 'sku_snapshot' || key === 'supplier_name_snapshot') setSupplierProductId(null)
   }
+
+  const pickProduct = (h: CaseMaterialProductHit) => {
+    setForm((f) => ({
+      ...f,
+      description: h.name || f.description,
+      sku_snapshot: h.sku,
+      supplier_name_snapshot: h.supplier_name,
+      unit: h.unit || f.unit,
+      unit_cost: h.unit_cost !== null ? String(h.unit_cost).replace('.', ',') : f.unit_cost,
+      unit_sales_price: h.unit_sales_price !== null ? String(h.unit_sales_price).replace('.', ',') : f.unit_sales_price,
+    }))
+    setSupplierProductId(h.supplier_product_id)
+    setProductQuery('')
+    setProductHits([])
+  }
+  const unitOptions = UNIT_OPTIONS.includes(form.unit) ? UNIT_OPTIONS : [form.unit, ...UNIT_OPTIONS]
 
   return (
     <div
@@ -179,6 +230,47 @@ export function CaseMaterialDialog({
         </div>
 
         <div className="px-4 py-3 space-y-3">
+          {!editing && (
+            <div className="rounded border border-blue-100 bg-blue-50/40 p-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Søg i leverandørkatalog</label>
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={productQuery}
+                  onChange={(e) => setProductQuery(e.target.value)}
+                  placeholder="Varenr., navn eller EAN"
+                  className="w-full border rounded pl-8 pr-8 py-1.5 text-sm bg-white"
+                  data-testid="case-material-product-search"
+                />
+                {productSearching && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-blue-500" />}
+              </div>
+              {productError && <p className="mt-1 text-xs text-red-600" role="alert">{productError}</p>}
+              {productHits.length > 0 && (
+                <ul className="mt-1 max-h-48 overflow-y-auto divide-y rounded border bg-white" data-testid="case-material-product-hits">
+                  {productHits.map((h) => (
+                    <li key={h.supplier_product_id}>
+                      <button
+                        type="button"
+                        onClick={() => pickProduct(h)}
+                        className="w-full text-left px-2 py-2 hover:bg-blue-50 text-sm"
+                      >
+                        <span className="block font-medium text-gray-900 truncate">{h.name}</span>
+                        <span className="block text-xs text-gray-500">
+                          {h.supplier_name} · {h.sku} · {h.unit}
+                          {h.unit_cost !== null && ` · kost ${h.unit_cost.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {productQuery.trim().length >= 2 && !productSearching && !productError && productHits.length === 0 && (
+                <p className="mt-1 text-xs text-gray-500">Ingen varer fundet — udfyld felterne manuelt</p>
+              )}
+              {supplierProductId && <p className="mt-1 text-xs text-green-700" data-testid="case-material-linked">Koblet til katalogvaren</p>}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Beskrivelse <span className="text-red-500">*</span>
@@ -242,7 +334,7 @@ export function CaseMaterialDialog({
                 onChange={(e) => update('unit', e.target.value)}
                 className="w-full border rounded px-2 py-1.5 text-sm bg-white"
               >
-                {UNIT_OPTIONS.map((u) => (
+                {unitOptions.map((u) => (
                   <option key={u} value={u}>
                     {u}
                   </option>

@@ -6,6 +6,7 @@ import { sendPortalMessage, markPortalMessagesAsRead, uploadPortalAttachment, ge
 import type { PortalSession, PortalMessageWithRelations, PortalAttachment } from '@/types/portal.types'
 import { MAX_FILE_SIZE } from '@/lib/constants'
 import { formatBytes } from '@/lib/utils/format'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface PortalChatProps {
   token: string
@@ -120,7 +121,7 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
             { name: result.data!.name, url: result.data!.url, size: result.data!.size, type: result.data!.type },
           ])
         } else {
-          setError(result.error || 'Kunne ikke uploade fil')
+          setError(humanizeErrorText(result.error) || 'Kunne ikke uploade fil')
         }
       }
     } catch {
@@ -153,7 +154,7 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
       })
 
       if (!result.success) {
-        setError(result.error || 'Kunne ikke sende besked')
+        setError(humanizeErrorText(result.error) || 'Kunne ikke sende besked')
         return
       }
 

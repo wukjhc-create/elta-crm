@@ -79,6 +79,7 @@ import { getOfferActivities } from '@/lib/actions/offer-activities'
 import { useToast } from '@/components/ui/toast'
 import {
   OFFER_STATUSES,
+  isValidOfferTransition,
   OFFER_STATUS_LABELS,
   type OfferWithRelations,
   type OfferLineItem,
@@ -162,11 +163,17 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     is_available: boolean
     image_url: string | null
     price_updated_at?: string | null
+    is_cheapest?: boolean
   }>>([])
   const [isSearchingSupplier, setIsSearchingSupplier] = useState(false)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
   const [isAddingSupplierProduct, setIsAddingSupplierProduct] = useState<string | null>(null)
   const supplierSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // W-12 (pilot-review 2026-10-15): kun seneste søgning må skrive resultatet (før kunne et langsomt svar på "ka"
+  // overskrive svaret på "kabel"), fejl vises (før: "Ingen produkter fundet"), og antal kan vælges (før låst til 1)
+  const supplierSearchSeq = useRef(0)
+  const [supplierSearchError, setSupplierSearchError] = useState<string | null>(null)
+  const [supplierAddQty, setSupplierAddQty] = useState('1')
 
   // Price optimization state
   const [isOptimizing, setIsOptimizing] = useState(false)
@@ -253,7 +260,28 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     }
   }
 
+  // S-1 (pilot-review 2026-10-15): statusskift bekræftes — "Sendt" sender ingen mail, "Accepteret" er endeligt (vinder
+  // leadet og opretter sag), og der kan ikke dobbeltklikkes
+  const [statusBusy, setStatusBusy] = useState(false)
+  const STATUS_CONFIRM: Partial<Record<OfferStatus, string>> = {
+    sent: 'Markér tilbuddet som sendt UDEN at sende det?\n\nKunden får intet — brug "Send Tilbud" for at sende på mail/portal.',
+    accepted: 'Markér tilbuddet som accepteret?\n\nDet er endeligt: leadet markeres vundet, og der oprettes en sag. Ændringer kræver et nyt tilbud.',
+    rejected: 'Markér tilbuddet som afvist?',
+    expired: 'Markér tilbuddet som udløbet?',
+    draft: 'Sæt tilbuddet tilbage til kladde?',
+  }
   const handleStatusChange = async (newStatus: OfferStatus) => {
+    if (statusBusy) return
+    const question = STATUS_CONFIRM[newStatus]
+    if (question && !window.confirm(question)) return
+    setStatusBusy(true)
+    try {
+      await doStatusChange(newStatus)
+    } finally {
+      setStatusBusy(false)
+    }
+  }
+  const doStatusChange = async (newStatus: OfferStatus) => {
     let result = await updateOfferStatus(offer.id, newStatus)
     // N8a: lav DB er en advarsel — bekræft og prøv igen
     if (!result.success && result.error?.startsWith(LOW_DB_ACK_REQUIRED)) {
@@ -354,26 +382,46 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   const handleSupplierSearch = (query: string) => {
     setSupplierSearchQuery(query)
     if (supplierSearchTimer.current) clearTimeout(supplierSearchTimer.current)
-    if (!query || query.length < 2) {
+    const seq = ++supplierSearchSeq.current
+    setSupplierSearchError(null)
+    if (!query || query.trim().length < 2) {
       setSupplierSearchResults([])
+      setIsSearchingSupplier(false)
       return
     }
     supplierSearchTimer.current = setTimeout(async () => {
       setIsSearchingSupplier(true)
-      const result = await searchSupplierProductsForOffer(query, {
-        customerId: offer.customer_id || undefined,
-        limit: 15,
-      })
-      if (result.success && result.data) {
-        setSupplierSearchResults(result.data)
+      try {
+        const result = await searchSupplierProductsForOffer(query.trim(), {
+          customerId: offer.customer_id || undefined,
+          limit: 15,
+        })
+        if (seq !== supplierSearchSeq.current) return
+        if (result.success && result.data) {
+          setSupplierSearchResults(result.data)
+        } else {
+          setSupplierSearchResults([])
+          setSupplierSearchError(result.error || 'Søgningen fejlede')
+        }
+      } catch {
+        if (seq === supplierSearchSeq.current) {
+          setSupplierSearchResults([])
+          setSupplierSearchError('Søgningen fejlede — prøv igen')
+        }
+      } finally {
+        if (seq === supplierSearchSeq.current) setIsSearchingSupplier(false)
       }
-      setIsSearchingSupplier(false)
     }, 400)
   }
 
   const handleAddSupplierProduct = async (productId: string) => {
+    const qty = Number(supplierAddQty.replace(',', '.'))
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error('Ugyldigt antal', 'Angiv et antal større end 0')
+      return
+    }
     setIsAddingSupplierProduct(productId)
-    const result = await createLineItemFromSupplierProduct(offer.id, productId, 1)
+    const result = await createLineItemFromSupplierProduct(offer.id, productId, qty)
     if (result.success) {
       toast.success('Leverandørprodukt tilføjet')
       setSupplierSearchQuery('')
@@ -417,7 +465,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     formData.append('discount_percentage', String(data.discount_percentage || 0))
     if (data.cost_price != null) {
       formData.append('cost_price', String(data.cost_price))
-      formData.append('supplier_cost_price_at_creation', String(data.cost_price))
+      // S-2 (pilot-review 2026-10-15): leverandørens oprindelige kost sættes kun ved oprettelse — en senere redigering
+      // (fx antal) overskrev den med kost efter kunderabat og ødelagde prisændrings-/besparelsesberegningerne
+      if (!data.id) formData.append('supplier_cost_price_at_creation', String(data.cost_price))
     }
     if (data.supplier_margin_applied != null) {
       formData.append('supplier_margin_applied', String(data.supplier_margin_applied))
@@ -613,6 +663,12 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 </button>
               </>
             )}
+            {/* W-2: uden kunde kan tilbuddet hverken sendes eller blive sag — sig det i stedet for at skjule knappen tavst */}
+            {(offer.status === 'draft' || offer.status === 'sent' || offer.status === 'viewed') && !offer.customer && (
+              <span className="text-xs rounded bg-amber-50 ring-1 ring-amber-200 text-amber-900 px-2 py-1" data-testid="offer-missing-customer">
+                Tilbuddet mangler kunde{offer.lead ? ' — opret kunden fra leadet' : ''} før det kan sendes
+              </span>
+            )}
             <button
               onClick={handleDownloadPdf}
               disabled={isDownloadingPdf}
@@ -714,11 +770,12 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 Opdater status
               </h3>
               <div className="flex flex-wrap gap-2">
-                {OFFER_STATUSES.map((status) => (
+                {/* S-1: kun nuværende + tilladte skift (før: alle — ugyldige fejlede først efter klik); "Set" sættes af portalen */}
+                {OFFER_STATUSES.filter((status) => status === offer.status || (status !== 'viewed' && isValidOfferTransition(offer.status as OfferStatus, status))).map((status) => (
                   <button
                     key={status}
                     onClick={() => handleStatusChange(status)}
-                    disabled={offer.status === status}
+                    disabled={offer.status === status || statusBusy}
                     className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
                       offer.status === status
                         ? 'bg-primary text-primary-foreground border-primary'
@@ -871,15 +928,27 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                       <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-blue-500" />
                     )}
                   </div>
+                  <label className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+                    Antal ved tilføj
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={supplierAddQty}
+                      onChange={(e) => setSupplierAddQty(e.target.value)}
+                      className="w-20 px-2 py-1 border rounded text-sm"
+                      data-testid="supplier-add-qty"
+                    />
+                  </label>
+                  {supplierSearchError && (
+                    <p className="mt-3 text-sm text-red-600" role="alert" data-testid="supplier-search-error">{supplierSearchError}</p>
+                  )}
 
                   {supplierSearchResults.length > 0 && (() => {
-                    // Find cheapest price across all suppliers
-                    const cheapestCost = Math.min(...supplierSearchResults.filter(p => p.cost_price > 0).map(p => p.cost_price))
-
+                    // W-11: "billigst" kommer fra serveren og gælder kun samme vare (EAN) — ikke tværs af forskellige varer
                     return (
                     <div className="mt-3 max-h-[320px] overflow-y-auto divide-y border rounded-md bg-white">
                       {supplierSearchResults.map((p) => {
-                        const isCheapest = p.cost_price > 0 && p.cost_price === cheapestCost && supplierSearchResults.filter(r => r.cost_price > 0).length > 1
+                        const isCheapest = p.is_cheapest === true
 
                         return (
                         <div
@@ -947,7 +1016,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     )
                   })()}
 
-                  {supplierSearchQuery.length >= 2 && !isSearchingSupplier && supplierSearchResults.length === 0 && (
+                  {supplierSearchQuery.trim().length >= 2 && !isSearchingSupplier && !supplierSearchError && supplierSearchResults.length === 0 && (
                     <p className="mt-3 text-sm text-gray-400 text-center py-4">
                       Ingen produkter fundet for &quot;{supplierSearchQuery}&quot;
                     </p>

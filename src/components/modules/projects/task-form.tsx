@@ -13,6 +13,7 @@ import {
   PROJECT_PRIORITY_LABELS,
   type ProjectTask,
 } from '@/types/projects.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface TaskFormProps {
   projectId: string
@@ -91,7 +92,7 @@ export function TaskForm({ projectId, task, onClose, onSuccess }: TaskFormProps)
         : await createTask(formData)
 
       if (!result.success) {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
         return
       }
 

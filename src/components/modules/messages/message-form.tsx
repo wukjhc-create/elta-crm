@@ -16,6 +16,7 @@ import {
   MESSAGE_TYPE_LABELS,
   type Message,
 } from '@/types/messages.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface MessageFormProps {
   replyTo?: Message
@@ -99,7 +100,7 @@ export function MessageForm({ replyTo, onClose, onSuccess }: MessageFormProps) {
       const result = await sendMessage(formData)
 
       if (!result.success) {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
         return
       }
 

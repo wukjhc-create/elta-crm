@@ -11,6 +11,7 @@ import { getCaseOfferVsActual, type CaseOfferVsActual } from '@/lib/actions/case
 import { useCostReveal } from '@/components/shared/sensitive-amounts'
 import { formatCurrency } from '@/lib/utils/format'
 import type { OfferVsActualStatus } from '@/lib/cases/offer-vs-actual'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const STATUS: Record<OfferVsActualStatus, { label: string; cls: string }> = {
   as_offered: { label: 'Som tilbudt', cls: 'bg-emerald-100 text-emerald-800' },
@@ -35,7 +36,7 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
     getCaseOfferVsActual(caseId).then((res) => {
       if (!alive) return
       if (res.success && res.data) setData(res.data)
-      else setError(res.error ?? 'Kunne ikke hente efterkalkulation')
+      else setError(humanizeErrorText(res.error) ?? 'Kunne ikke hente efterkalkulation')
     })
     return () => { alive = false }
   }, [open, caseId])

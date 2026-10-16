@@ -14,7 +14,9 @@
  * Month view is rendered by the existing CalendarPageClient (preserved).
  */
 
-import { absenceLabel, absenceOn, type AbsenceRow } from '@/lib/planning/absence'
+import { holidayName } from '@/lib/planning/danish-holidays'
+import { ABSENCE_CONFLICT_PREFIX, absenceLabel, absenceOn, isAbsenceConflict, type AbsenceRow } from '@/lib/planning/absence'
+import { updateWorkOrderPlanning } from '@/lib/actions/work-orders'
 import { formatWorkOrderTime } from '@/lib/planning/work-order-time'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
@@ -33,6 +35,9 @@ import { EditWorkOrderDialog } from './edit-work-order-dialog'
 
 // Local context: chip click handler shared across all rows
 const ChipClickContext = createContext<(wo: WorkOrderForCalendar) => void>(() => {})
+// E-7 (Henrik-kø 2026-10-15): træk-og-slip omplanlægning i ugevisningen (kun planlæggere; aktive job)
+const DragCtx = createContext<{ enabled: boolean; onDrop: (workOrderId: string, employeeId: string, date: string) => void }>({ enabled: false, onDrop: () => {} })
+const WO_DRAG_TYPE = 'application/x-elta-work-order'
 
 type CalendarView = 'day' | 'week' | 'month'
 
@@ -94,8 +99,10 @@ export function CalendarWorkforceClient({
   filters,
   loadError,
   absences = [],
+  absenceLoadFailed = false,
 }: {
   absences?: AbsenceRow[]
+  absenceLoadFailed?: boolean
   view: CalendarView
   anchorDate: string
   rangeStart: string
@@ -116,6 +123,24 @@ export function CalendarWorkforceClient({
   const [planPreset, setPlanPreset] = useState<{ date: string; employeeId: string } | null>(null)
   const openPlan = (preset: { date: string; employeeId: string } | null) => { setPlanPreset(preset); setPlanDialogOpen(true) }
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrderForCalendar | null>(null)
+  const [dropMsg, setDropMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const onDropWorkOrder = async (workOrderId: string, employeeId: string, date: string) => {
+    const wo = workOrders.find((w) => w.id === workOrderId)
+    if (!wo) return
+    const sameEmp = (wo.assigned_employee_id ?? '') === employeeId
+    const sameDay = (wo.scheduled_date ?? '').slice(0, 10) === date
+    if (sameEmp && sameDay) return
+    const patch = { scheduled_date: sameDay ? undefined : date, assigned_employee_id: sameEmp ? undefined : employeeId }
+    let res = await updateWorkOrderPlanning(workOrderId, patch)
+    // 00228: fravær → eksplicit bekræftelse (audit på serveren)
+    if (!res.success && isAbsenceConflict(res.error)) {
+      if (!window.confirm((res.error ?? '').slice(ABSENCE_CONFLICT_PREFIX.length).trim())) { setDropMsg({ ok: false, text: 'Ikke flyttet — medarbejderen har fravær den dag' }); return }
+      res = await updateWorkOrderPlanning(workOrderId, { ...patch, override_absence: true })
+    }
+    if (!res.success) { setDropMsg({ ok: false, text: res.error ?? 'Kunne ikke flytte arbejdsordren' }); return }
+    setDropMsg({ ok: true, text: `"${wo.title}" flyttet` })
+    startTransition(() => router.refresh())
+  }
 
   const updateParam = (changes: Record<string, string | null | undefined>) => {
     const params = new URLSearchParams(Array.from(searchParams.entries()))
@@ -199,6 +224,7 @@ export function CalendarWorkforceClient({
   }, [view, rangeStart, anchorDate])
 
   return (
+    <DragCtx.Provider value={{ enabled: canPlan, onDrop: (id, emp, d) => { void onDropWorkOrder(id, emp, d) } }}>
     <AbsenceCtx.Provider value={{ absences, anchorDate }}>
     <ChipClickContext.Provider value={(wo) => setSelectedWorkOrder(wo)}>
     <div className="space-y-4">
@@ -211,6 +237,7 @@ export function CalendarWorkforceClient({
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             {view === 'day' && fmtDate(anchorDate)}
+            {view === 'day' && holidayName(anchorDate) && <span className="ml-2 text-red-700 font-medium" data-testid="calendar-holiday">· {holidayName(anchorDate)}</span>}
             {view === 'week' && (
               <>
                 Uge: {fmtShortDate(rangeStart)} – {fmtShortDate(rangeEnd)}
@@ -252,6 +279,12 @@ export function CalendarWorkforceClient({
           </div>
         </div>
       </div>
+
+      {dropMsg && (
+        <div className={`rounded-lg px-3 py-2 text-sm ring-1 ${dropMsg.ok ? 'bg-emerald-50 text-emerald-900 ring-emerald-200' : 'bg-red-50 text-red-900 ring-red-200'}`} role="status" data-testid="calendar-drop-msg">
+          {dropMsg.text}
+        </div>
+      )}
 
       {/* Planlæg-dialog */}
       <PlanWorkOrderDialog
@@ -338,6 +371,12 @@ export function CalendarWorkforceClient({
         </div>
       </div>
 
+      {absenceLoadFailed && (
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900 flex items-center gap-2" role="alert" data-testid="calendar-absence-load-failed">
+          <AlertCircle className="w-4 h-4" />
+          Fravær kunne ikke hentes — kalenderen viser ikke ferie/sygdom lige nu. Genindlæs før du planlægger.
+        </div>
+      )}
       {loadError && (
         <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 flex items-center gap-2">
           <AlertCircle className="w-4 h-4" />
@@ -404,6 +443,7 @@ export function CalendarWorkforceClient({
     </div>
     </ChipClickContext.Provider>
     </AbsenceCtx.Provider>
+    </DragCtx.Provider>
   )
 }
 
@@ -554,6 +594,7 @@ function WeekView({
           <div key={d} className={`bg-white rounded-lg ring-1 ring-gray-200 p-3 ${d === today ? 'ring-emerald-300' : ''}`}>
             <div className={`text-sm font-medium mb-1.5 ${d === today ? 'text-emerald-800' : 'text-gray-800'}`}>
               {WEEKDAY_NAMES[i]} <span className="text-xs text-gray-500 font-normal">{fmtShortDate(d)}</span>
+              {holidayName(d) && <span className="ml-1 text-[10px] font-semibold uppercase text-red-700" data-testid="calendar-holiday">{holidayName(d)}</span>}
             </div>
             {entries.length === 0 ? (
               <p className="text-xs text-gray-400">Intet planlagt</p>
@@ -590,6 +631,7 @@ function WeekView({
                   <div className="font-medium">{WEEKDAY_NAMES[i]}</div>
                   <div className="text-[11px] text-gray-500 font-normal">
                     {fmtShortDate(d)}
+                    {holidayName(d) && <div className="text-[10px] font-semibold text-red-700 truncate" data-testid="calendar-holiday">{holidayName(d)}</div>}
                   </div>
                 </th>
               )
@@ -633,6 +675,8 @@ function WeekEmployeeRow({
   const today = todayKey()
   const roleLabel = ROLE_LABEL.get(employee.role as any) ?? employee.role
   const { absences } = useContext(AbsenceCtx)
+  const drag = useContext(DragCtx)
+  const [dropOver, setDropOver] = useState<string | null>(null)
   // Fokus E 2026-10-15: belastning — aktive job (planlagt/i gang) pr. dag og uge
   const active = (wos: WorkOrderForCalendar[]) => wos.filter((w) => w.status === 'planned' || w.status === 'in_progress').length
   const weekActive = weekDates.reduce((n, d) => n + active(byDateThenEmployee.get(d)?.get(employee.id) ?? []), 0)
@@ -667,7 +711,13 @@ function WeekEmployeeRow({
             key={d}
             className={`px-1.5 py-2 border-r last:border-r-0 align-top min-w-[140px] ${
               absent ? 'bg-red-50/50' : isToday ? 'bg-emerald-50/40' : ''
-            }`}
+            } ${dropOver === d ? 'outline outline-2 outline-emerald-400' : ''}`}
+            data-testid="week-cell"
+            data-employee-id={employee.id}
+            data-date={d}
+            onDragOver={drag.enabled ? (e) => { if (e.dataTransfer.types.includes(WO_DRAG_TYPE)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dropOver !== d) setDropOver(d) } } : undefined}
+            onDragLeave={drag.enabled ? () => setDropOver(null) : undefined}
+            onDrop={drag.enabled ? (e) => { e.preventDefault(); setDropOver(null); const id = e.dataTransfer.getData(WO_DRAG_TYPE); if (id) drag.onDrop(id, employee.id, d) } : undefined}
           >
             {absent && <AbsenceBadge kind={absent.kind} />}
             {wos.length === 0 ? (
@@ -762,7 +812,9 @@ function WorkOrderChip({
   compact?: boolean
 }) {
   const onChipClick = useContext(ChipClickContext)
+  const drag = useContext(DragCtx)
   const status = wo.status as WorkOrderStatus
+  const canDrag = drag.enabled && (status === 'planned' || status === 'in_progress')
   const colorClass = STATUS_COLORS[status]
 
   const projectLabel =
@@ -777,7 +829,11 @@ function WorkOrderChip({
     <button
       type="button"
       onClick={() => onChipClick(wo)}
-      title={`Åbn arbejdsordre${caseNumber ? ` (${caseNumber})` : ''}`}
+      draggable={canDrag}
+      onDragStart={canDrag ? (e) => { e.dataTransfer.setData(WO_DRAG_TYPE, wo.id); e.dataTransfer.effectAllowed = 'move' } : undefined}
+      data-testid="wo-chip"
+      data-wo-id={wo.id}
+      title={`Åbn arbejdsordre${caseNumber ? ` (${caseNumber})` : ''}${canDrag ? ' — træk for at flytte' : ''}`}
       className={`block text-left px-2 py-1.5 rounded ring-1 ${colorClass} ${
         compact ? 'text-[11px]' : 'text-xs'
       } w-full max-w-[260px] hover:ring-2 hover:ring-offset-1 cursor-pointer`}

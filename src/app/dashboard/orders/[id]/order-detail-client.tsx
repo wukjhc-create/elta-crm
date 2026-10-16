@@ -1,5 +1,6 @@
 'use client'
 
+import { CaseWarningNotes } from './case-warning-notes'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
@@ -108,9 +109,19 @@ export function OrderDetailClient({
 }) {
   // Deep-link ?tab=<id> (fx fra "Mine job" -> planlaegning)
   const tabParam = useSearchParams().get('tab')
-  const [active, setActive] = useState<TabId>(
+  const [active, setActiveState] = useState<TabId>(
     TABS.some((t) => t.id === tabParam) && (tabParam !== 'oekonomi' || canSeeCost) ? (tabParam as TabId) : 'overblik'
   )
+  // W-13 (pilot-review 2026-10-15): fanen skrives i URL'en (refresh/tilbage/del-link lander på samme fane)
+  const setActive = (t: TabId) => {
+    setActiveState(t)
+    try {
+      const url = new URL(window.location.href)
+      if (t === 'overblik') url.searchParams.delete('tab')
+      else url.searchParams.set('tab', t)
+      window.history.replaceState(window.history.state, '', url.toString())
+    } catch { /* ignore */ }
+  }
 
   const customerName =
     sag.customer?.company_name || sag.customer?.contact_person || '—'
@@ -146,18 +157,22 @@ export function OrderDetailClient({
           <div className="flex items-center gap-2">
             {/* N9c: "Foreslå tilbud (agent)" — før kun i Service-modulet; knappen viser sig selv kun for admin */}
             <OfferAgentButton caseId={sag.id} />
-            <InlineStatusChanger caseId={sag.id} current={sag.status} />
+            {/* W-5 (pilot-review 2026-10-15): statusskift og Rediger kun for dem der må (cases.edit) — montøren fik
+                "Manglende tilladelse" / ingen-adgang-siden */}
+            {canEditCase ? <InlineStatusChanger caseId={sag.id} current={sag.status} /> : <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${SERVICE_CASE_STATUS_COLORS[sag.status]}`} data-testid="case-status-static">{SERVICE_CASE_STATUS_LABELS[sag.status]}</span>}
             <span
               className={`inline-block px-3 py-1 rounded text-xs font-medium ${SERVICE_CASE_PRIORITY_COLORS[sag.priority]}`}
             >
               {SERVICE_CASE_PRIORITY_LABELS[sag.priority]}
             </span>
-            <Link
-              href={`/dashboard/orders/${sag.case_number}/edit`}
-              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Rediger
-            </Link>
+            {canEditCase && (
+              <Link
+                href={`/dashboard/orders/${sag.case_number}/edit`}
+                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Rediger
+              </Link>
+            )}
           </div>
         </div>
 
@@ -165,7 +180,8 @@ export function OrderDetailClient({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t text-sm">
           <Stat label="Type" value={sag.type ? SERVICE_CASE_TYPE_LABELS[sag.type] : '—'} />
           <Stat label="Kunde" value={customerName} />
-          <Stat label="Ansvarlig" value={creator?.full_name ?? '—'} />
+          {/* W-14: "Ansvarlig" = den tildelte (som i sagslisten), ikke opretteren */}
+          <Stat label="Ansvarlig" value={sag.assignee?.full_name ?? creator?.full_name ?? '—'} />
           <Stat label="Formand" value={formand?.name ?? '—'} />
           <Stat label="Tilbudt beløb" value={fmtAmount(sag.contract_sum)} />
           <Stat label="Revideret" value={fmtAmount(sag.revised_sum)} />
@@ -238,6 +254,8 @@ export function OrderDetailClient({
         <div className="p-5">
           {active === 'overblik' && (
             <OverblikTab
+              canEditCase={canEditCase}
+              onOpenNotes={() => setActive('noter')}
               sag={sag}
               customerName={customerName}
               fullAddress={fullAddress}
@@ -294,25 +312,6 @@ export function OrderDetailClient({
           {active === 'opgaver' && <OrderTasksTab caseId={sag.id} canComplete={canAddNote} />}
           {active === 'noter' && <OrderNotesTab caseId={sag.id} canAddNote={canAddNote} canManageAllNotes={canManageAllNotes} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
-          {active !== 'overblik' &&
-            active !== 'planlaegning' &&
-            active !== 'materialer' &&
-            active !== 'oevrige' &&
-            active !== 'mails' &&
-            active !== 'dokumenter' &&
-            active !== 'dokumentation' &&
-            active !== 'oekonomi' &&
-            active !== 'fakturakladde' &&
-            active !== 'handlinger' &&
-            active !== 'opgaver' &&
-            active !== 'noter' &&
-            active !== 'aktivitet' &&
-            active !== 'aflevering' && (
-              <Placeholder
-                tabId={active}
-                tabLabel={TABS.find((t) => t.id === active)?.label ?? ''}
-              />
-            )}
         </div>
       </div>
     </div>
@@ -331,7 +330,11 @@ function OverblikTab({
   creator,
   canSeeBilling = false,
   onOpenFakturakladde,
+  canEditCase = false,
+  onOpenNotes,
 }: {
+  canEditCase?: boolean
+  onOpenNotes?: () => void
   sag: ServiceCaseWithRelations
   customerName: string
   fullAddress: string
@@ -346,6 +349,8 @@ function OverblikTab({
 
   return (
     <>
+    {/* W-15: advarselsnoter øverst på Overblik */}
+    <div className="mb-5 empty:hidden"><CaseWarningNotes caseId={sag.id} onOpenNotes={onOpenNotes} /></div>
     {/* Sprint Ø3.1 — kost-fri faktureringsstatus på overblik */}
     {canSeeBilling && (
       <div className="mb-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -364,7 +369,7 @@ function OverblikTab({
         <Row label="Sag/Ordre nr" value={<code className="text-xs">{sag.case_number}</code>} />
         <Row
           label="Status"
-          value={<InlineStatusChanger caseId={sag.id} current={sag.status} />}
+          value={canEditCase ? <InlineStatusChanger caseId={sag.id} current={sag.status} /> : <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${SERVICE_CASE_STATUS_COLORS[sag.status]}`} >{SERVICE_CASE_STATUS_LABELS[sag.status]}</span>}
         />
         <Row label="Prioritet" value={
           <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${SERVICE_CASE_PRIORITY_COLORS[sag.priority]}`}>
@@ -475,7 +480,7 @@ function OverblikTab({
       {/* Sprint 9E Phase 2 — Sagspartner-overblik (Phase 3: redigerbar) */}
       <Panel
         title="Sagspartnere"
-        action={
+        action={canEditCase ? (
           <button
             type="button"
             onClick={() => setEditingParties(true)}
@@ -484,6 +489,7 @@ function OverblikTab({
             <Pencil className="w-3 h-3" />
             Rediger
           </button>
+        ) : undefined
         }
       >
         <Row label="Ordregiver" value={renderPartyLink(sag.orderer_customer, 'Samme som nuværende kunde')} />
@@ -524,7 +530,7 @@ function OverblikTab({
       {/* Sprint 8G — Leveringskontakt / arbejdssted */}
       <Panel
         title="Leveringskontakt / arbejdssted"
-        action={
+        action={canEditCase ? (
           <button
             type="button"
             onClick={() => setEditingSite(true)}
@@ -534,6 +540,7 @@ function OverblikTab({
             <Pencil className="w-3 h-3" />
             Rediger
           </button>
+        ) : undefined
         }
       >
         {sag.site_customer ? (
@@ -755,49 +762,6 @@ function OverblikTab({
       />
     )}
     </>
-  )
-}
-
-const PLACEHOLDER_INFO: Record<string, { headline: string; sprint: string; body: string }> = {
-  materialer: {
-    headline: 'Materialer på sagen',
-    sprint: 'Sprint 5',
-    body:
-      'Materialer fra kalkulationen, samt manuelle linjer og leverandørordrer, vises her med kost-/salgspriser.',
-  },
-  oevrige: {
-    headline: 'Øvrige omkostninger',
-    sprint: 'Sprint 5',
-    body:
-      'Kørsel, underleverandører og andre omkostninger der ikke er materialer eller timer.',
-  },
-  oekonomi: {
-    headline: 'Økonomisk overblik',
-    sprint: 'Sprint 8',
-    body:
-      'DB-beregning, profit-snapshots, tilbudt vs. revideret vs. faktisk forbrug.',
-  },
-  fakturakladde: {
-    headline: 'Fakturakladde',
-    sprint: 'Sprint 6',
-    body:
-      'Faktura forberedes ud fra timer, materialer og øvrige omkostninger og kan sendes til e-conomic.',
-  },
-}
-
-function Placeholder({ tabLabel, tabId }: { tabLabel: string; tabId?: string }) {
-  const info = tabId ? PLACEHOLDER_INFO[tabId] : undefined
-  return (
-    <div className="text-center py-12">
-      <h3 className="text-base font-medium text-gray-700">{info?.headline ?? tabLabel}</h3>
-      <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-        {info?.body ??
-          'Denne fane bygges i et kommende sprint. Strukturen er på plads, men data og handlinger er ikke wired op endnu.'}
-      </p>
-      {info?.sprint && (
-        <p className="text-xs text-gray-400 mt-4 uppercase tracking-wide">{info.sprint}</p>
-      )}
-    </div>
   )
 }
 

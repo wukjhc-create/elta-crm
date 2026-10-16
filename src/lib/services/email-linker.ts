@@ -520,22 +520,45 @@ export async function manuallyLinkEmail(
 ): Promise<void> {
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const linkedAt = new Date().toISOString()
+  // S-7 (pilot-review 2026-10-15): .select() — en opdatering der rammer 0 rækker (RLS/forkert id) gav før ingen fejl,
+  // og UI'et sagde "Kunde tildelt"
+  const { data: updated, error } = await supabase
     .from('incoming_emails')
     .update({
       link_status: 'linked' as EmailLinkStatus,
       customer_id: customerId,
       linked_by: 'manual',
-      linked_at: new Date().toISOString(),
+      linked_at: linkedAt,
     })
     .eq('id', emailId)
+    .select('id, conversation_id')
 
   if (error) {
     throw new Error(`Kunne ikke linke email: ${error.message}`)
   }
+  if (!updated || updated.length === 0) {
+    throw new Error('Mailen blev ikke fundet eller må ikke ændres')
+  }
+
+  // S-7: resten af tråden (allerede synkede mails uden kunde) følger med — trådmatch kørte før kun for nye mails
+  const conversationId = (updated[0] as { conversation_id?: string | null }).conversation_id
+  let threadLinked = 0
+  if (conversationId) {
+    const { data: siblings, error: sibErr } = await supabase
+      .from('incoming_emails')
+      .update({ link_status: 'linked' as EmailLinkStatus, customer_id: customerId, linked_by: 'manual', linked_at: linkedAt })
+      .eq('conversation_id', conversationId)
+      .is('customer_id', null)
+      .neq('id', emailId)
+      .select('id')
+    if (sibErr) logger.warn('manual_link_email: tråd-kobling fejlede', { error: sibErr, entityId: emailId })
+    threadLinked = siblings?.length ?? 0
+  }
 
   logger.action('manual_link_email', undefined, 'incoming_emails', emailId, {
     customerId,
+    threadLinked,
   })
 }
 

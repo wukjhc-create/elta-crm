@@ -24,6 +24,7 @@ import {
   type LinkableProfile,
 } from '@/lib/actions/employee-login'
 import type { UserRole } from '@/types/auth.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: 'admin', label: 'Admin' },
@@ -58,7 +59,7 @@ export function EmployeeLoginPanel({
     setLoading(true)
     const res = await getEmployeeLoginStatus(employeeId)
     if (res.success && res.data) setStatus(res.data)
-    else setError(res.error ?? 'Kunne ikke hente login-status')
+    else setError(humanizeErrorText(res.error) ?? 'Kunne ikke hente login-status')
     setLoading(false)
   }, [employeeId])
 
@@ -84,7 +85,7 @@ export function EmployeeLoginPanel({
         setInfo(okMsg)
         await load()
       } else {
-        setError(res.error ?? 'Handlingen fejlede')
+        setError(humanizeErrorText(res.error) ?? 'Handlingen fejlede')
       }
     })
   }
@@ -99,7 +100,7 @@ export function EmployeeLoginPanel({
     startTransition(async () => {
       const res = await sendEmployeeAccessEmail(employeeId, mode)
       if (!res.success) {
-        setError(res.error ?? 'Handlingen fejlede')
+        setError(humanizeErrorText(res.error) ?? 'Handlingen fejlede')
         return
       }
       if (res.data?.sent) {
@@ -120,7 +121,7 @@ export function EmployeeLoginPanel({
       if (res.success && res.data) {
         setRevealedLink(res.data.link)
       } else {
-        setError(res.error ?? 'Kunne ikke generere link')
+        setError(humanizeErrorText(res.error) ?? 'Kunne ikke generere link')
       }
     })
   }

@@ -17,6 +17,7 @@ import {
   type TimeApprovalStatus,
 } from '@/lib/actions/time-approval'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const TABS: Array<{ key: TimeApprovalStatus; label: string }> = [
   { key: 'pending', label: 'Afventer' },
@@ -46,7 +47,7 @@ export function TimeApprovalClient() {
   const load = useCallback(async () => {
     setError(null)
     const r = await listTimeLogsForApprovalAction(tab)
-    if (!r.success) { setError(r.error ?? 'Kunne ikke hente timer'); setRows([]); return }
+    if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke hente timer'); setRows([]); return }
     setRows(r.data ?? [])
   }, [tab])
 
@@ -69,7 +70,7 @@ export function TimeApprovalClient() {
     const seen = Object.fromEntries((rows ?? []).filter((l) => ids.includes(l.id)).map((l) => [l.id, { start_time: l.start_time, end_time: l.end_time, pay_rate_type: l.pay_rate_type, employee_rate_id: l.employee_rate_id }]))
     const r = await approveTimeLogsAction(ids, seen)
     setBusy(null)
-    if (!r.success) { setError(r.error ?? 'Kunne ikke godkende'); return }
+    if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke godkende'); return }
     setMsg(`${r.data?.updated ?? 0} registrering(er) godkendt${r.data?.skipped ? ` · ${r.data.skipped} sprunget over (egne/igangværende/ændret siden visning)` : ''}`)
     await load()
   }
@@ -79,7 +80,7 @@ export function TimeApprovalClient() {
     setBusy(rejecting.id); setMsg(null); setError(null)
     const r = await rejectTimeLogAction(rejecting.id, rejecting.reason)
     setBusy(null)
-    if (!r.success) { setError(r.error ?? 'Kunne ikke afvise'); return }
+    if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke afvise'); return }
     setRejecting(null)
     setMsg('Registreringen er afvist — montøren kan rette den, hvorefter den skal godkendes igen')
     await load()
@@ -117,6 +118,12 @@ export function TimeApprovalClient() {
 
       {rows === null && (
         <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />Henter timer…</div>
+      )}
+      {/* M-12 (pilot-review 2026-10-15): listen hentes med loft 500 — sig det, i stedet for at skjule resten */}
+      {rows !== null && rows.length >= 500 && (
+        <p className="text-sm text-amber-800 bg-amber-50 ring-1 ring-amber-200 rounded px-3 py-2" data-testid="time-approval-capped">
+          Viser de 500 {tab === 'pending' ? 'ældste' : 'nyeste'} — godkend/afvis disse, så vises resten.
+        </p>
       )}
       {rows !== null && rows.length === 0 && !error && (
         <div className="bg-white rounded-lg ring-1 ring-gray-200 py-10 text-center text-sm text-gray-500">

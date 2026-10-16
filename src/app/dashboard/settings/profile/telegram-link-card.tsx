@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { MessageCircle } from 'lucide-react'
 import { createTelegramLinkCodeAction, revokeTelegramLinkAction, type TelegramLinkStatus } from '@/lib/actions/assistant'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 /** "Forbind Telegram" (ELTA Assistant). Vises kun for roller der må bruge assistenten. */
 export function TelegramLinkCard({ status }: { status: TelegramLinkStatus }) {
@@ -19,13 +20,13 @@ export function TelegramLinkCard({ status }: { status: TelegramLinkStatus }) {
     setError(null)
     const r = await createTelegramLinkCodeAction()
     setBusy(false)
-    if (r.success && r.code) { setCode(r.code); setTtl(r.ttlMin ?? null) } else setError(r.error ?? 'Fejl')
+    if (r.success && r.code) { setCode(r.code); setTtl(r.ttlMin ?? null) } else setError(humanizeErrorText(r.error) ?? 'Fejl')
   }
   const revoke = async () => {
     setBusy(true)
     const r = await revokeTelegramLinkAction()
     setBusy(false)
-    if (r.success) { setLinked(false); setCode(null) } else setError(r.error ?? 'Fejl')
+    if (r.success) { setLinked(false); setCode(null) } else setError(humanizeErrorText(r.error) ?? 'Fejl')
   }
 
   return (

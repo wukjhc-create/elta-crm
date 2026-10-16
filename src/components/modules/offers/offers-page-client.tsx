@@ -29,6 +29,7 @@ interface Filters {
   search?: string
   status?: OfferStatus
   conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
+  mine?: boolean
 }
 
 const CONVERSION_LABELS: Record<string, string> = {
@@ -100,7 +101,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
       })
 
       // Reset to page 1 when filters change
-      if (updates.search !== undefined || updates.status !== undefined || updates.conversion !== undefined) {
+      if (updates.search !== undefined || updates.status !== undefined || updates.conversion !== undefined || updates.mine !== undefined) {
         params.delete('page')
       }
 
@@ -144,7 +145,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
     router.push('/dashboard/offers')
   }
 
-  const hasActiveFilters = filters.search || filters.status || filters.conversion
+  const hasActiveFilters = filters.search || filters.status || filters.conversion || filters.mine
 
   return (
     <>
@@ -230,6 +231,17 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
               <option value="converted">Konverteret</option>
               <option value="not_converted">Ikke konverteret</option>
             </select>
+
+            {/* W-18 (pilot-review 2026-10-15): sælgeren ser hurtigt sine egne tilbud */}
+            <label className="inline-flex items-center gap-2 px-3 py-2 border rounded-md text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!filters.mine}
+                onChange={(e) => updateURL({ mine: e.target.checked ? '1' : '' })}
+                data-testid="offers-only-mine"
+              />
+              Kun mine
+            </label>
           </div>
 
           {/* Active filters display */}
@@ -256,6 +268,14 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
                   Konvertering: {CONVERSION_LABELS[filters.conversion]}
                   <button onClick={() => handleConversionFilter('')} aria-label="Ryd konverteringsfilter" className="hover:text-red-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {filters.mine && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
+                  Kun mine
+                  <button onClick={() => updateURL({ mine: '' })} aria-label="Ryd Kun mine" className="hover:text-red-600">
                     <X className="w-3 h-3" />
                   </button>
                 </span>

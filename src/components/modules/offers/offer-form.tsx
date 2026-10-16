@@ -17,6 +17,7 @@ import {
 } from '@/lib/actions/offers'
 import type { Offer } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface CalculatorData {
   systemSize?: number
@@ -40,7 +41,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [leads, setLeads] = useState<{ id: string; company_name: string }[]>([])
+  const [leads, setLeads] = useState<{ id: string; company_name: string; contact_person: string | null }[]>([])
 
   const isEditing = !!offer
   const { confirm: confirmUnsaved, ConfirmDialog } = useConfirm()
@@ -181,7 +182,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
         : await createOffer(formData)
 
       if (!result.success) {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
         return
       }
 
@@ -272,7 +273,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
                 <option value="">Vælg lead...</option>
                 {leads.map((lead) => (
                   <option key={lead.id} value={lead.id}>
-                    {lead.company_name}
+                    {lead.company_name}{lead.contact_person && lead.contact_person !== lead.company_name ? ` — ${lead.contact_person}` : ''}
                   </option>
                 ))}
               </select>

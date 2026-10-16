@@ -20,6 +20,7 @@ import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
 import {
   listTimeLogsForWorkOrder,
+  suggestTimeLogStartAction,
   createTimeLog,
   updateTimeLog,
   deleteRejectedTimeLogAction,
@@ -29,6 +30,7 @@ import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
 import { PAY_RATE_TYPE_OPTIONS, PAY_RATE_TYPE_LABEL, type PayRateType } from '@/types/workforce.types'
 import { toNumberDa } from '@/lib/utils/danish-number'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const fmtAmount = (n: number | null | undefined) =>
   n == null
@@ -58,18 +60,22 @@ const fmtTime = (s: string | null | undefined) => {
   return d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })
 }
 
-const today = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+// Dansk dato (ikke enhedens tidszone)
+const today = () => copenhagenParts(new Date()).date
 
 export function WorkOrderTimeLogs({
   workOrderId,
   defaultEmployeeId,
   onChange,
   canSeeCost = false,
+  initialLogs,
+  sharedEmployees,
 }: {
   workOrderId: string
+  /** M-9 (pilot-review 2026-10-15): forælderen henter sagens timer og medarbejderlisten én gang og giver dem videre —
+   * før hentede HVER arbejdsordre begge selv (≈2 kald pr. arbejdsordre ved åbning af fanen) */
+  initialLogs?: TimeLogWithEmployee[] | null
+  sharedEmployees?: { id: string; name: string }[] | null
   defaultEmployeeId?: string | null
   /** Called after a successful create so parent can refresh totals */
   onChange?: () => void
@@ -99,24 +105,64 @@ export function WorkOrderTimeLogs({
   const [billable, setBillable] = useState(true)
   const [payRateType, setPayRateType] = useState<PayRateType>('normal')
 
-  const reload = async () => {
+  const applyEmployees = (list: { id: string; name: string }[]) => {
+    setEmployees(list)
+    // Kun én mulighed (montør = sig selv): vælg den, så formularen kan sendes med det samme
+    if (list.length === 1) setEmployeeId((cur) => cur || list[0].id)
+  }
+
+  const reload = async (withEmployees = !sharedEmployees) => {
     const [logsRes, empRes] = await Promise.all([
       listTimeLogsForWorkOrder(workOrderId),
-      getEmployeesForOrderSelect(),
+      withEmployees ? getEmployeesForOrderSelect() : Promise.resolve(null),
     ])
     if (logsRes.success && logsRes.data) setLogs(logsRes.data)
     else if (!logsRes.success) setError(logsRes.error || 'Kunne ikke hente timer')
-    if (empRes.success && empRes.data) {
-      setEmployees(empRes.data)
-      // Kun én mulighed (montør = sig selv): vælg den, så formularen kan sendes med det samme
-      if (empRes.data.length === 1) setEmployeeId((cur) => cur || empRes.data![0].id)
+    if (empRes) {
+      if (empRes.success && empRes.data) applyEmployees(empRes.data)
+      // M-9: før tavst — montøren så en tom "— vælg —"-liste og fik først fejl ved gem
+      else setError('Kunne ikke hente medarbejderlisten — genindlæs siden')
     }
   }
 
   useEffect(() => {
+    if (initialLogs && sharedEmployees) {
+      setLogs(initialLogs)
+      applyEmployees(sharedEmployees)
+      return
+    }
     reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workOrderId])
+  }, [workOrderId, initialLogs, sharedEmployees])
+
+  // M-3/M-4 (pilot-review 2026-10-15): formularen får dagens dato ved åbning (før: datoen fra da fanen blev åbnet — en
+  // fane åben natten over gemte på i går), og start foreslås efter medarbejderens seneste registrering samme dag på
+  // denne arbejdsordre (før altid 08:00 → "Overlapper" ved anden registrering)
+  const suggestStart = (d: string, emp: string): string => {
+    let latest = ''
+    for (const l of logs ?? []) {
+      if (l.employee_id !== emp || !l.end_time) continue
+      const e = copenhagenParts(l.end_time)
+      if (e.date === d && e.clock > latest) latest = e.clock
+    }
+    return latest || '08:00'
+  }
+  const openForm = () => {
+    const d = today()
+    setDate(d)
+    const local = suggestStart(d, employeeId)
+    setStartClock(local)
+    setShowForm(true)
+    // M-4: også registreringer på andre arbejdsordrer samme dag (serveren) — senere sluttid vinder
+    if (employeeId) {
+      suggestTimeLogStartAction(employeeId, d)
+        .then((r) => {
+          const clock = r.success ? r.data?.clock : null
+          if (clock && clock > local) setStartClock((cur) => (cur === local ? clock : cur))
+        })
+        .catch(() => {})
+    }
+  }
 
   const resetForm = () => {
     setDate(today())
@@ -161,7 +207,7 @@ export function WorkOrderTimeLogs({
     setIsWorking(false)
 
     if (!res.success) {
-      setError(res.error || 'Kunne ikke gemme timer')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke gemme timer')
       return
     }
     setShowForm(false)
@@ -194,7 +240,7 @@ export function WorkOrderTimeLogs({
     setIsWorking(true)
     const res = await updateTimeLog(l.id, { date: fixDate, start_clock: fixStart, end_clock: fixEnd || undefined, description: fixDesc })
     setIsWorking(false)
-    if (!res.success) { setError(res.error || 'Kunne ikke rette timeregistreringen'); return }
+    if (!res.success) { setError(humanizeErrorText(res.error) || 'Kunne ikke rette timeregistreringen'); return }
     setFixId(null)
     await reload()
     onChange?.()
@@ -206,7 +252,7 @@ export function WorkOrderTimeLogs({
     setIsWorking(true)
     const res = await deleteRejectedTimeLogAction(l.id)
     setIsWorking(false)
-    if (!res.success) { setError(res.error || 'Kunne ikke slette'); return }
+    if (!res.success) { setError(humanizeErrorText(res.error) || 'Kunne ikke slette'); return }
     await reload()
     onChange?.()
     startTransition(() => router.refresh())
@@ -220,7 +266,7 @@ export function WorkOrderTimeLogs({
     const res = await updateTimeLog(logId, { pay_rate_type: value, employee_rate_id: null })
     setIsWorking(false)
     if (!res.success) {
-      setError(res.error || 'Kunne ikke ændre satstype')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke ændre satstype')
       return
     }
     await reload()
@@ -290,8 +336,8 @@ export function WorkOrderTimeLogs({
         {!showForm && (
           <button
             type="button"
-            onClick={() => setShowForm(true)}
-            className="text-xs px-2 py-1 border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50"
+            onClick={openForm}
+            className="text-sm px-3 py-2 sm:text-xs sm:px-2 sm:py-1 border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50"
           >
             + Registrér timer
           </button>
@@ -361,9 +407,8 @@ export function WorkOrderTimeLogs({
                   className="w-1/2 px-2 py-1 border rounded text-sm"
                 />
                 <input
-                  type="number"
-                  step="0.25"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={hoursStr}
                   onChange={(e) => {
                     setHoursStr(e.target.value)
@@ -553,8 +598,8 @@ export function WorkOrderTimeLogs({
                       )}
                       {isRejected && canEditOwn && fixId !== l.id && (
                         <span className="ml-2 inline-flex gap-1">
-                          <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-300 hover:bg-white" data-testid="time-log-fix">Ret</button>
-                          <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-[11px] px-1.5 py-0.5 rounded border border-red-200 text-red-700 hover:bg-red-50" data-testid="time-log-delete-rejected">Slet</button>
+                          <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-xs px-3 py-2 sm:text-[11px] sm:px-1.5 sm:py-0.5 rounded border border-gray-300 hover:bg-white" data-testid="time-log-fix">Ret</button>
+                          <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-xs px-3 py-2 sm:text-[11px] sm:px-1.5 sm:py-0.5 rounded border border-red-200 text-red-700 hover:bg-red-50" data-testid="time-log-delete-rejected">Slet</button>
                         </span>
                       )}
                     </td>

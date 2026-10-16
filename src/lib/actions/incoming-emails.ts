@@ -63,7 +63,7 @@ export async function getIncomingEmails(options?: {
   search?: string
   page?: number
   pageSize?: number
-}): Promise<{ data: IncomingEmailWithCustomer[]; count: number }> {
+}): Promise<{ data: IncomingEmailWithCustomer[]; count: number; error?: string }> {
   const supabase = await createClient()
   const filter = options?.filter || 'all'
   const readFilter = options?.readFilter || 'all'
@@ -167,7 +167,8 @@ export async function getIncomingEmails(options?: {
 
   if (error) {
     logger.error('Failed to fetch incoming emails', { error })
-    return { data: [], count: 0 }
+    // S-8 (pilot-review 2026-10-15): fejl meldes — før lignede en DB-timeout en tom indbakke ("ingen mail")
+    return { data: [], count: 0, error: 'Kunne ikke hente mails lige nu — prøv igen om lidt' }
   }
 
   const rows = (data || []) as unknown as IncomingEmailWithCustomer[] // body_html/body_text er undefined (hentes ved åbning)
@@ -449,102 +450,6 @@ export async function linkEmailToCustomer(
   }
   revalidatePath('/dashboard/mail')
   return { success: true }
-}
-
-// =====================================================
-// Quick Create Customer from Email (simple — no offer)
-// =====================================================
-
-interface QuickCreateCustomerInput {
-  companyName: string
-  contactPerson?: string
-  email: string
-  phone?: string
-  address?: string
-  city?: string
-  postalCode?: string
-  sourceEmailId: string
-}
-
-export async function quickCreateCustomerFromEmail(
-  input: QuickCreateCustomerInput
-): Promise<{ success: boolean; customerId?: string; error?: string }> {
-  try {
-    // IDOR-sweep 2026-10-09 (#7): samme gate som linkEmailToCustomer (før kun login)
-    const denied = await gateDenied('inbox.view')
-    if (denied) return { success: false, error: denied }
-    const { supabase, userId } = await getAuthenticatedClient()
-
-    // Check if customer already exists by email
-    const { data: existing } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('email', input.email)
-      .maybeSingle()
-
-    if (existing) {
-      // Just link the email to existing customer
-      await supabase
-        .from('incoming_emails')
-        .update({ customer_id: existing.id, link_status: 'linked', linked_by: 'manual', linked_at: new Date().toISOString() })
-        .eq('id', input.sourceEmailId)
-
-      revalidatePath('/dashboard/mail')
-      revalidatePath('/dashboard/customers')
-      return { success: true, customerId: existing.id }
-    }
-
-    // Generate customer number
-    const { data: lastCustomer } = await supabase
-      .from('customers')
-      .select('customer_number')
-      .order('customer_number', { ascending: false })
-      .limit(1)
-
-    let customerNumber = 'C000001'
-    if (lastCustomer && lastCustomer.length > 0) {
-      const numPart = parseInt(lastCustomer[0].customer_number.substring(1), 10)
-      customerNumber = `C${(numPart + 1).toString().padStart(6, '0')}`
-    }
-
-    // Create customer
-    const { data: newCustomer, error: custError } = await supabase
-      .from('customers')
-      .insert({
-        company_name: input.companyName,
-        contact_person: input.contactPerson || null,
-        email: input.email,
-        phone: input.phone || null,
-        billing_address: input.address || null,
-        billing_city: input.city || null,
-        billing_postal_code: input.postalCode || null,
-        billing_country: 'Danmark',
-        customer_number: customerNumber,
-        created_by: userId,
-        is_active: true,
-        tags: [],
-      })
-      .select('id')
-      .single()
-
-    if (custError) {
-      logger.error('Error creating customer from email', { error: custError })
-      return { success: false, error: 'Kunne ikke oprette kunde' }
-    }
-
-    // Link email to new customer
-    await supabase
-      .from('incoming_emails')
-      .update({ customer_id: newCustomer.id, link_status: 'linked', linked_by: 'manual', linked_at: new Date().toISOString() })
-      .eq('id', input.sourceEmailId)
-
-    revalidatePath('/dashboard/mail')
-    revalidatePath('/dashboard/customers')
-    return { success: true, customerId: newCustomer.id }
-  } catch (err) {
-    logger.error('quickCreateCustomerFromEmail failed', { error: err })
-    return { success: false, error: 'Uventet fejl ved kundeoprettelse' }
-  }
 }
 
 export async function unlinkEmailFromCustomer(emailId: string): Promise<MailActionResult> {
@@ -851,6 +756,9 @@ export async function createCustomerFromEmail(
 ): Promise<{ success: boolean; customerId?: string; leadId?: string; isExisting?: boolean; customerName?: string; error?: string }> {
   const denied = await gateDenied('inbox.view')
   if (denied) return { success: false, error: denied }
+  // S-9 (pilot-review 2026-10-15): opretter en kunde — kræver også kunde-oprettelsesret (før kun inbox.view)
+  const deniedCreate = await gateDenied('customers.create')
+  if (deniedCreate) return { success: false, error: deniedCreate }
   validateUUID(emailId, 'emailId')
   const { supabase, userId } = await getAuthenticatedClient()
 

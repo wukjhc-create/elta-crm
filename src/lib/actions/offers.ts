@@ -1,4 +1,5 @@
 'use server'
+import { closeOfferFollowUpTasks } from '@/lib/offers/follow-up-tasks'
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 
 import { revalidatePath } from 'next/cache'
@@ -46,8 +47,11 @@ import { logger } from '@/lib/utils/logger'
 import type { Permission } from '@/lib/auth/permissions'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { isOfferExpired } from '@/lib/offers/validity'
+import { rankBy, searchWords } from '@/lib/products/search-rank'
 
 // Get all offers with optional filtering and pagination
+const OFFER_SORT_COLUMNS = new Set(['title', 'offer_number', 'status', 'final_amount', 'valid_until', 'created_at', 'updated_at'])
+
 export async function getOffers(filters?: {
   search?: string
   status?: OfferStatus
@@ -60,9 +64,11 @@ export async function getOffers(filters?: {
   proposalsOnly?: boolean
   /** Sprint Ø7.2 — konverteringsfilter (drevet af converted_case_id). */
   conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
+  /** W-18 (pilot-review 2026-10-15): kun tilbud brugeren selv har oprettet */
+  mine?: boolean
 }): Promise<ActionResult<PaginatedResponse<OfferWithRelations>>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('offers.view')) {
       return { success: false, error: 'Manglende tilladelse: offers.view' }
     }
@@ -124,6 +130,11 @@ export async function getOffers(filters?: {
       dataQuery = dataQuery.eq('customer_id', filters.customer_id)
     }
 
+    if (filters?.mine) {
+      countQuery = countQuery.eq('created_by', userId)
+      dataQuery = dataQuery.eq('created_by', userId)
+    }
+
     // Sprint Ø7.2 — konverteringsfilter (samme logik som Ø7.1-badget; O(1),
     // ingen N+1 — bruger kun eksisterende kolonner converted_case_id/status).
     const conv = filters?.conversion
@@ -140,9 +151,9 @@ export async function getOffers(filters?: {
       dataQuery = dataQuery.is('converted_case_id', null).in('status', READY)
     }
 
-    // Apply sorting
-    const sortBy = filters?.sortBy || 'created_at'
-    const sortOrder = filters?.sortOrder || 'desc'
+    // Apply sorting — W-18: kun kendte kolonner (en ukendt ?sortBy= i URL'en gav før en databasefejl på hele siden)
+    const sortBy = filters?.sortBy && OFFER_SORT_COLUMNS.has(filters.sortBy) ? filters.sortBy : 'created_at'
+    const sortOrder = filters?.sortOrder === 'asc' ? 'asc' : 'desc'
     dataQuery = dataQuery.order(sortBy, { ascending: sortOrder === 'asc' })
 
     // Apply pagination
@@ -838,6 +849,8 @@ export async function updateOfferStatus(
     }
     const webhookEvent = webhookEventMap[status]
     if (webhookEvent) await emitOfferEvent(supabase, id, webhookEvent)
+    // S-5: kunden har svaret → "Følg op: intet svar"-opgaven lukkes (admin: opgaven kan være oprettet af en anden sælger)
+    if (status === 'accepted' || status === 'rejected') await closeOfferFollowUpTasks(createAdminClient(), id)
 
     // Sprint 3D — auto-create service_case when transitioning to accepted.
     // Gated on transition (current → accepted, not already-accepted) so a
@@ -1066,8 +1079,9 @@ export async function updateLineItem(
         // S1: sale_price følger enhedsprisen (ellers fakturerede faktura-funktionen den gamle pris)
         ...(updateData.unit_price !== undefined ? { sale_price: updateData.unit_price } : {}),
         ...(costPrice !== undefined ? { cost_price: costPrice } : {}),
-        ...(mayTouchCost ? { supplier_margin_applied: supplierMargin } : {}),
-        ...(mayTouchCost ? { supplier_cost_price_at_creation: supplierCostAtCreation } : {}),
+        // S-2: kun felter klienten faktisk sender (før blev manglende felter skrevet som null)
+        ...(mayTouchCost && formData.has('supplier_margin_applied') ? { supplier_margin_applied: supplierMargin } : {}),
+        ...(mayTouchCost && formData.has('supplier_cost_price_at_creation') ? { supplier_cost_price_at_creation: supplierCostAtCreation } : {}),
         ...(imageUrl !== undefined ? { image_url: imageUrl } : {}),
       })
       .eq('id', lineItemId)
@@ -1153,7 +1167,7 @@ export async function getCustomersForSelect(): Promise<
 
 // Get leads for dropdown
 export async function getLeadsForSelect(): Promise<
-  ActionResult<{ id: string; company_name: string }[]>
+  ActionResult<{ id: string; company_name: string; contact_person: string | null }[]>
 > {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -1163,16 +1177,18 @@ export async function getLeadsForSelect(): Promise<
 
     const { data, error } = await supabase
       .from('leads')
-      .select('id, company_name')
+      .select('id, company_name, contact_person')
       .not('status', 'in', '("won","lost")')
-      .order('company_name')
+      // W-18 (pilot-review 2026-10-15): nyeste åbne leads (loft 300) — før alle åbne alfabetisk uden loft
+      .order('created_at', { ascending: false })
+      .limit(300)
 
     if (error) {
       logger.error('Database error fetching leads', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data || [] }
+    return { success: true, data: (data || []).sort((a, b) => (a.company_name || '').localeCompare(b.company_name || '', 'da')) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente leads') }
   }
@@ -1666,11 +1682,18 @@ export async function searchSupplierProductsForOffer(
         )
       `)
       .eq('suppliers.is_active', true)
-      .or(`supplier_sku.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},supplier_name.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},ean.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)}`)
       // GP-13: varer uden kostpris (0 = ingen prisaftale) fyldte toppen og fejlede ved "tilføj" ("ingen kostpris")
       .gt('cost_price', 0)
       .order('cost_price', { ascending: true })
-      .limit(searchLimit)
+      // W-11: hentes bredere og rangeres efter relevans nedenfor (før: de billigste vilkårlige træffere)
+      .limit(Math.max(searchLimit, 100))
+    // W-11 (pilot-review 2026-10-15): hvert ord skal matche varenr., navn eller EAN (AND mellem ord) — før skulle hele
+    // sætningen stå ordret i navnet ("kabel 3g1,5" fandt ikke "Kabel PVIK 3G1,5")
+    const words = searchWords(query)
+    for (const w of words.length ? words : [query]) {
+      const term = pgQuote(`%${sanitizeSearchTerm(w)}%`)
+      dbQuery = dbQuery.or(`supplier_sku.ilike.${term},supplier_name.ilike.${term},ean.ilike.${term}`)
+    }
 
     if (options?.supplierId) {
       validateUUID(options.supplierId, 'leverandør ID')
@@ -1905,20 +1928,14 @@ export async function searchSupplierProductsForOffer(
       }
     }
 
-    // Also mark cheapest among all results when no EAN grouping
-    // Simple: mark cheapest cost_price per product_name similarity
-    if (results.length > 0) {
-      // For ungrouped results, mark the overall cheapest
-      const minCost = Math.min(...results.filter(r => r.cost_price > 0).map(r => r.cost_price))
-      for (const r of results) {
-        if (r.is_cheapest === undefined) {
-          r.is_cheapest = r.cost_price === minCost && r.cost_price > 0
-        }
-      }
-    }
-
-    // Sort: cheapest cost_price first
-    results.sort((a, b) => (a.cost_price || Infinity) - (b.cost_price || Infinity))
+    // W-11: "Billigst" kun inden for samme vare (EAN-gruppe ovenfor) — før blev den billigste af ALLE træffere markeret,
+    // også når det var en helt anden vare. Rækkefølge: præcist varenr./EAN, navn der starter med søgningen, alle ord i
+    // navnet, resten — pris kun som tie-breaker
+    const ranked = rankBy(results, query, (r) => ({
+      sku: r.supplier_sku, name: r.product_name, ean: (r as Record<string, unknown>)._ean as string | undefined, cost: r.cost_price,
+    })).slice(0, searchLimit)
+    results.length = 0
+    results.push(...ranked)
 
     // D44 (privacy/RBAC): netto-/kostpris og avance kun for offers.view.cost_prices — salg ser salgspris (rækkefølge
     // og "billigst"-markering bevares)

@@ -11,6 +11,7 @@ import {
   type ServiceCaseStatus,
 } from '@/types/service-cases.types'
 import { isUnbilledCloseError, confirmCloseDespiteUnbilled } from '@/lib/cases/close-guard'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function InlineStatusChanger({
   caseId,
@@ -38,7 +39,7 @@ export function InlineStatusChanger({
     }
     setIsWorking(false)
     if (!res.success) {
-      setError(res.error || 'Kunne ikke ændre status')
+      setError(humanizeErrorText(res.error) || 'Kunne ikke ændre status')
       return
     }
     startTransition(() => router.refresh())

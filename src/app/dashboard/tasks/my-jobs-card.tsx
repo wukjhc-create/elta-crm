@@ -4,6 +4,7 @@
  * vises som "Ikke afsluttet".
  * Hvert job linker direkte til sagens Planlægning/Timer-fane (afslut + timer + fotos).
  */
+import { formatWorkOrderTime } from '@/lib/planning/work-order-time'
 import Link from 'next/link'
 import { CalendarCheck, ChevronRight, AlertTriangle, Navigation } from 'lucide-react'
 import { listWorkOrdersByDateRange, type WorkOrderForCalendar } from '@/lib/actions/work-orders'
@@ -24,7 +25,15 @@ const STATUS: Record<string, string> = { planned: 'Planlagt', in_progress: 'I ga
 export async function MyJobsCard() {
   const today = copenhagenParts(new Date()).date
   const res = await listWorkOrdersByDateRange(shiftDay(today, -14), shiftDay(today, 7), { includeOpenOutsideRange: true })
-  if (!res.success) return null
+  // M-6 (pilot-review 2026-10-15): før forsvandt kortet tavst ved fejl — lignede "intet arbejde i dag"
+  if (!res.success) {
+    return (
+      <section className="bg-white rounded-lg border border-red-200 p-4 sm:p-5 mb-6" data-testid="my-jobs-card-error" role="alert">
+        <h2 className="font-semibold flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-red-600" /> Mine job</h2>
+        <p className="mt-1 text-sm text-red-700">Kunne ikke hente dine job lige nu. <a href="/dashboard/tasks" className="underline font-medium">Prøv igen</a></p>
+      </section>
+    )
+  }
   const open = (res.data ?? []).filter((w) => w.status === 'planned' || w.status === 'in_progress')
   // PL-8: udaterede åbne job hører også under "Ikke afsluttet" (før forsvandt de + job ældre end 14 dage)
   const overdue = open.filter((w) => !w.scheduled_date || w.scheduled_date < today)
@@ -86,6 +95,8 @@ function JobGroup({ title, jobs, warn, emptyText }: { title: string; jobs: WorkO
                   <p className="text-sm font-medium truncate">{w.title}</p>
                   <p className="text-xs text-gray-500 truncate">
                     {w.scheduled_date ? fmtDay(w.scheduled_date) : 'Uden dato'}
+                    {/* M-8: starttid/estimat (00227) — før måtte montøren spørge kontoret */}
+                    {formatWorkOrderTime(w.start_time, w.estimated_hours) ? ` · ${formatWorkOrderTime(w.start_time, w.estimated_hours)}` : ''}
                     {w.case ? ` · ${w.case.case_number}` : ''}
                     {w.case?.customer_name ? ` · ${w.case.customer_name}` : ''}
                   </p>

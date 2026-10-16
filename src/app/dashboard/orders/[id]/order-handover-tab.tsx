@@ -15,6 +15,7 @@ import {
   getCaseHandoverAction, startCaseHandoverAction, toggleHandoverItemAction, uploadHandoverPhotoAction,
   deleteHandoverPhotoAction, signCaseHandoverAction, type CaseHandover,
 } from '@/lib/actions/case-handover'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function OrderHandoverTab({ caseId }: { caseId: string }) {
   const [data, setData] = useState<CaseHandover | null>(null)
@@ -25,16 +26,18 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
 
   const load = useCallback(async () => {
     const r = await getCaseHandoverAction(caseId)
-    if (r.success && r.data) { setData(r.data); setError(null) } else setError(r.error ?? 'Kunne ikke hente aflevering')
+    if (r.success && r.data) { setData(r.data); setError(null) } else setError(humanizeErrorText(r.error) ?? 'Kunne ikke hente aflevering')
   }, [caseId])
   useEffect(() => { load() }, [load])
 
-  const run = async (fn: () => Promise<{ success: boolean; error?: string }>) => {
+  const run = async (fn: () => Promise<{ success: boolean; error?: string }>): Promise<boolean> => {
+    let ok = false
     setBusy(true)
     // pilot-review 2026-10-15 (#5): en kastet fejl (fx for stort foto/netværk) låste fanen i "busy"
     try {
       const r = await fn()
-      if (!r.success) setError(r.error ?? 'Fejl')
+      ok = r.success
+      if (!r.success) setError(humanizeErrorText(r.error) ?? 'Fejl')
       else setError(null)
     } catch {
       setError('Handlingen fejlede — filen er måske for stor, eller forbindelsen røg')
@@ -42,6 +45,7 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
       setBusy(false)
     }
     await load().catch(() => {})
+    return ok
   }
 
   if (!data && !error) return <div className="bg-white rounded-lg border p-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
@@ -96,7 +100,11 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
           <p className="text-sm text-gray-500">Ikke underskrevet endnu.</p>
         ) : showSign ? (
           <SignaturePad
-            onSign={(dataUrl) => run(() => signCaseHandoverAction(caseId, dataUrl, signerName)).then(() => setShowSign(false))}
+            onSign={(dataUrl) => {
+              // M-2 (pilot-review 2026-10-15): navn tjekkes før afsendelse, og feltet lukkes kun ved succes
+              if (!signerName.trim()) { setError('Skriv kundens navn før underskriften gemmes'); return }
+              run(() => signCaseHandoverAction(caseId, dataUrl, signerName)).then((ok) => { if (ok) setShowSign(false) })
+            }}
             signerName={signerName}
             onNameChange={setSignerName}
             disabled={busy}

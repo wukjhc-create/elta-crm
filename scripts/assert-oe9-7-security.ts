@@ -4,8 +4,8 @@
  * Verificerer at de nye inline konvertér-handlinger i indkøbsdriften:
  *   - genbruger Ø9.2-flowet (samme per-linje-logik via runLineConversion) — ingen
  *     parallel regel
- *   - er gated bag BÅDE incoming_invoices.approve OG materials.add_to_case i begge
- *     lag (server action + side)
+ *   - PR-1 (Henrik 2026-10-15): fordeling er adskilt fra godkendelse — gated bag incoming_invoices.view OG
+ *     materials.add_to_case (server action), siden bag view + materials.add_to_case; godkendelse sker aldrig herfra
  *   - har en konverter-KUN sti for godkendt/bogført der IKKE flipper status
  *   - bevarer den økonomiske adskillelse (interne beløb bag economy.cost_prices)
  *   - IKKE lækker salgspris/margin
@@ -55,24 +55,24 @@ assert(/invoiceStatusFlipped:\s*false/.test(convertOnly) && !/invoiceStatusFlipp
 console.log('\nServer action (incoming-invoices.ts):')
 const act = fnSlice(actionSrc, 'export async function convertIncomingInvoiceLinesAction(')
 assert(act.length > 0, 'convertIncomingInvoiceLinesAction findes')
-assert(/hasPermission\(\s*['"]incoming_invoices\.approve['"]\s*\)/.test(act), 'gated bag incoming_invoices.approve')
+assert(/hasPermission\(\s*['"]incoming_invoices\.view['"]\s*\)/.test(act), 'gated bag incoming_invoices.view (PR-1)')
 assert(/hasPermission\(\s*['"]materials\.add_to_case['"]\s*\)/.test(act), 'gated bag materials.add_to_case')
-assert(/Manglende tilladelse: incoming_invoices\.approve/.test(act), 'afviser uden approve-tilladelse')
+assert(/Manglende tilladelse: incoming_invoices\.view/.test(act), 'afviser uden view-tilladelse (PR-1)')
 assert(/Manglende tilladelse: materials\.add_to_case/.test(act), 'afviser uden add_to_case-tilladelse')
 assert(/convertApprovedInvoiceLines\(/.test(act), 'kalder den nye konverter-kun motor-sti')
 assert(!/insert\(|\.upsert\(/.test(act), 'action laver ingen direkte INSERT/UPSERT (kun via motor)')
 
 console.log('\nSide (page.tsx):')
-assert(/pageHasPermission\(\s*['"]incoming_invoices\.approve['"]\s*\)/.test(pageSrc), 'side tjekker incoming_invoices.approve')
+assert(/pageHasPermission\(\s*['"]incoming_invoices\.view['"]\s*\)/.test(pageSrc), 'side tjekker incoming_invoices.view')
 assert(/pageHasPermission\(\s*['"]materials\.add_to_case['"]\s*\)/.test(pageSrc), 'side tjekker materials.add_to_case')
-assert(/canConvert\s*=[\s\S]*incoming_invoices\.approve[\s\S]*materials\.add_to_case/.test(pageSrc), 'canConvert kræver BEGGE rettigheder')
+assert(/canConvert\s*=\s*await pageHasPermission\(\s*['"]materials\.add_to_case['"]\s*\)/.test(pageSrc), 'canConvert kræver materials.add_to_case (PR-1)')
 assert(/canConvert=\{canConvert\}/.test(pageSrc), 'canConvert sendes til klienten')
 
 console.log('\nKlient (purchase-operations-client.tsx):')
-assert(/approveIncomingInvoiceWithConversionAction/.test(clientSrc), 'genbruger Ø9.2 convert+approve (received/awaiting)')
+assert(!/approveIncomingInvoiceWithConversionAction/.test(clientSrc), 'godkender ALDRIG herfra (PR-1: ingen convert+approve)')
 assert(/convertIncomingInvoiceLinesAction/.test(clientSrc), 'bruger konverter-kun (approved/posted)')
-assert(/isApproveMode\s*=[\s\S]*received[\s\S]*awaiting_approval/.test(clientSrc), 'dispatch efter status (received/awaiting → approve-mode)')
-assert(/mode=\{isApproveMode \? ['"]approve['"] : ['"]convert_only['"]\}/.test(clientSrc), 'dialog-mode udledt af status')
+assert(!/isApproveMode/.test(clientSrc), 'ingen approve-mode (PR-1)')
+assert(/mode="convert_only"/.test(clientSrc), 'dialogen kører kun i convert_only')
 assert(/showConvert\s*=\s*canConvert\s*&&\s*[A-Za-z.]*can_view_amounts/.test(clientSrc), 'konvertér-knap gated bag canConvert && can_view_amounts')
 assert(/getServiceCaseUnconvertedSupplierLinesAction/.test(clientSrc), 'udfoldning genbruger Ø9.4-action (kost-gatet)')
 

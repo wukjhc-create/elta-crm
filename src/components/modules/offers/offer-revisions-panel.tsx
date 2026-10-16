@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { GitBranch, History } from 'lucide-react'
 import { createOfferRevisionAction, getOfferRevisionHistoryAction } from '@/lib/actions/offers'
 import { OFFER_STATUS_LABELS, type OfferStatus } from '@/types/offers.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 type Rev = { id: string; offer_number: string; revision_number: number; status: string; superseded_at: string | null; snapshot_sent_at: string | null }
 
@@ -38,7 +39,7 @@ export function OfferRevisionsPanel({ offerId, status, supersededBy }: { offerId
             onClick={() => startTransition(async () => {
               setError(null)
               const r = await createOfferRevisionAction(offerId)
-              if (!r.success || !r.data) { setError(r.error ?? 'Kunne ikke oprette revision'); return }
+              if (!r.success || !r.data) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke oprette revision'); return }
               router.push(`/dashboard/offers/${r.data.id}`)
             })}
             className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded border hover:bg-gray-50 disabled:opacity-50"

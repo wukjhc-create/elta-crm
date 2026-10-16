@@ -36,7 +36,46 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 | 7c775e9e | PR-6 slutfaktura på fastprissag = restbeløb af kontraktsum |
 | 287f1202 | PR-10 midlertidigt momsværn + forslag 00231; beslutningstabel 00227–00230 |
 
+## Long-run 2026-10-15 aften — migrationer 00227–00231 + planlægning
+| Commit | Indhold |
+|---|---|
+| 7e894f6f | 00227 tidspunkt/varighed på arbejdsordrer (i prod) |
+| ede447b0 | 00228 fravær (i prod) — advarsel + override + audit, bogholderi læser |
+| 431fde91 | 00229 normtimer (i prod) — kapacitet i ugevisning, ingen 37-fallback |
+| 5a9a62cd | 00230 sats-motor uden 495/400 (i prod) + "Mangler timepris/kostpris" i medarbejder-UI |
+| 0e2e5b20 | 00231 momsmode (i prod) — 0 %/omvendt blokeret for automatisk fakturering |
+| eca48f6d / branch billing-model-00232 | Eksplicit afregningsform — BLOCKED_APPROVAL (forslag + staging 5/5) |
+| c91cea90 | Træk-og-slip i ugevisning |
+
 **Manuelle blokere (Henrik):** selvregistrering OFF i Supabase · "Email OTP expiry" = 86400 s. Arbejdet fortsætter uden at vente.
+
+## Long-run 2026-10-15 nat — pilot-review NEXT-16 + NEXT-17 (kun kode, ingen migrationer)
+| Commit | Indhold |
+|---|---|
+| 2f2efc1e | W-11 leverandørsøgning ord-for-ord + relevans, "billigst" kun samme EAN |
+| 5b813a5c | W-3 katalogsøgning i "Tilføj materiale", W-9 "Påmind mig" (.ics), W-12 tilbudssøgning race/fejl/antal, lead-dropdown |
+| 2df29d31 | W-18 "Kun mine" på tilbud, sikker sortering, død Placeholder-fane |
+| 29130914 | W-6 dansk adgangstekst i alle inline-fejl (66 filer); NEXT-17-bølge (35 fund) |
+| 558d823e | M-1 afleveringsfoto slettes ikke ved tryk, B-1 Annuller ≠ betalt, S-1 tilbudsstatus med bekræftelse |
+| 9616ef57 | M-2..M-8 montørens timeformular/underskrift/Mine job |
+| 6deca5e0 | B-11 testfaktura bag flag, S-10 danske lead-statusser, S-11 link i notifikation |
+| 606c647f | B-5 bogføringskrav "i gang", B-4/B-2 fakturaoverblik |
+
+| a4bf84ef | S-5 opfølgningsopgave lukkes ved accept/afvisning |
+| 8e0f44b3 | S-7 mailkobling hele tråden, S-9 opret kunde fra mail kræver customers.create |
+| 48f26330 | S-8 indbakkefejl, S-3 afventende ekskl. moms, B-9 "ordreindgang", "klar til lukning" over alle åbne sager (fundet under test) |
+| 27c2d77f | B-6/B-7 forfaldne leverandørfakturaer (DB-filter, kun DKK) |
+| fdfd9047 | S-2 inline-redigering bevarer oprindelig leverandørkost |
+| 6f1569f1 / 23c9d639 | M-7 paginering af arbejdsordrer, M-8 starttid, M-12 fravær-advarsel + tidsgodkendelse-loft |
+| 99d0d79b / e6607f94 | B-3 åbent beløb i fakturaoverblik, kundekort og betalingsmærke |
+| ab88d248 | S-6 send på mail: CAS + aktivitet + webhook (ikke UI-testet — ingen live mail) |
+| c7a5e91e / aa2c5d97 / 65b27c92 / 526fd8cc | S-4 kanban-besked, M-10 tap-mål, S-12 lettere dashboard, B-8 fane i URL, M-2 underskrift ved rotation |
+
+| 15c1ac39 / 05fa3963 | M-4 foreslået start på tværs af arbejdsordrer, M-9 Planlægning-fanen uden N+1 |
+
+**Slut-milepæl 2026-10-16 ~04:55:** fuld regression (ui-full, 146 tests) PASS=145, FAIL=0, U21 NOT_RUN i fuld kørsel (lå i U11-blokken uden afhængighed) → DEPS U21:[U11] tilføjet, U21+U11 PASS. Prod = `05fa396` (Vercel bygget). To tidligere fulde kørsler var ugyldige: lokal `next build` fejlede intermitterende ("fil ikke fundet" på filer der findes) → alle batches uden build; ren `next build` exit 0.
+
+**Rest-kø (NEXT-17):** B-2 server-summer, B-9 faktureret serie, B-10 tælle-optimering, S-4 kun åbne statusser på tavlen, S-8 tællere, S-11 tilbudsnr./kunde i notifikation, B-8 rapportfiltre i URL, M-7 DB-filter. [H]: W-8 opgavemenu for salg/bogholderi, W-9 next_follow_up_at / 00197 i prod, W-17 slet dokumenter, 00232 afregningsform, momstekst/e-conomic-mapping, approveIncomingInvoiceWithConversionAction (ubrugt finance-kode).
 
  → (løbende checkpoint)
 **Start:** 2026-10-01 20:18 dansk (18:18 UTC) · start-commit `4606dde`

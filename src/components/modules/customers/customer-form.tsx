@@ -11,6 +11,7 @@ import { createCustomer, updateCustomer, checkDuplicateCustomer } from '@/lib/ac
 import { FormField, inputClass } from '@/components/shared/form-field'
 import { useConfirm } from '@/components/shared/confirm-dialog'
 import type { Customer } from '@/types/customers.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface CustomerFormProps {
   customer?: Customer
@@ -140,7 +141,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
         : await createCustomer(formData)
 
       if (!result.success) {
-        setError(result.error || 'Der opstod en fejl')
+        setError(humanizeErrorText(result.error) || 'Der opstod en fejl')
         return
       }
 

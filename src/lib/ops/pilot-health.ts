@@ -7,6 +7,8 @@
  * aldrig RPC'er eller skrivning (et vellykket kald til fx log_audit_event ville selv vaere en forfalskning).
  * Hver sektion fejler isoleret (status 'unknown' + fejltekst) — siden vaelter aldrig pga. én kilde.
  */
+import { employeeRateGap } from '@/lib/employees/rate-gaps'
+import { economicPushEnabled } from '@/lib/accounting/economic-push-flag'
 import { createClient } from '@supabase/supabase-js'
 import { CRON_REGISTRY } from '@/lib/services/cron-registry'
 import { INCIDENT_REGISTER } from '@/lib/ops/incident-register'
@@ -122,6 +124,20 @@ async function userItems(admin: Admin): Promise<HealthItem[]> {
   const admins = byRole.get('admin')?.active ?? 0
   items.push({ label: 'Admin-dækning', level: admins >= 1 ? 'green' : 'red', detail: `${admins} aktive admins` })
   items.push({ label: 'Aldrig logget ind', level: neverSignedIn > 0 ? 'yellow' : 'green', detail: neverSignedIn > 0 ? `${neverSignedIn} aktive brugere har endnu ikke logget ind — følg op på invitationen` : 'alle aktive brugere har logget ind' })
+  // 00230: medarbejdere uden gyldig sats kan ikke registrere tid (ingen standardpris) — kun antal, ingen beløb/navne
+  {
+    const [{ data: emps }, { data: comp }, { data: cs }] = await Promise.all([
+      admin.from('employees').select('id, hourly_rate, cost_rate').eq('active', true).limit(1000),
+      admin.from('employee_compensation').select('employee_id, real_hourly_cost').limit(1000),
+      admin.from('company_settings').select('time_cost_basis, time_cost_rate').order('created_at', { ascending: true, nullsFirst: false }).limit(1),
+    ])
+    const rhc = new Map(((comp ?? []) as Array<{ employee_id: string; real_hourly_cost: number | null }>).map((x) => [x.employee_id, x.real_hourly_cost]))
+    const s0 = ((cs ?? [])[0] ?? {}) as { time_cost_basis?: string | null; time_cost_rate?: number | null }
+    const gaps = ((emps ?? []) as Array<{ id: string; hourly_rate: number | null; cost_rate: number | null }>)
+      .map((e) => employeeRateGap({ hourly_rate: e.hourly_rate, cost_rate: e.cost_rate, real_hourly_cost: rhc.get(e.id) ?? null }, s0.time_cost_basis ?? null, s0.time_cost_rate ?? null))
+      .filter((g) => g.missingSale || g.missingCost).length
+    items.push({ label: 'Medarbejdere uden sats', level: gaps > 0 ? 'yellow' : 'green', detail: gaps > 0 ? `${gaps} aktive medarbejdere mangler timepris/kostpris og kan ikke registrere tid — se Medarbejdere` : 'alle aktive medarbejdere har satser' })
+  }
   return items
 }
 
@@ -185,6 +201,8 @@ async function integrationItems(admin: Admin): Promise<HealthItem[]> {
   if (!(graph.data ?? []).length) items.push({ label: 'Mail (Graph)', level: 'yellow', detail: 'ingen postkasser synkroniseret' })
   const econRows = (econ.data ?? []) as Array<{ provider: string; active: boolean }>
   items.push({ label: 'Regnskab (e-conomic)', level: econRows.some((r) => r.active) ? 'green' : 'yellow', detail: econRows.length ? econRows.map((r) => `${r.provider} ${r.active ? 'aktiv' : 'inaktiv'}`).join(', ') : 'ikke konfigureret' })
+  // PR-2: kill-switch — tydeligt når intet sendes (forventet tilstand under piloten)
+  items.push({ label: 'e-conomic-afsendelse', level: economicPushEnabled() ? 'green' : 'yellow', detail: economicPushEnabled() ? 'slået til (ECONOMIC_PUSH_ENABLED=true)' : 'sat på pause — intet sendes til e-conomic' })
   const lastBank = (bank.data?.[0] as { created_at?: string } | undefined)?.created_at ?? null
   items.push({ label: 'Bankimport', level: lastBank && Date.now() - new Date(lastBank).getTime() < 7 * 24 * HOUR ? 'green' : 'yellow', detail: `seneste postering importeret ${ago(lastBank)}` })
   const l = lemu.data?.[0] as { job_type?: string; status?: string; created_at?: string } | undefined

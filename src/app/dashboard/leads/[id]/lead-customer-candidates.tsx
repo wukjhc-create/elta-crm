@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Users } from 'lucide-react'
 import { getLeadCustomerCandidatesAction, linkLeadToCustomerAction, type LeadCustomerCandidate } from '@/lib/actions/lead-duplicates'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function LeadCustomerCandidates({ leadId }: { leadId: string }) {
   const router = useRouter()
@@ -39,7 +40,7 @@ export function LeadCustomerCandidates({ leadId }: { leadId: string }) {
                 setBusy(c.id); setError(null)
                 const r = await linkLeadToCustomerAction(leadId, c.id)
                 setBusy(null)
-                if (!r.success) { setError(r.error ?? 'Kunne ikke koble'); return }
+                if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke koble'); return }
                 router.refresh()
               }}
               className="ml-auto px-2.5 py-1 text-xs rounded border border-blue-300 bg-white text-blue-800 hover:bg-blue-100 disabled:opacity-50"

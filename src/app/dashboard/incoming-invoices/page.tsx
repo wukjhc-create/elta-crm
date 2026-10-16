@@ -42,5 +42,5 @@ export default async function IncomingInvoicesPage() {
   }
 
   console.log('INCOMING INVOICES PAGE RENDER OK rows=' + rows.length)
-  return <IncomingInvoicesListClient initialRows={rows} initialCounts={counts} />
+  return <IncomingInvoicesListClient initialRows={rows} initialCounts={counts} canSeedTest={process.env.TEST_SEED_ENABLED === 'true'} />
 }

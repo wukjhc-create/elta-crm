@@ -20,6 +20,8 @@ const fri = '2026-10-02'
 const days = nextWorkingDays(fri, 3)
 assert(JSON.stringify(days) === JSON.stringify(['2026-10-05', '2026-10-06', '2026-10-07']), 'hverdage efter fredag = man/tir/ons', days.join(','))
 assert(nextWorkingDays('2026-10-05', 1)[0] === '2026-10-06', 'aldrig i dag — foerste hverdag er i morgen')
+// helligdage springes over: skærtorsdag 2/4 → langfredag 3/4 → weekend → 2. påskedag 6/4 → tirsdag 7/4 2026
+assert(nextWorkingDays('2026-04-01', 1)[0] === '2026-04-07', 'påskens helligdage springes over')
 assert(/^\d{4}-\d{2}-\d{2}$/.test(copenhagenToday()), 'copenhagenToday giver YYYY-MM-DD')
 assert(copenhagenToday(new Date('2026-10-04T22:30:00Z')) === '2026-10-05', 'København-dato (UTC 22:30 = næste dag lokalt)')
 

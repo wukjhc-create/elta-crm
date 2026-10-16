@@ -18,6 +18,7 @@ import {
   type CaseNoteEntry,
 } from '@/lib/actions/service-cases'
 import { CASE_NOTE_KINDS, type CaseNoteKind } from '@/types/service-cases.types'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const fmtDateTime = (s: string) => {
   const d = new Date(s)
@@ -58,7 +59,7 @@ export function OrderNotesTab({
     let cancelled = false
     getCaseNotes(caseId).then((res) => {
       if (cancelled) return
-      if (!res.success) { setError(res.error || 'Kunne ikke hente noter'); setNotes([]); return }
+      if (!res.success) { setError(humanizeErrorText(res.error) || 'Kunne ikke hente noter'); setNotes([]); return }
       setNotes(res.data ?? [])
     })
     return () => { cancelled = true }
@@ -147,6 +148,9 @@ export function OrderNotesTab({
         </div>
       ) : (
         <div className="space-y-2">
+          {notes.length >= 500 && (
+            <p className="text-xs text-amber-700 py-1">Viser de 500 nyeste noter.</p>
+          )}
           {notes.map((n) => (
             <div key={n.id} className="bg-gray-50 rounded ring-1 ring-gray-200 p-3 flex items-start gap-3">
               <FileText className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
@@ -161,10 +165,11 @@ export function OrderNotesTab({
                   {n.author_name && <span className="text-xs text-gray-500">· {n.author_name}</span>}
                   {canManageNote(n) && editingId !== n.id && (
                     <span className="ml-auto flex items-center gap-1">
-                      <button onClick={() => startEdit(n)} disabled={rowBusy} title="Rediger"
-                        className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-50"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDelete(n.id)} disabled={rowBusy} title="Slet"
-                        className="p-1 text-gray-400 hover:text-red-600 disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /></button>
+                      {/* W-15: større tap-mål med afstand (rediger/slet lå ~22 px fra hinanden) */}
+                      <button onClick={() => startEdit(n)} disabled={rowBusy} title="Rediger" aria-label="Rediger note"
+                        className="p-2.5 text-gray-400 hover:text-gray-700 disabled:opacity-50"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={() => handleDelete(n.id)} disabled={rowBusy} title="Slet" aria-label="Slet note"
+                        className="ml-2 p-2.5 text-gray-400 hover:text-red-600 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
                     </span>
                   )}
                 </div>

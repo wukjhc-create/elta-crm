@@ -20,6 +20,7 @@ interface PageProps {
     conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
+    mine?: string
   }>
 }
 
@@ -28,12 +29,15 @@ const VALID_CONVERSION = new Set(['ready', 'converted', 'not_converted'])
 export default async function OffersPage({ searchParams }: PageProps) {
   const params = await searchParams
   const page = params.page ? parseInt(params.page, 10) : 1
-  const pageSize = params.pageSize ? parseInt(params.pageSize, 10) : 25
+  // W-18: pageSize fra URL'en begrænses (1–100); ugyldig → 25
+  const reqSize = params.pageSize ? parseInt(params.pageSize, 10) : 25
+  const pageSize = Number.isFinite(reqSize) ? Math.min(100, Math.max(1, reqSize)) : 25
   const search = params.search || undefined
   const status = params.status || undefined
   const conversion = params.conversion && VALID_CONVERSION.has(params.conversion) ? params.conversion : undefined
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
+  const mine = params.mine === '1'
 
   const [offersResult, settingsResult] = await Promise.all([
     getOffers({
@@ -44,6 +48,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
       conversion,
       sortBy,
       sortOrder,
+      mine,
     }),
     getDocumentCompanySettings(),
   ])
@@ -67,7 +72,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
         totalItems: offersResult.data.total,
         pageSize: offersResult.data.pageSize,
       }}
-      filters={{ search, status, conversion }}
+      filters={{ search, status, conversion, mine }}
       sort={{ sortBy, sortOrder }}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />

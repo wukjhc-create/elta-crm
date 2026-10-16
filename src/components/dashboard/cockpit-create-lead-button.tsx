@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, UserPlus } from 'lucide-react'
 import { createLeadFromEmailAction } from '@/lib/actions/incoming-emails'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function CockpitCreateLeadButton({ emailId }: { emailId: string }) {
   const router = useRouter()
@@ -22,7 +23,7 @@ export function CockpitCreateLeadButton({ emailId }: { emailId: string }) {
           setBusy(true); setError(null)
           const r = await createLeadFromEmailAction(emailId)
           setBusy(false)
-          if (!r.success || !r.data) { setError(r.error ?? 'Kunne ikke oprette lead'); return }
+          if (!r.success || !r.data) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke oprette lead'); return }
           router.push(`/dashboard/leads/${r.data.leadId}`)
         }}
         className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded border border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"

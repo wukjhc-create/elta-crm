@@ -13,6 +13,7 @@ import type { IncomingEmailWithCustomer } from '@/types/mail-bridge.types'
 import { sendQuoteAction, getCustomerForQuote, shareQuoteToPortal, getCurrentUserName, getCustomerQuoteHistory } from '@/lib/actions/quote-actions'
 import { formatCurrency } from '@/lib/utils/format'
 import { QuoteLineItemsEditor } from './quote-line-items-editor'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface QuoteFormDialogProps {
   templateType: QuoteTemplateType
@@ -152,7 +153,7 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
     if (res.success && res.data) {
       setResult({ quoteReference: res.data.quoteReference, pdfUrl: res.data.pdfUrl, sentQuoteId: res.data.sentQuoteId })
     } else {
-      setError(res.error || 'Ukendt fejl')
+      setError(humanizeErrorText(res.error) || 'Ukendt fejl')
     }
 
     setIsSending(false)
@@ -236,7 +237,7 @@ export function QuoteFormDialog({ templateType, selectedEmail, onClose }: QuoteF
                       if (res.success) {
                         setSharedToPortal(true)
                       } else {
-                        setError(res.error || 'Kunne ikke dele til portal')
+                        setError(humanizeErrorText(res.error) || 'Kunne ikke dele til portal')
                       }
                       setIsSharing(false)
                     }}
