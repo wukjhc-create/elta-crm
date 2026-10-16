@@ -131,7 +131,8 @@ export function OrderDetailClient({
     .join(', ')
 
   return (
-    <div className="p-6 space-y-4 max-w-[1400px]">
+    // Q-9 (review 2026-10-16): layoutet har allerede padding — ingen ekstra p-6 på telefon (mere plads til indholdet)
+    <div className="p-0 md:p-6 space-y-4 max-w-[1400px]">
       <nav className="text-sm text-gray-500 flex items-center gap-2">
         <Link href="/dashboard" className="hover:text-gray-700">Dashboard</Link>
         <span>/</span>

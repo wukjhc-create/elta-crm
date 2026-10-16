@@ -684,7 +684,9 @@ export async function getCaseLaborCostTotal(caseId: string): Promise<ActionResul
     // paginér (PostgREST-loft 1000 rækker)
     for (let from = 0; ; from += 1000) {
       // 00192: kostkolonnen læses med admin-klienten (gaten economy.cost_prices + time_logs.view.all er tjekket ovenfor)
+      // F-6 (review 2026-10-16): afviste timer tæller aldrig i kost (00202-reglen)
       const { data, error } = await createAdminClient().from('time_logs').select('cost_amount').in('work_order_id', ids)
+        .neq('approval_status', 'rejected')
         .order('id').range(from, from + 999)
       if (error) {
         logger.error('getCaseLaborCostTotal: time_logs failed', { error })

@@ -10,6 +10,7 @@
  * Delete is gated by invoice_line_id (cannot delete a billed row).
  */
 
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { revalidatePath } from 'next/cache'
 import {
@@ -68,12 +69,18 @@ export async function listCaseMaterials(
     }
     const canSeeCostPrices = hasPermission('materials.view.cost_prices')
 
-    const { data, error } = await supabase
-      .from('case_materials')
-      .select(SELECT_COLUMNS)
-      .eq('case_id', caseId)
-      .order('created_at', { ascending: true })
-      .limit(500)
+    // F-8 (review 2026-10-16): alle rækker (før .limit(500) → summen for kost/salg/DB blev for lav på store sager)
+    let data: unknown[] | null = null
+    let error: unknown = null
+    try {
+      data = await fetchAllRows((f, t) => supabase
+        .from('case_materials')
+        .select(SELECT_COLUMNS)
+        .eq('case_id', caseId)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(f, t))
+    } catch (e) { error = e }
 
     if (error) {
       logger.error('listCaseMaterials failed', { error, entityId: caseId })

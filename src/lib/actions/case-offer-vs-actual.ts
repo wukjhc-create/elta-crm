@@ -49,9 +49,10 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
             .select('id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id, position')
             .eq('offer_id', offerId).order('position')
         : Promise.resolve({ data: [], error: null }),
-      supabase.from('case_materials')
+      // F-8: pagineret (store sager >1.000 materialelinjer)
+      fetchAllRows((f, t) => supabase.from('case_materials')
         .select('id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id, created_at')
-        .eq('case_id', caseId).order('created_at'),
+        .eq('case_id', caseId).order('created_at').order('id').range(f, t)).then((data) => ({ data, error: null })),
       woIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : // 00192: kostkolonner læses med admin-klienten bag gaten ovenfor (bruger-klienten kan ikke læse dem).

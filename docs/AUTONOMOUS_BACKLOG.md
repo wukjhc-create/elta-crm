@@ -48,30 +48,30 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-20 (review-bølge 2026-10-16 formiddag — økonomi/profit + mobil/performance)
 | # | Fund | Status |
 |---|---|---|
-| F-1 (S1) | Fast-pris-slutfaktura kan fakturere kontraktsum INKL. moms som ekskl. (gamle sager) — rate-værnet findes ikke på slutfakturaen | TODO |
-| F-2 (S2) | Regnings-slutfaktura medtager materialer uden salgspris (0 kr) og binder dem | TODO |
-| F-3 (S2) | Regnings-slutfaktura tilladt mens en timer kører (timer efter kan aldrig faktureres) | TODO |
-| F-4 (S2) | Økonomi-fanen ignorerer billing_model (regningssag vist mod kontraktsum; revised_sum 0 vinder) | TODO |
-| F-5 (S2) | Arbejdsordre-fakturaautomatik omgår sagens fakturering (ingen case_id, live sats) | TODO — app-værn; fuld løsning [MIGRATION] |
-| F-6 (S3) | Afviste timer tæller i getCaseLaborCostTotal | TODO |
-| F-7 (S3) | Fakturakladde/forhåndsvisning afkortet ved 1.000 rækker | TODO |
-| F-8 (S3) | Kost-totaler afkortet (økonomi-fane, tilbudt vs. faktisk, materialer limit 500) | TODO |
-| F-9 (S3) | Fakturakontrol ignorerer enheder (ring vs. meter) | TODO |
-| F-10 (S3) | Kreditnota-linjer vender fortegn i fakturakontrol | TODO |
-| F-11 (S2) | Kostkolonner på case_materials/case_other_costs læsbare via API for alle | [MIGRATION] forslag |
-| F-12 (S2) | work_order_profit-snapshots forkerte (materialer/omsætning) — også i 00222-udkastet | [MIGRATION] forslag |
+| F-1 (S1) | Fast-pris-slutfaktura kan fakturere kontraktsum INKL. moms som ekskl. (gamle sager) — rate-værnet findes ikke på slutfakturaen | DONE — fælles contractSumInclVatGuard på rate, slutfaktura og forhåndsvisning. Staging billing-model-check B7 |
+| F-2 (S2) | Regnings-slutfaktura medtager materialer uden salgspris (0 kr) og binder dem | DONE — blokeret med besked (materialer + øvrige). Staging B6 |
+| F-3 (S2) | Regnings-slutfaktura tilladt mens en timer kører (timer efter kan aldrig faktureres) | DONE — "Der kører en timer" som fast pris |
+| F-4 (S2) | Økonomi-fanen ignorerer billing_model (regningssag vist mod kontraktsum; revised_sum 0 vinder) | DONE — effectiveContractSum (regning → intet kontraktgrundlag; revideret 0 overtrumfer ikke). Unit case-revenue, UI U150/U91 |
+| F-5 (S2) | Arbejdsordre-fakturaautomatik omgår sagens fakturering (ingen case_id, live sats) | DELVIS — afvises når sagen har afregningsform/kontraktsum (fakturér via sagen). SQL-funktion (case_id, snapshots) = [MIGRATION] forslag. vat-guard-check 11/11 |
+| F-6 (S3) | Afviste timer tæller i getCaseLaborCostTotal | DONE |
+| F-7 (S3) | Fakturakladde/forhåndsvisning afkortet ved 1.000 rækker | DONE — fetchAllRows. UI U15/U26/U31/U32 |
+| F-8 (S3) | Kost-totaler afkortet (økonomi-fane, tilbudt vs. faktisk, materialer limit 500) | DONE — pagineret alle tre steder. UI U34/U150 |
+| F-9 (S3) | Fakturakontrol ignorerer enheder (ring vs. meter) | DONE — enhed normaliseres; afvigende enhed = ikke kontrollerbar. Unit invoice-control, UI U9 |
+| F-10 (S3) | Kreditnota-linjer vender fortegn i fakturakontrol | DONE — kreditlinjer regnes på |antal| med omvendt retning. Unit |
+| F-11 (S2) | Kostkolonner på case_materials/case_other_costs læsbare via API for alle | BLOCKED_APPROVAL — forslag docs/runbooks/cost-columns-case-materials-proposal.md (00234) |
+| F-12 (S2) | work_order_profit-snapshots forkerte (materialer/omsætning) — også i 00222-udkastet | [MIGRATION] — 00222 ER i prod; restgab (materialer uden work_order_id, omsætning fra sagsfakturaer) kræver ny migration → forslag næste |
 | Q-1 (S2) | Dashboard-tal pager hele tabeller (leads/kunder/tilbud/timer) | TODO |
 | Q-2 (S2) | Dashboard-widgets henter serielt (client server-actions) | TODO (større) |
 | Q-3 (S3) | Overblik: chunk-løkker sekventielle + N+1 på webhenvendelser | TODO |
-| Q-4 (S2) | Kalender henter montørens job to gange | TODO |
+| Q-4 (S2) | Kalender henter montørens job to gange | DONE — ét opslag, delt i JS. UI U43/U151 |
 | Q-5 (S3) | Arbejdsordre-scope henter alle id'er unødigt | TODO |
-| Q-6 (S2) | Mail-søgning genindlæser ved hvert tastetryk (4 actions) | TODO |
-| Q-7 (S3) | Mail-sync-interval kører i skjulte faner | TODO |
-| Q-8 (S2) | 4 dialoger kan ikke rulles på telefon (materiale, øvrig omkostning, rediger/planlæg arbejdsordre) | TODO |
-| Q-9 (S3) | Sagsdetalje: dobbelt padding på mobil | TODO |
+| Q-6 (S2) | Mail-søgning genindlæser ved hvert tastetryk (4 actions) | DONE — 300 ms debounce. UI U171 |
+| Q-7 (S3) | Mail-sync-interval kører i skjulte faner | DONE — useVisiblePolling |
+| Q-8 (S2) | 4 dialoger kan ikke rulles på telefon (materiale, øvrig omkostning, rediger/planlæg arbejdsordre) | DONE — overlay rulbart (items-start på telefon). UI U34/U43 |
+| Q-9 (S3) | Sagsdetalje: dobbelt padding på mobil | DONE. UI U160 |
 | Q-10 (S3) | Materiale-/øvrige-tabeller uden mobilvisning | TODO |
 | Q-11 (S3) | Kalender dagsvisning flyder over på telefon; små nav-knapper | TODO |
-| Q-12 (S3) | Sagslister: uafhængige forespørgsler sekventielt | TODO |
+| Q-12 (S3) | Sagslister: uafhængige forespørgsler sekventielt | DELVIS — sagslisten parallel (stats/sager/medarbejdere). Sagsdetalje = TODO. UI U20/U165/U12 |
 
 ## REVIEW-2026-10-16 (kode-review af egne ændringer)
 | # | Fund | Status |

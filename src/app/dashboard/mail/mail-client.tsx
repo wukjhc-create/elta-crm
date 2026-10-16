@@ -1,5 +1,6 @@
 'use client'
 
+import { useVisiblePolling } from '@/lib/hooks/use-visible-polling'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -136,6 +137,12 @@ export function MailClient() {
 
   // Search + filter state
   const [search, setSearch] = useState(searchParams.get('search') || '')
+  // Q-6 (review 2026-10-16): feltet opdateres straks, men listen hentes først efter 300 ms pause (før 4 kald pr. tastetryk)
+  const [searchInput, setSearchInput] = useState(search)
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 300)
+    return () => clearTimeout(t)
+  }, [searchInput])
   const [readFilter, setReadFilter] = useState<ReadFilter>('all')
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest')
 
@@ -359,21 +366,18 @@ export function MailClient() {
   //  1. inFlightSyncRef (delt med manuel handleSync)
   //  2. isBgSyncing (delt med backgroundRefresh)
   //  3. isSyncing-state (manuel-knap loading)
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      if (inFlightSyncRef.current || isBgSyncing.current || isSyncing) return
-      inFlightSyncRef.current = true
-      try {
-        await triggerEmailSync()
-        // Realtime subscription will pick up new rows automatically
-      } catch {
-        // Silent fail
-      } finally {
-        inFlightSyncRef.current = false
-      }
-    }, 60_000)
-    return () => clearInterval(interval)
-  }, [isSyncing])
+  // Q-7 (review 2026-10-16): kun mens fanen er synlig (før synkede hver åben mail-fane mod Graph hvert minut), og et
+  // manuelt sync genstarter ikke længere timeren (isSyncing læses via ref)
+  const isSyncingRef = useRef(isSyncing)
+  isSyncingRef.current = isSyncing
+  useVisiblePolling(() => {
+    if (inFlightSyncRef.current || isBgSyncing.current || isSyncingRef.current) return
+    inFlightSyncRef.current = true
+    triggerEmailSync()
+      // Realtime subscription will pick up new rows automatically
+      .catch(() => { /* Silent fail */ })
+      .finally(() => { inFlightSyncRef.current = false })
+  }, 60_000)
 
   // Update "last refreshed" label every 10 seconds
   useEffect(() => {
@@ -400,8 +404,9 @@ export function MailClient() {
   }
 
   const handleSearchSubmit = () => {
+    setSearch(searchInput)
     const params = new URLSearchParams(searchParams.toString())
-    if (search) params.set('search', search)
+    if (searchInput) params.set('search', searchInput)
     else params.delete('search')
     params.delete('page')
     router.push(`/dashboard/mail?${params.toString()}`)
@@ -1197,13 +1202,13 @@ export function MailClient() {
           emails={emails}
           selectedEmailId={selectedEmail?.id ?? null}
           isLoading={isLoading}
-          search={search}
+          search={searchInput}
           readFilter={readFilter}
           sortOrder={sortOrder}
           emailLeadMap={emailLeadMap}
           requiresResponseMap={requiresResponseMap}
           onSelectEmail={handleSelectEmail}
-          onSearchChange={setSearch}
+          onSearchChange={setSearchInput}
           onSearchSubmit={handleSearchSubmit}
           onReadFilterChange={setReadFilter}
           onSortOrderChange={setSortOrder}

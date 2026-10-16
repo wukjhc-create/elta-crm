@@ -176,7 +176,8 @@ export async function listUnbilledForCaseAction(
   const [timeLogsRes, materialsRes, otherCostsRes] = await Promise.all([
     woIds.length === 0
       ? Promise.resolve({ data: [] as TimeLogRow[] })
-      : supabase
+      // F-7 (review 2026-10-16): pagineret som selve slutfakturaen (før afkortet ved 1.000 rækker → forhåndsvisning ≠ faktura)
+      : fetchAllRows((from, to) => supabase
           .from('time_logs')
           .select(
             'id, employee_id, work_order_id, start_time, end_time, hours, billable, description, invoice_line_id, ' +
@@ -190,8 +191,10 @@ export async function listUnbilledForCaseAction(
           .eq('billable', true)
           // Henrik 2026-10-07: afviste timer faktureres aldrig
           .neq('approval_status', 'rejected')
-          .order('start_time', { ascending: true }),
-    supabase
+          .order('start_time', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to) as never).then((data) => ({ data: data as TimeLogRow[] })),
+    fetchAllRows((from, to) => supabase
       .from('case_materials')
       .select(
         'id, description, quantity, unit, unit_sales_price, total_sales_price, billable, invoice_line_id, supplier_name_snapshot, source'
@@ -199,8 +202,10 @@ export async function listUnbilledForCaseAction(
       .eq('case_id', caseId)
       .is('invoice_line_id', null)
       .eq('billable', true)
-      .order('created_at', { ascending: true }),
-    supabase
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)).then((data) => ({ data })),
+    fetchAllRows((from, to) => supabase
       .from('case_other_costs')
       .select(
         'id, category, description, cost_date, quantity, unit, unit_sales_price, total_sales_price, billable, invoice_line_id, supplier_name, source'
@@ -208,7 +213,9 @@ export async function listUnbilledForCaseAction(
       .eq('case_id', caseId)
       .is('invoice_line_id', null)
       .eq('billable', true)
-      .order('cost_date', { ascending: true }),
+      .order('cost_date', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)).then((data) => ({ data })),
   ])
 
   // ---- Map time_logs ----
@@ -916,7 +923,7 @@ export async function getContractFinalPreviewAction(caseId: string): Promise<Con
   if (!hasPermission('invoices.create')) return { ...none, message: 'Manglende tilladelse: invoices.create' }
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const { finalInvoicePlanKind, isBillingModel } = await import('@/lib/invoices/billing-model')
-  const { loadContractRemainderPlan } = await import('@/lib/services/invoice-stage')
+  const { loadContractRemainderPlan, contractSumInclVatGuard } = await import('@/lib/services/invoice-stage')
   const admin = createAdminClient()
   const { data: sums } = await admin.from('service_cases').select('contract_sum, revised_sum, billing_model').eq('id', caseId).maybeSingle()
   const s0 = (sums ?? {}) as { contract_sum?: number | string | null; revised_sum?: number | string | null; billing_model?: string | null }
@@ -925,6 +932,9 @@ export async function getContractFinalPreviewAction(caseId: string): Promise<Con
   if (kind.kind === 'blocked') return { ...none, billing_model: model, message: kind.message }
   if (kind.kind === 'lines') return { ...none, billing_model: model, ok: true }
   const basis = kind.basis
+  // F-1: samme moms-værn som selve slutfakturaen (forhåndsvisningen må ikke vise et 25 % for højt beløb)
+  const vatMsg = await contractSumInclVatGuard(admin, caseId, basis, kind.basisKind, 'slutfakturaen oprettes')
+  if (vatMsg) return { ...none, billing_model: model, is_contract: true, basis, basis_kind: kind.basisKind, message: vatMsg }
   const plan = await loadContractRemainderPlan(admin, caseId, basis)
   return {
     billing_model: model,

@@ -17,6 +17,17 @@ export interface InvoiceLineInput {
   expectedUnitPrice: number | null
   /** Hvorfor forventet pris mangler (fx 'intet produktmatch'). */
   expectedMissingReason?: string
+  /** F-9 (review 2026-10-16): fakturalinjens og katalogvarens enhed — afviger de, kan prisen ikke sammenlignes */
+  unit?: string | null
+  expectedUnit?: string | null
+}
+
+/** Normaliserer enheder så "stk."/"st"/"pcs" og "m"/"mtr"/"meter" regnes ens; ukendte sammenlignes ordret */
+export function normalizeUnit(u: string | null | undefined): string | null {
+  const s = (u ?? '').toLowerCase().replace(/[.\s]/g, '')
+  if (!s) return null
+  const map: Record<string, string> = { st: 'stk', stk: 'stk', pcs: 'stk', pc: 'stk', styk: 'stk', mtr: 'm', meter: 'm', m: 'm', rl: 'rulle', rulle: 'rulle', ring: 'rulle', ks: 'kasse', kasse: 'kasse', pk: 'pakke', pakke: 'pakke', sæt: 'sæt', saet: 'sæt' }
+  return map[s] ?? s
 }
 
 export interface ControlTolerance {
@@ -64,9 +75,16 @@ export function controlLine(l: InvoiceLineInput, tol: ControlTolerance = DEFAULT
   if (l.expectedUnitPrice == null || !(l.expectedUnitPrice > 0)) {
     return { ...base, verdict: 'not_controllable', varianceAmount: 0, variancePct: null, reason: l.expectedMissingReason ?? 'ingen forventet pris' }
   }
-  const diff = l.unitPrice - l.expectedUnitPrice
+  const fu = normalizeUnit(l.unit)
+  const eu = normalizeUnit(l.expectedUnit)
+  if (fu && eu && fu !== eu) {
+    return { ...base, verdict: 'not_controllable', varianceAmount: 0, variancePct: null, reason: `enhed afviger (faktura ${l.unit}, katalog ${l.expectedUnit})` }
+  }
+  // F-10: kreditlinjer (negativt antal) — en LAVERE kreditpris end aftalt er et tab for os, og beløbet regnes på |antal|
+  const isCredit = l.quantity < 0
+  const diff = isCredit ? l.expectedUnitPrice - l.unitPrice : l.unitPrice - l.expectedUnitPrice
   const variancePct = r2((diff / l.expectedUnitPrice) * 100)
-  const varianceAmount = r2(diff * l.quantity)
+  const varianceAmount = r2(diff * Math.abs(l.quantity))
   const beyond = Math.abs(variancePct) > tol.pct && (Math.abs(diff) > tol.absPerUnit || Math.abs(varianceAmount) > (tol.absPerLine ?? Infinity))
   if (!beyond) return { ...base, verdict: 'ok', varianceAmount, variancePct, reason: 'inden for tolerance' }
   return diff > 0

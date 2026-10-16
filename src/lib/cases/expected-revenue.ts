@@ -24,13 +24,31 @@ const num = (v: number | string | null | undefined): number | null => {
   return Number.isFinite(n) ? n : null
 }
 
+/**
+ * F-4 (review 2026-10-16): effektiv kontraktsum med afregningsformen (00232). Regningsarbejde har ingen kontraktsum at
+ * regne mod (selv om sager fra tilbud altid får en). Et revideret beløb på 0 tæller ikke over kontraktsummen (samme
+ * regel som slutfakturaen: kun beløb > 0). null = intet kontraktgrundlag.
+ */
+export function effectiveContractSum(input: {
+  contractSum: number | string | null | undefined
+  revisedSum: number | string | null | undefined
+  billingModel?: string | null
+}): number | null {
+  if (input.billingModel === 'time_and_materials') return null
+  const rev = num(input.revisedSum)
+  const cs = num(input.contractSum)
+  if (rev != null && rev > 0) return rev
+  return cs ?? rev
+}
+
 export function expectedCaseRevenue(input: {
   contractSum: number | string | null | undefined
   revisedSum: number | string | null | undefined
   registeredSale: number
   netInvoicedExVat: number
+  billingModel?: string | null
 }): ExpectedRevenue {
-  const ref = num(input.revisedSum) ?? num(input.contractSum)
+  const ref = effectiveContractSum(input)
   if (ref == null) return { revenue: r2(input.registeredSale), basis: 'registered' }
   if (input.netInvoicedExVat > ref) return { revenue: r2(input.netInvoicedExVat), basis: 'invoiced' }
   return { revenue: r2(ref), basis: 'contract' }

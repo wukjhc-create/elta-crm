@@ -22,7 +22,7 @@ import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type { ServiceCaseStatus } from '@/types/service-cases.types'
 import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
-import { expectedCaseRevenue, type RevenueBasis } from '@/lib/cases/expected-revenue'
+import { effectiveContractSum, expectedCaseRevenue, type RevenueBasis } from '@/lib/cases/expected-revenue'
 import { loadDbThresholds } from '@/lib/profit/db-thresholds'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { netInvoicedExVat, summarizeCaseInvoices, type InvoiceAmountRow, type CaseInvoiceRow } from '@/lib/invoices/net-invoiced'
@@ -173,7 +173,7 @@ export async function getServiceCaseEconomy(
     const { data: sag, error: sagErr } = await supabase
       .from('service_cases')
       .select(
-        'id, status, contract_sum, revised_sum, budget, planned_hours, low_profit'
+        'id, status, contract_sum, revised_sum, billing_model, budget, planned_hours, low_profit'
       )
       .eq('id', caseId)
       .maybeSingle()
@@ -213,23 +213,24 @@ export async function getServiceCaseEconomy(
             .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
             .order('id')
             .range(f, t)).then((data) => ({ data, error: null })),
-      supabase
+      // F-8 (review 2026-10-16): pagineret — kost/salg-totaler må ikke afkortes ved 1.000 rækker
+      fetchAllRows((f, t) => supabase
         .from('case_materials')
-        .select('total_cost, total_sales_price, unit_cost, unit_sales_price, billable, invoice_line_id')
-        .eq('case_id', caseId),
-      supabase
+        .select('id, total_cost, total_sales_price, unit_cost, unit_sales_price, billable, invoice_line_id')
+        .eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data, error: null })),
+      fetchAllRows((f, t) => supabase
         .from('case_other_costs')
-        .select('total_cost, total_sales_price, unit_sales_price, billable, invoice_line_id')
-        .eq('case_id', caseId),
+        .select('id, total_cost, total_sales_price, unit_sales_price, billable, invoice_line_id')
+        .eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data, error: null })),
       // Sprint 1B driftsfix: Migration 00104 tilfoejede invoices.case_id som
       // direkte FK til sagen. Alle nye invoices bruger case_id (work_order_id
       // er null). Den gamle work_order_id-baserede join returnerede derfor
       // altid 0 invoices paa enhver sag → Fakturering-panelet viste 0 kr
       // selv om der laa faktureret beloeb. Fix: join paa case_id direkte.
-      supabase
+      fetchAllRows((f, t) => supabase
         .from('invoices')
-        .select('total_amount, final_amount, amount_paid, status, invoice_type, voided_at')
-        .eq('case_id', caseId),
+        .select('id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at')
+        .eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data, error: null })),
       supabase
         .from('incoming_invoices')
         .select(`
@@ -452,7 +453,7 @@ export async function getServiceCaseEconomy(
     const registered_sale = total_labor_sale + mat_sale + oth_sale
     // PE-6: kontraktsager regnes mod kontraktsummen (ekskl. moms), ikke registrerede salgspriser
     const revenue = expectedCaseRevenue({
-      contractSum: sag.contract_sum, revisedSum: sag.revised_sum,
+      contractSum: sag.contract_sum, revisedSum: sag.revised_sum, billingModel: (sag as { billing_model?: string | null }).billing_model,
       registeredSale: registered_sale, netInvoicedExVat: invoiced_total,
     })
     const total_sale = revenue.revenue
@@ -461,12 +462,8 @@ export async function getServiceCaseEconomy(
     const margin_pct = total_sale > 0 ? (cm / total_sale) * 100 : 0
 
     // ---- Remaining to invoice ----
-    const referenceSum =
-      sag.revised_sum != null
-        ? Number(sag.revised_sum)
-        : sag.contract_sum != null
-        ? Number(sag.contract_sum)
-        : null
+    // F-4: med afregningsform — regningsarbejde har intet kontraktgrundlag
+    const referenceSum = effectiveContractSum({ contractSum: sag.contract_sum, revisedSum: sag.revised_sum, billingModel: (sag as { billing_model?: string | null }).billing_model })
     const remaining_to_invoice =
       referenceSum != null ? r2(referenceSum - invoiced_total) : null
 
@@ -608,7 +605,7 @@ export async function getServiceCaseBillingStatus(
 
     const { data: sag } = await supabase
       .from('service_cases')
-      .select('id, contract_sum, revised_sum')
+      .select('id, contract_sum, revised_sum, billing_model')
       .eq('id', caseId)
       .maybeSingle()
     if (!sag) return { success: false, error: 'Sag ikke fundet' }
@@ -643,8 +640,7 @@ export async function getServiceCaseBillingStatus(
 
     // sags-review: netto udstedt ekskl. moms (før alle fakturaer inkl. kladder/annullerede/kreditnotaer)
     const invoiced_total = netInvoicedExVat((invRes.data ?? []) as InvoiceAmountRow[])
-    const refSum = sag.revised_sum != null ? Number(sag.revised_sum)
-      : sag.contract_sum != null ? Number(sag.contract_sum) : null
+    const refSum = effectiveContractSum({ contractSum: sag.contract_sum, revisedSum: sag.revised_sum, billingModel: (sag as { billing_model?: string | null }).billing_model })
 
     return {
       success: true,
@@ -722,7 +718,7 @@ export async function getServiceCaseProjectEconomy(
 
     const { data: sag } = await supabase
       .from('service_cases')
-      .select('id, contract_sum, revised_sum')
+      .select('id, contract_sum, revised_sum, billing_model')
       .eq('id', caseId)
       .maybeSingle()
     if (!sag) return { success: false, error: 'Sag ikke fundet' }
@@ -763,8 +759,7 @@ export async function getServiceCaseProjectEconomy(
     const voidedCount = sum.voidedCount
     const netInvoiced = sum.netInclVat
     const outstanding = sum.outstandingInclVat
-    const refSum = sag.revised_sum != null ? Number(sag.revised_sum)
-      : sag.contract_sum != null ? Number(sag.contract_sum) : null
+    const refSum = effectiveContractSum({ contractSum: sag.contract_sum, revisedSum: sag.revised_sum, billingModel: (sag as { billing_model?: string | null }).billing_model })
 
     return {
       success: true,

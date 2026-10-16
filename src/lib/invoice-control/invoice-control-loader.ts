@@ -29,8 +29,8 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
   const { data: inv } = await client.from('incoming_invoices').select('id, supplier_id, invoice_date').eq('id', invoiceId).maybeSingle()
   if (!inv) return null
   const { data: rows } = await client.from('incoming_invoice_lines')
-    .select('line_number, description, quantity, unit_price, supplier_product_id, raw_line').eq('incoming_invoice_id', invoiceId).order('line_number')
-  const lines = (rows ?? []) as Array<{ line_number: number; description: string | null; quantity: number | null; unit_price: number | null; supplier_product_id: string | null; raw_line: string | null }>
+    .select('line_number, description, quantity, unit, unit_price, supplier_product_id, raw_line').eq('incoming_invoice_id', invoiceId).order('line_number')
+  const lines = (rows ?? []) as Array<{ line_number: number; description: string | null; quantity: number | null; unit?: string | null; unit_price: number | null; supplier_product_id: string | null; raw_line: string | null }>
 
   const toMatch = lines.map((l) => ({ lineNumber: l.line_number, description: l.description, supplierProductCode: codeFromRawLine(l.raw_line) }))
   let products: ProductRef[] = []
@@ -39,14 +39,14 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     for (let k = 0; k < codes.length; k += 200) {
       const chunk = codes.slice(k, k + 200)
       const [a, b] = await Promise.all([
-        catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', inv.supplier_id).in('supplier_sku', chunk),
-        catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', inv.supplier_id).in('ean', chunk),
+        catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price, unit').eq('supplier_id', inv.supplier_id).in('supplier_sku', chunk),
+        catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price, unit').eq('supplier_id', inv.supplier_id).in('ean', chunk),
       ])
       products.push(...((a.data ?? []) as ProductRef[]), ...((b.data ?? []) as ProductRef[]))
     }
   }
   const storedIds = [...new Set(lines.map((l) => l.supplier_product_id).filter(Boolean) as string[])]
-  const stored = storedIds.length ? (((await catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').in('id', storedIds)).data ?? []) as ProductRef[]) : []
+  const stored = storedIds.length ? (((await catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price, unit').in('id', storedIds)).data ?? []) as ProductRef[]) : []
   const storedById = new Map(stored.map((p) => [p.id, p]))
   products = [...new Map(products.map((p) => [p.id, p])).values()]
 
@@ -83,7 +83,9 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     const expected = st ? atDate(st.id, st.cost_price) : atDate(m.supplierProductId, m.expectedUnitCost)
     const sku = st?.supplier_sku ?? (m.supplierProductId ? products.find((p) => p.id === m.supplierProductId)?.supplier_sku ?? null : null)
     matches.push({ lineNumber: l.line_number, method: st ? 'stored' : m.method, productSku: sku, expectedUnitPrice: expected })
+    const prodUnit = (st as { unit?: string | null } | undefined)?.unit ?? (m.supplierProductId ? (products.find((p) => p.id === m.supplierProductId) as { unit?: string | null } | undefined)?.unit ?? null : null)
     return { lineNumber: l.line_number, description: l.description ?? '', quantity: l.quantity, unitPrice: l.unit_price, expectedUnitPrice: expected,
+      unit: l.unit ?? null, expectedUnit: prodUnit,
       expectedMissingReason: st || m.supplierProductId ? 'produkt uden kostpris' : inv.supplier_id ? 'intet produktmatch' : 'leverandør ukendt' }
   }))
   return { control, matches: matches.sort((a, b) => a.lineNumber - b.lineNumber), hasSupplier: !!inv.supplier_id }

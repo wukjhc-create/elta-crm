@@ -33,6 +33,10 @@ const e = expectedCaseRevenue
   ok(r.basis === 'contract' && r.revenue === 0, 'kontraktsum 0 er en kontrakt (fx garantisag) — ikke regningsarbejde')
 }
 ok(e({ contractSum: '', revisedSum: undefined, registeredSale: 10, netInvoicedExVat: 0 }).basis === 'registered', 'tom streng = ingen kontraktsum')
+// F-4 (00232): regningsarbejde regnes mod registreret salg selv med kontraktsum; revideret 0 overtrumfer ikke kontraktsum
+ok(e({ contractSum: 80000, revisedSum: null, registeredSale: 120000, netInvoicedExVat: 0, billingModel: 'time_and_materials' }).revenue === 120000, 'regning med kontraktsum → registreret salg')
+ok(e({ contractSum: 80000, revisedSum: 0, registeredSale: 1, netInvoicedExVat: 0 }).revenue === 80000, 'revideret 0 → kontraktsum')
+ok(e({ contractSum: 80000, revisedSum: 90000, registeredSale: 1, netInvoicedExVat: 0, billingModel: 'fixed_price' }).revenue === 90000, 'fast pris: revideret beløb')
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ omsætningsgrundlag ok')
 process.exitCode = bad ? 1 : 0

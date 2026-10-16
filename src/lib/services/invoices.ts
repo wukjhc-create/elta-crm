@@ -1465,6 +1465,15 @@ export async function createInvoiceFromWorkOrder(
     const cid = (woCase as { case_id?: string | null } | null)?.case_id
     const vatErr = cid ? await caseVatBlock(supabase, cid) : null
     if (vatErr) throw new Error(`createInvoiceFromWorkOrder: ${vatErr}`)
+    // F-5 (review 2026-10-16): SQL-funktionen opretter fakturaen UDEN case_id — sagens fakturering (rest/slutfaktura) ser
+    // den ikke, så en sag med afregningsform eller kontraktsum blev faktureret dobbelt. Sådanne sager faktureres via sagen.
+    if (cid) {
+      const { data: sc } = await supabase.from('service_cases').select('billing_model, contract_sum, revised_sum').eq('id', cid).maybeSingle()
+      const c = sc as { billing_model?: string | null; contract_sum?: number | string | null; revised_sum?: number | string | null } | null
+      if (c && (c.billing_model || Number(c.contract_sum ?? 0) > 0 || Number(c.revised_sum ?? 0) > 0)) {
+        throw new Error('createInvoiceFromWorkOrder: arbejdsordren hører til en sag med afregningsform/kontraktsum — fakturér via sagens fakturakladde eller slutfaktura')
+      }
+    }
   }
 
   const { data, error } = await supabase.rpc('create_invoice_from_work_order', {

@@ -53,7 +53,27 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // invoices.view.own_cases; uden adgang ignoreres billing helt (ingen payload).
   const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
   // N9c: antal sager pr. status (som Service-listen) — kun for roller der ser alle sager (tællerne er ikke scope-filtrerede)
-  const statsRes = canViewAll ? await getServiceCaseStats() : null
+  // Q-12 (review 2026-10-16): status-tællere, sager og medarbejdere hentes samtidig (før efter hinanden)
+  const billingFilterEarly = canSeeBilling && params.billing && VALID_BILLING.has(params.billing as CaseBillingFilter)
+  const employeesPromise = (async () => {
+    try {
+      const { supabase } = await getAuthenticatedClient()
+      const { data } = await supabase.from('employees').select('id, name, first_name, last_name')
+      return data ?? []
+    } catch { return [] }
+  })()
+  const [statsRes, casesResult, employeeRows] = await Promise.all([
+    canViewAll ? getServiceCaseStats() : Promise.resolve(null),
+    getServiceCases({
+      page: billingFilterEarly ? 1 : page,
+      pageSize: billingFilterEarly ? BILLING_FILTER_CAP : LIST_PAGE_SIZE,
+      search: params.search,
+      status: params.status,
+      priority: params.priority,
+      type: params.type, // N9c: filteret blev aldrig sendt videre
+    }),
+    employeesPromise,
+  ])
   const statusCounts: Record<string, number> | null = statsRes?.success && statsRes.data ? { ...statsRes.data } : null
   const billingFilter: CaseBillingFilter | undefined =
     canSeeBilling && params.billing && VALID_BILLING.has(params.billing as CaseBillingFilter)
@@ -65,22 +85,11 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // beregnes økonomi i batch, filtreres korrekt og pagineres derefter i memory
   // (filter-derefter-paginér) — så filteret er korrekt på tværs af sager, ikke
   // kun den viste side. Ingen N+1.
-  const casesResult = await getServiceCases({
-    page: billingFilter ? 1 : page,
-    pageSize: billingFilter ? BILLING_FILTER_CAP : LIST_PAGE_SIZE,
-    search: params.search,
-    status: params.status,
-    priority: params.priority,
-    type: params.type, // N9c: filteret blev aldrig sendt videre
-  })
 
   // Pull employees for formand name lookup (small set, cached per request).
   let employeeMap = new Map<string, { id: string; name: string }>()
   try {
-    const { supabase } = await getAuthenticatedClient()
-    const { data } = await supabase
-      .from('employees')
-      .select('id, name, first_name, last_name')
+    const data = employeeRows
     employeeMap = new Map(
       (data ?? []).map((e) => [
         e.id as string,

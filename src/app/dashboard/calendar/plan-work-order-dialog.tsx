@@ -178,7 +178,7 @@ export function PlanWorkOrderDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 px-4 py-4 overflow-y-auto"
       onMouseDown={(e) => {
         // Click on backdrop closes the dialog (unless submitting)
         if (e.target === e.currentTarget && !submitting) onClose()

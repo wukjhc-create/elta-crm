@@ -123,14 +123,8 @@ export async function createStageInvoiceForCase(
   // 1b. Værn (rapport-review): sager oprettet fra tilbud før rettelsen fik kontraktsummen INKL. moms. Er den lig med
   // kildetilbuddets beløb inkl. moms (og der er moms), ville raten blive 25 % for høj → stop med en klar besked.
   if (input.amount_basis === 'contract_sum') {
-    const { data: src } = await supabase.from('offers').select('final_amount, tax_amount')
-      .eq('converted_case_id', input.case_id).limit(1).maybeSingle()
-    if (src && Number(src.tax_amount ?? 0) > 0 && Math.abs(Number(src.final_amount) - basisValue) < 0.005) {
-      return {
-        ...empty,
-        message: 'Sagens kontraktsum er tilbuddets beløb INKL. moms — ret den til beløbet ekskl. moms på sagen, før der laves rater på kontraktsummen',
-      }
-    }
+    const vatMsg = await contractSumInclVatGuard(supabase, input.case_id, basisValue, 'contract_sum', 'der laves rater på kontraktsummen')
+    if (vatMsg) return { ...empty, message: vatMsg }
   }
 
   // 2. Slut-gate — ingen ny deposit/progress når slut findes
@@ -529,8 +523,19 @@ export async function createFinalInvoiceForCase(
         .range(from, to)).then((data) => ({ data })),
     ])
 
+    // F-3 (review 2026-10-16): en kørende timer blokerer (som fast pris) — timer registreret efter slutfakturaen kunne
+    // ellers aldrig faktureres
+    if (woIds.length) {
+      const { count: running } = await supabase.from('time_logs').select('id', { count: 'exact', head: true })
+        .in('work_order_id', woIds).is('end_time', null).is('invoice_line_id', null)
+      if ((running ?? 0) > 0) return { ...empty, message: 'Der kører en timer på sagen — stop den før slutfakturaen oprettes' }
+    }
+
     const timeRows = (tlRes.data ?? []) as unknown as TimeLogJoin[]
     let missingRateHours = 0
+    // F-2 (review 2026-10-16): fakturerbare materialer/øvrige uden salgspris (fx konverteret fra leverandørfaktura med
+    // 0 kr) blev faktureret til 0 kr og låst på den eneste slutfaktura → blokér med besked
+    const zeroPriced: string[] = []
     const missingRateNames = new Set<string>()
     // Henrik 2026-10-15 (PR-3): kun GODKENDTE timer faktureres — afventende blokerer slutfakturaen (den er endelig)
     let pendingHours = 0
@@ -580,6 +585,7 @@ export async function createFinalInvoiceForCase(
       total_sales_price: number | string
     }>) {
       const total = Number(m.total_sales_price)
+      if (!(Number(m.unit_sales_price) > 0)) zeroPriced.push(m.description)
       lines.push({
         description: m.description,
         quantity: Number(m.quantity),
@@ -601,6 +607,7 @@ export async function createFinalInvoiceForCase(
       total_sales_price: number | string
     }>) {
       const total = Number(o.total_sales_price)
+      if (!(Number(o.unit_sales_price) > 0)) zeroPriced.push(o.description)
       lines.push({
         description: o.description,
         quantity: Number(o.quantity),
@@ -613,6 +620,14 @@ export async function createFinalInvoiceForCase(
       unbilledLinesCount += 1
     }
 
+    if (zeroPriced.length > 0) {
+      return {
+        ...empty,
+        message: `${zeroPriced.length} fakturerbar${zeroPriced.length === 1 ? '' : 'e'} post${zeroPriced.length === 1 ? '' : 'er'} har ingen salgspris (fx "${zeroPriced[0]}") — sæt salgspris under Materialer/Øvrige eller markér som ikke-fakturerbar, før slutfakturaen oprettes`,
+        predecessor_count: predRows.length,
+        unbilled_lines_count: unbilledLinesCount,
+      }
+    }
     if (pendingHours > 0) {
       return {
         ...empty,
@@ -882,6 +897,28 @@ export async function createFinalInvoiceForCase(
  * Timer/materialer/øvrige lægges IKKE oveni; de godkendte, fakturerbare og ufakturerede poster DÆKKES af kontraktlinjen
  * (bindes til den, så de er låst og sagen kan lukkes). Afventende timer og kørende timere blokerer (som PR-3).
  */
+/**
+ * F-1 (review 2026-10-16): fælles moms-værn for rate OG slutfaktura på kontraktsummen — gamle sager fra tilbud fik
+ * kontraktsummen inkl. moms; uden værnet blev slutfakturaen 25 % for høj (125.000 ekskl. + 31.250 moms i stedet for
+ * 100.000 + 25.000). Kun contract_sum (revideret beløb sættes manuelt ekskl. moms). null = ok.
+ */
+export async function contractSumInclVatGuard(
+  supabase: { from: ReturnType<typeof createAdminClient>['from'] },
+  caseId: string,
+  basis: number,
+  basisKind: 'contract_sum' | 'revised_sum',
+  what: string,
+): Promise<string | null> {
+  if (basisKind !== 'contract_sum') return null
+  const { data: src } = await supabase.from('offers').select('final_amount, tax_amount')
+    .eq('converted_case_id', caseId).limit(1).maybeSingle()
+  const o = src as { final_amount?: number | string | null; tax_amount?: number | string | null } | null
+  if (o && Number(o.tax_amount ?? 0) > 0 && Math.abs(Number(o.final_amount) - basis) < 0.005) {
+    return `Sagens kontraktsum er tilbuddets beløb INKL. moms — ret den til beløbet ekskl. moms på sagen, før ${what}`
+  }
+  return null
+}
+
 async function createContractFinalInvoice(
   supabase: ReturnType<typeof createAdminClient>,
   sag: { id: string; case_number: string | null; customer_id: string; payer_customer_id: string | null },
@@ -891,6 +928,8 @@ async function createContractFinalInvoice(
   approverId: string,
   empty: CreateFinalInvoiceResult,
 ): Promise<CreateFinalInvoiceResult> {
+  const vatMsg = await contractSumInclVatGuard(supabase, sag.id, basis, basisKind, 'slutfakturaen oprettes')
+  if (vatMsg) return { ...empty, message: vatMsg }
   const plan = await loadContractRemainderPlan(supabase, sag.id, basis)
   if (!plan.ok) return { ...empty, message: plan.message, deduction_total: plan.deducted }
 

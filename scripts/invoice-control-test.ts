@@ -37,5 +37,21 @@ assert(controlInvoice([]).verdict === 'not_controllable' && controlInvoice([]).c
 assert(controlLine(L(1, 1.2, 1.0, 10)).verdict === 'ok', '20 % over men kun 2 kr på linjen: stadig ok (afrunding)')
 assert(controlLine(L(1, 4.05, 4.0, 500)).verdict === 'ok', '1,25 % over på 500 m (25 kr): inden for procent-tolerancen')
 
+// F-9 (review 2026-10-16): enhed afviger (ring vs. meter) → ikke kontrollerbar (før −99 % "underpris")
+{
+  const c = controlLine({ ...L(1, 4.5, 450, 100), unit: 'M', expectedUnit: 'rl' })
+  assert(c.verdict === 'not_controllable' && /enhed afviger/.test(c.reason), 'faktura pr. meter mod katalog pr. ring: ikke kontrollerbar', `${c.verdict} ${c.reason}`)
+}
+assert(controlLine({ ...L(1, 100, 100, 1), unit: 'stk.', expectedUnit: 'ST' }).verdict === 'ok', 'stk./ST regnes som samme enhed')
+// F-10: kreditlinje — lavere kreditpris end aftalt er et tab (merbetaling), beløb på |antal|
+{
+  const c = controlLine(L(1, 90, 100, -2))
+  assert(c.verdict === 'overcharge' && c.varianceAmount === 20, 'kredit 2 stk à 90 mod 100: vi mister 20 kr', `${c.verdict} ${c.varianceAmount}`)
+}
+{
+  const c = controlLine(L(1, 110, 100, -2))
+  assert(c.verdict === 'undercharge' && c.varianceAmount === -20, 'kredit à 110 mod 100: til vores fordel', `${c.verdict} ${c.varianceAmount}`)
+}
+
 console.log(`\n${fails === 0 ? '✅ ALLE FAKTURAKONTROL-TESTS PASS' : `❌ ${fails} FEJL`}`)
 process.exit(fails === 0 ? 0 : 1)

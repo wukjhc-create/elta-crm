@@ -18,7 +18,7 @@ export async function runBillingModelCheck(c: { admin: SupabaseClient; sql: (q: 
   const admin = c.admin
   const stamp = Date.now()
   const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
-  const made = { cust: '', cases: [] as string[], invoices: [] as string[], wos: [] as string[], emp: '' }
+  const made = { cust: '', cases: [] as string[], invoices: [] as string[], wos: [] as string[], emp: '', offers: [] as string[] }
   let seq = 0
   const ins = async (t: string, row: Record<string, unknown>) => {
     const { data, error } = await admin.from(t).insert([row]).select('id').single()
@@ -60,6 +60,21 @@ export async function runBillingModelCheck(c: { admin: SupabaseClient; sql: (q: 
     if (r4.invoice_id) made.invoices.push(r4.invoice_id)
     out.push({ id: 'B4 fast pris uden kontraktsum → blokeret', ok: !r4.ok && /ingen kontraktsum/.test(r4.message), note: r4.message })
 
+    // F-2 (review 2026-10-16): regning med fakturerbart materiale uden salgspris → blokeret (ellers 0 kr og låst)
+    const k6 = await mkCase(null, 'time_and_materials')
+    await ins('case_materials', { case_id: k6, description: '[HARNESS] uden pris', quantity: 1, unit: 'stk', unit_cost: 4800, unit_sales_price: 0, billable: true, source: 'manual', created_by: owner })
+    const r6 = await createFinalInvoiceForCase({ case_id: k6 }, owner)
+    if (r6.invoice_id) made.invoices.push(r6.invoice_id)
+    out.push({ id: 'B6 regning: materiale uden salgspris → blokeret', ok: !r6.ok && !r6.invoice_id && /ingen salgspris/.test(r6.message), note: r6.message })
+
+    // F-1: fast pris hvor kontraktsummen = kildetilbuddets beløb INKL. moms → blokeret (ellers 25 % for meget)
+    const k7 = await mkCase(12500, 'fixed_price')
+    const off = await ins('offers', { offer_number: `HBM-${stamp}-o`, title: '[HARNESS] inkl moms', customer_id: made.cust, status: 'accepted', created_by: owner, total_amount: 10000, tax_amount: 2500, final_amount: 12500, converted_case_id: k7 })
+    made.offers.push(off)
+    const r7 = await createFinalInvoiceForCase({ case_id: k7 }, owner)
+    if (r7.invoice_id) made.invoices.push(r7.invoice_id)
+    out.push({ id: 'B7 fast pris: kontraktsum = tilbud inkl. moms → blokeret', ok: !r7.ok && !r7.invoice_id && /INKL\. moms/.test(r7.message), note: r7.message })
+
     const bad = await admin.from('service_cases').update({ billing_model: 'mixed' }).eq('id', k4).select('id')
     out.push({ id: 'B5 DB afviser ukendt afregningsform', ok: !!bad.error, note: (bad.error as { code?: string } | null)?.code ?? 'tilladt!' })
   } finally {
@@ -70,6 +85,7 @@ export async function runBillingModelCheck(c: { admin: SupabaseClient; sql: (q: 
       await admin.from('invoice_lines').delete().in('invoice_id', made.invoices)
       await admin.from('invoices').delete().in('id', made.invoices)
     }
+    if (made.offers.length) await admin.from('offers').delete().in('id', made.offers)
     if (made.cases.length) { await admin.from('case_materials').delete().in('case_id', made.cases); await admin.from('service_cases').delete().in('id', made.cases) }
     if (made.cust) await admin.from('customers').delete().eq('id', made.cust)
   }
