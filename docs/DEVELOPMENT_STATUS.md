@@ -71,7 +71,11 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 | ab88d248 | S-6 send på mail: CAS + aktivitet + webhook (ikke UI-testet — ingen live mail) |
 | c7a5e91e / aa2c5d97 / 65b27c92 / 526fd8cc | S-4 kanban-besked, M-10 tap-mål, S-12 lettere dashboard, B-8 fane i URL, M-2 underskrift ved rotation |
 
-Næste: M-4 (foreslået start på tværs af arbejdsordrer, test kører), derefter M-9 (N+1 timer), B-10 tælle-optimering, S-8 tællere, S-11 tekst, B-9 faktureret serie, B-2 server-summer.
+| 15c1ac39 / 05fa3963 | M-4 foreslået start på tværs af arbejdsordrer, M-9 Planlægning-fanen uden N+1 |
+
+**Slut-milepæl 2026-10-16 ~04:55:** fuld regression (ui-full, 146 tests) PASS=145, FAIL=0, U21 NOT_RUN i fuld kørsel (lå i U11-blokken uden afhængighed) → DEPS U21:[U11] tilføjet, U21+U11 PASS. Prod = `05fa396` (Vercel bygget). To tidligere fulde kørsler var ugyldige: lokal `next build` fejlede intermitterende ("fil ikke fundet" på filer der findes) → alle batches uden build; ren `next build` exit 0.
+
+**Rest-kø (NEXT-17):** B-2 server-summer, B-9 faktureret serie, B-10 tælle-optimering, S-4 kun åbne statusser på tavlen, S-8 tællere, S-11 tilbudsnr./kunde i notifikation, B-8 rapportfiltre i URL, M-7 DB-filter. [H]: W-8 opgavemenu for salg/bogholderi, W-9 next_follow_up_at / 00197 i prod, W-17 slet dokumenter, 00232 afregningsform, momstekst/e-conomic-mapping, approveIncomingInvoiceWithConversionAction (ubrugt finance-kode).
 
  → (løbende checkpoint)
 **Start:** 2026-10-01 20:18 dansk (18:18 UTC) · start-commit `4606dde`
