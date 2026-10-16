@@ -653,24 +653,41 @@ export async function createServiceCaseFromEmail(
 // =====================================================
 
 export async function getCustomerServiceCases(customerId: string): Promise<ServiceCase[]> {
+  const r = await getCustomerServiceCasesResult(customerId)
+  return r.ok ? r.cases : []
+}
+
+/**
+ * P-2 (pilot-review 2026-10-16): kundens sager efter brugerens sags-scope — salg/montør ser deres egne/tildelte sager på
+ * kunden (før tom liste uden cases.view.all), og en fejl meldes i stedet for "Ingen sager endnu".
+ */
+export async function getCustomerServiceCasesResult(customerId: string): Promise<{ ok: boolean; cases: ServiceCase[]; restricted: boolean; error?: string }> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('cases.view.all')) return []
+    validateUUID(customerId, 'kunde ID')
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    const all = hasPermission('cases.view.all')
+    if (!all && !hasPermission('cases.view.assigned')) return { ok: true, cases: [], restricted: true }
 
-    const { data, error } = await supabase
-      .from('service_cases')
-      .select('*')
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      logger.error('Failed to fetch customer service cases', { error })
-      return []
+    let rows: ServiceCase[] = []
+    if (all) {
+      const { data, error } = await supabase.from('service_cases').select('*').eq('customer_id', customerId).order('created_at', { ascending: false })
+      if (error) throw error
+      rows = (data || []) as ServiceCase[]
+    } else {
+      const { getCaseScope } = await import('@/lib/auth/case-scope')
+      const scope = await getCaseScope({ role, userId, supabase })
+      const ids = scope.type === 'specific' ? scope.caseIds : []
+      for (let k = 0; k < ids.length; k += 200) {
+        const { data, error } = await supabase.from('service_cases').select('*').eq('customer_id', customerId).in('id', ids.slice(k, k + 200))
+        if (error) throw error
+        rows.push(...((data || []) as ServiceCase[]))
+      }
+      rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
     }
-
-    return (data || []) as ServiceCase[]
-  } catch {
-    return []
+    return { ok: true, cases: rows, restricted: !all }
+  } catch (error) {
+    logger.error('Failed to fetch customer service cases', { error, entityId: customerId })
+    return { ok: false, cases: [], restricted: false, error: 'Kundens sager kunne ikke hentes — prøv igen' }
   }
 }
 

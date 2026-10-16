@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { Loader2, Briefcase, ChevronRight, Plus } from 'lucide-react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
-import { getCustomerServiceCases } from '@/lib/actions/service-cases'
+import { getCustomerServiceCasesResult } from '@/lib/actions/service-cases'
 import {
   SERVICE_CASE_STATUS_LABELS,
   SERVICE_CASE_STATUS_COLORS,
@@ -54,13 +54,19 @@ function fmtDate(s: string | null | undefined): string | null {
 export function CustomerCasesTab({ customerId }: { customerId: string }) {
   const [cases, setCases] = useState<ServiceCase[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [restricted, setRestricted] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setIsLoading(true)
-    getCustomerServiceCases(customerId)
-      .then((data) => {
+    getCustomerServiceCasesResult(customerId)
+      .then((res) => {
         if (cancelled) return
+        // P-2: fejl og begrænset visning siges højt (før: altid "Ingen sager endnu")
+        setLoadError(res.ok ? null : res.error ?? 'Kundens sager kunne ikke hentes')
+        setRestricted(res.restricted)
+        const data = res.cases
         // Sort: open first, closed last; within group: newest first
         const sorted = [...data].sort((a, b) => {
           const rankA = STATUS_RANK[a.status as ServiceCaseStatus] ?? 99
@@ -86,14 +92,19 @@ export function CustomerCasesTab({ customerId }: { customerId: string }) {
     )
   }
 
+  if (loadError) {
+    return <div className="bg-white rounded-lg border p-6 text-sm text-red-700" role="alert" data-testid="customer-cases-error">{loadError}</div>
+  }
+
   if (cases.length === 0) {
     return (
       <div className="bg-white rounded-lg border p-12 text-center text-gray-500">
         <Briefcase className="w-12 h-12 mx-auto mb-3 opacity-30" />
-        <p className="font-medium">Ingen sager endnu</p>
+        <p className="font-medium">{restricted ? 'Ingen af dine sager på denne kunde' : 'Ingen sager endnu'}</p>
         <p className="text-sm mt-1">
-          Sager oprettes via mailmodulet (&quot;Opret sag fra mail&quot;) eller direkte under{' '}
-          <Link href="/dashboard/orders" className="text-blue-600 hover:underline">/dashboard/orders</Link>.
+          {restricted
+            ? 'Du ser kun sager du har oprettet, er ansvarlig for eller har job på.'
+            : <>Sager oprettes via mailmodulet (&quot;Opret sag fra mail&quot;) eller under <Link href="/dashboard/orders" className="text-blue-600 hover:underline">Sager</Link>.</>}
         </p>
       </div>
     )

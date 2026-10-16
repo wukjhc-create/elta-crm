@@ -56,6 +56,8 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
 
   const handleRoleChange = (memberId: string, newRole: string) => {
     if (!isAdmin || memberId === currentUserId) return
+    // P-10 (pilot-review 2026-10-16): administrator giver fuld adgang (brugere, økonomi, indstillinger) — bekræftes
+    if (newRole === 'admin' && !window.confirm('Gør brugeren til administrator?\n\nAdministrator har fuld adgang: brugere, økonomi, løn og alle indstillinger.')) return
 
     startTransition(async () => {
       const result = await updateTeamMember(memberId, { role: newRole })
@@ -107,7 +109,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
       {/* Role descriptions */}
       <div className="bg-white rounded-lg border p-4">
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Roller og rettigheder</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div className="p-3 rounded-lg bg-purple-50 border border-purple-200">
             <div className="flex items-center gap-2 mb-1">
               <ShieldCheck className="w-4 h-4 text-purple-600" />
@@ -128,6 +130,20 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
               <span className="font-semibold text-gray-900 text-sm">Montør</span>
             </div>
             <p className="text-xs text-gray-600">Kan se tildelte opgaver og servicesager. Ingen adgang til økonomi eller sletning.</p>
+          </div>
+          <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+            <div className="flex items-center gap-2 mb-1">
+              <User className="w-4 h-4 text-emerald-600" />
+              <span className="font-semibold text-emerald-900 text-sm">Salg</span>
+            </div>
+            <p className="text-xs text-emerald-700">Leads, kunder og tilbud (salgspriser). Egne sager og opgaver. Ingen kostpriser, løn eller bogføring.</p>
+          </div>
+          <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+            <div className="flex items-center gap-2 mb-1">
+              <User className="w-4 h-4 text-amber-600" />
+              <span className="font-semibold text-amber-900 text-sm">Bogholderi</span>
+            </div>
+            <p className="text-xs text-amber-700">Fakturaer, leverandørfakturaer, bank og e-conomic. Ser økonomi; egne opgaver. Ingen salg/planlægning.</p>
           </div>
         </div>
       </div>

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { orIlikeContains } from '@/lib/validations/postgrest-filter'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
 import {
   Search,
   LayoutDashboard,
@@ -24,6 +26,8 @@ import {
 } from 'lucide-react'
 
 interface CommandItem {
+  /** P-8: rettighed der kræves for at vise genvejen */
+  permission?: Permission
   id: string
   label: string
   section: string
@@ -35,6 +39,9 @@ interface CommandItem {
 export function CommandPalette() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const { role } = useUserRole()
+  // P-8: kun seneste søgning må skrive resultaterne
+  const searchSeq = useRef(0)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -56,35 +63,38 @@ export function CommandPalette() {
     [router],
   )
 
-  const commands: CommandItem[] = [
+  // P-8 (pilot-review 2026-10-16): kun genveje brugeren har adgang til (før landede fx montør på "Ingen adgang")
+  const allCommands: CommandItem[] = [
     // Navigation
     { id: 'nav-dashboard', label: 'Dashboard', section: 'Navigation', icon: <LayoutDashboard className="w-4 h-4" />, action: () => navigate('/dashboard'), keywords: ['oversigt', 'hjem'] },
-    { id: 'nav-leads', label: 'Leads', section: 'Navigation', icon: <BarChart3 className="w-4 h-4" />, action: () => navigate('/dashboard/leads'), keywords: ['emner', 'pipeline'] },
-    { id: 'nav-customers', label: 'Kunder', section: 'Navigation', icon: <Users className="w-4 h-4" />, action: () => navigate('/dashboard/customers'), keywords: ['kontakter', 'firmaer'] },
-    { id: 'nav-offers', label: 'Tilbud', section: 'Navigation', icon: <FileText className="w-4 h-4" />, action: () => navigate('/dashboard/offers'), keywords: ['quotes', 'salg'] },
-    { id: 'nav-orders', label: 'Sager / Ordrer', section: 'Navigation', icon: <FolderKanban className="w-4 h-4" />, action: () => navigate('/dashboard/orders'), keywords: ['sager', 'ordrer', 'projekter', 'sag', 'ordre'] },
-    { id: 'nav-mail', label: 'Mail', section: 'Navigation', icon: <Mail className="w-4 h-4" />, action: () => navigate('/dashboard/mail'), keywords: ['email', 'beskeder', 'indbakke'] },
-    { id: 'nav-tasks', label: 'Opgaver', section: 'Navigation', icon: <ClipboardCheck className="w-4 h-4" />, action: () => navigate('/dashboard/tasks'), keywords: ['tasks', 'påmindelser', 'todo'] },
-    { id: 'nav-calculations', label: 'Kalkulationer', section: 'Navigation', icon: <Calculator className="w-4 h-4" />, action: () => navigate('/dashboard/calculations'), keywords: ['beregninger'] },
-    { id: 'nav-products', label: 'Produkter', section: 'Navigation', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/products'), keywords: ['varer', 'katalog'] },
-    { id: 'nav-packages', label: 'Pakker', section: 'Navigation', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/packages'), keywords: ['bundter'] },
-    { id: 'nav-pricing', label: 'Prisovervågning', section: 'Navigation', icon: <TrendingUp className="w-4 h-4" />, action: () => navigate('/dashboard/pricing'), keywords: ['priser', 'alerts'] },
-    { id: 'nav-reports', label: 'Rapporter', section: 'Navigation', icon: <BarChart3 className="w-4 h-4" />, action: () => navigate('/dashboard/reports'), keywords: ['statistik', 'omsætning'] },
-    { id: 'nav-ai', label: 'AI Projekt', section: 'Navigation', icon: <Brain className="w-4 h-4" />, action: () => navigate('/dashboard/ai-project'), keywords: ['intelligence', 'automatisk'] },
+    { id: 'nav-leads', permission: 'leads.view', label: 'Leads', section: 'Navigation', icon: <BarChart3 className="w-4 h-4" />, action: () => navigate('/dashboard/leads'), keywords: ['emner', 'pipeline'] },
+    { id: 'nav-customers', permission: 'customers.view', label: 'Kunder', section: 'Navigation', icon: <Users className="w-4 h-4" />, action: () => navigate('/dashboard/customers'), keywords: ['kontakter', 'firmaer'] },
+    { id: 'nav-offers', permission: 'offers.view', label: 'Tilbud', section: 'Navigation', icon: <FileText className="w-4 h-4" />, action: () => navigate('/dashboard/offers'), keywords: ['quotes', 'salg'] },
+    { id: 'nav-orders', permission: 'cases.view.assigned', label: 'Sager / Ordrer', section: 'Navigation', icon: <FolderKanban className="w-4 h-4" />, action: () => navigate('/dashboard/orders'), keywords: ['sager', 'ordrer', 'projekter', 'sag', 'ordre'] },
+    { id: 'nav-mail', permission: 'inbox.view', label: 'Mail', section: 'Navigation', icon: <Mail className="w-4 h-4" />, action: () => navigate('/dashboard/mail'), keywords: ['email', 'beskeder', 'indbakke'] },
+    { id: 'nav-tasks', permission: 'tasks.menu', label: 'Opgaver', section: 'Navigation', icon: <ClipboardCheck className="w-4 h-4" />, action: () => navigate('/dashboard/tasks'), keywords: ['tasks', 'påmindelser', 'todo'] },
+    { id: 'nav-calculations', permission: 'tools.calculations', label: 'Kalkulationer', section: 'Navigation', icon: <Calculator className="w-4 h-4" />, action: () => navigate('/dashboard/calculations'), keywords: ['beregninger'] },
+    { id: 'nav-products', permission: 'tools.products', label: 'Produkter', section: 'Navigation', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/products'), keywords: ['varer', 'katalog'] },
+    { id: 'nav-packages', permission: 'tools.packages', label: 'Pakker', section: 'Navigation', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/packages'), keywords: ['bundter'] },
+    { id: 'nav-pricing', permission: 'tools.pricing', label: 'Prisovervågning', section: 'Navigation', icon: <TrendingUp className="w-4 h-4" />, action: () => navigate('/dashboard/pricing'), keywords: ['priser', 'alerts'] },
+    { id: 'nav-reports', permission: 'tools.reports', label: 'Rapporter', section: 'Navigation', icon: <BarChart3 className="w-4 h-4" />, action: () => navigate('/dashboard/reports'), keywords: ['statistik', 'omsætning'] },
+    { id: 'nav-ai', permission: 'tools.ai_project', label: 'AI Projekt', section: 'Navigation', icon: <Brain className="w-4 h-4" />, action: () => navigate('/dashboard/ai-project'), keywords: ['intelligence', 'automatisk'] },
     { id: 'nav-settings', label: 'Indstillinger', section: 'Navigation', icon: <Settings className="w-4 h-4" />, action: () => navigate('/dashboard/settings'), keywords: ['konfiguration'] },
-    { id: 'nav-components', label: 'Komponenter', section: 'Navigation', icon: <Zap className="w-4 h-4" />, action: () => navigate('/dashboard/settings/components'), keywords: ['el-dele'] },
+    { id: 'nav-components', permission: 'settings.view', label: 'Komponenter', section: 'Navigation', icon: <Zap className="w-4 h-4" />, action: () => navigate('/dashboard/settings/components'), keywords: ['el-dele'] },
 
     // Quick create
-    { id: 'create-customer', label: 'Ny kunde', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/customers?create=true'), keywords: ['opret', 'ny'] },
-    { id: 'create-lead', label: 'Ny lead', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/leads?create=true'), keywords: ['opret', 'ny'] },
-    { id: 'create-offer', label: 'Nyt tilbud', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/offers?create=true'), keywords: ['opret', 'ny'] },
-    { id: 'create-order', label: 'Ny sag / ordre', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/orders'), keywords: ['opret', 'ny', 'sag', 'ordre', 'projekt'] },
+    { id: 'create-customer', permission: 'customers.create', label: 'Ny kunde', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/customers?create=true'), keywords: ['opret', 'ny'] },
+    { id: 'create-lead', permission: 'leads.create', label: 'Ny lead', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/leads?create=true'), keywords: ['opret', 'ny'] },
+    { id: 'create-offer', permission: 'offers.create', label: 'Nyt tilbud', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/offers?create=true'), keywords: ['opret', 'ny'] },
+    { id: 'create-order', permission: 'cases.create', label: 'Ny sag / ordre', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/orders'), keywords: ['opret', 'ny', 'sag', 'ordre', 'projekt'] },
 
     // Settings shortcuts
-    { id: 'settings-company', label: 'Firmaindstillinger', section: 'Indstillinger', icon: <Settings className="w-4 h-4" />, action: () => navigate('/dashboard/settings/company'), keywords: ['firma', 'logo'] },
-    { id: 'settings-team', label: 'Teammedlemmer', section: 'Indstillinger', icon: <Users className="w-4 h-4" />, action: () => navigate('/dashboard/settings/team'), keywords: ['brugere', 'inviter'] },
-    { id: 'settings-suppliers', label: 'Leverandører', section: 'Indstillinger', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/settings/suppliers'), keywords: ['grossist', 'ao', 'lemvigh'] },
+    { id: 'settings-company', permission: 'settings.view', label: 'Firmaindstillinger', section: 'Indstillinger', icon: <Settings className="w-4 h-4" />, action: () => navigate('/dashboard/settings/company'), keywords: ['firma', 'logo'] },
+    { id: 'settings-team', permission: 'users.view', label: 'Teammedlemmer', section: 'Indstillinger', icon: <Users className="w-4 h-4" />, action: () => navigate('/dashboard/settings/team'), keywords: ['brugere', 'inviter'] },
+    { id: 'settings-suppliers', permission: 'settings.view', label: 'Leverandører', section: 'Indstillinger', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/settings/suppliers'), keywords: ['grossist', 'ao', 'lemvigh'] },
   ]
+
+  const commands = allCommands.filter((c) => !c.permission || hasPermission(role, c.permission))
 
   // Live search: tasks + customers
   useEffect(() => {
@@ -101,34 +111,36 @@ export function CommandPalette() {
     }
 
     setIsSearching(true)
+    const seq = ++searchSeq.current
     searchTimer.current = setTimeout(async () => {
       const q = query.trim()
+      const may = (perm: Permission) => hasPermission(role, perm)
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
 
       // Search tasks, customers, leads, offers in parallel
       const [tasksRes, customersRes, leadsRes, offersRes, projectsRes] = await Promise.allSettled([
         import('@/lib/actions/customer-tasks').then(({ getAllTasks }) => getAllTasks({ search: q })),
-        supabase
+        !may('customers.view') ? Promise.resolve([]) : supabase
           .from('customers')
           .select('id, company_name, contact_person, email, customer_number')
           .or(orIlikeContains(['company_name', 'contact_person', 'email', 'customer_number'], q))
           .limit(5)
           .then(({ data }) => data || []),
-        supabase
+        !may('leads.view') ? Promise.resolve([]) : supabase
           .from('leads')
           .select('id, company_name, contact_person, email, status')
           .or(orIlikeContains(['company_name', 'contact_person', 'email'], q))
           .limit(5)
           .then(({ data }) => data || []),
-        supabase
+        !may('offers.view') ? Promise.resolve([]) : supabase
           .from('offers')
           // kolonnen hedder final_amount ("total" fandtes ikke → tilbudssøgningen fejlede altid og viste intet)
           .select('id, offer_number, title, status, total:final_amount')
           .or(orIlikeContains(['title', 'offer_number'], q))
           .limit(5)
           .then(({ data }) => data || []),
-        supabase
+        !may('projects.view') ? Promise.resolve([]) : supabase
           .from('projects')
           .select('id, project_number, name, status')
           .or(orIlikeContains(['name', 'project_number'], q))
@@ -136,6 +148,7 @@ export function CommandPalette() {
           .then(({ data }) => data || []),
       ])
 
+      if (seq !== searchSeq.current) return
       // Tasks
       if (tasksRes.status === 'fulfilled') {
         setTaskResults(tasksRes.value.slice(0, 5).map((t: any) => ({
@@ -200,7 +213,7 @@ export function CommandPalette() {
     }, 300)
 
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
-  }, [query, open, navigate])
+  }, [query, open, navigate, role])
 
   const filtered = query.trim()
     ? [

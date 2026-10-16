@@ -287,9 +287,22 @@ const settingsCards = [
 // Personlige sider er aabne for alle roller (header-menuen linker til profil); resten kraever settings.view.
 const PERSONAL_SETTINGS = new Set(['/dashboard/settings/profile', '/dashboard/settings/security'])
 
+// P-4 (pilot-review 2026-10-16): hvert kort vises efter den rettighed siden faktisk kræver — før så bogholderi aldrig
+// e-conomic-kortet (settings.economic), og serviceleder så Team/e-conomic, der fejlede
+const CARD_PERMISSION: Record<string, 'settings.view' | 'settings.economic' | 'users.view'> = {
+  '/dashboard/settings/team': 'users.view',
+  '/dashboard/settings/economic': 'settings.economic',
+}
+
 export default async function SettingsPage() {
-  const canManage = await pageHasPermission('settings.view')
-  const visibleCards = canManage ? settingsCards : settingsCards.filter((c) => PERSONAL_SETTINGS.has(c.href))
+  const [canManage, canEconomic, canUsers] = await Promise.all([
+    pageHasPermission('settings.view'),
+    pageHasPermission('settings.economic'),
+    pageHasPermission('users.view'),
+  ])
+  const allowed = (perm: 'settings.view' | 'settings.economic' | 'users.view') =>
+    perm === 'settings.economic' ? canEconomic : perm === 'users.view' ? canUsers : canManage
+  const visibleCards = settingsCards.filter((c) => PERSONAL_SETTINGS.has(c.href) || allowed(CARD_PERMISSION[c.href] ?? 'settings.view'))
   return (
     <div className="space-y-6">
       <div>

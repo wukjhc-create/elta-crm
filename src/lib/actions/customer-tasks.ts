@@ -173,6 +173,11 @@ export async function getAllTasks(options?: {
   search?: string
   /** Kun opgaver med disse auto_rule-værdier (fx ELTA Assistant-opkald i kalenderen) */
   autoRules?: string[]
+  /** P-11 (pilot-review 2026-10-16): forfaldsdato i [dueFrom, dueTo) (ISO) — kalenderens måned */
+  dueFrom?: string
+  dueTo?: string
+  /** P-11: kast ved DB-fejl (kalenderen viser så en besked i stedet for en tom måned) */
+  throwOnError?: boolean
 }): Promise<CustomerTaskWithRelations[]> {
   // Sprint 7E fix — scope tasks per rolle.
   // Montor maa kun se tasks tildelt til egen profile.id (assigned_to).
@@ -243,12 +248,15 @@ export async function getAllTasks(options?: {
   if (options?.autoRules?.length) {
     query = query.in('auto_rule', options.autoRules)
   }
+  if (options?.dueFrom) query = query.gte('due_date', options.dueFrom)
+  if (options?.dueTo) query = query.lt('due_date', options.dueTo)
 
   // W-7: loft (listen voksede ubegrænset med alle udførte opgaver)
   const { data, error } = await query.limit(1000)
 
   if (error) {
     logger.error('Failed to fetch all tasks', { error })
+    if (options?.throwOnError) throw new Error('Opgaverne kunne ikke hentes')
     return []
   }
 

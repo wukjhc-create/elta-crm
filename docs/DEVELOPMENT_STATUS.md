@@ -49,6 +49,18 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 
 **Manuelle blokere (Henrik):** selvregistrering OFF i Supabase · "Email OTP expiry" = 86400 s. Arbejdet fortsætter uden at vente.
 
+## Long-run 2026-10-16 morgen (Henriks beslutninger) — checkpoint
+| Commit | Indhold |
+|---|---|
+| c822e222 | 00232 afregningsform i prod (godkendt) |
+| 782d686e | Død convert+approve-kode fjernet (X-2) |
+| 009acc30 | B-2 nøgletal server-side over alle fakturaer (kun DKK) |
+| 4b7381cd | X-12 slet dokumenter, X-13 opgavemenu salg/bogholderi, X-14 afregningsform ved ny sag, B-9/B-8 rapporter, B-10, S-4, S-8, S-11, M-7 |
+| 1ec0bcd4 | Kode-review R-1..R-10, P-1/P-3/P-5/P-6/P-7/P-9, lead-opfølgning bag flag + 00233-forslag |
+
+BLOCKED_APPROVAL: **00233 lead-opfølgning** (docs/runbooks/lead-follow-up-proposal.md) — koden ligger i prod bag `LEAD_FOLLOW_UP_ENABLED` (slået fra).
+P-2/P-4/P-8/P-10/P-11 (round 3) — UI U178/U13/U4/U5/U43/U160/U166 grønne.
+
 ## Prod-kørsel 2026-10-16 — 00232 afregningsform (Henrik: "00232 BILLING MODEL GODKENDT TIL PROD")
 Pre: ingen kolonner, 8 sager (4 sikre regning, 4 tvetydige), checksum sager 575ac56603 / fakturaer 0f690878e2. Migration →
 post: service_cases.billing_model + offers.billing_model; 4 time_and_materials, 4 NULL (tvetydige — slutfaktura blokeret til

@@ -63,16 +63,16 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | # | Fund | Status |
 |---|---|---|
 | P-1 (S2) | Kundeportal: siden hopper ned til chatten hver 15. s (poll erstatter beskeder → scrollIntoView) | DONE — ny liste kun ved ændringer; kun chat-boksen rulles, kun ved nye beskeder. UI U50 |
-| P-2 (S2) | Kundens "Sager"-fane tom for salg/montør (kræver cases.view.all) og skjuler fejl; rå sti i tom-tekst | TODO |
+| P-2 (S2) | Kundens "Sager"-fane tom for salg/montør (kræver cases.view.all) og skjuler fejl; rå sti i tom-tekst | DONE — sags-scope (egne/tildelte/job), fejlboks, dansk tom-tekst. UI U178 |
 | P-3 (S2) | Global søgning/Ctrl+K finder ikke sager (sagsnr.) eller telefonnumre; kundelistens søgning heller ikke telefon | DELVIS — global søgning: sager (cases.view.all) + telefon/mobil på kunder og leads. Ctrl+K/kundeliste = TODO. UI U177 |
-| P-4 (S3) | Indstillinger: kort ikke filtreret pr. rettighed (bogholderi ser ikke e-conomic; serviceleder ser kort der fejler) | TODO |
+| P-4 (S3) | Indstillinger: kort ikke filtreret pr. rettighed (bogholderi ser ikke e-conomic; serviceleder ser kort der fejler) | DONE — Team kræver users.view, e-conomic settings.economic, resten settings.view. UI U178 |
 | P-5 (S3) | Serviceleder kan åbne "Opret medarbejder" men aldrig gemme (employees.edit kun admin) | DONE — knap kun med employees.edit, /new har NoAccess. UI U177 |
 | P-6 (S3) | Medarbejderliste skjuler DB-fejl som "Ingen medarbejdere endnu" | DONE — fejlboks |
 | P-7 (S3) | Tidsgodkendelse: "Afvis" vises på fakturerede timer; serveren afviser med misvisende tekst | DONE — "Faktureret" i stedet for Afvis; servertekst nævner faktureret. UI U72 |
-| P-8 (S3) | Ctrl+K-paletten ignorerer rettigheder; ingen stale-svar-værn | TODO |
+| P-8 (S3) | Ctrl+K-paletten ignorerer rettigheder; ingen stale-svar-værn | DONE — genveje og søgninger pr. rettighed + seneste-svar-værn. UI U4/U5 |
 | P-9 (S4) | Global søgning: fejl ligner "ingen resultater" | DONE — fejlbesked + log pr. delsøgning |
-| P-10 (S4) | Team: admin-forfremmelse uden bekræftelse, fælles spinner, mangler salg/bogholderi-roller, invitationsfejl tavs | TODO |
-| P-11 (S4) | Kalender-måned: besigtigelser forsvinder tavst ved fejl; ikke filtreret til måneden | TODO |
+| P-10 (S4) | Team: admin-forfremmelse uden bekræftelse, fælles spinner, mangler salg/bogholderi-roller, invitationsfejl tavs | DELVIS — bekræftelse ved administrator + alle 5 roller beskrevet. Spinner pr. række / invitationsfejl = TODO |
+| P-11 (S4) | Kalender-måned: besigtigelser forsvinder tavst ved fejl; ikke filtreret til måneden | DELVIS — fejlbanner; månedsfilter udeladt (klienten bladrer måneder lokalt). UI U43/U160 |
 
 ## NEXT-18 (Henriks beslutninger 2026-10-16 morgen)
 Proces: prod-migration først når kompatibel kode er pushet (CODE → TEST → PUSH → MIGRATION → POST-CHECK).

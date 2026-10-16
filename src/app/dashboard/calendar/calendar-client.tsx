@@ -15,6 +15,8 @@ export type CalendarPersonalReminder = { id: string; title: string; due_at: stri
 interface CalendarPageClientProps {
   tasks: CustomerTaskWithRelations[]
   personalReminders?: CalendarPersonalReminder[]
+  /** P-11: besigtigelser/opkald kunne ikke hentes */
+  loadError?: boolean
 }
 
 const WEEKDAY_NAMES = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn']
@@ -33,7 +35,7 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return day === 0 ? 6 : day - 1
 }
 
-export function CalendarPageClient({ tasks: initialTasks, personalReminders = [] }: CalendarPageClientProps) {
+export function CalendarPageClient({ tasks: initialTasks, personalReminders = [], loadError = false }: CalendarPageClientProps) {
   const [tasks, setTasks] = useState(initialTasks)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -119,6 +121,11 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
 
   return (
     <div className="space-y-6">
+      {loadError && (
+        <div className="mb-3 rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" role="alert" data-testid="calendar-month-load-error">
+          Besigtigelser og opkald kunne ikke hentes lige nu — kalenderen er måske ufuldstændig. Genindlæs siden.
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
