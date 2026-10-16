@@ -60,6 +60,12 @@ export default async function TeamSettingsPage() {
         </div>
       </div>
 
+      {/* P-10 (pilot-review 2026-10-16): fejlede invitationer vises som besked (før: tom liste = "ingen udestående") */}
+      {!invitationsResult.success && (
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" role="alert" data-testid="team-invitations-error">
+          Udestående invitationer kunne ikke hentes lige nu — listen nedenfor kan være ufuldstændig.
+        </div>
+      )}
       <TeamSettingsClient
         members={result.data}
         invitations={invitationsResult.success && invitationsResult.data ? invitationsResult.data : []}

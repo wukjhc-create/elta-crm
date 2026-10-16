@@ -2117,6 +2117,13 @@ ${m.text()}`) })
         await a.page.getByPlaceholder('Søg leads, kunder, tilbud, projekter...').first().fill(`søgsag ${stamp}`).catch(() => {})
         await a.page.getByText(title).first().waitFor({ timeout: 30_000 }).catch(() => {})
         r.sag_fundet = (await a.page.getByText(title).count()) > 0
+        // P-3: kundelistens søgning finder telefonnummer
+        const phone = `88${String(stamp).slice(-6)}`
+        const pc = await c.admin.from('customers').insert([{ customer_number: `UI-TLF-${stamp}`, company_name: `Telefonkunde ${stamp}`, contact_person: 'X', email: `tlf-${stamp}@harness.test`, phone, created_by: adminUser.id }]).select('id')
+        const pcId = (pc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        await gotoSafe(a.page, `${base}/dashboard/customers?search=${phone}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.telefon_fundet = (await a.page.getByText(`Telefonkunde ${stamp}`).count()) > 0
+        if (pcId) await c.admin.from('customers').delete().eq('id', pcId)
         const sl = await login(await mkUser('serviceleder'))
         await gotoSafe(sl.page, `${base}/dashboard/employees`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.sl_ingen_opret = (await sl.page.getByRole('link', { name: /Opret medarbejder/ }).count()) === 0

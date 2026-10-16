@@ -116,7 +116,8 @@ export async function getCustomers(filters?: {
     // Apply filters with sanitized search
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)},customer_number.ilike.${pgQuote(`%${sanitized}%`)}`
+      // P-3 (pilot-review 2026-10-16): også telefon/mobil (kontoret søger på nummeret fra et opkald)
+      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)},customer_number.ilike.${pgQuote(`%${sanitized}%`)},phone.ilike.${pgQuote(`%${sanitized}%`)},mobile.ilike.${pgQuote(`%${sanitized}%`)}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -239,7 +240,7 @@ export async function getCustomersWithPaymentState(
     const searchFilter = input?.search
       ? (() => {
           const s = sanitizeSearchTerm(input.search!)
-          return `company_name.ilike.${pgQuote(`%${s}%`)},contact_person.ilike.${pgQuote(`%${s}%`)},email.ilike.${pgQuote(`%${s}%`)},customer_number.ilike.${pgQuote(`%${s}%`)}`
+          return `company_name.ilike.${pgQuote(`%${s}%`)},contact_person.ilike.${pgQuote(`%${s}%`)},email.ilike.${pgQuote(`%${s}%`)},customer_number.ilike.${pgQuote(`%${s}%`)},phone.ilike.${pgQuote(`%${s}%`)},mobile.ilike.${pgQuote(`%${s}%`)}`
         })()
       : null
 

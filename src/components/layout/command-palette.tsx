@@ -124,13 +124,14 @@ export function CommandPalette() {
         !may('customers.view') ? Promise.resolve([]) : supabase
           .from('customers')
           .select('id, company_name, contact_person, email, customer_number')
-          .or(orIlikeContains(['company_name', 'contact_person', 'email', 'customer_number'], q))
+          // P-3: også telefon/mobil
+          .or(orIlikeContains(['company_name', 'contact_person', 'email', 'customer_number', 'phone', 'mobile'], q))
           .limit(5)
           .then(({ data }) => data || []),
         !may('leads.view') ? Promise.resolve([]) : supabase
           .from('leads')
           .select('id, company_name, contact_person, email, status')
-          .or(orIlikeContains(['company_name', 'contact_person', 'email'], q))
+          .or(orIlikeContains(['company_name', 'contact_person', 'email', 'phone'], q))
           .limit(5)
           .then(({ data }) => data || []),
         !may('offers.view') ? Promise.resolve([]) : supabase

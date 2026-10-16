@@ -42,6 +42,8 @@ const ROLES = [
 
 export function TeamSettingsClient({ members, invitations, currentUserId }: TeamSettingsClientProps) {
   const [isPending, startTransition] = useTransition()
+  // P-10: spinner kun på den række der ændres (før drejede alle rækkers knapper)
+  const [pendingId, setPendingId] = useState<string | null>(null)
   const toast = useToast()
   const [editingMember, setEditingMember] = useState<string | null>(null)
   const [membersList, setMembersList] = useState(members)
@@ -59,8 +61,10 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
     // P-10 (pilot-review 2026-10-16): administrator giver fuld adgang (brugere, økonomi, indstillinger) — bekræftes
     if (newRole === 'admin' && !window.confirm('Gør brugeren til administrator?\n\nAdministrator har fuld adgang: brugere, økonomi, løn og alle indstillinger.')) return
 
+    setPendingId(memberId)
     startTransition(async () => {
       const result = await updateTeamMember(memberId, { role: newRole })
+      setPendingId(null)
 
       if (result.success && result.data) {
         setMembersList(prev =>
@@ -79,8 +83,10 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
     // U-17: deaktivering fjerner brugerens adgang med ét klik på et lille ikon — bekræft
     if (currentActive && !window.confirm('Deaktivér brugeren? Personen kan ikke længere logge ind.')) return
 
+    setPendingId(memberId)
     startTransition(async () => {
       const result = await updateTeamMember(memberId, { is_active: !currentActive })
+      setPendingId(null)
 
       if (result.success && result.data) {
         setMembersList(prev =>
@@ -277,7 +283,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
                     disabled={isPending}
                     className={member.is_active ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}
                   >
-                    {isPending ? (
+                    {isPending && pendingId === member.id ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : member.is_active ? (
                       <XCircle className="w-4 h-4" />

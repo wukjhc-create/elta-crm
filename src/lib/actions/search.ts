@@ -23,12 +23,12 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
       !hasPermission('leads.view') ? none : supabase
         .from('leads')
         .select('id, contact_person, email, company_name, status', { count: 'exact' })
-        .or(`contact_person.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},company_name.ilike.${pgQuote(searchTerm)},phone.ilike.${pgQuote(phoneTerm)}`)
+        .or(`contact_person.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},company_name.ilike.${pgQuote(searchTerm)},phone.ilike.${pgQuote(phoneTerm)},phone.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
       !hasPermission('customers.view') ? none : supabase
         .from('customers')
         .select('id, company_name, email, customer_number', { count: 'exact' })
-        .or(`company_name.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},customer_number.ilike.${pgQuote(searchTerm)},phone.ilike.${pgQuote(phoneTerm)},mobile.ilike.${pgQuote(phoneTerm)}`)
+        .or(`company_name.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},customer_number.ilike.${pgQuote(searchTerm)},phone.ilike.${pgQuote(phoneTerm)},mobile.ilike.${pgQuote(phoneTerm)},phone.ilike.${pgQuote(searchTerm)},mobile.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
       !hasPermission('offers.view') ? none : supabase
         .from('offers')
