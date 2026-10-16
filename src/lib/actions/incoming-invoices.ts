@@ -663,11 +663,22 @@ export async function setIncomingInvoiceCaseAction(
     return { ok: false, message: 'Faktura ikke fundet' }
   }
 
-  const TERMINAL = ['approved', 'rejected', 'posted', 'cancelled']
-  if (TERMINAL.includes(cur.status as string)) {
-    return {
-      ok: false,
-      message: `Faktura er ${cur.status} — sag-tilknytning kan ikke ændres`,
+  // LF-1 (indkøbs-review 2026-10-16): en godkendt/bogført faktura UDEN fordelte linjer kan stadig kobles til en sag —
+  // før kunne en faktura godkendt uden sag aldrig fordeles ("matching kan ske senere" i UI'et). Afviste/annullerede og
+  // fakturaer med fordelte linjer er låst.
+  const LOCKED = ['rejected', 'cancelled']
+  if (LOCKED.includes(cur.status as string)) {
+    return { ok: false, message: `Faktura er ${cur.status === 'rejected' ? 'afvist' : 'annulleret'} — sag-tilknytning kan ikke ændres` }
+  }
+  const afterApproval = cur.status === 'approved' || cur.status === 'posted'
+  if (afterApproval) {
+    const { count: converted } = await supabase
+      .from('incoming_invoice_lines')
+      .select('id', { count: 'exact', head: true })
+      .eq('incoming_invoice_id', invoiceId)
+      .or('converted_at.not.is.null,converted_case_material_id.not.is.null,converted_case_other_cost_id.not.is.null')
+    if ((converted ?? 0) > 0) {
+      return { ok: false, message: `${converted} linje(r) er allerede fordelt til sagen — sagen kan ikke skiftes` }
     }
   }
 
@@ -692,12 +703,19 @@ export async function setIncomingInvoiceCaseAction(
     matched_work_order_id: null,
   }
 
-  const { error: updErr } = await supabase
+  // LF-1: betinget af uændret status (en samtidig afvisning/annullering overskrives ikke)
+  const { data: updRows, error: updErr } = await supabase
     .from('incoming_invoices')
     .update(patch)
     .eq('id', invoiceId)
+    .eq('status', cur.status as string)
+    .select('id')
   if (updErr) {
-    return { ok: false, message: updErr.message }
+    logger.error('setIncomingInvoiceCaseAction: update failed', { error: updErr, entityId: invoiceId })
+    return { ok: false, message: 'Sag-tilknytningen kunne ikke gemmes — prøv igen' }
+  }
+  if (!updRows || updRows.length === 0) {
+    return { ok: false, message: 'Fakturaen blev ændret imens — genindlæs siden' }
   }
 
   // Audit (best-effort — same shape as the rest of Phase 15)

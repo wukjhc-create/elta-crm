@@ -48,16 +48,16 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-24 (review-bølge 2026-10-16 aften — leverandørfakturaer/indkøb + DB-sikkerhed)
 | # | Fund | Status |
 |---|---|---|
-| LF-1 | Godkendt leverandørfaktura uden sag kan aldrig fordeles (sag kan ikke sættes efter godkendelse) (S2) | TODO — tillad sag på godkendt/bogført, når ingen linjer er konverteret; audit |
+| LF-1 | Godkendt leverandørfaktura uden sag kan aldrig fordeles (sag kan ikke sættes efter godkendelse) (S2) | DONE (venter commit) — sag kan sættes på godkendt/bogført faktura uden fordelte linjer (betinget på status, dansk fejl); UI viser knappen; U28 udvidet |
 | LF-2 | Udenlandsk valuta fordeles som DKK (1.000 EUR → 1.000 kr kost) (S2) | DONE (dc8491e7) — kun DKK kan fordeles |
 | LF-3 | Linjerabat ignoreres ved fordeling (listepris i stedet for total) — forhåndsvisning ≠ resultat (S2) | TODO — unit_cost = |total| DONE (dc8491e7) — totalen (efter rabat) / antal vinder over listeprisen; unit invoice-line-snapshot +3 |
 | LF-4 | Forhåndsvisning viser kreditlinjer anderledes end det der oprettes | DONE (dc8491e7) — forhåndsvisning bruger lineSnapshot |
 | LF-5 | Materialer fra kreditnota (negativ kost) kan ikke redigeres | TODO |
 | LF-6 | Linjer kan fordeles til en lukket sag | DONE (dc8491e7) — lukket sag afvises |
-| LF-7 | Matcher kan sætte arbejdsordre fra en anden sag | TODO |
+| LF-7 | Matcher kan sætte arbejdsordre fra en anden sag | DONE (venter commit) — titel-/adresse-fallback accepterer kun arbejdsordre/sag på den allerede fundne sag |
 | LF-8 | Adresse-fallback kan auto-matche forkert sag (leverandørens brevhoved) | TODO |
-| LF-9 | Fejl vist som succes + engelske beskeder ved godkend/afvis/e-conomic | DONE (venter commit) — danske beskeder; godkendt men ikke bogført = advarsel (warning) |
-| LF-10 | Godkend/bogfør uden bekræftelse (skubber til e-conomic) | DONE (venter commit) — bekræftelse (beløb/leverandør) før godkend og før "Bogfør til e-conomic"; U28 accepterer |
+| LF-9 | Fejl vist som succes + engelske beskeder ved godkend/afvis/e-conomic | DONE (55971f6b) — danske beskeder; godkendt men ikke bogført = advarsel (warning) |
+| LF-10 | Godkend/bogfør uden bekræftelse (skubber til e-conomic) | DONE (55971f6b) — bekræftelse (beløb/leverandør) før godkend og før "Bogfør til e-conomic"; U28 accepterer |
 | LF-11 | AO-API: mislykket linjeimport tavs og kan ikke genforsøges | TODO |
 | LF-12 | Lister skåret ved 200/1000 uden besked | TODO |
 | LF-13 | Delvis fejl ved fordeling: konverterede linjer bliver stående, UI siger "fejlede" | TODO |

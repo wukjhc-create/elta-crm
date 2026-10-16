@@ -246,7 +246,9 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
           .select('id, case_id')
           .ilike('title', `%${escapeIlike(hint)}%`)
           .limit(2)
-        if (wo && wo.length === 1) {
+        // LF-7 (indkøbs-review 2026-10-16): er sagen allerede fundet, accepteres kun en arbejdsordre på SAMME sag (før
+        // kunne titelsøgningen sætte en arbejdsordre fra en anden sag)
+        if (wo && wo.length === 1 && (!caseId || wo[0].case_id === caseId)) {
           workOrderId = wo[0].id
           if (wo[0].case_id && !caseId) caseId = wo[0].case_id as string
           breakdown.work_order_via_title = WEIGHTS.work_order_via_title
@@ -268,7 +270,8 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
         .eq('postal_code', zip)
         .ilike('address', `%${escapeIlike(streetToken)}%`)
         .limit(3)
-      if (cases && cases.length === 1) {
+      // LF-7: adresse-fallbacken må ikke parre en arbejdsordre fra en ANDEN sag end den allerede fundne
+      if (cases && cases.length === 1 && (!caseId || cases[0].id === caseId)) {
         const resolvedCaseId = cases[0].id as string
         if (!caseId) caseId = resolvedCaseId
         const { data: wo } = await supabase

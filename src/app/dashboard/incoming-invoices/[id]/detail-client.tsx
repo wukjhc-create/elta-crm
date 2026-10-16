@@ -387,7 +387,8 @@ export function IncomingInvoiceDetailClient({
                     <span className="text-amber-700">Ikke matchet</span>
                   )}
                 </div>
-                {!terminal && (
+                {/* LF-1: også efter godkendelse, så længe ingen linjer er fordelt */}
+                {(!terminal || ((inv.status === 'approved' || inv.status === 'posted') && !detail.lines.some((l) => l.converted_at || l.converted_case_material_id || l.converted_case_other_cost_id))) && (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"

@@ -1458,6 +1458,8 @@ ${m.text()}`) })
           r.ingen_auto_konvertering = (((await c.admin.from('case_materials').select('id').eq('case_id', u28.caseId)).data ?? []).length) === 0
           await gotoSafe(bog.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           r.bogholderi_kan_ikke_fordele = (await bog.page.getByTestId('invoice-allocate').count()) === 0
+          // LF-1 (indkøbs-review 2026-10-16): godkendt, ingen linjer fordelt → sagen kan stadig sættes/skiftes
+          r.sag_kan_skiftes_efter_godkendelse = (await bog.page.getByRole('button', { name: /^(Skift sag|Match til sag)$/ }).count()) > 0
         } finally { await bog.ctx.close().catch(() => {}) }
         const aud = ((await c.admin.from('incoming_invoice_audit_log').select('action').eq('incoming_invoice_id', u28.invoiceId)).data ?? []) as Array<{ action: string }>
         r.audit_godkendt = aud.some((x) => x.action === 'approved')
@@ -1473,6 +1475,9 @@ ${m.text()}`) })
         r.serviceleder_fordelte = mats.length === 2 && mats.every((m0) => m0.source === 'supplier_invoice' && !!m0.source_incoming_invoice_line_id)
         const lines = ((await c.admin.from('incoming_invoice_lines').select('converted_case_material_id').eq('incoming_invoice_id', u28.invoiceId)).data ?? []) as Array<{ converted_case_material_id: string | null }>
         r.kobling_begge_veje = lines.length === 2 && lines.every((l) => !!l.converted_case_material_id && mats.some((m0) => m0.id === l.converted_case_material_id))
+        // LF-1: efter fordeling er sagen låst
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.sag_laast_efter_fordeling = (await a.page.getByRole('button', { name: /^(Skift sag|Match til sag)$/ }).count()) === 0
         for (const u of [montor, salg]) {
           const x = await login(u)
           try {
