@@ -325,6 +325,7 @@ export async function getPartnerDocuments(
       // ST-6 (storage-review 2026-10-16): kun delte dokumenter, aldrig interne mail-vedhæftninger (som kundeportalen)
       .eq('visible_in_portal', true)
       .is('source_email_id', null)
+      .or('document_type.is.null,document_type.neq.internal') // DB-4: interne dokumenter aldrig
       .order('created_at', { ascending: false })
 
     if (error) {

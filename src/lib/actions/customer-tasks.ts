@@ -178,6 +178,8 @@ export async function getAllTasks(options?: {
   dueTo?: string
   /** P-11: kast ved DB-fejl (kalenderen viser så en besked i stedet for en tom måned) */
   throwOnError?: boolean
+  /** PF-7 (performance-review 2026-10-16): udelad udførte opgaver i databasen (før hentet og skjult i klienten) */
+  excludeDone?: boolean
 }): Promise<CustomerTaskWithRelations[]> {
   // Sprint 7E fix — scope tasks per rolle.
   // Montor maa kun se tasks tildelt til egen profile.id (assigned_to).
@@ -250,6 +252,7 @@ export async function getAllTasks(options?: {
   }
   if (options?.dueFrom) query = query.gte('due_date', options.dueFrom)
   if (options?.dueTo) query = query.lt('due_date', options.dueTo)
+  if (options?.excludeDone) query = query.neq('status', 'done')
 
   // W-7: loft (listen voksede ubegrænset med alle udførte opgaver)
   const { data, error } = await query.limit(1000)
@@ -261,6 +264,43 @@ export async function getAllTasks(options?: {
   }
 
   return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
+}
+
+/**
+ * PF-7 (performance-review 2026-10-16): antal UDFØRTE opgaver med samme rolle-scope og filtre som getAllTasks — til
+ * "Udførte (N)"-knappen, når listen ikke henter de udførte (HEAD-count, ingen rækker).
+ */
+export async function countDoneTasks(options?: { priority?: string; assignedTo?: string; search?: string }): Promise<number> {
+  let role: string = 'montør'
+  let userId: string | null = null
+  let canViewAll = false
+  let supabase: Awaited<ReturnType<typeof createClient>>
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    role = ctx.role
+    userId = ctx.userId
+    supabase = ctx.supabase
+    canViewAll = ctx.hasPermission('tasks.view')
+  } catch {
+    return 0
+  }
+  let q = supabase.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('status', 'done')
+  if (role === 'montør') {
+    if (!userId) return 0
+    q = q.eq('assigned_to', userId)
+  } else if (!canViewAll) {
+    if (!userId) return 0
+    q = q.or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
+  }
+  if (options?.priority && options.priority !== 'all') q = q.eq('priority', options.priority)
+  if (options?.assignedTo && options.assignedTo !== 'all' && role !== 'montør') q = q.eq('assigned_to', options.assignedTo)
+  if (options?.search) q = q.ilike('title', `%${escapeLike(options.search)}%`)
+  const { count, error } = await q
+  if (error) {
+    logger.error('countDoneTasks failed', { error })
+    return 0
+  }
+  return count ?? 0
 }
 
 /**

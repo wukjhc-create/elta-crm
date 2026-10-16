@@ -34,6 +34,7 @@ import {
   deleteCustomerTask,
   createCustomerTask,
   getActiveProfiles,
+  countDoneTasks,
 } from '@/lib/actions/customer-tasks'
 import { getCustomersForSelect } from '@/lib/actions/offers'
 import {
@@ -121,17 +122,26 @@ export function TasksPageClient({
   useEffect(() => {
     getActiveProfiles().then(setProfiles).catch(() => {})
   }, [])
+  // PF-7 (performance-review 2026-10-16): udførte hentes kun, når de vises (eller filtreres frem); antallet til knappen
+  // er en HEAD-count (før hentedes op til 1.000 opgaver inkl. alle udførte og blev skjult i browseren)
+  const [doneCount, setDoneCount] = useState(0)
   const loadData = useCallback(async () => {
     setIsLoading(true)
-    const tasksData = await getAllTasks({
-      status: statusFilter !== 'all' ? statusFilter : undefined,
+    const filters = {
       priority: priorityFilter !== 'all' ? priorityFilter : undefined,
       assignedTo: assignedFilter !== 'all' ? assignedFilter : undefined,
       search: debouncedSearch || undefined,
+    }
+    const excludeDone = !showDone && statusFilter === 'all'
+    const tasksData = await getAllTasks({
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      ...filters,
+      excludeDone,
     })
     setTasks(tasksData)
+    setDoneCount(excludeDone ? await countDoneTasks(filters).catch(() => 0) : tasksData.filter((t) => t.status === 'done').length)
     setIsLoading(false)
-  }, [statusFilter, priorityFilter, assignedFilter, debouncedSearch])
+  }, [statusFilter, priorityFilter, assignedFilter, debouncedSearch, showDone])
 
   useEffect(() => {
     loadData()
@@ -356,7 +366,7 @@ export function TasksPageClient({
   // Stats (based on unfiltered tasks)
   const pending = tasks.filter((t) => t.status === 'pending').length
   const inProgress = tasks.filter((t) => t.status === 'in_progress').length
-  const done = tasks.filter((t) => t.status === 'done').length
+  const done = doneCount
   const overdue = tasks.filter(
     (t) => t.due_date && t.status !== 'done' && new Date(t.due_date) < new Date()
   ).length

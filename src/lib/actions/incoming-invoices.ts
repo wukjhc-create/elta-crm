@@ -26,6 +26,7 @@ import {
 } from '@/lib/invoices/incoming-header-edit'
 import {
   convertApprovedInvoiceLines,
+  lineSnapshot,
   type LinePlanInput,
   type ConvertAndApproveResult,
 } from '@/lib/services/incoming-invoice-conversion'
@@ -1217,14 +1218,15 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
 
   const rows = (lineRows ?? []) as Array<Record<string, unknown>>
   const lines: ConversionPreviewLine[] = rows.map((l) => {
-    const qty = Number(l.quantity ?? 0)
-    const quantity = Number.isFinite(qty) && qty > 0 ? qty : 1
-    let unitCost = Number(l.unit_price ?? 0)
-    if (!(unitCost > 0)) {
-      const tp = Number(l.total_price ?? 0)
-      unitCost = tp > 0 && quantity > 0 ? Math.round((tp / quantity) * 100) / 100 : 0
-    }
-    const total = Number(l.total_price ?? 0) || Math.round(unitCost * quantity * 100) / 100
+    // LF-4 (indkøbs-review 2026-10-16): SAMME regel som konverteringen (lineSnapshot) — før viste forhåndsvisningen en
+    // returlinje som "1 × 100, total −200" og listeprisen i stedet for den rabatterede total
+    const snap = lineSnapshot({
+      description: l.description as string | null, quantity: l.quantity as number | null, unit: l.unit as string | null,
+      unit_price: l.unit_price as number | null, total_price: l.total_price as number | null,
+    })
+    const quantity = snap.quantity
+    const unitCost = snap.unit_cost
+    const total = Math.round(unitCost * quantity * 100) / 100
     const alreadyConverted = !!(l.converted_at || l.converted_case_material_id || l.converted_case_other_cost_id)
     return {
       line_id: l.id as string,

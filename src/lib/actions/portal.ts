@@ -1885,6 +1885,9 @@ export async function getPortalDocuments(
       .is('source_email_id', null)
       // Henrik 2026-10-10 (00218): kun dokumenter der aktivt er delt med kunden ("Del med kunde")
       .eq('visible_in_portal', true)
+      // DB-4 (DB-review 2026-10-16): interne dokumenter aldrig — 00218's backfill satte visible_in_portal=true på ALLE
+      // ikke-mail-dokumenter, også document_type='internal'
+      .or('document_type.is.null,document_type.neq.internal')
       .order('created_at', { ascending: false })
 
     if (error) {

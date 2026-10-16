@@ -83,11 +83,11 @@ export function lineSnapshot(line: {
     : (Number.isFinite(qRaw) && qRaw < 0) !== (Number.isFinite(upRaw) && upRaw < 0)
   const quantity = Number.isFinite(qRaw) && qRaw !== 0 ? Math.abs(qRaw) : 1
   const unit = (line.unit ?? '').trim() || 'stk'
-  let unitAbs = Number.isFinite(upRaw) ? Math.abs(upRaw) : 0
-  // Fall back to total / qty when unit_price is missing.
-  if (unitAbs === 0 && Number.isFinite(tpRaw) && tpRaw !== 0) {
-    unitAbs = Math.round((Math.abs(tpRaw) / quantity) * 100) / 100
-  }
+  // LF-3 (indkøbs-review 2026-10-16): linjens TOTAL er det faktisk fakturerede (efter linjerabat) — før vandt
+  // listeprisen (fx 100 kr med 30 % rabat → 100 i kost, mens forhåndsvisningen viste 70). Uden total: stk-prisen.
+  let unitAbs = Number.isFinite(tpRaw) && tpRaw !== 0
+    ? Math.round((Math.abs(tpRaw) / quantity) * 100) / 100
+    : (Number.isFinite(upRaw) ? Math.abs(upRaw) : 0)
   const unit_cost = negative ? -unitAbs : unitAbs
   return { description, quantity, unit, unit_cost }
 }
@@ -408,6 +408,19 @@ export async function convertApprovedInvoiceLines(
     }
   }
   const caseId = invoice.matched_case_id as string
+
+  // LF-2 (indkøbs-review 2026-10-16): kun DKK — en EUR-faktura blev før lagt på sagen som samme tal i kroner
+  const currency = String((invoice as { currency?: string | null }).currency ?? 'DKK').toUpperCase()
+  if (currency !== 'DKK') {
+    return { ok: false, message: `Kun DKK-fakturaer kan fordeles (fakturaen er i ${currency}) — omregn og registrér kosten manuelt`, invoiceStatusFlipped: false, perLine: [], caseId }
+  }
+  // LF-6: ingen fordeling til en lukket sag (samme regel som "Tilføj materiale")
+  {
+    const { data: sag } = await supabase.from('service_cases').select('status').eq('id', caseId).maybeSingle()
+    if ((sag as { status?: string } | null)?.status === 'closed') {
+      return { ok: false, message: 'Sagen er lukket — genåbn den først', invoiceStatusFlipped: false, perLine: [], caseId }
+    }
+  }
 
   // 4. Shared per-line conversion — identical rules, no status flip.
   const conv = await runLineConversion(supabase, invoice, actorId, plan, caseId)

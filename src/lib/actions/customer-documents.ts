@@ -439,6 +439,8 @@ export async function setCustomerDocumentPortalVisibility(
     if (!doc) return { success: false, error: 'Dokumentet blev ikke fundet' }
     const d = doc as { id: string; customer_id: string; source_email_id: string | null; document_type: string | null; description: string | null }
     if (d.source_email_id) return { success: false, error: 'Mail-vedhæftninger kan ikke deles med kunden' }
+    // DB-4 (DB-review 2026-10-16): interne dokumenter kan ikke deles med kunden
+    if (visible && d.document_type === 'internal') return { success: false, error: 'Interne dokumenter kan ikke deles med kunden' }
     const { isFuldmagtDocument } = await import('@/lib/documents/is-fuldmagt')
     if (isFuldmagtDocument(d)) return { success: false, error: 'Fuldmagter vises i portalens fuldmagt-sektion' }
 

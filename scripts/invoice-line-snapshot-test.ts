@@ -23,6 +23,13 @@ ok(r.quantity === 4 && r.unit_cost === 50, 'mangler stk-pris → total / antal',
 r = lineSnapshot(L(null, null, null))
 ok(r.quantity === 1 && r.unit_cost === 0, 'tom linje → 1 × 0', r)
 ok(r.quantity * r.unit_cost === 0 && lineSnapshot(L(-2, 100, -200)).quantity > 0, 'antal er altid > 0 (CHECK quantity > 0)')
+// LF-3 (2026-10-16): totalen (efter linjerabat) vinder over listeprisen
+r = lineSnapshot(L(1, 100, 70))
+ok(r.quantity === 1 && r.unit_cost === 70, 'linjerabat: liste 100, total 70 → kost 70 (før 100)', r)
+r = lineSnapshot(L(10, 12.5, 100))
+ok(r.quantity === 10 && r.unit_cost === 10, 'rabat på flere stk: 10 × liste 12,50, total 100 → 10 pr. stk', r)
+r = lineSnapshot(L(-2, 100, -140))
+ok(r.quantity === 2 && r.unit_cost === -70, 'retur med rabat: −2 × 100, total −140 → 2 × −70', r)
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle fakturalinje-tests bestået')
 process.exitCode = bad ? 1 : 0
