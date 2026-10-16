@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -596,6 +596,44 @@ ${m.text()}`) })
         r.sager_mobil_ingen_scroll = (await s.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)) <= 2
       } finally { await s.ctx.close().catch(() => {}) }
       out.push({ id: 'U160 kalender-uge på mobil = agenda', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+    }
+
+    // U182 T-5 (review 2026-10-16): "Ny kunde" med en mail der allerede findes (andre bogstaver) → dublet-spørgsmål;
+    // Annuller opretter intet, "Opret alligevel" opretter præcis én ny (serveren håndhæver, UI'et spørger)
+    if (want('U182')) {
+      const r: Record<string, boolean> = {}
+      const mail = `u182-${stamp}@harness.test`
+      const ex = await c.admin.from('customers').insert([{ customer_number: `U182-${stamp}`, company_name: `[HARNESS] U182 eksisterende ${stamp}`,
+        contact_person: 'Eksisterende', email: mail, created_by: adminUser.id }]).select('id')
+      const seedErr = ex.data?.[0] ? '' : `SEED: ${ex.error?.message ?? '?'} · `
+      const count = async () => ((await c.admin.from('customers').select('id').ilike('email', mail)).data ?? []).length
+      const s3 = await login(adminUser)
+      const dialogs: string[] = []
+      let accept = false
+      s3.page.on('dialog', (d) => { dialogs.push(d.message()); void (accept ? d.accept() : d.dismiss()) })
+      const fillAndSave = async () => {
+        await gotoSafe(s3.page, `${base}/dashboard/customers`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await s3.page.getByRole('button', { name: /Ny Kunde/ }).first().click({ timeout: 60_000 })
+        await s3.page.getByPlaceholder('Fx Peter Hansen').fill(`[HARNESS] U182 ny ${stamp}`)
+        await s3.page.getByPlaceholder('navn@example.dk').fill(`  U182-${stamp}@Harness.TEST `)
+        await s3.page.getByRole('button', { name: 'Opret kunde' }).click({ timeout: 30_000 })
+        await s3.page.waitForTimeout(2500)
+      }
+      try {
+        await fillAndSave()
+        r.spurgt_om_dublet = dialogs.some((m) => /dublet|findes allerede/i.test(m))
+        r.annuller_opretter_intet = (await count()) === 1
+        accept = true
+        await fillAndSave()
+        for (let i = 0; i < 10 && (await count()) < 2; i++) await s3.page.waitForTimeout(500)
+        r.opret_alligevel_opretter_en = (await count()) === 2
+        const { data: rows } = await c.admin.from('customers').select('email').ilike('email', mail)
+        r.mail_normaliseret = (rows ?? []).every((x) => (x as { email: string }).email === mail)
+      } finally {
+        await s3.ctx.close().catch(() => {})
+        await c.admin.from('customers').delete().ilike('email', mail)
+      }
+      out.push({ id: 'U182 kunde-dublet: spørg, annuller, opret alligevel', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
     }
 
     // U179 T-6/T-7 (review 2026-10-16): leads på telefon (375 px) — listen er en kortliste uden vandret scroll, og tavlen

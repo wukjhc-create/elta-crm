@@ -389,11 +389,10 @@ export async function quickCreateCustomerAndOffer(
       }
 
       // Check if customer with this email already exists
-      const { data: existing } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('email', input.email)
-        .maybeSingle()
+      // T-5 (review 2026-10-16): normaliseret opslag (før .eq = store/små bogstaver + mellemrum, og maybeSingle fejlede
+      // ved flere træf → endnu en dublet blev oprettet)
+      const { findCustomerByEmail } = await import('@/lib/customers/customer-email')
+      const existing = await findCustomerByEmail(supabase, input.email)
 
       if (existing) {
         customerId = existing.id
@@ -421,17 +420,23 @@ export async function quickCreateCustomerAndOffer(
           { selectClause: 'id, customer_number', label: 'quickCreateCustomerAndOffer' }
         )
 
-        if (custError || !newCustomer) {
-          logger.error('Error creating customer in quick flow', { error: custError })
-          return { success: false, error: 'Kunne ikke oprette kunde' }
+        // T-5: samtidig oprettet med samme mail → kobl til den eksisterende (som ovenfor)
+        const dupExisting = custError?.code === 'DUPLICATE_EMAIL' ? custError.existing : undefined
+        if (dupExisting) {
+          customerId = dupExisting.id
+        } else {
+          if (custError || !newCustomer) {
+            logger.error('Error creating customer in quick flow', { error: custError })
+            return { success: false, error: 'Kunne ikke oprette kunde' }
+          }
+
+          customerId = newCustomer.id
+
+          await logCreate('customer', customerId, input.companyName, {
+            customer_number: newCustomer.customer_number,
+            source: 'quick_create_from_mail',
+          })
         }
-
-        customerId = newCustomer.id
-
-        await logCreate('customer', customerId, input.companyName, {
-          customer_number: newCustomer.customer_number,
-          source: 'quick_create_from_mail',
-        })
       }
     }
 

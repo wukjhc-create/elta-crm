@@ -19,6 +19,15 @@
 
 import { retryOnUniqueViolation } from '@/lib/utils/retry'
 import { logger } from '@/lib/utils/logger'
+import { escapeLike } from '@/lib/validations/postgrest-filter'
+import {
+  DUPLICATE_EMAIL_CODE,
+  duplicateEmailMessage,
+  findCustomerByEmail,
+  isPlaceholderEmail,
+  normalizeCustomerEmail,
+  type ExistingCustomerRef,
+} from '@/lib/customers/customer-email'
 
 const CUSTOMER_NUMBER_PREFIX = 'C'
 const CUSTOMER_NUMBER_PADDING = 6
@@ -75,6 +84,12 @@ export interface InsertCustomerWithRetryOptions {
   selectClause?: string
   /** Label brugt i retry-log. Default 'customer_number'. */
   label?: string
+  /**
+   * T-5 (review 2026-10-16): server-side dublet-værn på e-mail. Standard: en kunde med samme (normaliserede) mail
+   * findes → intet insert, fejlkode DUPLICATE_EMAIL (+ den eksisterende kunde). true = brugerens eksplicitte
+   * "Opret alligevel". Pladsholdere ('' / auto+…@elta-crm.local) tæller aldrig som dublet.
+   */
+  allowDuplicateEmail?: boolean
 }
 
 /**
@@ -94,14 +109,25 @@ export async function insertCustomerWithRetry<TResult = unknown>(
   supabase: SupabaseClientLike,
   buildPayload: (customerNumber: string) => Record<string, unknown>,
   options?: InsertCustomerWithRetryOptions
-): Promise<{ data: TResult | null; error: { code?: string; message?: string } | null }> {
+): Promise<{ data: TResult | null; error: { code?: string; message?: string; existing?: ExistingCustomerRef } | null }> {
   const maxAttempts = options?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
   const explicitSelectClause = options?.selectClause
   const label = options?.label ?? 'customer_number'
+  const allowDup = options?.allowDuplicateEmail === true
 
-  return retryOnUniqueViolation<TResult>(async () => {
+  // T-5: mailen normaliseres (trim + små bogstaver) og tjekkes FØR nummer-generering/insert
+  const probeEmail = normalizeCustomerEmail(buildPayload('PROBE').email as string | null | undefined)
+  if (!allowDup && !isPlaceholderEmail(probeEmail)) {
+    const existing = await findCustomerByEmail(supabase, probeEmail)
+    if (existing) {
+      return { data: null, error: { code: DUPLICATE_EMAIL_CODE, message: duplicateEmailMessage(probeEmail, existing), existing } }
+    }
+  }
+
+  const result = await retryOnUniqueViolation<TResult>(async () => {
     const customerNumber = await generateNextCustomerNumber(supabase)
     const payload = buildPayload(customerNumber)
+    if (typeof payload.email === 'string') payload.email = normalizeCustomerEmail(payload.email)
 
     // Bugfix Sprint 9E Phase 5d-fix: brug .select() UDEN argument som
     // default — matcher Phase 5a-c-mønsteret. Caller kan stadig
@@ -133,4 +159,37 @@ export async function insertCustomerWithRetry<TResult = unknown>(
       error: (error as any) ?? null,
     }
   }, maxAttempts, label, (e) => /customer_number/i.test(e.message || ''))
+
+  // T-5 race (uden unikt indeks): to samtidige oprettelser kan begge passere forhåndstjekket. Den ÆLDSTE række
+  // (created_at, id) vinder deterministisk; den netop indsatte slettes igen, hvis en ældre findes — så præcis én
+  // overlever, også når begge parter tjekker samtidig. (Fuld garanti: indeks 00237, BLOCKED_APPROVAL.)
+  const newId = (result.data as { id?: string } | null)?.id
+  if (!allowDup && newId && !result.error && !isPlaceholderEmail(probeEmail)) {
+    try {
+      const { data: same } = await supabase
+        .from('customers')
+        .select('id, company_name, customer_number, is_active, created_at')
+        .ilike('email', escapeLike(probeEmail))
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(5)
+      const rows = (same ?? []) as Array<ExistingCustomerRef & { created_at: string }>
+      const winner = rows[0]
+      if (winner && winner.id !== newId) {
+        // RLS: kun admin må slette kunder — den netop oprettede række (præcis dette id) fjernes med admin-klienten,
+        // ellers ville oprydningen fejle tavst for salg/serviceleder, og begge dubletter blive stående
+        const { createAdminClient } = await import('@/lib/supabase/admin')
+        const { error: delErr } = await createAdminClient().from('customers').delete().eq('id', newId)
+        if (delErr) {
+          logger.error('insertCustomerWithRetry: samtidig dublet kunne ikke fjernes', { error: delErr, metadata: { label, newId } })
+          return result
+        }
+        logger.warn('insertCustomerWithRetry: samtidig dublet fjernet', { metadata: { label, kept: winner.id, removed: newId } })
+        return { data: null, error: { code: DUPLICATE_EMAIL_CODE, message: duplicateEmailMessage(probeEmail, winner), existing: winner } }
+      }
+    } catch (raceErr) {
+      logger.warn('insertCustomerWithRetry: dublet-genkontrol fejlede (kunden er oprettet)', { error: raceErr })
+    }
+  }
+  return result
 }

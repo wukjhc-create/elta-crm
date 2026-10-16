@@ -113,11 +113,15 @@ export async function runConcurrency(c: { admin: SupabaseClient; sql: Sql; owner
     const billCustomer = [...customerIds][0]
     const seedBillCase = async (tag: string) => {
       const { data: emp } = await c.admin.from('employees').insert([{ name: `[HARNESS] race-${tag}`, email: `race-${tag}-${Date.now()}@harness.test`, role: 'montør', active: true, cost_rate: 300, hourly_rate: 500 }]).select('id').single()
-      const { data: sc } = await c.admin.from('service_cases').insert([{ title: `[HARNESS] race-faktura ${tag}`, customer_id: billCustomer, status: 'in_progress', priority: 'medium', source: 'manual', created_by: c.ownerUid }]).select('id').single()
+      const { data: sc } = await c.admin.from('service_cases').insert([{ title: `[HARNESS] race-faktura ${tag}`, customer_id: billCustomer, status: 'in_progress', priority: 'medium', source: 'manual', created_by: c.ownerUid,
+        // 00232: slutfaktura kræver valgt afregningsform
+        billing_model: 'time_and_materials' }]).select('id').single()
       const { data: wo } = await c.admin.from('work_orders').insert([{ case_id: sc!.id, title: 'race', status: 'done', assigned_employee_id: emp!.id }]).select('id').single()
       billCases.push({ caseId: sc!.id, woId: wo!.id, empId: emp!.id })
       const t0 = Date.now() - 86400_000
-      const { data: tl } = await c.admin.from('time_logs').insert([{ employee_id: emp!.id, work_order_id: wo!.id, start_time: new Date(t0).toISOString(), end_time: new Date(t0 + 3600_000).toISOString(), billable: true }]).select('id').single()
+      const { data: tl } = await c.admin.from('time_logs').insert([{ employee_id: emp!.id, work_order_id: wo!.id, start_time: new Date(t0).toISOString(), end_time: new Date(t0 + 3600_000).toISOString(), billable: true,
+        // PR-3 (2026-10-15): kun godkendte timer faktureres — seed'et var afventende (C7/C8 viste 0 timelinjer)
+        approval_status: 'approved' }]).select('id').single()
       const { data: m } = await c.admin.from('case_materials').insert([{ case_id: sc!.id, description: 'race-materiale', quantity: 1, unit: 'stk', unit_cost: 10, unit_sales_price: 20, billable: true, source: 'manual', created_by: c.ownerUid }]).select('id').single()
       return { caseId: sc!.id as string, tlId: tl!.id as string, mId: m!.id as string }
     }

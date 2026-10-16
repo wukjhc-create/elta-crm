@@ -110,20 +110,22 @@ export function CustomerCreateDialog({
 
   const validateBasics = (): string | null => {
     if (!primaryName.trim()) {
-      return isPrivate ? 'Navn er paakraevet' : 'Firmanavn er paakraevet'
+      return isPrivate ? 'Navn er påkrævet' : 'Firmanavn er påkrævet'
     }
     if (!isPrivate && !contactPerson.trim()) {
-      return 'Kontaktperson er paakraevet'
+      return 'Kontaktperson er påkrævet'
     }
     if (!email.trim()) {
-      return 'Email er paakraevet'
+      return 'E-mail er påkrævet'
     }
     return null
   }
 
   // Phase 5b — dublet-check kun i full-mode. Returnerer true hvis save
   // skal fortsaette, false hvis brugeren afviser pga. dublet.
+  const duplicateConfirmedRef = useRef(false)
   const checkForDuplicates = async (): Promise<boolean> => {
+    duplicateConfirmedRef.current = false
     if (!isFullMode) return true
     if (!email.trim()) return true
     try {
@@ -137,6 +139,8 @@ export function CustomerCreateDialog({
           setDuplicateWarning(`Annulleret. Eksisterende kunde fundet: ${matches}`)
           return false
         }
+        // T-5: brugeren har eksplicit valgt "Opret alligevel" — serveren tillader så samme mail
+        duplicateConfirmedRef.current = true
       }
     } catch {
       // Net-fejl maa ikke blokere save — fortsaet
@@ -162,7 +166,8 @@ export function CustomerCreateDialog({
         return
       }
 
-      const res = await quickCreateCustomer({
+      const buildInput = (allowDuplicateEmail: boolean) => ({
+        allow_duplicate_email: allowDuplicateEmail,
         customer_type: type,
         primary_name: primaryName,
         contact_person: isPrivate ? null : contactPerson,
@@ -180,6 +185,16 @@ export function CustomerCreateDialog({
         shipping_country: isFullMode ? 'Danmark' : null,
         notes: isFullMode ? (notes || null) : null,
       })
+      let res = await quickCreateCustomer(buildInput(duplicateConfirmedRef.current))
+      // T-5: serveren håndhæver unik mail — ved dublet spørges der, og der oprettes kun ved eksplicit ja
+      if (!res.success && res.code === 'DUPLICATE_EMAIL') {
+        if (!window.confirm(`${res.error ?? 'Der findes allerede en kunde med denne e-mail.'}\n\nOpret alligevel?`)) {
+          setDuplicateWarning(res.error ?? 'Der findes allerede en kunde med denne e-mail')
+          setSaving(false)
+          return
+        }
+        res = await quickCreateCustomer(buildInput(true))
+      }
       if (!res.success || !res.data) {
         setError(humanizeErrorText(res.error) || 'Kunne ikke oprette kunde')
         setSaving(false)
@@ -280,7 +295,7 @@ export function CustomerCreateDialog({
                 type="text"
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
-                placeholder="Navn paa primaer kontakt"
+                placeholder="Navn på primær kontakt"
                 maxLength={200}
                 disabled={saving}
                 className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
@@ -364,7 +379,7 @@ export function CustomerCreateDialog({
               value={address}
               onChange={setAddress}
               onSelect={handleAddressSelect}
-              placeholder="Soeg adresse..."
+              placeholder="Søg adresse …"
               disabled={saving}
             />
           </Field>
@@ -414,7 +429,7 @@ export function CustomerCreateDialog({
                   value={shippingAddress}
                   onChange={setShippingAddress}
                   onSelect={handleShippingAddressSelect}
-                  placeholder="Soeg adresse..."
+                  placeholder="Søg adresse …"
                   disabled={saving}
                 />
               </Field>

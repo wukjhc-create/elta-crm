@@ -102,6 +102,8 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
       setError(null)
 
       // Check for duplicates when creating
+      // T-5 (review 2026-10-16): tjekket her er kun bekvemmelighed — serveren håndhæver; "Opret alligevel" sendes med
+      let allowDuplicateEmail = false
       if (!isEditing && data.email) {
         const dupeResult = await checkDuplicateCustomer(data.email, data.company_name)
         if (dupeResult.success && dupeResult.data && dupeResult.data.length > 0) {
@@ -116,6 +118,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
             setIsLoading(false)
             return
           }
+          allowDuplicateEmail = true
         }
       }
 
@@ -123,6 +126,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
       if (customer?.id) {
         formData.append('id', customer.id)
       }
+      if (allowDuplicateEmail) formData.append('allow_duplicate_email', 'true')
 
       Object.entries(data).forEach(([key, value]) => {
         if (value !== null && value !== undefined) {
@@ -136,9 +140,25 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
         }
       })
 
-      const result = isEditing
+      let result = isEditing
         ? await updateCustomer(formData)
         : await createCustomer(formData)
+
+      // T-5: serveren fandt en kunde med samme mail (fx oprettet imens) → spørg, og opret kun ved eksplicit ja
+      if (!isEditing && !result.success && (result as { code?: string }).code === 'DUPLICATE_EMAIL') {
+        const again = await confirmUnsaved({
+          title: 'Kunde med samme e-mail findes',
+          description: result.error ?? 'Der findes allerede en kunde med denne e-mail.',
+          confirmLabel: 'Opret alligevel',
+          variant: 'warning',
+        })
+        if (!again) {
+          setIsLoading(false)
+          return
+        }
+        formData.set('allow_duplicate_email', 'true')
+        result = await createCustomer(formData)
+      }
 
       if (!result.success) {
         setError(humanizeErrorText(result.error) || 'Der opstod en fejl')

@@ -400,7 +400,7 @@ export async function checkDuplicateCustomer(
 }
 
 // Create new customer
-export async function createCustomer(formData: FormData): Promise<ActionResult<Customer>> {
+export async function createCustomer(formData: FormData): Promise<ActionResult<Customer> & { code?: 'DUPLICATE_EMAIL' }> {
   try {
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('customers.create')) {
@@ -447,10 +447,14 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
         customer_number: customerNumber,
         created_by: userId,
       }),
-      { label: 'createCustomer' }
+      // T-5: kun brugerens eksplicitte "Opret alligevel" tillader samme mail
+      { label: 'createCustomer', allowDuplicateEmail: formData.get('allow_duplicate_email') === 'true' }
     )
 
     if (!inserted || error) {
+      if (error?.code === 'DUPLICATE_EMAIL') {
+        return { success: false, code: 'DUPLICATE_EMAIL', error: error.message ?? 'Der findes allerede en kunde med denne e-mail' }
+      }
       if (error?.code === '23505') {
         logger.error('createCustomer exhausted retries', { metadata: { code: error.code } })
         return {
@@ -517,6 +521,8 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
  *    valgfri CVR.
  */
 export interface QuickCreateCustomerInput {
+  /** T-5: brugerens eksplicitte "Opret alligevel" ved samme e-mail */
+  allow_duplicate_email?: boolean
   customer_type: 'private' | 'business'
   /** Privat: fulde navn. Erhverv: firmanavn. */
   primary_name: string
@@ -543,7 +549,7 @@ export interface QuickCreateCustomerInput {
 
 export async function quickCreateCustomer(
   input: QuickCreateCustomerInput
-): Promise<ActionResult<Customer>> {
+): Promise<ActionResult<Customer> & { code?: 'DUPLICATE_EMAIL' }> {
   try {
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('customers.create')) {
@@ -599,9 +605,12 @@ export async function quickCreateCustomer(
         customer_number: customerNumber,
         created_by: userId,
       }),
-      { label: 'quickCreateCustomer' }
+      { label: 'quickCreateCustomer', allowDuplicateEmail: input.allow_duplicate_email === true }
     )
 
+    if (error?.code === 'DUPLICATE_EMAIL') {
+      return { success: false, code: 'DUPLICATE_EMAIL', error: error.message ?? 'Der findes allerede en kunde med denne e-mail' }
+    }
     if (!inserted || error) {
       if (error?.code === '23505') {
         logger.error('quickCreateCustomer exhausted retries', { metadata: { code: error.code } })

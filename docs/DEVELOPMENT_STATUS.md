@@ -68,6 +68,11 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - R-11 avance 0 vs. "ikke sat" i kataloget — afklaring af datamodel
 - **A-3 bank-dedup inkl. afsendernavn** [MIGRATION] — to kunders ens beløb samme dag uden tekst tælles som dublet
 - **A-4/A-7 e-conomic idempotens ved timeout + betaling efter eksport** — kræver test mod e-conomic-sandbox (live-skriv)
+- **O-1 live-afsendelse af tilbudsrykkere** — dry-run/forhåndsvisning er i prod (184b807c); live kræver `OFFER_REMINDERS_LIVE=true` + særskilt godkendelse
+- **00237 unikt indeks på kunde-mail** (docs/runbooks/customer-email-duplicates-proposal.md) — prod-pre-check for eksisterende dubletter først
+- **PF-11 indeks på incoming_emails** (service_case_id; is_archived/link_status/received_at) [MIGRATION]
+- **ST-2 blanking af gamle 1-års signerede URL'er** (sent_quotes.pdf_public_url, service_case_attachments.file_url) [MIGRATION, data]
+- **O-6/O-7** venter på revisionsskema 00203 i relevant miljø
 - **"Registrér også betaling i e-conomic"** (efter A-12-beslutningen) — eksplicit action: permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit
 P-2/P-4/P-8/P-10/P-11 (round 3) — UI U178/U13/U4/U5/U43/U160/U166 grønne.
 

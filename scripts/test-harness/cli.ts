@@ -2175,6 +2175,14 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'customer-email-dup-check') {
+    // T-5 (review 2026-10-16): server-side dublet-værn på kunders e-mail (insertCustomerWithRetry)
+    const { runCustomerEmailDupCheck, formatCustomerEmailDupCheck } = await import('./customer-email-dup-check')
+    const checks = await runCustomerEmailDupCheck({ admin })
+    log(formatCustomerEmailDupCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'offer-reminder-plan-check') {
     // O-1 (review 2026-10-16): tilbudsrykker-plan/dry-run — intet sendes, intet tilbud ændres
     const { runOfferReminderPlanCheck, formatOfferReminderPlanCheck } = await import('./offer-reminder-plan-check')
