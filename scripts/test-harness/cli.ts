@@ -2175,6 +2175,14 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'dashboard-stats-equivalence') {
+    // PF-2 (review 2026-10-16): forsidens tilbudstal — ny forespørgsel = gammel (læser kun)
+    const { runDashboardStatsEquivalence, formatDashboardStatsEquivalence } = await import('./dashboard-stats-equivalence')
+    const checks = await runDashboardStatsEquivalence({ admin })
+    log(formatDashboardStatsEquivalence(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'customer-email-dup-check') {
     // T-5 (review 2026-10-16): server-side dublet-værn på kunders e-mail (insertCustomerWithRetry)
     const { runCustomerEmailDupCheck, formatCustomerEmailDupCheck } = await import('./customer-email-dup-check')

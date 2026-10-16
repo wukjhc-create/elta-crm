@@ -15,9 +15,13 @@
  * eller senere migration).
  */
 
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+
+type InputRow = { id: string; conversation_id: string | null; customer_id: string | null; link_status: string | null; sender_email: string | null; received_at: string }
+const INPUT_COLUMNS = 'id, conversation_id, customer_id, link_status, sender_email, received_at'
 
 export interface EmailRequiresResponseInfo {
   emailId: string
@@ -46,24 +50,32 @@ export async function getRequiresResponseStatus(
   if (emailIds.length === 0) return {}
 
   const supabase = await createClient()
-  const result: Record<string, EmailRequiresResponseInfo> = {}
-
-  try {
-    // 1. Hent input-emails med conversation_id + meta
-    // X4 (kommunikations-review 2026-10-07): i bidder (før ét .in() med op til 1.000+ id'er)
-    type InputRow = { id: string; conversation_id: string | null; customer_id: string | null; link_status: string | null; sender_email: string | null; received_at: string }
-    const inputEmails: InputRow[] = []
-    for (let k = 0; k < emailIds.length; k += 300) {
-      const { data, error: inputErr } = await supabase
-        .from('incoming_emails')
-        .select('id, conversation_id, customer_id, link_status, sender_email, received_at')
-        .in('id', emailIds.slice(k, k + 300))
-      if (inputErr || !data) {
-        logger.error('getRequiresResponseStatus: input fetch failed', { error: inputErr })
-        return {}
-      }
-      inputEmails.push(...(data as InputRow[]))
+  // 1. Hent input-emails med conversation_id + meta
+  // X4 (kommunikations-review 2026-10-07): i bidder (før ét .in() med op til 1.000+ id'er); PF-4: bidderne samtidig
+  const chunks: string[][] = []
+  for (let k = 0; k < emailIds.length; k += 300) chunks.push(emailIds.slice(k, k + 300))
+  const parts = await Promise.all(chunks.map((chunk) => supabase.from('incoming_emails').select(INPUT_COLUMNS).in('id', chunk)))
+  const inputEmails: InputRow[] = []
+  for (const { data, error: inputErr } of parts) {
+    if (inputErr || !data) {
+      logger.error('getRequiresResponseStatus: input fetch failed', { error: inputErr })
+      return {}
     }
+    inputEmails.push(...(data as InputRow[]))
+  }
+  return computeRequiresResponse(supabase, inputEmails)
+}
+
+/**
+ * PF-4 (performance-review 2026-10-16): selve beregningen for allerede hentede mails — "kræver svar"-listen sender sine
+ * kandidat-rækker direkte ind (før blev de samme rækker genhentet i 300-bidder efter hinanden).
+ */
+async function computeRequiresResponse(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  inputEmails: InputRow[],
+): Promise<Record<string, EmailRequiresResponseInfo>> {
+  const result: Record<string, EmailRequiresResponseInfo> = {}
+  try {
 
     // 2. Saml unikke conversation_ids
     const convIds = Array.from(
@@ -79,16 +91,17 @@ export async function getRequiresResponseStatus(
       let convMessages: Array<{ conversation_id: string | null; sender_email: string | null; received_at: string }> | null = []
       let convErr: unknown = null
       try {
-        for (let k = 0; k < convIds.length; k += 200) {
-          const chunk = convIds.slice(k, k + 200)
-          convMessages.push(...await fetchAllRows<{ conversation_id: string | null; sender_email: string | null; received_at: string }>((from, to) => supabase
-            .from('incoming_emails')
-            .select('id, conversation_id, sender_email, received_at')
-            .in('conversation_id', chunk)
-            .eq('is_archived', false)
-            .order('id')
-            .range(from, to)))
-        }
+        // PF-4: trådenes bidder hentes samtidig (før én ad gangen)
+        const convChunks: string[][] = []
+        for (let k = 0; k < convIds.length; k += 200) convChunks.push(convIds.slice(k, k + 200))
+        const pages = await Promise.all(convChunks.map((chunk) => fetchAllRows<{ conversation_id: string | null; sender_email: string | null; received_at: string }>((from, to) => supabase
+          .from('incoming_emails')
+          .select('id, conversation_id, sender_email, received_at')
+          .in('conversation_id', chunk)
+          .eq('is_archived', false)
+          .order('id')
+          .range(from, to))))
+        for (const p of pages) convMessages.push(...p)
       } catch (e) {
         convErr = e
         convMessages = null
@@ -176,15 +189,18 @@ export async function getRequiresResponseEmailIds(): Promise<string[]> {
   return (await requiresResponse()).ids
 }
 
-async function requiresResponse(): Promise<{ ids: string[]; statusMap: Record<string, EmailRequiresResponseInfo> }> {
+// PF-4 (performance-review 2026-10-16): beregnes højst én gang pr. request (statistik, filter og dashboard i samme
+// request delte før ikke resultatet)
+const requiresResponse = cache(async (): Promise<{ ids: string[]; statusMap: Record<string, EmailRequiresResponseInfo> }> => {
   const supabase = await createClient()
 
   try {
     // Hent kandidater: linked, ikke arkiveret, ikke ignoreret
     // X4: side for side, nyeste først (før .limit(2000), men PostgREST giver højst 1.000)
-    const candidates = await fetchAllRows<{ id: string }>((from, to) => supabase
+    // PF-4: med de kolonner beregningen bruger — så de ikke hentes igen
+    const candidates = await fetchAllRows<InputRow>((from, to) => supabase
       .from('incoming_emails')
-      .select('id')
+      .select(INPUT_COLUMNS)
       .eq('is_archived', false)
       .eq('link_status', 'linked')
       .order('received_at', { ascending: false })
@@ -193,14 +209,14 @@ async function requiresResponse(): Promise<{ ids: string[]; statusMap: Record<st
     if (candidates.length === 0) return { ids: [], statusMap: {} }
 
     const all = candidates.map((c) => c.id as string)
-    const statusMap = await getRequiresResponseStatus(all)
+    const statusMap = await computeRequiresResponse(supabase, candidates)
 
     return { ids: all.filter((id) => statusMap[id]?.requiresResponse === true), statusMap }
   } catch (err) {
     logger.error('getRequiresResponseEmailIds: failed', { error: err })
     return { ids: [], statusMap: {} }
   }
-}
+})
 
 /**
  * Tæl antal TRÅDE der kræver svar (til counter-badge) — samme enhed som dashboardet (X4: før talte hver mail i en

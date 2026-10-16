@@ -83,24 +83,27 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     if (r.error) { incomplete = true; logger.error('getDashboardStats: count failed', { error: r.error }); return 0 }
     return r.count ?? 0
   }
-  const [leadCounts, customerTotal, customerActive, customerNew] = await Promise.all([
-    Promise.all(LEAD_STATUSES_ALL.map((st) => headCount(supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', st)))),
-    headCount(supabase.from('customers').select('id', { count: 'exact', head: true })),
-    headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).eq('is_active', true)),
-    headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', monthStartIso)),
-  ])
-
-  // Fetch all stats in parallel
+  // PF-2 (performance-review 2026-10-16): ÉN parallel runde (før to efter hinanden); tilbud tælles i databasen pr. status
+  // (HEAD), og beløb hentes kun for de statusser der summeres (sendt/set/accepteret) — før alle tilbud nogensinde
+  const OFFER_STATUSES_ALL: OfferStatus[] = ['draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired']
   const [
+    leadCounts, customerTotal, customerActive, customerNew,
+    offerCounts, offersTotal,
     offersResult,
     projectsResult,
     timeEntriesResult,
     messagesResult,
     customerEmailsResult,
   ] = await Promise.all([
+    Promise.all(LEAD_STATUSES_ALL.map((st) => headCount(supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', st)))),
+    headCount(supabase.from('customers').select('id', { count: 'exact', head: true })),
+    headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).eq('is_active', true)),
+    headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', monthStartIso)),
+    Promise.all(OFFER_STATUSES_ALL.map((st) => headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).eq('is_proposal', false).eq('status', st)))),
+    headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).eq('is_proposal', false)),
     // Rækker hentes side for side — PostgREST giver højst 1.000 pr. kald (N36-rest: tallene stod stille ved 1.000)
     // Rapport-review 2026-10-09 (#2): værdi ekskl. moms efter rabat (final − tax) — total_amount er subtotal før rabat
-    allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).order('id').range(f, t)),
+    allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).in('status', ['sent', 'viewed', 'accepted']).order('id').range(f, t)),
     // N36: sager (ikke gamle projekter)
     // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
     supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")'),
@@ -140,26 +143,19 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const activeCustomers = customerActive
   const newCustomersThisMonth = customerNew
 
-  // Calculate offers stats
-  const offersByStatus = offers.reduce(
-    (acc, offer) => {
-      acc[offer.status as OfferStatus] = (acc[offer.status as OfferStatus] || 0) + 1
-      return acc
-    },
-    {} as Record<OfferStatus, number>
-  )
+  // Calculate offers stats (PF-2: antal fra HEAD-counts; rækkerne er kun sendt/set/accepteret til beløbene)
+  const offersByStatus = Object.fromEntries(OFFER_STATUSES_ALL.map((st, i) => [st, offerCounts[i]])) as Record<OfferStatus, number>
 
   const pendingOffers = offers.filter((o) =>
     ['sent', 'viewed'].includes(o.status)
   )
   const acceptedOffers = offers.filter((o) => o.status === 'accepted')
-  const rejectedOffers = offers.filter((o) => o.status === 'rejected')
 
   const pendingValue = pendingOffers.reduce((sum, o) => sum + offerExVat(o), 0)
   const acceptedValue = acceptedOffers.reduce((sum, o) => sum + offerExVat(o), 0)
-  const decidedOffers = acceptedOffers.length + rejectedOffers.length
+  const decidedOffers = (offersByStatus['accepted'] || 0) + (offersByStatus['rejected'] || 0)
   const acceptanceRate =
-    decidedOffers > 0 ? Math.round((acceptedOffers.length / decidedOffers) * 100) : 0
+    decidedOffers > 0 ? Math.round(((offersByStatus['accepted'] || 0) / decidedOffers) * 100) : 0
 
   // N36: sager i arbejde (ikke lukket/konverteret) + timer fra time_logs
   const r1 = (n: number) => Math.round(n * 10) / 10
@@ -186,7 +182,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       new_this_month: newCustomersThisMonth,
     },
     offers: {
-      total: offers.length,
+      total: offersTotal,
       draft: offersByStatus['draft'] || 0,
       sent: offersByStatus['sent'] || 0,
       viewed: offersByStatus['viewed'] || 0,
