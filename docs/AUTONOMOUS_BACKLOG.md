@@ -45,6 +45,34 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-20 (review-bølge 2026-10-16 formiddag — økonomi/profit + mobil/performance)
+| # | Fund | Status |
+|---|---|---|
+| F-1 (S1) | Fast-pris-slutfaktura kan fakturere kontraktsum INKL. moms som ekskl. (gamle sager) — rate-værnet findes ikke på slutfakturaen | TODO |
+| F-2 (S2) | Regnings-slutfaktura medtager materialer uden salgspris (0 kr) og binder dem | TODO |
+| F-3 (S2) | Regnings-slutfaktura tilladt mens en timer kører (timer efter kan aldrig faktureres) | TODO |
+| F-4 (S2) | Økonomi-fanen ignorerer billing_model (regningssag vist mod kontraktsum; revised_sum 0 vinder) | TODO |
+| F-5 (S2) | Arbejdsordre-fakturaautomatik omgår sagens fakturering (ingen case_id, live sats) | TODO — app-værn; fuld løsning [MIGRATION] |
+| F-6 (S3) | Afviste timer tæller i getCaseLaborCostTotal | TODO |
+| F-7 (S3) | Fakturakladde/forhåndsvisning afkortet ved 1.000 rækker | TODO |
+| F-8 (S3) | Kost-totaler afkortet (økonomi-fane, tilbudt vs. faktisk, materialer limit 500) | TODO |
+| F-9 (S3) | Fakturakontrol ignorerer enheder (ring vs. meter) | TODO |
+| F-10 (S3) | Kreditnota-linjer vender fortegn i fakturakontrol | TODO |
+| F-11 (S2) | Kostkolonner på case_materials/case_other_costs læsbare via API for alle | [MIGRATION] forslag |
+| F-12 (S2) | work_order_profit-snapshots forkerte (materialer/omsætning) — også i 00222-udkastet | [MIGRATION] forslag |
+| Q-1 (S2) | Dashboard-tal pager hele tabeller (leads/kunder/tilbud/timer) | TODO |
+| Q-2 (S2) | Dashboard-widgets henter serielt (client server-actions) | TODO (større) |
+| Q-3 (S3) | Overblik: chunk-løkker sekventielle + N+1 på webhenvendelser | TODO |
+| Q-4 (S2) | Kalender henter montørens job to gange | TODO |
+| Q-5 (S3) | Arbejdsordre-scope henter alle id'er unødigt | TODO |
+| Q-6 (S2) | Mail-søgning genindlæser ved hvert tastetryk (4 actions) | TODO |
+| Q-7 (S3) | Mail-sync-interval kører i skjulte faner | TODO |
+| Q-8 (S2) | 4 dialoger kan ikke rulles på telefon (materiale, øvrig omkostning, rediger/planlæg arbejdsordre) | TODO |
+| Q-9 (S3) | Sagsdetalje: dobbelt padding på mobil | TODO |
+| Q-10 (S3) | Materiale-/øvrige-tabeller uden mobilvisning | TODO |
+| Q-11 (S3) | Kalender dagsvisning flyder over på telefon; små nav-knapper | TODO |
+| Q-12 (S3) | Sagslister: uafhængige forespørgsler sekventielt | TODO |
+
 ## REVIEW-2026-10-16 (kode-review af egne ændringer)
 | # | Fund | Status |
 |---|---|---|
