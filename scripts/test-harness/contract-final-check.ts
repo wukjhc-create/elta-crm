@@ -28,7 +28,8 @@ export async function runContractFinalCheck(c: { admin: SupabaseClient }): Promi
     return (data as { id: string }).id
   }
   const mkCase = async (contract: number | null) => {
-    const id = await ins('service_cases', { case_number: `SVC-7${String(stamp).slice(-5)}${seq++}`, customer_id: created.cust, title: '[HARNESS] fastpris', status: 'in_progress', created_by: owner, contract_sum: contract })
+    // 00232: eksplicit afregningsform — kontraktsager = fast pris, uden kontraktsum = regning
+    const id = await ins('service_cases', { case_number: `SVC-7${String(stamp).slice(-5)}${seq++}`, customer_id: created.cust, title: '[HARNESS] fastpris', status: 'in_progress', created_by: owner, contract_sum: contract, billing_model: contract == null ? 'time_and_materials' : 'fixed_price' })
     created.cases.push(id)
     return id
   }

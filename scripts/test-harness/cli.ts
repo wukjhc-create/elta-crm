@@ -1626,7 +1626,7 @@ async function main() {
     const invoiceIds: string[] = []
     try {
       ids.cust = await ins('customers', { customer_number: `RH-${stamp}`, company_name: `[HARNESS] rh ${stamp}`, contact_person: 'X', email: `rh-${stamp}@harness.test`, created_by: owner })
-      ids.case = await ins('service_cases', { case_number: `SVC-6${String(stamp).slice(-6)}`, customer_id: ids.cust, title: '[HARNESS] afviste timer', status: 'in_progress', created_by: owner })
+      ids.case = await ins('service_cases', { case_number: `SVC-6${String(stamp).slice(-6)}`, customer_id: ids.cust, title: '[HARNESS] afviste timer', status: 'in_progress', created_by: owner, billing_model: 'time_and_materials' })
       ids.emp = await ins('employees', { name: `[HARNESS] rh ${stamp}`, email: `rhe-${stamp}@harness.test`, role: 'montør', active: true, cost_rate: 300, hourly_rate: 500 })
       ids.wo = await ins('work_orders', { title: '[HARNESS] rh', case_id: ids.case, customer_id: ids.cust, status: 'done', assigned_employee_id: ids.emp })
       const day = new Date(Date.now() - 2 * 86_400_000)
@@ -2166,6 +2166,13 @@ async function main() {
     const gone = await admin.from('customers').select('id').eq('id', cust).maybeSingle()
     check('R4 kunde UDEN tilbud kan stadig slettes', !gone.data)
     process.exitCode = fails ? 2 : 0
+    return
+  }
+  if (SUB === 'billing-model-check') {
+    const { runBillingModelCheck, formatBillingModelCheck } = await import('./billing-model-check')
+    const checks = await runBillingModelCheck({ admin, sql: stagingSql })
+    log(formatBillingModelCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
   if (SUB === 'rate-engine-check') {

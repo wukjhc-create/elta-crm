@@ -59,7 +59,7 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       .from('offers')
       .select(
         // Sprint 12A — laes parti-roller saa de kan kopieres til sagen.
-        'id, offer_number, title, description, scope, status, customer_id, final_amount, tax_amount, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode'
+        'id, offer_number, title, description, scope, status, customer_id, final_amount, tax_amount, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode, billing_model'
       )
       .eq('id', offerId)
       .maybeSingle()
@@ -108,6 +108,8 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
     const insertPayload = {
       source_offer_id: offer.id as string,
       customer_id: customerId,
+      // 00232: sagen arver tilbuddets afregningsform; ikke valgt på tilbuddet → vælges på sagen (ingen gæt)
+      billing_model: (offer as { billing_model?: string | null }).billing_model ?? null,
       // Sprint 12A — kopiér parti-roller fra offer til service_case.
       // Fallback til customer_id hvis offer-row endnu ikke har felterne
       // udfyldt (post-migration backfill sikrer at de altid er sat for

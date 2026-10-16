@@ -888,6 +888,8 @@ export async function createStageInvoiceAction(
 }
 
 export interface ContractFinalPreview {
+  /** 00232: sagens valgte afregningsform (null = ikke valgt → slutfaktura blokeret) */
+  billing_model: 'fixed_price' | 'time_and_materials' | null
   is_contract: boolean
   basis: number | null
   basis_kind: 'contract_sum' | 'revised_sum' | null
@@ -903,7 +905,7 @@ export interface ContractFinalPreview {
  * oprettelse (kontraktsum − tidligere faktureret = restbeløb). is_contract=false → almindelig linjebaseret slutfaktura.
  */
 export async function getContractFinalPreviewAction(caseId: string): Promise<ContractFinalPreview> {
-  const none: ContractFinalPreview = { is_contract: false, basis: null, basis_kind: null, ok: false, message: null, deductions: [], deducted: 0, remainder: 0 }
+  const none: ContractFinalPreview = { billing_model: null, is_contract: false, basis: null, basis_kind: null, ok: false, message: null, deductions: [], deducted: 0, remainder: 0 }
   try {
     validateUUID(caseId, 'case_id')
   } catch {
@@ -912,24 +914,64 @@ export async function getContractFinalPreviewAction(caseId: string): Promise<Con
   const { hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.create')) return { ...none, message: 'Manglende tilladelse: invoices.create' }
   const { createAdminClient } = await import('@/lib/supabase/admin')
-  const { contractBasis } = await import('@/lib/invoices/contract-remainder')
+  const { finalInvoicePlanKind, isBillingModel } = await import('@/lib/invoices/billing-model')
   const { loadContractRemainderPlan } = await import('@/lib/services/invoice-stage')
   const admin = createAdminClient()
-  const { data: sums } = await admin.from('service_cases').select('contract_sum, revised_sum').eq('id', caseId).maybeSingle()
-  const s0 = (sums ?? {}) as { contract_sum?: number | string | null; revised_sum?: number | string | null }
-  const basis = contractBasis(s0)
-  if (basis == null) return none
+  const { data: sums } = await admin.from('service_cases').select('contract_sum, revised_sum, billing_model').eq('id', caseId).maybeSingle()
+  const s0 = (sums ?? {}) as { contract_sum?: number | string | null; revised_sum?: number | string | null; billing_model?: string | null }
+  const model = isBillingModel(s0.billing_model) ? s0.billing_model : null
+  const kind = finalInvoicePlanKind(s0)
+  if (kind.kind === 'blocked') return { ...none, billing_model: model, message: kind.message }
+  if (kind.kind === 'lines') return { ...none, billing_model: model, ok: true }
+  const basis = kind.basis
   const plan = await loadContractRemainderPlan(admin, caseId, basis)
   return {
+    billing_model: model,
     is_contract: true,
     basis,
-    basis_kind: s0.revised_sum != null && Number(s0.revised_sum) > 0 ? 'revised_sum' : 'contract_sum',
+    basis_kind: kind.basisKind,
     ok: plan.ok,
     message: plan.ok ? null : plan.message,
     deductions: plan.ok ? plan.deductions.map(({ invoice_number, invoice_type, amount, credited }) => ({ invoice_number, invoice_type, amount, credited })) : [],
     deducted: plan.deducted,
     remainder: plan.remainder,
   }
+}
+
+/**
+ * 00232: vælg/skift sagens afregningsform (fast pris / regning). service.close (admin/serviceleder);
+ * blokeret når slutfaktura findes; audit-logges.
+ */
+export async function setCaseBillingModelAction(caseId: string, model: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    validateUUID(caseId, 'case_id')
+  } catch {
+    return { ok: false, message: 'Ugyldig sag' }
+  }
+  const { userId, supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  // afregningsform er en sagsbeslutning: service.close (admin/serviceleder — samme roller som RLS på service_cases.update)
+  if (!hasPermission('service.close')) return { ok: false, message: 'Manglende tilladelse: service.close' }
+  const { isBillingModel, BILLING_MODEL_LABEL } = await import('@/lib/invoices/billing-model')
+  if (!isBillingModel(model)) return { ok: false, message: 'Ugyldig afregningsform' }
+  const { data: cur } = await supabase.from('service_cases').select('id, case_number, billing_model').eq('id', caseId).maybeSingle()
+  if (!cur) return { ok: false, message: 'Sag ikke fundet' }
+  const prev = (cur as { billing_model?: string | null }).billing_model ?? null
+  if (prev === model) return { ok: true, message: 'Uændret' }
+  const { count: finals } = await supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('case_id', caseId).eq('is_final_invoice', true)
+  if ((finals ?? 0) > 0) return { ok: false, message: 'Sagen har allerede en slutfaktura — afregningsformen kan ikke ændres' }
+  const { data: upd, error } = await supabase.from('service_cases').update({ billing_model: model }).eq('id', caseId).select('id')
+  if (error || !(upd ?? []).length) return { ok: false, message: 'Afregningsformen kunne ikke gemmes' }
+  await insertAuditRow({
+    user_id: userId,
+    entity_type: 'service_case',
+    entity_id: caseId,
+    entity_name: (cur as { case_number?: string | null }).case_number ?? caseId,
+    action: 'billing_model_set',
+    action_description: `Afregningsform sat til ${BILLING_MODEL_LABEL[model]}${prev ? ` (før: ${isBillingModel(prev) ? BILLING_MODEL_LABEL[prev] : prev})` : ''}`,
+    changes: { billing_model: { old: prev, new: model } },
+  })
+  revalidatePath(`/dashboard/orders/${caseId}`)
+  return { ok: true, message: `Afregningsform: ${BILLING_MODEL_LABEL[model]}` }
 }
 
 export async function createFinalInvoiceAction(
