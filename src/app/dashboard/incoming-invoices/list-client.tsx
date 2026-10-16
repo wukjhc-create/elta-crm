@@ -305,6 +305,13 @@ export function IncomingInvoicesListClient({
           </tbody>
         </table>
       </div>
+      {/* LF-12 (indkøbs-review 2026-10-16): listen henter højst 200 (forfaldsvisning 1.000) — sig det i stedet for at
+          skære tavst */}
+      {rows.length >= (due ? 1000 : 200) && (
+        <p className="text-xs text-amber-700" data-testid="incoming-list-capped">
+          Viser de nyeste {due ? '1.000' : '200'} fakturaer — vælg et filter for at se ældre.
+        </p>
+      )}
     </div>
   )
 }

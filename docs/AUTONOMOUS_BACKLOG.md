@@ -48,19 +48,19 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-24 (review-bølge 2026-10-16 aften — leverandørfakturaer/indkøb + DB-sikkerhed)
 | # | Fund | Status |
 |---|---|---|
-| LF-1 | Godkendt leverandørfaktura uden sag kan aldrig fordeles (sag kan ikke sættes efter godkendelse) (S2) | DONE (venter commit) — sag kan sættes på godkendt/bogført faktura uden fordelte linjer (betinget på status, dansk fejl); UI viser knappen; U28 udvidet |
+| LF-1 | Godkendt leverandørfaktura uden sag kan aldrig fordeles (sag kan ikke sættes efter godkendelse) (S2) | DONE (209701b2) — sag kan sættes på godkendt/bogført faktura uden fordelte linjer (betinget på status, dansk fejl); UI viser knappen; U28 udvidet |
 | LF-2 | Udenlandsk valuta fordeles som DKK (1.000 EUR → 1.000 kr kost) (S2) | DONE (dc8491e7) — kun DKK kan fordeles |
 | LF-3 | Linjerabat ignoreres ved fordeling (listepris i stedet for total) — forhåndsvisning ≠ resultat (S2) | TODO — unit_cost = |total| DONE (dc8491e7) — totalen (efter rabat) / antal vinder over listeprisen; unit invoice-line-snapshot +3 |
 | LF-4 | Forhåndsvisning viser kreditlinjer anderledes end det der oprettes | DONE (dc8491e7) — forhåndsvisning bruger lineSnapshot |
 | LF-5 | Materialer fra kreditnota (negativ kost) kan ikke redigeres | TODO |
 | LF-6 | Linjer kan fordeles til en lukket sag | DONE (dc8491e7) — lukket sag afvises |
-| LF-7 | Matcher kan sætte arbejdsordre fra en anden sag | DONE (venter commit) — titel-/adresse-fallback accepterer kun arbejdsordre/sag på den allerede fundne sag |
+| LF-7 | Matcher kan sætte arbejdsordre fra en anden sag | DONE (209701b2) — titel-/adresse-fallback accepterer kun arbejdsordre/sag på den allerede fundne sag |
 | LF-8 | Adresse-fallback kan auto-matche forkert sag (leverandørens brevhoved) | TODO |
 | LF-9 | Fejl vist som succes + engelske beskeder ved godkend/afvis/e-conomic | DONE (55971f6b) — danske beskeder; godkendt men ikke bogført = advarsel (warning) |
 | LF-10 | Godkend/bogfør uden bekræftelse (skubber til e-conomic) | DONE (55971f6b) — bekræftelse (beløb/leverandør) før godkend og før "Bogfør til e-conomic"; U28 accepterer |
 | LF-11 | AO-API: mislykket linjeimport tavs og kan ikke genforsøges | TODO |
-| LF-12 | Lister skåret ved 200/1000 uden besked | TODO |
-| LF-13 | Delvis fejl ved fordeling: konverterede linjer bliver stående, UI siger "fejlede" | TODO |
+| LF-12 | Lister skåret ved 200/1000 uden besked | DONE (venter commit) — besked når listen viser de nyeste 200/1.000 |
+| LF-13 | Delvis fejl ved fordeling: konverterede linjer bliver stående, UI siger "fejlede" | DONE (venter commit) — besked siger hvor mange linjer der ER overført, og at genkørsel springer dem over |
 | DB-1 | ai_suggestions margin_alert (margin/avance) læsbar for alle indloggede (S2) | BLOCKED_APPROVAL [MIGRATION] 00238 — docs/runbooks/db-security-2026-10-16-proposal.md |
 | DB-2 | case_materials/case_other_costs kostkolonner åbne (= F-11) | BLOCKED_APPROVAL [MIGRATION] 00234 |
 | DB-3 | Kladdelås (00215) omgås via status → draft; vat_mode/billing_model ikke låst (S2) | BLOCKED_APPROVAL [MIGRATION] 00239 |

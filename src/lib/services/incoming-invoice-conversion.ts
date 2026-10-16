@@ -435,9 +435,15 @@ export async function convertApprovedInvoiceLines(
   }
   const perLine = conv.perLine
   if (conv.conversionFatal) {
+    // LF-13 (indkøbs-review 2026-10-16): sig hvad der FAKTISK skete — de lykkedes linjer står på sagen (før kun
+    // "fejlede", så brugeren troede intet var overført og risikerede at registrere kosten igen)
+    const done = perLine.filter((r) => r.ok && !r.alreadyConverted).length
+    const failedN = perLine.filter((r) => !r.ok).length
     return {
       ok: false,
-      message: 'Konvertering fejlede på en eller flere linjer.',
+      message: done > 0
+        ? `${done} ${done === 1 ? 'linje er' : 'linjer er'} overført til sagen, men ${failedN} fejlede — kør fordelingen igen for de resterende (de overførte springes over).`
+        : 'Konvertering fejlede på en eller flere linjer.',
       invoiceStatusFlipped: false,
       perLine,
       caseId,
