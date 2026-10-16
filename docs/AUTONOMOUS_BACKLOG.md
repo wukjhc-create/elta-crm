@@ -56,7 +56,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | M-6 (S2) | "Mine job" forsvinder tavst ved hentefejl | DONE — fejlkort med "Prøv igen" |
 | M-7 (S3) | Mine job henter alle åbne arbejdsordrer uden loft og filtrerer i JS (1.000-loft kan skjule egne) | DELVIS — pagineret (intet 1.000-loft, frisk forespørgsel pr. side), så egne job ikke skæres fra. DB-filter på montørens job = TODO (scope er arbejdsordre-id'er; .in()-grænse). UI U151/U43/U11/U160 |
 | M-8 (S3) | Montøren ser ikke starttid/estimat på sine job | DONE — Mine job + sagens Planlægning-fane. UI U11/U151 |
-| M-9 (S3) | N+1: hver arbejdsordre henter egne timer + medarbejderliste; fejl på medarbejderliste tavs | TODO |
+| M-9 (S3) | N+1: hver arbejdsordre henter egne timer + medarbejderliste; fejl på medarbejderliste tavs | DONE — Planlægning-fanen henter sagens timer + medarbejderliste én gang og deler dem med rækkerne (rækken henter kun selv efter egne ændringer eller hvis forælderen fejlede); fejl på medarbejderliste vises. UI U11/U30/U72/U43 |
 | M-10 (S3) | Små tap-mål (Start/Afslut/Annullér, Registrér timer, Ret/Slet, tjekliste-flueben) | DONE — større knapper og afstand under sm (desktop uændret); flueben havde fået større trykflade i M-1. UI U11/U160/U40 |
 | M-11 (S3) | Tjeklistefoto kun via kamera (capture) — kan ikke vælge fra galleri | DONE — capture fjernet (telefonen tilbyder kamera eller galleri); knap "Foto" |
 | M-12 (S4) | Kalender: fravær-hentefejl tavs; tidsgodkendelse 500-loft uden besked | DONE — advarselsbanner til planlæggere når fravær ikke kan hentes; "Viser de 500 …" i tidsgodkendelse. UI U43/U72 |

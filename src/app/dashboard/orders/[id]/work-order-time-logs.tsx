@@ -68,8 +68,14 @@ export function WorkOrderTimeLogs({
   defaultEmployeeId,
   onChange,
   canSeeCost = false,
+  initialLogs,
+  sharedEmployees,
 }: {
   workOrderId: string
+  /** M-9 (pilot-review 2026-10-15): forælderen henter sagens timer og medarbejderlisten én gang og giver dem videre —
+   * før hentede HVER arbejdsordre begge selv (≈2 kald pr. arbejdsordre ved åbning af fanen) */
+  initialLogs?: TimeLogWithEmployee[] | null
+  sharedEmployees?: { id: string; name: string }[] | null
   defaultEmployeeId?: string | null
   /** Called after a successful create so parent can refresh totals */
   onChange?: () => void
@@ -99,24 +105,35 @@ export function WorkOrderTimeLogs({
   const [billable, setBillable] = useState(true)
   const [payRateType, setPayRateType] = useState<PayRateType>('normal')
 
-  const reload = async () => {
+  const applyEmployees = (list: { id: string; name: string }[]) => {
+    setEmployees(list)
+    // Kun én mulighed (montør = sig selv): vælg den, så formularen kan sendes med det samme
+    if (list.length === 1) setEmployeeId((cur) => cur || list[0].id)
+  }
+
+  const reload = async (withEmployees = !sharedEmployees) => {
     const [logsRes, empRes] = await Promise.all([
       listTimeLogsForWorkOrder(workOrderId),
-      getEmployeesForOrderSelect(),
+      withEmployees ? getEmployeesForOrderSelect() : Promise.resolve(null),
     ])
     if (logsRes.success && logsRes.data) setLogs(logsRes.data)
     else if (!logsRes.success) setError(logsRes.error || 'Kunne ikke hente timer')
-    if (empRes.success && empRes.data) {
-      setEmployees(empRes.data)
-      // Kun én mulighed (montør = sig selv): vælg den, så formularen kan sendes med det samme
-      if (empRes.data.length === 1) setEmployeeId((cur) => cur || empRes.data![0].id)
+    if (empRes) {
+      if (empRes.success && empRes.data) applyEmployees(empRes.data)
+      // M-9: før tavst — montøren så en tom "— vælg —"-liste og fik først fejl ved gem
+      else setError('Kunne ikke hente medarbejderlisten — genindlæs siden')
     }
   }
 
   useEffect(() => {
+    if (initialLogs && sharedEmployees) {
+      setLogs(initialLogs)
+      applyEmployees(sharedEmployees)
+      return
+    }
     reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workOrderId])
+  }, [workOrderId, initialLogs, sharedEmployees])
 
   // M-3/M-4 (pilot-review 2026-10-15): formularen får dagens dato ved åbning (før: datoen fra da fanen blev åbnet — en
   // fane åben natten over gemte på i går), og start foreslås efter medarbejderens seneste registrering samme dag på
