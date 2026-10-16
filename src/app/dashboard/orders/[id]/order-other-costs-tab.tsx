@@ -196,7 +196,7 @@ export function OrderOtherCostsTab({
 
       {/* Table */}
       {rows && rows.length > 0 && (
-        <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
+        <div className="hidden md:block bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-600">
               <tr>
@@ -381,6 +381,43 @@ export function OrderOtherCostsTab({
           </table>
         </div>
       )}
+
+      {/* Q-10 (review 2026-10-16): kortliste på telefon (efter tabellen i DOM) — tabellen rullede sidelæns og
+          knapperne lå uden for skærmen */}
+      {rows && rows.length > 0 && (
+        <ul className="md:hidden space-y-2" data-testid="case-other-costs-mobile">
+          {rows.map((r) => {
+            const isLocked = !!r.invoice_line_id
+            return (
+              <li key={r.id} className="bg-white rounded-lg ring-1 ring-gray-200 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 break-words">{r.description}</p>
+                    <p className="text-xs text-gray-500">
+                      {CASE_OTHER_COST_CATEGORY_LABELS[r.category]} · {fmtNum(r.quantity, 2)} {r.unit}
+                    </p>
+                    <p className="text-sm tabular-nums mt-0.5">{formatCurrency(r.total_sales_price, 'DKK', 2)}</p>
+                    {isLocked && <span className="mt-1 inline-block text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Faktureret</span>}
+                  </div>
+                  {!isLocked && (
+                    <div className="flex shrink-0 gap-1">
+                      <button type="button" onClick={() => { setEditing(r); setDialogOpen(true) }} aria-label="Rediger omkostning"
+                        className="h-11 w-11 inline-flex items-center justify-center rounded-md border text-emerald-700">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button type="button" onClick={() => handleDelete(r)} disabled={deletingId === r.id} aria-label="Slet omkostning"
+                        className="h-11 w-11 inline-flex items-center justify-center rounded-md border text-red-600 disabled:opacity-40">
+                        {deletingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
 
       <CaseOtherCostDialog
         open={dialogOpen}

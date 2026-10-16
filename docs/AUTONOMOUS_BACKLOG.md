@@ -62,16 +62,16 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | F-12 (S2) | work_order_profit-snapshots forkerte (materialer/omsætning) — også i 00222-udkastet | [MIGRATION] — 00222 ER i prod; restgab (materialer uden work_order_id, omsætning fra sagsfakturaer) kræver ny migration → forslag næste |
 | Q-1 (S2) | Dashboard-tal pager hele tabeller (leads/kunder/tilbud/timer) | DELVIS — leads (7 statusser) og kunder (i alt/aktive/nye denne måned) tælles med HEAD-count. Tilbud/timer summeres stadig fra rækker (kræver beløb). UI U70/U76 |
 | Q-2 (S2) | Dashboard-widgets henter serielt (client server-actions) | TODO (større) |
-| Q-3 (S3) | Overblik: chunk-løkker sekventielle + N+1 på webhenvendelser | TODO |
+| Q-3 (S3) | Overblik: chunk-løkker sekventielle + N+1 på webhenvendelser | DONE — bidder og kundeopslag samtidig. UI U67/U68/U70 |
 | Q-4 (S2) | Kalender henter montørens job to gange | DONE — ét opslag, delt i JS. UI U43/U151 |
 | Q-5 (S3) | Arbejdsordre-scope henter alle id'er unødigt | TODO |
 | Q-6 (S2) | Mail-søgning genindlæser ved hvert tastetryk (4 actions) | DONE — 300 ms debounce. UI U171 |
 | Q-7 (S3) | Mail-sync-interval kører i skjulte faner | DONE — useVisiblePolling |
 | Q-8 (S2) | 4 dialoger kan ikke rulles på telefon (materiale, øvrig omkostning, rediger/planlæg arbejdsordre) | DONE — overlay rulbart (items-start på telefon). UI U34/U43 |
 | Q-9 (S3) | Sagsdetalje: dobbelt padding på mobil | DONE. UI U160 |
-| Q-10 (S3) | Materiale-/øvrige-tabeller uden mobilvisning | DELVIS — materialer: kortliste på telefon med 44 px knapper (efter tabellen i DOM). Øvrige omkostninger = TODO. UI U34/U40/U11 |
+| Q-10 (S3) | Materiale-/øvrige-tabeller uden mobilvisning | DONE — materialer og øvrige omkostninger som kortliste på telefon med 44 px knapper (efter tabellen i DOM). UI U34/U40/U11/U155 |
 | Q-11 (S3) | Kalender dagsvisning flyder over på telefon; små nav-knapper | DONE — smal medarbejderkolonne og ingen min-bredde under md; større nav-knapper med aria-label. UI U43/U160 |
-| Q-12 (S3) | Sagslister: uafhængige forespørgsler sekventielt | DELVIS — sagslisten parallel (stats/sager/medarbejdere). Sagsdetalje = TODO. UI U20/U165/U12 |
+| Q-12 (S3) | Sagslister: uafhængige forespørgsler sekventielt | DONE — sagsliste og sagsdetalje henter uafhængige opslag samtidig. UI U20/U165/U12 |
 
 ## REVIEW-2026-10-16 (kode-review af egne ændringer)
 | # | Fund | Status |

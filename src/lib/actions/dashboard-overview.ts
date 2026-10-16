@@ -191,11 +191,12 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         type Row = { id: string; conversation_id: string | null; subject: string | null; sender_name: string | null; sender_email: string | null; received_at: string }
         const rows: Row[] = []
         // bid 200 (500 UUID'er sprænger URL-grænsen ~350 → tælleren blev stille for lav, se lib/supabase/in-chunks.ts)
-        for (let i = 0; i < ids.length; i += 200) {
-          const { data } = await supabase.from('incoming_emails')
-            .select('id, conversation_id, subject, sender_name, sender_email, received_at').in('id', ids.slice(i, i + 200))
-          rows.push(...((data ?? []) as Row[]))
-        }
+        // Q-3 (review 2026-10-16): bidderne hentes samtidig (før én ad gangen)
+        const chunks: string[][] = []
+        for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i + 200))
+        const parts = await Promise.all(chunks.map((chunk) => supabase.from('incoming_emails')
+          .select('id, conversation_id, subject, sender_name, sender_email, received_at').in('id', chunk)))
+        for (const { data } of parts) rows.push(...((data ?? []) as Row[]))
         const latestPerThread = new Map<string, Row>()
         for (const r of rows) {
           const key = r.conversation_id ?? r.id
@@ -298,12 +299,10 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const ids = open.map((x) => x.id)
         if (ids.length) {
           // R-5 (review 2026-10-16): 1:N-relation → hver bid pagineres
-          const wos: Array<{ case_id: string; status: string }> = []
-          for (let k = 0; k < ids.length; k += 100) {
-            const chunk = ids.slice(k, k + 100)
-            wos.push(...await fetchAllRows<{ case_id: string; status: string }>((f, t) => supabase.from('work_orders')
-              .select('id, case_id, status').in('case_id', chunk).order('id').range(f, t)))
-          }
+          const woChunks: string[][] = []
+          for (let k = 0; k < ids.length; k += 100) woChunks.push(ids.slice(k, k + 100))
+          const wos = (await Promise.all(woChunks.map((chunk) => fetchAllRows<{ case_id: string; status: string }>((f, t) => supabase.from('work_orders')
+            .select('id, case_id, status').in('case_id', chunk).order('id').range(f, t))))).flat()
           const agg = new Map<string, { done: number; open: number }>()
           for (const w of wos) {
             const a = agg.get(w.case_id) ?? { done: 0, open: 0 }
@@ -475,7 +474,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
           const { escapeLike } = await import('@/lib/validations/postgrest-filter')
           const { data: bodies } = await supabase.from('incoming_emails').select('id, body_text, body_html').in('id', shown.map((r) => r.id))
-          for (const b of (bodies ?? []) as Array<{ id: string; body_text: string | null; body_html: string | null }>) {
+          // Q-3: kundeopslag pr. henvendelse kører samtidig (før N+1 efter hinanden)
+          await Promise.all(((bodies ?? []) as Array<{ id: string; body_text: string | null; body_html: string | null }>).map(async (b) => {
             const p = parseCustomerFromEmail(b.body_text, b.body_html, null)
             contactById.set(b.id, [p.name, p.city || p.postalCode].filter(Boolean).join(' · ') || null)
             const em = (p.email ?? '').trim().toLowerCase()
@@ -483,7 +483,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
               const { data: cust } = await supabase.from('customers').select('id, company_name').eq('is_active', true).ilike('email', escapeLike(em)).limit(1).maybeSingle()
               if (cust) existingById.set(b.id, { id: (cust as { id: string }).id, name: (cust as { company_name: string }).company_name })
             }
-          }
+          }))
         }
         overview.webInquiries = {
           allowed: true,

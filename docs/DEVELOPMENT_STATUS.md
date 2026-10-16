@@ -57,8 +57,15 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 | 009acc30 | B-2 nøgletal server-side over alle fakturaer (kun DKK) |
 | 4b7381cd | X-12 slet dokumenter, X-13 opgavemenu salg/bogholderi, X-14 afregningsform ved ny sag, B-9/B-8 rapporter, B-10, S-4, S-8, S-11, M-7 |
 | 1ec0bcd4 | Kode-review R-1..R-10, P-1/P-3/P-5/P-6/P-7/P-9, lead-opfølgning bag flag + 00233-forslag |
+| 96ce503b / 00042ff6 | P-2/P-4/P-8/P-10/P-11, telefon i søgning |
+| a74486b4 | NEXT-20 økonomi: F-1 (S1 moms-værn på fast-pris-slutfaktura), F-2..F-10; Q-4/6/7/8/9/12 |
+| ce0ae73e | Q-1/Q-10/Q-11 + migrationsforslag F-5/F-11/F-12 |
 
-BLOCKED_APPROVAL: **00233 lead-opfølgning** (docs/runbooks/lead-follow-up-proposal.md) — koden ligger i prod bag `LEAD_FOLLOW_UP_ENABLED` (slået fra).
+BLOCKED_APPROVAL (hver kræver egen godkendelse):
+- **00233 lead-opfølgning** (docs/runbooks/lead-follow-up-proposal.md) — koden ligger i prod bag `LEAD_FOLLOW_UP_ENABLED` (slået fra)
+- **00234 kostkolonner på sagsmaterialer/øvrige** (docs/runbooks/cost-columns-case-materials-proposal.md) — F-11
+- **00235/00236 arbejdsordre-faktura + -avance** (docs/runbooks/work-order-invoice-and-profit-proposal.md) — F-5/F-12 (kræver valg af fordelingsnøgle)
+- R-11 avance 0 vs. "ikke sat" i kataloget — afklaring af datamodel
 P-2/P-4/P-8/P-10/P-11 (round 3) — UI U178/U13/U4/U5/U43/U160/U166 grønne.
 
 ## Prod-kørsel 2026-10-16 — 00232 afregningsform (Henrik: "00232 BILLING MODEL GODKENDT TIL PROD")

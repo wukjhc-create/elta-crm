@@ -52,20 +52,25 @@ export default async function OrderDetailPage({
   try {
     const { supabase } = await getAuthenticatedClient()
 
-    // Planlagte work_orders count for header badge
-    const { count } = await supabase
-      .from('work_orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('case_id', sag.id)
-      .in('status', ['planned', 'in_progress'])
-    plannedCount = count ?? 0
+    // Q-12 (review 2026-10-16): de tre opslag kører samtidig (før efter hinanden)
+    const [countRes, empRes, profRes] = await Promise.all([
+      // Planlagte work_orders count for header badge
+      supabase
+        .from('work_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('case_id', sag.id)
+        .in('status', ['planned', 'in_progress']),
+      sag.formand_id
+        ? supabase.from('employees').select('id, name, first_name, last_name').eq('id', sag.formand_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      sag.created_by
+        ? supabase.from('profiles').select('id, full_name').eq('id', sag.created_by).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
+    plannedCount = countRes.count ?? 0
 
     if (sag.formand_id) {
-      const { data: emp } = await supabase
-        .from('employees')
-        .select('id, name, first_name, last_name')
-        .eq('id', sag.formand_id)
-        .maybeSingle()
+      const emp = empRes.data as { id: string; name: string | null; first_name: string | null; last_name: string | null } | null
       if (emp) {
         formand = {
           id: emp.id as string,
@@ -77,11 +82,7 @@ export default async function OrderDetailPage({
       }
     }
     if (sag.created_by) {
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('id', sag.created_by)
-        .maybeSingle()
+      const prof = profRes.data as { id: string; full_name: string | null } | null
       if (prof) {
         creator = { id: prof.id as string, full_name: (prof.full_name as string | null) ?? null }
       }
