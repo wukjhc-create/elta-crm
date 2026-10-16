@@ -45,6 +45,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   // åbne leads forsvandt) + vundne/tabte fra de seneste 90 dage til de lukkede kolonner
   const OPEN: LeadStatus[] = ['new', 'contacted', 'qualified', 'proposal', 'negotiation']
   const kanbanSplit = isKanban && !status
+  let closedNote: string | null = null
   const result = await getLeads({
     page,
     pageSize,
@@ -59,7 +60,10 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   if (kanbanSplit && result.success && result.data) {
     const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
     const closed = await getLeads({ page: 1, pageSize: 200, search, statuses: ['won', 'lost'], updatedSince: since, source, assigned_to })
-    if (closed.success && closed.data) result.data.data = [...result.data.data, ...closed.data.data]
+    if (closed.success && closed.data) {
+      result.data.data = [...result.data.data, ...closed.data.data]
+      closedNote = closed.data.total > closed.data.data.length ? `Vundne/tabte: de ${closed.data.data.length} nyeste af ${closed.data.total} fra de seneste 90 dage.` : null
+    } else closedNote = 'Vundne/tabte leads kunne ikke hentes — kolonnerne kan være ufuldstændige.'
   }
 
   if (!result.success || !result.data) {
@@ -84,6 +88,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       filters={{ search, status, source, mine }}
       sort={{ sortBy, sortOrder }}
       initialView={isKanban ? 'kanban' : 'table'}
+      closedNote={closedNote}
     />
   )
 }

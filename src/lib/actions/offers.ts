@@ -1660,7 +1660,7 @@ export async function searchSupplierProductsForOffer(
     // 00192: kostkolonner — admin-klient: kost bruges serverinternt til salgspris/sortering/"billigst" (bag
     // offers.view); kost/avance fjernes fra svaret for roller uden offers.view.cost_prices (D44 nedenfor).
     // RLS på supplier_products er USING (true) → samme rækker som bruger-klienten.
-    let dbQuery = createAdminClient()
+    const baseQuery = () => createAdminClient()
       .from('supplier_products')
       .select(`
         id,
@@ -1684,6 +1684,7 @@ export async function searchSupplierProductsForOffer(
       .eq('suppliers.is_active', true)
       // GP-13: varer uden kostpris (0 = ingen prisaftale) fyldte toppen og fejlede ved "tilføj" ("ingen kostpris")
       .gt('cost_price', 0)
+    let dbQuery = baseQuery()
       .order('cost_price', { ascending: true })
       // W-11: hentes bredere og rangeres efter relevans nedenfor (før: de billigste vilkårlige træffere)
       .limit(Math.max(searchLimit, 100))
@@ -1695,17 +1696,22 @@ export async function searchSupplierProductsForOffer(
       dbQuery = dbQuery.or(`supplier_sku.ilike.${term},supplier_name.ilike.${term},ean.ilike.${term}`)
     }
 
+    // R-1 (review 2026-10-16): præcist varenr./EAN hentes for sig — ellers kunne det falde uden for de 100 billigste
+    let exactQuery = baseQuery().or(`supplier_sku.eq.${pgQuote(sanitizeSearchTerm(query.trim()))},ean.eq.${pgQuote(sanitizeSearchTerm(query.trim()))}`).limit(10)
     if (options?.supplierId) {
       validateUUID(options.supplierId, 'leverandør ID')
       dbQuery = dbQuery.eq('supplier_id', options.supplierId)
+      exactQuery = exactQuery.eq('supplier_id', options.supplierId)
     }
 
-    const { data, error } = await dbQuery
-
+    const [mainRes, exactRes] = await Promise.all([dbQuery, exactQuery])
+    const error = mainRes.error
     if (error) {
       logger.error('Database error searching supplier products', { error: error })
       throw new Error('DATABASE_ERROR')
     }
+    const seenIds = new Set<string>()
+    const data = [...(exactRes.data ?? []), ...(mainRes.data ?? [])].filter((r) => (seenIds.has(r.id) ? false : (seenIds.add(r.id), true)))
 
     // Get customer-specific pricing if customer provided
     let customerPricingMap = new Map<string, { discount: number; margin: number | null }>()

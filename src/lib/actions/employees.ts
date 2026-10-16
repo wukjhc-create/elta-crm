@@ -114,7 +114,12 @@ export async function listEmployeesAction(filter: ListFilter = {}): Promise<Empl
     )
   }
 
-  const { data } = await q
+  const { data, error } = await q
+  if (error) {
+    // P-6 (pilot-review 2026-10-16): før blev en fejl vist som "Ingen medarbejdere endnu"
+    logger.error('listEmployeesAction failed', { error })
+    throw new Error('Kunne ikke hente medarbejdere')
+  }
   void canSeeRates
   // Privacy (Henrik 2026-10-03): satser vises aldrig på oversigter — heller ikke for løn-roller. De hentes kun i
   // fanen "Økonomi & løn" via getEmployeeCompensationAction.

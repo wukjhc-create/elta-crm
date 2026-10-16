@@ -36,9 +36,11 @@ interface LeadsPageClientProps {
   filters: Filters
   sort?: SortData
   initialView?: 'table' | 'kanban'
+  /** S-4/R-10: besked om lukkede leads på tavlen (loft/fejl) */
+  closedNote?: string | null
 }
 
-export function LeadsPageClient({ leads, pagination, filters, sort, initialView }: LeadsPageClientProps) {
+export function LeadsPageClient({ leads, pagination, filters, sort, initialView, closedNote = null }: LeadsPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
@@ -304,7 +306,7 @@ export function LeadsPageClient({ leads, pagination, filters, sort, initialView 
                 </div>
               ) : null
             })()}
-            <p className="mb-2 text-xs text-gray-500" data-testid="leads-kanban-closed-note">Vundne/tabte: seneste 90 dage.</p>
+            <p className={`mb-2 text-xs ${closedNote && /ikke hentes/.test(closedNote) ? 'text-red-600' : 'text-gray-500'}`} data-testid="leads-kanban-closed-note">{closedNote ?? 'Vundne/tabte: seneste 90 dage.'}</p>
             <LeadsKanban leads={leads} />
           </>
         )}

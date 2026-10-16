@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { NewEmployeeForm } from './new-employee-form'
+import { getPageRoleContext } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const metadata: Metadata = {
   title: 'Opret medarbejder',
@@ -9,7 +11,10 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic'
 
-export default function NewEmployeePage() {
+export default async function NewEmployeePage() {
+  // P-5: kun med employees.edit (createEmployeeAction kræver det)
+  const ctx = await getPageRoleContext()
+  if (!ctx.has('employees.edit')) return <NoAccess permission="employees.edit" />
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-4">
       <nav className="text-sm text-gray-500 flex items-center gap-2">

@@ -2,7 +2,7 @@
  * Global search type definitions
  */
 
-export type SearchResultType = 'lead' | 'customer' | 'offer' | 'project'
+export type SearchResultType = 'lead' | 'customer' | 'offer' | 'project' | 'case'
 
 export interface SearchResult {
   id: string

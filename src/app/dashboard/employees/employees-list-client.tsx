@@ -34,7 +34,10 @@ export function EmployeesListClient({
   filters,
   canSeePayroll = false,
   rateGaps = {},
+  canCreate = false,
 }: {
+  /** P-5 (pilot-review 2026-10-16): kun med employees.edit — før fik serviceleder hele formularen og fejl ved gem */
+  canCreate?: boolean
   rateGaps?: Record<string, RateGap>
   employees: EmployeeRow[]
   filters: FiltersState
@@ -80,12 +83,14 @@ export function EmployeesListClient({
             {totalInactive > 0 && ` · ${totalInactive} inaktiv${totalInactive === 1 ? '' : 'e'}`}
           </p>
         </div>
+{canCreate && (
         <Link
           href="/dashboard/employees/new"
           className="inline-flex items-center gap-1 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
         >
           + Opret medarbejder
         </Link>
+        )}
       </div>
 
       {/* Filters */}
@@ -151,7 +156,7 @@ export function EmployeesListClient({
 
       {/* List or empty state */}
       {employees.length === 0 ? (
-        <EmptyState hasFilters={!!(filters.q || filters.role)} />
+        <EmptyState hasFilters={!!(filters.q || filters.role)} canCreate={canCreate} />
       ) : (
         <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
@@ -248,7 +253,7 @@ export function EmployeesListClient({
   )
 }
 
-function EmptyState({ hasFilters }: { hasFilters: boolean }) {
+function EmptyState({ hasFilters, canCreate }: { hasFilters: boolean; canCreate: boolean }) {
   return (
     <div className="text-center py-16 bg-white rounded-lg ring-1 ring-gray-200">
       <h3 className="text-base font-medium text-gray-700">
@@ -259,7 +264,7 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
           ? 'Prøv at nulstille filtrene eller udvid søgningen.'
           : 'Opret den første medarbejder for at kunne planlægge dem på sager og registrere timer.'}
       </p>
-      {!hasFilters && (
+      {!hasFilters && canCreate && (
         <Link
           href="/dashboard/employees/new"
           className="mt-4 inline-flex items-center gap-1 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"

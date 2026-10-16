@@ -793,3 +793,54 @@ async function notifyLeadAssigned(assigneeId: string, leadId: string, companyNam
 ${link}`,
   })
 }
+
+/**
+ * X-11 (Henrik 2026-10-16): fælles opfølgning på et lead (00233). Bag feature-flag LEAD_FOLLOW_UP_ENABLED, så koden kan
+ * ligge i prod før migrationen (procesregel: CODE → TEST → PUSH → MIGRATION → POST-CHECK). input=null rydder.
+ * Rettighed leads.edit (samme som at redigere leadet). Ejer = valgt bruger, ellers leadets ansvarlige, ellers brugeren.
+ */
+export async function setLeadFollowUpAction(
+  leadId: string,
+  input: { date: string; clock?: string | null; note?: string | null; ownerId?: string | null } | null,
+): Promise<ActionResult<{ follow_up_at: string | null }>> {
+  try {
+    if (process.env.LEAD_FOLLOW_UP_ENABLED !== 'true') return { success: false, error: 'Opfølgning på leads er ikke aktiveret endnu' }
+    validateUUID(leadId, 'lead ID')
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.edit')) return { success: false, error: 'Manglende tilladelse: leads.edit' }
+
+    const { data: lead } = await supabase.from('leads').select('id, assigned_to, status').eq('id', leadId).maybeSingle()
+    if (!lead) return { success: false, error: 'Lead blev ikke fundet' }
+
+    let patch: { follow_up_at: string | null; follow_up_owner: string | null; follow_up_note: string | null }
+    let description: string
+    if (input === null) {
+      patch = { follow_up_at: null, follow_up_owner: null, follow_up_note: null }
+      description = 'Opfølgning fjernet'
+    } else {
+      const { validateFollowUpInput } = await import('@/lib/leads/follow-up')
+      const v = validateFollowUpInput(input)
+      if (!v.ok) return { success: false, error: v.error }
+      if (input.ownerId) validateUUID(input.ownerId, 'ejer')
+      const { copenhagenLocalToIso } = await import('@/lib/utils/copenhagen-time')
+      patch = {
+        follow_up_at: copenhagenLocalToIso(v.date, v.clock),
+        follow_up_owner: input.ownerId || (lead as { assigned_to: string | null }).assigned_to || userId,
+        follow_up_note: v.note,
+      }
+      description = `Opfølgning sat til ${v.date.split('-').reverse().join('.')} kl. ${v.clock}${v.note ? ` — ${v.note}` : ''}`
+    }
+
+    const { error } = await supabase.from('leads').update(patch).eq('id', leadId)
+    if (error) {
+      logger.error('setLeadFollowUpAction failed', { error, entityId: leadId })
+      return { success: false, error: 'Opfølgningen kunne ikke gemmes' }
+    }
+    await supabase.from('lead_activities').insert({ lead_id: leadId, activity_type: 'follow_up', description, performed_by: userId })
+    revalidatePath(`/dashboard/leads/${leadId}`)
+    revalidatePath('/dashboard/leads')
+    return { success: true, data: { follow_up_at: patch.follow_up_at } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Opfølgningen kunne ikke gemmes') }
+  }
+}

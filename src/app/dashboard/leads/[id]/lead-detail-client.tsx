@@ -2,6 +2,7 @@
 
 import { LeadCustomerCandidates } from './lead-customer-candidates'
 import { LeadFollowUpButton } from './lead-follow-up-button'
+import { LeadFollowUpPanel } from './lead-follow-up-panel'
 import { getLeadAttachmentUrlAction } from '@/lib/actions/leads'
 import { useState } from 'react'
 import Link from 'next/link'
@@ -54,9 +55,11 @@ import { useToast } from '@/components/ui/toast'
 interface LeadDetailClientProps {
   lead: LeadWithRelations
   activities: LeadActivity[]
+  /** X-11: fælles opfølgning (00233) — kun når LEAD_FOLLOW_UP_ENABLED er sat */
+  followUpEnabled?: boolean
 }
 
-export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
+export function LeadDetailClient({ lead, activities, followUpEnabled = false }: LeadDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -464,6 +467,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {followUpEnabled && <LeadFollowUpPanel lead={lead} canEdit={hasPermission(role, 'leads.edit')} />}
             {/* Deal info */}
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Salgsdetaljer</h2>

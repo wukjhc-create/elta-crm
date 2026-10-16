@@ -90,6 +90,10 @@ export interface Lead {
   updated_at: string
   tags: string[]
   custom_fields: Record<string, unknown>
+  /** X-11 (00233 — kun når migrationen er kørt; undefined før) */
+  follow_up_at?: string | null
+  follow_up_owner?: string | null
+  follow_up_note?: string | null
 }
 
 // Lead with relations

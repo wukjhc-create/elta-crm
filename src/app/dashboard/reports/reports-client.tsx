@@ -241,7 +241,7 @@ function ProjectTable() {
     try {
       const q = new URLSearchParams(window.location.search)
       const per = q.get('periode')
-      if (per && /^\d{1,4}$/.test(per)) setPeriod(per)
+      if (per && PERIODS.some((p) => p.value === per)) setPeriod(per)
       const st = q.get('status')
       if (st === 'open' || st === 'closed' || st === 'all') setStatus(st)
       if (q.get('problemer') === '1') setOnlyIssues(true)

@@ -45,18 +45,32 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## REVIEW-2026-10-16 (kode-review af egne ændringer)
+| # | Fund | Status |
+|---|---|---|
+| R-1 (S3) | Præcist varenr./EAN kunne falde uden for de 100 billigste før rangering | DONE — separat eksakt-forespørgsel flettes ind (tilbud + sagsmateriale) |
+| R-2 (S3) | Sagens timer (delt med alle arbejdsordrer) ikke pagineret / .in() uden bidder | DONE — fetchAllRows i bidder af 150 |
+| R-3 (S4) | initialLogs nyt array ved hver render (stale overskrivning) | DONE — useMemo-map + stabil tom liste |
+| R-4 (S3) | Kalender: .in() på sager/medarbejdere uden bidder | DONE — selectInChunks |
+| R-5 (S3) | "Klar til lukning": 1:N i bidder uden paginering | DONE — fetchAllRows pr. bid |
+| R-6 (S3) | Manuel trådkobling koblede også ignorerede mails | DONE — kun unidentified/pending |
+| R-7 (S3) | suggestTimeLogStartAction-værn omgået uden medarbejder-række | DONE |
+| R-8 (S2) | Faktureret serie: kreditnota mod original før perioden → negativ måned | DONE — vises ikke under 0 |
+| R-9 (S4) | Rapport-periode fra URL valideredes ikke mod listen | DONE |
+| R-10 (S4) | Lukkede leads på tavlen: fejl/loft tavs | DONE — besked |
+
 ## NEXT-19 (pilot-readiness review 2026-10-16 — områder ikke dækket før)
 | # | Fund | Status |
 |---|---|---|
-| P-1 (S2) | Kundeportal: siden hopper ned til chatten hver 15. s (poll erstatter beskeder → scrollIntoView) | TODO |
+| P-1 (S2) | Kundeportal: siden hopper ned til chatten hver 15. s (poll erstatter beskeder → scrollIntoView) | DONE — ny liste kun ved ændringer; kun chat-boksen rulles, kun ved nye beskeder. UI U50 |
 | P-2 (S2) | Kundens "Sager"-fane tom for salg/montør (kræver cases.view.all) og skjuler fejl; rå sti i tom-tekst | TODO |
-| P-3 (S2) | Global søgning/Ctrl+K finder ikke sager (sagsnr.) eller telefonnumre; kundelistens søgning heller ikke telefon | TODO |
+| P-3 (S2) | Global søgning/Ctrl+K finder ikke sager (sagsnr.) eller telefonnumre; kundelistens søgning heller ikke telefon | DELVIS — global søgning: sager (cases.view.all) + telefon/mobil på kunder og leads. Ctrl+K/kundeliste = TODO. UI U177 |
 | P-4 (S3) | Indstillinger: kort ikke filtreret pr. rettighed (bogholderi ser ikke e-conomic; serviceleder ser kort der fejler) | TODO |
-| P-5 (S3) | Serviceleder kan åbne "Opret medarbejder" men aldrig gemme (employees.edit kun admin) | TODO |
-| P-6 (S3) | Medarbejderliste skjuler DB-fejl som "Ingen medarbejdere endnu" | TODO |
-| P-7 (S3) | Tidsgodkendelse: "Afvis" vises på fakturerede timer; serveren afviser med misvisende tekst | TODO |
+| P-5 (S3) | Serviceleder kan åbne "Opret medarbejder" men aldrig gemme (employees.edit kun admin) | DONE — knap kun med employees.edit, /new har NoAccess. UI U177 |
+| P-6 (S3) | Medarbejderliste skjuler DB-fejl som "Ingen medarbejdere endnu" | DONE — fejlboks |
+| P-7 (S3) | Tidsgodkendelse: "Afvis" vises på fakturerede timer; serveren afviser med misvisende tekst | DONE — "Faktureret" i stedet for Afvis; servertekst nævner faktureret. UI U72 |
 | P-8 (S3) | Ctrl+K-paletten ignorerer rettigheder; ingen stale-svar-værn | TODO |
-| P-9 (S4) | Global søgning: fejl ligner "ingen resultater" | TODO |
+| P-9 (S4) | Global søgning: fejl ligner "ingen resultater" | DONE — fejlbesked + log pr. delsøgning |
 | P-10 (S4) | Team: admin-forfremmelse uden bekræftelse, fælles spinner, mangler salg/bogholderi-roller, invitationsfejl tavs | TODO |
 | P-11 (S4) | Kalender-måned: besigtigelser forsvinder tavst ved fejl; ikke filtreret til måneden | TODO |
 
@@ -74,7 +88,7 @@ Proces: prod-migration først når kompatibel kode er pushet (CODE → TEST → 
 | X-8 (S-11) | Notifikationsmail med tilbudsnr. + kunde | DONE — emne/tekst "T-nr · kunde · titel" (accept + afvisning). Ikke UI-testet (mail) |
 | X-9 (B-8) | Rapportfiltre i URL | DONE — ?periode/status/problemer/afvigelse (læses efter mount, replaceState). UI U91 |
 | X-10 (M-7) | DB-filter på montørens job | DONE — .eq(assigned_employee_id) = scope; JS-filter bevaret. UI U151/U11 |
-| X-11 | Lead-opfølgning (follow_up_at, ejer, forfalden, liste/tavle, kalender/opgave) — fælles salgsdata, IKKE personal_reminders | TODO — kræver migration → forslag |
+| X-11 | Lead-opfølgning (follow_up_at, ejer, forfalden, liste/tavle, kalender/opgave) — fælles salgsdata, IKKE personal_reminders | BLOCKED_APPROVAL 00233 — kode klar bag LEAD_FOLLOW_UP_ENABLED (slået fra): setLeadFollowUpAction (leads.edit, aktivitet), panel på lead (status planlagt/i dag/forfalden), unit 11/11. Forslag: docs/runbooks/lead-follow-up-proposal.md. Efter godkendelse: staging → prod → flag til; liste/tavle/opgaver følger |
 | X-12 | Slet dokumenter på sag (bekræftelse, audit, gate, beskyttede typer, storage + metadata konsistent) | DONE — documents.delete (admin/serviceleder), beskyttet: faktura/tilbud/kontrakt+fuldmagt/besigtigelse/tilbudskoblede/mail-vedhæftninger (lib/documents/document-deletable.ts); række slettes før fil, fil kun hvis ingen anden række peger på den, audit med evt. fil-fejl. Unit 12/12, UI U174 (admin + annuller + storage + audit, montør negativ) |
 | X-13 | Opgavemenu for salg + bogholderi (rettighedsstyret, negative rolletests) | DONE — tasks.menu (alle roller); uden tasks.view kun egne opgaver ("Mine opgaver"), ingen opret-knap; server-gates uændrede. UI U175 (salg + bogholderi ser egne, ikke andres/admins) |
 | X-14 | Afregningsform vælges ved oprettelse af sag (valgfrit) | DONE — "Afregningsform" i ny sag (standard "vælg senere"). UI U176 |

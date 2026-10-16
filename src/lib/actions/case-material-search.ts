@@ -53,19 +53,25 @@ export async function searchProductsForCaseMaterialAction(
     const showPrices = hasPermission(PRICE_VISIBILITY_PERMISSION)
 
     const admin = createAdminClient()
-    let dbQuery = admin
+    const baseQuery = () => admin
       .from('supplier_products')
       .select('id, supplier_id, supplier_sku, supplier_name, cost_price, margin_percentage, unit, ean, suppliers!inner (name, is_active)')
       .eq('suppliers.is_active', true)
       .gt('cost_price', 0)
+    let dbQuery = baseQuery()
       .order('cost_price', { ascending: true })
       .limit(100)
+    // R-1: præcist varenr./EAN hentes for sig (kan ellers falde uden for de 100 billigste)
+    const exactQuery = baseQuery().or(`supplier_sku.eq.${pgQuote(sanitizeSearchTerm(q))},ean.eq.${pgQuote(sanitizeSearchTerm(q))}`).limit(10)
     const words = searchWords(q)
     for (const w of words.length ? words : [q]) {
       const term = pgQuote(`%${sanitizeSearchTerm(w)}%`)
       dbQuery = dbQuery.or(`supplier_sku.ilike.${term},supplier_name.ilike.${term},ean.ilike.${term}`)
     }
-    const { data, error } = await dbQuery
+    const [mainRes, exactRes] = await Promise.all([dbQuery, exactQuery])
+    const error = mainRes.error
+    const seenIds = new Set<string>()
+    const data = [...(exactRes.data ?? []), ...(mainRes.data ?? [])].filter((r) => (seenIds.has(r.id) ? false : (seenIds.add(r.id), true)))
     if (error) {
       logger.error('searchProductsForCaseMaterialAction failed', { error })
       return { success: false, error: 'Søgningen fejlede' }

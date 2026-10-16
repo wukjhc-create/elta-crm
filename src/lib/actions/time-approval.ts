@@ -39,6 +39,8 @@ export interface ApprovalTimeLog {
   employee_rate_id: string | null
   /** Egne timer kan ikke godkendes af en selv. */
   is_own: boolean
+  /** P-7 (pilot-review 2026-10-16): faktureret → kan ikke afvises (UI viser "Faktureret" i stedet for Afvis) */
+  invoiced: boolean
 }
 
 const STATUSES: TimeApprovalStatus[] = ['pending', 'approved', 'rejected']
@@ -51,7 +53,7 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
     const st = STATUSES.includes(status) ? status : 'pending'
     const { data, error } = await supabase
       .from('time_logs')
-      .select(`id, employee_id, start_time, end_time, hours, description, billable, approval_status, approved_at, rejection_reason, pay_rate_type, employee_rate_id,
+      .select(`id, employee_id, start_time, end_time, hours, description, billable, approval_status, approved_at, rejection_reason, pay_rate_type, employee_rate_id, invoice_line_id,
         employee:employees(name, profile_id), approver:profiles!time_logs_approved_by_fkey(full_name),
         work_order:work_orders(title, case:service_cases(id, case_number, title))`)
       .eq('approval_status', st)
@@ -65,7 +67,7 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
       id: string; employee_id: string; start_time: string; end_time: string | null; hours: number | string | null
       description: string | null; billable: boolean | null; approval_status: TimeApprovalStatus; approved_at: string | null
       rejection_reason: string | null
-      pay_rate_type: string | null; employee_rate_id: string | null
+      pay_rate_type: string | null; employee_rate_id: string | null; invoice_line_id: string | null
       employee: { name: string | null; profile_id: string | null } | Array<{ name: string | null; profile_id: string | null }> | null
       approver: { full_name: string | null } | Array<{ full_name: string | null }> | null
       work_order: { title: string | null; case: unknown } | Array<{ title: string | null; case: unknown }> | null
@@ -81,6 +83,7 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
         rejection_reason: r.rejection_reason, case_id: cs?.id ?? null, case_number: cs?.case_number ?? null,
         case_title: cs?.title ?? null, work_order_title: wo?.title ?? null,
         pay_rate_type: r.pay_rate_type ?? 'normal', employee_rate_id: r.employee_rate_id ?? null, is_own: !!emp?.profile_id && emp.profile_id === userId,
+        invoiced: !!r.invoice_line_id,
       }
     })
     return { success: true, data: rows }
@@ -122,7 +125,7 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
       && (seen[v.id].employee_rate_id === undefined || (seen[v.id].employee_rate_id ?? null) === (v.employee_rate_id ?? null)))))
   const skipped = unique.length - eligible.length
   if (eligible.length === 0) {
-    return { success: false, error: 'Ingen af de valgte registreringer kan behandles (egne timer, igangværende timer eller allerede behandlet)' }
+    return { success: false, error: 'Ingen af de valgte registreringer kan behandles (egne timer, igangværende timer, allerede behandlet eller allerede faktureret)' }
   }
 
   const { createAdminClient } = await import('@/lib/supabase/admin')

@@ -550,6 +550,8 @@ export async function manuallyLinkEmail(
       .update({ link_status: 'linked' as EmailLinkStatus, customer_id: customerId, linked_by: 'manual', linked_at: linkedAt })
       .eq('conversation_id', conversationId)
       .is('customer_id', null)
+      // R-6 (review 2026-10-16): ignorerede (spam/interne) mails i tråden kobles IKKE på kunden
+      .in('link_status', ['unidentified', 'pending'])
       .neq('id', emailId)
       .select('id')
     if (sibErr) logger.warn('manual_link_email: tråd-kobling fejlede', { error: sibErr, entityId: emailId })

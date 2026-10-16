@@ -2,7 +2,7 @@
 
 import { ABSENCE_CONFLICT_PREFIX, isAbsenceConflict } from '@/lib/planning/absence'
 import { EmployeeDayLoadHint } from '@/app/dashboard/calendar/employee-day-load-hint'
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
@@ -49,6 +49,8 @@ const NEXT_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
 const fmtDate = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleDateString('da-DK', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
+const NO_LOGS: TimeLogWithEmployee[] = []
+
 export function OrderPlanningTab({
   caseId,
   caseTitle,
@@ -77,6 +79,17 @@ export function OrderPlanningTab({
   // M-9: sagens timer + medarbejderlisten deles med alle arbejdsordre-rækker (null = ikke hentet → rækken henter selv)
   const [caseLogs, setCaseLogs] = useState<TimeLogWithEmployee[] | null>(null)
   const [sharedEmployees, setSharedEmployees] = useState<{ id: string; name: string }[] | null>(null)
+  // R-3 (review 2026-10-16): stabile referencer pr. arbejdsordre (før nyt array ved hver render → barnets effekt
+  // overskrev nyligt genindlæste timer med forælderens ældre øjebliksbillede)
+  const logsByWo = useMemo(() => {
+    const m = new Map<string, TimeLogWithEmployee[]>()
+    for (const l of caseLogs ?? []) {
+      const arr = m.get(l.work_order_id) ?? []
+      arr.push(l)
+      m.set(l.work_order_id, arr)
+    }
+    return m
+  }, [caseLogs])
   const [error, setError] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(false)
   const [caseTotals, setCaseTotals] = useState<{
@@ -436,7 +449,7 @@ export function OrderPlanningTab({
                   // Re-pull case totals when a time-log is added/changed
                   reload()
                 }}
-                initialLogs={caseLogs ? caseLogs.filter((l) => l.work_order_id === wo.id) : null}
+                initialLogs={caseLogs ? (logsByWo.get(wo.id) ?? NO_LOGS) : null}
                 sharedEmployees={sharedEmployees}
               />
             ))}

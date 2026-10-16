@@ -132,14 +132,25 @@ export async function listTimeLogsForCase(
     }
     if (woIds.length === 0) return { success: true, data: [] }
 
-    const { data, error } = await supabase
-      .from('time_logs')
-      // 00192: bruger-klienten må ikke læse kostkolonnerne — kost flettes ind for løn-berettigede (withCostColumns)
-      .select(TIME_LOG_PUBLIC_COLUMNS)
-      .in('work_order_id', woIds)
-      .order('start_time', { ascending: false })
-
-    if (error) {
+    // Review 2026-10-16 (R-2): pagineret og i bidder — listen deles med alle arbejdsordre-rækker (M-9), så 1.000-loftet
+    // og .in()-grænsen må ikke skære registreringer fra
+    let data: unknown[]
+    try {
+      const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+      const parts: unknown[][] = []
+      for (let k = 0; k < woIds.length; k += 150) {
+        const chunk = woIds.slice(k, k + 150)
+        parts.push(await fetchAllRows((f, t) => supabase
+          .from('time_logs')
+          // 00192: bruger-klienten må ikke læse kostkolonnerne — kost flettes ind for løn-berettigede (withCostColumns)
+          .select(TIME_LOG_PUBLIC_COLUMNS)
+          .in('work_order_id', chunk)
+          .order('id')
+          .range(f, t)))
+      }
+      data = parts.flat()
+      ;(data as Array<{ start_time?: string | null }>).sort((a, b) => String(b.start_time ?? '').localeCompare(String(a.start_time ?? '')))
+    } catch (error) {
       logger.error('listTimeLogsForCase failed', { error })
       return { success: false, error: 'Kunne ikke hente timeregistreringer' }
     }
@@ -193,7 +204,8 @@ export async function suggestTimeLogStartAction(employeeId: string, date: string
     if (!hasPermission('time_logs.create')) return { success: false, error: 'Manglende tilladelse: time_logs.create' }
     if (!hasPermission('time_logs.edit.all')) {
       const woScope = await getWorkOrderScope({ role, userId, supabase })
-      if (woScope.type === 'specific' && woScope.employeeId && woScope.employeeId !== employeeId) {
+      // R-7: også uden medarbejder-række (employeeId null) → ingen opslag på andres tider
+      if (woScope.type === 'specific' && woScope.employeeId !== employeeId) {
         return { success: true, data: { clock: null } }
       }
     }

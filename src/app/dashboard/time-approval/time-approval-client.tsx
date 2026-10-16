@@ -208,7 +208,10 @@ export function TimeApprovalClient() {
                             {busy === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                           </button>
                         )}
-                        {l.approval_status !== 'rejected' && (
+                        {l.approval_status !== 'rejected' && l.invoiced && (
+                          <span className="text-[11px] text-gray-500 px-1.5" title="Fakturerede timer kan ikke afvises" data-testid="time-approval-invoiced">Faktureret</span>
+                        )}
+                        {l.approval_status !== 'rejected' && !l.invoiced && (
                           <button type="button" disabled={busy !== null} onClick={() => setRejecting({ id: l.id, reason: '' })} className="p-1.5 rounded hover:bg-red-50 text-red-600 disabled:opacity-40" aria-label="Afvis" data-testid="time-approval-reject">
                             <X className="w-4 h-4" />
                           </button>

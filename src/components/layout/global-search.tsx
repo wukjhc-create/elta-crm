@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, User, Users, FileText, FolderKanban, X } from 'lucide-react'
+import { Search, User, Users, FileText, FolderKanban, X, Briefcase } from 'lucide-react'
 import { globalSearch } from '@/lib/actions/search'
 import type { SearchResult, SearchResultType } from '@/types/search.types'
 
@@ -11,6 +11,7 @@ const typeConfig: Record<SearchResultType, { icon: typeof User; label: string; c
   customer: { icon: Users, label: 'Kunde', color: 'text-green-600 bg-green-50' },
   offer: { icon: FileText, label: 'Tilbud', color: 'text-purple-600 bg-purple-50' },
   project: { icon: FolderKanban, label: 'Projekt', color: 'text-orange-600 bg-orange-50' },
+  case: { icon: Briefcase, label: 'Sag', color: 'text-emerald-700 bg-emerald-50' },
 }
 
 export function GlobalSearch() {
@@ -20,6 +21,7 @@ export function GlobalSearch() {
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -41,6 +43,12 @@ export function GlobalSearch() {
       if (response.success && response.results) {
         setResults(response.results)
         setIsOpen(response.results.length > 0)
+        setSearchError(null)
+      } else {
+        // P-9: fejl vises (før blev gamle resultater stående uden besked)
+        setResults([])
+        setSearchError(response.error || 'Søgning fejlede')
+        setIsOpen(true)
       }
     }, 300)
 
@@ -137,6 +145,8 @@ export function GlobalSearch() {
         <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
           {isLoading ? (
             <div className="p-4 text-center text-gray-500 text-sm">Søger...</div>
+          ) : searchError ? (
+            <div className="p-4 text-center text-red-600 text-sm" role="alert">{searchError}</div>
           ) : results.length === 0 ? (
             <div className="p-4 text-center text-gray-500 text-sm">
               Ingen resultater for &quot;{query}&quot;

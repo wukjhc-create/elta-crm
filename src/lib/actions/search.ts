@@ -17,17 +17,18 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
     // Leads-review 2026-10-08 (#8): søgningen viste leads/tilbud/projekter uden modul-rettighed (kun RLS) — tom uden
     const none = Promise.resolve({ data: null, count: 0 })
 
-    // Execute all four searches in parallel
-    const [leadsResult, customersResult, offersResult, projectsResult] = await Promise.all([
+    // P-3 (pilot-review 2026-10-16): også telefon/mobil (opkald) og sager (sagsnr./titel)
+    const phoneTerm = `%${sanitizeSearchTerm(query.trim().replace(/[\s-]/g, ''))}%`
+    const [leadsResult, customersResult, offersResult, projectsResult, casesResult] = await Promise.all([
       !hasPermission('leads.view') ? none : supabase
         .from('leads')
         .select('id, contact_person, email, company_name, status', { count: 'exact' })
-        .or(`contact_person.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},company_name.ilike.${pgQuote(searchTerm)}`)
+        .or(`contact_person.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},company_name.ilike.${pgQuote(searchTerm)},phone.ilike.${pgQuote(phoneTerm)}`)
         .limit(5),
       !hasPermission('customers.view') ? none : supabase
         .from('customers')
         .select('id, company_name, email, customer_number', { count: 'exact' })
-        .or(`company_name.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},customer_number.ilike.${pgQuote(searchTerm)}`)
+        .or(`company_name.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},customer_number.ilike.${pgQuote(searchTerm)},phone.ilike.${pgQuote(phoneTerm)},mobile.ilike.${pgQuote(phoneTerm)}`)
         .limit(5),
       !hasPermission('offers.view') ? none : supabase
         .from('offers')
@@ -39,7 +40,18 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
         .select('id, project_number, name, status', { count: 'exact' })
         .or(`project_number.ilike.${pgQuote(searchTerm)},name.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
+      !hasPermission('cases.view.all') ? none : supabase
+        .from('service_cases')
+        .select('id, case_number, title, status', { count: 'exact' })
+        .eq('is_proposal', false)
+        .or(`case_number.ilike.${pgQuote(searchTerm)},title.ilike.${pgQuote(searchTerm)}`)
+        .limit(5),
     ])
+    // P-9: en fejlende delsøgning logges (før tavst 0)
+    for (const [name, res] of [['leads', leadsResult], ['customers', customersResult], ['offers', offersResult], ['projects', projectsResult], ['cases', casesResult]] as const) {
+      const err = (res as { error?: unknown }).error
+      if (err) logger.error('globalSearch: delsøgning fejlede', { error: err, metadata: { table: name } })
+    }
 
     const results: SearchResult[] = []
     const counts: Record<SearchResultType, number> = {
@@ -47,6 +59,7 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
       customer: customersResult.count || 0,
       offer: offersResult.count || 0,
       project: projectsResult.count || 0,
+      case: casesResult.count || 0,
     }
 
     if (leadsResult.data) {
@@ -93,6 +106,18 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
           title: project.name,
           subtitle: project.project_number,
           url: `/dashboard/projects/${project.id}`,
+        })
+      }
+    }
+
+    if (casesResult.data) {
+      for (const sc of casesResult.data as Array<{ id: string; case_number: string | null; title: string | null }>) {
+        results.push({
+          id: sc.id,
+          type: 'case',
+          title: sc.title || sc.case_number || 'Sag',
+          subtitle: sc.case_number || 'Sag',
+          url: `/dashboard/orders/${sc.id}`,
         })
       }
     }

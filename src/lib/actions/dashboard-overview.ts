@@ -292,14 +292,18 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         // M-12/B-10 (pilot-review 2026-10-15): før .limit(200) uden rækkefølge → med >200 åbne sager forsvandt vilkårlige
         // (også nye) sager fra tællingen; nu alle åbne (pagineret, nyeste først) og arbejdsordrer i bidder
         const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
-        const { selectInChunks } = await import('@/lib/supabase/in-chunks')
         const open = await fetchAllRows<{ id: string }>((f, t) => supabase.from('service_cases').select('id')
           .in('status', ['new', 'in_progress', 'pending']).eq('is_proposal', false)
           .order('created_at', { ascending: false }).order('id').range(f, t))
         const ids = open.map((x) => x.id)
         if (ids.length) {
-          const wos = await selectInChunks<{ case_id: string; status: string }>(ids,
-            (chunk) => supabase.from('work_orders').select('case_id, status').in('case_id', chunk), 100)
+          // R-5 (review 2026-10-16): 1:N-relation → hver bid pagineres
+          const wos: Array<{ case_id: string; status: string }> = []
+          for (let k = 0; k < ids.length; k += 100) {
+            const chunk = ids.slice(k, k + 100)
+            wos.push(...await fetchAllRows<{ case_id: string; status: string }>((f, t) => supabase.from('work_orders')
+              .select('id, case_id, status').in('case_id', chunk).order('id').range(f, t)))
+          }
           const agg = new Map<string, { done: number; open: number }>()
           for (const w of wos) {
             const a = agg.get(w.case_id) ?? { done: 0, open: 0 }

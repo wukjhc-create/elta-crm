@@ -24,6 +24,7 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
     <LeadDetailClient
       lead={leadResult.data}
       activities={activitiesResult.data || []}
+      followUpEnabled={process.env.LEAD_FOLLOW_UP_ENABLED === 'true'}
     />
   )
 }

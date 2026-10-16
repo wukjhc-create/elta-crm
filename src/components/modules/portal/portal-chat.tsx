@@ -64,7 +64,9 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
     try {
       const result = await getPortalMessages(token)
       if (result.success && result.data) {
-        setMessages(result.data)
+        // P-1 (pilot-review 2026-10-16): kun ny liste når der faktisk er ændringer (før: nyt array hver 15. s → scroll)
+        const next = result.data
+        setMessages((prev) => (prev.length === next.length && prev.every((m, i) => m.id === next[i].id && m.read_at === next[i].read_at) ? prev : next))
 
         // Mark unread employee messages as read
         const unreadIds = result.data
@@ -88,9 +90,16 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
     return () => clearInterval(interval)
   }, [loadMessages])
 
-  // Scroll to bottom when messages change
+  // P-1: rul KUN chat-boksen (ikke hele siden) og kun når der kommer flere beskeder — før hoppede tilbudssiden ned til
+  // chatten hver 15. s, mens kunden læste/underskrev
+  const listRef = useRef<HTMLDivElement>(null)
+  const lastCount = useRef(0)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messages.length > lastCount.current) {
+      const el = listRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    }
+    lastCount.current = messages.length
   }, [messages])
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,7 +234,7 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {isLoadingMessages && messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <Loader2 className="w-8 h-8 animate-spin mb-2" />

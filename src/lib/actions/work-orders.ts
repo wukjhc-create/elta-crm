@@ -625,20 +625,20 @@ export async function listWorkOrdersByDateRange(
       new Set(wos.map((w) => w.case_id).filter((id): id is string => !!id))
     )
 
-    const [empRes, caseRes] = await Promise.all([
-      empIds.length === 0
-        ? Promise.resolve({ data: [] as any[] })
-        : supabase.from('employees').select('id, name, email').in('id', empIds),
-      caseIds.length === 0
-        ? Promise.resolve({ data: [] as any[] })
-        : supabase
-            .from('service_cases')
-            .select(`
-              id, case_number, title, project_name, address, postal_code, city,
-              customer:customers!service_cases_customer_id_fkey(id, company_name)
-            `)
-            .in('id', caseIds),
+    // R-4 (review 2026-10-16): i bidder — >~350 id'er i én .in() fejlede tavst (navne/kunder forsvandt i kalenderen)
+    const { selectInChunks } = await import('@/lib/supabase/in-chunks')
+    const [empData, caseData] = await Promise.all([
+      selectInChunks<any>(empIds, (chunk) => supabase.from('employees').select('id, name, email').in('id', chunk)).catch(() => [] as any[]),
+      selectInChunks<any>(caseIds, (chunk) => supabase
+        .from('service_cases')
+        .select(`
+          id, case_number, title, project_name, address, postal_code, city,
+          customer:customers!service_cases_customer_id_fkey(id, company_name)
+        `)
+        .in('id', chunk)).catch(() => [] as any[]),
     ])
+    const empRes = { data: empData }
+    const caseRes = { data: caseData }
 
     const empMap = new Map(
       (empRes.data || []).map((e: any) => [
