@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { Suspense } from 'react'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
-import { listInvoicesOverviewAction } from '@/lib/actions/invoices'
+import { getInvoiceOverviewTotalsAction, listInvoicesOverviewAction } from '@/lib/actions/invoices'
 import { InvoicesOverviewClient } from './invoices-overview-client'
 
 export const metadata: Metadata = {
@@ -23,7 +23,8 @@ export default async function InvoicesPage() {
   // Sprint Ø6.1 — settings.economic gater bulk-eksport til e-conomic.
   const canExportAccounting = await pageHasPermission('settings.economic')
 
-  const res = await listInvoicesOverviewAction()
+  // B-2 (Henrik 2026-10-16): nøgletal over ALLE fakturaer (serveren) — listen er stadig de 500 nyeste
+  const [res, totalsRes] = await Promise.all([listInvoicesOverviewAction(), getInvoiceOverviewTotalsAction()])
   if (!res.ok) {
     return (
       <div className="p-6">
@@ -42,6 +43,7 @@ export default async function InvoicesPage() {
         canExportAccounting={canExportAccounting}
         accountingReady={res.accounting_ready}
         capped={!!res.capped}
+        serverTotals={totalsRes.ok && totalsRes.totals ? totalsRes.totals : null}
       />
     </Suspense>
   )

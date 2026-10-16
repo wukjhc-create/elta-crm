@@ -4,6 +4,7 @@
  * Sprint 6B-2 + 6B-3 — server actions for outgoing invoices.
  */
 
+import { computeInvoiceTotals, type InvoiceTotals, type InvoiceTotalsRow } from '@/lib/invoices/invoice-totals'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { revalidatePath } from 'next/cache'
 import {
@@ -1658,6 +1659,8 @@ export interface InvoiceDashboard {
   draft_count: number
   paid_this_month: number
   reminders_30d: number
+  /** B-2: fakturaer i anden valuta end DKK (ikke med i beløbene) */
+  other_currency_count?: number
   overdue_top: DashboardOverdueRow[]
   recent_events: DashboardInvoiceEvent[]
 }
@@ -1666,6 +1669,26 @@ export interface InvoiceDashboardResult {
   ok: boolean
   message?: string
   data?: InvoiceDashboard
+}
+
+/**
+ * B-2 (Henrik 2026-10-16): fakturaoverblikkets nøgletal over HELE datasættet (pagineret hentning, ingen N+1) — aldrig
+ * over den afkortede liste (500 nyeste). Samme regel som dashboardet (computeInvoiceTotals).
+ */
+export async function getInvoiceOverviewTotalsAction(nowIso?: string): Promise<{ ok: boolean; message?: string; totals?: InvoiceTotals }> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.all')) return { ok: false, message: 'Manglende tilladelse: invoices.view.all' }
+  try {
+    const rows = await fetchAllRows<InvoiceTotalsRow>((from, to) => supabase
+      .from('invoices')
+      .select('id, invoice_type, status, final_amount, amount_paid, credit_of_invoice_id, currency, paid_at, due_date, voided_at')
+      .order('id')
+      .range(from, to))
+    return { ok: true, totals: computeInvoiceTotals(rows, (nowIso ? new Date(nowIso) : new Date()).getTime()) }
+  } catch (err) {
+    logger.error('getInvoiceOverviewTotalsAction failed', { error: err })
+    return { ok: false, message: 'Kunne ikke beregne nøgletal' }
+  }
 }
 
 export async function getInvoiceDashboardAction(
@@ -1715,45 +1738,13 @@ export async function getInvoiceDashboardAction(
   }
 
   const list = invRes.data ?? []
-  let outstanding = 0
-  let sentUnpaid = 0
-  let overdueTotal = 0
-  let draftCount = 0
-  let paidThisMonth = 0
-  const overdueRaw: Array<(typeof list)[number] & { _days: number }> = []
+  // B-2 (Henrik 2026-10-16): fælles beregning med fakturaoverblikket (lib/invoices/invoice-totals) — åbent beløb efter
+  // indbetalinger og ikke-annullerede kreditnotaer, kun DKK summeres
+  const totals = computeInvoiceTotals(list as InvoiceTotalsRow[], todayMs)
+  const byId = new Map(list.map((r) => [r.id as string, r]))
+  const overdueRaw = totals.overdue.map((o) => ({ ...byId.get(o.id)!, _days: o.days }))
 
-  // Økonomi-review 2026-10-08 (#8): udestående = final − betalt − sendte/betalte kreditnotaer (som rykkerne), ikke
-  // hele final_amount — delbetalte/delkrediterede fakturaer talte før med fuldt beløb
-  const creditedByOriginal = new Map<string, number>()
-  for (const r of list) {
-    if (r.invoice_type === 'credit' && r.credit_of_invoice_id && (r.status === 'sent' || r.status === 'paid')) {
-      creditedByOriginal.set(r.credit_of_invoice_id as string, (creditedByOriginal.get(r.credit_of_invoice_id as string) ?? 0) + Math.abs(Number(r.final_amount ?? 0)))
-    }
-  }
-  const openAmount = (r: (typeof list)[number]) =>
-    Math.max(0, Number(r.final_amount ?? 0) - Number(r.amount_paid ?? 0) - (creditedByOriginal.get(r.id as string) ?? 0))
-  for (const r of list) {
-    const isCredit = r.invoice_type === 'credit'
-    const active = !r.voided_at && !isCredit
-    if (r.status === 'draft' && !r.voided_at) draftCount += 1
-    if (active && r.status === 'sent') {
-      sentUnpaid += openAmount(r)
-      outstanding += openAmount(r)
-    }
-    if (r.status === 'paid' && r.paid_at && copenhagenParts(String(r.paid_at)).date.slice(0, 7) === ym) {
-      paidThisMonth += Number(r.final_amount ?? 0)
-    }
-    if (r.due_date && r.status === 'sent' && active) {
-      const days = calendarDaysSince(String(r.due_date), todayMs)
-      if (days > 0 && openAmount(r) > 0) {
-        overdueTotal += openAmount(r)
-        overdueRaw.push({ ...r, _days: days })
-      }
-    }
-  }
-
-  // Top forfaldne (flest dage først) — berig kunde + sag (cost-free).
-  overdueRaw.sort((a, b) => b._days - a._days)
+  // Top forfaldne (flest dage først — sorteret i computeInvoiceTotals) — berig kunde + sag (cost-free).
   const top = overdueRaw.slice(0, 6)
   const custIds = Array.from(new Set(top.map((r) => r.customer_id as string | null).filter(Boolean) as string[]))
   const caseIds = Array.from(new Set(top.map((r) => r.case_id as string | null).filter(Boolean) as string[]))
@@ -1808,16 +1799,16 @@ export async function getInvoiceDashboardAction(
     }
   })
 
-  const r2 = (n: number) => Math.round(n * 100) / 100
   return {
     ok: true,
     data: {
-      outstanding_total: r2(outstanding),
-      sent_unpaid_total: r2(sentUnpaid),
-      overdue_count: overdueRaw.length,
-      overdue_total: r2(overdueTotal),
-      draft_count: draftCount,
-      paid_this_month: r2(paidThisMonth),
+      outstanding_total: totals.outstanding,
+      sent_unpaid_total: totals.sentUnpaid,
+      overdue_count: totals.overdueCount,
+      overdue_total: totals.overdueSum,
+      draft_count: totals.draftCount,
+      paid_this_month: totals.paidThisMonth,
+      other_currency_count: totals.otherCurrencyCount,
       reminders_30d: remRes.count ?? 0,
       overdue_top,
       recent_events,

@@ -51,7 +51,7 @@ Proces: prod-migration først når kompatibel kode er pushet (CODE → TEST → 
 |---|---|---|
 | X-1 | 00232 afregningsform | DONE i prod 2026-10-16 (Henrik: "00232 GODKENDT SOM DONE") |
 | X-2 | Død kode approveIncomingInvoiceWithConversionAction + convertAndApproveInvoice | DONE — 0 kaldere (global søgning); fjernet (≈210 linjer), Ø9.4–9.7-asserts bevaret + ny assert mod genindførsel. tsc/rls/rbac, U28/U101–U105/U7–U9 grønne |
-| X-3 (B-2) | Fakturaoverblik: nøgletal server-side over hele datasættet (kun DKK, betalinger/kreditnotaer) | KLAR — lib/invoices/invoice-totals.ts (unit 7/7 inkl. >500), action + side forberedt; dashboard bruger samme funktion |
+| X-3 (B-2) | Fakturaoverblik: nøgletal server-side over hele datasættet (kun DKK, betalinger/kreditnotaer) | DONE — computeInvoiceTotals (lib/invoices/invoice-totals.ts) over ALLE fakturaer (pagineret, ingen N+1): åbent beløb efter indbetalinger og ikke-annullerede kreditnotaer, kun DKK (anden valuta tælles), dansk måned; fakturaoverblik (getInvoiceOverviewTotalsAction) og dashboard bruger samme funktion; listen forbliver 500 nyeste med besked. Nøgletal er globale (filtre/søgning påvirker kun listen). Unit 7/7 (600 fakturaer > loft), UI U169/U70/U29/U33/U35 |
 | X-4 (B-9) | Faktureret serie i rapporter | FORBEREDT |
 | X-5 (B-10) | Dashboard: fejlede tællinger markeres (ikke tavst 0) | FORBEREDT |
 | X-6 (S-4) | Lead-tavle: åbne leads hentes for sig + vundne/tabte seneste 90 dage | FORBEREDT |

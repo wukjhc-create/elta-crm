@@ -24,6 +24,7 @@ import {
 } from '@/lib/actions/invoices'
 import { bulkExportInvoicesToEconomicAction } from '@/lib/actions/accounting'
 import { formatCurrency } from '@/lib/utils/format'
+import type { InvoiceTotals } from '@/lib/invoices/invoice-totals'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import {
   FILTERS,
@@ -103,7 +104,10 @@ export function InvoicesOverviewClient({
   canExportAccounting = false,
   accountingReady = false,
   capped = false,
+  serverTotals = null,
 }: {
+  /** B-2: nøgletal over alle fakturaer (serveren); null (fejl) → beregnes af de viste rækker med besked */
+  serverTotals?: InvoiceTotals | null
   rows: InvoiceOverviewRow[]
   canSend: boolean
   canExportAccounting?: boolean
@@ -153,6 +157,7 @@ export function InvoicesOverviewClient({
 
   // ---- Summary (cost-free, kun salgsbeløb) ----
   const summary = useMemo(() => {
+    if (serverTotals) return serverTotals
     // B-4 (pilot-review 2026-10-15): måned i dansk tid på begge sider (før browserens måned mod UTC-tidsstempel)
     const ym = copenhagenParts(new Date()).date.slice(0, 7)
     let draftCount = 0
@@ -177,8 +182,8 @@ export function InvoicesOverviewClient({
         paidThisMonth += r.final_amount
       }
     }
-    return { draftCount, sentUnpaid, overdueCount, overdueSum, paidThisMonth, outstanding }
-  }, [localRows])
+    return { draftCount, sentUnpaid, overdueCount, overdueSum, paidThisMonth, outstanding, otherCurrencyCount: 0 }
+  }, [localRows, serverTotals])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -264,8 +269,11 @@ export function InvoicesOverviewClient({
 
       {capped && (
         <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" role="status" data-testid="invoices-overview-capped">
-          Viser de 500 nyeste fakturaer — tallene nedenfor dækker kun dem. Fulde udeståender: se Dashboard.
+          Listen viser de 500 nyeste fakturaer{serverTotals ? ' — nøgletallene nedenfor dækker alle fakturaer' : ' — nøgletallene kunne ikke beregnes for alle og dækker kun de viste'}. Brug søgning/filtre for ældre.
         </div>
+      )}
+      {summary.otherCurrencyCount > 0 && (
+        <p className="text-xs text-gray-500" data-testid="invoices-other-currency">{summary.otherCurrencyCount} faktura(er) i anden valuta end DKK er ikke med i beløbene nedenfor.</p>
       )}
       {/* Summary-cards — kun salgsbeløb */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
