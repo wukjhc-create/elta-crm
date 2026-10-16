@@ -1564,26 +1564,7 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
   // (ÉN query, ingen N+1) + integrations-parathed (uden hemmeligheder).
   const invoiceIds = list.map((r) => r.id as string)
   const failedSet = new Set<string>()
-  // X4l: i bidder af 200 (op til 500 id'er i én .in() sprængte URL-grænsen (~350) → ingen fejlmarkeringer vist)
-  for (let k = 0; k < invoiceIds.length; k += IN_CHUNK_SIZE) {
-    const chunk = invoiceIds.slice(k, k + IN_CHUNK_SIZE)
-    const failed = await fetchAllRows<{ id: string; entity_id: string }>((from, to) => supabase
-      .from('accounting_sync_log')
-      .select('id, entity_id')
-      .eq('entity_type', 'invoice')
-      .eq('status', 'failed')
-      .in('entity_id', chunk)
-      .order('id')
-      .range(from, to))
-    for (const f of failed) failedSet.add(f.entity_id)
-  }
   let accountingReady = false
-  try {
-    const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
-    accountingReady = isEconomicReady(await getEconomicSettings())
-  } catch (e) {
-    logger.error('listInvoicesOverviewAction: economic readiness failed', { error: e })
-  }
 
   // Berig kunde + sag via batch-opslag (cost-free).
   const customerIds = Array.from(
@@ -1594,8 +1575,36 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
   )
   const custById = new Map<string, { name: string | null; email: string | null }>()
   const caseById = new Map<string, string | null>()
-  // X4l: i bidder (op til 500 fakturaer → >350 id'er i én .in() fejlede stille → oversigten uden kundenavne/sagsnumre)
+  const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
+  let credited = new Map<string, number>()
+  // PF-6 (performance-review 2026-10-16): fejl-log, e-conomic-parathed, kunder/sager og kreditnotaer hentes i ÉN
+  // parallel runde (før ~6 kald efter hinanden)
+  const failedChunks: string[][] = []
+  // X4l: i bidder af 200 (op til 500 id'er i én .in() sprængte URL-grænsen (~350) → ingen fejlmarkeringer vist)
+  for (let k = 0; k < invoiceIds.length; k += IN_CHUNK_SIZE) failedChunks.push(invoiceIds.slice(k, k + IN_CHUNK_SIZE))
   await Promise.all([
+    ...failedChunks.map((chunk) => fetchAllRows<{ id: string; entity_id: string }>((from, to) => supabase
+      .from('accounting_sync_log')
+      .select('id, entity_id')
+      .eq('entity_type', 'invoice')
+      .eq('status', 'failed')
+      .in('entity_id', chunk)
+      .order('id')
+      .range(from, to))
+      .then((failed) => { for (const f of failed) failedSet.add(f.entity_id) })),
+    (async () => {
+      try {
+        const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
+        accountingReady = isEconomicReady(await getEconomicSettings())
+      } catch (e) {
+        logger.error('listInvoicesOverviewAction: economic readiness failed', { error: e })
+      }
+    })(),
+    // B-3: kreditnotaer mod de viste fakturaer (åbent beløb)
+    creditedByOriginal(supabase, invoiceIds)
+      .then((m) => { credited = m })
+      .catch((err) => { logger.error('listInvoicesOverviewAction: credit lookup failed', { error: err }) }),
+    // X4l: i bidder (op til 500 fakturaer → >350 id'er i én .in() fejlede stille → oversigten uden kundenavne/sagsnumre)
     selectInChunks<{ id: string; company_name: string | null; contact_person: string | null; email: string | null }>(customerIds, (chunk) =>
       supabase.from('customers').select('id, company_name, contact_person, email').in('id', chunk))
       .then((cs) => {
@@ -1608,15 +1617,6 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
         for (const c of cs) caseById.set(c.id, c.case_number ?? null)
       }),
   ])
-
-  // B-3: kreditnotaer mod de viste fakturaer (åbent beløb)
-  const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
-  let credited = new Map<string, number>()
-  try {
-    credited = await creditedByOriginal(supabase, invoiceIds)
-  } catch (err) {
-    logger.error('listInvoicesOverviewAction: credit lookup failed', { error: err })
-  }
 
   // Forfald beregnes server-side: status='sent', ikke betalt, ikke annulleret,
   // ikke kreditnota, due_date < i dag.
