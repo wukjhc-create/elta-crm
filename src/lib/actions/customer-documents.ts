@@ -71,7 +71,7 @@ export async function getCustomerDocuments(
   customerId: string
 ): Promise<ActionResult<CustomerDocument[]>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     // Kunde-review: før uden gate. Mail-vedhæftninger (fx leverandørers ordrebekræftelser med kostpriser) arkiveres
     // på kunden — kun for roller der må se kundemails (montør må ikke, jf. G9/D28)
     if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
@@ -86,11 +86,26 @@ export async function getCustomerDocuments(
       `)
       .eq('customer_id', customerId)
     if (!hasPermission('customers.emails.view')) docsQuery = docsQuery.is('source_email_id', null)
-    const { data: docs, error } = await docsQuery
+    const { data: allDocs, error } = await docsQuery
       .order('created_at', { ascending: false })
 
     if (error) {
       return { success: false, error: 'Kunne ikke hente dokumenter' }
+    }
+
+    // SEC-5 (permission-review 2026-10-16): uden cases.view.all kun dokumenter på sager i brugerens scope (samme scope
+    // som upload) + kundens dokumenter uden sag — før så montøren dokumenter fra alle kundens sager
+    let docs = allDocs ?? []
+    if (!hasPermission('cases.view.all')) {
+      const { getCaseScope } = await import('@/lib/auth/case-scope')
+      const scope = await getCaseScope({ role, userId, supabase })
+      if (scope.type !== 'all') {
+        const allowed = new Set(scope.caseIds)
+        docs = docs.filter((d) => {
+          const caseId = (d as { service_case_id?: string | null }).service_case_id
+          return !caseId || allowed.has(caseId)
+        })
+      }
     }
 
     // Phase β.2.3: refresh file_url via signed-URL helper hvis storage_path

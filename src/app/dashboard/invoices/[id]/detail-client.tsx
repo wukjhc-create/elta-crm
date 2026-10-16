@@ -23,6 +23,7 @@ import {
   markInvoicePaidAction,
   markInvoiceSentAction,
   sendInvoiceEmailAction,
+  releaseInvoiceSendClaimAction,
   getInvoiceRecipientAction,
   getInvoicePaymentInfoStatusAction,
   type InvoiceDetail,
@@ -110,7 +111,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [detail, setDetail] = useState<InvoiceDetail>(initial)
-  const [busy, setBusy] = useState<null | 'send' | 'pay' | 'delete' | 'mail'>(null)
+  const [busy, setBusy] = useState<null | 'send' | 'pay' | 'delete' | 'mail' | 'release'>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const inv = detail.invoice
@@ -189,7 +190,10 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
     if (!isSent) return
     // B-1 (pilot-review 2026-10-15): "Annuller" afbryder — før blev fakturaen alligevel markeret betalt (kan ikke fortrydes)
     const reference = window.prompt(
-      `Markér faktura ${inv.invoice_number} (${fmtKr(inv.final_amount, inv.currency)}) som betalt? Kan ikke fortrydes.\n\nBetalingsreference (valgfri) — tryk OK for at registrere, Annuller for at afbryde:`,
+      `Markér faktura ${inv.invoice_number} (${fmtKr(inv.final_amount, inv.currency)}) som betalt? Kan ikke fortrydes.` +
+        // A-12: kun CRM-status — ingen postering i e-conomic
+        (inv.external_invoice_id ? `\n\nBetalingsstatus ændres kun i ELTA CRM — betalingen registreres IKKE i e-conomic.` : '') +
+        `\n\nBetalingsreference (valgfri) — tryk OK for at registrere, Annuller for at afbryde:`,
       '',
     )
     if (reference === null) return
@@ -220,6 +224,20 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
     setBusy('mail')
     startTransition(async () => {
       const r = await sendInvoiceEmailAction(inv.id)
+      setBusy(null)
+      flash(r.ok, r.message)
+      if (r.ok) await refresh()
+    })
+  }
+
+  // A-1 (review 2026-10-16): kladde med sent_at = afsendelse tilbageholdt efter ukendt mailstatus (eller i gang)
+  const sendHeld = isDraft && !!inv.sent_at
+  const handleReleaseClaim = () => {
+    if (!sendHeld) return
+    if (!window.confirm(`Har du tjekket Sendt-mappen, og gik faktura ${inv.invoice_number} IKKE ud?\n\nAfsendelsen frigives, så du kan sende igen.`)) return
+    setBusy('release')
+    startTransition(async () => {
+      const r = await releaseInvoiceSendClaimAction(inv.id)
       setBusy(null)
       flash(r.ok, r.message)
       if (r.ok) await refresh()
@@ -712,6 +730,23 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
                 </button>
               )}
             </div>
+            {sendHeld && canSend && (
+              <div data-testid="invoice-send-held" className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 flex flex-wrap items-center gap-2">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span className="flex-1 min-w-[12rem]">
+                  Afsendelsen gav ukendt status — mailen kan være sendt. Tjek Sendt-mappen: er den sendt, brug &quot;Markér som sendt&quot;; ellers frigiv og send igen.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleReleaseClaim}
+                  disabled={busy !== null}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-amber-400 bg-white hover:bg-amber-100 disabled:opacity-60"
+                >
+                  {busy === 'release' ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                  Frigiv afsendelse
+                </button>
+              </div>
+            )}
             {recipient && !recipient.ok && (
               <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />

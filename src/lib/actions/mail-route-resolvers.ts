@@ -1,4 +1,8 @@
-'use server'
+/**
+ * SEC-1 (permission-review 2026-10-16): IKKE en 'use server'-fil. Hjælperne bruger admin-klienten uden eget login-tjek
+ * og returnerer kundemails — som server actions var de kaldbare udefra. Kaldes kun fra gatede actions, token-
+ * validerede portalflows og crons (server-side). Må ALDRIG importeres i klientkode.
+ */
 
 /**
  * Sprint 8H Phase 1B — server-side resolvers for mail-routing.

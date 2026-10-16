@@ -17,7 +17,7 @@ import { logger } from '@/lib/utils/logger'
 import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
-import { createAuditLog } from '@/lib/actions/audit'
+import { createAuditLog } from '@/lib/audit/audit-log-writer'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import type {
   ServiceCase,
@@ -684,6 +684,9 @@ export async function getCustomerServiceCasesResult(customerId: string): Promise
       }
       rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
     }
+    // SEC-4 (permission-review 2026-10-16): samme D46-regel som sagslisten — internt budget og lav-DB-markering kun for
+    // economy.cost_prices (før så salg/montør dem på kundekortet)
+    if (!hasPermission('economy.cost_prices')) rows = rows.map((c) => ({ ...c, budget: null, low_profit: false }))
     return { ok: true, cases: rows, restricted: !all }
   } catch (error) {
     logger.error('Failed to fetch customer service cases', { error, entityId: customerId })

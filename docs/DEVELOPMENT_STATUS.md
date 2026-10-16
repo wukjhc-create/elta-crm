@@ -1,6 +1,6 @@
 # Development status — checkpoint til næste session
 
-**Opdateret:** 2026-10-15 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
+**Opdateret:** 2026-10-16 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
 
 ## Prod-kørsel 2026-10-15 — 00221–00225 (Henrik: "Alle fire migrationer er GODKENDT TIL PROD")
 Kontrolleret én ad gangen: pre-check → migration → post-check → målrettet regression → prod-DB-audit (0/0/0 efter hver).
@@ -66,6 +66,9 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **00234 kostkolonner på sagsmaterialer/øvrige** (docs/runbooks/cost-columns-case-materials-proposal.md) — F-11
 - **00235/00236 arbejdsordre-faktura + -avance** (docs/runbooks/work-order-invoice-and-profit-proposal.md) — F-5/F-12 (kræver valg af fordelingsnøgle)
 - R-11 avance 0 vs. "ikke sat" i kataloget — afklaring af datamodel
+- **A-3 bank-dedup inkl. afsendernavn** [MIGRATION] — to kunders ens beløb samme dag uden tekst tælles som dublet
+- **A-4/A-7 e-conomic idempotens ved timeout + betaling efter eksport** — kræver test mod e-conomic-sandbox (live-skriv)
+- **"Registrér også betaling i e-conomic"** (efter A-12-beslutningen) — eksplicit action: permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit
 P-2/P-4/P-8/P-10/P-11 (round 3) — UI U178/U13/U4/U5/U43/U160/U166 grønne.
 
 ## Prod-kørsel 2026-10-16 — 00232 afregningsform (Henrik: "00232 BILLING MODEL GODKENDT TIL PROD")

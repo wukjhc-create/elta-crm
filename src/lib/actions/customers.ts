@@ -9,7 +9,7 @@ import {
   updateCustomerContactSchema,
 } from '@/lib/validations/customers'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
-import { logCreate, logUpdate, logDelete, logStatusChange } from '@/lib/actions/audit'
+import { logCreate, logUpdate, logDelete, logStatusChange } from '@/lib/audit/audit-log-writer'
 import type {
   Customer,
   CustomerWithRelations,

@@ -58,3 +58,15 @@ export function copenhagenDatePlusDays(days: number, now: Date | number = new Da
   const [y, m, d] = copenhagenParts(new Date(now)).date.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
 }
+
+/**
+ * A-11 (review 2026-10-16): danske kalenderdage mellem en dato/tidsstempel og `to`. Før: rå millisekunder (floor) — en
+ * rykker sendt 07:00:40 og en kørsel 5 dage senere kl. 07:00:10 gav 4 dage → cooldown sprang en dag over, og mellem
+ * kl. 00 og 02 dansk tid var forfaldsdagene én for lav.
+ */
+export function copenhagenCalendarDaysBetween(fromDateOrIso: string, to: Date): number {
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(fromDateOrIso) ? fromDateOrIso : copenhagenParts(new Date(fromDateOrIso)).date
+  const toDate = copenhagenParts(to).date
+  const utc = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)))
+  return Math.round((utc(toDate) - utc(from)) / 86_400_000)
+}

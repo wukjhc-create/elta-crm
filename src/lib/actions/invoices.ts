@@ -22,6 +22,7 @@ import {
   markInvoicePaid as markInvoicePaidService,
   markInvoiceSent as markInvoiceSentService,
   sendInvoiceEmail as sendInvoiceEmailService,
+  releaseInvoiceSendClaim,
   sendInvoiceReminder as sendInvoiceReminderService,
 } from '@/lib/services/invoices'
 import {
@@ -582,22 +583,35 @@ export async function markInvoicePaidAction(
   if (!hasPermission('invoices.mark_paid')) {
     return { ok: false, message: 'Manglende tilladelse: invoices.mark_paid' }
   }
+  let paid: Awaited<ReturnType<typeof markInvoicePaidService>>
   try {
-    await markInvoicePaidService(invoiceId, paymentReference ?? null)
+    paid = await markInvoicePaidService(invoiceId, paymentReference ?? null)
   } catch (err) {
     return { ok: false, message: formatError(err, 'Kunne ikke markere som betalt') }
   }
+  // A-12 (beslutning 2026-10-16): kun CRM-status — ingen automatisk e-conomic-postering; audit med beløb og kilde
+  const linked = !!paid.external_invoice_id && paid.external_provider === 'economic'
   await auditInvoiceLifecycle(supabase, {
     userId,
     invoiceId,
     action: 'invoice_marked_paid',
     verb: 'markeret som betalt',
     suffix: paymentReference ? `ref: ${paymentReference}` : null,
-    changes: { payment_reference: paymentReference ?? null },
+    changes: {
+      payment_reference: paymentReference ?? null,
+      amount: paid.recordedAmount,
+      source: 'manual',
+      economic_synced: false,
+    },
   })
   revalidatePath('/dashboard/invoices')
   revalidatePath(`/dashboard/invoices/${invoiceId}`)
-  return { ok: true, message: 'Markeret som betalt' }
+  return {
+    ok: true,
+    message: linked
+      ? 'Markeret som betalt. Betalingsstatus er kun ændret i ELTA CRM — ikke i e-conomic.'
+      : 'Markeret som betalt',
+  }
 }
 
 export async function sendInvoiceEmailAction(
@@ -637,7 +651,40 @@ export async function sendInvoiceEmailAction(
   if (r.status === 'skipped') {
     return { ok: false, message: `Sprunget over — ${r.reason ?? 'kunne ikke sende'}` }
   }
+  if (r.uncertain) {
+    return {
+      ok: false,
+      message: 'Status ukendt (mailserveren svarede ikke i tide) — mailen kan være sendt. Tjek Sendt-mappen i Outlook før ' +
+        'genafsendelse: er den sendt, brug "Markér som sendt"; ellers "Frigiv afsendelse" og send igen.',
+    }
+  }
   return { ok: false, message: `Mail-send fejlede: ${r.error ?? 'ukendt fejl'}` }
+}
+
+/** A-1 (review 2026-10-16): frigiv tilbageholdt send-krav efter ukendt udfald (brugeren har tjekket Sendt-mappen) */
+export async function releaseInvoiceSendClaimAction(invoiceId: string): Promise<InvoiceActionOutcome> {
+  try {
+    validateUUID(invoiceId, 'faktura-ID')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.send')) {
+    return { ok: false, message: 'Manglende tilladelse: invoices.send' }
+  }
+  const r = await releaseInvoiceSendClaim(invoiceId)
+  revalidatePath(`/dashboard/invoices/${invoiceId}`)
+  if (r === 'not_held') return { ok: false, message: 'Fakturaen har ingen tilbageholdt afsendelse' }
+  if (r === 'too_recent') return { ok: false, message: 'Afsendelsen er stadig i gang — vent to minutter og prøv igen' }
+  await auditInvoiceLifecycle(supabase, {
+    userId,
+    invoiceId,
+    action: 'invoice_send_claim_released',
+    verb: 'afsendelse frigivet efter ukendt mailstatus',
+    suffix: null,
+    changes: {},
+  })
+  return { ok: true, message: 'Afsendelse frigivet — du kan sende fakturaen igen' }
 }
 
 export async function deleteInvoiceDraftAction(
@@ -1613,8 +1660,11 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
       case_id: (r.case_id as string | null) ?? null,
       case_number: r.case_id ? caseById.get(r.case_id as string) ?? null : null,
       accounting_status: (() => {
-        const exported = !!r.external_invoice_id && r.external_provider === 'economic'
+        // A-5 (review 2026-10-16): "draft-N" = kladde i e-conomic, ikke bogført → fejl, ikke eksporteret
+        const draftOnly = String(r.external_invoice_id ?? '').startsWith('draft-')
+        const exported = !!r.external_invoice_id && r.external_provider === 'economic' && !draftOnly
         if (exported) return 'exported' as const
+        if (draftOnly) return 'error' as const
         if (failedSet.has(r.id as string)) return 'error' as const
         if ((r.status === 'sent' || r.status === 'paid') && !r.voided_at) return 'ready' as const
         return 'not_exported' as const

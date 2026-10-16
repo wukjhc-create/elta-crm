@@ -150,7 +150,7 @@ export async function importCustomersAction(csvText: string): Promise<ActionResu
       } else { failed += 1; logger.warn('importCustomers: række fejlede', { metadata: { line: r.line, code: error?.code } }) }
     }
     try {
-      const { createAuditLog } = await import('@/lib/actions/audit')
+      const { createAuditLog } = await import('@/lib/audit/audit-log-writer')
       await createAuditLog({ entity_type: 'customer', entity_id: ctx.userId, entity_name: 'CSV-import', action: 'create',
         action_description: `Kundeimport: ${created} oprettet, ${classified.length - toCreate.length} sprunget over, ${failed} fejlede`,
         metadata: { created, skipped: classified.length - toCreate.length, failed, batch } })

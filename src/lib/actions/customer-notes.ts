@@ -9,7 +9,7 @@
  */
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
-import { createAuditLog } from '@/lib/actions/audit'
+import { createAuditLog } from '@/lib/audit/audit-log-writer'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 

@@ -45,6 +45,57 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-22 (review-bølge 2026-10-16 eftermiddag — tilbud/portal + tid/leads/indbakke)
+| # | Fund | Status |
+|---|---|---|
+| O-1 | Tilbudsrykker-cron læser tilbud + portal-token med anon-klient (ingen session) → altid "Tilbud ikke fundet"/ugyldigt link (S2) | BLOCKED_APPROVAL — cron'en ER planlagt i vercel.json og `company_settings.reminder_enabled` er som standard true: rettelsen ville begynde at sende rigtige tilbudsrykkere til kunder = live-mail-aktivering. Kræver Henriks ja (evt. bag eksplicit `OFFER_REMINDERS_LIVE`-flag) |
+| O-2 | sendOfferEmail: mail ud før status-flip; flip-fejl kun logget → kunden får link til ikke-synligt tilbud (S2) | TODO — betinget flip før afsendelse + tilbagerul ved fejl |
+| O-3 | sendOfferEmail uden status-værn (accepteret/afvist/erstattet kan genmailes) | TODO |
+| O-4 | Portal: sektionslinjer vist som produkter (line_type mangler), linjerabat skjult | TODO |
+| O-5 | Portal viser firmaets standardvaluta i stedet for tilbuddets | TODO |
+| O-6 | Erstattet revision kan accepteres internt og konverteres til sag | DEFERRED — `superseded_by` findes kun med revisioner (00203, kun staging bag OFFER_REVISIONS_ENABLED); DB-filter på kolonnen ville fejle i prod. Tages med revisions-udrulningen |
+| O-7 | Erstattede revisioner får rykkere og tælles som klar til konvertering | DEFERRED — samme som O-6 (00203) |
+| O-8 | deactivatePortalToken melder succes uden at have opdateret en række | TODO |
+| O-9 | Fuldmagt-/besigtigelsesforespørgsler i rykker-cron uden paginering | TODO |
+| O-10 | viewed_at nulstilles ikke ved viewed→kladde→sendt | TODO |
+| O-11 | Portaldatoer uden timeZone (server-renderet UTC) | TODO |
+| O-12 | Portal: afvis uden udløbs-/erstattet-tjek; PDF-route serverer erstattede revisioner; rabatrække-betingelse PDF ≠ portal | TODO (udløb + rabatrække); erstattet-delen DEFERRED (00203) |
+| T-1 | Godkend/afvis timer genlæser ikke rækken: faktureret imellem → afvist alligevel; ændret 8→12 t imellem → godkendt usét (S2) | TODO — betingede opdateringer (.is invoice_line_id null; start/slut/sats som set) |
+| T-2 | linkEmailToCase: mail uden kunde kan kobles til anden kundes sag, søskende-mails flyttes uanset kunde, fejl ignoreres (S2) | TODO |
+| T-3 | Fjern kobling efterlader service_case_id → mail vises fortsat på den gamle kundes sag (S2) | TODO |
+| T-4 | createCustomerFromEmail melder succes trods fejl (lead/opdatering/kobling), overskriver allerede koblet mail | TODO |
+| T-5 | Kunde-dubletkontrol kun i klienten (samtidige/direkte kald opretter dublet-mail) | TODO — server-tjek + "Opret alligevel"-flag (unikt indeks = [MIGRATION]) |
+| T-6 | Lead-kanban: statusskift kun via træk-og-slip (virker ikke på telefon), min-bredde 1200 px | TODO — status-vælger pr. kort (kun tilladte overgange) |
+| T-7 | Lead-tabel uden mobil-kortliste | TODO |
+| T-8 | Lead-liste sortBy fra URL uvalideret → DATABASE_ERROR | TODO — whitelist |
+| T-9 | Ulæst-tæller trækkes ned for arkiverede/ignorerede mails | TODO |
+| T-10 | Markér læst/ulæst melder succes ved 0 opdaterede rækker | TODO |
+| T-11 | Godkendelse: sprunget-over uden årsag (faktureret/ændret/skjult) | TODO |
+| T-12 | Små Godkend/Afvis-knapper på telefon; ASCII-dansk ("Proev", "paakraevet", "aendre", "oejeblik", "Email ikke fundet") | TODO |
+
+## NEXT-21 (review-bølge 2026-10-16 middag — fakturamail/bank/e-conomic + rettigheds-sweep)
+| # | Fund | Status |
+|---|---|---|
+| Q-5 | Arbejdsordre-scope hentede alle montørens id'er nogensinde (kalender + userCanViewWorkOrder) | DONE (8584ccf9) — `getWorkOrderEmployeeScope` (kun medarbejder-id; DB-filter), ét rækkeopslag i userCanViewWorkOrder. UI U11/U70/U43/U34/U40/U12/U155 |
+| SEC-1/2/3 | Route-preview-, mail-route-resolver- og system-alert-hjælpere var 'use server' uden login (admin-klient, returnerede kundemails / skrev alarmer) | DONE (venter commit) — 'use server' fjernet (plain server-moduler); undtagelse fjernet; `scripts/assert-server-only-helpers.ts` i check:rbac (negativ-testet) |
+| SEC-4 | Kundens sagsliste (P-2) viste budget/lav-DB til salg/montør | DONE (venter commit) — D46-reglen (economy.cost_prices); assertion i check:rbac |
+| SEC-5 | Montør så dokumenter fra alle kundens sager | DONE (venter commit) — uden cases.view.all kun sager i scope + dokumenter uden sag; assertion i check:rbac |
+| SEC-6 | createAuditLog m.fl. kaldbare af alle indloggede (S4) | DONE (venter commit) — skrivning flyttet til `lib/audit/audit-log-writer.ts` (ikke 'use server'), 10 importører opdateret, undtagelse fjernet (53 bevist undtaget) |
+| SEC-7 | markConfirmationMailFailed uden gate (afhænger af RLS) | NO CHANGE — server-only bevist af action-gate-audit; UPDATE rolle-begrænset af RLS (00173) |
+| A-1 | Fakturamail: Graph-tidsudløb frigav kravet → dobbelt faktura ved nyt klik | DONE (venter commit) — kravet beholdes ved ukendt udfald; besked + banner "Frigiv afsendelse" (≥2 min, invoices.send, audit `invoice_send_claim_released`) |
+| A-2 | Bankmatch overskrev fakturaens betalingsreference med banktekst | DONE (venter commit) — kun invoice_payments.reference |
+| A-3 | Bank-dedup uden afsendernavn → to kunders ens betaling samme dag droppes | BLOCKED_APPROVAL [MIGRATION] — unikt indeks + eksistenstjek inkl. sender_name |
+| A-4 | e-conomic: netværksfejl/timeout frigav kravet → mulig dobbelt bogføring ved genforsøg | TODO (forslag) — behold krav som uncertain + opslag i drafts/booked før ny POST; kræver test mod e-conomic sandbox |
+| A-5 | Mislykket bogføring gemt som draft-N → vist som eksporteret | DONE (visning, venter commit) — status "fejl" + forklaring, intet genforsøg herfra; TODO: eksplicit "bogfør kladden" kræver e-conomic-sandbox-test |
+| A-6 | e-conomic 'skipped' meldt som "allerede eksporteret" | DONE (venter commit) — `describeEconomicSkip` |
+| A-7 | Betaling registreret før eksport bogføres aldrig i e-conomic; ingen krav om cashbook-post | TODO — kræver e-conomic-test (live-skriv) |
+| A-8 | Manuelt bankmatch: kladder/kreditnotaer i søgning, fejl som succes, ingen bekræftelse | DONE (venter commit) — filter, bekræftelse, dansk udfald, escapeLike |
+| A-9 | Engelske statusser i bankafstemning | DONE (venter commit) |
+| A-10 | Forfaldne fakturaer uden paginering | DONE (venter commit) — fetchAllRows |
+| A-11 | Rykker-cooldown på rå tidsstempler | DONE (venter commit) — `copenhagenCalendarDaysBetween`; unit reminder-days-test 8/8 (midnat, sommer-/vintertid) |
+| A-12 | "Markér betalt" satte ikke amount_paid, nulstillede reference | DONE (venter commit) — BESLUTNING 2026-10-16: kun CRM-status. Restbeløb som betalingsrække (`registerPayment(..., { syncEconomic: false })`), ALDRIG automatisk e-conomic; audit med beløb + source=manual + economic_synced=false; linket faktura → "Betalingsstatus er kun ændret i ELTA CRM" (besked + bekræftelse). Separat eksplicit "Registrér også betaling i e-conomic" = senere (permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit) |
+| A-13 | findByAmount sammenlignede kun med fakturabeløbet | DONE (venter commit) — også restbeløb på delbetalte (afsender skal stadig matche) |
+
 ## NEXT-20 (review-bølge 2026-10-16 formiddag — økonomi/profit + mobil/performance)
 | # | Fund | Status |
 |---|---|---|

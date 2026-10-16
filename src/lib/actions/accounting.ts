@@ -42,6 +42,22 @@ export interface InvoiceAccountingState {
 
 const PROVIDER = 'economic'
 
+/**
+ * A-6 (review 2026-10-16): et 'skipped'-udfald er kun "allerede eksporteret", når e-conomic-id'et følger med — før blev
+ * slået-fra-kontakten, "eksport i gang" og "kan ikke eksporteres" meldt som succes.
+ */
+function describeEconomicSkip(result: { ok: boolean; reason?: string; externalId?: string | null }): { already: boolean; notConfigured: boolean; message: string } {
+  const reason = result.reason ?? ''
+  // A-5: et "draft-N"-link er en ikke-bogført kladde — ikke en eksport
+  if (result.ok && result.externalId?.startsWith('draft-')) return { already: false, notConfigured: false, message: 'Oprettet som kladde i e-conomic, men ikke bogført — bogfør kladden i e-conomic.' }
+  if (result.ok && result.externalId) return { already: true, notConfigured: false, message: 'Fakturaen er allerede eksporteret til e-conomic.' }
+  if (reason === 'ECONOMIC_NOT_CONFIGURED') return { already: false, notConfigured: true, message: 'e-conomic er ikke opsat endnu.' }
+  if (reason === 'ECONOMIC_PUSH_DISABLED') return { already: false, notConfigured: false, message: 'Eksport til e-conomic er slået fra.' }
+  if (reason === 'export in progress') return { already: false, notConfigured: false, message: 'Eksporten er allerede i gang — vent et øjeblik og genindlæs.' }
+  if (reason.startsWith('not exportable')) return { already: false, notConfigured: false, message: 'Fakturaen kan ikke eksporteres (kun sendte/betalte, ikke annullerede fakturaer og ikke kreditnotaer).' }
+  return { already: false, notConfigured: false, message: 'Fakturaen blev ikke eksporteret.' }
+}
+
 export async function getInvoiceAccountingStatusAction(
   invoiceId: string
 ): Promise<InvoiceAccountingState> {
@@ -93,10 +109,12 @@ export async function getInvoiceAccountingStatusAction(
     logger.error('getInvoiceAccountingStatusAction: settings read failed', { error: e })
   }
 
-  const exported = !!inv.external_invoice_id && inv.external_provider === PROVIDER
+  // A-5 (review 2026-10-16): "draft-N" = kladde oprettet, bogføring fejlede — før vist som eksporteret for altid
+  const draftOnly = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith('draft-')
+  const exported = !!inv.external_invoice_id && inv.external_provider === PROVIDER && !draftOnly
   let status: InvoiceAccountingStatus
   if (exported) status = 'exported'
-  else if (log?.status === 'failed') status = 'error'
+  else if (draftOnly || log?.status === 'failed') status = 'error'
   else if ((inv.status === 'sent' || inv.status === 'paid') && !inv.voided_at) status = 'ready'
   else status = 'not_exported'
 
@@ -123,7 +141,7 @@ export async function getInvoiceAccountingStatusAction(
     status,
     external_id: (inv.external_invoice_id as string | null) ?? null,
     exported_at: exported ? ((log?.created_at as string | null) ?? null) : null,
-    error: status === 'error' ? ((log?.error_message as string | null) ?? null) : null,
+    error: status === 'error' ? (draftOnly ? `Oprettet som kladde i e-conomic, men ikke bogført — bogfør kladden i e-conomic (${String(inv.external_invoice_id)}).` : ((log?.error_message as string | null) ?? null)) : null,
     provider: PROVIDER,
     integration_ready: integrationReady,
     blocking_issues: blockingIssues,
@@ -236,12 +254,11 @@ export async function exportInvoiceToEconomicAction(
     return { ok: true, status: 'exported', message: 'Faktura eksporteret til e-conomic.', external_id: result.externalId ?? null }
   }
   if (result.status === 'skipped') {
-    // Allerede eksporteret eller config-skip.
-    const already = (result.reason ?? '').includes('NOT_CONFIGURED') ? false : true
-    if (already) {
-      return { ok: true, status: 'already_exported', message: 'Fakturaen er allerede eksporteret til e-conomic.', external_id: result.externalId ?? null }
+    const skip = describeEconomicSkip(result)
+    if (skip.already) {
+      return { ok: true, status: 'already_exported', message: skip.message, external_id: result.externalId ?? null }
     }
-    return { ok: false, status: 'not_configured', message: 'e-conomic er ikke opsat endnu.' }
+    return { ok: false, status: skip.notConfigured ? 'not_configured' : 'failed', message: skip.message }
   }
   await audit('invoice_accounting_export_failed', `Eksport til e-conomic fejlede: ${result.error ?? 'ukendt'}`, {
     reason: result.reason ?? null,
@@ -333,7 +350,10 @@ export async function bulkExportInvoicesToEconomicAction(
       if (res.ok && res.status === 'success') {
         items.push({ invoice_id: id, invoice_number: invoiceNumber, status: 'exported', external_id: res.externalId ?? null })
       } else if (res.status === 'skipped') {
-        items.push({ invoice_id: id, invoice_number: invoiceNumber, status: 'skipped', reason: 'Allerede eksporteret', external_id: res.externalId ?? null })
+        const skip = describeEconomicSkip(res)
+        items.push(skip.already
+          ? { invoice_id: id, invoice_number: invoiceNumber, status: 'skipped', reason: 'Allerede eksporteret', external_id: res.externalId ?? null }
+          : { invoice_id: id, invoice_number: invoiceNumber, status: 'failed', reason: skip.message })
       } else {
         items.push({ invoice_id: id, invoice_number: invoiceNumber, status: 'failed', reason: res.error ?? 'ukendt fejl' })
       }
@@ -1002,7 +1022,9 @@ export async function listAccountingSyncLogAction(params?: {
     const isInvoice = entityType === 'invoice'
     const inv = isInvoice ? invMap.get(r.entity_id as string) : undefined
     const exported = !!inv?.external_invoice_id && inv?.external_provider === PROVIDER
+    // A-5: en ikke-bogført kladde (draft-N) genforsøges ikke herfra — eksporten ville blot springe over
     const retryEligible =
+      !String(inv?.external_invoice_id ?? '').startsWith('draft-') &&
       integrationReady &&
       isInvoice &&
       (r.status as AccountingStatus) === 'failed' &&
@@ -1107,7 +1129,9 @@ export async function retryInvoiceExportAction(
     return { ok: true, status: 'exported', message: 'Faktura eksporteret til e-conomic.', external_id: result.externalId ?? null }
   }
   if (result.status === 'skipped') {
-    return { ok: true, status: 'already_exported', message: 'Fakturaen er allerede eksporteret.', external_id: result.externalId ?? null }
+    const skip = describeEconomicSkip(result)
+    if (skip.already) return { ok: true, status: 'already_exported', message: skip.message, external_id: result.externalId ?? null }
+    return { ok: false, status: 'failed', message: skip.message }
   }
   await audit(false, `Genforsøg fejlede: ${friendlyEconomicError(result.error)}`, { error: friendlyEconomicError(result.error) })
   return { ok: false, status: 'failed', message: `Eksport fejlede: ${friendlyEconomicError(result.error)}` }

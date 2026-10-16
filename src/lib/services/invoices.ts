@@ -11,8 +11,9 @@
 import { caseVatBlock } from '@/lib/invoices/vat-guard'
 import { MIN_DAYS_BETWEEN_REMINDERS, pickReminderLevel } from '@/lib/invoices/reminder-plan' // regler delt med cockpittet (N89)
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { copenhagenDatePlusDays, copenhagenCalendarDaysBetween as calendarDaysBetween } from '@/lib/utils/copenhagen-time'
 import { rebaseDueDateOnSend } from '@/lib/invoices/due-date'
 import { logger } from '@/lib/utils/logger'
 import { getStandardSaleRate } from '@/lib/services/rates'
@@ -662,13 +663,33 @@ export async function markInvoiceSent(invoiceId: string): Promise<InvoiceRow> {
   return setInvoiceStatus(invoiceId, 'sent')
 }
 
-/** Move invoice from sent → paid (sets paid_at). Optionally records payment_reference. */
+/**
+ * Move invoice from sent → paid (sets paid_at). Optionally records payment_reference.
+ *
+ * A-12 (beslutning 2026-10-16): manuel "Markér betalt" ændrer KUN CRM'ets betalingsstatus — restbeløbet registreres som
+ * en betalingsrække (så amount_paid/payment_status stemmer, og senere bankbetalinger regnes korrekt), men der postes
+ * ALDRIG automatisk i e-conomic. `recordedAmount` = det registrerede restbeløb (0 hvis intet stod udestående).
+ */
 export async function markInvoicePaid(
   invoiceId: string,
   paymentReference?: string | null
-): Promise<InvoiceRow> {
-  const row = await setInvoiceStatus(invoiceId, 'paid')
-  if (paymentReference !== undefined) {
+): Promise<InvoiceRow & { recordedAmount: number }> {
+  const supabase0 = createAdminClient()
+  const { data: cur0 } = await supabase0.from('invoices').select('*').eq('id', invoiceId).maybeSingle()
+  if (!cur0) throw new Error(`markInvoicePaid: invoice ${invoiceId} not found`)
+  const outstanding = round2((await outstandingByInvoice(supabase0, [cur0 as InvoiceRow])).get(invoiceId) ?? 0)
+  let recordedAmount = 0
+  if ((cur0 as InvoiceRow).status === 'sent' && outstanding > 0.005) {
+    const ref = paymentReference != null && paymentReference.trim() !== '' ? paymentReference.trim() : 'Manuelt markeret betalt'
+    await registerPayment(invoiceId, outstanding, ref, { syncEconomic: false })
+    recordedAmount = outstanding
+  }
+  const { data: after } = await supabase0.from('invoices').select('status').eq('id', invoiceId).maybeSingle()
+  const row = (after as { status?: string } | null)?.status === 'paid'
+    ? ((await supabase0.from('invoices').select('*').eq('id', invoiceId).single()).data as InvoiceRow)
+    : await setInvoiceStatus(invoiceId, 'paid')
+  // A-12 (review 2026-10-16): kun en udfyldt reference gemmes — før nulstillede "Markér betalt" uden reference fakturaens
+  if (paymentReference != null && paymentReference.trim() !== '') {
     const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('invoices')
@@ -681,11 +702,11 @@ export async function markInvoicePaid(
         entityId: invoiceId,
         error,
       })
-      return row
+      return { ...row, recordedAmount }
     }
-    return data as InvoiceRow
+    return { ...(data as InvoiceRow), recordedAmount }
   }
-  return row
+  return { ...row, recordedAmount }
 }
 
 /**
@@ -733,17 +754,21 @@ export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
   //   - invoice_type='credit'  → en kreditnota skal aldrig modtage rykker
   //   - final_amount <= 0      → ingen aktiv fordring
   // .or() håndterer null-safety for invoice_type (gamle rows uden kolonne).
-  const { data, error } = await supabase
-    .from('invoices')
-    .select('*')
-    .eq('status', 'sent')
-    .lte('due_date', cutoffIso)
-    .is('voided_at', null)
-    .gt('final_amount', 0)
-    .or('invoice_type.is.null,invoice_type.neq.credit')
-    .order('due_date', { ascending: true })
-
-  if (error) {
+  // A-10 (review 2026-10-16): side for side — PostgREST' 1.000-loft tabte de nyeste forfaldne (sorteret efter forfald)
+  let data: InvoiceRow[]
+  try {
+    data = await fetchAllRows<InvoiceRow>((from, to) => supabase
+      .from('invoices')
+      .select('*')
+      .eq('status', 'sent')
+      .lte('due_date', cutoffIso)
+      .is('voided_at', null)
+      .gt('final_amount', 0)
+      .or('invoice_type.is.null,invoice_type.neq.credit')
+      .order('due_date', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to))
+  } catch (error) {
     logger.error('getOverdueInvoices failed', { error })
     return []
   }
@@ -752,7 +777,7 @@ export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
   const outstanding = await outstandingByInvoice(supabase, rows)
   // kun fakturaer med reelt udestående (> 0,50 kr — øreafrunding)
   return rows.filter((inv) => (outstanding.get(inv.id) ?? 0) > 0.5).map((inv) => {
-    const days = inv.due_date ? daysBetween(new Date(inv.due_date), today) : 0
+    const days = inv.due_date ? calendarDaysBetween(inv.due_date, today) : 0
     return {
       ...inv,
       days_overdue: days,
@@ -827,7 +852,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
   }
 
   const today = new Date()
-  const days = daysBetween(new Date(invoice.due_date), today)
+  const days = calendarDaysBetween(invoice.due_date, today)
   const level = pickReminderLevel(days, invoice.reminder_count ?? 0)
 
   if (level === null) {
@@ -842,7 +867,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
 
   // 5-day cooldown
   if (invoice.last_reminder_at) {
-    const since = daysBetween(new Date(invoice.last_reminder_at), today)
+    const since = calendarDaysBetween(invoice.last_reminder_at, today)
     if (since < MIN_DAYS_BETWEEN_REMINDERS) {
       await logReminder(invoiceId, level, 'skipped', null, `cooldown ${since}d < ${MIN_DAYS_BETWEEN_REMINDERS}d`)
       return { invoiceId, status: 'skipped', level, reason: `cooldown ${since}d` }
@@ -1010,11 +1035,6 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
 // internals
 // =====================================================
 
-function daysBetween(from: Date, to: Date): number {
-  const ms = to.getTime() - from.getTime()
-  return Math.floor(ms / (1000 * 60 * 60 * 24))
-}
-
 /** Logårsag for en afsendelse med ukendt udfald (Graph-timeout): niveauet regnes som brugt — ingen genafsendelse. */
 const REMINDER_UNCERTAIN_REASON = 'uncertain_timeout'
 /** Logårsag for en rykker der er ved at blive sendt (skrives før Graph); efterlades kun hvis kørslen dræbes → brugt */
@@ -1094,6 +1114,11 @@ export interface SendInvoiceEmailResult {
   reason?: string
   /** false = mailen gik ud UDEN faktura-PDF (render fejlede) — vises for brugeren */
   pdfAttached?: boolean
+  /**
+   * A-1 (review 2026-10-16): ukendt udfald (Graph-tidsudløb) — mailen kan være sendt. Kravet (sent_at) beholdes, så
+   * et nyt klik ikke sender en dublet; brugeren tjekker Sendt-mappen og markerer sendt eller frigiver afsendelsen.
+   */
+  uncertain?: boolean
 }
 
 /**
@@ -1133,8 +1158,31 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     await release()
     throw err
   }
-  if (result.status !== 'sent') await release()
+  // A-1: ved ukendt udfald beholdes kravet — hellere en manuel afklaring end en dobbelt faktura hos kunden
+  if (result.status !== 'sent' && !result.uncertain) await release()
   return result
+}
+
+/**
+ * A-1 (review 2026-10-16): frigiv et tilbageholdt send-krav (kladde med sent_at) efter ukendt udfald, når brugeren
+ * har tjekket Sendt-mappen og mailen IKKE gik ud. Kun kladder; kravet skal være mindst 2 min gammelt, så en
+ * igangværende afsendelse ikke frigives midt i forløbet.
+ */
+export async function releaseInvoiceSendClaim(invoiceId: string): Promise<'released' | 'not_held' | 'too_recent'> {
+  const supabase = createAdminClient()
+  const { data: cur } = await supabase.from('invoices').select('status, sent_at').eq('id', invoiceId).maybeSingle()
+  const row = cur as { status: string; sent_at: string | null } | null
+  if (!row || row.status !== 'draft' || !row.sent_at) return 'not_held'
+  const cutoff = new Date(Date.now() - 2 * 60_000).toISOString()
+  const { data } = await supabase
+    .from('invoices')
+    .update({ sent_at: null })
+    .eq('id', invoiceId)
+    .eq('status', 'draft')
+    .lte('sent_at', cutoff)
+    .select('id')
+    .maybeSingle()
+  return data ? 'released' : 'too_recent'
 }
 
 async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEmailResult> {
@@ -1316,7 +1364,7 @@ async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
       error: new Error(result.error || 'send failed'),
     })
     await logMailRoute(route, 'failed', { invoiceId, error: result.error })
-    return { invoiceId, status: 'failed', recipient, error: result.error }
+    return { invoiceId, status: 'failed', recipient, error: result.error, uncertain: !!result.uncertain }
   }
 
   await logMailRoute(route, 'sent', { invoiceId, messageId: result.messageId })
@@ -1571,7 +1619,9 @@ export interface RegisterPaymentResult {
 export async function registerPayment(
   invoiceId: string,
   amount: number,
-  reference?: string | null
+  reference?: string | null,
+  /** A-12: false = ingen automatisk e-conomic-postering (manuel "Markér betalt") */
+  options: { syncEconomic?: boolean } = {}
 ): Promise<RegisterPaymentResult> {
   const amt = Number(amount)
   if (!(amt > 0) || !Number.isFinite(amt)) {
@@ -1641,7 +1691,9 @@ export async function registerPayment(
     amount_paid: newAmountPaid,
     payment_status: nextPaymentStatus,
   }
-  if (reference) patch.payment_reference = reference
+  // A-2 (review 2026-10-16): bankens tekst gemmes kun på betalingsrækken (invoice_payments.reference) — før overskrev den
+  // fakturaens egen betalingsreference, så senere bankposter med samme tekst (fx "MobilePay Jens Hansen") matchede
+  // denne faktura uden beløbstjek, og rykker/PDF viste banktekst som betalingsreference
 
   if (nextPaymentStatus === 'paid' && inv.status !== 'paid') {
     patch.status = 'paid'
@@ -1666,7 +1718,9 @@ export async function registerPayment(
     await logHealth('invoice', 'ok', `payment registered: ${amt}`, { invoiceId, paymentStatus: nextPaymentStatus })
   } catch { /* never crash */ }
 
-  if (nextPaymentStatus === 'paid') {
+  if (nextPaymentStatus === 'paid' && options.syncEconomic === false) {
+    console.log('INVOICE PAID (manual, CRM only):', invoiceId)
+  } else if (nextPaymentStatus === 'paid') {
     console.log('INVOICE PAID:', invoiceId)
     // Sync payment to e-conomic. Best-effort.
     try {

@@ -398,7 +398,26 @@ async function findByAmount(amount: number): Promise<InvoiceRow[]> {
     // Økonomi-review 2026-10-08 (#3): kun udstedte, ikke-annullerede almindelige fakturaer kan modtage betaling
     .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
     .limit(50)
-  return (data ?? []) as InvoiceRow[]
+  const full = (data ?? []) as InvoiceRow[]
+  // A-13 (review 2026-10-16): restbetaling efter delbetaling — sammenlign også med restbeløbet (final − betalt) på
+  // delbetalte fakturaer; før matchede kun hele fakturabeløbet, så restbetalinger aldrig blev auto-matchet.
+  // Afsender skal stadig matche kunden (samme flow som ovenfor).
+  let partial: InvoiceRow[] = []
+  try {
+    partial = await fetchAllRows<InvoiceRow>((from, to) => supabase
+      .from('invoices')
+      .select('*')
+      .eq('payment_status', 'partial')
+      .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
+      .order('id')
+      .range(from, to))
+  } catch {
+    partial = []
+  }
+  const seen = new Set(full.map((i) => i.id))
+  const rest = partial.filter((i) => !seen.has(i.id)
+    && Math.abs(Math.round((Number(i.final_amount) - Number(i.amount_paid ?? 0)) * 100) - Math.round(amount * 100)) === 0)
+  return [...full, ...rest]
 }
 
 async function senderMatchesInvoiceCustomer(

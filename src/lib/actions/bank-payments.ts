@@ -3,6 +3,7 @@
 /**
  * Bank payment server actions for the minimal UI.
  */
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
@@ -62,14 +63,30 @@ export async function runAutoMatchAction(): Promise<AutoMatchSummary> {
   return summary
 }
 
+/** A-8 (review 2026-10-16): udfaldet meldes på dansk — før lukkede panelet som om alt gik godt, også når fakturaen ikke
+ *  kunne modtage betaling (kladde/kreditnota/annulleret) eller et opslag fejlede */
 export async function manualMatchAction(
   bankTxId: string,
   invoiceId: string
-): Promise<MatchOutcome> {
+): Promise<{ ok: boolean; message: string; outcome?: MatchOutcome }> {
   await requireGate('bank.edit')
-  const outcome = await manualMatchTransaction(bankTxId, invoiceId)
+  let outcome: MatchOutcome
+  try {
+    outcome = await manualMatchTransaction(bankTxId, invoiceId)
+  } catch {
+    return { ok: false, message: 'Posten eller fakturaen blev ikke fundet — genindlæs siden' }
+  }
   revalidatePath('/dashboard/bank')
-  return outcome
+  const ok = outcome.status === 'matched' || outcome.status === 'partial' || outcome.status === 'overpayment'
+  if (outcome.reason === 'already matched') return { ok: false, message: 'Posten er allerede matchet', outcome }
+  if (!ok) {
+    const why = outcome.reason === 'not an incoming payment' ? 'posten er ikke en indbetaling'
+      : outcome.reason.startsWith('already matched') ? 'posten blev netop matchet af en anden'
+      : 'fakturaen kan ikke modtage betaling (kun sendte, ikke-annullerede fakturaer)'
+    return { ok: false, message: `Ikke matchet — ${why}`, outcome }
+  }
+  const label = outcome.status === 'partial' ? 'Delbetaling registreret' : outcome.status === 'overpayment' ? 'Overbetaling registreret' : 'Betaling registreret'
+  return { ok: true, message: label, outcome }
 }
 
 export async function searchInvoicesForMatchAction(query: string, limit = 20) {
@@ -79,9 +96,11 @@ export async function searchInvoicesForMatchAction(query: string, limit = 20) {
     .from('invoices')
     .select('id, invoice_number, final_amount, currency, payment_status, status, due_date')
     .neq('payment_status', 'paid')
+    // A-8: kun udstedte, ikke-annullerede almindelige fakturaer kan modtage betaling (samme regel som auto-match)
+    .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
     .order('created_at', { ascending: false })
     .limit(limit)
-  if (q) req = req.ilike('invoice_number', `%${q}%`)
+  if (q) req = req.ilike('invoice_number', `%${escapeLike(q)}%`)
   const { data } = await req
   return data ?? []
 }

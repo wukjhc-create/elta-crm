@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
-import { createAuditLog } from '@/lib/actions/audit'
+import { createAuditLog } from '@/lib/audit/audit-log-writer'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import type { OfferStatus } from '@/types/offers.types'

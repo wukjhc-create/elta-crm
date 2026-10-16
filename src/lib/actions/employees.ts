@@ -340,7 +340,7 @@ async function auditLoginWithEmployee(employeeId: string, name: string, profileI
     title: active ? 'Login genaktiveret sammen med medarbejderen' : 'Login deaktiveret sammen med medarbejderen',
     createdBy: userId,
   })
-  const { logUpdate } = await import('@/lib/actions/audit')
+  const { logUpdate } = await import('@/lib/audit/audit-log-writer')
   await logUpdate('user', profileId, name || 'Medarbejder', { is_active: { old: !active, new: active } },
     { reason: active ? 'employee_activated' : 'employee_deactivated', employee_id: employeeId })
 }

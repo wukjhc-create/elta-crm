@@ -22,7 +22,6 @@ const U = (reason: string): Exemption => ({ kind: 'self', reason })
 
 export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   // ---- server-only (kaldes kun fra andre server-actions/crons/services)
-  'audit.ts:createAuditLog': S('audit-hjælper kaldt af andre actions efter deres egen gate'),
   'auto-tasks.ts:createAutoTasksForUnansweredEmails': S('cron-/service-hjælper (unanswered-mails-check)'),
   'auto-tasks.ts:autoCloseRespondedTasks': S('cron-/service-hjælper (unanswered-mails-check)'),
   'calculation-intelligence.ts:createSystemAlert': S('intern alarm-skrivning fra motorer'),
@@ -41,7 +40,6 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'portal.ts:validatePortalToken': S('token-validering brugt server-side af portalen'),
   'portal.ts:getPortalOffer': S('læses server-side af portalsiden efter token-validering'),
   'portal.ts:portalBookBesigtigelse': T('kunden booker besigtigelse via portal-token (N31; validering + maks 3 åbne; kundemail gated)'),
-  'system-alerts-admin.ts:createSystemAlertAdmin': S('intern alarm-skrivning (service-role)'),
   // ---- token-valideret ekstern kunde (portal / bekræftelse / fuldmagt)
   'portal.ts:acceptOffer': T('kunden accepterer via portal-token'),
   'portal.ts:rejectOffer': T('kunden afviser via portal-token'),

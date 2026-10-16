@@ -50,7 +50,7 @@ export function BankTransactionsClient({ initialRows }: { initialRows: BankTxLis
               startTransition(async () => {
                 const summary = await runAutoMatchAction()
                 setMatchMsg(
-                  `Scannede ${summary.scanned} · matched ${summary.matched} · partial ${summary.partial} · over ${summary.overpayment} · ambiguous ${summary.ambiguous} · unmatched ${summary.unmatched}`
+                  `Gennemgået ${summary.scanned} · matchet ${summary.matched} · delbetalt ${summary.partial} · overbetalt ${summary.overpayment} · tvetydige ${summary.ambiguous} · umatchede ${summary.unmatched}`
                 )
                 await refresh()
               })
@@ -124,6 +124,7 @@ function BankTxRow({ row, onMatched }: { row: BankTxListRow; onMatched: () => Pr
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<InvoiceCandidate[]>([])
+  const [matchError, setMatchError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   const search = (q: string) => {
@@ -134,11 +135,22 @@ function BankTxRow({ row, onMatched }: { row: BankTxListRow; onMatched: () => Pr
     })
   }
 
-  const apply = (invoiceId: string) => {
+  const apply = (inv: InvoiceCandidate) => {
+    // A-8 (review 2026-10-16): bekræft — et match registrerer betalingen (kan ikke fortrydes her)
+    if (!window.confirm(`Registrér ${fmtAmount(Number(row.amount))} som betaling på faktura ${inv.invoice_number} (${fmtAmount(Number(inv.final_amount), inv.currency)})?`)) return
+    setMatchError(null)
     startTransition(async () => {
-      await manualMatchAction(row.id, invoiceId)
-      setOpen(false)
-      await onMatched()
+      try {
+        const r = await manualMatchAction(row.id, inv.id)
+        if (!r.ok) {
+          setMatchError(r.message)
+          return
+        }
+        setOpen(false)
+        await onMatched()
+      } catch {
+        setMatchError('Match fejlede — prøv igen')
+      }
     })
   }
 
@@ -173,6 +185,7 @@ function BankTxRow({ row, onMatched }: { row: BankTxListRow; onMatched: () => Pr
                 autoFocus
               />
             </div>
+            {matchError && <div role="alert" className="mb-2 text-xs text-red-700">{matchError}</div>}
             <div className="space-y-1 max-h-64 overflow-auto">
               {results.length === 0 && <div className="text-xs text-gray-500">Ingen kandidater.</div>}
               {results.map((inv) => (
@@ -180,10 +193,10 @@ function BankTxRow({ row, onMatched }: { row: BankTxListRow; onMatched: () => Pr
                   <div>
                     <span className="font-medium">{inv.invoice_number}</span>
                     <span className="ml-2 text-gray-500">
-                      {fmtAmount(Number(inv.final_amount), inv.currency)} · {inv.status} / {inv.payment_status}
+                      {fmtAmount(Number(inv.final_amount), inv.currency)} · {INVOICE_STATUS_LABEL[inv.status] ?? inv.status} / {PAYMENT_STATUS_LABEL[inv.payment_status] ?? inv.payment_status}
                     </span>
                   </div>
-                  <Button size="sm" onClick={() => apply(inv.id)}>Match</Button>
+                  <Button size="sm" onClick={() => apply(inv)}>Match</Button>
                 </div>
               ))}
             </div>
@@ -205,5 +218,16 @@ function StatusBadge({ status }: { status: string }) {
       : status === 'overpayment'
       ? 'bg-purple-100 text-purple-800'
       : 'bg-emerald-100 text-emerald-800'
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{status}</span>
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{MATCH_STATUS_LABEL[status] ?? status}</span>
 }
+
+// A-9 (review 2026-10-16): danske statusnavne (før rå engelske værdier)
+const MATCH_STATUS_LABEL: Record<string, string> = {
+  matched: 'Matchet',
+  partial: 'Delbetalt',
+  overpayment: 'Overbetalt',
+  ambiguous: 'Tvetydig',
+  unmatched: 'Umatchet',
+}
+const INVOICE_STATUS_LABEL: Record<string, string> = { draft: 'Kladde', sent: 'Sendt', paid: 'Betalt' }
+const PAYMENT_STATUS_LABEL: Record<string, string> = { pending: 'Afventer', partial: 'Delbetalt', paid: 'Betalt' }

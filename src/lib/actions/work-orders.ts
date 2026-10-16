@@ -11,7 +11,7 @@ import {
   formatError,
 } from '@/lib/actions/action-helpers'
 import { getWorkOrderScope, getWorkOrderEmployeeScope, userCanViewWorkOrder } from '@/lib/auth/case-scope'
-import { createAuditLog } from '@/lib/actions/audit'
+import { createAuditLog } from '@/lib/audit/audit-log-writer'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
