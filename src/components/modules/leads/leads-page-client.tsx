@@ -295,11 +295,16 @@ export function LeadsPageClient({ leads, pagination, filters, sort, initialView 
           <>
             {/* S-4 (pilot-review 2026-10-15): tavlen viser højst de 500 nyeste — sig det (før forsvandt ældre åbne leads
                 og kolonnetællingerne var for lave uden besked) */}
-            {pagination.totalItems > leads.length && (
-              <div className="mb-3 rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" role="status" data-testid="leads-kanban-capped">
-                Tavlen viser de {leads.length} nyeste af {pagination.totalItems} leads — brug tabelvisningen eller et filter for at se resten.
-              </div>
-            )}
+            {(() => {
+              // S-4: tavlen = åbne leads (totalItems tæller kun dem) + vundne/tabte fra de seneste 90 dage
+              const openShown = leads.filter((l) => l.status !== 'won' && l.status !== 'lost').length
+              return pagination.totalItems > openShown ? (
+                <div className="mb-3 rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" role="status" data-testid="leads-kanban-capped">
+                  Tavlen viser de {openShown} nyeste af {pagination.totalItems} åbne leads — brug tabelvisningen eller et filter for at se resten.
+                </div>
+              ) : null
+            })()}
+            <p className="mb-2 text-xs text-gray-500" data-testid="leads-kanban-closed-note">Vundne/tabte: seneste 90 dage.</p>
             <LeadsKanban leads={leads} />
           </>
         )}

@@ -58,6 +58,9 @@ export const PERMISSIONS = {
 
   // Task permissions
   'tasks.view': ['admin', 'serviceleder', 'montør'],
+  // X-13 (Henrik 2026-10-16): opgavemenuen for alle roller — uden tasks.view ses kun egne (oprettede/tildelte) opgaver
+  // (getAllTasks/getTaskCounts, W-8); ændring/sletning gates fortsat i customer-tasks.ts (taskWriteDenied)
+  'tasks.menu': ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'],
   'tasks.create': ['admin', 'serviceleder'],
   'tasks.edit': ['admin', 'serviceleder', 'montør'],
   'tasks.delete': ['admin', 'serviceleder'],
@@ -112,6 +115,8 @@ export const PERMISSIONS = {
   'cases.view.assigned':         ['admin', 'serviceleder', 'montør', 'bogholderi', 'salg'],
   'cases.create':                ['admin', 'serviceleder', 'salg'],
   'cases.edit':                  ['admin', 'serviceleder'],
+  // X-12 (Henrik 2026-10-16): slet sags-/kundedokumenter (kun ikke-beskyttede typer — lib/documents/document-deletable)
+  'documents.delete':            ['admin', 'serviceleder'],
   'cases.edit.own':              ['admin', 'serviceleder', 'montør'],
   'cases.close':                 ['admin', 'serviceleder'],
   'cases.delete':                ['admin'],

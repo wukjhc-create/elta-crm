@@ -584,6 +584,9 @@ export async function listWorkOrdersByDateRange(
           scheduled_date, start_time, estimated_hours, assigned_employee_id, source_offer_id,
           auto_invoice_on_done, low_profit, completed_at, created_at, updated_at
         `)
+      // M-7 (pilot-review 2026-10-15): montørens scope = arbejdsordrer tildelt hans medarbejder (getWorkOrderScope) —
+      // filtreres nu i databasen (før hentedes alle åbne job i firmaet og filtreredes i JS); JS-filteret nedenfor bevares
+      if (woScope.type === 'specific' && woScope.employeeId) woQuery = woQuery.eq('assigned_employee_id', woScope.employeeId)
       woQuery = withOpen
         ? woQuery.or(`and(scheduled_date.gte.${startDate},scheduled_date.lte.${endDate}),and(scheduled_date.is.null,status.in.(planned,in_progress)),and(scheduled_date.lt.${startDate},status.in.(planned,in_progress))`)
         : woQuery.gte('scheduled_date', startDate).lte('scheduled_date', endDate)

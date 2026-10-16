@@ -191,7 +191,8 @@ export function MailClient() {
       if (emailResult.error) setError(emailResult.error)
       setEmails(emailResult.data)
       setTotalCount(emailResult.count)
-      setStats({
+      // S-8: fejlede tællere overskriver ikke de forrige (før blev alt 0)
+      if (!statsResult.failed) setStats({
         total: statsResult.total,
         unread: statsResult.unread,
         unidentified: statsResult.unidentified,
@@ -322,7 +323,8 @@ export function MailClient() {
       if (emailResult.error) return
       setEmails(emailResult.data)
       setTotalCount(emailResult.count)
-      setStats({
+      // S-8: fejlede tællere overskriver ikke de forrige (før blev alt 0)
+      if (!statsResult.failed) setStats({
         total: statsResult.total,
         unread: statsResult.unread,
         unidentified: statsResult.unidentified,

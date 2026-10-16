@@ -369,7 +369,7 @@ export function TasksPageClient({
           <h1 className="text-2xl font-bold">{isMontor ? 'Mine opgaver' : 'Opgaver'}</h1>
           <p className="text-gray-500">
             {isMontor
-              ? 'Opgaver tildelt til dig'
+              ? 'Opgaver du har oprettet eller er tildelt'
               : 'Oversigt over alle opgaver på tværs af kunder'}
           </p>
         </div>

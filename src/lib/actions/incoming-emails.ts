@@ -241,6 +241,8 @@ export async function getIncomingEmailStats(): Promise<{
   requiresResponse: number
   webform: number
   archived: number
+  /** S-8 (pilot-review 2026-10-15): mindst én tæller fejlede — klienten beholder de forrige tal i stedet for at vise 0 */
+  failed?: boolean
 }> {
   const supabase = await createClient()
 
@@ -281,6 +283,7 @@ export async function getIncomingEmailStats(): Promise<{
     requiresResponse,
     webform: webformRes.count || 0,
     archived: archivedRes.count || 0,
+    failed: [totalRes, unreadRes, unidentifiedRes, linkedRes, pendingRes, ignoredRes, aoRes, webformRes, archivedRes].some((r) => !!r.error),
   }
 }
 

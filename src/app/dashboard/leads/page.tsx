@@ -41,16 +41,26 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   const mine = params.mine === '1'
   const assigned_to = mine ? (await getUser())?.id : undefined
 
+  // S-4 (pilot-review 2026-10-15): tavlen henter ÅBNE leads for sig (før fyldte vundne/tabte de 500 pladser, så ældre
+  // åbne leads forsvandt) + vundne/tabte fra de seneste 90 dage til de lukkede kolonner
+  const OPEN: LeadStatus[] = ['new', 'contacted', 'qualified', 'proposal', 'negotiation']
+  const kanbanSplit = isKanban && !status
   const result = await getLeads({
     page,
     pageSize,
     search,
     status,
+    statuses: kanbanSplit ? OPEN : undefined,
     source,
     sortBy,
     sortOrder,
     assigned_to,
   })
+  if (kanbanSplit && result.success && result.data) {
+    const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
+    const closed = await getLeads({ page: 1, pageSize: 200, search, statuses: ['won', 'lost'], updatedSince: since, source, assigned_to })
+    if (closed.success && closed.data) result.data.data = [...result.data.data, ...closed.data.data]
+  }
 
   if (!result.success || !result.data) {
     return (

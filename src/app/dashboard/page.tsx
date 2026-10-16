@@ -166,6 +166,12 @@ export default async function DashboardPage() {
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />
 
+      {/* B-10: en fejlet tælling vises som besked i stedet for tavse 0'er */}
+      {stats.incomplete && (
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" role="status" data-testid="dashboard-stats-incomplete">
+          Nogle nøgletal kunne ikke hentes lige nu — tallene nedenfor kan være for lave. Genindlæs siden.
+        </div>
+      )}
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard

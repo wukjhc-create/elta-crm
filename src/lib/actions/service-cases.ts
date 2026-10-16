@@ -256,6 +256,8 @@ interface CreateServiceCaseInput {
   purchased_from_customer_id?: string | null
   purchase_source?: string | null
   billing_mode?: ServiceCaseBillingMode | null
+  /** X-14 (00232): eksplicit afregningsform ved oprettelse; tom = vælges senere */
+  billing_model?: 'fixed_price' | 'time_and_materials' | null
 }
 
 export async function createServiceCase(
@@ -313,6 +315,8 @@ export async function createServiceCase(
         contract_sum: input.contract_sum ?? null,
         revised_sum: input.revised_sum ?? null,
         budget: input.budget ?? null,
+        // X-14: kun eksplicit valg (aldrig afledt af kontraktsummen)
+        billing_model: input.billing_model === 'fixed_price' || input.billing_model === 'time_and_materials' ? input.billing_model : null,
         start_date: input.start_date ?? null,
         end_date: input.end_date ?? null,
         source_offer_id: input.source_offer_id ?? null,
@@ -954,6 +958,9 @@ export interface CaseDocument {
   document_type: string
   description: string | null
   created_at: string
+  /** X-12: til beskyttelsesreglen (dokumenter koblet til tilbud kan ikke slettes) */
+  offer_id?: string | null
+  sent_quote_id?: string | null
 }
 
 export interface CaseEmailDetail extends CaseEmail {
@@ -1160,7 +1167,7 @@ export async function getDocumentsForCase(
 
     const { data, error } = await supabase
       .from('customer_documents')
-      .select('id, title, file_name, file_url, storage_path, mime_type, file_size, source_email_id, document_type, description, created_at')
+      .select('id, title, file_name, file_url, storage_path, mime_type, file_size, source_email_id, document_type, description, created_at, offer_id, sent_quote_id')
       .eq('service_case_id', serviceCaseId)
       .order('created_at', { ascending: false })
       .limit(200)

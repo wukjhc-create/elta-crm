@@ -237,6 +237,7 @@ export function NewOrderForm({
         contract_sum: data.contract_sum,
         revised_sum: data.revised_sum,
         budget: data.budget,
+        billing_model: data.billing_model || null,
         // Sprint 9E Phase 4 — sagspartner-roller (alle valgfri)
         orderer_customer_id: data.orderer_customer_id,
         end_customer_id: data.end_customer_id,
@@ -320,6 +321,19 @@ export function NewOrderForm({
               {SERVICE_CASE_STATUSES.map((s) => (
                 <option key={s} value={s}>{SERVICE_CASE_STATUS_LABELS[s]}</option>
               ))}
+            </select>
+          </Field>
+
+          <Field label="Afregningsform">
+            <select
+              {...register('billing_model', { setValueAs: (v) => (v === '' ? null : v) })}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              disabled={isSubmitting}
+              data-testid="new-case-billing-model"
+            >
+              <option value="">Vælg senere (slutfaktura kræver valg)</option>
+              <option value="fixed_price">Fast pris</option>
+              <option value="time_and_materials">Regning (timer og materialer)</option>
             </select>
           </Field>
 

@@ -18,6 +18,8 @@ import type { ActionResult } from '@/types/common.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
+import { documentDeleteBlockReason } from '@/lib/documents/document-deletable'
 
 /**
  * Storage-review 2026-10-08 (S1): fil-adgang går via service-klienten bag action-gaten — så bucket-politikkerne kan
@@ -435,5 +437,72 @@ export async function setCustomerDocumentPortalVisibility(
     return { success: true, data: { id: documentId, visible_in_portal: !!visible } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke ændre deling') }
+  }
+}
+
+/**
+ * X-12 (Henrik 2026-10-16): slet et dokument på en sag/kunde. Krav: bekræftelse (UI), audit, rettighed, beskyttede typer
+ * kan ikke slettes, storage-objekt og metadata håndteres konsistent (ingen forældreløse filer).
+ *  - Rettighed: documents.delete (admin + serviceleder). RLS tillader kun admin at slette → admin-klient EFTER gaten.
+ *  - Beskyttet (historik/økonomi/underskrift): faktura, tilbud, kontrakt/fuldmagt, besigtigelsesrapport, alt koblet til
+ *    et tilbud/sendt tilbud, og arkiverede mail-vedhæftninger (mailen er kilden). Kun "andet"/"internt" kan slettes.
+ *  - Rækkefølge: rækken slettes først (returnerer storage_path); filen fjernes kun hvis ingen anden række peger på den.
+ *    Fejler fil-sletningen, logges det og stien skrives i audit (oprydning muligt) — rækken er væk, så intet peger på en
+ *    manglende fil.
+ */
+const DOCUMENT_DELETE_PERMISSION = 'documents.delete' as const
+
+export async function deleteCustomerDocumentAction(documentId: string): Promise<ActionResult<{ deleted: true; fileRemoved: boolean }>> {
+  try {
+    validateUUID(documentId, 'dokument-ID')
+    const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission(DOCUMENT_DELETE_PERMISSION)) return { success: false, error: 'Manglende tilladelse: documents.delete' }
+
+    const admin = createAdminClient()
+    const { data: doc } = await admin
+      .from('customer_documents')
+      .select('id, title, description, document_type, storage_path, customer_id, service_case_id, offer_id, sent_quote_id, source_email_id')
+      .eq('id', documentId)
+      .maybeSingle()
+    if (!doc) return { success: false, error: 'Dokumentet findes ikke' }
+    const d = doc as { id: string; title: string | null; description: string | null; document_type: string; storage_path: string | null; customer_id: string; service_case_id: string | null; offer_id: string | null; sent_quote_id: string | null; source_email_id: string | null }
+    const blocked = documentDeleteBlockReason(d)
+    if (blocked) return { success: false, error: blocked }
+
+    const { error: delErr } = await admin.from('customer_documents').delete().eq('id', d.id)
+    if (delErr) {
+      logger.error('deleteCustomerDocumentAction: delete failed', { error: delErr, entityId: d.id })
+      return { success: false, error: 'Dokumentet kunne ikke slettes' }
+    }
+
+    let fileRemoved = false
+    let fileError: string | null = null
+    if (d.storage_path) {
+      const { count } = await admin.from('customer_documents').select('id', { count: 'exact', head: true }).eq('storage_path', d.storage_path)
+      if ((count ?? 0) === 0) {
+        const { error: rmErr } = await admin.storage.from('attachments').remove([d.storage_path])
+        if (rmErr) {
+          fileError = rmErr.message
+          logger.error('deleteCustomerDocumentAction: storage remove failed (row already deleted)', { error: rmErr, entityId: d.id })
+        } else fileRemoved = true
+      }
+    }
+
+    await insertAuditRow({
+      user_id: userId,
+      entity_type: 'customer_document',
+      entity_id: d.id,
+      entity_name: d.title ?? 'Dokument',
+      action: 'document_deleted',
+      action_description: `Dokument "${d.title ?? ''}" slettet${fileError ? ' (filen kunne ikke fjernes — se metadata)' : ''}`,
+      changes: null,
+      metadata: { customer_id: d.customer_id, service_case_id: d.service_case_id, document_type: d.document_type, storage_path: d.storage_path, file_removed: fileRemoved, file_error: fileError },
+    })
+
+    if (d.service_case_id) revalidatePath(`/dashboard/orders/${d.service_case_id}`)
+    revalidatePath(`/dashboard/customers/${d.customer_id}`)
+    return { success: true, data: { deleted: true, fileRemoved } }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Dokumentet kunne ikke slettes') }
   }
 }

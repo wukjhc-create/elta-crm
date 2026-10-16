@@ -20,6 +20,10 @@ import { logger } from '@/lib/utils/logger'
 export async function getLeads(filters?: {
   search?: string
   status?: LeadStatus
+  /** S-4 (pilot-review 2026-10-15): flere statusser (tavlen: åbne leads hentes for sig, lukkede for sig) */
+  statuses?: LeadStatus[]
+  /** S-4: kun leads opdateret efter dette tidspunkt (ISO) — lukkede kolonner viser de seneste */
+  updatedSince?: string
   source?: string
   assigned_to?: string
   sortBy?: string
@@ -63,6 +67,13 @@ export async function getLeads(filters?: {
     if (filters?.status) {
       countQuery = countQuery.eq('status', filters.status)
       dataQuery = dataQuery.eq('status', filters.status)
+    } else if (filters?.statuses?.length) {
+      countQuery = countQuery.in('status', filters.statuses)
+      dataQuery = dataQuery.in('status', filters.statuses)
+    }
+    if (filters?.updatedSince && !Number.isNaN(Date.parse(filters.updatedSince))) {
+      countQuery = countQuery.gte('updated_at', filters.updatedSince)
+      dataQuery = dataQuery.gte('updated_at', filters.updatedSince)
     }
 
     if (filters?.source) {

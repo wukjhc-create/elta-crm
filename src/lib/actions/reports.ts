@@ -7,6 +7,7 @@
  * All data is scoped to the authenticated user's org.
  */
 
+import { netInvoicedExVat } from '@/lib/invoices/net-invoiced'
 import { compareOfferToActual, type ActualMaterialInput, type OfferLineInput } from '@/lib/cases/offer-vs-actual'
 import { computeRealizedDb, type RealizedInvoiceInput } from '@/lib/cases/realized-db'
 import { hoursDeviationPct, offeredDb, summarizeAftercalc, type AftercalcSummary } from '@/lib/profit/aftercalc-summary'
@@ -32,6 +33,9 @@ export interface RevenueByPeriod {
   accepted_revenue: number
   sent_count: number
   sent_value: number
+  /** B-9 (pilot-review 2026-10-15): faktureret netto ekskl. moms i måneden (sendte/betalte − kreditnotaer, kun DKK,
+   * efter udstedelsesdato) — kan afstemmes med bogføringen, i modsætning til ordreindgang */
+  invoiced_ex_vat: number
 }
 
 export interface RevenueByCustomer {
@@ -267,7 +271,7 @@ export async function getRevenueByPeriod(
     const rangeStartIso = copenhagenLocalToIso(`${monthKeys[0]}-01`, '00:00')
 
     // Fetch all relevant offers in a single query instead of 2*N queries
-    const [acceptedResult, sentResult] = await Promise.all([
+    const [acceptedResult, sentResult, invoiceRows] = await Promise.all([
       fetchAllRows<{ final_amount: number | null; tax_amount: number | null; accepted_at: string | null }>((f, t) => supabase
         .from('offers')
         .select('id, final_amount, tax_amount, accepted_at')
@@ -285,6 +289,13 @@ export async function getRevenueByPeriod(
         .eq('is_proposal', false)
         .gte('sent_at', rangeStartIso)
         .order('id').range(f, t)).then((data) => ({ data })),
+      // B-9: udstedte fakturaer/kreditnotaer i perioden (pagineret)
+      fetchAllRows<{ total_amount: number | string | null; status: string | null; invoice_type: string | null; voided_at: string | null; sent_at: string | null; currency: string | null }>((f, t) => supabase
+        .from('invoices')
+        .select('id, total_amount, status, invoice_type, voided_at, sent_at, currency')
+        .in('status', ['sent', 'paid'])
+        .gte('sent_at', rangeStartIso)
+        .order('id').range(f, t)),
     ])
 
     // Build period map
@@ -300,8 +311,21 @@ export async function getRevenueByPeriod(
         accepted_revenue: 0,
         sent_count: 0,
         sent_value: 0,
+        invoiced_ex_vat: 0,
       })
     }
+
+    // B-9: faktureret netto pr. dansk kalendermåned (samme netting som sagerne: lib/invoices/net-invoiced)
+    const invByMonth = new Map<string, typeof invoiceRows>()
+    for (const r of invoiceRows) {
+      if (!r.sent_at || (r.currency && r.currency.toUpperCase() !== 'DKK')) continue
+      const key = copenhagenParts(r.sent_at).date.slice(0, 7)
+      if (!periodMap.has(key)) continue
+      const arr = invByMonth.get(key) ?? []
+      arr.push(r)
+      invByMonth.set(key, arr)
+    }
+    for (const [key, arr] of invByMonth) periodMap.get(key)!.invoiced_ex_vat = netInvoicedExVat(arr)
 
     // Group accepted offers by month
     for (const offer of acceptedResult.data || []) {

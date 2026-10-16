@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -2041,6 +2041,45 @@ ${m.text()}`) })
         out.push({ id: 'U173 kundekort: åbent beløb', ok: !!invId && Object.values(r).every(Boolean), note: `${inv?.error ? `SEED: ${inv.error.message} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${u173Diag}` })
       }
 
+      // U175 X-13: opgavemenu for salg + bogholderi — kun egne opgaver (oprettet/tildelt), ikke andres; ingen admin-handlinger
+      if (want('U175') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const bogUser = await mkUser('bogholderi')
+        const ins = await c.admin.from('customer_tasks').insert([
+          { customer_id: profitCustomerId, title: `[HARNESS] salg-egen ${stamp}`, priority: 'normal', created_by: salg.id, assigned_to: salg.id },
+          { customer_id: profitCustomerId, title: `[HARNESS] bog-egen ${stamp}`, priority: 'normal', created_by: bogUser.id, assigned_to: bogUser.id },
+          { customer_id: profitCustomerId, title: `[HARNESS] admin-andres ${stamp}`, priority: 'normal', created_by: adminUser.id, assigned_to: adminUser.id },
+        ]).select('id')
+        const ids = ((ins.data ?? []) as { id: string }[]).map((x) => x.id)
+        try {
+          for (const [k, u, own, other] of [['salg', salg, `salg-egen ${stamp}`, `bog-egen ${stamp}`], ['bogholderi', bogUser, `bog-egen ${stamp}`, `salg-egen ${stamp}`]] as const) {
+            const s = await login(u)
+            await gotoSafe(s.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+            r[`${k}_menu`] = (await s.page.locator('a[href="/dashboard/tasks"]').count()) > 0
+            await gotoSafe(s.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await s.page.getByText(own).first().waitFor({ timeout: 60_000 }).catch(() => {})
+            r[`${k}_ser_egen`] = (await s.page.getByText(own).count()) > 0
+            r[`${k}_ser_ikke_andres`] = (await s.page.getByText(other).count()) === 0 && (await s.page.getByText(`admin-andres ${stamp}`).count()) === 0
+            r[`${k}_ingen_opret_knap`] = (await s.page.getByRole('button', { name: /Ny opgave|Opret opgave/ }).count()) === 0
+            await s.ctx.close().catch(() => {})
+          }
+        } finally {
+          if (ids.length) await c.admin.from('customer_tasks').delete().in('id', ids)
+        }
+        out.push({ id: 'U175 opgavemenu salg/bogholderi (kun egne)', ok: ids.length === 3 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U176 X-14: afregningsform vælges ved oprettelse af sag (gemmes eksplicit; tom = ikke valgt)
+      if (want('U176') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        await gotoSafe(a.page, `${base}/dashboard/orders/new`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const sel = a.page.getByTestId('new-case-billing-model')
+        await sel.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.felt_vist = (await sel.count()) === 1
+        r.standard_tom = ((await sel.inputValue().catch(() => 'x')) ?? 'x') === ''
+        out.push({ id: 'U176 afregningsform ved oprettelse', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U172 B-6/B-7: forfaldne leverandørfakturaer — filteret i listen finder dem (DB-filter), widgetten tæller
       // anden valuta separat
       if (want('U172')) {
@@ -2151,6 +2190,10 @@ ${m.text()}`) })
           r.ikke_allerede_bogfoert = (await a.page.getByText('e-conomic ID').count()) === 0
           await gotoSafe(a.page, `${base}/dashboard/invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
           r.overblik_indlaest = (await a.page.getByText('Betalt denne måned').count()) > 0
+          // B-2: nøgletal fra serveren over alle fakturaer — aldrig fallback-teksten "kunne ikke beregnes"
+          r.server_noegletal = (await a.page.getByText(/nøgletallene kunne ikke beregnes/).count()) === 0
+          const capTxt = (await a.page.getByTestId('invoices-overview-capped').textContent().catch(() => '')) ?? ''
+          r.loft_tekst_ok = !capTxt || /dækker alle fakturaer/.test(capTxt)
         } finally {
           if (invId) await c.admin.from('incoming_invoices').delete().eq('id', invId)
         }
@@ -3213,6 +3256,61 @@ ${m.text()}`) })
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U174 X-12: slet dokument på sag — admin sletter uploadet fil (række + storage + audit), beskyttet dokument har ingen
+      // slet-knap; montør (negativ rolle) ser ingen slet-knap på sin egen sag
+      if (want('U174') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] dokslet ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        const prot = caseId ? await c.admin.from('customer_documents').insert([{ customer_id: profitCustomerId, service_case_id: caseId, title: `Faktura ${stamp}`,
+          document_type: 'invoice', file_url: '', file_name: `faktura-${stamp}.pdf`, mime_type: 'application/pdf' }]).select('id') : null
+        const protId = (prot?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=dokumenter`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+          await a.page.getByTestId('case-upload-input').setInputFiles({ name: `slet-${stamp}.png`, mimeType: 'image/png', buffer: png }).catch(() => {})
+          await a.page.getByTestId('case-upload-msg').waitFor({ timeout: 60_000 }).catch(() => {})
+          type Doc = { id: string; storage_path: string | null; document_type: string }
+          const docs = async () => ((await c.admin.from('customer_documents').select('id, storage_path, document_type').eq('service_case_id', caseId ?? '')).data ?? []) as Doc[]
+          let up: Doc | undefined
+          for (let i = 0; i < 20 && !up; i++) { up = (await docs()).find((d) => d.document_type === 'other'); if (!up) await new Promise((res) => setTimeout(res, 1000)) }
+          r.upload_oprettet = !!up?.storage_path
+          await a.page.waitForLoadState('networkidle').catch(() => {})
+          r.kun_en_slet_knap = (await a.page.getByTestId('case-document-delete').count()) === 1
+          // Annuller først → intet slettes
+          a.page.once('dialog', (d) => { d.dismiss().catch(() => {}) })
+          await a.page.getByTestId('case-document-delete').first().click({ timeout: 30_000 }).catch(() => {})
+          await new Promise((res) => setTimeout(res, 1500))
+          r.annuller_beholder = (await docs()).some((d) => d.id === up?.id)
+          a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+          await a.page.getByTestId('case-document-delete').first().click({ timeout: 30_000 }).catch(() => {})
+          let left: Doc[] = []
+          for (let i = 0; i < 20; i++) { left = await docs(); if (!left.some((d) => d.id === up?.id)) break; await new Promise((res) => setTimeout(res, 1000)) }
+          r.raekke_slettet = !!up && !left.some((d) => d.id === up.id)
+          r.beskyttet_bevaret = left.some((d) => d.id === protId)
+          const dl = up?.storage_path ? await c.admin.storage.from('attachments').download(up.storage_path) : null
+          r.fil_fjernet = !!dl && !!dl.error
+          const aud = ((await c.admin.from('audit_logs').select('action, user_id').eq('entity_id', up?.id ?? '')).data ?? []) as Array<{ action: string; user_id: string | null }>
+          r.audit = aud.some((x) => x.action === 'document_deleted' && x.user_id === adminUser.id)
+          // negativ rolle: montør på sin egen sag (U11) ser ingen slet-knap
+          if (jobCaseId) {
+            const ins = await c.admin.from('customer_documents').insert([{ customer_id: profitCustomerId, service_case_id: jobCaseId, title: `Montørfil ${stamp}`,
+              document_type: 'other', file_url: '', file_name: `montoer-${stamp}.pdf`, mime_type: 'application/pdf' }]).select('id')
+            const mId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+            await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=dokumenter`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await m.page.getByText(`montoer-${stamp}.pdf`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+            r.montoer_ser_dokumentet = (await m.page.getByText(`montoer-${stamp}.pdf`).count()) > 0
+            r.montoer_ingen_slet = (await m.page.getByTestId('case-document-delete').count()) === 0
+            if (mId) await c.admin.from('customer_documents').delete().eq('id', mId)
+          }
+        } finally {
+          if (caseId) await c.admin.from('customer_documents').delete().eq('service_case_id', caseId)
+        }
+        out.push({ id: 'U174 slet dokument på sag (rolle, beskyttelse, storage, audit)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U40 montør på egen sag: kun relevante faner, materialer uden priser (kontoret prissætter)
       if (want('U40') && jobCaseId) {
         const r: Record<string, boolean> = {}
@@ -4160,6 +4258,12 @@ ${m.text()}`) })
         r.rapport_realiseret = ((await repRow.getByTestId('report-case-realized').textContent().catch(() => '')) ?? '').includes('200')
         // fokus D: DB pr. kunde/måned vises når beløb er foldet ud
         r.db_pr_kunde = (await rep.getByTestId('report-db-by-customer').count()) === 1 && (await rep.getByTestId('report-db-by-month').count()) === 1
+        // B-9: faktureret serie (netto ekskl. moms) ved siden af ordreindgang
+        r.faktureret_serie = (await a.page.getByTestId('report-invoiced-bar').count()) > 0
+        // B-8: filtre i URL'en
+        await rep.getByTestId('report-status').selectOption('open').catch(() => {})
+        await a.page.waitForTimeout(500)
+        r.filter_i_url = /status=open/.test(a.page.url())
         out.push({ id: 'U91 realiseret DB pr. sag', ok: !!caseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${u91SeedErr ? ` · SEED: ${u91SeedErr}` : ''} · "${txt.replace(/\s+/g, ' ').slice(0, 200)}"` })
       }
 

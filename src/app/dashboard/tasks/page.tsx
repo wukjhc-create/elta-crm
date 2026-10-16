@@ -17,6 +17,8 @@ export default async function TasksPage() {
   // Sprint 7E fix — montor faar begraenset task-view.
   const ctx = await getPageRoleContext()
   const isMontor = ctx.role === 'montør'
+  // X-13: uden tasks.view (salg/bogholderi) vises kun egne opgaver — samme visning som montørens "Mine opgaver"
+  const ownOnly = isMontor || !ctx.has('tasks.view')
   const canManage = ctx.has('tasks.create') // admin + serviceleder
   // Sprint 8C-1 — saa send-mail-dialogen kan vise advarsel + mailto-fallback
   // hvis Graph ikke er konfigureret i miljøet.
@@ -29,7 +31,7 @@ export default async function TasksPage() {
       {showMyJobs && <MyHoursCard />}
       <PersonalRemindersCard />
       <TasksPageClient
-        isMontor={isMontor}
+        isMontor={ownOnly}
         canManage={canManage}
         graphConfigured={graphConfigured}
       />

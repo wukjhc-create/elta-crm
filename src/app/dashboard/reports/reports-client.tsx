@@ -76,7 +76,7 @@ function KpiCard({
 // =====================================================
 
 function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
-  const maxValue = Math.max(...data.map((d) => d.accepted_revenue), 1)
+  const maxValue = Math.max(...data.map((d) => Math.max(d.accepted_revenue, d.invoiced_ex_vat ?? 0)), 1)
 
   return (
     <div className="bg-white rounded-lg border p-6">
@@ -84,21 +84,28 @@ function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
         <BarChart3 className="w-5 h-5 text-gray-400" />
         {/* B-9 (pilot-review 2026-10-15): tallene er accepterede tilbud (ordreindgang), ikke fakturering — kunne ikke
             afstemmes med e-conomic under navnet "omsætning" */}
-        Ordreindgang pr. måned (accepterede tilbud)
+        Ordreindgang og fakturering pr. måned
       </h3>
       <div className="flex items-end gap-3 h-48">
         {data.map((d) => {
           const height = maxValue > 0 ? (d.accepted_revenue / maxValue) * 100 : 0
+          const invHeight = maxValue > 0 ? (Math.max(0, d.invoiced_ex_vat ?? 0) / maxValue) * 100 : 0
           return (
             <div key={d.period} className="flex-1 flex flex-col items-center gap-1">
               <span className="text-[10px] text-gray-500 font-medium">
                 {d.accepted_count > 0 ? formatCurrency(d.accepted_revenue) : ''}
               </span>
-              <div className="w-full flex flex-col items-center justify-end h-36">
+              <div className="w-full flex items-end justify-center gap-1 h-36">
                 <div
-                  className="w-full max-w-12 bg-primary/80 rounded-t transition-all"
+                  className="w-1/2 max-w-6 bg-primary/80 rounded-t transition-all"
                   style={{ height: `${Math.max(height, 2)}%` }}
-                  title={`${formatCurrency(d.accepted_revenue)} (${d.accepted_count} tilbud)`}
+                  title={`Ordreindgang ${formatCurrency(d.accepted_revenue)} (${d.accepted_count} tilbud)`}
+                />
+                <div
+                  className="w-1/2 max-w-6 bg-emerald-500/80 rounded-t transition-all"
+                  style={{ height: `${Math.max(invHeight, 2)}%` }}
+                  title={`Faktureret ${formatCurrency(d.invoiced_ex_vat ?? 0)} ekskl. moms (netto)`}
+                  data-testid="report-invoiced-bar"
                 />
               </div>
               <span className="text-[10px] text-gray-400">{d.period}</span>
@@ -108,7 +115,10 @@ function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
       </div>
       <div className="flex items-center gap-4 mt-4 pt-3 border-t text-xs text-gray-500">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-primary/80" /> Accepterede tilbud
+          <span className="w-3 h-3 rounded bg-primary/80" /> Ordreindgang (accepterede tilbud)
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-emerald-500/80" /> Faktureret netto ekskl. moms (sendt/betalt − kreditnotaer)
         </span>
       </div>
     </div>
@@ -224,6 +234,33 @@ function ProjectTable() {
   const [status, setStatus] = useState<'all' | 'open' | 'closed'>('all')
   const [onlyIssues, setOnlyIssues] = useState(false)
   const [showAll, setShowAll] = useState(false)
+  // B-8 (pilot-review 2026-10-15): filtrene står i URL'en (?periode=&status=&problemer=1&afvigelse=1) — tilbage fra en
+  // sag eller et delt link lander på samme udsnit. Læses efter mount (ingen hydreringsforskel), skrives med replaceState.
+  const [urlReady, setUrlReady] = useState(false)
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search)
+      const per = q.get('periode')
+      if (per && /^\d{1,4}$/.test(per)) setPeriod(per)
+      const st = q.get('status')
+      if (st === 'open' || st === 'closed' || st === 'all') setStatus(st)
+      if (q.get('problemer') === '1') setOnlyIssues(true)
+      if (q.get('afvigelse') === '1') setByDeviation(true)
+    } catch { /* ignore */ }
+    setUrlReady(true)
+  }, [])
+  useEffect(() => {
+    if (!urlReady) return
+    try {
+      const url = new URL(window.location.href)
+      const set = (k: string, v: string | null) => { if (v) url.searchParams.set(k, v); else url.searchParams.delete(k) }
+      set('periode', period !== '365' ? period : null)
+      set('status', status !== 'all' ? status : null)
+      set('problemer', onlyIssues ? '1' : null)
+      set('afvigelse', byDeviation ? '1' : null)
+      window.history.replaceState(window.history.state, '', url.toString())
+    } catch { /* ignore */ }
+  }, [urlReady, period, status, onlyIssues, byDeviation])
   const [report, setReport] = useState<ProjectProfitabilityReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

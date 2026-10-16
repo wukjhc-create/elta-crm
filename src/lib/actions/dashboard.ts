@@ -5,6 +5,7 @@ import type { OfferStatus } from '@/types/offers.types'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { DASHBOARD_LIMITS } from '@/lib/constants'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { logger } from '@/lib/utils/logger'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 export interface DashboardStats {
@@ -47,6 +48,8 @@ export interface DashboardStats {
   customerEmails: {
     unread: number
   }
+  /** B-10 (pilot-review 2026-10-15): mindst én forespørgsel fejlede — tallene er ufuldstændige (før: tavst 0) */
+  incomplete?: boolean
 }
 
 export interface RecentActivity {
@@ -59,13 +62,17 @@ export interface RecentActivity {
   link?: string
 }
 
-/** Som før: en fejlende forespørgsel giver tomme tal frem for at vælte dashboardet. */
+/** En fejlende forespørgsel giver tomme tal frem for at vælte siden (bruges af de øvrige dashboard-funktioner). */
 function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
   return fetchAllRows(page).catch(() => [] as T[])
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   const { supabase, userId } = await getAuthenticatedClient()
+  // En fejlende forespørgsel giver tomme tal frem for at vælte dashboardet — men markeres (B-10), så siden kan sige det
+  let incomplete = false
+  const allRows = <T,>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> =>
+    fetchAllRows(page).catch((err) => { incomplete = true; logger.error('getDashboardStats: query failed', { error: err }); return [] as T[] })
 
   // Fetch all stats in parallel
   const [
@@ -196,6 +203,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     messages: {
       unread: messagesResult.count || 0,
     },
+    incomplete: incomplete || !!projectsResult.error || !!messagesResult.error || !!customerEmailsResult.error,
     customerEmails: {
       unread: customerEmailsResult.count || 0,
     },

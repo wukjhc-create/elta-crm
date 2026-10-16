@@ -497,6 +497,13 @@ ${link}`,
 }
 
 // Accept offer with signature
+/** S-11: "T-2026-0012 · Kundenavn · Titel" til interne notifikationer */
+function offerLabel(o: { offer_number?: string | null; title?: string | null; id?: string; customer?: unknown }): string {
+  const c = (Array.isArray(o.customer) ? o.customer[0] : o.customer) as { company_name?: string | null; contact_person?: string | null } | null | undefined
+  const who = c?.company_name || c?.contact_person || ''
+  return [o.offer_number, who, o.title].filter((x) => !!x && String(x).trim()).join(' · ') || (o.id ?? 'tilbud')
+}
+
 export async function acceptOffer(
   token: string,
   data: AcceptOfferData
@@ -532,7 +539,7 @@ export async function acceptOffer(
     // Verify offer belongs to customer and get details for project creation
     const { data: offer, error: offerError } = await admin
       .from('offers')
-      .select('id, status, customer_id, title, final_amount, created_by, valid_until, sent_at')
+      .select('id, status, customer_id, title, final_amount, created_by, valid_until, sent_at, offer_number, customer:customers!offers_customer_id_fkey(company_name, contact_person)')
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
       .maybeSingle()
@@ -698,12 +705,12 @@ ${link}`,
 
       await sendEmail({
         to: crmMailbox,
-        subject: `Tilbud accepteret: ${offer.title}`,
+        subject: `Tilbud accepteret: ${offerLabel(offer)}`,
         html: `
           <h2>Tilbud accepteret</h2>
           <p>Kunden har accepteret et tilbud via kundeportalen.</p>
           <table style="border-collapse:collapse;margin:16px 0;">
-            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tilbud:</td><td style="font-weight:600;">${escapeHtml(offer.title)}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tilbud:</td><td style="font-weight:600;">${escapeHtml(offerLabel(offer))}</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Underskrevet af:</td><td>${escapeHtml(data.signer_name)} (${escapeHtml(data.signer_email)})</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Beløb:</td><td style="font-weight:600;">${new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(offer.final_amount)}</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Tidspunkt:</td><td>${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}</td></tr>
@@ -792,7 +799,7 @@ export async function rejectOffer(
     // Verify offer belongs to customer
     const { data: offer, error: offerError } = await admin
       .from('offers')
-      .select('id, status, customer_id, title')
+      .select('id, status, customer_id, title, offer_number, customer:customers!offers_customer_id_fkey(company_name, contact_person)')
       .eq('id', offerId)
       .eq('customer_id', customerId)
       .maybeSingle()
@@ -865,7 +872,7 @@ export async function rejectOffer(
     // Send email notification to CRM mailbox (non-critical)
     try {
       const crmMailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'
-      const subject = `Tilbud afvist: ${offer.title || offer.id}`
+      const subject = `Tilbud afvist: ${offerLabel(offer)}`
       const signerLine = (normalized.signerName || normalized.signerEmail)
         ? `<p><strong>Afvist af:</strong> ${escapeHtml(
             [normalized.signerName, normalized.signerEmail].filter(Boolean).join(' — ')
@@ -873,7 +880,7 @@ export async function rejectOffer(
         : ''
       const html = `
         <h2>Tilbud afvist</h2>
-        <p>Kunden har afvist et tilbud via kundeportalen.</p>
+        <p>Kunden har afvist et tilbud via kundeportalen: <strong>${escapeHtml(offerLabel(offer))}</strong></p>
         <p><strong>Årsag:</strong> ${escapeHtml(reasonLabel)}</p>
         ${normalized.note ? `<p><strong>Bemærkning:</strong> ${escapeHtml(normalized.note)}</p>` : ''}
         ${signerLine}

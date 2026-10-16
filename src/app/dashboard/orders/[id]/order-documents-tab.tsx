@@ -11,12 +11,14 @@
 import { downscaleImageForUpload } from '@/lib/utils/image-downscale'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { FileText, Mail, Download, Loader2, FolderOpen, Camera } from 'lucide-react'
+import { FileText, Mail, Download, Loader2, FolderOpen, Camera, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { getDocumentsForCase, type CaseDocument } from '@/lib/actions/service-cases'
 import { RoofDrawingCaseCard } from '@/components/modules/customers/roof-drawing/roof-drawing-case-card'
-import { uploadCaseDocument } from '@/lib/actions/customer-documents'
+import { uploadCaseDocument, deleteCustomerDocumentAction } from '@/lib/actions/customer-documents'
+import { documentDeleteBlockReason } from '@/lib/documents/document-deletable'
+import { humanizeErrorText } from '@/lib/auth/permission-text'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
 
@@ -47,6 +49,18 @@ export function OrderDocumentsTab({
   const { role } = useUserRole()
   // Kontor (cases.edit) og montør på egne sager (cases.edit.own; serveren tjekker scope)
   const canUpload = hasPermission(role, 'cases.edit') || hasPermission(role, 'cases.edit.own')
+  // X-12: sletning kun for admin/serviceleder og kun ikke-beskyttede dokumenter (serveren håndhæver det samme)
+  const canDelete = hasPermission(role, 'documents.delete')
+  const [deleteMsg, setDeleteMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const onDelete = async (doc: CaseDocument) => {
+    if (!window.confirm(`Slet "${doc.file_name}" permanent?\n\nFilen fjernes fra sagen og kan ikke gendannes. Sletningen logges.`)) return
+    setDeleteMsg(null)
+    const r = await deleteCustomerDocumentAction(doc.id)
+    if (r.success) {
+      setDeleteMsg({ ok: true, text: `"${doc.file_name}" er slettet` })
+      await load()
+    } else setDeleteMsg({ ok: false, text: humanizeErrorText(r.error) || 'Dokumentet kunne ikke slettes' })
+  }
 
   const load = useCallback(async () => {
     const data = await getDocumentsForCase(caseId)
@@ -145,6 +159,9 @@ export function OrderDocumentsTab({
         </div>
       )}
 
+      {deleteMsg && (
+        <p className={`text-sm ${deleteMsg.ok ? 'text-emerald-700' : 'text-red-600'}`} role="status" data-testid="case-document-delete-msg">{deleteMsg.text}</p>
+      )}
       {documents.length === 0 && (
         <div className="bg-white rounded-lg border p-12 text-center text-gray-500">
           <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -166,7 +183,7 @@ export function OrderDocumentsTab({
           </div>
           <div className="divide-y">
             {mailDocs.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} fromMail />
+              <DocumentRow key={doc.id} doc={doc} fromMail onDelete={canDelete ? onDelete : undefined} />
             ))}
           </div>
         </div>
@@ -182,7 +199,7 @@ export function OrderDocumentsTab({
           </div>
           <div className="divide-y">
             {otherDocs.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} fromMail={false} />
+              <DocumentRow key={doc.id} doc={doc} fromMail={false} onDelete={canDelete ? onDelete : undefined} />
             ))}
           </div>
         </div>
@@ -191,7 +208,8 @@ export function OrderDocumentsTab({
   )
 }
 
-function DocumentRow({ doc, fromMail }: { doc: CaseDocument; fromMail: boolean }) {
+function DocumentRow({ doc, fromMail, onDelete }: { doc: CaseDocument; fromMail: boolean; onDelete?: (doc: CaseDocument) => void }) {
+  const blocked = documentDeleteBlockReason(doc)
   const isImg = isImage(doc.mime_type, doc.file_name)
   return (
     <div className="p-4 flex items-center justify-between gap-3">
@@ -236,6 +254,17 @@ function DocumentRow({ doc, fromMail }: { doc: CaseDocument; fromMail: boolean }
         >
           <Download className="w-3.5 h-3.5" /> Åbn
         </a>
+      )}
+      {onDelete && !blocked && (
+        <button
+          type="button"
+          onClick={() => onDelete(doc)}
+          className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100"
+          aria-label={`Slet ${doc.file_name}`}
+          data-testid="case-document-delete"
+        >
+          <Trash2 className="w-3.5 h-3.5" /> Slet
+        </button>
       )}
     </div>
   )

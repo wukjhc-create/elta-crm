@@ -91,6 +91,8 @@ export const createServiceCaseSchema = z.object({
   purchased_from_customer_id: optionalUuid,
   purchase_source: optionalString(200, 'Købssted'),
   billing_mode: z.enum(BILLING_MODE_VALUES).nullable().optional(),
+  // X-14 (00232): afregningsform kan vælges ved oprettelse; tom = vælges senere (slutfaktura blokeret til valgt)
+  billing_model: z.enum(['fixed_price', 'time_and_materials']).nullable().optional(),
 })
 
 export type CreateServiceCaseInput = z.infer<typeof createServiceCaseSchema>
