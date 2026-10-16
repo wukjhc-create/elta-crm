@@ -6040,6 +6040,20 @@ ${m.text()}`) })
         await link.waitFor({ timeout: 30_000 }).catch(() => {})
         const href = (await link.getAttribute('href').catch(() => '')) ?? ''
         r.kontor_ser_signeret_bilag = /^https?:\/\//.test(href) && href.includes('token=')
+        // ST-7 (storage-review 2026-10-16): slet omkostningen i UI'et → rækken OG kvitteringsfilen er væk
+        if (row?.receipt_url) {
+          a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+          const rowEl = a.page.locator('tr', { hasText: desc }).first()
+          await rowEl.getByRole('button', { name: 'Slet omkostning' }).click({ timeout: 30_000 }).catch(() => {})
+          let rowGone = false
+          for (let i = 0; i < 20 && !rowGone; i++) {
+            rowGone = !(await c.admin.from('case_other_costs').select('id').eq('case_id', jobCaseId).eq('description', desc).maybeSingle()).data
+            if (!rowGone) await new Promise((res) => setTimeout(res, 500))
+          }
+          r.slet_fjerner_raekke = rowGone
+          const dl = await c.admin.storage.from('attachments').download(row.receipt_url)
+          r.slet_fjerner_kvittering = !!dl.error
+        }
         if (row?.receipt_url) await c.admin.storage.from('attachments').remove([row.receipt_url])
         out.push({ id: 'U71 N30 kvittering på øvrig omkostning', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }

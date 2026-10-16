@@ -238,10 +238,17 @@ export async function deleteRoofDrawing(id: string): Promise<ActionResult<void>>
       if (denied) return { success: false, error: denied }
     }
 
-    const { error } = await supabase.from('roof_drawings').delete().eq('id', id)
+    // ST-7 (storage-review 2026-10-16): billedet fjernes også fra storage (før blev filen liggende) — rækken først
+    const { data: gone, error } = await supabase.from('roof_drawings').delete().eq('id', id).select('image_storage_path')
     if (error) {
       logger.error('deleteRoofDrawing failed', { error })
       return { success: false, error: 'Kunne ikke slette tegning' }
+    }
+    if (!gone || gone.length === 0) return { success: false, error: 'Tegningen blev ikke slettet (findes ikke eller må ikke slettes)' }
+    const path = (gone[0] as { image_storage_path?: string | null }).image_storage_path
+    if (path && path.startsWith('roof-drawings/')) {
+      const { error: rmErr } = await storageClient().storage.from(BUCKET).remove([path])
+      if (rmErr) logger.warn('deleteRoofDrawing: billedet kunne ikke fjernes (rækken er slettet)', { error: rmErr, entityId: id })
     }
     return { success: true }
   } catch (err) {

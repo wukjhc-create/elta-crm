@@ -55,7 +55,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | ST-4 | Tagtegning: upload accepterer enhver MIME (SVG → XSS), ingen størrelsesgrænse, upsert | DONE (b8107bd2) — kun PNG/JPEG efter magiske bytes, 15 MB, upsert false |
 | ST-5 | Slet sagsbilag: ingen sagsbinding, fil slettes før rækken | DONE (b8107bd2) — slet bundet til sagen, række først, så fil (0 rækker = fejl) |
 | ST-6 | Partner-download ignorerer "Del med kunde" + mail-vedhæftninger | DONE (b8107bd2) — visible_in_portal + uden source_email_id i liste og download |
-| ST-7 | Forældreløse filer ved slet (tagtegning, kvittering, sag) | TODO |
+| ST-7 | Forældreløse filer ved slet (tagtegning, kvittering, sag) | DONE (venter commit) — tagtegning og kvittering: række først, så fil (0 rækker = fejl). UI U71 (udvidet). Sletning af hel sag → filer = senere |
 | ST-8 | Forældreløse filer ved mislykket insert (sagsdokument, leverandørfaktura, besigtigelse) + ingen billedgrænse | TODO |
 | ST-9 | Filendelse fra klientens filnavn i stedet for valideret MIME | DONE (b8107bd2) — avatar/logo: endelse fra valideret MIME (sagsdokument: renset endelse + valideret content-type, lav risiko) |
 | ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | DONE (b8107bd2) — OFFER_LINE_PUBLIC_COLUMNS + COMPANY_SETTINGS_PUBLIC_COLUMNS + Cache-Control private, no-store |
@@ -69,7 +69,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | PF-6 | Faktura-nøgletal scanner alle fakturaer to gange; oversigten har ~6 serielle kald | DONE (82ecf6b0) — oversigten: fejl-log, e-conomic-parathed, kunder/sager og kreditnotaer i én parallel runde; nøgletal-scanning (alle fakturaer) uændret = senere/aggregat-[MIGRATION] |
 | PF-7 | Mine job henter afsluttede opgaver (op til 1000) og skjuler dem i klienten; realtime uden filter | TODO |
 | PF-8 | Gem tidsregistrering: ~9 serielle kald + tredobbelt genindlæsning | DONE (e30abfbd) — createTimeLog: scope (kun medarbejder-id, tjekket mod arbejdsordrens tildeling), arbejdsordre, medarbejder og timepris samtidig; overlap + sats samtidig. Klientens router.refresh beholdt (komponenten bruges på flere sider) |
-| PF-9 | Sagsdetaljen bundter alle 13 faner statisk (ingen next/dynamic) | DONE (venter commit) — 13 faner via next/dynamic (egne bundter, stadig server-renderet); kundekortets modaler/framer-motion = senere |
+| PF-9 | Sagsdetaljen bundter alle 13 faner statisk (ingen next/dynamic) | DONE (5aeed624) — 13 faner via next/dynamic (egne bundter, stadig server-renderet); kundekortets modaler/framer-motion = senere |
 | PF-10 | Lead-tavlen: to serielle getLeads med select('*') | DONE (d95d4ccc) — åbne + lukkede leads samtidig |
 | PF-11 | Manglende indeks på incoming_emails (service_case_id; is_archived/link_status/received_at) | BLOCKED_APPROVAL [MIGRATION] — forslag |
 | PF-12 | Realtime uden filter → genindlæsningsstorme (månedsgraf, mail-siden ved hver UPDATE) | DONE (d95d4ccc) — mail-siden kun ved nye mails (INSERT), månedsgrafen uden realtime |

@@ -435,10 +435,18 @@ export async function deleteCaseOtherCost(id: string): Promise<ActionResult> {
       return { success: false, error: 'Omkostningen er faktureret og kan ikke slettes' }
     }
 
-    const { error } = await supabase.from('case_other_costs').delete().eq('id', id)
+    // ST-7 (storage-review 2026-10-16): kvitteringen fjernes også fra storage (før blev filen liggende) — rækken først
+    const { data: gone, error } = await supabase.from('case_other_costs').delete().eq('id', id).select('receipt_url')
     if (error) {
       logger.error('deleteCaseOtherCost failed', { error, entityId: id })
       return { success: false, error: 'Kunne ikke slette omkostning' }
+    }
+    if (!gone || gone.length === 0) return { success: false, error: 'Omkostningen blev ikke slettet (findes ikke eller må ikke slettes)' }
+    const receipt = (gone[0] as { receipt_url?: string | null }).receipt_url
+    if (receipt && receipt.startsWith('receipts/')) {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const { error: rmErr } = await createAdminClient().storage.from('attachments').remove([receipt])
+      if (rmErr) logger.warn('deleteCaseOtherCost: kvittering kunne ikke fjernes (rækken er slettet)', { error: rmErr, entityId: id })
     }
 
     revalidatePath(`/dashboard/orders/${cur.case_id}`)
