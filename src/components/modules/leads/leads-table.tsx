@@ -201,7 +201,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
         </div>
       )}
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0 z-10">
@@ -366,6 +366,38 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
           </table>
         </div>
       </div>
+
+      {/* T-7 (review 2026-10-16): kortliste på telefon (efter tabellen i DOM) — tabellen rullede før sidelæns */}
+      <ul className="md:hidden space-y-2" data-testid="leads-mobile-list">
+        {leads.map((lead) => (
+          <li key={lead.id} className="bg-white rounded-lg border p-3">
+            <div className="flex items-start justify-between gap-2">
+              <Link href={`/dashboard/leads/${lead.id}`} className="min-w-0 flex-1">
+                <p className="font-medium text-gray-900 break-words">{lead.company_name}</p>
+                {lead.contact_person && <p className="text-sm text-gray-500 break-words">{lead.contact_person}</p>}
+                {lead.notes?.startsWith('Webhenvendelse — ') && (
+                  <p className="text-xs text-emerald-800 mt-0.5 line-clamp-2">{lead.notes.replace(/^Webhenvendelse — /, '')}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  {LEAD_SOURCE_LABELS[lead.source]} · {formatValue(lead.value)}
+                </p>
+              </Link>
+              <div className="shrink-0">
+                <LeadStatusBadge
+                  status={lead.status}
+                  onStatusChange={(newStatus) => handleStatusChange(lead.id, newStatus)}
+                />
+              </div>
+            </div>
+            {lead.phone && (
+              <a href={`tel:${lead.phone}`} className="mt-2 inline-flex items-center gap-1 min-h-[44px] text-sm text-primary">
+                <Phone className="w-4 h-4" />
+                {lead.phone}
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
 
       {editingLead && (
         <LeadForm

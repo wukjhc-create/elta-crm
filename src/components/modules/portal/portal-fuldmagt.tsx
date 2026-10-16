@@ -60,7 +60,7 @@ export function PortalFuldmagtSection({ token, fuldmagter }: PortalFuldmagtProps
               <div>
                 <p className="font-medium text-green-800">Fuldmagt underskrevet</p>
                 <p className="text-sm text-green-600">
-                  Ordrenr. {f.order_number} — underskrevet {f.signed_at ? new Date(f.signed_at).toLocaleDateString('da-DK') : ''}
+                  Ordrenr. {f.order_number} — underskrevet {f.signed_at ? new Date(f.signed_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen' }) : ''}
                 </p>
               </div>
               {f.pdf_url && (

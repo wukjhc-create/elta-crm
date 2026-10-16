@@ -104,6 +104,11 @@ function formatDate(iso: string) {
 // Main Component
 // =====================================================
 
+/** T-9 (review 2026-10-16): serverens ulæst-tal tæller kun ikke-arkiverede, ikke-ignorerede mails */
+function countsAsUnread(e: { is_archived?: boolean | null; link_status?: string | null } | undefined | null): boolean {
+  return !!e && !e.is_archived && e.link_status !== 'ignored'
+}
+
 export function MailClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -555,7 +560,8 @@ export function MailClient() {
         prev.map((e) => (e.id === email.id ? { ...e, is_read: true } : e))
       )
       setSelectedEmail((prev) => prev?.id === email.id ? { ...prev, is_read: true } : prev)
-      setStats((prev) => ({ ...prev, unread: Math.max(0, prev.unread - 1) }))
+      // T-9 (review 2026-10-16): ulæst-tælleren omfatter kun ikke-arkiverede, ikke-ignorerede mails (som serveren)
+      if (countsAsUnread(email)) setStats((prev) => ({ ...prev, unread: Math.max(0, prev.unread - 1) }))
     }
   }
 
@@ -564,13 +570,14 @@ export function MailClient() {
     const newRead = !currentlyRead
     setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, is_read: newRead } : e)))
     setSelectedEmail((prev) => prev?.id === id ? { ...prev, is_read: newRead } : prev)
-    setStats((prev) => ({ ...prev, unread: newRead ? Math.max(0, prev.unread - 1) : prev.unread + 1 }))
+    const counted = countsAsUnread(emails.find((e) => e.id === id))
+    if (counted) setStats((prev) => ({ ...prev, unread: newRead ? Math.max(0, prev.unread - 1) : prev.unread + 1 }))
     // U-3 (pilot-sweep 2026-10-15): optimistisk, men rul tilbage + besked hvis serveren afviser (før fire-and-forget)
     const r = await (newRead ? markEmailAsRead(id) : markEmailAsUnread(id)).catch(() => ({ success: false as const, error: undefined }))
     if (!r.success) {
       setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, is_read: currentlyRead } : e)))
       setSelectedEmail((prev) => prev?.id === id ? { ...prev, is_read: currentlyRead } : prev)
-      setStats((prev) => ({ ...prev, unread: newRead ? prev.unread + 1 : Math.max(0, prev.unread - 1) }))
+      if (counted) setStats((prev) => ({ ...prev, unread: newRead ? prev.unread + 1 : Math.max(0, prev.unread - 1) }))
       toast.error('Kunne ikke ændre læst/ulæst', r.error)
     }
   }
@@ -694,7 +701,9 @@ export function MailClient() {
       const result = await createCustomerFromEmail(emailId)
       if (result.success) {
         if (result.isExisting) {
-          toast.info('Koblet', `Email koblet til eksisterende kunde: ${result.customerName || 'Ukendt'}`)
+          toast.info('Koblet', `Mail koblet til eksisterende kunde: ${result.customerName || 'Ukendt'}`)
+        } else if (result.warning) {
+          toast.warning('Kunde oprettet — med fejl', result.warning)
         } else {
           toast.success('Lead oprettet', `Ny kunde + lead oprettet fra email${result.customerName ? `: ${result.customerName}` : ''}`)
         }
@@ -772,13 +781,15 @@ export function MailClient() {
                 className="text-xs px-2 py-0.5 rounded border border-gray-300 hover:bg-gray-50"
                 onClick={async () => {
                   const ids = emails.filter((e) => !e.is_read).map((e) => e.id)
+                  // T-9: kun mails der tæller i ulæst-tallet trækkes fra (ikke arkiverede/ignorerede)
+                  const countedIds = new Set(emails.filter((e) => !e.is_read && countsAsUnread(e)).map((e) => e.id))
                   setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, is_read: true } : e)))
-                  setStats((prev) => ({ ...prev, unread: Math.max(0, prev.unread - ids.length) }))
+                  setStats((prev) => ({ ...prev, unread: Math.max(0, prev.unread - countedIds.size) }))
                   const res = await markEmailsAsRead(ids).catch(() => null)
                   // kode-review: serveren afviste → rul den optimistiske markering tilbage (før viste UI'et mails som læste)
                   if (!res?.success) {
                     setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, is_read: false } : e)))
-                    setStats((prev) => ({ ...prev, unread: prev.unread + ids.length }))
+                    setStats((prev) => ({ ...prev, unread: prev.unread + countedIds.size }))
                     toast.error('Kunne ikke markere som læst', res?.error)
                   }
                 }}

@@ -353,12 +353,15 @@ export async function markEmailAsRead(id: string): Promise<MailActionResult> {
   const denied = await gateDenied('inbox.view')
   if (denied) return { success: false, error: denied }
   const supabase = await createClient()
-  const { error } = await supabase
+  // T-10 (review 2026-10-16): .select — en opdatering der rammer 0 rækker (RLS/forkert id) meldte før succes
+  const { data, error } = await supabase
     .from('incoming_emails')
     .update({ is_read: true })
     .eq('id', id)
+    .select('id')
 
   if (error) { logger.error('markEmailAsRead failed', { error, entityId: id }); return { success: false, error: 'Kunne ikke markere som læst' } }
+  if (!data || data.length === 0) return { success: false, error: 'Mailen blev ikke fundet eller må ikke ændres' }
   revalidatePath('/dashboard/mail')
   return { success: true }
 }
@@ -388,12 +391,14 @@ export async function markEmailAsUnread(id: string): Promise<MailActionResult> {
   const denied = await gateDenied('inbox.view')
   if (denied) return { success: false, error: denied }
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('incoming_emails')
     .update({ is_read: false })
     .eq('id', id)
+    .select('id')
 
   if (error) { logger.error('markEmailAsUnread failed', { error, entityId: id }); return { success: false, error: 'Kunne ikke markere som ulæst' } }
+  if (!data || data.length === 0) return { success: false, error: 'Mailen blev ikke fundet eller må ikke ændres' }
   revalidatePath('/dashboard/mail')
   return { success: true }
 }
@@ -771,7 +776,7 @@ async function copyAttachmentsToLead(
  */
 export async function createCustomerFromEmail(
   emailId: string
-): Promise<{ success: boolean; customerId?: string; leadId?: string; isExisting?: boolean; customerName?: string; error?: string }> {
+): Promise<{ success: boolean; customerId?: string; leadId?: string; isExisting?: boolean; customerName?: string; error?: string; warning?: string }> {
   const denied = await gateDenied('inbox.view')
   if (denied) return { success: false, error: denied }
   // S-9 (pilot-review 2026-10-15): opretter en kunde — kræver også kunde-oprettelsesret (før kun inbox.view)
@@ -820,14 +825,23 @@ export async function createCustomerFromEmail(
 
   if (existingCustomer) {
     // Link the email to existing customer
-    await supabase
+    // T-4 (review 2026-10-16): kun en mail uden kunde (eller allerede denne kunde) — før blev en mail koblet til en
+    // anden kunde overskrevet; fejl/0 rækker meldes (før altid succes); linked_at sættes
+    const { data: linkedRows, error: linkErr } = await supabase
       .from('incoming_emails')
       .update({
         customer_id: existingCustomer.id,
         link_status: 'linked',
         linked_by: 'auto-create',
+        linked_at: new Date().toISOString(),
       })
       .eq('id', emailId)
+      .or(`customer_id.is.null,customer_id.eq.${existingCustomer.id}`)
+      .select('id')
+    if (linkErr) return { success: false, error: 'Kunne ikke koble mailen til kunden' }
+    if (!linkedRows || linkedRows.length === 0) {
+      return { success: false, error: 'Mailen er allerede koblet til en anden kunde — fjern koblingen først' }
+    }
 
     revalidatePath('/dashboard/mail')
     revalidatePath('/dashboard/customers')
@@ -908,8 +922,11 @@ export async function createCustomerFromEmail(
     .select('id')
     .single()
 
+  const warnings: string[] = []
   if (leadError) {
     logger.error('Failed to create lead from email', { error: leadError, metadata: { emailId } })
+    // T-4: før "Ny kunde + lead oprettet", selv om leadet ikke blev oprettet
+    warnings.push('leadet kunne ikke oprettes — opret det manuelt fra kunden')
   }
 
   // 8. Copy attachments to lead folder and update lead with new URLs
@@ -958,14 +975,19 @@ export async function createCustomerFromEmail(
   }
 
   // 9. Link the email
-  await supabase
+  const { error: finalLinkErr } = await supabase
     .from('incoming_emails')
     .update({
       customer_id: newCustomer.id,
       link_status: 'linked',
       linked_by: 'auto-create',
+      linked_at: new Date().toISOString(),
     })
     .eq('id', emailId)
+  if (finalLinkErr) {
+    logger.error('createCustomerFromEmail: link failed', { error: finalLinkErr, entityId: emailId })
+    warnings.push('mailen kunne ikke kobles til den nye kunde — kobl den manuelt')
+  }
 
   logger.info('Customer + lead created from email', {
     entity: 'customers',
@@ -976,7 +998,13 @@ export async function createCustomerFromEmail(
   revalidatePath('/dashboard/mail')
   revalidatePath('/dashboard/customers')
   revalidatePath('/dashboard/leads')
-  return { success: true, customerId: newCustomer.id, leadId: newLead?.id ?? (priorLead as { id: string } | null)?.id, customerName: senderName }
+  return {
+    success: true,
+    customerId: newCustomer.id,
+    leadId: newLead?.id ?? (priorLead as { id: string } | null)?.id,
+    customerName: senderName,
+    ...(warnings.length > 0 ? { warning: `Kunden er oprettet, men ${warnings.join(' og ')}.` } : {}),
+  }
 }
 
 // =====================================================

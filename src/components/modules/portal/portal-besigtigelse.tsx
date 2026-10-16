@@ -120,6 +120,7 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
         {past.map((b) => {
           const formattedDate = b.due_date
             ? new Date(b.due_date).toLocaleDateString('da-DK', {
+                timeZone: 'Europe/Copenhagen',
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
@@ -171,6 +172,7 @@ function BesigtigelseCard({
 
   const formattedDate = booking.due_date
     ? new Date(booking.due_date).toLocaleDateString('da-DK', {
+        timeZone: 'Europe/Copenhagen',
         weekday: 'long',
         day: 'numeric',
         month: 'long',

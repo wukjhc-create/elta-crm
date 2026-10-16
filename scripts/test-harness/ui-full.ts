@@ -2,7 +2,7 @@
  * Fuld UI-regression uden at ramme watchdog'ens 30-min-loft (Henrik 2026-10-04: ingen lange samlede kørsler, ingen
  * vente-løkker der blokerer).
  *   npm run harness:ui-full                 — alle grupper i UI_E2E_GROUPS
- *   npm run harness:ui-full -- sales,montor — udvalgte grupper
+ *   npm run harness:ui-full -- sales,montor — udvalgte grupper (KOMMASEPARERET — mellemrum afvises, se nedenfor)
  *
  * - Testene (unikke, i gruppernes rækkefølge) deles i batches à 5 og kørsler à højst 4 batches (~15–20 min).
  *   Første kørsel bygger; resten genbruger buildet (UI_E2E_REUSE_BUILD=1). Afhængigheder lægger ui-batches selv til.
@@ -23,6 +23,12 @@ const BASE_TESTS = new Set(['U1', 'U2', 'U3', 'U4', 'U5', 'U6'])
 const dir = join(tmpdir(), 'elta-ui-e2e')
 mkdirSync(dir, { recursive: true })
 
+// 2026-10-16: grupper SKAL være kommasepareret i ÉT argument. `-- sales portal-mail` kørte før kun `sales` (den anden
+// gruppe blev tavst droppet, exit 0) — nu afvises ekstra argumenter.
+if (process.argv.length > 3) {
+  console.error(`grupper skal være kommasepareret i ét argument (fx \`-- sales,portal-mail\`) — fik: ${process.argv.slice(2).join(' ')}`)
+  process.exit(2)
+}
 const groupArg = (process.argv[2] ?? '').trim()
 const groups = groupArg ? groupArg.split(',').map((g) => g.trim()).filter(Boolean) : Object.keys(UI_E2E_GROUPS)
 for (const g of groups) if (!UI_E2E_GROUPS[g]) { console.error(`ukendt gruppe '${g}' (${Object.keys(UI_E2E_GROUPS).join('|')})`); process.exit(2) }

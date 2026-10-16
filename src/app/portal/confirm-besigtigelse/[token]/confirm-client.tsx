@@ -486,6 +486,7 @@ function formatDateLong(iso: string): string {
   if (!iso) return ''
   try {
     return new Date(iso).toLocaleDateString('da-DK', {
+      timeZone: 'Europe/Copenhagen',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -499,6 +500,7 @@ function formatDateTimeLong(iso: string): string {
   if (!iso) return ''
   try {
     return new Date(iso).toLocaleString('da-DK', {
+      timeZone: 'Europe/Copenhagen',
       year: 'numeric',
       month: 'long',
       day: 'numeric',

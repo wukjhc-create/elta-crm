@@ -85,13 +85,24 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
     }
   }
 
+  // T-6 (review 2026-10-16): statusskift uden træk-og-slip (virker ikke på telefon) — kun tilladte overgange
+  const moveTo = async (lead: LeadWithRelations, targetStatus: LeadStatus) => {
+    if (lead.status === targetStatus || !(LEAD_STATUS_TRANSITIONS[lead.status]?.includes(targetStatus) ?? false)) return
+    setIsUpdating(lead.id)
+    const result = await updateLeadStatus(lead.id, targetStatus)
+    setIsUpdating(null)
+    if (result.success) router.refresh()
+    else toast.error('Lead kunne ikke flyttes', result.error)
+  }
+
   // Calculate total value per column
   const colValue = (items: LeadWithRelations[]) =>
     items.reduce((sum, l) => sum + (l.value || 0), 0)
 
   return (
-    <div className="overflow-x-auto pb-4">
-      <div className="flex gap-3 min-w-[1200px]">
+    <div className="md:overflow-x-auto pb-4">
+      {/* T-6: kolonnerne stables på telefon (før min. 1200 px → sidelæns rul) */}
+      <div className="flex flex-col md:flex-row gap-3 md:min-w-[1200px]">
         {PIPELINE_STATUSES.map((status) => {
           const items = columns[status]
           const isOver = dragOverCol === status
@@ -101,7 +112,7 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
           return (
             <div
               key={status}
-              className={`flex-1 min-w-[170px] rounded-lg border-2 transition-colors ${
+              className={`flex-1 md:min-w-[170px] rounded-lg border-2 transition-colors ${
                 isOver && droppable
                   ? 'border-primary bg-primary/5'
                   : isOver && !droppable
@@ -126,7 +137,7 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
               </div>
 
               {/* Cards */}
-              <div className="p-2 space-y-2 min-h-[200px]">
+              <div className="p-2 space-y-2 min-h-[40px] md:min-h-[200px]">
                 {items.map((lead) => (
                   <div
                     key={lead.id}
@@ -168,6 +179,23 @@ export function LeadsKanban({ leads }: LeadsKanbanProps) {
                         </span>
                       )}
                     </div>
+                    {(LEAD_STATUS_TRANSITIONS[lead.status]?.length ?? 0) > 0 && (
+                      <label className="mt-2 block md:hidden" onClick={(e) => e.stopPropagation()}>
+                        <span className="sr-only">Flyt {lead.company_name} til status</span>
+                        <select
+                          data-testid="lead-kanban-move"
+                          value=""
+                          disabled={isUpdating === lead.id}
+                          onChange={(e) => { const v = e.target.value as LeadStatus; if (v) void moveTo(lead, v) }}
+                          className="w-full h-11 rounded-md border border-gray-300 bg-white px-2 text-sm"
+                        >
+                          <option value="">Flyt til …</option>
+                          {(LEAD_STATUS_TRANSITIONS[lead.status] ?? []).filter((s) => s !== lead.status).map((s) => (
+                            <option key={s} value={s}>{LEAD_STATUS_LABELS[s]}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                   </div>
                 ))}
               </div>

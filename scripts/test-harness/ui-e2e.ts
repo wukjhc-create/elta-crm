@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -596,6 +596,44 @@ ${m.text()}`) })
         r.sager_mobil_ingen_scroll = (await s.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)) <= 2
       } finally { await s.ctx.close().catch(() => {}) }
       out.push({ id: 'U160 kalender-uge på mobil = agenda', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+    }
+
+    // U179 T-6/T-7 (review 2026-10-16): leads på telefon (375 px) — listen er en kortliste uden vandret scroll, og tavlen
+    // har en statusvælger pr. kort (træk-og-slip virker ikke på touch); flyt Ny → Kontaktet via vælgeren
+    if (want('U179')) {
+      const r: Record<string, boolean> = {}
+      const ld = await c.admin.from('leads').insert([{ company_name: `[HARNESS] mobil-lead ${stamp}`, contact_person: 'Mobil Kontakt',
+        email: `u179-${stamp}@harness.test`, phone: '12345678', status: 'new', source: 'phone', created_by: adminUser.id }]).select('id')
+      const leadId = (ld.data?.[0] as { id?: string } | undefined)?.id ?? null
+      const seedErr = leadId ? '' : `SEED: ${ld.error?.message ?? '?'} · `
+      const s = await login(adminUser)
+      try {
+        await s.page.setViewportSize({ width: 375, height: 812 })
+        await gotoSafe(s.page, `${base}/dashboard/leads?search=${encodeURIComponent(`mobil-lead ${stamp}`)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await s.page.getByTestId('leads-mobile-list').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.liste_kort = await s.page.getByTestId('leads-mobile-list').isVisible().catch(() => false)
+        r.liste_lead = (await s.page.getByTestId('leads-mobile-list').getByText(`[HARNESS] mobil-lead ${stamp}`).count()) >= 1
+        r.liste_ingen_scroll = (await s.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)) <= 2
+        await gotoSafe(s.page, `${base}/dashboard/leads?view=kanban`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.tavle_ingen_scroll = (await s.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 999)) <= 2
+        const card = s.page.locator('div[draggable="true"]').filter({ hasText: `[HARNESS] mobil-lead ${stamp}` }).first()
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        const sel = card.getByTestId('lead-kanban-move')
+        r.vaelger_synlig = await sel.isVisible().catch(() => false)
+        await sel.selectOption('contacted', { timeout: 30_000 }).catch(() => {})
+        let moved = false
+        for (let i = 0; i < 20 && !moved; i++) {
+          const { data } = await c.admin.from('leads').select('status').eq('id', leadId ?? '').maybeSingle()
+          moved = (data as { status?: string } | null)?.status === 'contacted'
+          if (!moved) await s.page.waitForTimeout(500)
+        }
+        r.flyttet_kontaktet = moved
+        r.blev_paa_tavlen = !s.page.url().includes(`/dashboard/leads/${leadId}`)
+      } finally {
+        await s.ctx.close().catch(() => {})
+        if (leadId) { await c.admin.from('lead_activities').delete().eq('lead_id', leadId); await c.admin.from('leads').delete().eq('id', leadId) }
+      }
+      out.push({ id: 'U179 leads på telefon (kortliste + statusvælger)', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
     }
 
     // U158 fokus C 2026-10-15: prisafvigelser på tværs af leverandørfakturaer — kabel 500 m faktureret 4,45 mod aftalt

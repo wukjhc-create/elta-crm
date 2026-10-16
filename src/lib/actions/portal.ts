@@ -153,14 +153,20 @@ export async function deactivatePortalToken(
   try {
     const { supabase, userId } = await requireGate('offers.send')
 
-    const { error } = await supabase
+    // O-8 (review 2026-10-16): .select — 0 opdaterede rækker (RLS: kun admin/serviceleder/salg) meldte før succes,
+    // mens linket stadig virkede
+    const { data: deactivated, error } = await supabase
       .from('portal_access_tokens')
       .update({ is_active: false })
       .eq('id', tokenId)
+      .select('id')
 
     if (error) {
       logger.error('Error deactivating token', { error: error })
       return { success: false, error: 'Kunne ikke deaktivere adgang' }
+    }
+    if (!deactivated || deactivated.length === 0) {
+      return { success: false, error: 'Adgangen blev ikke deaktiveret — linket findes ikke, eller du må ikke ændre det' }
     }
 
     revalidatePath('/dashboard/customers')
