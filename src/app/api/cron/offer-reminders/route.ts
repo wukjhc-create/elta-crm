@@ -75,40 +75,41 @@ async function handleCron(request: Request): Promise<Response> {
     const errors: string[] = []
 
     // ─── 1. OFFER REMINDERS ───
+    // O-1 (review 2026-10-16 + Henrik: LIVE BLOCKED): planen (planOfferReminders) afgør hvem der ville blive rykket —
+    // samme regler som før (sendt/set, ikke forslag/konverteret/udløbet/afløst, interval, maks., 60-dages-vindue,
+    // aktiv kunde) + dedup pr. modtager + loft pr. kørsel. Uden OFFER_REMINDERS_LIVE=true sendes INTET: kørslen
+    // logger kun, hvad den ville have sendt. Live-stien beholder kravet (claim) før afsendelse.
+    let offerDryRun: { wouldSend: number; scanned: number; excluded: Record<string, number> } | null = null
     try {
-      const { data: pendingOffers } = await supabase
-        .from('offers')
-        .select(`
-          id, offer_number, title, final_amount, currency, valid_until,
-          sent_at, last_reminder_sent, reminder_count, created_by, customer_id,
-          customer:customers!offers_customer_id_fkey(company_name, contact_person, email, is_active)
-        `)
-        .in('status', ['sent', 'viewed'])
-        // salgs-review: forslag (is_proposal) er ikke rigtige tilbud — ingen rykkere
-        .eq('is_proposal', false)
-        // mail-review 2026-10-07: tilbud der allerede er blevet til en sag (accepteret pr. telefon) rykkes ikke
-        .is('converted_case_id', null)
-        .lt('reminder_count', maxCount)
-        .or(`last_reminder_sent.is.null,last_reminder_sent.lt.${cutoffDate.toISOString()}`)
-        .not('sent_at', 'is', null)
-        .lt('sent_at', cutoffDate.toISOString())
-        // mail-review 2026-10-07 (R-MAIL-B #7): kun tilbud sendt inden for 60 dage — ellers ville første aktivering
-        // rykke ALLE historiske åbne tilbud (uden gyldighedsdato) på én gang
-        .gte('sent_at', new Date(Date.now() - 60 * 86_400_000).toISOString())
-
-      if (pendingOffers && pendingOffers.length > 0) {
+      const { planOfferReminders, offerRemindersLive } = await import('@/lib/offers/offer-reminder-plan')
+      const plan = await planOfferReminders(supabase)
+      if (!offerRemindersLive()) {
+        offerDryRun = { wouldSend: plan.wouldSend.length, scanned: plan.scanned, excluded: plan.excludedCounts as Record<string, number> }
+        try {
+          const { logHealth } = await import('@/lib/services/system-health')
+          await logHealth('cron', 'ok', `offer reminders DRY-RUN: ville sende ${plan.wouldSend.length} (intet sendt)`, {
+            would_send: plan.wouldSend.map((i) => i.offerNumber), scanned: plan.scanned, excluded: plan.excludedCounts,
+          })
+        } catch { /* logning er best-effort */ }
+      } else if (plan.wouldSend.length > 0) {
         const { generateReminderEmailHtml, generateReminderEmailText } = await import('@/lib/email/templates/reminder-email')
+        const { data: planned } = await supabase
+          .from('offers')
+          .select(`
+            id, offer_number, title, final_amount, currency, valid_until,
+            sent_at, last_reminder_sent, reminder_count, created_by, customer_id,
+            customer:customers!offers_customer_id_fkey(company_name, contact_person, email, is_active)
+          `)
+          .in('id', plan.wouldSend.map((i) => i.offerId))
+          // genkontrol på skrivetidspunktet: stadig åbent
+          .in('status', ['sent', 'viewed'])
 
-        for (const offer of pendingOffers) {
+        for (const offer of planned ?? []) {
           if (totalSent >= MAX_REMINDERS_PER_RUN) break
           try {
             const customerRaw = offer.customer as unknown
             const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string; is_active?: boolean | null } | null
-            // Mail-review 2026-10-08 (#9): deaktiverede kunder rykkes ikke (som fuldmagt/besigtigelse)
             if (customer?.is_active === false) continue
-            // R-MAIL-B #9: intet forhåndstjek på tilbudskundens egen e-mail — mail-routeren vælger modtageren (fx betalers
-            // faktureringskontakt); før blev rykkeren sprunget over, når netop tilbudskunden manglede e-mail
-            // samme regel som portalen (dansk dato; sidste gyldige dag tæller med — før sprunget over)
             if (isOfferExpired(offer.valid_until as string | null)) continue
 
             let senderName = BRAND_COMPANY_NAME
@@ -118,7 +119,7 @@ async function handleCron(request: Request): Promise<Response> {
             }
 
             const { getPortalOfferUrl } = await import('@/lib/utils/portal-link')
-            const portalUrl = await getPortalOfferUrl(offer.id, offer.customer_id)
+            const portalUrl = await getPortalOfferUrl(offer.id, offer.customer_id, supabase)
             const reminderCount = (offer.reminder_count || 0) + 1
 
             const finalAmount = new Intl.NumberFormat('da-DK', {
@@ -135,7 +136,7 @@ async function handleCron(request: Request): Promise<Response> {
             const { resolveOfferReminderRoute, logMailRoute } = await import(
               '@/lib/actions/mail-route-resolvers'
             )
-            const routeResult = await resolveOfferReminderRoute(offer.id)
+            const routeResult = await resolveOfferReminderRoute(offer.id, undefined, supabase)
             if (!routeResult.ok || !routeResult.route) {
               errors.push(
                 `Tilbud ${offer.offer_number}: routing fejlede — ${routeResult.error || 'unknown'}`
@@ -372,6 +373,8 @@ async function handleCron(request: Request): Promise<Response> {
     return NextResponse.json({
       message: `Sent ${totalSent} follow-ups`,
       sent: totalSent,
+      // O-1: tilbudsrykkere i dry-run — hvad der VILLE være sendt (intet sendt)
+      offer_reminders_dry_run: offerDryRun ?? undefined,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (err) {

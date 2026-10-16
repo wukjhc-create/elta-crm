@@ -5,6 +5,7 @@ import { ArrowLeft, Clock, Save, Loader2, Mail, ToggleLeft, ToggleRight, Send, C
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { sendTestReminder } from '@/lib/actions/reminder-test'
+import { OfferReminderPreviewCard } from './offer-reminder-preview-card'
 
 interface ReminderSettings {
   reminder_enabled: boolean
@@ -228,11 +229,15 @@ export default function ReminderSettingsPage() {
         )}
       </div>
 
+      {/* O-1 (review 2026-10-16): forhåndsvisning — hvad den daglige kørsel ville sende */}
+      <OfferReminderPreviewCard />
+
       {/* Info box */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-        <strong>Sådan virker det:</strong> Systemet checker dagligt kl. 9:00 om der er tilbud med status &ldquo;Sendt&rdquo; eller &ldquo;Set&rdquo;
-        der ikke har fået svar. Hvis tilbuddet har ventet i mindst {settings.reminder_interval_days} dage,
-        sendes en venlig rykkermail automatisk. Kunden kan se tilbuddet og svare direkte via linket.
+        <strong>Sådan virker det:</strong> Systemet checker dagligt om der er tilbud med status &ldquo;Sendt&rdquo; eller &ldquo;Set&rdquo;
+        der ikke har fået svar. Hvis tilbuddet har ventet i mindst {settings.reminder_interval_days} dage, er det klar til
+        en venlig rykkermail med link til tilbuddet. <strong>Automatisk afsendelse af tilbudsrykkere er indtil videre slået
+        fra</strong> (kræver særskilt godkendelse) — brug forhåndsvisningen ovenfor for at se, hvad der ville blive sendt.
       </div>
 
       {/* Save button */}

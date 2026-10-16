@@ -155,7 +155,14 @@ export function OfferDetail({
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {(offer.line_items || []).map((item) => (
+                  {(offer.line_items || []).map((item) => item.line_type === 'section' ? (
+                    // O-4 (review 2026-10-16): sektionsoverskrift som i PDF'en (før en "linje" med 0 stk og 0,00 kr)
+                    <tr key={item.id} className="bg-gray-50" data-testid="portal-offer-section">
+                      <td colSpan={4} className="px-6 py-2 text-sm font-semibold text-gray-800">
+                        {item.description}
+                      </td>
+                    </tr>
+                  ) : (
                     <tr key={item.id}>
                       <td className="px-6 py-4 text-gray-900">
                         {item.description}
@@ -165,6 +172,10 @@ export function OfferDetail({
                       </td>
                       <td className="px-6 py-4 text-right text-gray-600">
                         {formatCurrency(item.unit_price, currency, 2)}
+                        {/* O-4: linjerabat vises — ellers gik antal × enhedspris ikke op i linjens total */}
+                        {Number(item.discount_percentage) > 0 && (
+                          <span className="block text-xs text-gray-500">−{Number(item.discount_percentage).toLocaleString('da-DK')} % rabat</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-right font-medium text-gray-900">
                         {formatCurrency(item.total, currency, 2)}

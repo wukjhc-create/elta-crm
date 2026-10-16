@@ -15,3 +15,22 @@ export function isOfferExpired(validUntil: string | null | undefined, now: Date 
 export function canCustomerRespond(status: string | null | undefined, validUntil: string | null | undefined, now: Date = new Date()): boolean {
   return (status === 'sent' || status === 'viewed') && !isOfferExpired(validUntil, now)
 }
+
+/**
+ * O-12 (review 2026-10-16): fælles portal-regel for accept OG afvis — hvorfor kunden ikke kan svare (null = må svare).
+ * Et udløbet, afløst eller allerede besvaret tilbud kan ikke ændres via en gammel portal-session.
+ */
+export function portalResponseBlockReason(
+  status: string | null | undefined,
+  validUntil: string | null | undefined,
+  superseded: boolean,
+  action: 'accept' | 'reject',
+  now: Date = new Date(),
+): string | null {
+  if (status === 'accepted') return 'Tilbuddet er allerede accepteret'
+  if (status === 'rejected') return 'Tilbuddet er allerede afvist'
+  if (status !== 'sent' && status !== 'viewed') return action === 'accept' ? 'Tilbuddet kan ikke accepteres i denne status' : 'Tilbuddet kan ikke afvises i denne status'
+  if (isOfferExpired(validUntil, now)) return 'Tilbuddet er udløbet — kontakt os for et nyt tilbud'
+  if (superseded) return 'Tilbuddet er erstattet af en nyere version — genindlæs siden'
+  return null
+}

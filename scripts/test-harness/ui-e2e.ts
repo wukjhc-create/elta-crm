@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -781,6 +781,76 @@ ${m.text()}`) })
         const ic = { panel: /Fakturakontrol/.test(ptxt), dom: /Prisafvigelse/.test(ptxt), overpris: /100,00 kr/.test(ptxt) && /Overpris\b/.test(ptxt),
           match: ptxt.includes(`HU-AO-${stamp}`), daekning: /1 \/ 2 \(50 %\)/.test(ptxt) }
         out.push({ id: 'U9 fakturakontrol (admin)', ok: !seedErr && Object.values(ic).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(ic).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
+      // U180 O-4 (review 2026-10-16): portalens tilbudslinjer — sektionsoverskrift vises som overskrift (ikke "0 stk / 0,00 kr"),
+      // linjerabat vises, og tilbuddets totaler er uændrede (samme tal som tilbuddet/PDF'en)
+      if (want('U180')) {
+        const r: Record<string, boolean> = {}
+        const tok = randomBytes(32).toString('hex')
+        const off = profitCustomerId ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-SEC-${stamp}`, title: '[HARNESS] portal-sektion',
+          created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString(),
+          total_amount: 1500, tax_percentage: 25, tax_amount: 375, final_amount: 1875,
+          valid_until: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10) }]).select('id') : null
+        const offId = (off?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const li = offId ? await c.admin.from('offer_line_items').insert([
+          { offer_id: offId, position: 1, line_type: 'section', description: `Afsnit el-tavle ${stamp}`, quantity: 0, unit: 'stk', unit_price: 0, discount_percentage: 0, total: 0, cost_price: 0 },
+          { offer_id: offId, position: 2, line_type: 'manual', description: 'Stikkontakt', quantity: 2, unit: 'stk', unit_price: 500, discount_percentage: 0, total: 1000, cost_price: 300 },
+          { offer_id: offId, position: 3, line_type: 'manual', description: 'Afbryder med rabat', quantity: 1, unit: 'stk', unit_price: 625, discount_percentage: 20, total: 500, cost_price: 200 },
+        ]) : null
+        const pt = offId ? await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-sec-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id') : null
+        const tokId = (pt?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const seedErr = !offId ? `tilbud: ${off?.error?.message?.slice(0, 80) ?? '?'} · ` : li?.error ? `linjer: ${li.error.message.slice(0, 80)} · ` : !tokId ? `token: ${pt?.error?.message?.slice(0, 80) ?? '?'} · ` : ''
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        try {
+          const kp = await kctx.newPage()
+          await gotoSafe(kp, `${base}/portal/${tok}/offers/${offId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const sec = kp.getByTestId('portal-offer-section')
+          r.sektion_som_overskrift = (await sec.count()) === 1 && (await sec.innerText().catch(() => '')).includes(`Afsnit el-tavle ${stamp}`)
+          const secText = (await sec.innerText().catch(() => '')) || ''
+          r.sektion_uden_antal_pris = !/0,00\s*kr|\b0\s*stk/.test(secText)
+          r.produktlinjer = (await kp.getByText('Stikkontakt').count()) >= 1 && (await kp.getByText('Afbryder med rabat').count()) >= 1
+          r.rabat_vist = (await kp.getByText(/−20 % rabat/).count()) >= 1
+          const page = await kp.locator('body').innerText().catch(() => '')
+          r.total_uaendret = /1\.875,00/.test(page) && /1\.500,00/.test(page) && /375,00/.test(page)
+        } finally {
+          await kctx.close().catch(() => {})
+          if (offId) { await c.admin.from('offer_line_items').delete().eq('offer_id', offId); await c.admin.from('offers').delete().eq('id', offId) }
+          if (tokId) await c.admin.from('portal_access_tokens').delete().eq('id', tokId)
+        }
+        out.push({ id: 'U180 portal: sektionslinjer som overskrift + linjerabat', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
+      // U181 O-1 (review 2026-10-16, Henrik: LIVE BLOCKED): forhåndsvisning af tilbudsrykkere på Indstillinger → Rykkere —
+      // viser "slået fra"-besked + opsummering; intet tilbud ændres (reminder_count/last_reminder_sent uændrede)
+      if (want('U181')) {
+        const r: Record<string, boolean> = {}
+        const off = profitCustomerId ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-REM-${stamp}`, title: '[HARNESS] rykker-forhåndsvisning',
+          created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', sent_at: new Date(Date.now() - 5 * 86400_000).toISOString(),
+          valid_until: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10), reminder_count: 0 }]).select('id') : null
+        const offId = (off?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const seedErr = offId ? '' : `SEED: ${off?.error?.message?.slice(0, 80) ?? '?'} · `
+        const s2 = await login(adminUser)
+        try {
+          await gotoSafe(s2.page, `${base}/dashboard/settings/reminders`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await s2.page.getByRole('button', { name: /Vis hvad der ville blive sendt/ }).click({ timeout: 60_000 }).catch(() => {})
+          await s2.page.getByTestId('offer-reminder-summary').waitFor({ timeout: 90_000 }).catch(() => {})
+          r.opsummering = await s2.page.getByTestId('offer-reminder-summary').isVisible().catch(() => false)
+          r.slaaet_fra_vist = await s2.page.getByTestId('offer-reminder-not-live').isVisible().catch(() => false)
+          const list = s2.page.getByTestId('offer-reminder-would-send')
+          const listed = (await list.count()) ? await list.innerText().catch(() => '') : ''
+          const summary = await s2.page.getByTestId('offer-reminder-summary').innerText().catch(() => '')
+          // seedet tilbud enten på listen eller over loftet pr. kørsel (staging kan have mange berettigede)
+          r.seedet_tilbud_med = listed.includes(`UI-E2E-REM-${stamp}`) || /højst \d+ pr\. kørsel/.test(summary)
+          r.ingen_portal_token_i_dom = !/\/portal\/[0-9a-f]{20,}/.test(await s2.page.content().catch(() => ''))
+          const { data: after } = offId ? await c.admin.from('offers').select('reminder_count, last_reminder_sent').eq('id', offId).maybeSingle() : { data: null }
+          r.tilbud_uaendret = !!after && (after as { reminder_count: number }).reminder_count === 0 && !(after as { last_reminder_sent: string | null }).last_reminder_sent
+        } finally {
+          await s2.ctx.close().catch(() => {})
+          if (offId) await c.admin.from('offers').delete().eq('id', offId)
+        }
+        out.push({ id: 'U181 forhåndsvisning af tilbudsrykkere (intet sendt)', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
       // U10 kundeportal-accept som kunden oplever det: ny browser-kontekst UDEN CRM-login (fanger AUTH_REQUIRED-fejl

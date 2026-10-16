@@ -261,7 +261,8 @@ export async function validatePortalToken(
 // Get offers for customer (portal view)
 /** Kunde-sikre tilbudslinjefelter (= PortalOfferLineItem). ALDRIG select('*') mod kunden: linjerne har
  *  kostpris, leverandørkost, margin og interne noter, som ellers sendes med til kundens browser. */
-const PORTAL_LINE_ITEM_COLUMNS = 'id, offer_id, position, description, quantity, unit, unit_price, discount_percentage, total'
+// O-4 (review 2026-10-16): + line_type — sektionsoverskrifter blev vist som produktlinjer med 0 stk/0 kr
+const PORTAL_LINE_ITEM_COLUMNS = 'id, offer_id, position, line_type, description, quantity, unit, unit_price, discount_percentage, total'
 
 export async function getPortalOffers(
   token: string
@@ -805,7 +806,7 @@ export async function rejectOffer(
     // Verify offer belongs to customer
     const { data: offer, error: offerError } = await admin
       .from('offers')
-      .select('id, status, customer_id, title, offer_number, customer:customers!offers_customer_id_fkey(company_name, contact_person)')
+      .select('id, status, valid_until, customer_id, title, offer_number, customer:customers!offers_customer_id_fkey(company_name, contact_person)')
       .eq('id', offerId)
       .eq('customer_id', customerId)
       .maybeSingle()
@@ -823,6 +824,14 @@ export async function rejectOffer(
     }
     if (!['sent', 'viewed'].includes(offer.status)) {
       return { success: false, error: 'Tilbuddet kan ikke afvises i denne status' }
+    }
+    // O-12 (review 2026-10-16): samme værn som accept (fælles regel) — udløbne og afløste revisioner kan ikke besvares
+    {
+      const { portalResponseBlockReason } = await import('@/lib/offers/validity')
+      const { supersededBy } = await import('@/lib/offers/revisions')
+      const blocked = portalResponseBlockReason(offer.status as string, (offer as { valid_until?: string | null }).valid_until ?? null,
+        !!(await supersededBy(offerId)), 'reject')
+      if (blocked) return { success: false, error: blocked }
     }
 
     // Update med 6 nye strukturerede felter — eksplicit customer_id-scope

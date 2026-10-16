@@ -45,31 +45,59 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-23 (review-bølge 2026-10-16 sen eftermiddag — filer/storage + kunde-dubletter + performance)
+| # | Fund | Status |
+|---|---|---|
+| T-5 | Dublet-mail ved kundeoprettelse kun tjekket i klienten | IN PROGRESS — design + kaldere: docs/runbooks/customer-email-duplicates-proposal.md; unikt indeks 00237 = BLOCKED_APPROVAL |
+| ST-1 | Montør får downloadlinks til interne mail-vedhæftninger (kostpriser) og fuldmagt-PDF'er via sagens Dokumenter (S2) | TODO — uden customers.emails.view: .is('source_email_id', null); fuldmagt kun for kunde-relationsroller |
+| ST-2 | 1-års signerede URL'er skrives igen til DB (quote-actions, quote-generator, service-case-attachments, avatar) | TODO — gem '' + signér ved læsning; blanking af gamle = [MIGRATION] (data) |
+| ST-3 | Mail-vedhæftning kopieret til lead: rå filnavn + afsenderens content-type (HTML/SVG inline), upsert | TODO |
+| ST-4 | Tagtegning: upload accepterer enhver MIME (SVG → XSS), ingen størrelsesgrænse, upsert | TODO |
+| ST-5 | Slet sagsbilag: ingen sagsbinding, fil slettes før rækken | TODO |
+| ST-6 | Partner-download ignorerer "Del med kunde" + mail-vedhæftninger | TODO |
+| ST-7 | Forældreløse filer ved slet (tagtegning, kvittering, sag) | TODO |
+| ST-8 | Forældreløse filer ved mislykket insert (sagsdokument, leverandørfaktura, besigtigelse) + ingen billedgrænse | TODO |
+| ST-9 | Filendelse fra klientens filnavn i stedet for valideret MIME | TODO |
+| ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | TODO |
+| ST-11 | Ubrugt downloadAndStoreAttachment uden de nye værn | TODO — slet |
+| PF-1 | Klient-udløste server actions køres serielt af browseren: dashboard (~12 widgets), kundekort (5), sagsdetalje (5) | TODO — hent i server-komponent + Suspense / saml i én action (= Q-2) |
+| PF-2 | getDashboardStats summerer hele historikken (alle timer/tilbud) i JS + to serielle batches | TODO |
+| PF-3 | "Sager over estimat" kører fuld efterkalkulation af 200 sager pr. indlæsning (serielle bidder, kvadratisk kopi) | TODO |
+| PF-4 | "Kræver svar" genlæser hele den koblede indbakke (~45 serielle kald ved 5k mails) ved hver statistik/realtime-hændelse | TODO |
+| PF-5 | Kundekortets postkasse sender body_html/body_text for op til 200 mails | TODO — lazy body |
+| PF-6 | Faktura-nøgletal scanner alle fakturaer to gange; oversigten har ~6 serielle kald | TODO |
+| PF-7 | Mine job henter afsluttede opgaver (op til 1000) og skjuler dem i klienten; realtime uden filter | TODO |
+| PF-8 | Gem tidsregistrering: ~9 serielle kald + tredobbelt genindlæsning | TODO |
+| PF-9 | Sagsdetaljen bundter alle 13 faner statisk (ingen next/dynamic) | TODO |
+| PF-10 | Lead-tavlen: to serielle getLeads med select('*') | TODO |
+| PF-11 | Manglende indeks på incoming_emails (service_case_id; is_archived/link_status/received_at) | BLOCKED_APPROVAL [MIGRATION] — forslag |
+| PF-12 | Realtime uden filter → genindlæsningsstorme (månedsgraf, mail-siden ved hver UPDATE) | TODO |
+
 ## NEXT-22 (review-bølge 2026-10-16 eftermiddag — tilbud/portal + tid/leads/indbakke)
 | # | Fund | Status |
 |---|---|---|
-| O-1 | Tilbudsrykker-cron læser tilbud + portal-token med anon-klient (ingen session) → altid "Tilbud ikke fundet"/ugyldigt link (S2) | BLOCKED_APPROVAL — cron'en ER planlagt i vercel.json og `company_settings.reminder_enabled` er som standard true: rettelsen ville begynde at sende rigtige tilbudsrykkere til kunder = live-mail-aktivering. Kræver Henriks ja (evt. bag eksplicit `OFFER_REMINDERS_LIVE`-flag) |
+| O-1 | Tilbudsrykker-cron læser tilbud + portal-token med anon-klient (ingen session) → altid "Tilbud ikke fundet"/ugyldigt link (S2) | LIVE BLOCKED (Henrik 2026-10-16); DRY-RUN DONE (venter commit) — `lib/offers/offer-reminder-plan.ts` (regler, dedup pr. modtager, loft, .local = ingen modtager, admin-klient til modtager/portal-link), cron sender INTET uden `OFFER_REMINDERS_LIVE=true` (logger "ville sende" + svar `offer_reminders_dry_run`), forhåndsvisning på Indstillinger → Rykkere (settings.manage, audit, ingen tokens til browseren). Unit offer-reminder-plan 19/19, staging offer-reminder-plan-check 8/8, UI U181. Live-aktivering kræver særskilt godkendelse |
 | O-2 | sendOfferEmail: mail ud før status-flip; flip-fejl kun logget → kunden får link til ikke-synligt tilbud (S2) | DONE (46ab9f18) — statusskift-fejl efter afsendelse → advarsel ("send IKKE igen"), toast.warning |
 | O-3 | sendOfferEmail uden status-værn (accepteret/afvist/erstattet kan genmailes) | DONE (46ab9f18) — kun kladde/sendt/set (accepteret kun med accept-skabelon); erstattet afvises (læst fra select *, ingen DB-filter) |
-| O-4 | Portal: sektionslinjer vist som produkter (line_type mangler), linjerabat skjult | TODO |
+| O-4 | Portal: sektionslinjer vist som produkter (line_type mangler), linjerabat skjult | DONE (venter commit) — line_type i portal-kolonner, sektion som overskrift, linjerabat vist; totaler uændrede. UI U180 |
 | O-5 | Portal viser firmaets standardvaluta i stedet for tilbuddets | DONE (46ab9f18) — tilbuddets/fakturaens valuta |
 | O-6 | Erstattet revision kan accepteres internt og konverteres til sag | DEFERRED — `superseded_by` findes kun med revisioner (00203, kun staging bag OFFER_REVISIONS_ENABLED); DB-filter på kolonnen ville fejle i prod. Tages med revisions-udrulningen |
 | O-7 | Erstattede revisioner får rykkere og tælles som klar til konvertering | DEFERRED — samme som O-6 (00203) |
-| O-8 | deactivatePortalToken melder succes uden at have opdateret en række | DONE (venter commit) — .select + 0 rækker = fejl |
+| O-8 | deactivatePortalToken melder succes uden at have opdateret en række | DONE (9c3f5f7c) — .select + 0 rækker = fejl |
 | O-9 | Fuldmagt-/besigtigelsesforespørgsler i rykker-cron uden paginering | TODO |
 | O-10 | viewed_at nulstilles ikke ved viewed→kladde→sendt | DONE (46ab9f18) |
-| O-11 | Portaldatoer uden timeZone (server-renderet UTC) | DONE (venter commit) — timeZone Europe/Copenhagen i portalens besigtigelse/fuldmagt/bekræftelse |
-| O-12 | Portal: afvis uden udløbs-/erstattet-tjek; PDF-route serverer erstattede revisioner; rabatrække-betingelse PDF ≠ portal | TODO (udløb + rabatrække); erstattet-delen DEFERRED (00203) |
+| O-11 | Portaldatoer uden timeZone (server-renderet UTC) | DONE (9c3f5f7c) — timeZone Europe/Copenhagen i portalens besigtigelse/fuldmagt/bekræftelse |
+| O-12 | Portal: afvis uden udløbs-/erstattet-tjek; PDF-route serverer erstattede revisioner; rabatrække-betingelse PDF ≠ portal | DONE (venter commit) — fælles `portalResponseBlockReason` (udløb/status/afløst bag revisionsflag). Unit portal-response-guard 11/11 (gyldig, udløbet, accepteret, afvist, kladde, afløst, dansk dato) |
 | T-1 | Godkend/afvis timer genlæser ikke rækken: faktureret imellem → afvist alligevel; ændret 8→12 t imellem → godkendt usét (S2) | DONE (46ab9f18) — betinget opdatering pr. række (tider/sats som læst; afvisning kun ufaktureret); ændret imellem = sprunget over |
 | T-2 | linkEmailToCase: mail uden kunde kan kobles til anden kundes sag, søskende-mails flyttes uanset kunde, fejl ignoreres (S2) | DONE (46ab9f18) — mail uden kunde afvises; tråd kun samme kunde; fejl meldes |
 | T-3 | Fjern kobling efterlader service_case_id → mail vises fortsat på den gamle kundes sag (S2) | DONE (46ab9f18) — unlink slipper sagen (+ 0-rækker = fejl); kundeskift slipper fremmed sag |
-| T-4 | createCustomerFromEmail melder succes trods fejl (lead/opdatering/kobling), overskriver allerede koblet mail | DONE (venter commit) — eksisterende kunde: kun mail uden/samme kunde + linked_at, fejl meldes; lead-/koblingsfejl → advarsel (toast.warning) |
-| T-5 | Kunde-dubletkontrol kun i klienten (samtidige/direkte kald opretter dublet-mail) | TODO (udskudt) — ændrer createCustomer for alle kaldere inkl. harness-fixtures; kræver gennemgang af kaldere + "Opret alligevel"-flag |
-| T-6 | Lead-kanban: statusskift kun via træk-og-slip (virker ikke på telefon), min-bredde 1200 px | DONE (venter commit) — statusvælger pr. kort (kun tilladte overgange) på telefon; kolonner stables. UI U179 |
-| T-7 | Lead-tabel uden mobil-kortliste | DONE (venter commit) — kortliste md:hidden efter tabellen. UI U179 |
+| T-4 | createCustomerFromEmail melder succes trods fejl (lead/opdatering/kobling), overskriver allerede koblet mail | DONE (9c3f5f7c) — eksisterende kunde: kun mail uden/samme kunde + linked_at, fejl meldes; lead-/koblingsfejl → advarsel (toast.warning) |
+| T-5 | Kunde-dubletkontrol kun i klienten (samtidige/direkte kald opretter dublet-mail) | NÆSTE WAVE (Henrik: separat) — server-side, normaliseret, race-sikker, dansk fejl; gennemgå ALLE createCustomer-kaldere først; DB-constraint = forslag + BLOCKED_APPROVAL |
+| T-6 | Lead-kanban: statusskift kun via træk-og-slip (virker ikke på telefon), min-bredde 1200 px | DONE (9c3f5f7c) — statusvælger pr. kort (kun tilladte overgange) på telefon; kolonner stables. UI U179 |
+| T-7 | Lead-tabel uden mobil-kortliste | DONE (9c3f5f7c) — kortliste md:hidden efter tabellen. UI U179 |
 | T-8 | Lead-liste sortBy fra URL uvalideret → DATABASE_ERROR | DONE (46ab9f18) — whitelist |
-| T-9 | Ulæst-tæller trækkes ned for arkiverede/ignorerede mails | DONE (venter commit) — tæller kun ikke-arkiverede/ikke-ignorerede (som serveren) |
-| T-10 | Markér læst/ulæst melder succes ved 0 opdaterede rækker | DONE (venter commit) — .select + 0 rækker = fejl |
+| T-9 | Ulæst-tæller trækkes ned for arkiverede/ignorerede mails | DONE (9c3f5f7c) — tæller kun ikke-arkiverede/ikke-ignorerede (som serveren) |
+| T-10 | Markér læst/ulæst melder succes ved 0 opdaterede rækker | DONE (9c3f5f7c) — .select + 0 rækker = fejl |
 | T-11 | Godkendelse: sprunget-over uden årsag (faktureret/ændret/skjult) | TODO |
 | T-12 | Små Godkend/Afvis-knapper på telefon; ASCII-dansk ("Proev", "paakraevet", "aendre", "oejeblik", "Email ikke fundet") | DONE (46ab9f18) — dansk retskrivning; 44 px knapper på telefon |
 

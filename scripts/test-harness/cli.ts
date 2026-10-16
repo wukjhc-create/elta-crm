@@ -2175,6 +2175,14 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'offer-reminder-plan-check') {
+    // O-1 (review 2026-10-16): tilbudsrykker-plan/dry-run — intet sendes, intet tilbud ændres
+    const { runOfferReminderPlanCheck, formatOfferReminderPlanCheck } = await import('./offer-reminder-plan-check')
+    const checks = await runOfferReminderPlanCheck({ admin })
+    log(formatOfferReminderPlanCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'rate-engine-check') {
     const { runRateEngineCheck, formatRateEngineCheck } = await import('./rate-engine-check')
     const checks = await runRateEngineCheck({ admin, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })

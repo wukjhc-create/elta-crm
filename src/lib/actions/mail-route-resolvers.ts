@@ -31,6 +31,7 @@
  *   - resolveFuldmagtReminderRoute (fuldmagt-rykker fra cron)
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
@@ -338,7 +339,9 @@ export async function resolveCustomerMailboxReplyRoute(
  */
 export async function resolveOfferMailRoute(
   offerId: string,
-  ctx?: MailRouteContext
+  ctx?: MailRouteContext,
+  /** O-1: valgfri klient (cron/plan uden session); ellers brugerens session */
+  client?: SupabaseClient
 ): Promise<ResolvedRouteResult> {
   try {
     validateUUID(offerId, 'offerId')
@@ -350,7 +353,7 @@ export async function resolveOfferMailRoute(
     }
   }
 
-  const supabase = await createClient()
+  const supabase = client ?? (await createClient())
   // Sprint 12A Trin 4 — laes parti-roller + billing_mode for at vaelge
   // active party. Backfilled offers har alle parti-roller = customer_id,
   // saa adfaerden er bit-identisk med foer migrationen for gamle tilbud.
@@ -637,9 +640,11 @@ export async function resolveInvoiceMailRoute(
  */
 export async function resolveOfferReminderRoute(
   offerId: string,
-  ctx?: MailRouteContext
+  ctx?: MailRouteContext,
+  /** O-1: cron uden session sender admin-klienten (før anon → "Tilbud ikke fundet") */
+  client?: SupabaseClient
 ): Promise<ResolvedRouteResult> {
-  const result = await resolveOfferMailRoute(offerId, ctx)
+  const result = await resolveOfferMailRoute(offerId, ctx, client)
   if (!result.ok || !result.route) return result
   return {
     ok: true,

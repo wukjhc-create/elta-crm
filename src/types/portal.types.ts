@@ -122,6 +122,8 @@ export interface PortalOffer {
 export interface PortalOfferLineItem {
   id: string
   position: number
+  /** 'section' = overskrift (ingen antal/pris) */
+  line_type?: string | null
   description: string
   quantity: number
   unit: string
