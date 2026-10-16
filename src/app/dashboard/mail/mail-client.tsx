@@ -417,7 +417,7 @@ export function MailClient() {
     // eller auto). Saa undgaar vi to parallelle Graph-poll-flows der
     // kan race paa graph_sync_state.delta_link.
     if (inFlightSyncRef.current) {
-      toast.info('Sync allerede i gang', 'Vent et oejeblik...')
+      toast.info('Synkronisering allerede i gang', 'Vent et øjeblik …')
       return
     }
     inFlightSyncRef.current = true
@@ -763,7 +763,7 @@ export function MailClient() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Mail</h1>
           <p className="text-gray-600 mt-1 flex items-center gap-2 flex-wrap">
-            <span>Samlet indbakke ({stats.total} emails, {stats.unread} ulæste)</span>
+            <span>Samlet indbakke ({stats.total} mails, {stats.unread} ulæste)</span>
             {/* N59: ryd op i ulæste — markér de viste mails som læst (kan fortrydes pr. mail) */}
             {emails.some((e) => !e.is_read) && (
               <button

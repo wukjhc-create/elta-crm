@@ -521,6 +521,15 @@ export async function manuallyLinkEmail(
   const supabase = await createClient()
 
   const linkedAt = new Date().toISOString()
+  // T-3 (review 2026-10-16): skiftes kunden, slippes en sag der tilhører en anden kunde — før blev mailen stående på
+  // den gamle kundes sag
+  const { data: cur } = await supabase.from('incoming_emails').select('service_case_id').eq('id', emailId).maybeSingle()
+  let clearCase = false
+  const curCaseId = (cur as { service_case_id?: string | null } | null)?.service_case_id ?? null
+  if (curCaseId) {
+    const { data: sag } = await supabase.from('service_cases').select('customer_id').eq('id', curCaseId).maybeSingle()
+    clearCase = !sag || (sag as { customer_id: string | null }).customer_id !== customerId
+  }
   // S-7 (pilot-review 2026-10-15): .select() — en opdatering der rammer 0 rækker (RLS/forkert id) gav før ingen fejl,
   // og UI'et sagde "Kunde tildelt"
   const { data: updated, error } = await supabase
@@ -530,6 +539,7 @@ export async function manuallyLinkEmail(
       customer_id: customerId,
       linked_by: 'manual',
       linked_at: linkedAt,
+      ...(clearCase ? { service_case_id: null } : {}),
     })
     .eq('id', emailId)
     .select('id, conversation_id')
@@ -570,18 +580,24 @@ export async function manuallyLinkEmail(
 export async function unlinkEmail(emailId: string): Promise<void> {
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('incoming_emails')
     .update({
       link_status: 'unidentified' as EmailLinkStatus,
       customer_id: null,
       linked_by: null,
       linked_at: null,
+      // T-3 (review 2026-10-16): sagen slippes også — før stod mailen fortsat på den gamle kundes sag
+      service_case_id: null,
     })
     .eq('id', emailId)
+    .select('id')
 
   if (error) {
     throw new Error(`Kunne ikke fjerne kobling: ${error.message}`)
+  }
+  if (!data || data.length === 0) {
+    throw new Error('Mailen blev ikke fundet eller må ikke ændres')
   }
 
   logger.action('unlink_email', undefined, 'incoming_emails', emailId, {})

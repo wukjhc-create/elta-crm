@@ -455,7 +455,7 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
         logger.error('createCustomer exhausted retries', { metadata: { code: error.code } })
         return {
           success: false,
-          error: 'Kunne ikke generere et unikt kundenummer. Proev igen om lidt.',
+          error: 'Kunne ikke generere et unikt kundenummer. Prøv igen om lidt.',
         }
       }
       logger.error('Database error creating customer', { error })
@@ -553,13 +553,13 @@ export async function quickCreateCustomer(
     const isPrivate = input.customer_type === 'private'
     const primaryName = (input.primary_name || '').trim()
     if (!primaryName) {
-      return { success: false, error: isPrivate ? 'Navn er paakraevet' : 'Firmanavn er paakraevet' }
+      return { success: false, error: isPrivate ? 'Navn er påkrævet' : 'Firmanavn er påkrævet' }
     }
     const contactPerson = isPrivate
       ? primaryName
       : (input.contact_person || '').trim()
     if (!contactPerson) {
-      return { success: false, error: 'Kontaktperson er paakraevet' }
+      return { success: false, error: 'Kontaktperson er påkrævet' }
     }
 
     const rawData = {
@@ -607,7 +607,7 @@ export async function quickCreateCustomer(
         logger.error('quickCreateCustomer exhausted retries', { metadata: { code: error.code } })
         return {
           success: false,
-          error: 'Kunne ikke generere et unikt kundenummer. Proev igen om lidt.',
+          error: 'Kunne ikke generere et unikt kundenummer. Prøv igen om lidt.',
         }
       }
       logger.error('Database error in quickCreateCustomer', { error })

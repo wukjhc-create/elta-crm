@@ -521,7 +521,11 @@ export async function linkEmailToCase(
         .eq('id', serviceCaseId)
         .maybeSingle()
       if (!sag) return { success: false, error: 'Sag ikke fundet' }
-      if (sag.customer_id && email.customer_id && sag.customer_id !== email.customer_id) {
+      // T-2 (review 2026-10-16): en mail uden kunde kunne kobles til en vilkårlig kundes sag (tjekket sprang over)
+      if (!email.customer_id) {
+        return { success: false, error: 'Knyt mailen til kunden, før den kobles til en sag' }
+      }
+      if (sag.customer_id && sag.customer_id !== email.customer_id) {
         return { success: false, error: 'Sagen tilhører en anden kunde end mailen' }
       }
     }
@@ -545,11 +549,18 @@ export async function linkEmailToCase(
     // 4. Opdater alle øvrige incoming_emails med samme conversation_id
     //    (så hele tråden flytter med).
     if (email.conversation_id) {
-      await supabase
+      // T-2: kun trådens mails på SAMME kunde flyttes med (før alle i samtalen — også andre kunders); fejl meldes
+      let siblings = supabase
         .from('incoming_emails')
         .update({ service_case_id: serviceCaseId })
         .eq('conversation_id', email.conversation_id)
         .neq('id', emailId)
+      siblings = email.customer_id ? siblings.eq('customer_id', email.customer_id) : siblings.is('customer_id', null)
+      const { error: sibErr } = await siblings
+      if (sibErr) {
+        logger.error('linkEmailToCase: thread update failed', { error: sibErr, userId, entity: 'incoming_emails', entityId: emailId })
+        return { success: false, error: 'Mailen er koblet, men resten af tråden kunne ikke flyttes — prøv igen' }
+      }
 
       // 5. Opdater email_threads-rowen hvis tråden findes via offer-link.
       //    email_threads har ingen direkte conversation_id — opdaterer alle
@@ -560,10 +571,14 @@ export async function linkEmailToCase(
 
     // 6. Flyt tilhørende customer_documents.service_case_id
     //    (kun dem der er kommet fra denne mail via source_email_id).
-    await supabase
+    const { error: docErr } = await supabase
       .from('customer_documents')
       .update({ service_case_id: serviceCaseId })
       .eq('source_email_id', emailId)
+    if (docErr) {
+      logger.error('linkEmailToCase: documents update failed', { error: docErr, userId, entity: 'customer_documents', entityId: emailId })
+      return { success: false, error: 'Mailen er koblet, men vedhæftningerne kunne ikke flyttes med — prøv igen' }
+    }
 
     revalidatePath('/dashboard/mail')
     if (email.customer_id) {
@@ -767,7 +782,7 @@ export async function createCustomerFromEmail(
 
   // 1. Fetch the email
   const email = await getIncomingEmail(emailId)
-  if (!email) return { success: false, error: 'Email ikke fundet' }
+  if (!email) return { success: false, error: 'Mail ikke fundet' }
 
   // 2. Determine sender info (prefer original for forwarded emails)
   let senderEmail = email.original_sender_email || email.sender_email
@@ -989,7 +1004,7 @@ export async function backfillEmailAttachments(
     .single()
 
   if (fetchError || !email) {
-    return { success: false, count: 0, error: 'Email ikke fundet' }
+    return { success: false, count: 0, error: 'Mail ikke fundet' }
   }
 
   if (!email.has_attachments) {
@@ -1289,7 +1304,7 @@ export async function sendQuickReply(
 
   // 2. Fetch the email
   const email = await getIncomingEmail(emailId)
-  if (!email) return { success: false, error: 'Email ikke fundet' }
+  if (!email) return { success: false, error: 'Mail ikke fundet' }
 
   // Sprint 8H Phase 1B: central mail-routing erstatter den lokale
   // candidate/intern-guard-logik. resolveReplyRoute har samme regler

@@ -62,7 +62,8 @@ export function OfferDetail({
     }
   }
 
-  const currency = companySettings?.default_currency || 'DKK'
+  // O-5 (review 2026-10-16): tilbuddets egen valuta (som PDF'en) — før firmaets standard, så et EUR-tilbud stod i DKK
+  const currency = offer.currency || companySettings?.default_currency || 'DKK'
 
   const isExpired = isOfferExpired(offer.valid_until)
   const canRespond = canCustomerRespond(offer.status, offer.valid_until)

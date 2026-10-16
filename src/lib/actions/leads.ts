@@ -87,8 +87,10 @@ export async function getLeads(filters?: {
     }
 
     // Apply sorting
-    const sortBy = filters?.sortBy || 'created_at'
-    const sortOrder = filters?.sortOrder || 'desc'
+    // T-8 (review 2026-10-16): sortBy kommer fra URL'en — ukendt kolonne gav DATABASE_ERROR-side
+    const LEAD_SORT_COLUMNS = ['created_at', 'updated_at', 'company_name', 'contact_person', 'status', 'source', 'value']
+    const sortBy = filters?.sortBy && LEAD_SORT_COLUMNS.includes(filters.sortBy) ? filters.sortBy : 'created_at'
+    const sortOrder = filters?.sortOrder === 'asc' ? 'asc' : 'desc'
     dataQuery = dataQuery.order(sortBy, { ascending: sortOrder === 'asc' })
 
     // Apply pagination

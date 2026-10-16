@@ -280,7 +280,7 @@ export function PortalDashboard({
                 <div className="flex items-center justify-between gap-4 sm:justify-end sm:gap-6">
                   <div className="text-left sm:text-right">
                     <p className="font-semibold text-gray-900">
-                      {formatCurrency(offer.final_amount, currency)}
+                      {formatCurrency(offer.final_amount, offer.currency || currency)}
                     </p>
                     <p className="text-sm text-gray-500">
                       {formatDateUtil(offer.created_at)}
@@ -411,7 +411,7 @@ export function PortalDashboard({
                 <div className="flex items-center justify-between gap-4 sm:justify-end sm:gap-6">
                   <div className="text-left sm:text-right">
                     <p className="font-semibold text-gray-900">
-                      {formatCurrency(inv.final_amount, currency)}
+                      {formatCurrency(inv.final_amount, inv.currency || currency)}
                     </p>
                     <span
                       className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${invoiceStatusClass(inv)}`}

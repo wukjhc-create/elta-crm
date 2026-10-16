@@ -129,20 +129,36 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   }
 
   const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
   const now = new Date().toISOString()
-  const { data: upd, error } = await createAdminClient()
-    .from('time_logs')
-    .update(decision === 'approved'
-      ? { approval_status: 'approved', approved_by: userId, approved_at: now, rejection_reason: null }
-      : { approval_status: 'rejected', approved_by: userId, approved_at: now, rejection_reason: reason })
-    .in('id', eligible.map((e) => e.id))
-    .neq('approval_status', decision)
-    .select('id')
-  if (error) {
-    logger.error('time approval update failed', { error })
-    return { success: false, error: 'Kunne ikke gemme godkendelsen' }
+  const patchRow = decision === 'approved'
+    ? { approval_status: 'approved', approved_by: userId, approved_at: now, rejection_reason: null }
+    : { approval_status: 'rejected', approved_by: userId, approved_at: now, rejection_reason: reason }
+  // T-1 (review 2026-10-16): opdateringen er betinget af den række, der blev kontrolleret ovenfor — før kunne en
+  // registrering faktureres (afvist alligevel → faktureret tid ude af kost/avance) eller ændres 8 → 12 t (godkendt
+  // usét) mellem læsning og skrivning. Hver række opdateres kun, hvis tider/sats og fakturalås er som set.
+  const updateOne = async (v: V) => {
+    let q = admin.from('time_logs').update(patchRow).eq('id', v.id).neq('approval_status', decision)
+      .eq('start_time', v.start_time)
+    // fakturalåsen gælder kun afvisning (godkendelse af fakturerede timer er tilladt — samme regel som før)
+    if (decision === 'rejected') q = q.is('invoice_line_id', null)
+    q = v.end_time === null ? q.is('end_time', null) : q.eq('end_time', v.end_time)
+    q = v.pay_rate_type === null ? q.is('pay_rate_type', null) : q.eq('pay_rate_type', v.pay_rate_type)
+    q = v.employee_rate_id === null ? q.is('employee_rate_id', null) : q.eq('employee_rate_id', v.employee_rate_id)
+    return q.select('id')
   }
-  for (const r of (upd ?? []) as Array<{ id: string }>) {
+  const upd: Array<{ id: string }> = []
+  for (let k = 0; k < eligible.length; k += 20) {
+    const results = await Promise.all(eligible.slice(k, k + 20).map(updateOne))
+    for (const { data, error } of results) {
+      if (error) {
+        logger.error('time approval update failed', { error })
+        return { success: false, error: 'Kunne ikke gemme godkendelsen' }
+      }
+      upd.push(...((data ?? []) as Array<{ id: string }>))
+    }
+  }
+  for (const r of upd) {
     await insertAuditRow({
       user_id: userId, entity_type: 'time_log', entity_id: r.id, entity_name: null,
       action: decision === 'approved' ? 'time_log_approved' : 'time_log_rejected',
@@ -151,7 +167,8 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
     })
   }
   revalidatePath('/dashboard/time-approval')
-  return { success: true, data: { updated: (upd ?? []).length, skipped } }
+  // T-1: rækker ændret/faktureret mellem læsning og skrivning tæller som sprunget over
+  return { success: true, data: { updated: upd.length, skipped: skipped + (eligible.length - upd.length) } }
 }
 
 export async function approveTimeLogsAction(ids: string[], seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number }>> {

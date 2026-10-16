@@ -418,7 +418,7 @@ export async function updateTimeLog(
           return { success: false, error: 'Arbejdsordren er ikke tildelt dig' }
         }
         if (woScope.employeeId && cur.employee_id !== woScope.employeeId) {
-          return { success: false, error: 'Du kan kun aendre dine egne tidsregistreringer' }
+          return { success: false, error: 'Du kan kun ændre dine egne tidsregistreringer' }
         }
       }
     }

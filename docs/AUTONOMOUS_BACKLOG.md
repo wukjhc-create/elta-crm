@@ -49,29 +49,29 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | # | Fund | Status |
 |---|---|---|
 | O-1 | Tilbudsrykker-cron læser tilbud + portal-token med anon-klient (ingen session) → altid "Tilbud ikke fundet"/ugyldigt link (S2) | BLOCKED_APPROVAL — cron'en ER planlagt i vercel.json og `company_settings.reminder_enabled` er som standard true: rettelsen ville begynde at sende rigtige tilbudsrykkere til kunder = live-mail-aktivering. Kræver Henriks ja (evt. bag eksplicit `OFFER_REMINDERS_LIVE`-flag) |
-| O-2 | sendOfferEmail: mail ud før status-flip; flip-fejl kun logget → kunden får link til ikke-synligt tilbud (S2) | TODO — betinget flip før afsendelse + tilbagerul ved fejl |
-| O-3 | sendOfferEmail uden status-værn (accepteret/afvist/erstattet kan genmailes) | TODO |
+| O-2 | sendOfferEmail: mail ud før status-flip; flip-fejl kun logget → kunden får link til ikke-synligt tilbud (S2) | DONE (venter commit) — statusskift-fejl efter afsendelse → advarsel ("send IKKE igen"), toast.warning |
+| O-3 | sendOfferEmail uden status-værn (accepteret/afvist/erstattet kan genmailes) | DONE (venter commit) — kun kladde/sendt/set (accepteret kun med accept-skabelon); erstattet afvises (læst fra select *, ingen DB-filter) |
 | O-4 | Portal: sektionslinjer vist som produkter (line_type mangler), linjerabat skjult | TODO |
-| O-5 | Portal viser firmaets standardvaluta i stedet for tilbuddets | TODO |
+| O-5 | Portal viser firmaets standardvaluta i stedet for tilbuddets | DONE (venter commit) — tilbuddets/fakturaens valuta |
 | O-6 | Erstattet revision kan accepteres internt og konverteres til sag | DEFERRED — `superseded_by` findes kun med revisioner (00203, kun staging bag OFFER_REVISIONS_ENABLED); DB-filter på kolonnen ville fejle i prod. Tages med revisions-udrulningen |
 | O-7 | Erstattede revisioner får rykkere og tælles som klar til konvertering | DEFERRED — samme som O-6 (00203) |
 | O-8 | deactivatePortalToken melder succes uden at have opdateret en række | TODO |
 | O-9 | Fuldmagt-/besigtigelsesforespørgsler i rykker-cron uden paginering | TODO |
-| O-10 | viewed_at nulstilles ikke ved viewed→kladde→sendt | TODO |
+| O-10 | viewed_at nulstilles ikke ved viewed→kladde→sendt | DONE (venter commit) |
 | O-11 | Portaldatoer uden timeZone (server-renderet UTC) | TODO |
 | O-12 | Portal: afvis uden udløbs-/erstattet-tjek; PDF-route serverer erstattede revisioner; rabatrække-betingelse PDF ≠ portal | TODO (udløb + rabatrække); erstattet-delen DEFERRED (00203) |
-| T-1 | Godkend/afvis timer genlæser ikke rækken: faktureret imellem → afvist alligevel; ændret 8→12 t imellem → godkendt usét (S2) | TODO — betingede opdateringer (.is invoice_line_id null; start/slut/sats som set) |
-| T-2 | linkEmailToCase: mail uden kunde kan kobles til anden kundes sag, søskende-mails flyttes uanset kunde, fejl ignoreres (S2) | TODO |
-| T-3 | Fjern kobling efterlader service_case_id → mail vises fortsat på den gamle kundes sag (S2) | TODO |
+| T-1 | Godkend/afvis timer genlæser ikke rækken: faktureret imellem → afvist alligevel; ændret 8→12 t imellem → godkendt usét (S2) | DONE (venter commit) — betinget opdatering pr. række (tider/sats som læst; afvisning kun ufaktureret); ændret imellem = sprunget over |
+| T-2 | linkEmailToCase: mail uden kunde kan kobles til anden kundes sag, søskende-mails flyttes uanset kunde, fejl ignoreres (S2) | DONE (venter commit) — mail uden kunde afvises; tråd kun samme kunde; fejl meldes |
+| T-3 | Fjern kobling efterlader service_case_id → mail vises fortsat på den gamle kundes sag (S2) | DONE (venter commit) — unlink slipper sagen (+ 0-rækker = fejl); kundeskift slipper fremmed sag |
 | T-4 | createCustomerFromEmail melder succes trods fejl (lead/opdatering/kobling), overskriver allerede koblet mail | TODO |
 | T-5 | Kunde-dubletkontrol kun i klienten (samtidige/direkte kald opretter dublet-mail) | TODO — server-tjek + "Opret alligevel"-flag (unikt indeks = [MIGRATION]) |
 | T-6 | Lead-kanban: statusskift kun via træk-og-slip (virker ikke på telefon), min-bredde 1200 px | TODO — status-vælger pr. kort (kun tilladte overgange) |
 | T-7 | Lead-tabel uden mobil-kortliste | TODO |
-| T-8 | Lead-liste sortBy fra URL uvalideret → DATABASE_ERROR | TODO — whitelist |
+| T-8 | Lead-liste sortBy fra URL uvalideret → DATABASE_ERROR | DONE (venter commit) — whitelist |
 | T-9 | Ulæst-tæller trækkes ned for arkiverede/ignorerede mails | TODO |
 | T-10 | Markér læst/ulæst melder succes ved 0 opdaterede rækker | TODO |
 | T-11 | Godkendelse: sprunget-over uden årsag (faktureret/ændret/skjult) | TODO |
-| T-12 | Små Godkend/Afvis-knapper på telefon; ASCII-dansk ("Proev", "paakraevet", "aendre", "oejeblik", "Email ikke fundet") | TODO |
+| T-12 | Små Godkend/Afvis-knapper på telefon; ASCII-dansk ("Proev", "paakraevet", "aendre", "oejeblik", "Email ikke fundet") | DONE (venter commit) — dansk retskrivning; 44 px knapper på telefon |
 
 ## NEXT-21 (review-bølge 2026-10-16 middag — fakturamail/bank/e-conomic + rettigheds-sweep)
 | # | Fund | Status |

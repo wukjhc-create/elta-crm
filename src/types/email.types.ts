@@ -272,6 +272,8 @@ export interface SendOfferEmailResult {
   message_id?: string
   tracking_id?: string
   error?: string
+  /** O-2: mailen er sendt, men noget efterfølgende (fx statusskift) fejlede — vises for brugeren */
+  warning?: string
 }
 
 export interface ResendEmailInput {

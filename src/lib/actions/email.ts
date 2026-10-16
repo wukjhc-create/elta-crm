@@ -710,6 +710,19 @@ export async function sendOfferEmail(
     if (!offer.customer?.email) {
       return { success: false, error: 'Kunde har ingen e-mail adresse' }
     }
+    // O-3 (review 2026-10-16): kun kladde/sendt/set kan (gen)sendes — accepterede, afviste, udløbne eller erstattede
+    // tilbud fik før en mail med "klik for at acceptere", som portalen så afviste
+    {
+      const st = String(offer.status ?? '')
+      // en evt. bekræftelsesskabelon (kode med "accept") må stadig sendes på et accepteret tilbud
+      const acceptTemplate = /accept/i.test(String(input.template_code ?? ''))
+      if (!['draft', 'sent', 'viewed'].includes(st) && !(st === 'accepted' && acceptTemplate)) {
+        return { success: false, error: 'Tilbuddet kan ikke sendes i den nuværende status (kun kladde, sendt eller set)' }
+      }
+      if ((offer as { superseded_by?: string | null }).superseded_by) {
+        return { success: false, error: 'Tilbuddet er erstattet af en nyere revision — send den nye revision' }
+      }
+    }
     // Tilbuds-review 2026-10-09 (#7): udløbet tilbud sendes ikke (kunden ville få "klik for at acceptere" og blive afvist)
     {
       const { isOfferExpired } = await import('@/lib/offers/validity')
@@ -970,6 +983,9 @@ export async function sendOfferEmail(
       })
     }
 
+    // O-2 (review 2026-10-16): mislykket statusskift efter afsendelse meldes — før stod tilbuddet som kladde (usynligt i
+    // portalen), mens brugeren så "E-mail sendt"
+    let statusWarning: string | undefined
     // Update offer status if it was draft
     if (offer.status === 'draft') {
       // S-6 (pilot-review 2026-10-15): samme sporbarhed som statusknappen — kun fra kladde (CAS), fejl logges,
@@ -984,6 +1000,12 @@ export async function sendOfferEmail(
         .eq('status', 'draft')
         .select('id')
       if (flipErr) logger.error('sendOfferEmail: status draft→sent failed', { error: flipErr, entityId: offer.id })
+      if (flipErr || !flipped || flipped.length === 0) {
+        const { data: nowRow } = await supabase.from('offers').select('status').eq('id', offer.id).maybeSingle()
+        if (!nowRow || (nowRow as { status: string }).status === 'draft') {
+          statusWarning = 'Mailen ER sendt, men tilbuddets status kunne ikke sættes til "Sendt" — kunden kan ikke se det i portalen. Sæt status til Sendt på tilbuddet (send IKKE mailen igen).'
+        }
+      }
       if (flipped && flipped.length > 0) {
         await logOfferActivity(offer.id, 'status_change', 'Status ændret til "Sendt" (sendt på mail)', userId, { newStatus: 'sent', via: 'email' })
         try {
@@ -1083,6 +1105,7 @@ export async function sendOfferEmail(
       thread_id: thread.id,
       message_id: message.id,
       tracking_id: trackingId,
+      ...(statusWarning ? { warning: statusWarning } : {}),
     }
   } catch (error) {
     logger.error('Error sending offer email', { error: error })

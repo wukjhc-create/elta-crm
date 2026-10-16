@@ -196,7 +196,7 @@ export function TimeApprovalClient() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-2 sm:gap-1 shrink-0">
                     {l.is_own ? (
                       <span className="text-[11px] text-gray-500" title="Egne timer godkendes af en anden">Egne timer</span>
                     ) : !l.end_time ? (
@@ -204,7 +204,7 @@ export function TimeApprovalClient() {
                     ) : (
                       <>
                         {l.approval_status !== 'approved' && (
-                          <button type="button" disabled={busy !== null} onClick={() => approve([l.id], l.id)} className="p-1.5 rounded hover:bg-emerald-50 text-emerald-700 disabled:opacity-40" aria-label="Godkend" data-testid="time-approval-approve">
+                          <button type="button" disabled={busy !== null} onClick={() => approve([l.id], l.id)} className="p-1.5 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded hover:bg-emerald-50 text-emerald-700 disabled:opacity-40" aria-label="Godkend" data-testid="time-approval-approve">
                             {busy === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                           </button>
                         )}
@@ -212,7 +212,7 @@ export function TimeApprovalClient() {
                           <span className="text-[11px] text-gray-500 px-1.5" title="Fakturerede timer kan ikke afvises" data-testid="time-approval-invoiced">Faktureret</span>
                         )}
                         {l.approval_status !== 'rejected' && !l.invoiced && (
-                          <button type="button" disabled={busy !== null} onClick={() => setRejecting({ id: l.id, reason: '' })} className="p-1.5 rounded hover:bg-red-50 text-red-600 disabled:opacity-40" aria-label="Afvis" data-testid="time-approval-reject">
+                          <button type="button" disabled={busy !== null} onClick={() => setRejecting({ id: l.id, reason: '' })} className="p-1.5 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded hover:bg-red-50 text-red-600 disabled:opacity-40" aria-label="Afvis" data-testid="time-approval-reject">
                             <X className="w-4 h-4" />
                           </button>
                         )}

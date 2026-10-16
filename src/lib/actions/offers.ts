@@ -793,6 +793,11 @@ export async function updateOfferStatus(
           updateData.rejected_at = null
           updateData.rejection_reason = null
         }
+        // O-10 (review 2026-10-16): sendt/set → kladde nulstiller "set" — ellers blev et gensendt tilbud aldrig "set"
+        // igen (portalen sætter kun viewed_at, når den er tom) og sælgeren fik ingen "set af kunden"-besked
+        if (current.status === 'sent' || current.status === 'viewed') {
+          updateData.viewed_at = null
+        }
         break
     }
 

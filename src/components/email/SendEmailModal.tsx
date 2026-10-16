@@ -232,7 +232,11 @@ export function SendEmailModal({
         acknowledge_low_db: lowDb ? ackLowDb : undefined,
       })
 
-      if (result.success) {
+      if (result.success && result.warning) {
+        toast?.warning('E-mail sendt — men status ikke opdateret', result.warning)
+        onOpenChange(false)
+        onEmailSent?.()
+      } else if (result.success) {
         toast?.success('E-mail sendt', 'Tilbuddet er sendt til kunden')
         onOpenChange(false)
         onEmailSent?.()
