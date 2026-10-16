@@ -74,10 +74,24 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const allRows = <T,>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> =>
     fetchAllRows(page).catch((err) => { incomplete = true; logger.error('getDashboardStats: query failed', { error: err }); return [] as T[] })
 
+  // Q-1 (review 2026-10-16): leads og kunder tælles i databasen (HEAD-count) i stedet for at hente alle rækker side for
+  // side ved hver dashboard-indlæsning. Kundernes "nye denne måned" = oprettet fra 1. i dansk kalendermåned.
+  const LEAD_STATUSES_ALL: LeadStatus[] = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost']
+  const monthStartIso = copenhagenLocalToIso(`${copenhagenParts(new Date()).date.slice(0, 7)}-01`, '00:00')
+  const headCount = async (q: PromiseLike<{ count: number | null; error: unknown }>): Promise<number> => {
+    const r = await q
+    if (r.error) { incomplete = true; logger.error('getDashboardStats: count failed', { error: r.error }); return 0 }
+    return r.count ?? 0
+  }
+  const [leadCounts, customerTotal, customerActive, customerNew] = await Promise.all([
+    Promise.all(LEAD_STATUSES_ALL.map((st) => headCount(supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', st)))),
+    headCount(supabase.from('customers').select('id', { count: 'exact', head: true })),
+    headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).eq('is_active', true)),
+    headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', monthStartIso)),
+  ])
+
   // Fetch all stats in parallel
   const [
-    leadsResult,
-    customersResult,
     offersResult,
     projectsResult,
     timeEntriesResult,
@@ -85,8 +99,6 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     customerEmailsResult,
   ] = await Promise.all([
     // Rækker hentes side for side — PostgREST giver højst 1.000 pr. kald (N36-rest: tallene stod stille ved 1.000)
-    allRows<{ status: string }>((f, t) => supabase.from('leads').select('id, status').order('id').range(f, t)),
-    allRows<{ is_active: boolean; created_at: string }>((f, t) => supabase.from('customers').select('id, is_active, created_at').order('id').range(f, t)),
     // Rapport-review 2026-10-09 (#2): værdi ekskl. moms efter rabat (final − tax) — total_amount er subtotal før rabat
     allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).order('id').range(f, t)),
     // N36: sager (ikke gamle projekter)
@@ -110,22 +122,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .not('customer_id', 'is', null),
   ])
 
-  const leads = leadsResult
-  const customers = customersResult
   const offers = offersResult
   const activeCases = projectsResult.count || 0
   const timeEntries = timeEntriesResult
 
   // Calculate leads stats
-  const leadsByStatus = leads.reduce(
-    (acc, lead) => {
-      acc[lead.status as LeadStatus] = (acc[lead.status as LeadStatus] || 0) + 1
-      return acc
-    },
-    {} as Record<LeadStatus, number>
-  )
+  const leadsByStatus = Object.fromEntries(LEAD_STATUSES_ALL.map((st, i) => [st, leadCounts[i]])) as Record<LeadStatus, number>
 
-  const totalLeads = leads.length
+  const totalLeads = leadCounts.reduce((a, b) => a + b, 0)
   const wonLeads = leadsByStatus['won'] || 0
   const lostLeads = leadsByStatus['lost'] || 0
   const closedLeads = wonLeads + lostLeads
@@ -133,11 +137,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   // Calculate customers stats
   // dansk kalendermåned (serveren kører i UTC — før talte kunder fra 1. kl. 00–02 med i forrige måned)
-  const thisMonth = copenhagenParts(new Date()).date.slice(0, 7)
-  const activeCustomers = customers.filter((c) => c.is_active).length
-  const newCustomersThisMonth = customers.filter(
-    (c) => copenhagenParts(c.created_at).date.slice(0, 7) === thisMonth
-  ).length
+  const activeCustomers = customerActive
+  const newCustomersThisMonth = customerNew
 
   // Calculate offers stats
   const offersByStatus = offers.reduce(
@@ -180,7 +181,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       conversionRate,
     },
     customers: {
-      total: customers.length,
+      total: customerTotal,
       active: activeCustomers,
       new_this_month: newCustomersThisMonth,
     },

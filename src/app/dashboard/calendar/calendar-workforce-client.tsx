@@ -299,8 +299,9 @@ export function CalendarWorkforceClient({
       <div className="flex items-center gap-2">
         <button
           onClick={() => updateParam({ date: stepBack() })}
-          className="p-2 hover:bg-gray-100 rounded-lg"
+          className="p-3 sm:p-2 hover:bg-gray-100 rounded-lg"
           title="Forrige"
+          aria-label="Forrige"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -320,8 +321,9 @@ export function CalendarWorkforceClient({
         />
         <button
           onClick={() => updateParam({ date: stepForward() })}
-          className="p-2 hover:bg-gray-100 rounded-lg"
+          className="p-3 sm:p-2 hover:bg-gray-100 rounded-lg"
           title="Næste"
+          aria-label="Næste"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -486,7 +488,7 @@ function DayView({
   return (
     // PL-9 (planlægnings-review 2026-10-14): smallere medarbejderkolonne på mobil + vandret scroll (før ~80 px til job)
     <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
-      <table className="w-full min-w-[480px] text-sm">
+      <table className="w-full md:min-w-[480px] text-sm">
         <thead className="bg-gray-50 text-xs text-gray-600">
           <tr>
             <th className="px-3 py-2 text-left w-32 md:w-64">Medarbejder</th>
@@ -519,7 +521,7 @@ function EmployeeRow({
   const absent = absenceOn(absences, employee.id, anchorDate)
   return (
     <tr className="align-top">
-      <td className="px-3 py-3 w-64">
+      <td className="px-3 py-3 w-32 md:w-64">
         <Link
           href={`/dashboard/employees/${employee.id}`}
           className="font-medium text-gray-900 hover:text-emerald-700 hover:underline"
@@ -547,7 +549,7 @@ function EmployeeRow({
 function UnassignedRow({ workOrders }: { workOrders: WorkOrderForCalendar[] }) {
   return (
     <tr className="align-top bg-amber-50/50">
-      <td className="px-3 py-3 w-64">
+      <td className="px-3 py-3 w-32 md:w-64">
         <span className="font-medium text-amber-900 flex items-center gap-1">
           <AlertCircle className="w-4 h-4" /> Ikke tildelt
         </span>
