@@ -20,27 +20,34 @@ import {
   CUSTOMER_CONTACT_ROLE_LABELS,
   type CustomerContactRole,
 } from '@/types/customers.types'
-import { OrderActionsTab } from './order-actions-tab'
-import { OrderActivityTab } from './order-activity-tab'
-import { OrderPlanningTab } from './order-planning-tab'
-import { OrderHandoverTab } from './order-handover-tab'
-import { OrderMaterialsTab } from './order-materials-tab'
-import { OrderOtherCostsTab } from './order-other-costs-tab'
-import { OrderEconomyTab } from './order-economy-tab'
 import { CaseBillingStatusCard } from '@/components/modules/orders/case-billing-status-card'
 import { CaseProjectEconomyCard } from '@/components/modules/orders/case-project-economy-card'
 import { CasePurchaseSummaryCard } from '@/components/modules/orders/case-purchase-summary-card'
 import { CaseUnconvertedSupplierLinesCard } from '@/components/modules/orders/case-unconverted-supplier-lines-card'
-import { OrderBillingDraftTab } from './order-billing-draft-tab'
-import { OrderMailsTab } from './order-mails-tab'
-import { OrderDocumentsTab } from './order-documents-tab'
-import { OrderInspectionTab } from './order-inspection-tab'
-import { OrderNotesTab } from './order-notes-tab'
-import { OrderTasksTab } from './order-tasks-tab'
 import { InlineStatusChanger } from './inline-status-changer'
 import { CaseCloseReadiness, CaseStartHint } from './case-close-readiness'
 import { OfferAgentButton } from '@/components/modules/agents/offer-agent-button'
 import { WeatherWidget } from '@/components/shared/weather-widget'
+import dynamic from 'next/dynamic'
+
+// PF-9 (performance-review 2026-10-16): fanerne indlæses først, når de åbnes (egne bundter) — før lå alle 13 faner
+// (~8.000 linjer inkl. fakturakladde og økonomi) i sagsdetaljens første bundt. Stadig server-renderet.
+function TabLoading() {
+  return <div className="py-8 text-center text-sm text-gray-500">Henter …</div>
+}
+const OrderActionsTab = dynamic(() => import('./order-actions-tab').then((m) => m.OrderActionsTab), { loading: TabLoading })
+const OrderActivityTab = dynamic(() => import('./order-activity-tab').then((m) => m.OrderActivityTab), { loading: TabLoading })
+const OrderPlanningTab = dynamic(() => import('./order-planning-tab').then((m) => m.OrderPlanningTab), { loading: TabLoading })
+const OrderHandoverTab = dynamic(() => import('./order-handover-tab').then((m) => m.OrderHandoverTab), { loading: TabLoading })
+const OrderMaterialsTab = dynamic(() => import('./order-materials-tab').then((m) => m.OrderMaterialsTab), { loading: TabLoading })
+const OrderOtherCostsTab = dynamic(() => import('./order-other-costs-tab').then((m) => m.OrderOtherCostsTab), { loading: TabLoading })
+const OrderEconomyTab = dynamic(() => import('./order-economy-tab').then((m) => m.OrderEconomyTab), { loading: TabLoading })
+const OrderBillingDraftTab = dynamic(() => import('./order-billing-draft-tab').then((m) => m.OrderBillingDraftTab), { loading: TabLoading })
+const OrderMailsTab = dynamic(() => import('./order-mails-tab').then((m) => m.OrderMailsTab), { loading: TabLoading })
+const OrderDocumentsTab = dynamic(() => import('./order-documents-tab').then((m) => m.OrderDocumentsTab), { loading: TabLoading })
+const OrderInspectionTab = dynamic(() => import('./order-inspection-tab').then((m) => m.OrderInspectionTab), { loading: TabLoading })
+const OrderNotesTab = dynamic(() => import('./order-notes-tab').then((m) => m.OrderNotesTab), { loading: TabLoading })
+const OrderTasksTab = dynamic(() => import('./order-tasks-tab').then((m) => m.OrderTasksTab), { loading: TabLoading })
 
 const TABS = [
   { id: 'overblik',     label: 'Overblik',           ready: true },

@@ -68,8 +68,8 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | PF-5 | Kundekortets postkasse sender body_html/body_text for op til 200 mails | DONE (d95d4ccc) — listen uden brødtekst; LazyEmailBody henter ved visning (cache pr. mail) |
 | PF-6 | Faktura-nøgletal scanner alle fakturaer to gange; oversigten har ~6 serielle kald | DONE (82ecf6b0) — oversigten: fejl-log, e-conomic-parathed, kunder/sager og kreditnotaer i én parallel runde; nøgletal-scanning (alle fakturaer) uændret = senere/aggregat-[MIGRATION] |
 | PF-7 | Mine job henter afsluttede opgaver (op til 1000) og skjuler dem i klienten; realtime uden filter | TODO |
-| PF-8 | Gem tidsregistrering: ~9 serielle kald + tredobbelt genindlæsning | DONE (venter commit) — createTimeLog: scope (kun medarbejder-id, tjekket mod arbejdsordrens tildeling), arbejdsordre, medarbejder og timepris samtidig; overlap + sats samtidig. Klientens router.refresh beholdt (komponenten bruges på flere sider) |
-| PF-9 | Sagsdetaljen bundter alle 13 faner statisk (ingen next/dynamic) | TODO |
+| PF-8 | Gem tidsregistrering: ~9 serielle kald + tredobbelt genindlæsning | DONE (e30abfbd) — createTimeLog: scope (kun medarbejder-id, tjekket mod arbejdsordrens tildeling), arbejdsordre, medarbejder og timepris samtidig; overlap + sats samtidig. Klientens router.refresh beholdt (komponenten bruges på flere sider) |
+| PF-9 | Sagsdetaljen bundter alle 13 faner statisk (ingen next/dynamic) | DONE (venter commit) — 13 faner via next/dynamic (egne bundter, stadig server-renderet); kundekortets modaler/framer-motion = senere |
 | PF-10 | Lead-tavlen: to serielle getLeads med select('*') | DONE (d95d4ccc) — åbne + lukkede leads samtidig |
 | PF-11 | Manglende indeks på incoming_emails (service_case_id; is_archived/link_status/received_at) | BLOCKED_APPROVAL [MIGRATION] — forslag |
 | PF-12 | Realtime uden filter → genindlæsningsstorme (månedsgraf, mail-siden ved hver UPDATE) | DONE (d95d4ccc) — mail-siden kun ved nye mails (INSERT), månedsgrafen uden realtime |
