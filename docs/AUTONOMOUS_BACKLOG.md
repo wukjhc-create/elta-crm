@@ -66,9 +66,9 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | PF-3 | "Sager over estimat" kører fuld efterkalkulation af 200 sager pr. indlæsning (serielle bidder, kvadratisk kopi) | DONE (303db8e8) — sagsbidder samtidig + push i stedet for kopiering; lazy/hoursOnly-tilstand = senere |
 | PF-4 | "Kræver svar" genlæser hele den koblede indbakke (~45 serielle kald ved 5k mails) ved hver statistik/realtime-hændelse | DONE (e99f0ba0) — kandidater med beregningens kolonner (ingen genhentning), bidder samtidig, cache() pr. request |
 | PF-5 | Kundekortets postkasse sender body_html/body_text for op til 200 mails | DONE (d95d4ccc) — listen uden brødtekst; LazyEmailBody henter ved visning (cache pr. mail) |
-| PF-6 | Faktura-nøgletal scanner alle fakturaer to gange; oversigten har ~6 serielle kald | DONE (venter commit) — oversigten: fejl-log, e-conomic-parathed, kunder/sager og kreditnotaer i én parallel runde; nøgletal-scanning (alle fakturaer) uændret = senere/aggregat-[MIGRATION] |
+| PF-6 | Faktura-nøgletal scanner alle fakturaer to gange; oversigten har ~6 serielle kald | DONE (82ecf6b0) — oversigten: fejl-log, e-conomic-parathed, kunder/sager og kreditnotaer i én parallel runde; nøgletal-scanning (alle fakturaer) uændret = senere/aggregat-[MIGRATION] |
 | PF-7 | Mine job henter afsluttede opgaver (op til 1000) og skjuler dem i klienten; realtime uden filter | TODO |
-| PF-8 | Gem tidsregistrering: ~9 serielle kald + tredobbelt genindlæsning | TODO |
+| PF-8 | Gem tidsregistrering: ~9 serielle kald + tredobbelt genindlæsning | DONE (venter commit) — createTimeLog: scope (kun medarbejder-id, tjekket mod arbejdsordrens tildeling), arbejdsordre, medarbejder og timepris samtidig; overlap + sats samtidig. Klientens router.refresh beholdt (komponenten bruges på flere sider) |
 | PF-9 | Sagsdetaljen bundter alle 13 faner statisk (ingen next/dynamic) | TODO |
 | PF-10 | Lead-tavlen: to serielle getLeads med select('*') | DONE (d95d4ccc) — åbne + lukkede leads samtidig |
 | PF-11 | Manglende indeks på incoming_emails (service_case_id; is_archived/link_status/received_at) | BLOCKED_APPROVAL [MIGRATION] — forslag |

@@ -30,7 +30,7 @@ import {
   getAuthenticatedClientWithRole,
   formatError,
 } from '@/lib/actions/action-helpers'
-import { getWorkOrderScope } from '@/lib/auth/case-scope'
+import { getWorkOrderScope, getWorkOrderEmployeeScope } from '@/lib/auth/case-scope'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
@@ -247,26 +247,39 @@ export async function createTimeLog(
       return { success: false, error: 'Manglende tilladelse: time_logs.create' }
     }
 
+    // PF-8 (performance-review 2026-10-16): scope, arbejdsordre, medarbejder og timepris-tjek hentes samtidig (før ~5
+    // kald efter hinanden); montørens scope er kun medarbejder-id'et (Q-5) og tjekkes mod arbejdsordrens tildeling
+    const restricted = !hasPermission('time_logs.edit.all')
+    const [woScope, woRes, empRes, rateErr] = await Promise.all([
+      restricted ? getWorkOrderEmployeeScope({ role, userId, supabase }) : Promise.resolve(null),
+      supabase
+        .from('work_orders')
+        .select('id, case_id, status, assigned_employee_id, case:service_cases(status)')
+        .eq('id', input.work_order_id)
+        .maybeSingle(),
+      supabase
+        .from('employees')
+        .select('id, active')
+        .eq('id', input.employee_id)
+        .maybeSingle(),
+      // PR-4b: ingen tid uden gyldig timepris (DB-triggeren ville ellers fryse en skjult standardpris). Satsen læses med
+      // admin-klienten (montør må ikke se den) — kun ja/nej bruges, intet beløb returneres
+      employeeSaleRateError(input.employee_id),
+    ])
+    const { data: wo, error: woErr } = woRes
+
     // Sprint 7E — montor maa kun create paa egne work orders + med eget
     // employee_id. Admin/serviceleder kan create paa enhver kombination.
-    if (!hasPermission('time_logs.edit.all')) {
-      const woScope = await getWorkOrderScope({ role, userId, supabase })
-      if (woScope.type === 'specific') {
-        if (!woScope.workOrderIds.includes(input.work_order_id)) {
-          return { success: false, error: 'Arbejdsordren er ikke tildelt dig' }
-        }
-        if (woScope.employeeId && input.employee_id !== woScope.employeeId) {
-          return { success: false, error: 'Du kan kun registrere tid paa din egen medarbejder-konto' }
-        }
+    if (woScope && woScope.type === 'employee') {
+      if (!woScope.employeeId || !wo || (wo as { assigned_employee_id?: string | null }).assigned_employee_id !== woScope.employeeId) {
+        return { success: false, error: 'Arbejdsordren er ikke tildelt dig' }
+      }
+      if (input.employee_id !== woScope.employeeId) {
+        return { success: false, error: 'Du kan kun registrere tid paa din egen medarbejder-konto' }
       }
     }
 
     // Validate work_order exists and grab case_id for revalidate.
-    const { data: wo, error: woErr } = await supabase
-      .from('work_orders')
-      .select('id, case_id, status, case:service_cases(status)')
-      .eq('id', input.work_order_id)
-      .maybeSingle()
     if (woErr || !wo) {
       return { success: false, error: 'Arbejdsordre ikke fundet' }
     }
@@ -280,19 +293,10 @@ export async function createTimeLog(
     }
 
     // Validate employee exists + active.
-    const { data: emp } = await supabase
-      .from('employees')
-      .select('id, active')
-      .eq('id', input.employee_id)
-      .maybeSingle()
+    const emp = empRes.data
     if (!emp) return { success: false, error: 'Medarbejder ikke fundet' }
     if (!emp.active) return { success: false, error: 'Medarbejder er inaktiv' }
-    // PR-4b: ingen tid uden gyldig timepris (DB-triggeren ville ellers fryse en skjult standardpris). Satsen læses med
-    // admin-klienten (montør må ikke se den) — kun ja/nej bruges, intet beløb returneres
-    {
-      const rateErr = await employeeSaleRateError(input.employee_id)
-      if (rateErr) return { success: false, error: rateErr }
-    }
+    if (rateErr) return { success: false, error: rateErr }
 
     // Compute start_time / end_time.
     const startClock = (input.start_clock?.trim() || '08:00').padEnd(5, '0')
@@ -330,12 +334,16 @@ export async function createTimeLog(
     {
       const spanErr = timeLogSpanError(startTimeIso, endTimeIso)
       if (spanErr) return { success: false, error: spanErr }
-      const clash = await findOverlappingTimeLog(supabase, input.employee_id, startTimeIso, endTimeIso)
+      // PF-8: overlap- og sats-tjek samtidig
+      const [clash, rateOk] = await Promise.all([
+        findOverlappingTimeLog(supabase, input.employee_id, startTimeIso, endTimeIso),
+        input.employee_rate_id ? rateBelongsToEmployee(createAdminClient(), input.employee_rate_id, input.employee_id) : Promise.resolve(true),
+      ])
       if (clash) {
         const p = (iso: string) => copenhagenParts(iso).clock
         return { success: false, error: `Overlapper en anden registrering for medarbejderen (${p(clash.start_time)}–${p(clash.end_time)} samme periode)` }
       }
-      if (input.employee_rate_id && !(await rateBelongsToEmployee(createAdminClient(), input.employee_rate_id, input.employee_id))) {
+      if (!rateOk) {
         return { success: false, error: 'Satsen hører ikke til medarbejderen eller er inaktiv' }
       }
     }

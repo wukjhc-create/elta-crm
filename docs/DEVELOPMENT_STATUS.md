@@ -2,6 +2,18 @@
 
 **Opdateret:** 2026-10-16 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
 
+## Long-run 2026-10-16 eftermiddag — NEXT-21/22/23 (kun kode, ingen migrationer, intet live)
+| Commit | Indhold |
+|---|---|
+| 8584ccf9 | Q-5 arbejdsordre-scope uden id-liste |
+| f48b9310 | SEC-1/2/3/6 hjælpere uden login ikke server actions (+ assert-server-only-helpers i check:rbac), SEC-4/5; A-1 fakturamail ved ukendt udfald, A-2/5/6/8/9/10/11/13; A-12 Markér betalt kun i CRM (beslutning) |
+| 46ab9f18 / 9c3f5f7c | T-1..T-4/T-6..T-10/T-12, O-2/3/5/8/10/11; ui-full afviser mellemrumsseparerede grupper (runbook ui-harness) |
+| 184b807c | O-1 tilbudsrykkere som DRY-RUN (live BLOCKED), O-4 portal-sektioner, O-12 portal-afvis-regel |
+| 59377465 | T-5 server-side dublet-værn på kunde-mail (00237-indeks = BLOCKED_APPROVAL) |
+| b8107bd2 | ST-1/3/4/5/6/9/10/11 filer/storage |
+| d95d4ccc / e99f0ba0 / 303db8e8 / 82ecf6b0 | PF-5/10/12/2/4/3/6 performance; HT-1 |
+Tests: UI-grupper sales/portal-mail/economy/montor/smoke grønne pr. bølge (nye U179–U182), staging-tjek offer-reminder-plan 8/8, customer-email-dup 5/5, dashboard-stats-equivalence 4/4, concurrency 8/8.
+
 ## Prod-kørsel 2026-10-15 — 00221–00225 (Henrik: "Alle fire migrationer er GODKENDT TIL PROD")
 Kontrolleret én ad gangen: pre-check → migration → post-check → målrettet regression → prod-DB-audit (0/0/0 efter hver).
 | Nr | Resultat |
