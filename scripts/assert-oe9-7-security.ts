@@ -44,7 +44,8 @@ console.log('\n=== ASSERT Ø9.7: inline konvertér — gating & adskillelse ===\
 
 console.log('Motor (incoming-invoice-conversion.ts):')
 assert(/async function runLineConversion\(/.test(engineSrc), 'delt helper runLineConversion findes')
-assert((engineSrc.match(/runLineConversion\(/g) || []).length >= 3, 'runLineConversion kaldes af begge stier (def + 2 kald)')
+assert((engineSrc.match(/runLineConversion\(/g) || []).length >= 2, 'runLineConversion bruges af fordelingsstien (def + kald)')
+assert(!/export async function convertAndApproveInvoice\(/.test(engineSrc), 'convert+approve-flowet er fjernet (PR-1: godkendelse og fordeling separate)')
 assert(/export async function convertApprovedInvoiceLines\(/.test(engineSrc), 'konverter-kun sti convertApprovedInvoiceLines eksporteret')
 
 const convertOnly = fnSlice(engineSrc, 'export async function convertApprovedInvoiceLines(')

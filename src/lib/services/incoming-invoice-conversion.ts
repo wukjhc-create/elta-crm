@@ -353,172 +353,15 @@ async function runLineConversion(
   return { ok: true, perLine, conversionFatal }
 }
 
-export async function convertAndApproveInvoice(
-  invoiceId: string,
-  approverId: string,
-  plan: LinePlanInput[],
-  options: { acknowledgeReview?: boolean } = {}
-): Promise<ConvertAndApproveResult> {
-  const supabase = createAdminClient()
-
-  // 1. Read invoice header
-  const { data: invoice, error: invErr } = await supabase
-    .from('incoming_invoices')
-    .select(`
-      id, status, requires_manual_review,
-      matched_case_id, matched_work_order_id,
-      supplier_id, supplier_name_extracted, invoice_number, currency
-    `)
-    .eq('id', invoiceId)
-    .maybeSingle()
-  if (invErr || !invoice) {
-    return {
-      ok: false,
-      message: 'Faktura ikke fundet',
-      invoiceStatusFlipped: false,
-      perLine: [],
-      caseId: null,
-    }
-  }
-
-  // 2. Status gate — must be in a non-terminal pre-approve state
-  const validStatuses = ['received', 'awaiting_approval']
-  if (!validStatuses.includes(invoice.status as string)) {
-    return {
-      ok: false,
-      message: `Faktura er ${invoice.status} — kan ikke godkendes igen`,
-      invoiceStatusFlipped: false,
-      perLine: [],
-      caseId: invoice.matched_case_id as string | null,
-    }
-  }
-
-  // 3. Manual review gate (mirrors approveInvoice)
-  if (invoice.requires_manual_review && !options.acknowledgeReview) {
-    return {
-      ok: false,
-      message: 'Faktura kræver manuel gennemgang. Bekræft eksplicit.',
-      invoiceStatusFlipped: false,
-      perLine: [],
-      caseId: invoice.matched_case_id as string | null,
-    }
-  }
-
-  // 4. Sag-gate — converter must have a sag to attach to
-  if (!invoice.matched_case_id) {
-    return {
-      ok: false,
-      message: 'Match fakturaen til en sag før godkendelse',
-      invoiceStatusFlipped: false,
-      perLine: [],
-      caseId: null,
-    }
-  }
-  const caseId = invoice.matched_case_id as string
-
-  // 5-8. Shared per-line conversion (resolve supplier, load + validate
-  // lines, convert each per plan, audit). SAME rules as convert-only.
-  const conv = await runLineConversion(supabase, invoice, approverId, plan, caseId)
-  if (!conv.ok) {
-    return {
-      ok: false,
-      message: conv.message ?? 'Konvertering fejlede',
-      invoiceStatusFlipped: false,
-      perLine: conv.perLine,
-      caseId,
-    }
-  }
-  const perLine = conv.perLine
-
-  // 9. Decide whether to flip status
-  if (conv.conversionFatal) {
-    return {
-      ok: false,
-      message:
-        'Konvertering fejlede på en eller flere linjer. Faktura forbliver awaiting_approval.',
-      invoiceStatusFlipped: false,
-      perLine,
-      caseId,
-    }
-  }
-
-  // 10. Flip status to approved (race-safe)
-  const { data: flipped, error: statusErr } = await supabase
-    .from('incoming_invoices')
-    .update({
-      status: 'approved',
-      approved_by: approverId,
-      approved_at: new Date().toISOString(),
-    })
-    .eq('id', invoiceId)
-    .eq('status', invoice.status as string)
-    .select('id')
-  // Leverandørfaktura-review 2026-10-14 (#5): status nåede at ændre sig imens (fx afvist af en anden) → rul DENNE kørsels
-  // konverterede rækker tilbage, så en afvist faktura ikke efterlader kost på sagen (og svar ikke "godkendt")
-  if (!statusErr && (flipped ?? []).length === 0) {
-    await rollbackCreatedConversions(supabase, perLine)
-    return {
-      ok: false,
-      message: 'Fakturaen blev ændret af en anden imens — konverteringen er rullet tilbage. Genindlæs og prøv igen.',
-      invoiceStatusFlipped: false,
-      perLine,
-      caseId,
-    }
-  }
-  if (statusErr) {
-    return {
-      ok: false,
-      message: `Linjer konverteret, men status-skift fejlede: ${statusErr.message}`,
-      invoiceStatusFlipped: false,
-      perLine,
-      caseId,
-    }
-  }
-
-  // 11. Final audit: approved
-  try {
-    await supabase.from('incoming_invoice_audit_log').insert({
-      incoming_invoice_id: invoiceId,
-      action: 'approved',
-      actor_id: approverId,
-      previous_value: { status: invoice.status },
-      new_value: { status: 'approved' },
-      ok: true,
-      message: `approved by ${approverId} (${perLine.length} linjer behandlet)`,
-    })
-  } catch {
-    /* best-effort */
-  }
-
-  // NOTE: e-conomic push is intentionally skipped here. The legacy
-  // approveInvoice path still pushes (and currently no-ops because
-  // settings empty); we keep it out of this code path so Sprint 5E-3
-  // does not silently start posting once settings get configured.
-  // Henrik's spec for tonight: "Ingen e-conomic push/bogføring endnu".
-
-  const successCount = perLine.filter((r) => r.ok && !r.alreadyConverted).length
-  const skippedAlready = perLine.filter((r) => r.alreadyConverted).length
-  return {
-    ok: true,
-    message:
-      `Faktura godkendt. ${successCount} ${successCount === 1 ? 'linje' : 'linjer'} konverteret` +
-      (skippedAlready > 0 ? ` (${skippedAlready} allerede konverteret)` : ''),
-    invoiceStatusFlipped: true,
-    perLine,
-    caseId,
-  }
-}
-
 /**
  * Sprint Ø9.7 — Convert-only path for invoices that are ALREADY
  * approved/posted but still carry unconverted lines (the drift surfaced
  * by Ø9.4/Ø9.5/Ø9.6). Reuses the EXACT same per-line conversion logic
- * (runLineConversion) as convertAndApproveInvoice — no parallel rule —
- * but does NOT flip status: the invoice is already past approval.
+ * (runLineConversion) — no parallel rule — and does NOT flip status.
  *
- * Status gate is the mirror image of convert+approve: here we only accept
- * 'approved'/'posted' and reject received/awaiting (those go through
- * convertAndApproveInvoice so they get the approval + review gate).
+ * Henrik 2026-10-15 (PR-1): godkendelse og fordeling er separate flows — godkendelse sker på fakturaen (uden
+ * konvertering), fordeling KUN her for godkendte/bogførte fakturaer. Det tidligere convert+approve-flow
+ * (convertAndApproveInvoice) er fjernet 2026-10-16 (ingen kaldere).
  */
 export async function convertApprovedInvoiceLines(
   invoiceId: string,
@@ -542,7 +385,7 @@ export async function convertApprovedInvoiceLines(
   }
 
   // 2. Status gate — convert-only is for already-approved/posted invoices.
-  //    received/awaiting must go through convertAndApproveInvoice instead.
+  //    received/awaiting godkendes først på fakturaen (PR-1).
   const convertibleStatuses = ['approved', 'posted']
   if (!convertibleStatuses.includes(invoice.status as string)) {
     return {

@@ -25,7 +25,6 @@ import {
   type InvoiceHeaderValues,
 } from '@/lib/invoices/incoming-header-edit'
 import {
-  convertAndApproveInvoice,
   convertApprovedInvoiceLines,
   type LinePlanInput,
   type ConvertAndApproveResult,
@@ -581,54 +580,9 @@ export async function deleteTestIncomingInvoiceAction(
 }
 
 /**
- * Sprint 5E-3 — converts faktura-linjer to case_materials/case_other_costs
- * and flips status to 'approved' atomically (per-line, not transaction).
- * Honours the manual-review gate same as approveIncomingInvoiceAction.
- *
- * Pure server action. Schedules revalidatePath for both list, detail
- * and the linked sag's order page so all three reflect the change.
- */
-export async function approveIncomingInvoiceWithConversionAction(
-  invoiceId: string,
-  plan: LinePlanInput[],
-  acknowledgeReview?: boolean
-): Promise<ConvertAndApproveResult> {
-  const { userId, supabase, hasPermission } = await getAuthenticatedClientWithRole()
-  // Sprint Ø9.2 — konvertering opretter case_materials/case_other_costs på
-  // sagen, så den kræver BÅDE godkendelses- OG materiale-tilføj-tilladelse.
-  if (!hasPermission('incoming_invoices.approve')) {
-    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.approve', invoiceStatusFlipped: false, perLine: [], caseId: null }
-  }
-  if (!hasPermission('materials.add_to_case')) {
-    return { ok: false, message: 'Manglende tilladelse: materials.add_to_case', invoiceStatusFlipped: false, perLine: [], caseId: null }
-  }
-  const result = await convertAndApproveInvoice(invoiceId, userId, plan, {
-    acknowledgeReview: acknowledgeReview === true,
-  })
-
-  revalidatePath('/dashboard/incoming-invoices')
-  revalidatePath(`/dashboard/incoming-invoices/${invoiceId}`)
-  if (result.caseId) {
-    // Resolve case_number for the canonical orders detail path.
-    const { data: caseRow } = await supabase
-      .from('service_cases')
-      .select('id, case_number')
-      .eq('id', result.caseId)
-      .maybeSingle()
-    if (caseRow?.case_number) {
-      revalidatePath(`/dashboard/orders/${caseRow.case_number}`)
-    }
-    revalidatePath(`/dashboard/orders/${result.caseId}`)
-  }
-  return result
-}
-
-/**
  * Sprint Ø9.7 — convert-only for ALREADY approved/posted invoices, used by
- * the inline action in /dashboard/purchase-operations. Mirrors the dual
- * permission gate of approveIncomingInvoiceWithConversionAction
- * (incoming_invoices.approve + materials.add_to_case) because it creates the
- * same case_materials/case_other_costs rows — it just does not flip status.
+ * the inline action in /dashboard/purchase-operations. Creates case_materials/case_other_costs rows without
+ * flipping status (PR-1: approval and allocation are separate flows).
  */
 export async function convertIncomingInvoiceLinesAction(
   invoiceId: string,

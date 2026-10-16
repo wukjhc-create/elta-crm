@@ -45,6 +45,26 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-18 (Henriks beslutninger 2026-10-16 morgen)
+Proces: prod-migration først når kompatibel kode er pushet (CODE → TEST → PUSH → MIGRATION → POST-CHECK).
+| # | Opgave | Status |
+|---|---|---|
+| X-1 | 00232 afregningsform | DONE i prod 2026-10-16 (Henrik: "00232 GODKENDT SOM DONE") |
+| X-2 | Død kode approveIncomingInvoiceWithConversionAction + convertAndApproveInvoice | DONE — 0 kaldere (global søgning); fjernet (≈210 linjer), Ø9.4–9.7-asserts bevaret + ny assert mod genindførsel. tsc/rls/rbac, U28/U101–U105/U7–U9 grønne |
+| X-3 (B-2) | Fakturaoverblik: nøgletal server-side over hele datasættet (kun DKK, betalinger/kreditnotaer) | KLAR — lib/invoices/invoice-totals.ts (unit 7/7 inkl. >500), action + side forberedt; dashboard bruger samme funktion |
+| X-4 (B-9) | Faktureret serie i rapporter | FORBEREDT |
+| X-5 (B-10) | Dashboard: fejlede tællinger markeres (ikke tavst 0) | FORBEREDT |
+| X-6 (S-4) | Lead-tavle: åbne leads hentes for sig + vundne/tabte seneste 90 dage | FORBEREDT |
+| X-7 (S-8) | Indbakke-tællere: fejl overskriver ikke tallene | FORBEREDT |
+| X-8 (S-11) | Notifikationsmail med tilbudsnr. + kunde | FORBEREDT |
+| X-9 (B-8) | Rapportfiltre i URL | FORBEREDT |
+| X-10 (M-7) | DB-filter på montørens job | FORBEREDT |
+| X-11 | Lead-opfølgning (follow_up_at, ejer, forfalden, liste/tavle, kalender/opgave) — fælles salgsdata, IKKE personal_reminders | TODO — kræver migration → forslag |
+| X-12 | Slet dokumenter på sag (bekræftelse, audit, gate, beskyttede typer, storage + metadata konsistent) | TODO |
+| X-13 | Opgavemenu for salg + bogholderi (rettighedsstyret, negative rolletests) | TODO |
+| X-14 | Afregningsform vælges ved oprettelse af sag (valgfrit) | TODO (opfølgning på 00232) |
+| X-15 | Ny pilot-readiness review | TODO |
+
 ## NEXT-17 (pilot-review-bølge 2026-10-15 nat — montør/serviceleder, kontor/bogholderi, salg)
 | # | Fund | Status |
 |---|---|---|
