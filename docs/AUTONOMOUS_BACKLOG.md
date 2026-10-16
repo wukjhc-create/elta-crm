@@ -58,9 +58,9 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | LF-8 | Adresse-fallback kan auto-matche forkert sag (leverandørens brevhoved) | TODO |
 | LF-9 | Fejl vist som succes + engelske beskeder ved godkend/afvis/e-conomic | DONE (55971f6b) — danske beskeder; godkendt men ikke bogført = advarsel (warning) |
 | LF-10 | Godkend/bogfør uden bekræftelse (skubber til e-conomic) | DONE (55971f6b) — bekræftelse (beløb/leverandør) før godkend og før "Bogfør til e-conomic"; U28 accepterer |
-| LF-11 | AO-API: mislykket linjeimport tavs og kan ikke genforsøges | TODO |
-| LF-12 | Lister skåret ved 200/1000 uden besked | DONE (venter commit) — besked når listen viser de nyeste 200/1.000 |
-| LF-13 | Delvis fejl ved fordeling: konverterede linjer bliver stående, UI siger "fejlede" | DONE (venter commit) — besked siger hvor mange linjer der ER overført, og at genkørsel springer dem over |
+| LF-11 | AO-API: mislykket linjeimport tavs og kan ikke genforsøges | DONE (venter commit) — linjefejl → den netop oprettede faktura fjernes igen og fejlen meldes (genindlæses ved næste synk). Kun fejlgrenen ændret; ikke testet mod leverandør-API (eksternt) |
+| LF-12 | Lister skåret ved 200/1000 uden besked | DONE (fbfb111f) — besked når listen viser de nyeste 200/1.000 |
+| LF-13 | Delvis fejl ved fordeling: konverterede linjer bliver stående, UI siger "fejlede" | DONE (fbfb111f) — besked siger hvor mange linjer der ER overført, og at genkørsel springer dem over |
 | DB-1 | ai_suggestions margin_alert (margin/avance) læsbar for alle indloggede (S2) | BLOCKED_APPROVAL [MIGRATION] 00238 — docs/runbooks/db-security-2026-10-16-proposal.md |
 | DB-2 | case_materials/case_other_costs kostkolonner åbne (= F-11) | BLOCKED_APPROVAL [MIGRATION] 00234 |
 | DB-3 | Kladdelås (00215) omgås via status → draft; vat_mode/billing_model ikke låst (S2) | BLOCKED_APPROVAL [MIGRATION] 00239 |

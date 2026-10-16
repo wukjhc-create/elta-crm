@@ -1011,9 +1011,16 @@ export async function ingestFromSupplierAPI(
             }))
           )
         if (lineErr) {
-          logger.warn('ingestFromSupplierAPI: lines insert failed', {
+          // LF-11 (indkøbs-review 2026-10-16): før blev fakturaen talt som indlæst UDEN linjer (kun total → kunne ikke
+          // fordeles), og næste synk sprang den over som dublet. Nu fjernes den netop oprettede faktura igen (ét
+          // insert-statement → ingen halve linjer), så næste kørsel indlæser den helt; fejlen meldes.
+          logger.warn('ingestFromSupplierAPI: lines insert failed — faktura fjernet igen til genforsøg', {
             entityId: invoiceId, error: lineErr,
           })
+          const { error: delErr } = await supabase.from('incoming_invoices').delete().eq('id', invoiceId)
+          if (delErr) logger.error('ingestFromSupplierAPI: kunne ikke fjerne faktura uden linjer', { entityId: invoiceId, error: delErr })
+          result.errors.push(`${provider}/${norm.invoiceNumber}: linjerne kunne ikke gemmes — prøves igen ved næste synkronisering`)
+          continue
         }
       }
 
