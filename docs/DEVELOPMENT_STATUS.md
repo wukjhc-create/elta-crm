@@ -21,6 +21,10 @@
 | 454580e7 / 95532a6a | PM-3 portal-links (genbrug/forlæng, ingen /view-offer) |
 | e8b02ab9 | OF-4 søgepris = linjepris |
 | 8a04c415 | OF-5 kalkulationskost på linjerne |
+| 9998f440 / 504e2213 | OF-12 (latent); PM-2-værn for live-tilbudsrykkere |
+| 87815583 | PF2-4 sagsadgang som ét-rækkeopslag |
+| 3501710d | EM-2(app)/3/4/5/6/7(app)/9 medarbejdere/indstillinger/audit |
+| 37d1a9bb / ee21237f / 35f7edbf / 0bdd8576 | PF2-5/6/8, PF2-2, PF2-3, PF2-1 (tidsbudget) |
 
 Ikke lavet (tilladelse): DF-1-værnet i create-invoice-from-offer.ts blev afvist af auto-mode-værnet to gange. Patchen står i
 docs/runbooks/auto-invoice-offer-guard-proposal.md. Reglen er dry_run i prod.
@@ -123,6 +127,8 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **CR-1 live-flag for fuldmagt-/besigtigelsesrykkere?** Nødstop findes nu (`FOLLOWUP_REMINDERS_PAUSED=true`); default uændret (live)
 - **DF-1 auto-faktura ved accept** — værnet kan ikke skrives af Claude (auto-mode-værn afviser redigering af create-invoice-from-offer.ts). Henrik: anvend patchen i docs/runbooks/auto-invoice-offer-guard-proposal.md eller tillad redigeringen. Reglen er dry_run i prod — slå ikke dry_run fra før
 - **Sikkerhed/økonomi 2026-10-17** (docs/runbooks/security-2026-10-17-proposal.md):
+  - 00246 tidsregistrering: kun omprisning ved reel ændring + fakturalås (EM-2)
+  - 00247 user_role()/is_admin() tom for deaktiverede (EM-7)
   - 00241 webhooks: kun admin må ændre, SELECT begrænset
   - 00242 customer_documents: trigger på følsomme kolonner
   - 00243 solar-kostpris

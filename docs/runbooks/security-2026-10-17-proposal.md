@@ -95,3 +95,36 @@ CREATE UNIQUE INDEX uq_invoices_one_final_per_case ON public.invoices(case_id)
 - **Rækkefølge:** kodedelen kommer først (FIN-2: `.is('voided_at', null)` i de tre tjek). Skal koordineres med DF-5
   (kreditnota frigiver `invoice_line_id`).
 - **Pre-tjek:** 0 sager med flere ikke-annullerede slutfakturaer.
+
+## 00246 — tidsregistrering: kun omprisning ved reel ændring + fakturalås (EM-2)
+**Fund:** `trg_time_logs_cost_amount` kører på `UPDATE OF end_time, employee_id, pay_rate_type, employee_rate_id` (00142).
+Postgres udløser triggeren, når kolonnen står i SET-listen, også med samme værdi. Den omprissede derfor til dagens sats.
+- Appen udelader nu uændrede felter for godkendte registreringer.
+- Via REST kan en montør dog stadig sende `end_time` med samme værdi på egen faktureret række.
+
+**Forslag:**
+- I triggerfunktionen: genberegn kun når `NEW.x IS DISTINCT FROM OLD.x` for de fire kolonner.
+- En BEFORE UPDATE-guard, der afviser ændring af tid/sats, når `OLD.invoice_line_id IS NOT NULL`, medmindre det er
+  service-role.
+
+**Pre-tjek:** antal fakturerede registreringer, og at ingen app-sti opdaterer dem bevidst. Fakturakreditering frigiver via
+service-role (DF-5).
+
+## 00247 — user_role()/is_admin() for deaktiverede brugere (EM-7)
+**Fund:** `user_role()` (00108) og `is_admin()` (00156) læser kun `profiles.role`. En deaktiveret bruger beholder sine
+RLS-rettigheder, indtil JWT'en udløber; ban stopper kun fornyelsen.
+
+**Forslag:**
+```sql
+-- Skitse: samme signatur; NULL-rolle når profilen er deaktiveret
+SELECT CASE WHEN p.is_active IS FALSE THEN NULL ELSE p.role END FROM public.profiles p WHERE p.id = auth.uid();
+```
+**Pre-tjek:**
+- Ingen politik må forvente en rolle for inaktive brugere.
+- Funktions-ACL skal være uændret (REVOKE FROM PUBLIC/anon).
+
+## (følger 00241) integration_webhooks SELECT kun admin + maskerede headers (EM-8)
+- Dækkes af 00241-forslaget (SELECT kun admin/serviceleder/bogholderi).
+- Kun-admin på headers kræver kolonne-REVOKE af `headers` for `authenticated` og læsning med admin-klienten i
+  `getWebhooks`/`getIntegration`.
+- Redigeringsformularen skal sende headers separat. Ellers gemmes en maske tilbage.
