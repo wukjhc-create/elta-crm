@@ -15,17 +15,21 @@ export function overBudget(p: ProjectProfitability): boolean {
   return (p.hours_deviation_pct ?? 0) > 10 || (p.cost_deviation ?? 0) > 0
 }
 
-export function OverBudgetCasesWidget() {
-  const [rows, setRows] = useState<ProjectProfitability[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+export function OverBudgetCasesWidget({ initial }: { initial?: Awaited<ReturnType<typeof getProjectProfitabilityReport>> | null } = {}) {
+  // PF-1 (performance-review 2026-10-16): forsiden henter data på serveren (parallelt, streamet via Suspense) og giver
+  // resultatet som `initial` — browseren kører server actions én ad gangen, så ~12 selvhentende widgets ventede på hinanden
+  const initRows = initial?.success && initial.data ? initial.data.rows.filter(overBudget) : null
+  const [rows, setRows] = useState<ProjectProfitability[] | null>(initRows)
+  const [error, setError] = useState<string | null>(initial && !initRows ? (humanizeErrorText(initial.error) || 'Kunne ikke hente sager') : null)
 
   useEffect(() => {
+    if (initial) return
     let alive = true
     getProjectProfitabilityReport({ status: 'open', limit: 200 })
       .then((r) => { if (!alive) return; if (r.success && r.data) setRows(r.data.rows.filter(overBudget)); else setError(humanizeErrorText(r.error) || 'Kunne ikke hente sager') })
       .catch(() => { if (alive) setError('Kunne ikke hente sager') })
     return () => { alive = false }
-  }, [])
+  }, [initial])
 
   return (
     <div className="bg-white p-6 rounded-lg border" data-testid="over-budget-widget">

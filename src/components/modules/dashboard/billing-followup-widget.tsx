@@ -15,19 +15,23 @@ import { ClipboardList, ArrowRight, Loader2, CheckCircle2, AlertTriangle, FileCh
 import { getBillingFollowupSummaryAction, type BillingFollowupSummary } from '@/lib/actions/service-case-economy'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
-export function BillingFollowupWidget() {
-  const [data, setData] = useState<BillingFollowupSummary | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function BillingFollowupWidget({ initial }: { initial?: Awaited<ReturnType<typeof getBillingFollowupSummaryAction>> | null } = {}) {
+  // PF-1 (performance-review 2026-10-16): forsiden henter data på serveren (parallelt, streamet via Suspense) og giver
+  // resultatet som `initial` — browseren kører server actions én ad gangen, så ~12 selvhentende widgets ventede på hinanden
+  const initData = initial?.success && initial.data ? initial.data : null
+  const [data, setData] = useState<BillingFollowupSummary | null>(initData)
+  const [loading, setLoading] = useState(!initial)
+  const [error, setError] = useState<string | null>(initial && !initData ? (humanizeErrorText(initial.error) || 'Kunne ikke hente faktureringsopfølgning') : null)
 
   useEffect(() => {
+    if (initial) return
     let alive = true
     getBillingFollowupSummaryAction()
       .then((r) => { if (!alive) return; if (r.success && r.data) setData(r.data); else setError(humanizeErrorText(r.error) || 'Kunne ikke hente faktureringsopfølgning') })
       .catch(() => { if (alive) setError('Kunne ikke hente faktureringsopfølgning') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [])
+  }, [initial])
 
   return (
     <div className="bg-white p-6 rounded-lg border">

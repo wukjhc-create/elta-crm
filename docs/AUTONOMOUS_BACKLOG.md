@@ -45,6 +45,22 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-25 (review-bølge 2026-10-17 nat — montørens telefon-flow)
+| # | Fund | Status |
+|---|---|---|
+| MB-1 | Tidsregistrering/planlægning fryser på "Gemmer…" ved netfejl (setIsWorking efter kast nås aldrig) (S2) | TODO — try/catch/finally + dansk besked, input bevares |
+| MB-2 | Bunden skjules af bundmenuen (pb-20 < 64 px + safe-area; sm:p-6 overskriver) | TODO |
+| MB-3 | Montør ser altid "Alle påkrævede punkter skal udfyldes" selv ved komplet tjekliste | TODO — checklistComplete separat |
+| MB-4 | Aflevering: fejl vises øverst uden for skærmen | TODO |
+| MB-5 | Gem/Afslut-knapper i tidsregistrering ~24 px | TODO |
+| MB-6 | Tidstabel uden mobilvisning (Ret/Slet i sidste kolonne) | TODO |
+| MB-7 | Satsvælger vist på kollegaers rækker (serveren afviser) | TODO |
+| MB-8 | Små HEIC-fotos uploades ukonverteret (vises ikke i Chrome/Android) | TODO |
+| MB-9 | Dokumenter lover 20 MB, grænsen er ~4,5–10 MB | TODO |
+| MB-10 | Slet-foto vist på andres fotos | TODO |
+| MB-11 | Tider i enhedens tidszone i tidslisten | TODO |
+| MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | TODO |
+
 ## NEXT-24 (review-bølge 2026-10-16 aften — leverandørfakturaer/indkøb + DB-sikkerhed)
 | # | Fund | Status |
 |---|---|---|
@@ -52,10 +68,10 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | LF-2 | Udenlandsk valuta fordeles som DKK (1.000 EUR → 1.000 kr kost) (S2) | DONE (dc8491e7) — kun DKK kan fordeles |
 | LF-3 | Linjerabat ignoreres ved fordeling (listepris i stedet for total) — forhåndsvisning ≠ resultat (S2) | TODO — unit_cost = |total| DONE (dc8491e7) — totalen (efter rabat) / antal vinder over listeprisen; unit invoice-line-snapshot +3 |
 | LF-4 | Forhåndsvisning viser kreditlinjer anderledes end det der oprettes | DONE (dc8491e7) — forhåndsvisning bruger lineSnapshot |
-| LF-5 | Materialer fra kreditnota (negativ kost) kan ikke redigeres | DONE (venter commit) — negativ kost tilladt for source=supplier_invoice (materialer + øvrige, server + dialog) |
+| LF-5 | Materialer fra kreditnota (negativ kost) kan ikke redigeres | DONE (cbc712d8) — negativ kost tilladt for source=supplier_invoice (materialer + øvrige, server + dialog) |
 | LF-6 | Linjer kan fordeles til en lukket sag | DONE (dc8491e7) — lukket sag afvises |
 | LF-7 | Matcher kan sætte arbejdsordre fra en anden sag | DONE (209701b2) — titel-/adresse-fallback accepterer kun arbejdsordre/sag på den allerede fundne sag |
-| LF-8 | Adresse-fallback kan auto-matche forkert sag (leverandørens brevhoved) | DONE (venter commit) — gadenavn + husnummer (ikke kun første ord), etage efter komma; unit invoice-address-match 6/6 |
+| LF-8 | Adresse-fallback kan auto-matche forkert sag (leverandørens brevhoved) | DONE (cbc712d8) — gadenavn + husnummer (ikke kun første ord), etage efter komma; unit invoice-address-match 6/6 |
 | LF-9 | Fejl vist som succes + engelske beskeder ved godkend/afvis/e-conomic | DONE (55971f6b) — danske beskeder; godkendt men ikke bogført = advarsel (warning) |
 | LF-10 | Godkend/bogfør uden bekræftelse (skubber til e-conomic) | DONE (55971f6b) — bekræftelse (beløb/leverandør) før godkend og før "Bogfør til e-conomic"; U28 accepterer |
 | LF-11 | AO-API: mislykket linjeimport tavs og kan ikke genforsøges | DONE (b39f376e) — linjefejl → den netop oprettede faktura fjernes igen og fejlen meldes (genindlæses ved næste synk). Kun fejlgrenen ændret; ikke testet mod leverandør-API (eksternt) |
@@ -79,12 +95,12 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | ST-5 | Slet sagsbilag: ingen sagsbinding, fil slettes før rækken | DONE (b8107bd2) — slet bundet til sagen, række først, så fil (0 rækker = fejl) |
 | ST-6 | Partner-download ignorerer "Del med kunde" + mail-vedhæftninger | DONE (b8107bd2) — visible_in_portal + uden source_email_id i liste og download |
 | ST-7 | Forældreløse filer ved slet (tagtegning, kvittering, sag) | DONE (a400b21d) — tagtegning og kvittering: række først, så fil (0 rækker = fejl). UI U71 (udvidet). Sletning af hel sag → filer = senere |
-| ST-8 | Forældreløse filer ved mislykket insert (sagsdokument, leverandørfaktura, besigtigelse) + ingen billedgrænse | DONE (venter commit) — sagsdokument og leverandørfaktura: fil ryddes op når rækken ikke oprettes |
+| ST-8 | Forældreløse filer ved mislykket insert (sagsdokument, leverandørfaktura, besigtigelse) + ingen billedgrænse | DONE (cbc712d8) — sagsdokument og leverandørfaktura: fil ryddes op når rækken ikke oprettes |
 | ST-9 | Filendelse fra klientens filnavn i stedet for valideret MIME | DONE (b8107bd2) — avatar/logo: endelse fra valideret MIME (sagsdokument: renset endelse + valideret content-type, lav risiko) |
 | ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | DONE (b8107bd2) — OFFER_LINE_PUBLIC_COLUMNS + COMPANY_SETTINGS_PUBLIC_COLUMNS + Cache-Control private, no-store |
 | ST-11 | Ubrugt downloadAndStoreAttachment uden de nye værn | DONE (b8107bd2) — fjernet |
 | HT-1 | U135 (slet kunde med tilbud) flaky 2× i dag — sletteklik/alertdialog-timing (`.catch` på klik) | DONE (d95d4ccc) — venter på knap/dialog + poll på resultat; U135 grøn i første kørsel |
-| PF-1 | Klient-udløste server actions køres serielt af browseren: dashboard (~12 widgets), kundekort (5), sagsdetalje (5) | TODO — hent i server-komponent + Suspense / saml i én action (= Q-2) |
+| PF-1 | Klient-udløste server actions køres serielt af browseren: dashboard (~12 widgets), kundekort (5), sagsdetalje (5) | IN PROGRESS — runde 1 (venter commit): fakturaopfølgning, udestående, over estimat, tilbud klar til sag hentes på serveren (Suspense, parallelt) med initial-prop; runde 2 (5 widgets) klar |
 | PF-2 | getDashboardStats summerer hele historikken (alle timer/tilbud) i JS + to serielle batches | DONE (e99f0ba0) — én parallel runde; tilbud som HEAD-count pr. status + i alt, beløb kun sendt/set/accepteret; timer uændret (hele historikken — vindue/RPC = beslutning/[MIGRATION]). Staging dashboard-stats-equivalence 4/4 (624 tilbud, identiske tal) |
 | PF-3 | "Sager over estimat" kører fuld efterkalkulation af 200 sager pr. indlæsning (serielle bidder, kvadratisk kopi) | DONE (303db8e8) — sagsbidder samtidig + push i stedet for kopiering; lazy/hoursOnly-tilstand = senere |
 | PF-4 | "Kræver svar" genlæser hele den koblede indbakke (~45 serielle kald ved 5k mails) ved hver statistik/realtime-hændelse | DONE (e99f0ba0) — kandidater med beregningens kolonner (ingen genhentning), bidder samtidig, cache() pr. request |

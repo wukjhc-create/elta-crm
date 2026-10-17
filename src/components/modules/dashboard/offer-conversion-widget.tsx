@@ -22,18 +22,21 @@ const fmtDate = (s: string | null) => {
   return new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: 'short', year: 'numeric' }).format(d)
 }
 
-export function OfferConversionWidget() {
-  const [data, setData] = useState<OfferConversionSummary | null>(null)
-  const [loading, setLoading] = useState(true)
+export function OfferConversionWidget({ initial }: { initial?: { value: OfferConversionSummary | null } } = {}) {
+  // PF-1 (performance-review 2026-10-16): forsiden henter data på serveren (parallelt, streamet via Suspense) og giver
+  // resultatet som `initial` — browseren kører server actions én ad gangen, så ~12 selvhentende widgets ventede på hinanden
+  const [data, setData] = useState<OfferConversionSummary | null>(initial ? initial.value : null)
+  const [loading, setLoading] = useState(!initial)
 
   useEffect(() => {
+    if (initial) return
     let alive = true
     getOfferConversionSummaryAction()
       .then((res) => { if (alive) setData(res) })
       .catch(() => { if (alive) setData(null) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [])
+  }, [initial])
 
   return (
     <div className="bg-white p-6 rounded-lg border">

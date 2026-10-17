@@ -15,19 +15,23 @@ import { getCaseOutstandingPortfolioAction, type OutstandingPortfolio } from '@/
 import { formatCurrency } from '@/lib/utils/format'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
-export function OutstandingPortfolioWidget() {
-  const [data, setData] = useState<OutstandingPortfolio | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function OutstandingPortfolioWidget({ initial }: { initial?: Awaited<ReturnType<typeof getCaseOutstandingPortfolioAction>> | null } = {}) {
+  // PF-1 (performance-review 2026-10-16): forsiden henter data på serveren (parallelt, streamet via Suspense) og giver
+  // resultatet som `initial` — browseren kører server actions én ad gangen, så ~12 selvhentende widgets ventede på hinanden
+  const initData = initial?.success && initial.data ? initial.data : null
+  const [data, setData] = useState<OutstandingPortfolio | null>(initData)
+  const [loading, setLoading] = useState(!initial)
+  const [error, setError] = useState<string | null>(initial && !initData ? (humanizeErrorText(initial.error) || 'Kunne ikke hente porteføljeøkonomi') : null)
 
   useEffect(() => {
+    if (initial) return
     let alive = true
     getCaseOutstandingPortfolioAction()
       .then((r) => { if (!alive) return; if (r.success && r.data) setData(r.data); else setError(humanizeErrorText(r.error) || 'Kunne ikke hente porteføljeøkonomi') })
       .catch(() => { if (alive) setError('Kunne ikke hente porteføljeøkonomi') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [])
+  }, [initial])
 
   const kr = (n: number) => formatCurrency(n, data?.currency || 'DKK', 0)
 

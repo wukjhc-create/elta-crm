@@ -1,4 +1,7 @@
 import { Metadata } from 'next'
+import { Suspense } from 'react'
+import { getBillingFollowupSummaryAction, getCaseOutstandingPortfolioAction } from '@/lib/actions/service-case-economy'
+import { getOfferConversionSummaryAction } from '@/lib/actions/offers'
 import { getUser, getUserProfile } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import {
@@ -20,7 +23,7 @@ import {
   getPendingOffers,
 } from '@/lib/actions/dashboard'
 import { getDashboardOverview } from '@/lib/actions/dashboard-overview'
-import { getRejectionStats, getRecentRejections } from '@/lib/actions/reports'
+import { getRejectionStats, getRecentRejections, getProjectProfitabilityReport } from '@/lib/actions/reports'
 import { getDocumentCompanySettings } from '@/lib/actions/company-public'
 import { formatCurrency } from '@/lib/utils/format'
 import Link from 'next/link'
@@ -146,16 +149,16 @@ export default async function DashboardPage() {
       {canViewEconomic && <AccountingHealthWidget />}
 
       {/* Sprint Ø7.3 — Tilbud klar til sag: proaktiv konverterings-synlighed */}
-      {canViewOffers && <OfferConversionWidget />}
+      {canViewOffers && <Suspense fallback={<WidgetSkeleton />}><OfferConversionServer /></Suspense>}
 
       {/* Sprint Ø8.1 — Udestående på tværs af aktive sager (cost-free) */}
-      {canSeeBilling && <OutstandingPortfolioWidget />}
+      {canSeeBilling && <Suspense fallback={<WidgetSkeleton />}><OutstandingPortfolioServer /></Suspense>}
 
       {/* Sprint Ø8.3 — Faktureringsopfølgning: sager der kræver fakturahandling */}
-      {canSeeBilling && <BillingFollowupWidget />}
+      {canSeeBilling && <Suspense fallback={<WidgetSkeleton />}><BillingFollowupServer /></Suspense>}
 
       {/* Fokus D 2026-10-15 — åbne sager over estimat / tilbudt kost */}
-      {canViewEconomy && <OverBudgetCasesWidget />}
+      {canViewEconomy && <Suspense fallback={<WidgetSkeleton />}><OverBudgetCasesServer /></Suspense>}
 
       {/* Sprint Ø9.1 — Leverandørfaktura-forfald (intern indkøb, "pengene ud") */}
       {canViewIncoming && <IncomingInvoiceDueWidget />}
@@ -398,4 +401,29 @@ export default async function DashboardPage() {
       </div>
     </div>
   )
+}
+
+// =====================================================
+// PF-1 (performance-review 2026-10-16): widgets hentet på serveren — parallelt og streamet (Suspense). Browseren kører
+// klient-udløste server actions én ad gangen, så de selvhentende widgets ventede før på hinanden. Fejler hentningen
+// her, henter widgetten selv som før (initial = null).
+// =====================================================
+function WidgetSkeleton() {
+  return <div className="bg-white p-6 rounded-lg border h-40 animate-pulse" aria-busy="true" />
+}
+async function BillingFollowupServer() {
+  const r = await getBillingFollowupSummaryAction().catch(() => null)
+  return <BillingFollowupWidget initial={r} />
+}
+async function OutstandingPortfolioServer() {
+  const r = await getCaseOutstandingPortfolioAction().catch(() => null)
+  return <OutstandingPortfolioWidget initial={r} />
+}
+async function OverBudgetCasesServer() {
+  const r = await getProjectProfitabilityReport({ status: 'open', limit: 200 }).catch(() => null)
+  return <OverBudgetCasesWidget initial={r} />
+}
+async function OfferConversionServer() {
+  const v = await getOfferConversionSummaryAction().then((value) => ({ value })).catch(() => undefined)
+  return <OfferConversionWidget initial={v} />
 }
