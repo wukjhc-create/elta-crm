@@ -172,8 +172,7 @@ export async function saveBesigtigelsesnotat(
     }
 
     console.error('[BESIGTIGELSE-DIAG] customer fetched', {
-      customerId: customer.id,
-      customerEmail: customer.email,
+      customerId: customer.id, // FW-7 (montør-review 2026-10-17): ingen kunde-e-mail i prod-logs
       customerNumber: customer.customer_number,
     })
 
@@ -321,16 +320,7 @@ export async function saveBesigtigelsesnotat(
         },
       })
 
-      // Sprint 9G besigtigelse-diagnostik (midlertidig) — naar
-      // BESIGTIGELSE_DEBUG_UPLOAD=1 er sat, returnér detaljeret fejl-
-      // streng til UI/toast saa vi kan diagnosticere uden Vercel Logs.
-      // Default: uaendret bruger-besked. Flaget fjernes naar root-cause
-      // er fundet.
-      const debugUpload = (process.env.BESIGTIGELSE_DEBUG_UPLOAD || '').toLowerCase().trim()
-      if (debugUpload === '1' || debugUpload === 'true' || debugUpload === 'yes' || debugUpload === 'on') {
-        const debugMsg = `Kunne ikke uploade PDF — ${errAny.message || errAny.error || 'ukendt fejl'} — status: ${errAny.statusCode ?? 'ukendt'} — size: ${pdfBuffer.length} — path: ${storagePath}`
-        return { success: false, error: debugMsg }
-      }
+      // FW-7: debug-grenen (BESIGTIGELSE_DEBUG_UPLOAD) der sendte storage-stier og råfejl til brugeren er fjernet
       return { success: false, error: 'Kunne ikke uploade PDF' }
     }
 

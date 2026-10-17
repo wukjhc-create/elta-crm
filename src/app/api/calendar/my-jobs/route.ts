@@ -20,7 +20,8 @@ export async function GET() {
   } catch {
     return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401 })
   }
-  const { data: emp } = await ctx.supabase.from('employees').select('id').eq('profile_id', ctx.userId).maybeSingle()
+  // FW-15: kun den aktive medarbejderrække (to rækker → maybeSingle fejlede → 404)
+  const { data: emp } = await ctx.supabase.from('employees').select('id').eq('profile_id', ctx.userId).eq('active', true).limit(1).maybeSingle()
   const employeeId = (emp as { id?: string } | null)?.id
   if (!employeeId) return NextResponse.json({ error: 'Dit login er ikke koblet til en medarbejder' }, { status: 404 })
 

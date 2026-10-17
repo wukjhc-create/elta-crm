@@ -26,6 +26,7 @@ export async function getMyWeekHoursAction(weekOffset = 0): Promise<MyWeekHoursR
     .from('employees')
     .select('id, name')
     .eq('profile_id', userId)
+    .eq('active', true) // FW-15 (montør-review 2026-10-17): som getWorkOrderEmployeeScope — ikke en gammel inaktiv række
     .limit(1)
     .maybeSingle()
   if (!emp) return { ok: true, linked: false }

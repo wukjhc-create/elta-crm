@@ -88,6 +88,8 @@ export async function getCaseScope(ctx: ScopeContext): Promise<CaseScope> {
       .select('id, case_id')
       .eq('assigned_employee_id', employeeId)
       .not('case_id', 'is', null)
+      // FW-11 (montør-review 2026-10-17): en annulleret arbejdsordre giver ikke længere adgang til sagen
+      .neq('status', 'cancelled')
       .order('id')
       .range(from, to))
     for (const row of woRows) {
@@ -178,6 +180,7 @@ export async function userCanViewCase(
     .select('id')
     .eq('case_id', caseId)
     .eq('assigned_employee_id', employeeId)
+    .neq('status', 'cancelled') // FW-11
     .limit(1)
     .maybeSingle()
   return !!wo

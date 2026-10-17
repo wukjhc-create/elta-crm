@@ -6,6 +6,7 @@
  * CRUD operations + sync trigger + manual link for incoming emails.
  */
 
+import { redactEmail, redactSubject } from '@/lib/utils/log-redact'
 import { leadSourceEmailIds } from '@/lib/leads/source-email'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
@@ -1481,8 +1482,9 @@ export async function sendQuickReply(
         entity: 'incoming_emails',
         entityId: emailId,
         metadata: {
-          to: replyTo,
-          subject,
+          // ML-3: redigeret (LC-7)
+          to: redactEmail(replyTo),
+          subject: redactSubject(subject),
           userId,
           attachmentCount: attachmentMetadata.length,
         },

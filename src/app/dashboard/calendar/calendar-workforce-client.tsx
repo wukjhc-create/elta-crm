@@ -14,6 +14,7 @@
  * Month view is rendered by the existing CalendarPageClient (preserved).
  */
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { holidayName } from '@/lib/planning/danish-holidays'
 import { ABSENCE_CONFLICT_PREFIX, absenceLabel, absenceOn, isAbsenceConflict, type AbsenceRow } from '@/lib/planning/absence'
 import { updateWorkOrderPlanning } from '@/lib/actions/work-orders'
@@ -63,7 +64,8 @@ function dateKey(d: Date): string {
 }
 
 function todayKey(): string {
-  return dateKey(new Date())
+  // FW-14 (montør-review 2026-10-17): dansk kalenderdag — komponenten server-renderes i UTC (før "i går" 00–02)
+  return copenhagenParts(new Date()).date
 }
 
 function fmtDate(s: string): string {

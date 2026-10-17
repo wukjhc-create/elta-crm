@@ -31,6 +31,7 @@
  *   - resolveFuldmagtReminderRoute (fuldmagt-rykker fra cron)
  */
 
+import { redactEmail } from '@/lib/utils/log-redact'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
@@ -1369,8 +1370,8 @@ export async function logMailRoute(
         intent: route.intent,
         recipient_role: route.recipientRole,
         from: route.fromMailbox,
-        to: route.toEmail,
-        reason: route.reason,
+        // ML-3 (mail-review 2026-10-17): kun redigeret modtager; reason indeholder kunde-/kontaktnavne → udelades
+        to: redactEmail(route.toEmail),
         outcome,
         // Phase 6a — let-filtrerbare top-level felter for log-queries.
         // Begge er undefined for legacy-callers og bliver ikke skrevet.

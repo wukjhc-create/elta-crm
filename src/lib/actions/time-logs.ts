@@ -447,9 +447,11 @@ export async function updateTimeLog(
     }
     {
       // Pilot-review 2026-10-15 (#9): som ved oprettelse — ingen ændring af timer på en lukket sag (genåbn først)
-      const { data: woCase } = await supabase.from('work_orders').select('case:service_cases(status)').eq('id', cur.work_order_id as string).maybeSingle()
+      const { data: woCase } = await supabase.from('work_orders').select('status, case:service_cases(status)').eq('id', cur.work_order_id as string).maybeSingle()
       const cs = (woCase as { case?: { status?: string } | Array<{ status?: string }> | null } | null)?.case
       if ((Array.isArray(cs) ? cs[0] : cs)?.status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+      // FW-12 (montør-review 2026-10-17): samme værn som ved oprettelse — ikke på en annulleret arbejdsordre
+      if ((woCase as { status?: string } | null)?.status === 'cancelled') return { success: false, error: 'Kan ikke ændre timer på en annulleret arbejdsordre' }
     }
     // Henrik 2026-10-15: en GODKENDT registrering kan kun ændres af en godkender (montøren retter afviste/afventende;
     // godkendt tid må ikke ændres bag om godkenderen). Fakturerede er låst ovenfor for alle.
@@ -470,6 +472,12 @@ export async function updateTimeLog(
       const dateStr = input.date ?? curLocal.date
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return { success: false, error: 'Dato skal være YYYY-MM-DD' }
+      }
+      // FW-12: en flyttet dato må ikke ligge efter medarbejderens fratrædelse (som ved oprettelse, TP-7)
+      if (input.date !== undefined && input.date !== curLocal.date) {
+        const { data: empRow } = await supabase.from('employees').select('termination_date').eq('id', cur.employee_id as string).maybeSingle()
+        const term = (empRow as { termination_date?: string | null } | null)?.termination_date
+        if (term && String(term).slice(0, 10) < dateStr) return { success: false, error: `Medarbejderen er fratrådt (${String(term).slice(0, 10)}) — der kan ikke registreres timer efter fratrædelsen` }
       }
 
       const startClock = input.start_clock ?? curLocal.clock
