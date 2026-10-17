@@ -2195,6 +2195,49 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'bank-auto-match-check') {
+    // PF2-1/FIN-5 (2026-10-17): auto-match på staging — reference-match og beløb efter kreditnota (12.500 − 2.500 = 10.000
+    // med afsendernavn = kunden); kørslen holder sit tidsbudget. Ingen mail.
+    const { autoMatchTransactions } = await import('../../src/lib/services/bank-payments')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const custName = `Harness Bank ${stamp}`
+    const cust = await admin.from('customers').insert({ customer_number: `BM-${stamp}`, company_name: custName, contact_person: custName, email: `bm-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cust.data as { id?: string } | null)?.id ?? null
+    const invIds: string[] = []
+    const txIds: string[] = []
+    try {
+      const base = { customer_id: custId, status: 'sent', payment_status: 'pending', invoice_type: 'standard', due_date: '2026-11-01', currency: 'DKK' }
+      const a = await admin.from('invoices').insert({ ...base, invoice_number: `HXA-${stamp}`, total_amount: 800, tax_amount: 200, final_amount: 1000, payment_reference: `HXREF${stamp}` }).select('id').single()
+      const b = await admin.from('invoices').insert({ ...base, invoice_number: `HXB-${stamp}`, total_amount: 10000, tax_amount: 2500, final_amount: 12500 }).select('id').single()
+      const aId = (a.data as { id: string }).id, bId = (b.data as { id: string }).id
+      invIds.push(aId, bId)
+      const cn = await admin.from('invoices').insert({ ...base, invoice_number: `HXC-${stamp}`, invoice_type: 'credit', credit_of_invoice_id: bId, total_amount: -2000, tax_amount: -500, final_amount: -2500 }).select('id').single()
+      invIds.push((cn.data as { id: string }).id)
+      const today = new Date().toISOString().slice(0, 10)
+      const t1 = await admin.from('bank_transactions').insert({ date: today, amount: 1000, reference_text: `Betaling HXREF${stamp}`, sender_name: 'Anden Person' }).select('id').single()
+      const t2 = await admin.from('bank_transactions').insert({ date: today, amount: 10000, reference_text: null, sender_name: custName }).select('id').single()
+      txIds.push((t1.data as { id: string }).id, (t2.data as { id: string }).id)
+      const started = Date.now()
+      const summary = await autoMatchTransactions()
+      check('kørslen holder tidsbudgettet (< 55 s)', Date.now() - started < 55_000, `${Math.round((Date.now() - started) / 1000)} s · ${JSON.stringify({ scanned: summary.scanned, matched: summary.matched, deferred: summary.deferred ?? 0 })}`)
+      const tx = ((await admin.from('bank_transactions').select('id, match_status, matched_invoice_id').in('id', txIds)).data ?? []) as Array<{ id: string; match_status: string; matched_invoice_id: string | null }>
+      const byId = new Map(tx.map((r) => [r.id, r]))
+      check('reference-match → faktura A', byId.get(txIds[0])?.matched_invoice_id === aId, JSON.stringify(byId.get(txIds[0])))
+      check('FIN-5: 10.000 matcher 12.500 − kredit 2.500 (afsender = kunden)', byId.get(txIds[1])?.matched_invoice_id === bId, JSON.stringify(byId.get(txIds[1])))
+      const invB = (await admin.from('invoices').select('payment_status').eq('id', bId).single()).data as { payment_status: string } | null
+      check('faktura B betalt efter kreditnota + indbetaling', invB?.payment_status === 'paid', JSON.stringify(invB))
+    } finally {
+      if (txIds.length) await admin.from('bank_transactions').delete().in('id', txIds)
+      if (invIds.length) { await admin.from('invoice_payments').delete().in('invoice_id', invIds); await admin.from('invoices').delete().in('id', invIds.slice().reverse()) }
+      if (custId) await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ bank-auto-match ok')
+    process.exitCode = fails ? 2 : 0
+    return
+  }
   if (SUB === 'find-or-create-matchonly-check') {
     // LC-2 (review 2026-10-17): allerede koblet mail → findOrCreateCustomer({ matchOnly }) opretter aldrig en kunde,
     // men finder stadig en eksisterende. Staging, ingen mail.

@@ -212,7 +212,12 @@ export interface AutoMatchSummary {
   ambiguous: number
   unmatched: number
   errors: string[]
+  /** PF2-1: ikke nået i denne kørsel (tidsbudget) — tages ved næste */
+  deferred?: number
 }
+
+/** PF2-1 (performance-review 2026-10-17): cron'en har maxDuration 60 s — stop pænt i god tid (opsummering skrives) */
+const AUTO_MATCH_TIME_BUDGET_MS = 45_000
 
 export async function autoMatchTransactions(): Promise<AutoMatchSummary> {
   const supabase = createAdminClient()
@@ -243,7 +248,9 @@ export async function autoMatchTransactions(): Promise<AutoMatchSummary> {
     return summary
   }
 
+  const startedAt = Date.now()
   for (const raw of txs ?? []) {
+    if (Date.now() - startedAt > AUTO_MATCH_TIME_BUDGET_MS) { summary.deferred = (summary.deferred ?? 0) + 1; continue }
     const tx = raw as BankTransactionRow
     summary.scanned++
     try {
