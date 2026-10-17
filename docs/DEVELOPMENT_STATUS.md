@@ -143,6 +143,8 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **NEXT-38 (2026-10-17 eftermiddag)**:
   - **CU-5 montørens kundeadgang** — montøren ser hele kunderegistret (kontaktdata, interne noter). Afgrænse til kunder på egne sager? (ændrer adgang)
   - **CU-8 hvem må oprette kundeopgaver** — i dag alle med customers.view (også montør/bogholderi). Kræv customers.edit/tasks.create?
+  - **EC-2 e-conomic-eksport som sideeffekt** — afsendelse af faktura, godkendelse af leverandørfaktura og auto-faktura eksporterer i dag automatisk (når ECONOMIC_PUSH_ENABLED er sat), også for serviceleder uden settings.economic. Kun via eksplicit "Eksportér"?
+  - **ES-1/ES-4/ES-10 bevisintegritet** [MIGRATION] — accepteret tilbud låst i DB + beløb/hash på underskrift; fuldmagt-CPR kun via admin-klient; bekræftelser bundet til filhash
   - **API-4/SEC2-6 per-IP-loft på den offentlige kontaktformular** [MIGRATION/KV]
   - **API-1 opfølgning (drift)**: `/api/admin/test-lemu` udleverede indtil 56a44e1a LEMU-SFTP-adgangskoden til enhver med CRON_SECRET. Har nogen kaldt ruten, bør LEMU-adgangskoden roteres
 - **PM-7 fuldmagtsrykker til den tiltænkte underskriver** (ændrer modtager af en live-rykker) + link til portalen

@@ -981,10 +981,24 @@ export async function postIncomingInvoiceToEconomicAction(id: string): Promise<P
     if ((econ.reason ?? '') === 'export in progress') {
       return { ok: false, status: 'in_progress', message: 'Bogføring er i gang — prøv igen om lidt (et hængt forsøg kan genoptages efter 15 min.).' }
     }
-    return { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført.', external_id: econ.externalId ?? null }
+    // EC-3 (e-conomic-review 2026-10-17): kun et reelt eksisterende link er "allerede bogført" — kill switch og manglende
+    // kost-konto gav før "Fakturaen er allerede bogført." uden at noget var sendt
+    if (econ.ok && econ.externalId) {
+      return { ok: true, status: 'already_posted', message: 'Fakturaen er allerede sendt til e-conomic.', external_id: econ.externalId }
+    }
+    const { friendlyEconomicError } = await import('@/lib/services/accounting-health')
+    const reason = econ.reason ?? ''
+    const message = reason === 'ECONOMIC_PUSH_DISABLED'
+      ? 'Bogføring til e-conomic er slået fra — intet er sendt.'
+      : reason.includes('costAccountNumber')
+        ? 'Kostkonto til leverandørfakturaer er ikke opsat i e-conomic-indstillingerne — intet er sendt.'
+        : `Fakturaen blev ikke sendt til e-conomic: ${friendlyEconomicError(reason)}`
+    return { ok: false, status: 'failed', message }
   }
   await audit(false, `Manuel bogføring fejlede: ${econ.error ?? 'ukendt'}`, { reason: econ.reason ?? null })
-  return { ok: false, status: 'failed', message: `Bogføring fejlede: ${econ.error ?? 'ukendt fejl'}` }
+  // EC-12: menneskelig fejltekst (ingen rå e-conomic-svar til brugeren; detaljen står i audit-loggen)
+  const { friendlyEconomicError } = await import('@/lib/services/accounting-health')
+  return { ok: false, status: 'failed', message: `Bogføring fejlede: ${friendlyEconomicError(econ.error)}` }
 }
 
 // =====================================================

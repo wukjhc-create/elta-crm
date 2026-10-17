@@ -15,6 +15,7 @@
  *     credentials are missing
  */
 
+import { isPlaceholderEmail } from '@/lib/customers/customer-email'
 import { economicPushEnabled, economicRequestAllowed, ECONOMIC_PUSH_DISABLED_CODE } from '@/lib/accounting/economic-push-flag'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
@@ -281,7 +282,8 @@ export async function createCustomerInEconomic(
   const cfg = ready.config || {}
   const body = {
     name: cust.company_name || cust.contact_person || 'Unknown',
-    email: cust.email || undefined,
+    // EC-11 (e-conomic-review 2026-10-17): pladsholder-adressen (auto+<nr>@elta-crm.local) sendes ikke til debitoren
+    email: cust.email && !isPlaceholderEmail(cust.email) ? cust.email : undefined,
     address: cust.billing_address || undefined,
     zip: cust.billing_postal_code || undefined,
     city: cust.billing_city || undefined,
@@ -493,9 +495,10 @@ export async function createInvoiceInEconomic(
   const draftNumber = String(draftRes.data.draftInvoiceNumber)
   let bookedNumber: string | undefined
 
-  // Optional: book the draft immediately so the invoice gets a final
-  // booked number. Defaults to true for our flow.
-  if (cfg.autoBookOnCreate !== false) {
+  // Optional: book the draft immediately so the invoice gets a final booked number.
+  // EC-13 (e-conomic-review 2026-10-17): kun når indstillingen eksplicit er slået til — status-siden viste "fra" for en
+  // ikke-gemt indstilling, mens klienten bogførte (irreversibelt). Standard = kladde (A-5 viser den som ikke bogført).
+  if (cfg.autoBookOnCreate === true) {
     const bookRes = await economicFetch<{ bookedInvoiceNumber: number }>(
       ready,
       `/invoices/drafts/${encodeURIComponent(draftNumber)}/book`,

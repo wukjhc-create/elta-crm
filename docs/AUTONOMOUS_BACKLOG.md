@@ -211,6 +211,38 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-40 (review-bølge 2026-10-17 aften — e-sign/accept + e-conomic)
+| # | Fund | Status |
+|---|---|---|
+| ES-1 | Accepteret tilbud kan sættes til kladde via REST (status ikke låst i DB) og ændres mens underskriften består (S2) | BLOCKED_APPROVAL [MIGRATION] — trigger: accepted er endelig for authenticated + beløb/hash på underskriften |
+| ES-2 | (flag) Snapshot overskrives ikke ved kladde→ændring→gensend (S2, staging) | TODO |
+| ES-3 | Underskrift (navn/IP/tid/billede) vises ingen steder uden for portalen; PDF uden underskriftsblok (S2) | TODO (større: gated action + PDF-blok) |
+| ES-4 | Fuldmagtens CPR/underskrift læsbar for alle via REST; underskrevet fuldmagt kan ændres (S2) | BLOCKED_APPROVAL [MIGRATION] |
+| ES-5 | Accept-opdateringen tjekker ikke sent_at (race mod gensend) (S3) | TODO |
+| ES-6 | (flag) To revisioner kan begge accepteres (S3, staging) | TODO |
+| ES-7 | Accept indtastet i dashboardet udløser ikke offer_accepted-automatik (S3) | TODO |
+| ES-8 | Portal-afvisning efterlader aktiv sag uden advarsel (S3) | TODO |
+| ES-9 | Sagsoprettelse efter portal-accept fejler stille (S3) | TODO |
+| ES-10 | Dokumentbekræftelser bindes ikke til filens indhold (S3) | BLOCKED_APPROVAL [MIGRATION] |
+| ES-11 | Fuldmagt: ingen IP/UA; CPR i klartekst i mail (S3) | TODO |
+| ES-12 | Underskrift: rå x-forwarded-for, ingen UA/vilkår (S4) | TODO (første led = kode; UA/vilkår = kolonner) |
+| ES-13 | Dobbelt "set"-aktivitet/webhook ved samtidige første visninger (S4) | TODO |
+| EC-1 | Bankmatch postede betalinger automatisk i e-conomic (mod A-12) (S1) | DONE (a4085953) — registerPayment er kun CRM-status medmindre syncEconomic=true |
+| EC-2 | Afsendelse/godkendelse/automatik eksporterer til e-conomic som sideeffekt (også serviceleder uden settings.economic) (S2) | BESLUTNING (Henrik) — skal eksport kun ske via den eksplicitte "Eksportér"-knap? |
+| EC-3 | Leverandør-"Bogfør": kill switch/manglende konto meldt som "allerede bogført" (S2) | DONE (kode) |
+| EC-4 | Kreditnotaer når aldrig e-conomic og markeres ingen steder (S2) | TODO (arbejdsliste/alarm + ret forhåndsvisningstekst) |
+| EC-5 | Skrivninger efter lykket eksport fejltjekkes ikke → mulig dobbelt bogføring (S2, plausibel) | TODO |
+| EC-6 | Samtidige eksporter kan oprette to debitorer (S3) | TODO |
+| EC-7 | Samtidige betalingsregistreringer kan poste to gange (S3) | DELVIS — EC-1 fjerner den automatiske vej; manuel claim = TODO |
+| EC-8 | Moms kontrolleres ikke før bogføring (S3) | TODO |
+| EC-9 | /supplier-invoices/drafts og cash-book-endpoints findes formentlig ikke (S3, plausibel) | TODO — kræver e-conomic-sandbox |
+| EC-10 | Fejlet eksport efter afsendelse usynlig for brugeren (S3) | TODO (afhænger af EC-2) |
+| EC-11 | Pladsholder-mail sendt til debitoren (S4) | DONE (kode) |
+| EC-12 | Rå e-conomic-fejltekst til brugeren; "book"-match for bred (S4) | DONE (kode) |
+| EC-13 | Auto-bogføring: status-side og klient uenige om standard (S4) | DONE (kode) — kun ved eksplicit true |
+| EC-14 | Leverandørfakturaer logges som kundefakturaer; kladde kaldt "bogført" (S4) | TODO (entity_type kræver CHECK-tjek) |
+| EC-15 | Forfaldsdato sendes ikke til e-conomic (S4, plausibel) | TODO |
+
 ## NEXT-39 (review-bølge 2026-10-17 aften — automatik/agenter + sager/materialer)
 | # | Fund | Status |
 |---|---|---|

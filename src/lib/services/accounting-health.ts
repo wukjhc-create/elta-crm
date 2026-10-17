@@ -29,7 +29,8 @@ export function friendlyEconomicError(raw: string | null | undefined): string {
   if (r.includes('invoice has no customer')) return 'Fakturaen mangler en kunde.'
   if (r.includes('missing economic config')) return 'Manglende e-conomic-opsætning (layout, betalingsbetingelser eller momszone).'
   if (r.includes('already linked')) return 'Allerede eksporteret.'
-  if (r.includes('booking failed') || r.includes('book')) return 'Kladde oprettet, men bogføring i e-conomic fejlede.'
+  // EC-12: kun egentlige bogføringsfejl (før matchede 'book' også fx 'cash-books')
+  if (r.includes('booking failed')) return 'Kladde oprettet, men bogføring i e-conomic fejlede.'
   if (r.includes('http 401') || r.includes('http 403') || r.includes('unauthorized') || r.includes('adgang nægtet'))
     return 'Adgang nægtet — kontroller e-conomic-nøglerne.'
   if (r.includes('http 0') || r.includes('network')) return 'Kunne ikke nå e-conomic (netværksfejl).'

@@ -263,7 +263,9 @@ export async function exportInvoiceToEconomicAction(
   await audit('invoice_accounting_export_failed', `Eksport til e-conomic fejlede: ${result.error ?? 'ukendt'}`, {
     reason: result.reason ?? null,
   })
-  return { ok: false, status: 'failed', message: `Eksport fejlede: ${result.error ?? 'ukendt fejl'}` }
+  // EC-12 (e-conomic-review 2026-10-17): menneskelig fejltekst — den rå e-conomic-tekst står i audit-loggen
+  const { friendlyEconomicError } = await import('@/lib/services/accounting-health')
+  return { ok: false, status: 'failed', message: `Eksport fejlede: ${friendlyEconomicError(result.error)}` }
 }
 
 export interface BulkExportItemResult {
@@ -355,7 +357,8 @@ export async function bulkExportInvoicesToEconomicAction(
           ? { invoice_id: id, invoice_number: invoiceNumber, status: 'skipped', reason: 'Allerede eksporteret', external_id: res.externalId ?? null }
           : { invoice_id: id, invoice_number: invoiceNumber, status: 'failed', reason: skip.message })
       } else {
-        items.push({ invoice_id: id, invoice_number: invoiceNumber, status: 'failed', reason: res.error ?? 'ukendt fejl' })
+        const { friendlyEconomicError } = await import('@/lib/services/accounting-health')
+        items.push({ invoice_id: id, invoice_number: invoiceNumber, status: 'failed', reason: friendlyEconomicError(res.error) }) // EC-12
       }
     } catch (e) {
       logger.error('bulkExportInvoicesToEconomicAction: export threw', { entityId: id, error: e })
