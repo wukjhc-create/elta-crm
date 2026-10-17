@@ -101,9 +101,18 @@ export async function getCustomerDocuments(
       const scope = await getCaseScope({ role, userId, supabase })
       if (scope.type !== 'all') {
         const allowed = new Set(scope.caseIds)
+        // CU-1 (kunde-review 2026-10-17): dokumenter UDEN sag (rapporter, uploads) kun for roller der arbejder med
+        // kunder (customers.edit, fx salg) eller når kunden har en sag i brugerens scope — før så montøren dem for
+        // enhver kunde (samme regel som besigtigelsesbillederne, F4)
+        let caselessOk = hasPermission('customers.edit')
+        for (let i = 0; i < scope.caseIds.length && !caselessOk; i += 200) {
+          const { count } = await supabase.from('service_cases').select('id', { count: 'exact', head: true })
+            .eq('customer_id', customerId).in('id', scope.caseIds.slice(i, i + 200))
+          caselessOk = (count ?? 0) > 0
+        }
         docs = docs.filter((d) => {
           const caseId = (d as { service_case_id?: string | null }).service_case_id
-          return !caseId || allowed.has(caseId)
+          return caseId ? allowed.has(caseId) : caselessOk
         })
       }
     }
@@ -290,13 +299,15 @@ export async function getDocumentDownloadUrls(
     const docPaths = requested.filter((p) => !imageRe.test(p))
     const canSeeFuldmagt = hasPermission('customers.emails.view')
     for (let i = 0; i < docPaths.length; i += 200) {
-      let q = supabase.from('customer_documents').select('storage_path, service_case_id, document_type, description').in('storage_path', docPaths.slice(i, i + 200))
+      let q = supabase.from('customer_documents').select('storage_path, service_case_id, customer_id, document_type, description').in('storage_path', docPaths.slice(i, i + 200))
       if (!canSeeFuldmagt) q = q.is('source_email_id', null)
       const { data: rows } = await q
-      for (const r of (rows ?? []) as Array<{ storage_path: string | null; service_case_id: string | null; document_type: string | null; description: string | null }>) {
+      for (const r of (rows ?? []) as Array<{ storage_path: string | null; service_case_id: string | null; customer_id: string | null; document_type: string | null; description: string | null }>) {
         if (!r.storage_path) continue
         if (!canSeeFuldmagt && isFuldmagtDocument(r)) continue
         if (scopeCases && r.service_case_id && !scopeCases.has(r.service_case_id)) continue
+        // CU-1: sagsløst dokument uden customers.edit kun for kunder med en sag i scope (som getCustomerDocuments)
+        if (scopeCustomers && !r.service_case_id && !hasPermission('customers.edit') && !(r.customer_id && scopeCustomers.has(r.customer_id))) continue
         allowed.add(r.storage_path)
       }
     }

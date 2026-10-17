@@ -37,7 +37,7 @@ import {
   createOfferFromAnalysis,
   listAnalyses,
 } from '@/lib/actions/auto-project'
-import { getCustomers } from '@/lib/actions/customers'
+import { getCustomers, searchCustomersForPickerAction } from '@/lib/actions/customers'
 import type { AnalyzeProjectOutput, RiskFactor } from '@/types/auto-project.types'
 
 interface Customer {
@@ -178,6 +178,23 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
     }
     setCreatingOffer(false)
   }
+
+  // CU-10 (kunde-review 2026-10-17): listen viser de 100 nyeste — søgning henter også ældre kunder fra serveren
+  useEffect(() => {
+    const term = customerSearch.trim()
+    if (!showCustomerModal || term.length < 2) return
+    const t = setTimeout(async () => {
+      const res = await searchCustomersForPickerAction(term)
+      if (!res.success || !res.data) return
+      const found = res.data.map((c) => ({ id: c.id, name: c.company_name || c.contact_person || '', email: c.email }))
+      setCustomers((prev) => {
+        const known = new Set(prev.map((c) => c.id))
+        const extra = found.filter((c) => !known.has(c.id))
+        return extra.length ? [...prev, ...extra] : prev
+      })
+    }, 300)
+    return () => clearTimeout(t)
+  }, [customerSearch, showCustomerModal])
 
   const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||

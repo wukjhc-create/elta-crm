@@ -672,7 +672,7 @@ export async function quickCreateCustomer(
 }
 
 // Update customer
-export async function updateCustomer(formData: FormData): Promise<ActionResult<Customer>> {
+export async function updateCustomer(formData: FormData): Promise<ActionResult<Customer> & { code?: 'DUPLICATE_EMAIL' }> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('customers.edit')) {
@@ -718,6 +718,20 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
     }
 
     const { id: customerId, ...updateData } = validated.data
+
+    // CU-4 (kunde-review 2026-10-17): som ved oprettelse (T-5) normaliseres mailen, og en ÆNDRET mail der allerede
+    // tilhører en anden kunde kræver eksplicit "Gem alligevel" (før: stille dublet → tvetydig mail-kobling)
+    if (typeof updateData.email === 'string' && updateData.email) {
+      const { normalizeCustomerEmail, isPlaceholderEmail, findCustomerByEmail, duplicateEmailMessage } = await import('@/lib/customers/customer-email')
+      const email = normalizeCustomerEmail(updateData.email)
+      updateData.email = email
+      const { data: current } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+      const changed = normalizeCustomerEmail((current as { email?: string | null } | null)?.email ?? '') !== email
+      if (changed && formData.get('allow_duplicate_email') !== 'true' && !isPlaceholderEmail(email)) {
+        const existing = await findCustomerByEmail(supabase, email, { excludeId: customerId })
+        if (existing) return { success: false, code: 'DUPLICATE_EMAIL', error: duplicateEmailMessage(email, existing) }
+      }
+    }
 
     const { data, error } = await supabase
       .from('customers')
@@ -830,9 +844,26 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
       cspN || cppN || marginN ? 'prisaftaler' : '',
       invRoleN ? `en rolle på ${invRoleN} faktura(er)` : '',
     ].filter(Boolean))
+    // CU-3 (kunde-review 2026-10-17): også ON DELETE SET NULL-referencer, der ellers mistede kunden stille
+    const [sentQuotesN, confirmN, kalkiaN, calcN, woN, smsN] = await Promise.all([
+      optionalCount('sent_quotes'), optionalCount('document_confirmations', 'recipient_customer_id'),
+      optionalCount('kalkia_calculations'), optionalCount('calculations'), optionalCount('work_orders'), optionalCount('sms_messages'),
+    ])
+    linked.push(...[
+      sentQuotesN ? `${sentQuotesN} sendt(e) tilbudsmail(s)` : '',
+      confirmN ? `${confirmN} dokumentbekræftelse(r)` : '',
+      kalkiaN || calcN ? 'kalkulationer' : '',
+      woN ? `${woN} arbejdsordre(r)` : '',
+      smsN ? 'SMS-historik' : '',
+    ].filter(Boolean))
     if (linked.length) {
       return { success: false, error: `Kunden har ${linked.join(', ')} og kan ikke slettes — deaktivér kunden i stedet` }
     }
+
+    // CU-3: kundens mails mister customer_id (SET NULL) men beholdt link_status 'linked' → de forsvandt fra både
+    // kundevisningen og "Uidentificeret". Frigives eksplicit, så de kan kobles igen (typisk auto-oprettede mailkunder).
+    const { error: mailErr } = await admin.from('incoming_emails').update({ link_status: 'unidentified', customer_id: null }).eq('customer_id', id)
+    if (mailErr) throw new Error('Kunne ikke frigive kundens mails — prøv igen')
 
     const { error } = await supabase.from('customers').delete().eq('id', id)
 
@@ -1044,13 +1075,6 @@ export async function updateCustomerContact(
     // blev nulstillingen sprunget over → to primære kontakter)
     const { data: own } = await supabase.from('customer_contacts').select('customer_id').eq('id', id).maybeSingle()
     const ownCustomerId = (own as { customer_id: string } | null)?.customer_id ?? null
-    if (validated.data.is_primary && ownCustomerId) {
-      await supabase
-        .from('customer_contacts')
-        .update({ is_primary: false })
-        .eq('customer_id', ownCustomerId)
-        .neq('id', id)
-    }
 
     const { id: contactId, ...updateData } = validated.data
 
@@ -1067,6 +1091,16 @@ export async function updateCustomerContact(
       }
       logger.error('Database error updating customer contact', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    // CU-7 (kunde-review 2026-10-17): de andre kontakters primær-markering nulstilles først EFTER en lykket opdatering
+    // (før: fejlede opdateringen, stod kunden uden primær kontakt — samme rækkefølge som ved oprettelse, #6)
+    if (validated.data.is_primary && ownCustomerId) {
+      await supabase
+        .from('customer_contacts')
+        .update({ is_primary: false })
+        .eq('customer_id', ownCustomerId)
+        .neq('id', contactId)
     }
 
     revalidatePath(`/dashboard/customers/${customerId}`)

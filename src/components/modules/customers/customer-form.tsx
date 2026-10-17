@@ -144,12 +144,12 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
         ? await updateCustomer(formData)
         : await createCustomer(formData)
 
-      // T-5: serveren fandt en kunde med samme mail (fx oprettet imens) → spørg, og opret kun ved eksplicit ja
-      if (!isEditing && !result.success && (result as { code?: string }).code === 'DUPLICATE_EMAIL') {
+      // T-5/CU-4: serveren fandt en (anden) kunde med samme mail → spørg, og gem kun ved eksplicit ja
+      if (!result.success && (result as { code?: string }).code === 'DUPLICATE_EMAIL') {
         const again = await confirmUnsaved({
           title: 'Kunde med samme e-mail findes',
           description: result.error ?? 'Der findes allerede en kunde med denne e-mail.',
-          confirmLabel: 'Opret alligevel',
+          confirmLabel: isEditing ? 'Gem alligevel' : 'Opret alligevel',
           variant: 'warning',
         })
         if (!again) {
@@ -157,7 +157,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
           return
         }
         formData.set('allow_duplicate_email', 'true')
-        result = await createCustomer(formData)
+        result = isEditing ? await updateCustomer(formData) : await createCustomer(formData)
       }
 
       if (!result.success) {

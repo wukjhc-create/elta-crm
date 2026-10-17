@@ -19,6 +19,7 @@ import {
   type CustomerContact,
 } from '@/types/customers.types'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 
 interface ContactFormProps {
   customerId: string
@@ -36,19 +37,14 @@ export function ContactForm({
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const { confirm: confirmUnsaved, ConfirmDialog } = useConfirm()
 
   const isEditing = !!contact
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CreateCustomerContactInput>({
     resolver: zodResolver(createCustomerContactSchema),
     defaultValues: contact
@@ -112,6 +108,28 @@ export function ContactForm({
     }
   }
 
+  // CU-9 (kunde-review 2026-10-17): Escape/luk spørger ved ugemte ændringer (som kundeformularen) — før gik indtastede
+  // kontaktdata tabt
+  const safeClose = async () => {
+    if (isDirty) {
+      const ok = await confirmUnsaved({
+        title: 'Ugemte ændringer',
+        description: 'Du har ændringer der ikke er gemt. Vil du kassere dem?',
+        confirmLabel: 'Kassér',
+        variant: 'warning',
+      })
+      if (!ok) return
+    }
+    onClose()
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') safeClose() }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty])
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div role="dialog" aria-modal="true" aria-labelledby="contact-form-title" className="bg-white rounded-lg shadow-xl w-full max-w-md">
@@ -120,7 +138,7 @@ export function ContactForm({
             {isEditing ? 'Rediger Kontakt' : 'Tilføj Kontakt'}
           </h2>
           <button
-            onClick={onClose}
+            onClick={safeClose}
             className="p-1 hover:bg-gray-100 rounded-full"
           >
             <X className="w-5 h-5" />
@@ -260,7 +278,7 @@ export function ContactForm({
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button
               type="button"
-              onClick={onClose}
+              onClick={safeClose}
               className="px-4 py-2 border rounded-md hover:bg-gray-50"
               disabled={isLoading}
             >
@@ -280,6 +298,7 @@ export function ContactForm({
           </div>
         </form>
       </div>
+      {ConfirmDialog}
     </div>
   )
 }

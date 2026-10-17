@@ -474,6 +474,17 @@ export async function createCustomerTask(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Ikke logget ind' }
 
+  // CU-8 (kunde-review 2026-10-17): tilbuddet skal høre til kunden, og den ansvarlige skal være en aktiv bruger
+  // (før blev begge taget ukontrolleret fra klienten)
+  if (input.offer_id) {
+    const { data: off } = await supabase.from('offers').select('customer_id').eq('id', input.offer_id).maybeSingle()
+    if (!off || (off as { customer_id: string | null }).customer_id !== input.customer_id) return { success: false, error: 'Tilbuddet hører ikke til kunden' }
+  }
+  if (input.assigned_to && input.assigned_to !== user.id) {
+    const { data: prof } = await supabase.from('profiles').select('is_active').eq('id', input.assigned_to).maybeSingle()
+    if (!prof || (prof as { is_active: boolean | null }).is_active === false) return { success: false, error: 'Den ansvarlige findes ikke eller er deaktiveret' }
+  }
+
   const { error } = await supabase.from('customer_tasks').insert({
     customer_id: input.customer_id,
     offer_id: input.offer_id || null,

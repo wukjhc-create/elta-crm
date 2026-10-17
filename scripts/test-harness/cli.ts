@@ -3614,6 +3614,9 @@ Total inkl. moms 11.718,75
       ['customer_notes', 'customer_id'], ['roof_drawings', 'customer_id'], ['email_threads', 'customer_id'], ['partner_access_tokens', 'partner_customer_id'],
       ['customer_supplier_prices', 'customer_id'], ['customer_product_prices', 'customer_id'], ['supplier_margin_rules', 'customer_id'],
       ['invoices', 'orderer_customer_id'], ['invoices', 'end_customer_id'], ['invoices', 'payer_customer_id'],
+      // CU-3 (2026-10-17): SET NULL-referencer + mailfrigivelse
+      ['sent_quotes', 'customer_id'], ['document_confirmations', 'recipient_customer_id'], ['kalkia_calculations', 'customer_id'],
+      ['calculations', 'customer_id'], ['work_orders', 'customer_id'], ['sms_messages', 'customer_id'], ['incoming_emails', 'customer_id'],
     ]
     for (const [t, c] of refs) {
       const { error } = await admin.from(t).select('id').eq(c, id).limit(1)

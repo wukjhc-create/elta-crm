@@ -222,16 +222,16 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | API-6 | Integrations-webhook: 404/403 før godkendelse = eksistens-orakel (S4) | DONE (kode) — samme 401 |
 | API-7 | dashboard/stats + ai-insights sendte rå fejltekst (S4) | DONE (kode) — generisk tekst, detalje i log |
 | API-8 | Tilbuds-PDF uden no-store; offer-reminders accepterede hemmeligheden uden "Bearer " (S4) | DONE (kode) |
-| CU-1 | Montør kan hente sagsløse dokumenter (rapporter, uploads) for alle kunder (S2) | TODO |
-| CU-2 | Prisaftaleformular uden key → redigering af B overskriver A; gemning genaktiverer inaktiv aftale (S3) | TODO |
-| CU-3 | Sletning af kunde: SET NULL-referencer (mails forbliver 'linked' uden kunde, tilbudsmails, kalkulationer) (S3) | TODO |
-| CU-4 | Redigering af kunde: ingen dublet-e-mail-tjek/normalisering (S3) | TODO |
+| CU-1 | Montør kan hente sagsløse dokumenter (rapporter, uploads) for alle kunder (S2) | DONE (kode) — sagsløse dokumenter kun med customers.edit eller kunde med sag i scope (liste + signering); UI U188 |
+| CU-2 | Prisaftaleformular uden key → redigering af B overskriver A; gemning genaktiverer inaktiv aftale (S3) | DONE (kode) — key pr. aftale, is_active bevares |
+| CU-3 | Sletning af kunde: SET NULL-referencer (mails forbliver 'linked' uden kunde, tilbudsmails, kalkulationer) (S3) | DONE (kode) — tilbudsmails/bekræftelser/kalkulationer/arbejdsordrer/SMS blokerer; kundens mails frigives til "Uidentificeret" før sletning; probe customer-delete-refs-probe |
+| CU-4 | Redigering af kunde: ingen dublet-e-mail-tjek/normalisering (S3) | DONE (kode) — normalisering + "Gem alligevel" ved ændret mail der tilhører en anden kunde |
 | CU-5 | Montør ser hele kunderegistret + noter (S3, design) | BESLUTNING (Henrik) — scope montør til egne sagers kunder? |
 | CU-6 | Kundeflow-widget viser lead/tilbud/mail-trin uden de respektive rettigheder (S3, plausibel) | TODO |
-| CU-7 | Opdatering af kontakt nulstiller primær før opdatering (S4) | TODO |
-| CU-8 | createCustomerTask kun customers.view; assigned_to/offer_id ukontrolleret (S4) | TODO |
-| CU-9 | Escape lukker kontaktformular uden spørgsmål (S4) | TODO |
-| CU-10 | AI-projekt kundevælger højst 100 kunder (S4) | TODO |
+| CU-7 | Opdatering af kontakt nulstiller primær før opdatering (S4) | DONE (kode) |
+| CU-8 | createCustomerTask kun customers.view; assigned_to/offer_id ukontrolleret (S4) | DELVIS (kode) — tilbud skal høre til kunden, ansvarlig skal være aktiv. Hvem må oprette (montør/bogholderi) = BESLUTNING |
+| CU-9 | Escape lukker kontaktformular uden spørgsmål (S4) | DONE (kode) |
+| CU-10 | AI-projekt kundevælger højst 100 kunder (S4) | DONE (kode) — søgning henter også ældre kunder (searchCustomersForPickerAction) |
 
 ## NEXT-27 (review-bølge 2026-10-17 — crons, alarmer, notifikationer)
 | # | Fund | Status |

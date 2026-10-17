@@ -135,6 +135,9 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
       {/* Form */}
       {showForm && (
         <PriceAgreementForm
+          // CU-2 (kunde-review 2026-10-17): ny instans pr. aftale — før beholdt formularen den forrige aftales leverandør
+          // ved skift (rediger B/"Tilføj" mens A var åben) og upsert overskrev A
+          key={editingAgreement?.id ?? 'new'}
           customerId={customerId}
           suppliers={suppliers}
           editingAgreement={editingAgreement}
@@ -349,7 +352,7 @@ function PriceAgreementForm({
       notes: notes || undefined,
       valid_from: validFrom || undefined,
       valid_to: validTo || undefined,
-      is_active: true,
+      is_active: editingAgreement?.is_active ?? true, // CU-2: gemning genaktiverer ikke en inaktiv aftale
     }
 
     const result = await upsertCustomerSupplierPrice(data)
