@@ -3498,8 +3498,14 @@ ${m.text()}`) })
           r.beskyttet_bevaret = left.some((d) => d.id === protId)
           const dl = up?.storage_path ? await c.admin.storage.from('attachments').download(up.storage_path) : null
           r.fil_fjernet = !!dl && !!dl.error
-          const aud = ((await c.admin.from('audit_logs').select('action, user_id').eq('entity_id', up?.id ?? '')).data ?? []) as Array<{ action: string; user_id: string | null }>
-          r.audit = aud.some((x) => x.action === 'document_deleted' && x.user_id === adminUser.id)
+          // audit skrives efter sletningen — poll (samme race som U29)
+          let audOk = false
+          for (let i = 0; i < 20 && !audOk; i++) {
+            const aud = ((await c.admin.from('audit_logs').select('action, user_id').eq('entity_id', up?.id ?? '')).data ?? []) as Array<{ action: string; user_id: string | null }>
+            audOk = aud.some((x) => x.action === 'document_deleted' && x.user_id === adminUser.id)
+            if (!audOk) await new Promise((res) => setTimeout(res, 500))
+          }
+          r.audit = audOk
           // negativ rolle: montør på sin egen sag (U11) ser ingen slet-knap
           if (jobCaseId) {
             const ins = await c.admin.from('customer_documents').insert([{ customer_id: profitCustomerId, service_case_id: jobCaseId, title: `Montørfil ${stamp}`,

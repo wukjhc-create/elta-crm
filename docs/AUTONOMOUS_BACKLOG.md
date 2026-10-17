@@ -54,9 +54,9 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | MB-4 | Aflevering: fejl vises øverst uden for skærmen | TODO |
 | MB-5 | Gem/Afslut-knapper i tidsregistrering ~24 px | DONE (130fde1c) — Gem/Annullér fuld bredde og ≥ 44 px på telefon |
 | MB-6 | Tidstabel uden mobilvisning (Ret/Slet i sidste kolonne) | TODO |
-| MB-7 | Satsvælger vist på kollegaers rækker (serveren afviser) | DONE (venter commit) — serveren markerer editable_by_me; kollegaers rækker vises låst med forklaring |
+| MB-7 | Satsvælger vist på kollegaers rækker (serveren afviser) | DONE (d0c428ac) — serveren markerer editable_by_me; kollegaers rækker vises låst med forklaring |
 | MB-8 | Små HEIC-fotos uploades ukonverteret (vises ikke i Chrome/Android) | TODO |
-| MB-9 | Dokumenter lover 20 MB, grænsen er ~4,5–10 MB | TODO |
+| MB-9 | Dokumenter lover 20 MB, grænsen er ~4,5–10 MB | DONE (venter commit) — klienttjek 4 MB efter formindskelse med dansk besked; korrekt tekst i feltet |
 | MB-10 | Slet-foto vist på andres fotos | TODO |
 | MB-11 | Tider i enhedens tidszone i tidslisten | DONE (130fde1c) — timeZone Europe/Copenhagen i tidslisten |
 | MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | DONE (130fde1c) — pinch-zoom tilladt (viewport uden maximum-scale/user-scalable=no); øvrige små touch-mål = senere |

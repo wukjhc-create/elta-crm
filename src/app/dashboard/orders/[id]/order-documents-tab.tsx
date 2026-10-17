@@ -34,6 +34,9 @@ function formatSize(bytes: number | null): string {
   return `${Math.round(bytes / 1024)} KB`
 }
 
+/** MB-9: upload pr. fil går gennem en server action — Vercel tillader ~4,5 MB pr. forespørgsel */
+const UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024
+
 export function OrderDocumentsTab({
   caseId,
   customerId,
@@ -94,7 +97,14 @@ export function OrderDocumentsTab({
       for (const f of Array.from(files)) {
         try {
           const fd = new FormData()
-          fd.append('file', await downscaleImageForUpload(f))
+          const prepared = await downscaleImageForUpload(f)
+          // MB-9 (mobil-review 2026-10-17): serverens upload-grænse er ~4,5 MB pr. forespørgsel (Vercel) — før lovede
+          // feltet 20 MB, og store PDF'er fejlede med "forbindelsen røg". Billeder formindskes automatisk ovenfor.
+          if (prepared.size > UPLOAD_LIMIT_BYTES) {
+            errors.push(`${f.name}: filen er for stor (${(prepared.size / 1024 / 1024).toFixed(1).replace('.', ',')} MB) — højst 4 MB pr. fil; komprimér PDF'en eller del den op`)
+            continue
+          }
+          fd.append('file', prepared)
           const r = await uploadCaseDocument(caseId, fd)
           if (r.success) ok++
           else errors.push(`${f.name}: ${r.error ?? 'fejl'}`)
@@ -149,7 +159,7 @@ export function OrderDocumentsTab({
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
             {uploading ? 'Uploader…' : 'Tilføj foto / dokument'}
           </button>
-          <span className="text-xs text-gray-500">Billeder eller PDF, max 20 MB pr. fil</span>
+          <span className="text-xs text-gray-500">Billeder (formindskes automatisk) eller PDF op til 4 MB pr. fil</span>
           <span className="text-xs font-medium text-amber-800 bg-amber-50 ring-1 ring-amber-200 rounded px-2 py-0.5" data-testid="case-upload-visibility">
             Synligt for kunden i kundeportalen
           </span>
