@@ -1175,7 +1175,12 @@ export async function resendEmail(
       return { success: false, error: 'Ingen tilbud tilknyttet denne tråd' }
     }
 
-    // Resend with original data + updates
+    // ML-5 (mail-review 2026-10-17): kun udgående tilbudsmails gensendes — til SAMME modtager og med PDF, hvis den
+    // oprindelige havde vedhæftning (før: standardmodtageren, uden PDF — PM-2-teksten "vedhæftet som PDF" uden PDF)
+    if ((message as { direction?: string }).direction && (message as { direction?: string }).direction !== 'outbound') {
+      return { success: false, error: 'Kun udgående mails kan gensendes' }
+    }
+    const hadAttachment = Array.isArray((message as { attachments?: unknown }).attachments) && ((message as { attachments?: unknown[] }).attachments ?? []).length > 0
     return sendOfferEmail({
       offer_id: message.thread.offer_id,
       subject: updates?.subject || message.subject,
@@ -1183,6 +1188,8 @@ export async function resendEmail(
       body_text: message.body_text || undefined,
       cc: message.cc || undefined,
       bcc: message.bcc || undefined,
+      recipient_override: (message as { to_email?: string | null }).to_email || undefined,
+      include_pdf: hadAttachment || undefined,
     })
   } catch (error) {
     logger.error('Error resending email', { error: error })

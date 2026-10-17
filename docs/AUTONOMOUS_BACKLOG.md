@@ -233,7 +233,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | ML-2 | Fuldmagtsmail vedhæftede PDF med fuldt CPR (S2) | DONE (kode) — ingen vedhæftning (arkiveret på kunden) |
 | ML-3 | Modtageradresser/emner i logs og helbredslog (S3) | DONE (kode) — Graph-logs, logMailRoute (uden reason), quick reply og faktura-helbredslog redigeret/uden modtager |
 | ML-4 | Arkiveret mailvedhæftning kunne sendes som besigtigelsesrapport (S3) | DONE (kode) — 3 veje afviser source_email_id |
-| ML-5 | "Gensend" går til standardmodtager uden PDF (S3) | TODO |
+| ML-5 | "Gensend" går til standardmodtager uden PDF (S3) | DONE (kode, ikke UI-testet — ville sende mail) — samme modtager (to_email), PDF hvis originalen havde vedhæftning, kun udgående |
 | ML-6 | Eksportfejl-mail i UTC og uescapet API-tekst (S3) | DONE (kode) |
 | ML-7 | "Tilbud accepteret"-mail kun via SMTP (S3, plausibel) | DONE (kode) — Graph via den centrale router som afvisningen; SMTP kun som fallback med resultattjek; U10 |
 | ML-8 | Tilbudsmodtager ≠ indtastet/registreret (S3, plausibel) | TODO |
