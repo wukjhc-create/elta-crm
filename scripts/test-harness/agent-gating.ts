@@ -84,9 +84,10 @@ export async function runAgentGating(c: { admin: SupabaseClient; sql: Sql; owner
   const offersFor = async () => Number((await c.sql(`SELECT count(*)::int n FROM offers WHERE source_case_id=${lit(cs.id)}`))[0].n)
 
   // Opret run+task og forsoeg at indsaette en action. Returnerer id ELLER DB-afvisningen (00163-guarden).
-  const tryAction = async (agentType: string, a: { capability: string; side_effect_class: string; requires_approval: boolean; payload: Record<string, unknown>; approve?: boolean }) => {
+  const tryAction = async (agentType: string, a: { capability: string; side_effect_class: string; requires_approval: boolean; payload: Record<string, unknown>; approve?: boolean; dryRun?: boolean }) => {
+    // AU-3 (Henrik 2026-10-17): dry_run=true overstyrer alle tilstande → udførelsestests bruger rigtige runs (G10 tester dry-run)
     const { data: run } = await c.admin.from('agent_runs').insert({ agent_type: agentType, trigger: 'manual', status: 'awaiting_approval', safety_mode: 'suggest',
-      dry_run: true, input_context: { harness: 'agent-gating' }, summary: '[HARNESS] gating', started_at: new Date().toISOString() }).select('id').single()
+      dry_run: a.dryRun ?? false, input_context: { harness: 'agent-gating' }, summary: '[HARNESS] gating', started_at: new Date().toISOString() }).select('id').single()
     const runId = (run as { id: string }).id
     runs.push(runId)
     const { data: task } = await c.admin.from('agent_tasks').insert({ run_id: runId, seq: 0, kind: 'harness', title: '[HARNESS] gating', status: 'proposed' }).select('id').single()
@@ -137,6 +138,14 @@ export async function runAgentGating(c: { admin: SupabaseClient; sql: Sql; owner
     const bypass = await c.admin.from('agent_actions').update({ status: 'executing' }).eq('id', legit).select('id')
     out.push({ id: 'G8 executing uden approval (DB)', ok: !!bypass.error && /approval/.test(bypass.error.message),
       note: bypass.error ? `DB afviste: ${bypass.error.message.slice(0, 70)}` : 'TILLADT' })
+
+    // ---- AU-3 (Henrik 2026-10-17): dry_run=true overstyrer ALLE tilstande — en godkendt action i et dry-run-run udføres
+    //      ikke (intet tilbud, status uændret, "ville udføre" i audit)
+    const dryId = await mustAction('offer', { ...offerCap, approve: true, dryRun: true })
+    const g10 = await executeAction(dryId)
+    const dryRow = (await c.sql(`SELECT status FROM agent_actions WHERE id=${lit(dryId)}`))[0]
+    out.push({ id: 'G10 dry-run + approval udfoeres ikke', ok: g10.data?.status === 'refused' && /dry-run/.test(g10.data?.reason ?? '') && (await offersFor()) === 0 && dryRow.status === 'awaiting_approval',
+      note: `${g10.data?.status ?? g10.error}: ${g10.data?.reason ?? ''} · status=${dryRow.status}` })
 
     // ---- positiv kontrol: gyldig raekke + approval -> Executor udfoerer
     await c.admin.from('agent_action_approvals').insert([{ action_id: legit, decision: 'approved', decided_by: c.ownerUid }])

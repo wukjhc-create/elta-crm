@@ -178,9 +178,11 @@ export function OrderActionsTab({ sag }: { sag: ServiceCaseWithRelations }) {
         </ActionCard>
 
         {/* Auto invoice */}
+        {/* SC-7 (sags-review 2026-10-17): udløseren work_order_done sendes ikke endnu (AU-7) — kortet lovede en
+            automatisk fakturakladde, der aldrig blev oprettet. Indstillingen gemmes, men siger nu ærligt, at den ikke virker. */}
         <ActionCard
           title="Auto-faktura ved afsluttet"
-          description="Hvis aktiveret, opretter systemet automatisk en fakturakladde når sagen markeres afsluttet."
+          description="Ikke aktiv endnu: indstillingen gemmes, men systemet opretter i dag ingen fakturakladde automatisk. Fakturér fra fanen Fakturering."
         >
           <ToggleRow
             label="Auto-faktura aktiv"

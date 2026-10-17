@@ -38,7 +38,7 @@ export async function runPlanningFlow(c: { admin: SupabaseClient; sql: Sql; owne
 
   try {
     // P1
-    const r1 = await Promise.all(Array.from({ length: 3 }, () => runPlanningAgent({ caseIds: [A.id], dryRun: true })))
+    const r1 = await Promise.all(Array.from({ length: 3 }, () => runPlanningAgent({ caseIds: [A.id], dryRun: false })))
     for (const r of r1) if (r.data?.runId) runIds.add(r.data.runId)
     const acts = await actionFor(A.id)
     out.push({ id: 'P1 3x parallel forslag', ok: acts.length === 1 && acts[0].status === 'awaiting_approval',
@@ -66,7 +66,7 @@ export async function runPlanningFlow(c: { admin: SupabaseClient; sql: Sql; owne
       note: `executor=${again} · handler direkte created=${direct.data?.created} · arbejdsordrer=${(await woFor(A.id)).length}` })
 
     // P5 stale: menneske planlaegger B imens
-    const r5 = await runPlanningAgent({ caseIds: [B.id], dryRun: true })
+    const r5 = await runPlanningAgent({ caseIds: [B.id], dryRun: false })
     if (r5.data?.runId) runIds.add(r5.data.runId)
     const actB = (await actionFor(B.id))[0]
     if (actB) {

@@ -60,6 +60,17 @@ assert(reviewerReason('noget helt andet') === 'noget helt andet' && reviewerReas
 // Drift-vagter
 const missingCap = listCapabilities().map((c) => c.key).filter((k) => !CAPABILITY_LABELS[k])
 assert(missingCap.length === 0, 'alle registrerede capabilities har en dansk titel', missingCap.join(','))
+// AU-3 (Henrik 2026-10-17): suggest/approve kræver godkendelse af HVER udførelse; dry-run kan aldrig udføres
+{
+  const draft = A('planned', { side_effect_class: 'draft', requires_approval: false })
+  const sug = actionControls(draft, true, Date.now(), { humanApproval: true })
+  assert(sug.canApprove && !sug.canExecute, 'suggest: udkast uden approval-krav skal godkendes før udførelse')
+  const auto = actionControls(draft, true, Date.now(), { humanApproval: false })
+  assert(auto.canExecute && !auto.canApprove, "auto: udkast kan udføres uden godkendelse (klassens regel)")
+  const dry = actionControls(A('approved'), true, Date.now(), { humanApproval: true, dryRun: true })
+  assert(!dry.canExecute && !dry.canApprove && /Dry-run/.test(dry.executeHint ?? ''), 'dry-run: godkendt action kan ikke udføres')
+}
+
 const dbStatuses = ['planned', 'awaiting_approval', 'approved', 'rejected', 'executing', 'executed', 'failed', 'rolled_back', 'needs_verification'] // agent_actions_status_check
 assert(dbStatuses.every((s) => STATUS_LABELS[s]), 'alle agent_actions-statusser har en dansk label')
 assert(['mail', 'offer', 'followup', 'planning', 'purchase', 'economy', 'director'].every((t) => AGENT_LABELS[t]), 'alle 7 agenttyper har et navn')

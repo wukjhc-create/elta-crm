@@ -59,8 +59,9 @@ export interface ActionControls {
   warning: string | null
 }
 
-export function actionControls(a: InboxActionLite, agentEnabled: boolean, now = Date.now(), opts: { liveSendEnabled?: boolean } = {}): ActionControls {
-  const needsApproval = a.requires_approval || HARD_BLOCKED.includes(a.side_effect_class)
+export function actionControls(a: InboxActionLite, agentEnabled: boolean, now = Date.now(), opts: { liveSendEnabled?: boolean; humanApproval?: boolean; dryRun?: boolean } = {}): ActionControls {
+  // AU-3 (Henrik 2026-10-17): i suggest/approve kræver HVER udførelse en godkendelse (som executoren)
+  const needsApproval = a.requires_approval || HARD_BLOCKED.includes(a.side_effect_class) || opts.humanApproval === true
   if (a.status === 'needs_verification') {
     return { canApprove: false, canReject: false, canExecute: false, executeHint: null,
       warning: 'Resultatet er uvist. Kontrollér manuelt om handlingen skete (fx i sendt post) — gentag den ikke.' }
@@ -76,6 +77,8 @@ export function actionControls(a: InboxActionLite, agentEnabled: boolean, now = 
   const canApprove = needsApproval && a.status !== 'approved'
   const liveBlocked = ['send_external', 'push_external'].includes(a.side_effect_class) && !opts.liveSendEnabled
   let executeHint: string | null = null
+  // AU-3: dry-run overstyrer alt — intet kan udføres (forslaget kan stadig afvises)
+  if (opts.dryRun) return { canApprove: false, canReject: needsApproval, canExecute: false, executeHint: 'Dry-run: forslaget kan ikke udføres (kun simulering).', warning: null }
   if (liveBlocked) executeHint = 'Live afsendelse er slået fra — intet kan sendes, før det besluttes.'
   else if (!agentEnabled) executeHint = 'Agenten er slået fra — udførelse afvises, indtil den aktiveres.'
   else if (!approved) executeHint = 'Kræver godkendelse før udførelse.'

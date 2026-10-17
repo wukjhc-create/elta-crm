@@ -3065,7 +3065,7 @@ Total inkl. moms 11.718,75
       const done = await mkCase(1)
       await admin.from('work_orders').insert({ case_id: done, customer_id: custId, title: '[HARNESS] udført', status: 'done', scheduled_date: '2026-09-01' })
       const fresh = await mkCase(2)
-      const r = await runPlanningAgent({ caseIds: [done, fresh], dryRun: true, triggeredBy: owner })
+      const r = await runPlanningAgent({ caseIds: [done, fresh], dryRun: false, triggeredBy: owner })
       // den udførte sag sorteres fra INDEN vurderingen (unplannedCases) → kun den nye sag behandles
       check('sag med kun udført arbejdsordre → ikke kandidat (intet forslag)', r.success && r.data?.cases === 1 && !r.data.skipped.some((s) => s.case_id === done), JSON.stringify(r.data))
       check('sag uden arbejdsordre er stadig kandidat', !r.data?.skipped.some((s) => s.case_id === fresh && /arbejdsordre/.test(s.reason)), JSON.stringify(r.data?.skipped))

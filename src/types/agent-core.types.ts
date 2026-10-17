@@ -197,6 +197,10 @@ export interface AgentInboxItem {
   >
   /** Om runnets agent er enabled (ellers afviser Executor enhver udfoerelse). */
   agentEnabled: boolean
+  /** AU-3: suggest/approve (ikke 'auto') — hver udførelse kræver godkendelse */
+  humanApproval?: boolean
+  /** AU-3: dry-run-run — intet kan udføres, heller ikke med godkendelse */
+  dryRun?: boolean
   /** Antal ikke-afsluttede actions der venter paa review/handling. */
   pendingCount: number
   /** Hoejeste review-prioritet blandt ikke-afsluttede actions (til sortering). */

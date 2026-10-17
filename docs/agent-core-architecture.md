@@ -157,11 +157,21 @@ Godkend / Afvis / Rediger), plus valgfri mail-approval for finans.
 
 ---
 
-## 8. Safety modes (håndhæves i kode, ikke kun config)
+## 8. Safety modes — kontrakt (Henrik 2026-10-17, AU-3; håndhæves i `src/lib/agents/executor.ts`)
 
-- **`suggest`** (default): agenten skriver kun `agent_tasks`/`agent_actions` i status `proposed`. **Intet eksekverer.** Menneske reviewer i Agent-indbakken.
-- **`approve`** (co-pilot): actions oprettes `awaiting_approval`; menneske godkender (enkeltvis/batch) → Executor kører.
-- **`auto`**: kun **read + draft + intern-create** kan køre automatisk. `send_external` / `push_external` / `finance` / `delete` kræver ALTID approval — hård-kodet, ikke config-overstyrbart. "Auto" betyder aldrig "send mail/penge uden menneske".
+- **disabled** (`enabled=false`): agenten gør intet — ingen forslag, ingen udførelse.
+- **`suggest`** (default): agenten må analysere og oprette forslag (`agent_tasks`/`agent_actions`). **Ingen autonom
+  udførelse** — udførelse sker KUN efter eksplicit menneskelig godkendelse (Executor kræver mindst én gyldig approval
+  for ALLE klasser i suggest/approve), og hver godkendt udførelse auditeres (`audit_logs` action `executed`).
+- **`approve`**: som suggest (godkendelse kræves altid).
+- **`auto`**: må udføre, men kun inden for godkendte capabilities, rettighedsværn, kill switches
+  (fx `AGENT_LIVE_SEND_ENABLED`), forretningsværn og audit. `send_external` / `push_external` / `finance` / `delete`
+  kræver ALTID approval — hård-kodet, ikke config-overstyrbart.
+- **`dry_run=true` overstyrer ALLE tilstande**: ingen eksterne skrivninger, ingen kundekommunikation, ingen bogføring,
+  ingen irreversibel forretningshandling — og en godkendelse omgår ALDRIG dry-run. Dry-run må analysere, simulere,
+  foreslå og logge "ville udføre" (audit `refused` med årsagen `dry-run: ville udføre …`).
+
+Tests: `harness:agent-gating` G10 (dry-run + approval udføres ikke), G4 (positiv kontrol med approval i et rigtigt run).
 
 ---
 

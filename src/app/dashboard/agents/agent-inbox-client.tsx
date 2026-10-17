@@ -217,7 +217,7 @@ export function AgentInboxClient({ items, liveSendEnabled = false }: { items: Ag
               const needsApproval = a.requires_approval || hard
               const busy = busyId === a.id && isPending
               const terminal = ['executed', 'rejected', 'failed', 'rolled_back'].includes(a.status)
-              const ctl = actionControls(a, item.agentEnabled, Date.now(), { liveSendEnabled })
+              const ctl = actionControls(a, item.agentEnabled, Date.now(), { liveSendEnabled, humanApproval: item.humanApproval, dryRun: item.dryRun })
               return (
                 <li key={a.id} className="flex items-center justify-between rounded border border-gray-100 bg-gray-50 px-3 py-2">
                   <div className="min-w-0">

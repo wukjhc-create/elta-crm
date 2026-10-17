@@ -65,8 +65,10 @@ export async function getAgentInbox(limit = 25): Promise<ActionResult<AgentInbox
       }
     }
 
-    const { data: cfgs } = await supabase.from('agent_configs').select('agent_type, enabled')
+    const { data: cfgs } = await supabase.from('agent_configs').select('agent_type, enabled, safety_mode')
     const enabledByType = new Map(((cfgs ?? []) as Array<{ agent_type: string; enabled: boolean }>).map((c) => [c.agent_type, c.enabled]))
+    // AU-3: alt andet end 'auto' kræver godkendelse af hver udførelse (som executoren)
+    const modeByType = new Map(((cfgs ?? []) as Array<{ agent_type: string; safety_mode: string | null }>).map((c) => [c.agent_type, c.safety_mode ?? 'suggest']))
 
     const items: AgentInboxItem[] = (runs ?? []).map((run: AgentInboxItem['run']) => {
       const actions = actionsByRun.get(run.id) ?? []
@@ -75,7 +77,9 @@ export async function getAgentInbox(limit = 25): Promise<ActionResult<AgentInbox
         const p = reviewPriority((a.payload?.confidence_level as ConfidenceLevel) ?? 'high', !!a.payload?.conflicts)
         return Math.max(max, p)
       }, -1)
-      return { run, actions, pendingCount: nonTerminal.length, topReviewPriority, agentEnabled: enabledByType.get(run.agent_type) === true }
+      return { run, actions, pendingCount: nonTerminal.length, topReviewPriority, agentEnabled: enabledByType.get(run.agent_type) === true,
+        humanApproval: modeByType.get(run.agent_type) !== 'auto' || (run as { safety_mode?: string | null }).safety_mode !== 'auto',
+        dryRun: (run as { dry_run?: boolean | null }).dry_run === true }
     })
 
     // Mail-kontekst: hent de mails forslagene refererer til (via RLS-klient).

@@ -6,6 +6,9 @@
  *   1. Load action + run + config.
  *   2. Idempotens: allerede 'executed' -> no-op.
  *   3. Agent enabled? (ellers afvis)
+ *   3b. AU-3-kontrakt (Henrik 2026-10-17, docs/agent-core-architecture.md §8): dry_run=true overstyrer ALLE tilstande —
+ *       intet udføres, heller ikke med godkendelse (logges som "ville udføre"). suggest/approve kræver altid mindst
+ *       én eksplicit menneskelig godkendelse; kun 'auto' følger klassens egne approval-regler.
  *   4. Slaa capability op (ingen handler -> afvis); capabilityen skal tilhoere runnets agent, og action-
  *      raekkens side_effect_class skal matche registeret (ellers afvis — raekken kan ikke loesne gating).
  *   5. Bestem requiresApproval (hard-block ELLER config ELLER capability ELLER action-flag).
@@ -86,6 +89,12 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
     return refuse(admin, theRun, act, 'agent disabled')
   }
 
+  // 3b. AU-3: dry-run overstyrer alt — en godkendelse omgår ALDRIG dry-run. Afvisningen er ikke-terminal (forslaget
+  //     bliver stående), intet claimes eller udføres.
+  if (theRun.dry_run === true) {
+    return refuse(admin, theRun, act, `dry-run: ville udføre ${act.capability} (${act.side_effect_class}) — intet udført`)
+  }
+
   // 4. Capability FOER gating (P2 #11): registeret er sandheden om klasse, ejer og approval-krav — action-raekkens
   //    egne felter maa kun skaerpe, aldrig loesne. Ukendt/uwired capability afvises fail-safe.
   const cap = getCapability(act.capability)
@@ -105,12 +114,15 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
 
   // 5. requiresApproval (hard-block ELLER config ELLER capability ELLER action-flag)
   const hardBlocked = isHardBlocked(cap.sideEffectClass)
+  // AU-3: alt andet end 'auto' (suggest/approve/ukendt — fail-closed) kræver eksplicit menneskelig godkendelse
+  const humanApprovalMode = cfg.safety_mode !== 'auto' || theRun.safety_mode !== 'auto'
   const requiresApproval =
     hardBlocked ||
+    humanApprovalMode ||
     cfg.requires_approval_for.includes(cap.sideEffectClass) ||
     cap.defaultRequiresApproval ||
     act.requires_approval
-  const minApprovals = Math.max(act.min_approvals, cap.minApprovals)
+  const minApprovals = Math.max(act.min_approvals, cap.minApprovals, humanApprovalMode ? 1 : 0)
 
   // 6. Approval-tjek (hard-blocked gaar ALTID gennem)
   if (requiresApproval) {

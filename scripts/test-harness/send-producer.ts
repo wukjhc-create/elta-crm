@@ -40,8 +40,10 @@ export async function runSendProducer(c: { admin: SupabaseClient; sql: Sql; owne
 
   await c.sql(`UPDATE agent_configs SET enabled = true WHERE agent_type = 'mail'`)
   try {
-    const r = await runMailAgent(mailId, { dryRun: true })
+    const r = await runMailAgent(mailId, { dryRun: false })
     const draft = (await c.sql(`SELECT id FROM agent_actions WHERE run_id=${lit(r.data!.runId)} AND capability='mail.draft_reply'`))[0]
+    // AU-3 (Henrik 2026-10-17): i suggest kræver også materialiseringen af udkastet eksplicit godkendelse
+    await c.admin.from('agent_action_approvals').insert([{ action_id: draft.id, decision: 'approved', decided_by: c.ownerUid }])
     await executeAction(draft.id) // materialiserer skabelon-udkastet
 
     const b1 = await produceSendReplyProposal(c.admin, draft.id)

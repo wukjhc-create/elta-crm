@@ -1158,13 +1158,14 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
     // Ét query pr. kilde + sag + leverandørfakturaer (matched_case_id). Ingen N+1.
     // supplier_name_snapshot/supplier_name hentes til breakdown — begge er
     // interne kost-felter, ingen salgspris/margin med i payload.
+    // SC-12 (sags-review 2026-10-17): side for side — leverandørindkøbet blev afkortet ved 1.000 rækker
     const [matRes, othRes, sagRes, invRes] = await Promise.all([
-      supabase.from('case_materials')
-        .select('total_cost, supplier_name_snapshot, source_incoming_invoice_line_id')
-        .eq('case_id', caseId).eq('source', SUPPLIER_INVOICE_SOURCE),
-      supabase.from('case_other_costs')
-        .select('total_cost, supplier_name, source_incoming_invoice_line_id')
-        .eq('case_id', caseId).eq('source', SUPPLIER_INVOICE_SOURCE),
+      fetchAllRows((f, t) => supabase.from('case_materials')
+        .select('id, total_cost, supplier_name_snapshot, source_incoming_invoice_line_id')
+        .eq('case_id', caseId).eq('source', SUPPLIER_INVOICE_SOURCE).order('id').range(f, t)).then((data) => ({ data, error: null })),
+      fetchAllRows((f, t) => supabase.from('case_other_costs')
+        .select('id, total_cost, supplier_name, source_incoming_invoice_line_id')
+        .eq('case_id', caseId).eq('source', SUPPLIER_INVOICE_SOURCE).order('id').range(f, t)).then((data) => ({ data, error: null })),
       supabase.from('service_cases').select('contract_sum, revised_sum, budget').eq('id', caseId).maybeSingle(),
       supabase.from('incoming_invoices')
         .select('id, invoice_number, supplier_name_extracted, invoice_date, amount_incl_vat, currency, supplier:supplier_id ( name )')

@@ -46,7 +46,7 @@ export async function runAgentActionsMatrix(c: { admin: SupabaseClient; sql: Sql
   await c.sql(`UPDATE agent_configs SET enabled = true WHERE agent_type = 'mail'`)
   try {
     // M1
-    const r1 = await Promise.all(Array.from({ length: 3 }, () => runMailAgent(mail1, { dryRun: true })))
+    const r1 = await Promise.all(Array.from({ length: 3 }, () => runMailAgent(mail1, { dryRun: false })))
     for (const r of r1) if (r.data?.runId) runIds.add(r.data.runId)
     const a1 = await actionsFor(mail1)
     const byCap = a1.reduce<Record<string, number>>((m, a) => ({ ...m, [a.capability]: (m[a.capability] ?? 0) + 1 }), {})
@@ -56,6 +56,8 @@ export async function runAgentActionsMatrix(c: { admin: SupabaseClient; sql: Sql
     // M2
     const draft = a1.find((a) => a.capability === 'mail.draft_reply')
     if (draft) {
+      // AU-3 (Henrik 2026-10-17): i suggest kræver også et udkast eksplicit godkendelse før udførelse
+      await approve(draft.id)
       const st = await parallelExec(draft.id)
       const again = (await executeAction(draft.id)).data?.status
       out.push({ id: 'M2 parallel udkast-materialisering', ok: st.filter((s) => s === 'executed').length === 1 && st.every((s) => s === 'executed' || s === 'noop') && again === 'noop',
@@ -74,7 +76,7 @@ export async function runAgentActionsMatrix(c: { admin: SupabaseClient; sql: Sql
     }
 
     // M4 parallel link
-    const r2 = await runMailAgent(mail2, { dryRun: true })
+    const r2 = await runMailAgent(mail2, { dryRun: false })
     if (r2.data?.runId) runIds.add(r2.data.runId)
     const link2 = (await actionsFor(mail2)).find((a) => a.capability === 'mail.link_customer')
     if (link2) {
@@ -86,7 +88,7 @@ export async function runAgentActionsMatrix(c: { admin: SupabaseClient; sql: Sql
     } else out.push({ id: 'M4 parallel godkendt kobling', ok: false, note: 'intet link-forslag for mail2' })
 
     // M5 parallel case proposal (mail2 er nu koblet -> ny koersel foreslaar sag)
-    const r3 = await runMailAgent(mail2, { dryRun: true })
+    const r3 = await runMailAgent(mail2, { dryRun: false })
     if (r3.data?.runId) runIds.add(r3.data.runId)
     const caseAct = (await actionsFor(mail2)).find((a) => a.capability === 'case.propose_from_email')
     if (caseAct) {
@@ -99,7 +101,7 @@ export async function runAgentActionsMatrix(c: { admin: SupabaseClient; sql: Sql
 
     // M6 genkoersel
     const before = (await actionsFor(mail2)).length
-    const r4 = await runMailAgent(mail2, { dryRun: true })
+    const r4 = await runMailAgent(mail2, { dryRun: false })
     if (r4.data?.runId) runIds.add(r4.data.runId)
     const afterN = (await actionsFor(mail2)).length
     out.push({ id: 'M6 genkoersel giver ingen dubletter', ok: afterN === before && r4.data?.proposals === 0, note: `actions ${before} → ${afterN} · nye forslag=${r4.data?.proposals}` })
@@ -113,7 +115,7 @@ export async function runAgentActionsMatrix(c: { admin: SupabaseClient; sql: Sql
       const item = (await collectPilotHealthSnapshot(c.admin, { stuckMinutes: 0 })).sections.find((s) => s.key === 'agents')?.items.find((i) => i.label.startsWith('Hængende'))
       const ex = await executeAction(draft2.id)
       const still = (await c.sql(`SELECT status FROM agent_actions WHERE id=${lit(draft2.id)}`))[0].status
-      out.push({ id: 'M7 haengende executing', ok: item?.level === 'red' && ex.data?.status === 'noop' && still === 'executing',
+      out.push({ id: 'M7 haengende executing', ok: item?.level === 'red' && ['noop', 'refused'].includes(ex.data?.status ?? '') && still === 'executing', // AU-3: uden godkendelse afvises før claim
         note: `pilot-health=${item?.level} (${item?.detail.slice(0, 50)}) · executor=${ex.data?.status} · status forbliver ${still}` })
     }
   } finally {

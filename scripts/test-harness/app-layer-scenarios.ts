@@ -167,9 +167,11 @@ async function storageAccessNoRight(c: Ctx): Promise<ScenarioResult> {
         if (!su.error && su.data?.signedUrl) leaks.push(`${b}:sign`)
         // Legitim adgang: authenticated medarbejder SKAL kunne laese (policies er authenticated + bucket_id)
         if (c.authed) {
+          // 00209 (prod 2026-10-09): indloggede brugere har INGEN direkte storage-adgang — al fil-adgang går via
+          // service-klienten bag action-gates. Lykkes en direkte download med en bruger-session, er det en lækage.
           const adl = await c.authed.storage.from(b).download(path)
-          if (!adl.error && adl.data) legitOk++
-          else legitFail.push(`${b}:${adl.error?.message?.slice(0, 30) ?? 'ingen data'}`)
+          if (!adl.error && adl.data) { leaks.push(`${b}:authenticated-download`); legitFail.push(`${b}:hentet direkte`) }
+          else legitOk++
         }
       }
     } finally {
@@ -182,7 +184,7 @@ async function storageAccessNoRight(c: Ctx): Promise<ScenarioResult> {
     const pol = await c.sql(`SELECT policyname, cmd FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND (roles @> ARRAY['anon']::name[] OR roles @> ARRAY['public']::name[]) ORDER BY 1`)
     leaks.push(`anon/public-policies=[${pol.map((p: any) => `${p.policyname}(${p.cmd})`).join('; ') || 'ingen'}]`)
   }
-  const legitNote = c.authed ? ` | authenticated download ${legitOk}/${probed}${legitFail.length ? ` FEJL: ${legitFail.join(',')}` : ''}` : ''
+  const legitNote = c.authed ? ` | authenticated direkte download afvist ${legitOk}/${probed}${legitFail.length ? ` LÆKAGE: ${legitFail.join(',')}` : ''}` : ''
   return {
     id, ok: leaks.length === 0 && legitFail.length === 0 && (!c.authed || legitOk === probed),
     note: `private=${priv.join(',')} probe-objekter=${probed}/${priv.length} anon list/upload/download/sign testet${legitNote}`
@@ -207,7 +209,7 @@ async function caseProposalFlow(c: Ctx): Promise<ScenarioResult> {
     const { runMailAgent } = await import('../../src/lib/agents/mail-agent')
     const { executeAction } = await import('../../src/lib/agents/executor')
     const { getCapability } = await import('../../src/lib/agents/capability-registry')
-    const r = await runMailAgent(mail.id, { dryRun: true })
+    const r = await runMailAgent(mail.id, { dryRun: false })
     runId = r.data?.runId
     if (!runId) return { id, ok: false, note: `Mailagent fejlede: ${r.error}` }
     const act = (await c.sql(`SELECT id, status, side_effect_class, requires_approval FROM agent_actions WHERE run_id=${lit(runId)} AND capability='case.propose_from_email'`))[0]
@@ -284,10 +286,10 @@ async function offerProposalFlow(c: Ctx): Promise<ScenarioResult> {
   try {
     const { runOfferAgent } = await import('../../src/lib/agents/offer-proposal')
     const { executeAction } = await import('../../src/lib/agents/executor')
-    const r1 = await runOfferAgent(A.id, { dryRun: true })
+    const r1 = await runOfferAgent(A.id, { dryRun: false })
     if (r1.data?.runId) runIds.push(r1.data.runId)
     const act = r1.data?.runId ? (await c.sql(`SELECT id, status FROM agent_actions WHERE run_id=${lit(r1.data.runId)}`))[0] : undefined
-    const r2 = await runOfferAgent(A.id, { dryRun: true })
+    const r2 = await runOfferAgent(A.id, { dryRun: false })
     if (r2.data?.runId) runIds.push(r2.data.runId)
     const proposedOnce = !!act && act.status === 'awaiting_approval' && r2.data?.proposals === 0
     // Tilbud koblet til sagen via 00159 (source_case_id) — dedup-noeglen
@@ -320,7 +322,7 @@ async function offerProposalFlow(c: Ctx): Promise<ScenarioResult> {
       const dbUniqueOk = !!dup.error && /uq_offers_open_proposal_per_source_case|duplicate/i.test(dup.error.message) && (await offersFor(A.id)) === 1
 
       // Stale: sag B lukkes efter forslaget -> handler afviser -> ingen tilbud
-      const rb = await runOfferAgent(B.id, { dryRun: true })
+      const rb = await runOfferAgent(B.id, { dryRun: false })
       if (rb.data?.runId) runIds.push(rb.data.runId)
       const actB = rb.data?.runId ? (await c.sql(`SELECT id FROM agent_actions WHERE run_id=${lit(rb.data.runId)}`))[0] : undefined
       let staleOk = false
@@ -366,9 +368,9 @@ async function followupFlow(c: Ctx): Promise<ScenarioResult> {
     if (probe.length !== 2) return { id, ok: false, note: `kunne ikke oprette probe-tilbud: ${ins.error?.message?.slice(0, 60)}` }
     const { runFollowupAgent } = await import('../../src/lib/agents/followup-agent')
     const { executeAction } = await import('../../src/lib/agents/executor')
-    const r1 = await runFollowupAgent({ offerIds: probe, dryRun: true })
+    const r1 = await runFollowupAgent({ offerIds: probe, dryRun: false })
     if (r1.data?.runId) runIds.push(r1.data.runId)
-    const r2 = await runFollowupAgent({ offerIds: probe, dryRun: true })
+    const r2 = await runFollowupAgent({ offerIds: probe, dryRun: false })
     if (r2.data?.runId) runIds.push(r2.data.runId)
     const acts = r1.data?.runId ? await c.sql(`SELECT id, capability, status, payload->>'offer_id' AS offer_id FROM agent_actions WHERE run_id=${lit(r1.data.runId)}`) : []
     const proposedOk = r1.data?.proposals === 4 && r2.data?.runId === null
@@ -383,9 +385,12 @@ async function followupFlow(c: Ctx): Promise<ScenarioResult> {
     const disabledOk = disabled.data?.status === 'refused' && (await tasksFor(probe[0])) === 0
 
     const flow = await withStagingAgentEnabled(c, 'followup', async () => {
+      // AU-3 (Henrik 2026-10-17): i suggest kræver også udkastet eksplicit godkendelse; uden → afvist
+      const dNoAppr = await executeAction(draft1.id)
+      await approve(c, draft1.id)
       const d = await executeAction(draft1.id)
       const dres = (await c.sql(`SELECT result FROM agent_actions WHERE id=${lit(draft1.id)}`))[0]?.result
-      const draftOk = d.data?.status === 'executed' && typeof dres?.draft === 'string' && dres?.sent === false
+      const draftOk = dNoAppr.data?.status === 'refused' && d.data?.status === 'executed' && typeof dres?.draft === 'string' && dres?.sent === false
       const noAppr = await executeAction(task1.id)
       const noApprovalOk = noAppr.data?.status === 'refused' && (await tasksFor(probe[0])) === 0
       await approve(c, task1.id)

@@ -49,7 +49,7 @@ export async function runConcurrency(c: { admin: SupabaseClient; sql: Sql; owner
   const disable = (t: string) => c.sql(`UPDATE agent_configs SET enabled = false WHERE agent_type = '${t}'`)
   try {
     // C1
-    const r1 = await runOfferAgent(A.id, { dryRun: true })
+    const r1 = await runOfferAgent(A.id, { dryRun: false })
     if (r1.data?.runId) runIds.add(r1.data.runId)
     const act = r1.data?.runId ? (await c.sql(`SELECT id FROM agent_actions WHERE run_id=${lit(r1.data.runId)}`))[0] : undefined
     if (act) {
@@ -66,7 +66,7 @@ export async function runConcurrency(c: { admin: SupabaseClient; sql: Sql; owner
     } else out.push({ id: 'C1 5x parallel executeAction', ok: false, note: `intet forslag: ${r1.data?.reason ?? r1.error}` })
 
     // C2
-    const r2 = await Promise.all(Array.from({ length: 5 }, () => runOfferAgent(B.id, { dryRun: true })))
+    const r2 = await Promise.all(Array.from({ length: 5 }, () => runOfferAgent(B.id, { dryRun: false })))
     for (const r of r2) if (r.data?.runId) runIds.add(r.data.runId)
     const active = Number((await c.sql(`SELECT count(*) n FROM agent_actions WHERE capability='offer.propose_draft_from_case' AND payload->>'case_id' = '${B.id}' AND status NOT IN ('rejected','failed','rolled_back')`))[0].n)
     out.push({ id: 'C2 5x parallel runOfferAgent (samme sag)', ok: active === 1, note: `aktive forslag=${active} · proposals pr. kald=[${r2.map((r) => r.data?.proposals ?? 'fejl').join(',')}]` })
@@ -96,7 +96,7 @@ export async function runConcurrency(c: { admin: SupabaseClient; sql: Sql; owner
     const foId = (fo?.[0] as { id?: string } | undefined)?.id
     if (foId) {
       offerIds.add(foId)
-      const r5 = await Promise.all(Array.from({ length: 3 }, () => runFollowupAgent({ offerIds: [foId], dryRun: true })))
+      const r5 = await Promise.all(Array.from({ length: 3 }, () => runFollowupAgent({ offerIds: [foId], dryRun: false })))
       for (const r of r5) if (r.data?.runId) runIds.add(r.data.runId)
       const acts = Number((await c.sql(`SELECT count(*) n FROM agent_actions WHERE payload->>'offer_id' = '${foId}'`))[0].n)
       out.push({ id: 'C5 3x parallel opfoelgningsagent', ok: acts === 2, note: `actions for tilbuddet=${acts} (forventet 2: udkast+opgave) · proposals=[${r5.map((r) => r.data?.proposals ?? 'fejl').join(',')}]` })

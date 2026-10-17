@@ -468,28 +468,8 @@ export async function updateServiceCase(
   }
 }
 
-export async function deleteServiceCase(id: string): Promise<ActionResult> {
-  try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('cases.delete')) {
-      return { success: false, error: 'Manglende tilladelse: cases.delete' }
-    }
-
-    const { error } = await supabase
-      .from('service_cases')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      return { success: false, error: 'Kunne ikke slette serviceopgave' }
-    }
-
-    revalidatePath('/dashboard/service-cases')
-    return { success: true }
-  } catch (error) {
-    return { success: false, error: formatError(error, 'Uventet fejl') }
-  }
-}
+// SC-11 (sags-review 2026-10-17): deleteServiceCase er fjernet — ubrugt (0 kaldere) og uden værn: sletning kaskaderede
+// fakturerede materialer/omkostninger væk og efterlod fakturaer og timer uden sag. Sager lukkes, de slettes ikke.
 
 // =====================================================
 // Portal — customer-facing (anon)

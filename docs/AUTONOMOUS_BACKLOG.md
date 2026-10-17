@@ -216,7 +216,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | AU-1 | Go-Live "Kør rykker-tjek" omgik INVOICE_REMINDERS_LIVE (rigtige rykkere) (S2) | DONE (kode) — samme kontakt som cron'en |
 | AU-2 | Ét klik satte en regel LIVE; ingen env-kontakt for regel-motoren (send_email/fakturaer) (S2) | DONE (kode) — `AUTOMATION_RULES_LIVE` (standard fra = alle regler dry-run; prod: alle dry_run i forvejen), bekræftelse ved LIVE; automation-claim-check +1, UI U53 |
-| AU-3 | safety_mode='suggest' og run.dry_run håndhæves ikke af executoren (S3) | BESLUTNING — docs siger "intet eksekverer" i suggest, men kode+harness bruger suggest+godkendelse → udfør. Prod: 0 agenter enabled |
+| AU-3 | safety_mode='suggest' og run.dry_run håndhæves ikke af executoren (S3) | DONE (kode) — Henriks kontrakt 2026-10-17: dry_run overstyrer alt (heller ikke med godkendelse); suggest/approve kræver godkendelse af HVER udførelse; auto følger klassens regler. Executor + indbakke + docs §8; agent-gating G10, inbox-ux-test, harness-runs = rigtige runs |
 | AU-4 | Dagligt agent-budget talte kun actions fra runs oprettet i dag; UTC-dag (S3) | DONE (kode) — udført i dag (executed_at, dansk dag). harness agent-gating 13/13 |
 | AU-5 | Krav-række "executed" før handler — nedbrud efterlader falsk "udført" for altid (S3) | BLOCKED_APPROVAL [MIGRATION] — status 'executing' kræver CHECK/indeks-ændring |
 | AU-6 | Dry-run kaldte handlere med rule.dry_run=false-kopi; notify ignorerede dry_run (S4) | DONE (kode) — handler får dry_run-kopi; notify tjekker |
@@ -225,6 +225,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | AU-9 | Opfølgningsagent: tilbuds-udløb i servertid (S4) | DONE (kode) |
 | AU-10 | Sprunget rykker bruger reglens ene udførelse pr. faktura (S4) | TODO — kræver skelnen skipped/failed uden alarm-støj |
 | AU-11 | Auto-faktura: fejlet fakturamail logges som succes (S4) | BLOCKED (create-invoice-from-offer.ts — se DF-1) |
+| HT-6 | security storage_access_no_right forventede authenticated download efter 00209 (bevidst afvist) | DONE — vendt til sikkerheds-assertion (direkte download = lækage) |
 | HT-5 | harness agent-actions M5 "intet sagsforslag for mail2" — fejler også uden dagens ændringer | TODO (harness/staging-tilstand) |
 | SC-1 | Sletning af materiale/omkostning fra leverandørfaktura taber kosten stille (S2) | DONE (kode) — leverandørfakturalinjen frigives (converted_at nulstilles) efter sletning |
 | SC-2 | Lukket sag efterlader åbne arbejdsordrer der ikke kan ændres (S2/S3) | DONE (kode) — lukning afvises med arbejdsordre i gang; planlagte annulleres ved lukning |
@@ -232,12 +233,12 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | SC-4 | Økonomifanen prissætter tid anderledes end fakturaen (S3) | DONE (kode) — priceTimeLog i økonomifanen |
 | SC-5 | work_order_id ikke valideret mod sagen (øvrige omk. + opdateringer) (S3) | DONE (kode) — arbejdsordre skal høre til sagen (øvrige omk. oprettelse + begge opdateringer) |
 | SC-6 | Fakturalås på rækker kan omgås ved samtidighed (S3) | DONE (kode) — update/delete med invoice_line_id IS NULL og 0-rækker = fejl |
-| SC-7 | Sagens "Auto-faktura ved afsluttet" gør intet (S3) | TODO |
+| SC-7 | Sagens "Auto-faktura ved afsluttet" gør intet (S3) | DONE (kode, visning) — kortet siger "Ikke aktiv endnu" (udløseren work_order_done findes ikke, AU-7) |
 | SC-8 | receipt_url accepterer vilkårlig receipts/-sti (S3, plausibel) | DONE (kode) — storage-sti skal ligge under sagens mappe; fil slettes kun uden andre referencer |
 | SC-9 | Materialer/omkostninger kan ændres på lukket sag (S4) | DONE (kode) — ingen ændring/sletning på lukket sag |
 | SC-10 | updateWorkOrderPlanning uden lukket-sag/forslag-tjek (S4) | DONE (kode) — omplanlægning afvises på lukket sag/forslag |
-| SC-11 | deleteServiceCase uden værn (latent, ubrugt) (S4) | TODO |
-| SC-12 | Indkøbsoversigt uden fetchAllRows; leverandørfakturaer .limit(50) (S4) | TODO |
+| SC-11 | deleteServiceCase uden værn (latent, ubrugt) (S4) | DONE (kode) — fjernet (0 kaldere i hele repoet) |
+| SC-12 | Indkøbsoversigt uden fetchAllRows; leverandørfakturaer .limit(50) (S4) | DONE (kode) — indkøbsoversigt side for side (fetchAllRows); visningslisten af leverandørfakturaer er stadig de 50 nyeste |
 | SC-13 | Montør kan sætte source/kildelinks på materialer (S4) | DONE (kode) — kilde/kildelinks kun med materials.edit |
 | SC-14 | Øvrige omkostninger viser rediger/slet til montør (S4) | DONE (kode) — rediger/slet kun med other_costs.edit/.delete (UI U71/U40) |
 
