@@ -81,10 +81,19 @@ export async function GET(request: NextRequest) {
     }
     const settingsResult = { success: true, data: companySettings as unknown as CompanySettings }
 
+    // ES-3 (e-sign-review 2026-10-17): kundens egen underskrift på den accepterede PDF (uden IP — kun den interne PDF)
+    let signature = null
+    if ((offer as { status?: string }).status === 'accepted') {
+      const { data: sig } = await supabase.from('offer_signatures')
+        .select('signer_name, signer_email, signed_at, signature_data').eq('offer_id', (offer as { id: string }).id).maybeSingle()
+      signature = sig as { signer_name: string; signer_email: string; signed_at: string | null; signature_data: string | null } | null
+    }
+
     // Generate PDF
     const pdfDocument = OfferPdfDocument({
       offer,
       companySettings: settingsResult.data,
+      signature,
     }) as ReactElement<DocumentProps, string | JSXElementConstructor<DocumentProps>>
 
     const pdfBuffer = await renderToBuffer(pdfDocument)

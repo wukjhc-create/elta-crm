@@ -322,9 +322,18 @@ const styles = StyleSheet.create({
 interface OfferPdfProps {
   offer: OfferWithRelations
   companySettings: CompanySettings
+  /** ES-3 (e-sign-review 2026-10-17): underskriftsbevis på accepterede tilbud */
+  signature?: {
+    signer_name: string
+    signer_email: string
+    signed_at: string | null
+    signature_data: string | null
+    /** kun på den interne PDF */
+    signer_ip?: string | null
+  } | null
 }
 
-export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
+export function OfferPdfDocument({ offer, companySettings, signature }: OfferPdfProps) {
   const lineItems = offer.line_items || []
 
   // Check if any line items have images
@@ -532,6 +541,21 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
           <View style={styles.termsSection}>
             <Text style={styles.termsTitle}>BETINGELSER</Text>
             <Text style={styles.termsText}>{offer.terms_and_conditions}</Text>
+          </View>
+        )}
+
+        {/* ES-3: accept og underskrift */}
+        {offer.status === 'accepted' && signature && (
+          <View style={styles.termsSection} wrap={false}>
+            <Text style={styles.termsTitle}>ACCEPTERET OG UNDERSKREVET</Text>
+            <Text style={styles.termsText}>
+              {`${signature.signer_name} (${signature.signer_email})`}
+              {signature.signed_at ? ` — ${new Date(signature.signed_at).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}` : ''}
+              {signature.signer_ip ? ` — IP ${signature.signer_ip}` : ''}
+            </Text>
+            {signature.signature_data && /^data:image\/png;base64,/.test(signature.signature_data) && (
+              <Image src={signature.signature_data} style={{ width: 180, height: 60, objectFit: 'contain', marginTop: 6 }} />
+            )}
           </View>
         )}
 

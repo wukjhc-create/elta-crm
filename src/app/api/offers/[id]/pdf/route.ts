@@ -80,10 +80,20 @@ export async function GET(
       )
     }
 
+    // ES-3: underskriftsbevis på accepterede tilbud (offers.view er tjekket ovenfor; tabellen læses med admin-klienten)
+    let signature = null
+    if (offer.status === 'accepted') {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const { data: sig } = await createAdminClient().from('offer_signatures')
+        .select('signer_name, signer_email, signer_ip, signed_at, signature_data').eq('offer_id', id).maybeSingle()
+      signature = sig as { signer_name: string; signer_email: string; signer_ip: string | null; signed_at: string | null; signature_data: string | null } | null
+    }
+
     // Generate PDF
     const pdfDocument = OfferPdfDocument({
       offer,
       companySettings: companyData as unknown as CompanySettings,
+      signature,
     }) as ReactElement<DocumentProps, string | JSXElementConstructor<DocumentProps>>
 
     const pdfBuffer = await renderToBuffer(pdfDocument)

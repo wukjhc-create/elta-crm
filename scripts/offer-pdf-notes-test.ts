@@ -40,5 +40,22 @@ eq('linjens beskrivelse er med', all.includes('Panel'), true)
 eq('kundevendt omfang (scope) er med', all.includes('KUNDEVENDT OMFANG'), true)
 eq('interne noter er IKKE med', all.includes('INTERN NOTE'), false)
 eq('linjens interne note er IKKE med', all.includes('INTERN LINJENOTE'), false)
+
+// ES-3 (2026-10-17): accepteret tilbud viser underskriftsbevis; IP kun når den gives (intern PDF)
+const sig = { signer_name: 'Kim Kunde', signer_email: 'kim@x.dk', signed_at: '2026-10-17T08:30:00Z', signature_data: `data:image/png;base64,${'iVBORw0KGgo'.padEnd(240, 'A')}` }
+const acc = { ...offer, status: 'accepted' } as unknown as OfferWithRelations
+const tSig: string[] = []
+collect(OfferPdfDocument({ offer: acc, companySettings: cs, signature: { ...sig, signer_ip: '203.0.113.7' } }) as ReactNode, tSig)
+const allSig = tSig.join(' | ')
+eq('accepteret: underskriftsblok med navn', allSig.includes('ACCEPTERET OG UNDERSKREVET') && allSig.includes('Kim Kunde'), true)
+eq('accepteret: dansk tid (10.30)', /10[.:]30/.test(allSig), true)
+eq('intern PDF: IP med', allSig.includes('203.0.113.7'), true)
+const tPortal: string[] = []
+collect(OfferPdfDocument({ offer: acc, companySettings: cs, signature: sig }) as ReactNode, tPortal)
+eq('portal-PDF: ingen IP', tPortal.join(' | ').includes('203.0.113.7'), false)
+const tSent: string[] = []
+collect(OfferPdfDocument({ offer, companySettings: cs, signature: { ...sig, signer_ip: '203.0.113.7' } }) as ReactNode, tSent)
+eq('sendt (ikke accepteret): ingen underskriftsblok', tSent.join(' | ').includes('ACCEPTERET OG UNDERSKREVET'), false)
+
 console.log(fail ? `\n❌ ${fail} fejl` : '\n✅ alle tilbuds-PDF-note-tests PASS')
 process.exitCode = fail ? 1 : 0
