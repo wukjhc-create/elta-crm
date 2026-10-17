@@ -1670,7 +1670,7 @@ export async function registerPayment(
   invoiceId: string,
   amount: number,
   reference?: string | null,
-  /** A-12: false = ingen automatisk e-conomic-postering (manuel "Markér betalt") */
+  /** A-12/EC-1: e-conomic-postering KUN ved eksplicit syncEconomic=true (standard = kun CRM-status) */
   options: { syncEconomic?: boolean } = {}
 ): Promise<RegisterPaymentResult> {
   const amt = Number(amount)
@@ -1768,8 +1768,10 @@ export async function registerPayment(
     await logHealth('invoice', 'ok', `payment registered: ${amt}`, { invoiceId, paymentStatus: nextPaymentStatus })
   } catch { /* never crash */ }
 
-  if (nextPaymentStatus === 'paid' && options.syncEconomic === false) {
-    console.log('INVOICE PAID (manual, CRM only):', invoiceId)
+  // EC-1 (e-conomic-review 2026-10-17): bank-match (cron 06:30 + manuel kobling) kaldte uden option → automatisk
+  // betalingspostering i e-conomic uden brugerhandling, mod A-12. Nu opt-in: kun et eksplicit syncEconomic=true poster.
+  if (nextPaymentStatus === 'paid' && options.syncEconomic !== true) {
+    console.log('INVOICE PAID (CRM only):', invoiceId)
   } else if (nextPaymentStatus === 'paid') {
     console.log('INVOICE PAID:', invoiceId)
     // Sync payment to e-conomic. Best-effort.

@@ -539,7 +539,8 @@ async function applyMatch(
   // registerPayment is idempotent on already-paid invoices.
   let payment: Awaited<ReturnType<typeof registerPayment>>
   try {
-    payment = await registerPayment(invoice.id, tx.amount, tx.reference_text || tx.sender_name || undefined)
+    // EC-1/A-12: bankmatch ændrer kun CRM-status — ingen automatisk betalingspostering i e-conomic
+    payment = await registerPayment(invoice.id, tx.amount, tx.reference_text || tx.sender_name || undefined, { syncEconomic: false })
   } catch (err) {
     // frigiv kravet, så transaktionen kan matches igen (før stod den "matched" uden registreret betaling)
     await supabase.from('bank_transactions')
