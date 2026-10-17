@@ -597,6 +597,10 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
             ? 'Besigtigelsesrapport gemt og sendt til kunden'
             : 'Besigtigelsesrapport gemt og PDF genereret'
         )
+        // FW-5: fejlede billeder siges højt (før tavst udeladt)
+        if (result.data.failedImages) {
+          toast.warning(`${result.data.failedImages} billede(r) kom ikke med`, 'Tilføj dem igen og gem rapporten på ny.')
+        }
         onSaved?.(result.data.id)
         router.refresh()
         return result.data.id

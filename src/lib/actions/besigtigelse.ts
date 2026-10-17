@@ -122,7 +122,7 @@ export interface BesigtigelsesNotatInput {
  */
 export async function saveBesigtigelsesnotat(
   input: BesigtigelsesNotatInput
-): Promise<ActionResult<{ id: string; pdfUrl: string }>> {
+): Promise<ActionResult<{ id: string; pdfUrl: string; failedImages?: number }>> {
   // Sprint 9G besigtigelse-diagnostik (midlertidig) — direkte console.error
   // saa output ikke gaar gennem logger.ts. Fjernes naar root-cause er fundet.
   console.error('[BESIGTIGELSE-DIAG] start', {
@@ -182,11 +182,13 @@ export async function saveBesigtigelsesnotat(
     const title = `Besigtigelsesrapport — ${customer.company_name} — ${dateStr}`
 
     // Upload images to storage and collect URLs
-    const imageUrls: { category: string; url: string; name: string }[] = []
+    const imageUrls: { category: string; url: string; name: string; path?: string }[] = []
+    // FW-5 (montør-review 2026-10-17): fejlede billed-uploads blev sprunget tavst over — tælles og meldes til brugeren
+    let failedImages = 0
     for (const img of input.images) {
       // Storage-review 2026-10-08: kun billeder; filtype/kategori fra klienten renses før de bruges i stien
       const declaredMime = img.base64.startsWith('data:') ? img.base64.split(';')[0].split(':')[1] : 'image/jpeg'
-      if (!/^image\/(jpeg|png|webp|heic|heif|gif)$/i.test(declaredMime)) continue
+      if (!/^image\/(jpeg|png|webp|heic|heif|gif)$/i.test(declaredMime)) { failedImages++; continue }
       const rawExt = (img.name.split('.').pop() || 'jpg').toLowerCase()
       const ext = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif'].includes(rawExt) ? rawExt : 'jpg'
       const category = String(img.category ?? 'andet').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40) || 'andet'
@@ -212,8 +214,14 @@ export async function saveBesigtigelsesnotat(
           .createSignedUrl(imgPath, 86400) // 24h for PDF generation
 
         if (imgUrlData?.signedUrl) {
-          imageUrls.push({ category: img.category, url: imgUrlData.signedUrl, name: img.name })
+          // FW-5: stien gemmes også (linket udløber; galleriet signerer friskt fra mappen)
+          imageUrls.push({ category: img.category, url: imgUrlData.signedUrl, name: img.name, path: imgPath })
+        } else {
+          failedImages++
         }
+      } else {
+        failedImages++
+        logger.warn('besigtigelse: billede kunne ikke uploades', { entityId: input.customerId, error: imgUploadErr })
       }
     }
 
@@ -447,7 +455,7 @@ export async function saveBesigtigelsesnotat(
     }
 
     revalidatePath(`/dashboard/customers/${input.customerId}`)
-    return { success: true, data: { id: doc.id, pdfUrl } }
+    return { success: true, data: { id: doc.id, pdfUrl, ...(failedImages > 0 ? { failedImages } : {}) } }
   } catch (error) {
     console.error('[BESIGTIGELSE-DIAG] outer catch', error)
     logger.error('Error in saveBesigtigelsesnotat', { error })
