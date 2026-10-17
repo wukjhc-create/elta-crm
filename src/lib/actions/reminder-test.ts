@@ -61,7 +61,7 @@ export async function sendTestReminder(): Promise<{ success: boolean; error?: st
     let portalUrl = `${baseUrl}/view-offer/${offerId}`
     if (realOffer?.customer_id) {
       const { getPortalOfferUrl } = await import('@/lib/utils/portal-link')
-      portalUrl = await getPortalOfferUrl(offerId, realOffer.customer_id)
+      portalUrl = (await getPortalOfferUrl(offerId, realOffer.customer_id)) ?? portalUrl
     }
 
     const emailParams = {

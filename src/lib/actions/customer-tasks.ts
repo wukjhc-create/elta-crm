@@ -635,6 +635,8 @@ export async function bookBesigtigelse(
       .select('token')
       .eq('customer_id', customerId)
       .eq('is_active', true)
+      // PM-3 (portal-review 2026-10-17): aldrig et udløbet link i bekræftelsesmail/ICS
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
       .limit(1)
 

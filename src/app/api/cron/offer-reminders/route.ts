@@ -122,6 +122,8 @@ async function handleCron(request: Request): Promise<Response> {
 
             const { getPortalOfferUrl } = await import('@/lib/utils/portal-link')
             const portalUrl = await getPortalOfferUrl(offer.id, offer.customer_id, supabase)
+            // PM-3: uden gyldig portal-adgang ingen rykker (linket ville ikke virke)
+            if (!portalUrl) { errors.push(`Tilbud ${offer.offer_number}: kunden har ingen gyldig portal-adgang — rykker ikke sendt`); continue }
             const reminderCount = (offer.reminder_count || 0) + 1
 
             const finalAmount = new Intl.NumberFormat('da-DK', {

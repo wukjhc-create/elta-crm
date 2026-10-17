@@ -8,7 +8,9 @@ import { APP_URL } from '@/lib/constants'
  * Tries to find an active portal token for the customer.
  * Falls back to /view-offer/{id} if no token exists.
  */
-export async function getPortalOfferUrl(offerId: string, customerId: string, client?: SupabaseClient): Promise<string> {
+/** PM-3 (portal-review 2026-10-17): null når kunden ikke har en gyldig portal-adgang (før /view-offer, som ender på
+ *  "ugyldigt link") — kalderen beslutter (spring over / opret adgang). */
+export async function getPortalOfferUrl(offerId: string, customerId: string, client?: SupabaseClient): Promise<string | null> {
   // O-1 (review 2026-10-16): cron/plan uden session sender admin-klienten — anon kan ikke læse tokens (00126)
   if (client) {
     const { data: tok } = await client
@@ -21,7 +23,7 @@ export async function getPortalOfferUrl(offerId: string, customerId: string, cli
       .limit(1)
       .maybeSingle()
     const t = (tok as { token?: string } | null)?.token
-    return t ? `${APP_URL}/portal/${t}/offers/${offerId}` : `${APP_URL}/view-offer/${offerId}`
+    return t ? `${APP_URL}/portal/${t}/offers/${offerId}` : null
   }
   const supabase = await createClient()
 
@@ -45,6 +47,5 @@ export async function getPortalOfferUrl(offerId: string, customerId: string, cli
     return `${APP_URL}/portal/${existingToken.token}/offers/${offerId}`
   }
 
-  // Fallback to public view-offer link
-  return `${APP_URL}/view-offer/${offerId}`
+  return null
 }
