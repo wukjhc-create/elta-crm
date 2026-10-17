@@ -31,6 +31,13 @@
 | d4043622 | SU-1 manuel LEMU-synk = cronens bulk-anvendelse (`lib/suppliers/lemu-apply.ts`, unit-test); SU-4 LM-faktura-SFTP springer indlæste filer over + budget |
 | 56a44e1a | API-1/2/3/5/6/7/8 API-ruter (SFTP-adgangskode ikke længere i svar, byte-sikker hemmeligheds-sammenligning, m.m.); UI-full 160/160 |
 | 283c3879 | CU-1/2/3/4/7/8/9/10 kundemodul (U188) |
+| 334695c8 · 1c08784e | CU-6 kundeflow; AU-1/2/4/6/7/8/9 automatik (`AUTOMATION_RULES_LIVE`, standard fra) |
+| 89e75d4d · 039b713d | SC-1/2/3/4/5/6/8/9, SC-10/13/14 sager/materialer/omkostninger |
+| dda8314c | AU-3-kontrakt (Henrik): dry_run overstyrer alt; suggest/approve kræver godkendelse af hver udførelse (executor + indbakke + docs §8); SC-7/11/12; HT-6 storage-assertion |
+| b5b93924 | MA-1 mailagent foreslår sag efter manuel kobling (agent-actions 7/7) |
+| a4085953 · 83cbad0b · 195b064f · c8aaf357 · feb7283f | EC-1 (S1: bankmatch poster ikke i e-conomic), EC-3/11/12/13, EC-5 (ikke e2e — kill switch), EC-8 delvis, EC-4 |
+| 8ef56707 · 13853efe · ba147e5f · 84b22fbb | ES-5/8/9/12/13, ES-11 fuldmagt, ES-2/ES-6 revisioner, ES-3 underskriftsbevis (U10) |
+| b292df60 | AU-10 sprunget rykker bruger ikke reglens udførelse |
 
 Ikke lavet (tilladelse): DF-1-værnet i create-invoice-from-offer.ts blev afvist af auto-mode-værnet to gange. Patchen står i
 docs/runbooks/auto-invoice-offer-guard-proposal.md. Reglen er dry_run i prod.
