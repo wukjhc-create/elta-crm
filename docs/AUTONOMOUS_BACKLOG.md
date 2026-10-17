@@ -227,7 +227,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | CU-3 | Sletning af kunde: SET NULL-referencer (mails forbliver 'linked' uden kunde, tilbudsmails, kalkulationer) (S3) | DONE (kode) — tilbudsmails/bekræftelser/kalkulationer/arbejdsordrer/SMS blokerer; kundens mails frigives til "Uidentificeret" før sletning; probe customer-delete-refs-probe |
 | CU-4 | Redigering af kunde: ingen dublet-e-mail-tjek/normalisering (S3) | DONE (kode) — normalisering + "Gem alligevel" ved ændret mail der tilhører en anden kunde |
 | CU-5 | Montør ser hele kunderegistret + noter (S3, design) | BESLUTNING (Henrik) — scope montør til egne sagers kunder? |
-| CU-6 | Kundeflow-widget viser lead/tilbud/mail-trin uden de respektive rettigheder (S3, plausibel) | TODO |
+| CU-6 | Kundeflow-widget viser lead/tilbud/mail-trin uden de respektive rettigheder (S3, plausibel) | DONE (kode) — lead-/tilbuds-/mailtrin kun med leads.view/offers.view/customers.emails.view (UI U107/U166/U61) |
 | CU-7 | Opdatering af kontakt nulstiller primær før opdatering (S4) | DONE (kode) |
 | CU-8 | createCustomerTask kun customers.view; assigned_to/offer_id ukontrolleret (S4) | DELVIS (kode) — tilbud skal høre til kunden, ansvarlig skal være aktiv. Hvem må oprette (montør/bogholderi) = BESLUTNING |
 | CU-9 | Escape lukker kontaktformular uden spørgsmål (S4) | DONE (kode) |

@@ -87,12 +87,14 @@ export async function getCustomerFlow(
         .limit(5),
     ])
 
-    const leads = leadsRes.data || []
+    // CU-6 (kunde-review 2026-10-17): hvert trin kun med rettigheden til de underliggende data — før så fx bogholderi
+    // lead-status og montøren tilbudsstatus/rykkere og mail-aktivitet via flowet (kun customers.view krævet)
+    const leads = hasPermission('leads.view') ? (leadsRes.data || []) : []
     const tasks = tasksRes.data || []
     const docs = docsRes.data || []
-    const offers = offersRes.data || []
+    const offers = hasPermission('offers.view') ? (offersRes.data || []) : []
     const projects = projectsRes.data || []
-    const recentEmails = emailsRes.data || []
+    const recentEmails = hasPermission('customers.emails.view') ? (emailsRes.data || []) : []
 
     const now = new Date()
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
