@@ -226,7 +226,8 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | AU-10 | Sprunget rykker bruger reglens ene udførelse pr. faktura (S4) | TODO — kræver skelnen skipped/failed uden alarm-støj |
 | AU-11 | Auto-faktura: fejlet fakturamail logges som succes (S4) | BLOCKED (create-invoice-from-offer.ts — se DF-1) |
 | HT-6 | security storage_access_no_right forventede authenticated download efter 00209 (bevidst afvist) | DONE — vendt til sikkerheds-assertion (direkte download = lækage) |
-| HT-5 | harness agent-actions M5 "intet sagsforslag for mail2" — fejler også uden dagens ændringer | TODO (harness/staging-tilstand) |
+| HT-5 | harness agent-actions M5 "intet sagsforslag for mail2" | ANALYSERET → MA-1 (produktgab, ikke harness) |
+| MA-1 | Mailagent: genkørsel stopper når et svarudkast findes (Mail-review #7, `mail-agent.ts` ~l. 203) → når mennesket har koblet mailen til en kunde, kommer sagsforslaget (case.propose_from_email) aldrig (S3; prod: 0 agenter aktive) | DONE (kode) — genkørsel genbruger kun når intet nyt er at foreslå; koblet mail uden sag får kun sagsforslaget (intet nyt LLM-udkast). agent-actions 7/7 |
 | SC-1 | Sletning af materiale/omkostning fra leverandørfaktura taber kosten stille (S2) | DONE (kode) — leverandørfakturalinjen frigives (converted_at nulstilles) efter sletning |
 | SC-2 | Lukket sag efterlader åbne arbejdsordrer der ikke kan ændres (S2/S3) | DONE (kode) — lukning afvises med arbejdsordre i gang; planlagte annulleres ved lukning |
 | SC-3 | Ordreliste/dashboard bruger revised_sum ?? contract_sum uden afregningsform (S3) | DONE (kode) — effectiveContractSum (F-4) i ordreliste og opfølgning |

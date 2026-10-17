@@ -207,8 +207,14 @@ export async function runMailAgent(
     .select('run_id')
     .eq('idempotency_key', `mail-reply:${mail.id}`)
     .maybeSingle()
+  // MA-1 (agent-review 2026-10-17): genbrug kun når der intet NYT er at foreslå. Har et menneske siden koblet mailen
+  // til en kunde (uden sag og uden sagsforslag), skal sagsforslaget komme — før stoppede genkørslen her for altid.
+  let onlyCaseProposal = false
   if (existingAction?.run_id) {
-    return { success: true, data: { runId: existingAction.run_id as string, proposals: 0 } }
+    const caseDue = !!mail.customer_id && !(await findExistingCaseForEmail(admin, mail.id)) &&
+      !(await admin.from('agent_actions').select('id').eq('idempotency_key', `mail-case:${mail.id}`).maybeSingle()).data
+    if (!caseDue) return { success: true, data: { runId: existingAction.run_id as string, proposals: 0 } }
+    onlyCaseProposal = true
   }
 
   // Create run
@@ -254,15 +260,16 @@ export async function runMailAgent(
   }
   const taskId = task.id as string
 
-  // Generér udkast (LLM hvis muligt, ellers template — budget-gated).
-  const reply = await generateReplyDraft(mail)
-  const draftConfidence = reply.source === 'llm'
-    ? { confidence_level: 'medium', confidence_score: 0.6, rationale: 'AI-genereret udkast — gennemlaes og tilpas foer afsendelse' }
-    : { confidence_level: 'low', confidence_score: 0.4, rationale: 'Generisk skabelon (LLM utilgaengelig/budget) — udfyld foer afsendelse' }
-
   // Foreslaaede actions (INGEN eksekvering her). Hver baerer confidence + rationale.
-  const actions: Array<Record<string, unknown>> = [
-    {
+  const actions: Array<Record<string, unknown>> = []
+  // MA-1: ved genkørsel for et sagsforslag genereres intet nyt svarudkast (findes allerede; intet LLM-kald)
+  if (!onlyCaseProposal) {
+    // Generér udkast (LLM hvis muligt, ellers template — budget-gated).
+    const reply = await generateReplyDraft(mail)
+    const draftConfidence = reply.source === 'llm'
+      ? { confidence_level: 'medium', confidence_score: 0.6, rationale: 'AI-genereret udkast — gennemlaes og tilpas foer afsendelse' }
+      : { confidence_level: 'low', confidence_score: 0.4, rationale: 'Generisk skabelon (LLM utilgaengelig/budget) — udfyld foer afsendelse' }
+    actions.push({
       task_id: taskId,
       run_id: runId,
       action_type: 'draft_reply',
@@ -278,12 +285,12 @@ export async function runMailAgent(
         draft_source: reply.source,
         ...draftConfidence,
       },
-    },
-  ]
+    })
+  }
 
   // Foreslå kunde-kobling hvis ikke koblet OG der findes kandidater.
   let topConfidence = 0.4
-  if (!mail.customer_id) {
+  if (!mail.customer_id && !onlyCaseProposal) {
     const candidates = await findLinkCandidates(admin, mail)
     if (candidates.length > 0) {
       const conf = scoreLinkConfidence(candidates)
