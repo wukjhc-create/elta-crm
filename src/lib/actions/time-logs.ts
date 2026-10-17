@@ -41,6 +41,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TIME_LOG_PUBLIC_COLUMNS } from '@/lib/time-logs/columns'
 
 export interface TimeLogWithEmployee extends TimeLogRow {
+  /** MB-7 (mobil-review 2026-10-17): må den indloggede ændre rækken (egen, eller time_logs.edit.all)? */
+  editable_by_me?: boolean
   employee?: {
     id: string
     name: string
@@ -91,7 +93,7 @@ export async function listTimeLogsForWorkOrder(
     const rows = await withCostColumns((data || []) as unknown as TimeLogRow[], hasPermission)
     const enriched = await enrichWithEmployees(supabase, rows)
     // Sprint Ø2.10 / D42 — defense in depth: fjern pris-/kostfelter server-side (ikke bare skjul i UI)
-    return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
+    return { success: true, data: stripTimeLogPrices(await markEditableByMe(enriched, { role, userId, supabase, hasPermission }), hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -158,7 +160,7 @@ export async function listTimeLogsForCase(
     const rows = await withCostColumns((data || []) as unknown as TimeLogRow[], hasPermission)
     const enriched = await enrichWithEmployees(supabase, rows)
     // D42: før blev kost (cost_amount, kostsats) og medarbejdersats sendt til alle med time_logs.view.own (montør)
-    return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
+    return { success: true, data: stripTimeLogPrices(await markEditableByMe(enriched, { role, userId, supabase, hasPermission }), hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -715,6 +717,21 @@ export async function getCaseLaborCostTotal(caseId: string): Promise<ActionResul
  * D42 (privacy/RBAC, Henrik 2026-10-03): uden economy.cost_prices ingen kost (cost_amount, kostsats) og ingen
  * medarbejdersats; uden invoices.view.own_cases heller ingen salgsbeløb. Montør ser timer, ikke penge (jf. D18).
  */
+/**
+ * MB-7 (mobil-review 2026-10-17): markér rækker brugeren må ændre — UI'et viste satsvælgeren på kollegaers rækker, og
+ * serveren afviste ændringen ("Du kan kun ændre dine egne tidsregistreringer").
+ */
+async function markEditableByMe(
+  rows: TimeLogWithEmployee[],
+  ctx: { role: Parameters<typeof getWorkOrderEmployeeScope>[0]['role']; userId: string; supabase: Parameters<typeof getWorkOrderEmployeeScope>[0]['supabase']; hasPermission: (p: Permission) => boolean },
+): Promise<TimeLogWithEmployee[]> {
+  if (ctx.hasPermission('time_logs.edit.all')) return rows.map((r) => ({ ...r, editable_by_me: true }))
+  if (!ctx.hasPermission('time_logs.edit.own')) return rows.map((r) => ({ ...r, editable_by_me: false }))
+  const scope = await getWorkOrderEmployeeScope({ role: ctx.role, userId: ctx.userId, supabase: ctx.supabase })
+  const myEmp = scope.type === 'employee' ? scope.employeeId : null
+  return rows.map((r) => ({ ...r, editable_by_me: !!myEmp && (r as { employee_id?: string | null }).employee_id === myEmp }))
+}
+
 function stripTimeLogPrices(rows: TimeLogWithEmployee[], hasPermission: (p: Permission) => boolean): TimeLogWithEmployee[] {
   const cost = hasPermission('economy.cost_prices')
   const sale = cost || hasPermission('invoices.view.own_cases')

@@ -50,11 +50,11 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 |---|---|---|
 | MB-1 | Tidsregistrering/planlægning fryser på "Gemmer…" ved netfejl (setIsWorking efter kast nås aldrig) (S2) | DONE (03b39a24) — safeAction: kastet server action → dansk fejl, formular låses ikke (tidsregistrering + planlægning) |
 | MB-2 | Bunden skjules af bundmenuen (pb-20 < 64 px + safe-area; sm:p-6 overskriver) | DONE (130fde1c) — bundpolstring 5rem + safe-area; sm:p-6 nulstiller ikke bunden |
-| MB-3 | Montør ser altid "Alle påkrævede punkter skal udfyldes" selv ved komplet tjekliste | DONE (venter commit) — checklistComplete separat; komplet uden lukkeret → "Tjeklisten er komplet — kontoret lukker sagen" |
+| MB-3 | Montør ser altid "Alle påkrævede punkter skal udfyldes" selv ved komplet tjekliste | DONE (e1fc5051) — checklistComplete separat; komplet uden lukkeret → "Tjeklisten er komplet — kontoret lukker sagen" |
 | MB-4 | Aflevering: fejl vises øverst uden for skærmen | TODO |
 | MB-5 | Gem/Afslut-knapper i tidsregistrering ~24 px | DONE (130fde1c) — Gem/Annullér fuld bredde og ≥ 44 px på telefon |
 | MB-6 | Tidstabel uden mobilvisning (Ret/Slet i sidste kolonne) | TODO |
-| MB-7 | Satsvælger vist på kollegaers rækker (serveren afviser) | TODO |
+| MB-7 | Satsvælger vist på kollegaers rækker (serveren afviser) | DONE (venter commit) — serveren markerer editable_by_me; kollegaers rækker vises låst med forklaring |
 | MB-8 | Små HEIC-fotos uploades ukonverteret (vises ikke i Chrome/Android) | TODO |
 | MB-9 | Dokumenter lover 20 MB, grænsen er ~4,5–10 MB | TODO |
 | MB-10 | Slet-foto vist på andres fotos | TODO |

@@ -536,11 +536,12 @@ export function WorkOrderTimeLogs({
                     </td>
                     <td className="py-1 pr-2 text-right tabular-nums">{fmtHours(l.hours)}</td>
                     <td className="py-1 pr-2 whitespace-nowrap">
-                      {l.invoice_line_id || (approval === 'approved' && !canApprove) ? (
+                      {/* MB-7: kun egne rækker (eller med edit.all) kan få ændret sats */}
+                      {l.invoice_line_id || (approval === 'approved' && !canApprove) || l.editable_by_me === false ? (
                         <span
                           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-medium"
-                          title={l.invoice_line_id ? 'Fakturalåst — kan ikke ændres' : 'Godkendt — kun en godkender kan ændre den'}
-                          data-testid={l.invoice_line_id ? undefined : 'time-log-approved-locked'}
+                          title={l.invoice_line_id ? 'Fakturalåst — kan ikke ændres' : approval === 'approved' && !canApprove ? 'Godkendt — kun en godkender kan ændre den' : 'Kollegaens registrering — kun vedkommende eller kontoret kan ændre den'}
+                          data-testid={l.invoice_line_id ? undefined : approval === 'approved' && !canApprove ? 'time-log-approved-locked' : 'time-log-other-locked'}
                         >
                           {PAY_RATE_TYPE_LABEL.get(l.pay_rate_type) ?? 'Normal'} 🔒
                         </span>
