@@ -771,6 +771,13 @@ export async function updateOfferStatus(
     if (status === 'sent' && isOfferExpired((current as { valid_until?: string | null }).valid_until)) {
       return { success: false, error: 'Tilbuddets gyldighed er udløbet — ret "Gyldig til" før afsendelse' }
     }
+    // ES-2/ES-6 (e-sign-review 2026-10-17; no-op uden OFFER_REVISIONS_ENABLED)
+    {
+      const { revisionDraftBlockReason, revisionSendBlockReason } = await import('@/lib/offers/revisions')
+      const block = status === 'draft' ? revisionDraftBlockReason(current.status as string)
+        : status === 'sent' ? await revisionSendBlockReason(id) : null
+      if (block) return { success: false, error: block }
+    }
 
     // N8a (Henrik 2026-10-02): lav DB er en ADVARSEL, ikke en blokering — 'sent' med DB under minimum kræver bekræftelse
     let lowDbSent: OfferLowDbStatus | null = null

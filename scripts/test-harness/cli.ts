@@ -1537,6 +1537,16 @@ async function main() {
       check('accepteret tilbud kan ikke revideres', !accRev.ok)
       const hist = await rv.getRevisionHistory(r2)
       check('historik viser kæden R1 → R2 med sendetidspunkter', hist.length === 2 && hist[0].id === r1 && hist[1].id === r2 && !!hist[0].snapshot_sent_at && !!hist[0].superseded_at)
+      // ES-6 (2026-10-17): en revision af et ACCEPTERET tilbud kan ikke sendes (ellers kunne begge accepteres)
+      const fakeRev = (await admin.from('offers').insert({ offer_number: `REV-${stamp}-R3`, title: 'R3 [HARNESS]', status: 'draft', created_by: owner,
+        customer_id: custId, revision_of: r2, revision_number: 3 }).select('id').single()).data as { id: string } | null
+      if (fakeRev) {
+        const block = await rv.revisionSendBlockReason(fakeRev.id)
+        check('ES-6: revision af accepteret tilbud kan ikke sendes', !!block && /accepteret/.test(block), block ?? 'tilladt')
+        await admin.from('offers').delete().eq('id', fakeRev.id)
+      } else check('ES-6: revision af accepteret tilbud kan ikke sendes', false, 'seed fejlede')
+      // ES-2: sendt → kladde afvises med revisioner slået til
+      check('ES-2: sendt tilbud kan ikke sættes til kladde (ny revision i stedet)', !!rv.revisionDraftBlockReason('sent') && rv.revisionDraftBlockReason('draft') === null)
     } finally {
       for (const id of offerIds.reverse()) {
         await admin.from('offer_activities').delete().eq('offer_id', id)

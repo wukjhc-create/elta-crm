@@ -734,6 +734,12 @@ export async function sendOfferEmail(
       if ((offer as { superseded_by?: string | null }).superseded_by) {
         return { success: false, error: 'Tilbuddet er erstattet af en nyere revision — send den nye revision' }
       }
+      // ES-6 (e-sign-review 2026-10-17): revision af et accepteret tilbud sendes ikke (no-op uden flag)
+      if (st === 'draft') {
+        const { revisionSendBlockReason } = await import('@/lib/offers/revisions')
+        const block = await revisionSendBlockReason(String(offer.id))
+        if (block) return { success: false, error: block }
+      }
     }
     // Tilbuds-review 2026-10-09 (#7): udløbet tilbud sendes ikke (kunden ville få "klik for at acceptere" og blive afvist)
     {

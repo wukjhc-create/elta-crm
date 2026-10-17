@@ -215,11 +215,11 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | # | Fund | Status |
 |---|---|---|
 | ES-1 | Accepteret tilbud kan sættes til kladde via REST (status ikke låst i DB) og ændres mens underskriften består (S2) | BLOCKED_APPROVAL [MIGRATION] — trigger: accepted er endelig for authenticated + beløb/hash på underskriften |
-| ES-2 | (flag) Snapshot overskrives ikke ved kladde→ændring→gensend (S2, staging) | TODO |
+| ES-2 | (flag) Snapshot overskrives ikke ved kladde→ændring→gensend (S2, staging) | DONE (kode) — med revisioner slået til: sendt/set → kladde afvises (ny revision i stedet); offer-revisions-check |
 | ES-3 | Underskrift (navn/IP/tid/billede) vises ingen steder uden for portalen; PDF uden underskriftsblok (S2) | TODO (større: gated action + PDF-blok) |
 | ES-4 | Fuldmagtens CPR/underskrift læsbar for alle via REST; underskrevet fuldmagt kan ændres (S2) | BLOCKED_APPROVAL [MIGRATION] |
 | ES-5 | Accept-opdateringen tjekker ikke sent_at (race mod gensend) (S3) | DONE (kode) — compare-and-set på sent_at |
-| ES-6 | (flag) To revisioner kan begge accepteres (S3, staging) | TODO |
+| ES-6 | (flag) To revisioner kan begge accepteres (S3, staging) | DONE (kode) — revision af accepteret tilbud kan ikke sendes (status + mail); offer-revisions-check |
 | ES-7 | Accept indtastet i dashboardet udløser ikke offer_accepted-automatik (S3) | BESLUTNING — hører sammen med DF-1/EC-2 (ville give auto-faktura-reglen en ekstra udløser); reglerne er dry-run + AUTOMATION_RULES_LIVE fra |
 | ES-8 | Portal-afvisning efterlader aktiv sag uden advarsel (S3) | DONE (kode) — advarsel i klokken når en aktiv sag findes |
 | ES-9 | Sagsoprettelse efter portal-accept fejler stille (S3) | DONE (kode) — advarsel i klokken |

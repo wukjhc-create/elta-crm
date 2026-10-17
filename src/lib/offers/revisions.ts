@@ -17,6 +17,35 @@ export function offerRevisionsEnabled(): boolean {
   return process.env.OFFER_REVISIONS_ENABLED === 'true'
 }
 
+/**
+ * ES-6 (e-sign-review 2026-10-17): en revision af et ACCEPTERET tilbud må ikke sendes — begge kunne ellers accepteres
+ * (to sager/fakturaer for samme job). null = må sendes. No-op uden flag.
+ */
+export async function revisionSendBlockReason(offerId: string): Promise<string | null> {
+  if (!offerRevisionsEnabled()) return null
+  const admin = createAdminClient()
+  const { data } = await admin.from('offers').select('revision_of').eq('id', offerId).maybeSingle()
+  const prevId = (data as { revision_of?: string | null } | null)?.revision_of
+  if (!prevId) return null
+  const { data: prev } = await admin.from('offers').select('status, offer_number').eq('id', prevId).maybeSingle()
+  const p = prev as { status?: string; offer_number?: string } | null
+  return p?.status === 'accepted'
+    ? `Den forrige revision (${p.offer_number ?? ''}) er allerede accepteret — revisionen kan ikke sendes. Opret et nyt tilbud, hvis kunden skal have et tillæg.`
+    : null
+}
+
+/**
+ * ES-2 (e-sign-review 2026-10-17): med revisioner slået til må et sendt/set tilbud ikke gå tilbage til kladde — så
+ * blev det ændret og gensendt under SAMME revisionsnummer, og snapshottet (ignoreDuplicates) viste det gamle indhold,
+ * som underskriften så blev bundet til. Ændringer laves som ny revision.
+ */
+export function revisionDraftBlockReason(currentStatus: string): string | null {
+  if (!offerRevisionsEnabled()) return null
+  return currentStatus === 'sent' || currentStatus === 'viewed'
+    ? 'Et sendt tilbud ændres som en ny revision ("Ny revision") — ikke ved at sætte det tilbage til kladde'
+    : null
+}
+
 /** Kundevendte hovedfelter i snapshottet (aldrig kost/avance) */
 const SNAPSHOT_HEADER = 'id, offer_number, title, description, scope, terms_and_conditions, valid_until, currency, ' +
   'customer_id, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode, ' +
