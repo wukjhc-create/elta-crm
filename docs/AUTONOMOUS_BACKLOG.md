@@ -45,6 +45,35 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-37 (review-bølge 2026-10-17 aften — leverandørintegration)
+| # | Fund | Status |
+|---|---|---|
+| SU-1 | Manuel "Synk LEMU nu" kan ikke blive færdig på det rigtige katalog (rækkevis); delvise kørsler uden prishistorik (S2) | TODO |
+| SU-2 | lemu-sync overskriver kendt kostpris med 0 og opretter 0-kr-produkter (S2) | TODO |
+| SU-3 | Prissynk skriver priser først, historik til sidst (timeout = ændringer uden historik); historik for fejlede opdateringer (S2) | TODO |
+| SU-4 | LM-faktura-SFTP henter hele 30-dages-vinduet hver kørsel; ingen tidsbudget (S2) | TODO |
+| SU-5 | lemu-sync nulstiller EAN/underkategori/producent/listepris/kategori (S3) | TODO |
+| SU-6 | Vedhæftet PDF på mailfaktura erstatter ikke værdier læst fra brødteksten (S3) | TODO |
+| SU-7 | Stor manuel prisfil-import kan afbrydes midtvejs; batch hænger i "processing" (S3) | TODO |
+| SU-8 | Samme AO-faktura aktiv to gange (mail uden leverandør + API) (S3) | TODO |
+| SU-9 | Import af produkter fra API-søgning ændrer kostpris uden prishistorik (S4) | TODO |
+
+## NEXT-36 (review-bølge 2026-10-17 aften — opgaver, påmindelser, beskeder, portal-chat)
+| # | Fund | Status |
+|---|---|---|
+| TK-1 | Opgavesiden: påmindelse gemmes som UTC (1–2 t for sent); gem nulstiller forfaldstidspunktet (S2) | DONE (kode) — dansk tid ind/ud (datetime-local-hjælpere); forfald sendes kun ved ændret dato og beholder klokkeslættet. Unit datetime-local-test |
+| TK-2 | Kundekortets opgavedialog flytter forfald/påmindelse 1–2 t tidligere ved HVER gem (S2) | DONE (kode) — forudfyld/gem i dansk tid (ingen forskydning ved gem) |
+| TK-3 | Afvist/udsat påmindelse forbliver skjult efter ny tid/genåbning (snoozed_until) (S3) | DONE (kode) — snoozed_until ryddes ved reel ændring af påmindelse/forfald/genåbning |
+| TK-4 | getServiceCaseTasks uden sags-scope (S3) | DONE (kode) — userCanViewCase uden cases.view.all |
+| TK-5 | Montør ser alle opgaver og hele portal-chatten på enhver kunde (S3) | DONE (kode) — montør: kun egne opgaver på kunden; portal-chat kun for kunder med sag i scope (salg uændret) |
+| TK-6 | Dashboard-opgavewidgets ignorerer W-8 (salg/bogholderi ser alles opgaver) (S3) | DONE (kode) — fælles scopeTaskQuery (montør egne; uden tasks.view egne oprettede/tildelte) på dashboard-widgets |
+| TK-7 | Opfølgningsagentens opgaver lukkes aldrig og dubleres (S3) | DONE (kode) — accept/afvisning lukker også agentens opfølgning; agenten springer over ved åben "Følg op:"-opgave |
+| TK-8 | Automatikkens "opret opgave" afviser for evigt efter første udførte (status 'completed' findes ikke) (S3) | DONE (kode) — dublettjek på status done |
+| TK-9 | Portal-ulæst-tæller uden gate; ufiltreret offerId i .or() (S4) | DONE (kode) — customers.view-gate + UUID-validering |
+| TK-10 | Påmindelsespoll uden loft (S4) | DONE (kode) — højst 50 pr. poll |
+| TK-11 | autoCloseRespondedTasks lukker opgaver den ikke kan se; ugatet 'use server'-eksport (S4) | DONE (kode) — lukker kun ved eksplicit "kræver ikke svar" |
+| TK-12 | Portal-flytteønske skriver rå UTC-tid i opgaven (S4) | DONE (kode) — dansk dato/klokkeslæt |
+
 ## NEXT-35 (review-bølge 2026-10-17 aften — medarbejdere, indstillinger, rettigheder, audit)
 | # | Fund | Status |
 |---|---|---|

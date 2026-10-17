@@ -1,4 +1,5 @@
 'use server'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { closeOfferFollowUpTasks } from '@/lib/offers/follow-up-tasks'
 import { secretTokenReader, PORTAL_TOKEN_PUBLIC_COLUMNS } from '@/lib/portal/token-reader'
 
@@ -1427,7 +1428,12 @@ export async function getUnreadPortalMessageCount(
   offerId?: string
 ): Promise<ActionResult<number>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    // TK-9 (review 2026-10-17): gate + UUID-validering (før kun login; offerId gik ufiltreret i .or())
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
+    if ((customerId && !/^[0-9a-f-]{36}$/i.test(customerId)) || (offerId && !/^[0-9a-f-]{36}$/i.test(offerId))) {
+      return { success: false, error: 'Ugyldigt id' }
+    }
 
     let query = supabase
       .from('portal_messages')
@@ -1471,10 +1477,26 @@ export async function getCustomerPortalMessages(
 ): Promise<ActionResult<PortalMessageWithRelations[]>> {
   try {
     // Kommunikations-review 2026-10-09 (#8): gate (før kun login) + UUID-validering (offerId gik ufiltreret i .or())
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const ctxChat = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission } = ctxChat
     if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
     if (!/^[0-9a-f-]{36}$/i.test(customerId) || (offerId && !/^[0-9a-f-]{36}$/i.test(offerId))) {
       return { success: false, error: 'Ugyldigt id' }
+    }
+    // TK-5 (review 2026-10-17): montør kun chat for kunder med en sag i sit scope (så før enhver kundes fulde
+    // portal-chat). Salg beholder adgangen (chatten følger tilbuddene, før der findes en sag).
+    if (ctxChat.role === 'montør') {
+      const { getCaseScope } = await import('@/lib/auth/case-scope')
+      const scope = await getCaseScope(ctxChat)
+      if (scope.type !== 'all') {
+        let inScope = false
+        for (let i = 0; i < scope.caseIds.length && !inScope; i += 200) {
+          const { count } = await supabase.from('service_cases').select('id', { count: 'exact', head: true })
+            .eq('customer_id', customerId).in('id', scope.caseIds.slice(i, i + 200))
+          inScope = (count ?? 0) > 0
+        }
+        if (!inScope) return { success: true, data: [] }
+      }
     }
 
     let query = supabase
@@ -2424,7 +2446,8 @@ export async function portalRequestReschedule(
         title: `KUNDE ØNSKER FLYTNING: ${session.customer.company_name}`,
         description: [
           `Kunden har anmodet om flytning af besigtigelse via portalen.`,
-          `Nuværende dato: ${task.due_date || 'Ikke sat'}`,
+          // TK-12 (review 2026-10-17): dansk dato/tid (før rå UTC-tidsstempel, fx "…T22:00:00+00:00" for næste dag)
+          `Nuværende dato: ${task.due_date ? (() => { const p = copenhagenParts(task.due_date as string); return `${p.date} kl. ${p.clock}` })() : 'Ikke sat'}`,
           `Kundens besked: ${message}`,
         ].join('\n'),
         status: 'pending',

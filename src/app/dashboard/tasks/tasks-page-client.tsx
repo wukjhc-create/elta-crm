@@ -1,5 +1,7 @@
 'use client'
 
+import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
+import { isoToCopenhagenInput, copenhagenInputToIso } from '@/lib/utils/datetime-local'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -269,8 +271,9 @@ export function TasksPageClient({
       offer_id: task.offer_id || '',
       priority: task.priority,
       assigned_to: task.assigned_to || '',
-      due_date: task.due_date ? task.due_date.slice(0, 10) : '',
-      reminder_at: task.reminder_at ? task.reminder_at.slice(0, 16) : '',
+      // TK-1 (review 2026-10-17): dansk dato/tid (før UTC-del af tidsstemplet)
+      due_date: task.due_date ? copenhagenParts(task.due_date).date : '',
+      reminder_at: isoToCopenhagenInput(task.reminder_at),
     })
     setDialogOpen(true)
   }
@@ -301,14 +304,18 @@ export function TasksPageClient({
         setDialogOpen(false)
         toast.success('Opgave opdateret')
 
+        // TK-1: forfald sendes kun når DATOEN er ændret (ellers mistede fx "Ring 14:00" klokkeslættet ved hver gem);
+        // ændret dato beholder det oprindelige klokkeslæt. Påmindelse = dansk tid → UTC.
+        const origDue = editingTask.due_date ? copenhagenParts(editingTask.due_date) : null
+        const dueChanged = (formData.due_date || '') !== (origDue?.date ?? '')
         const result = await updateCustomerTask({
           id: editingTask.id,
           title: formData.title,
           description: formData.description || undefined,
           priority: formData.priority,
           assigned_to: formData.assigned_to || null,
-          due_date: formData.due_date || null,
-          reminder_at: formData.reminder_at || null,
+          ...(dueChanged ? { due_date: formData.due_date ? copenhagenLocalToIso(formData.due_date, origDue?.clock ?? '00:00') : null } : {}),
+          reminder_at: copenhagenInputToIso(formData.reminder_at),
         })
         if (!result.success) {
           toast.error('Fejl', result.error)
@@ -321,8 +328,8 @@ export function TasksPageClient({
           description: formData.description || undefined,
           priority: formData.priority,
           assigned_to: formData.assigned_to || undefined,
-          due_date: formData.due_date || undefined,
-          reminder_at: formData.reminder_at || undefined,
+          due_date: formData.due_date ? copenhagenLocalToIso(formData.due_date, '00:00') : undefined, // TK-1: dansk dato
+          reminder_at: copenhagenInputToIso(formData.reminder_at) ?? undefined,
           offer_id: formData.offer_id || undefined,
         }
         // Optimistic: add placeholder task

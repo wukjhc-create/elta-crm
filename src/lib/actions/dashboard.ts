@@ -2,7 +2,7 @@
 
 import type { LeadStatus } from '@/types/leads.types'
 import type { OfferStatus } from '@/types/offers.types'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { DASHBOARD_LIMITS } from '@/lib/constants'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { logger } from '@/lib/utils/logger'
@@ -319,14 +319,19 @@ export async function getUpcomingTasks(limit: number = DASHBOARD_LIMITS.UPCOMING
     status: string
   }[]
 > {
-  const { supabase } = await getAuthenticatedClient()
+  const ctx = await getAuthenticatedClientWithRole()
+  const { supabase } = ctx
 
   // N36: kundeopgaver (før: gamle project_tasks → prod 1 række, link til /dashboard/projects/…)
-  const { data } = await supabase
+  // TK-6 (review 2026-10-17): samme rolle-afgrænsning som opgavesiden (W-8)
+  const { scopeTaskQuery } = await import('@/lib/tasks/task-scope')
+  const q = scopeTaskQuery(supabase
     .from('customer_tasks')
     .select('id, title, due_date, priority, status, customer:customers(id, company_name)')
     .neq('status', 'done')
-    .not('due_date', 'is', null)
+    .not('due_date', 'is', null), { role: ctx.role, userId: ctx.userId, hasPermission: ctx.hasPermission as never })
+  if (!q) return []
+  const { data } = await q
     .order('due_date', { ascending: true })
     .limit(limit)
 

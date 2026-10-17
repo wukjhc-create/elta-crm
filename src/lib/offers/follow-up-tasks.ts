@@ -17,6 +17,15 @@ export async function closeOfferFollowUpTasks(admin: SupabaseClient, offerId: st
       .ilike('title', `${FOLLOW_UP_TITLE_PREFIX}%`)
       .neq('status', 'done')
     if (error) logger.warn('closeOfferFollowUpTasks failed', { error, entityId: offerId })
+    // TK-7 (review 2026-10-17): også opfølgningsagentens opgaver ("Opfoelgning: tilbud …", auto_rule
+    // agent_followup_offer — lib/agents/followup-agent.ts) — de blev stående efter accept/afvisning
+    const { error: agentErr } = await admin
+      .from('customer_tasks')
+      .update({ status: 'done', completed_at: new Date().toISOString() })
+      .eq('offer_id', offerId)
+      .eq('auto_rule', 'agent_followup_offer')
+      .neq('status', 'done')
+    if (agentErr) logger.warn('closeOfferFollowUpTasks (agent) failed', { error: agentErr, entityId: offerId })
   } catch (err) {
     logger.warn('closeOfferFollowUpTasks threw', { error: err, entityId: offerId })
   }

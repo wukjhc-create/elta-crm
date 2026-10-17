@@ -118,10 +118,14 @@ export async function getCustomerTasks(
   if (!/^[0-9a-f-]{36}$/i.test(customerId)) return []
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  // TK-5 (review 2026-10-17): montør kun egne opgaver (som getAllTasks) — før alle kundens opgaver inkl. beskrivelser
+  const ctx = await getAuthenticatedClientWithRole()
+  let q = supabase
     .from('customer_tasks')
     .select('*')
     .eq('customer_id', customerId)
+  if (ctx.role === 'montør') q = q.eq('assigned_to', ctx.userId)
+  const { data, error } = await q
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -146,6 +150,11 @@ export async function getServiceCaseTasks(
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission('cases.view.all') && !ctx.hasPermission('cases.view.assigned')) {
       return []
+    }
+    // TK-4 (review 2026-10-17): kun sager i brugerens scope
+    if (!ctx.hasPermission('cases.view.all')) {
+      const { userCanViewCase } = await import('@/lib/auth/case-scope')
+      if (!(await userCanViewCase(caseId, ctx))) return []
     }
     supabase = ctx.supabase
   } catch {
@@ -392,6 +401,7 @@ export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations
     .lte('reminder_at', now)
     .or(`snoozed_until.is.null,snoozed_until.lte.${now}`)
     .order('reminder_at', { ascending: true })
+    .limit(50) // TK-10 (review 2026-10-17): pollen kører hvert minut — højst 50 påmindelser ad gangen
 
   if (error) {
     logger.error('Failed to fetch reminders', { error })
@@ -504,6 +514,18 @@ export async function updateCustomerTask(
   if (input.due_date !== undefined) updates.due_date = input.due_date
   if (input.reminder_at !== undefined) updates.reminder_at = input.reminder_at
   if (input.snoozed_until !== undefined) updates.snoozed_until = input.snoozed_until
+  // TK-3 (review 2026-10-17): ny påmindelse/forfald eller genåbning ophæver en tidligere "skjul"/udsæt — før forblev
+  // påmindelsen skjult i op til 7 dage. Kun ved REEL ændring (formularerne sender felterne ved hver gem).
+  if (input.snoozed_until === undefined && (input.reminder_at !== undefined || input.due_date !== undefined || input.status !== undefined)) {
+    const { data: cur } = await supabase.from('customer_tasks').select('reminder_at, due_date, status, snoozed_until').eq('id', input.id).maybeSingle()
+    const c = cur as { reminder_at: string | null; due_date: string | null; status: string; snoozed_until: string | null } | null
+    const ts = (v: string | null | undefined) => (v ? Date.parse(v) : null)
+    const changed = !!c && (
+      (input.reminder_at !== undefined && ts(input.reminder_at) !== ts(c.reminder_at))
+      || (input.due_date !== undefined && ts(input.due_date) !== ts(c.due_date))
+      || (input.status !== undefined && input.status !== c.status && input.status !== 'done'))
+    if (changed && c?.snoozed_until) updates.snoozed_until = null
+  }
 
   const { error } = await supabase
     .from('customer_tasks')

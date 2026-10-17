@@ -222,17 +222,16 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     (async () => {
       try {
         const nowIso = new Date().toISOString()
+        // TK-6 (review 2026-10-17): samme rolle-afgrænsning som opgavesiden (W-8) — før så salg/bogholderi alles opgaver
+        const { scopeTaskQuery } = await import('@/lib/tasks/task-scope')
+        const sc = { role: roleCtx.role, userId: roleCtx.userId, hasPermission: roleCtx.hasPermission as never }
+        const openQ = scopeTaskQuery(supabase.from('customer_tasks').select('id', { count: 'exact', head: true }).neq('status', 'done'), sc)
+        const autoQ = scopeTaskQuery(supabase.from('customer_tasks').select('id', { count: 'exact', head: true }).neq('status', 'done').eq('auto_generated', true), sc)
+        if (!openQ || !autoQ) return
         const [openRes, autoRes, overdueRes] = await Promise.all([
-          supabase
-            .from('customer_tasks')
-            .select('id', { count: 'exact', head: true })
-            .neq('status', 'done'),
-          supabase
-            .from('customer_tasks')
-            .select('id', { count: 'exact', head: true })
-            .neq('status', 'done')
-            .eq('auto_generated', true),
-          supabase
+          openQ,
+          autoQ,
+          scopeTaskQuery(supabase
             .from('customer_tasks')
             .select(`
               id, title, customer_id, due_date, priority, auto_generated,
@@ -240,7 +239,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             `)
             .neq('status', 'done')
             .not('due_date', 'is', null)
-            .lt('due_date', nowIso)
+            .lt('due_date', nowIso), sc)!
             .order('due_date', { ascending: true })
             .limit(TOP_N),
         ])
@@ -633,7 +632,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     (async () => {
       try {
         const nowIso = new Date().toISOString()
-        const { data } = await supabase
+        // TK-6: samme rolle-afgrænsning som opgavesiden
+        const { scopeTaskQuery } = await import('@/lib/tasks/task-scope')
+        const visitsQ = scopeTaskQuery(supabase
           .from('customer_tasks')
           .select(`
             id, title, customer_id, due_date,
@@ -641,7 +642,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           `)
           .neq('status', 'done')
           .gte('due_date', nowIso)
-          .ilike('title', '%esigtigelse%')
+          .ilike('title', '%esigtigelse%'), { role: roleCtx.role, userId: roleCtx.userId, hasPermission: roleCtx.hasPermission as never })
+        if (!visitsQ) return
+        const { data } = await visitsQ
           .order('due_date', { ascending: true })
           .limit(TOP_N)
         const rows = (data || []) as Array<{

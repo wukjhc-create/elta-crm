@@ -1,5 +1,6 @@
 'use client'
 
+import { isoToCopenhagenInput, copenhagenInputToIso } from '@/lib/utils/datetime-local'
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
@@ -277,8 +278,9 @@ function TaskForm({
   const [priority, setPriority] = useState<TaskPriority>(task?.priority || 'normal')
   const [status, setStatus] = useState<TaskStatus>(task?.status || 'pending')
   const [assignedTo, setAssignedTo] = useState(task?.assigned_to || '')
-  const [dueDate, setDueDate] = useState(task?.due_date ? task.due_date.slice(0, 16) : '')
-  const [reminderAt, setReminderAt] = useState(task?.reminder_at ? task.reminder_at.slice(0, 16) : '')
+  // TK-2 (review 2026-10-17): forudfyld med DANSK tid (før UTC-klokken → hver gem flyttede tiden 1–2 t tidligere)
+  const [dueDate, setDueDate] = useState(isoToCopenhagenInput(task?.due_date))
+  const [reminderAt, setReminderAt] = useState(isoToCopenhagenInput(task?.reminder_at))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -295,8 +297,8 @@ function TaskForm({
         priority,
         status,
         assigned_to: assignedTo || null,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        reminder_at: reminderAt ? new Date(reminderAt).toISOString() : null,
+        due_date: copenhagenInputToIso(dueDate),
+        reminder_at: copenhagenInputToIso(reminderAt),
       })
       if (result.success) {
         toast.success('Opgave opdateret')
@@ -312,8 +314,8 @@ function TaskForm({
         description: description.trim() || undefined,
         priority,
         assigned_to: assignedTo || undefined,
-        due_date: dueDate ? new Date(dueDate).toISOString() : undefined,
-        reminder_at: reminderAt ? new Date(reminderAt).toISOString() : undefined,
+        due_date: copenhagenInputToIso(dueDate) ?? undefined,
+        reminder_at: copenhagenInputToIso(reminderAt) ?? undefined,
       }
       const result = await createCustomerTask(input)
       if (result.success) {

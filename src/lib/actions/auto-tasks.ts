@@ -302,8 +302,9 @@ export async function autoCloseRespondedTasks(): Promise<number> {
       const sid = task.source_email_id as string | null
       if (!sid) continue
       const status = statusMap[sid]
-      // Hvis status mangler eller requiresResponse=false → luk
-      if (!status || !status.requiresResponse) {
+      // TK-11 (review 2026-10-17): kun ved EKSPLICIT "kræver ikke længere svar" — manglende status (mailen kan ikke
+      // ses med kalderens rettigheder, eller opslaget fejlede) lukkede før alle opgaver
+      if (status && status.requiresResponse === false) {
         taskIdsToClose.push(task.id as string)
       }
     }

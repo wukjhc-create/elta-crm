@@ -109,7 +109,17 @@ async function openFollowupTaskId(admin: any, offerId: string): Promise<string |
     .neq('status', 'done')
     .limit(1)
     .maybeSingle()
-  return (data?.id as string | undefined) ?? null
+  if (data?.id) return data.id as string
+  // TK-7 (review 2026-10-17): den automatiske "Følg op: …"-opgave fra afsendelsen tæller også (før fik tilbuddet to)
+  const { data: sendTask } = await admin
+    .from('customer_tasks')
+    .select('id')
+    .eq('offer_id', offerId)
+    .ilike('title', 'Følg op:%')
+    .neq('status', 'done')
+    .limit(1)
+    .maybeSingle()
+  return (sendTask?.id as string | undefined) ?? null
 }
 
 // ---------------------------------------------------------------- handlers (kaldes KUN af Executor)

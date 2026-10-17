@@ -39,7 +39,9 @@ export async function runCreateTask(ctx: ActionContext): Promise<ActionResult> {
     .select('id')
     .eq('customer_id', customerId)
     .eq('title', title)
-    .neq('status', 'completed')
+    // TK-8 (review 2026-10-17): statussen hedder 'done' (CHECK: pending/in_progress/done) — 'completed' fandtes ikke,
+    // så en udført opgave blokerede reglen for altid
+    .neq('status', 'done')
     .limit(1)
   if (existing && existing.length > 0) {
     return { ok: true, message: 'task already exists', data: { taskId: existing[0].id } }
