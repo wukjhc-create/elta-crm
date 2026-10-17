@@ -214,16 +214,16 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 ## NEXT-40 (review-bølge 2026-10-17 aften — e-sign/accept + e-conomic)
 | # | Fund | Status |
 |---|---|---|
-| ES-1 | Accepteret tilbud kan sættes til kladde via REST (status ikke låst i DB) og ændres mens underskriften består (S2) | BLOCKED_APPROVAL [MIGRATION] — trigger: accepted er endelig for authenticated + beløb/hash på underskriften |
+| ES-1 | Accepteret tilbud kan sættes til kladde via REST (status ikke låst i DB) og ændres mens underskriften består (S2) | BLOCKED_APPROVAL [MIGRATION 00248] — forslag docs/runbooks/esign-integrity-proposal.md |
 | ES-2 | (flag) Snapshot overskrives ikke ved kladde→ændring→gensend (S2, staging) | DONE (kode) — med revisioner slået til: sendt/set → kladde afvises (ny revision i stedet); offer-revisions-check |
 | ES-3 | Underskrift (navn/IP/tid/billede) vises ingen steder uden for portalen; PDF uden underskriftsblok (S2) | DONE (kode) — underskriftsbevis (navn, e-mail, dansk tid, IP, billede) på tilbuddet bag offers.view (U10); PDF-blok "Accepteret og underskrevet" (intern PDF med IP, portal-PDF uden) — offer-pdf-notes-test + render-test |
-| ES-4 | Fuldmagtens CPR/underskrift læsbar for alle via REST; underskrevet fuldmagt kan ændres (S2) | BLOCKED_APPROVAL [MIGRATION] |
+| ES-4 | Fuldmagtens CPR/underskrift læsbar for alle via REST; underskrevet fuldmagt kan ændres (S2) | BLOCKED_APPROVAL [MIGRATION 00249] — forslag docs/runbooks/esign-integrity-proposal.md (a: trigger, b: separat tabel) |
 | ES-5 | Accept-opdateringen tjekker ikke sent_at (race mod gensend) (S3) | DONE (kode) — compare-and-set på sent_at |
 | ES-6 | (flag) To revisioner kan begge accepteres (S3, staging) | DONE (kode) — revision af accepteret tilbud kan ikke sendes (status + mail); offer-revisions-check |
 | ES-7 | Accept indtastet i dashboardet udløser ikke offer_accepted-automatik (S3) | BESLUTNING — hører sammen med DF-1/EC-2 (ville give auto-faktura-reglen en ekstra udløser); reglerne er dry-run + AUTOMATION_RULES_LIVE fra |
 | ES-8 | Portal-afvisning efterlader aktiv sag uden advarsel (S3) | DONE (kode) — advarsel i klokken når en aktiv sag findes |
 | ES-9 | Sagsoprettelse efter portal-accept fejler stille (S3) | DONE (kode) — advarsel i klokken |
-| ES-10 | Dokumentbekræftelser bindes ikke til filens indhold (S3) | BLOCKED_APPROVAL [MIGRATION] |
+| ES-10 | Dokumentbekræftelser bindes ikke til filens indhold (S3) | BLOCKED_APPROVAL [MIGRATION 00250] — forslag docs/runbooks/esign-integrity-proposal.md |
 | ES-11 | Fuldmagt: ingen IP/UA; CPR i klartekst i mail (S3) | DONE (kode) — IP (første led) + UA i underskriftsdata; CPR maskeres i notifikationsmailen (DDMMÅÅ-****) |
 | ES-12 | Underskrift: rå x-forwarded-for, ingen UA/vilkår (S4) | DELVIS (kode) — første led af x-forwarded-for + UA i aktivitetens metadata; UA/vilkår som kolonner = migration |
 | ES-13 | Dobbelt "set"-aktivitet/webhook ved samtidige første visninger (S4) | DONE (kode) — aktivitet/webhook kun når denne visning satte viewed |
