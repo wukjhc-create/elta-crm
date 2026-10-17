@@ -59,7 +59,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | OF-9 | Kalkulationsimport: tilfældig rækkefølge; sektioner bliver 0-kr-linjer (S3) | DONE (kode) — sorteret efter position; sektionsrækker → overskrifter. Unit calc-import-lines-test |
 | OF-10 | Tilbudsrevision (staging) taber vat_mode/billing_model og gyldighed (S3) | DONE (kode, staging) — vat_mode/billing_model kopieres; ny gyldighed fra i dag |
 | OF-11 | Startpakker gemmer rabatteret kost som leverandørkost → falske prisændringer (S4) | DONE (kode) — rå leverandørkost som supplier_cost_price_at_creation |
-| OF-12 | Kalkia-motorens regelnøgler matcher ikke seed (latent) (S4) | TODO (latent — ingen UI) |
+| OF-12 | Kalkia-motorens regelnøgler matcher ikke seed (latent) (S4) | DONE (kode, latent) — motoren accepterer både min_height/height_min, min_quantity/quantity_min og type/access_type. cost_multiplier/extra_cost ignoreres stadig (TODO før motoren tages i brug) |
 
 ## NEXT-32 (review-bølge 2026-10-17 aften — portal, kundemails, PDF)
 | # | Fund | Status |

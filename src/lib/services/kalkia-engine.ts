@@ -68,8 +68,9 @@ function isConditionMet(
   switch (rule.rule_type) {
     case 'height':
       if (conditions.height !== undefined) {
-        const minHeight = ruleCondition.min_height as number | undefined
-        const maxHeight = ruleCondition.max_height as number | undefined
+        // OF-12 (review 2026-10-17): seed 00022 bruger height_min/height_max — begge stavemåder accepteres
+        const minHeight = (ruleCondition.min_height ?? ruleCondition.height_min) as number | undefined
+        const maxHeight = (ruleCondition.max_height ?? ruleCondition.height_max) as number | undefined
         if (minHeight !== undefined && conditions.height < minHeight) return false
         if (maxHeight !== undefined && conditions.height > maxHeight) return false
         return true
@@ -78,8 +79,8 @@ function isConditionMet(
 
     case 'quantity':
       if (conditions.quantity !== undefined) {
-        const minQty = ruleCondition.min_quantity as number | undefined
-        const maxQty = ruleCondition.max_quantity as number | undefined
+        const minQty = (ruleCondition.min_quantity ?? ruleCondition.quantity_min) as number | undefined // OF-12
+        const maxQty = (ruleCondition.max_quantity ?? ruleCondition.quantity_max) as number | undefined
         if (minQty !== undefined && conditions.quantity < minQty) return false
         if (maxQty !== undefined && conditions.quantity > maxQty) return false
         return true
@@ -88,7 +89,7 @@ function isConditionMet(
 
     case 'access':
       if (conditions.access !== undefined) {
-        const accessType = ruleCondition.type as string | undefined
+        const accessType = (ruleCondition.type ?? ruleCondition.access_type) as string | undefined // OF-12
         return accessType === conditions.access
       }
       return false
