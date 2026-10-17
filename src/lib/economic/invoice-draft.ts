@@ -31,6 +31,8 @@ export interface EconomicDraftInput {
     created_at?: string | null
     sent_at?: string | null
     total_amount: number | string | null
+    /** 00231: 'standard_25' | 'zero' | 'reverse_charge' (null = standard) */
+    vat_mode?: string | null
   }
   customer: {
     company_name?: string | null
@@ -60,6 +62,7 @@ export type EconomicIssueCode =
   | 'sum_mismatch'
   | 'customer_will_be_created'
   | 'credit_note'
+  | 'vat_mode_manual'
 
 export interface EconomicIssue {
   code: EconomicIssueCode
@@ -122,6 +125,17 @@ export function buildEconomicInvoiceDraft(input: EconomicDraftInput): EconomicIn
       code: 'missing_config',
       severity: 'error',
       message: `Mangler i e-conomic-opsætningen: ${missing.join(', ')}`,
+    })
+  }
+  // EC-8 (e-conomic-review 2026-10-17): momsen bestemmes i e-conomic af momszone + vare — en momsfri faktura eller
+  // omvendt betalingspligt ville blive bogført med standardmoms (irreversibelt). Den slags bogføres manuelt.
+  if (invoice.vat_mode && invoice.vat_mode !== 'standard_25') {
+    issues.push({
+      code: 'vat_mode_manual',
+      severity: 'error',
+      message: invoice.vat_mode === 'reverse_charge'
+        ? 'Omvendt betalingspligt — bogføres manuelt i e-conomic (automatisk bogføring bruger standardmoms)'
+        : 'Momsfri faktura — bogføres manuelt i e-conomic (automatisk bogføring bruger standardmoms)',
     })
   }
 

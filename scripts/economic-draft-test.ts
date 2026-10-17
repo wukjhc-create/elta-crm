@@ -42,5 +42,13 @@ eq('kreditnota = info, kan bogføres', [credit.canPost, credit.issues.map((i) =>
 
 const empty = buildEconomicInvoiceDraft({ ...base, lines: [] })
 eq('ingen linjer → fejl', [empty.canPost, empty.issues.map((i) => i.code)], [false, ['no_lines']])
+
+// EC-8 (2026-10-17): momsfri/omvendt betalingspligt bogføres aldrig automatisk (e-conomic ville bruge standardmoms)
+const zero = buildEconomicInvoiceDraft({ ...base, invoice: { ...base.invoice, vat_mode: 'zero' } })
+eq('momsfri → fejl, ikke bogførbar', [zero.canPost, zero.issues.some((i) => i.code === 'vat_mode_manual')], [false, true])
+const rc = buildEconomicInvoiceDraft({ ...base, invoice: { ...base.invoice, vat_mode: 'reverse_charge' } })
+eq('omvendt betalingspligt → fejl', [rc.canPost, rc.issues.some((i) => i.code === 'vat_mode_manual')], [false, true])
+const std = buildEconomicInvoiceDraft({ ...base, invoice: { ...base.invoice, vat_mode: 'standard_25' } })
+eq('standardmoms → uændret bogførbar', std.canPost, true)
 console.log(fail ? `\n❌ ${fail} fejl` : '\n✅ alle e-conomic-kladde-tests PASS')
 process.exitCode = fail ? 1 : 0

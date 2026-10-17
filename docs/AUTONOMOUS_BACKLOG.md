@@ -234,7 +234,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | EC-5 | Skrivninger efter lykket eksport fejltjekkes ikke → mulig dobbelt bogføring (S2, plausibel) | DONE (kode, ikke end-to-end-testet — kræver e-conomic-sandbox) — linket fejltjekkes og bindes til kravet (+1 genforsøg, ellers kritisk helbredslog); et forældet krav med succes-log genskaber linket i stedet for at poste igen; debitor-link kun når kunden ikke er koblet |
 | EC-6 | Samtidige eksporter kan oprette to debitorer (S3) | TODO |
 | EC-7 | Samtidige betalingsregistreringer kan poste to gange (S3) | DELVIS — EC-1 fjerner den automatiske vej; manuel claim = TODO |
-| EC-8 | Moms kontrolleres ikke før bogføring (S3) | TODO |
+| EC-8 | Moms kontrolleres ikke før bogføring (S3) | DELVIS (kode) — momsfri/omvendt betalingspligt kan ikke bogføres automatisk (unit-test, U37); sammenligning af e-conomics momsbeløb før /book kræver sandbox |
 | EC-9 | /supplier-invoices/drafts og cash-book-endpoints findes formentlig ikke (S3, plausibel) | TODO — kræver e-conomic-sandbox |
 | EC-10 | Fejlet eksport efter afsendelse usynlig for brugeren (S3) | TODO (afhænger af EC-2) |
 | EC-11 | Pladsholder-mail sendt til debitoren (S4) | DONE (kode) |
