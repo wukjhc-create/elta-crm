@@ -347,6 +347,7 @@ async function autoShareToPortal(
     .select('id')
     .eq('customer_id', params.customerId)
     .eq('is_active', true)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`) // PM-9: kun en gyldig portal
     .limit(1)
     .maybeSingle()
 
@@ -365,6 +366,9 @@ async function autoShareToPortal(
       mime_type: 'application/pdf',
       sent_quote_id: params.sentQuoteId || null,
       shared_by: params.userId,
+      // PM-9 (portal-review 2026-10-17): delt til portalen = synlig dér (standard false siden 00218 → usynlig, mens
+      // chatbeskeden sagde "tilgængelig under Dokumenter")
+      visible_in_portal: true,
     })
   } catch {
     // customer_documents table may not exist — skip

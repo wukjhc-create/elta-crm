@@ -1,4 +1,5 @@
 import React from 'react'
+import { isPlaceholderEmail } from '@/lib/customers/customer-email' // PM-8
 import {
   Document,
   Page,
@@ -480,7 +481,7 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
                 </Text>
               )}
               {customer.cvr && <Text style={styles.customerLine}>CVR: {customer.cvr}</Text>}
-              {customer.email && <Text style={styles.customerLine}>{customer.email}</Text>}
+              {customer.email && !isPlaceholderEmail(customer.email) && <Text style={styles.customerLine}>{customer.email}</Text>}
             </>
           ) : (
             <Text style={styles.customerLine}>Ingen kunde-oplysninger.</Text>

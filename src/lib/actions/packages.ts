@@ -663,6 +663,11 @@ export async function insertPackageIntoOffer(
 
     if (error) {
       logger.error('Database error inserting package into offer', { error: error })
+      // OF-3 (review 2026-10-17): prod-funktionen skriver til kolonnen total_price, som ikke findes (42703) — klar besked
+      // i stedet for en generisk fejl. Rettelse af funktionen = migration (BLOCKED_APPROVAL).
+      if ((error as { code?: string }).code === '42703') {
+        return { success: false, error: 'Indsæt pakke virker ikke lige nu (databasefunktionen skal opdateres) — tilføj linjerne manuelt' }
+      }
       throw new Error('DATABASE_ERROR')
     }
 

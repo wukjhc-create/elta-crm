@@ -19,7 +19,8 @@ export function generateQuoteEmailHtml(params: QuoteEmailParams): string {
   const quoteReference = escapeHtml(params.quoteReference)
   const title = escapeHtml(params.title)
   const customerName = escapeHtml(params.customerName)
-  const companyName = params.companyName ? escapeHtml(params.companyName) : params.companyName
+  // PM-11 (2026-10-17): privatkunder har ofte firmanavn = navn → ikke "Kære Jens Hansen fra Jens Hansen"
+  const companyName = params.companyName && String(params.companyName).trim().toLowerCase() !== String(params.customerName ?? '').trim().toLowerCase() ? escapeHtml(params.companyName) : ''
   const accentColor = templateType === 'sales' ? '#2D8A2D' : '#2D8A2D'
   const templateLabel = templateType === 'sales' ? 'Salgstilbud' : 'Monteringstilbud'
 
@@ -211,12 +212,14 @@ export function generateQuoteEmailText({
   templateType,
 }: QuoteEmailParams): string {
   const templateLabel = templateType === 'sales' ? 'SALGSTILBUD' : 'MONTERINGSTILBUD'
+  // PM-11: firmanavn = navn → ingen "fra …"
+  const fromCompany = companyName && String(companyName).trim().toLowerCase() !== String(customerName ?? '').trim().toLowerCase() ? companyName : ''
 
   return `
 ${templateLabel} ${quoteReference}
 ==============================
 
-Kære ${customerName}${companyName ? ` fra ${companyName}` : ''},
+Kære ${customerName}${fromCompany ? ` fra ${fromCompany}` : ''},
 
 Vi har udarbejdet et tilbud til dig. Tilbuddet er vedhæftet som PDF.
 

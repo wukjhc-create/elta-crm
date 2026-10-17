@@ -1,3 +1,4 @@
+import { BRAND_EMAIL } from '@/lib/brand' // PM-5: rigtig kontaktadresse (kontakt@ synkes)
 import { Zap } from 'lucide-react'
 
 export default function PartnerLayout({
@@ -35,11 +36,8 @@ export default function PartnerLayout({
               &copy; {new Date().getFullYear()} Elta Solar ApS. Alle rettigheder forbeholdes.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">
-              <a href="tel:+4512345678" className="hover:text-primary">
-                Tlf: +45 12 34 56 78
-              </a>
-              <a href="mailto:info@eltasolar.dk" className="hover:text-primary">
-                info@eltasolar.dk
+              <a href={`mailto:${BRAND_EMAIL}`} className="hover:text-primary">
+                {BRAND_EMAIL}
               </a>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import React from 'react'
+import { isPlaceholderEmail } from '@/lib/customers/customer-email' // PM-8
 import {
   Document,
   Page,
@@ -318,7 +319,7 @@ export function InstallationOfferPdfDocument({
               {quote.customer.postalCode} {quote.customer.city}
             </Text>
           )}
-          <Text style={styles.customerDetail}>{quote.customer.email}</Text>
+          {!isPlaceholderEmail(quote.customer.email) && <Text style={styles.customerDetail}>{quote.customer.email}</Text>}
           {quote.customer.phone && (
             <Text style={styles.customerDetail}>
               Tlf: {quote.customer.phone}

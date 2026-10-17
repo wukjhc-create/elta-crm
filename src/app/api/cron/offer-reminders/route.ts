@@ -74,6 +74,7 @@ async function handleCron(request: Request): Promise<Response> {
     cutoffDate.setDate(cutoffDate.getDate() - intervalDays)
     let totalSent = 0
     const errors: string[] = []
+    let skippedInternal = 0
 
     // ─── 1. OFFER REMINDERS ───
     // O-1 (review 2026-10-16 + Henrik: LIVE BLOCKED): planen (planOfferReminders) afgør hvem der ville blive rykket —
@@ -270,6 +271,9 @@ async function handleCron(request: Request): Promise<Response> {
             )
             const routeResult = await resolveFuldmagtReminderRoute(doc.customer_id)
             if (!routeResult.ok || !routeResult.route) {
+              // Prod 2026-10-17: én fuldmagt med intern modtageradresse gav en daglig cron-advarsel — routeren afviser
+              // korrekt (intet sendes); tælles som sprunget over, ikke som fejl
+              if (isInternalRecipientRefusal(routeResult.error)) { skippedInternal++; continue }
               errors.push(`Fuldmagt ${doc.id}: route ${routeResult.error || 'fejlede'}`)
               continue
             }
@@ -349,6 +353,7 @@ async function handleCron(request: Request): Promise<Response> {
             )
             const routeResult = await resolveBesigtigelseMailRoute(task.customer_id)
             if (!routeResult.ok || !routeResult.route) {
+              if (isInternalRecipientRefusal(routeResult.error)) { skippedInternal++; continue }
               errors.push(`Besigtigelse ${task.id}: route ${routeResult.error || 'fejlede'}`)
               continue
             }
@@ -393,6 +398,7 @@ async function handleCron(request: Request): Promise<Response> {
       // O-1: tilbudsrykkere i dry-run — hvad der VILLE være sendt (intet sendt)
       offer_reminders_dry_run: offerDryRun ?? undefined,
       followup_reminders_paused: followUpPaused || undefined,
+      skipped_internal_recipient: skippedInternal || undefined,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (err) {
@@ -436,3 +442,8 @@ function buildFollowUpEmail(
 
 // P1 #9: hver autoriseret koersel registreres i system_health_log (service='cron').
 export const GET = withCronRun('offer-reminders', handleCron)
+
+/** Routerens afvisning af en intern modtager (eltasolar.dk) — forventet, ikke en driftsfejl */
+function isInternalRecipientRefusal(error: string | null | undefined): boolean {
+  return !!error && /intern e-mail-adresse/i.test(error)
+}

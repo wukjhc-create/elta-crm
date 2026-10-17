@@ -45,6 +45,38 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-33 (review-bølge 2026-10-17 aften — tilbud, kalkulation, sol)
+| # | Fund | Status |
+|---|---|---|
+| OF-1 | Inline-redigering af en tilbudslinje nulstiller linjerabatten (S2) | DONE (kode) — linjerabatten sendes med ved inline-redigering og indgår i den viste total. UI U186 |
+| OF-2 | Solcelleberegner overdriver årsproduktion ~200× (× 1000 + paneleffektivitet to gange) — vist til kunder (S2) | DONE (kode) — kWp × solskinstimer × inverter-virkningsgrad (begge beregnere). Unit solar-production-test |
+| OF-3 | "Indsæt pakke i tilbud": prod-funktionen skriver til total_price, som ikke findes → fejler altid (S2) | DELVIS — prod read-only bekræftet (scripts/prod-offer-line-columns.ts); klar fejlbesked i stedet for generisk. Ny funktion = BLOCKED_APPROVAL [MIGRATION] |
+| OF-4 | Salgspris i leverandørsøgning ≠ linjens pris (margin-regler/standardavance) (S2) | TODO |
+| OF-5 | Tilbud fra pakkebygger: linjekost lavere end vist (tillæg/spild mangler) → DB for god (S3) | TODO |
+| OF-6 | Kalkia-leverandørpris: kundens egen kostpris overskrives ved rabat (S3) | TODO |
+| OF-7 | Natlig lav-DB-alarm ignorerer tilbudsrabat; ikke pagineret (S3) | TODO |
+| OF-8 | Tilbuds-PDF viser ikke linjerabat (S3) | DONE (kode) — "−x % rabat" under enhedsprisen |
+| OF-9 | Kalkulationsimport: tilfældig rækkefølge; sektioner bliver 0-kr-linjer (S3) | TODO |
+| OF-10 | Tilbudsrevision (staging) taber vat_mode/billing_model og gyldighed (S3) | TODO |
+| OF-11 | Startpakker gemmer rabatteret kost som leverandørkost → falske prisændringer (S4) | TODO |
+| OF-12 | Kalkia-motorens regelnøgler matcher ikke seed (latent) (S4) | TODO (latent — ingen UI) |
+
+## NEXT-32 (review-bølge 2026-10-17 aften — portal, kundemails, PDF)
+| # | Fund | Status |
+|---|---|---|
+| PM-1 | Servicesagsbekræftelse sender sagskundens portal-link til kontakt/kunde på adressen (S1) | DONE (kode) — link kun når modtageren er sagens kunde; udløbne tokens filtreres |
+| PM-2 | Tilbudsmail til betaler/partner/slutkunde indeholder tilbudskundens portal-link (S1) | DONE (kode) — anden modtager → portal-link fjernes ("Tilbuddet er vedhæftet som PDF"); uden PDF sendes intet. Tilbudsrykker (dry-run) skal have samme værn før live |
+| PM-3 | Døde portal-links (genbrug/nyt token afvist, /view-offer-fallback, udløbne tokens) (S2) | TODO |
+| PM-4 | Fakturamail-router bruger cookie-klient → automatik/rykkere finder aldrig fakturaen (S2) | TODO (forudsætning for INVOICE_REMINDERS_LIVE) |
+| PM-5 | Pladsholder-kontaktinfo (+45 12 34 56 78, info@) på portal-/fejlsider (S2) | DONE (kode) — falsk telefonnummer fjernet; kontakt@ (BRAND_EMAIL) på portal-/partner-/fejlsider |
+| PM-6 | Kundenavn ikke escapet i besigtigelsesrapport-mail (S2) | DONE (kode) — escapet |
+| PM-7 | Fuldmagtsrykker går til kortets kunde, ikke den tiltænkte underskriver; intet link (S3) | TODO (ændrer modtager af live-rykker → beslutning) |
+| PM-8 | Pladsholder-mail (auto+…@elta-crm.local) trykkes på tilbuds-/faktura-PDF (S3) | DONE (kode) — pladsholder-adresser skjules på alle tilbuds-/faktura-PDF'er |
+| PM-9 | Tilbuds-PDF "delt" til portalen er usynlig (visible_in_portal) (S3) | DONE (kode) — visible_in_portal=true; kun gyldig portal |
+| PM-10 | Offentlig submitConfirmation uden inputgrænser (S3) | DONE (kode) — server-side grænser (200/254/2000) + e-mail-format |
+| PM-11 | "Kære Jens Hansen fra Jens Hansen" (S4) | DONE (kode) — ingen "fra …" når firmanavn = navn |
+| PM-12 | Antal i tilbuds-PDF ikke i dansk format (S4) | DONE (kode) — dansk talformat i tilbuds-PDF |
+
 ## NEXT-31 (review-bølge 2026-10-17 eftermiddag — timer, godkendelse, fravær, planlægning)
 | # | Fund | Status |
 |---|---|---|

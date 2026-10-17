@@ -466,8 +466,11 @@ export async function submitConfirmation(
     if (!input.signerName?.trim()) {
       return { success: false, error: 'Navn er påkrævet' }
     }
+    // PM-10 (portal-review 2026-10-17): offentlig action — server-side grænser (før kun i browseren)
+    if (input.signerName.trim().length > 200) return { success: false, error: 'Navnet er for langt' }
+    if ((input.note?.trim().length ?? 0) > 2000) return { success: false, error: 'Bemærkningen må højst være 2000 tegn' }
     const email = input.signerEmail?.trim().toLowerCase()
-    if (!email || !email.includes('@')) {
+    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { success: false, error: 'Gyldig e-mail er påkrævet' }
     }
 

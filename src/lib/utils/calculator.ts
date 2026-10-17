@@ -19,8 +19,10 @@ export function calculateSolarSystem(input: CalculatorInput): CalculatorResults 
 
   // System specifications
   const systemSize = (panel.wattage * input.panelCount) / 1000 // kWp
+  // OF-2 (review 2026-10-17): kWp × solskinstimer ER allerede kWh (STC-effekten indeholder panelets virkningsgrad).
+  // Før × panel-virkningsgrad × 1000 → ~200× for meget (4 kWp: 776.000 kWh/år i stedet for ~3.900)
   const baseAnnualProduction =
-    systemSize * constants.annualSunHours * panel.efficiency * inverter.efficiency * 1000 // kWh
+    systemSize * constants.annualSunHours * inverter.efficiency // kWh
 
   // Cost calculations
   const panelsCost = panel.price * input.panelCount

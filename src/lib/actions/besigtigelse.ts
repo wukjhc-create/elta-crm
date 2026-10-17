@@ -532,7 +532,7 @@ export async function sendBesigtigelsePdf(
           <h1 style="color: white; margin: 0; font-size: 20px;">Besigtigelsesrapport</h1>
         </div>
         <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-          <p style="font-size: 16px; color: #111827;">Kære ${customer.contact_person || customer.company_name},</p>
+          <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(customer.contact_person || customer.company_name || 'kunde')},</p>
           <p style="color: #374151;">Vedhæftet finder du besigtigelsesrapporten fra vores besøg.</p>
           <p style="color: #374151;">Dokumentet indeholder de tekniske noter, billeder og aftaler, vi gennemgik under besigtigelsen.</p>
           <p style="color: #374151;">Har du spørgsmål, er du velkommen til at kontakte os.</p>

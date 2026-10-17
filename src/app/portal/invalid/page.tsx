@@ -1,3 +1,4 @@
+import { BRAND_EMAIL } from '@/lib/brand' // PM-5: rigtig kontaktadresse (kontakt@ synkes)
 import { XCircle } from 'lucide-react'
 import Link from 'next/link'
 
@@ -32,8 +33,8 @@ export default function InvalidTokenPage() {
 
         <p className="text-sm text-gray-500">
           Har du spørgsmål? Kontakt os på{' '}
-          <a href="mailto:info@eltasolar.dk" className="text-primary hover:underline">
-            info@eltasolar.dk
+          <a href={`mailto:${BRAND_EMAIL}`} className="text-primary hover:underline">
+            {BRAND_EMAIL}
           </a>
         </p>
       </div>

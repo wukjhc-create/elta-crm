@@ -1,4 +1,5 @@
 'use client'
+import { BRAND_EMAIL } from '@/lib/brand' // PM-5: rigtig kontaktadresse (kontakt@ synkes)
 
 import { useState } from 'react'
 import {
@@ -431,8 +432,8 @@ function StatusCard({
       </div>
       <p className="text-xs text-gray-400 mt-6 text-center">
         Du kan kontakte Elta Solar på{' '}
-        <a href="mailto:info@eltasolar.dk" className="text-green-700 hover:underline">
-          info@eltasolar.dk
+        <a href={`mailto:${BRAND_EMAIL}`} className="text-green-700 hover:underline">
+          {BRAND_EMAIL}
         </a>
         .
       </p>

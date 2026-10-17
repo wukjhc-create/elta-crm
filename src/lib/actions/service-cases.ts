@@ -1283,6 +1283,8 @@ async function sendServiceCaseConfirmation(
       .select('token')
       .eq('customer_id', customerId)
       .eq('is_active', true)
+      // PM-3: aldrig et udløbet link
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -1318,10 +1320,14 @@ async function sendServiceCaseConfirmation(
       const routeResult = await resolveServiceCaseConfirmationRoute(serviceCase.id)
       if (routeResult.ok && routeResult.route) {
         const route = routeResult.route
+        // PM-1 (portal-review 2026-10-17): routeren foretrækker kontakt/kunde på adressen — portal-linket tilhører sagens
+        // kunde (fx partner/udlejer) og gav beboeren fuld adgang til den portal. Kun til sagens egen kunde.
+        const { stripPortalLinks } = await import('@/lib/portal/strip-portal-links')
+        const safeHtml = route.customerId === customerId ? html : stripPortalLinks(html)
         const sendResult = await sendEmailViaGraph({
           to: route.toEmail,
           subject,
-          html,
+          html: safeHtml,
           text: `Serviceopgave ${serviceCase.case_number}: ${serviceCase.title}`,
         })
 

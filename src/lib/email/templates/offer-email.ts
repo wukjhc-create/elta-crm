@@ -24,7 +24,8 @@ export function generateOfferEmailHtml({
 }: OfferEmailParams): string {
   // kommunikations-review: kundefelter kan komme fra webformularer/AI-udtræk → escapes i HTML-versionen
   const customerName = escapeHtml(offer.customer?.contact_person || 'Kunde')
-  const companyName = escapeHtml(offer.customer?.company_name || '')
+  // PM-11 (2026-10-17): privatkunder har ofte firmanavn = navn → ikke "Kære Jens Hansen fra Jens Hansen"
+  const companyName = sameName(offer.customer?.company_name, offer.customer?.contact_person) ? '' : escapeHtml(offer.customer?.company_name || '')
 
   // Build detail rows
   const detailRows: string[] = []
@@ -270,7 +271,7 @@ export function generateOfferEmailText({
   portalUrl,
 }: OfferEmailParams): string {
   const customerName = offer.customer?.contact_person || 'Kunde'
-  const companyName = offer.customer?.company_name || ''
+  const companyName = sameName(offer.customer?.company_name, offer.customer?.contact_person) ? '' : offer.customer?.company_name || ''
 
   return `
 ELTA SOLAR — Professionelle el- & solcelleinstallationer
@@ -315,4 +316,10 @@ ${companySettings.company_vat_number ? `CVR: ${companySettings.company_vat_numbe
 ${companySettings.company_phone ? `Tlf: ${companySettings.company_phone}` : ''}
 ${companySettings.company_email || ''}
 `
+}
+
+/** PM-11: samme navn (uden forskel på store/små bogstaver og mellemrum) */
+function sameName(a: string | null | undefined, b: string | null | undefined): boolean {
+  const n = (x: string | null | undefined) => String(x ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+  return !!n(a) && n(a) === n(b)
 }

@@ -29,6 +29,8 @@ export interface LineItemRow extends LineItemForDB {
   image_url?: string | null
   line_type?: string | null
   supplier_name_at_creation?: string | null
+  /** OF-1: linjerabat (%) — bevares ved inline-redigering */
+  discount_percentage?: number | null
 }
 
 /** Data needed to save a line item */
@@ -110,7 +112,9 @@ function EditableRow({ item, idx, currency, showCostData = true, thresholds, onS
   const cost = parseFloat(costPrice) || 0
   const margin = parseFloat(marginPct)
   const sale = parseFloat(unitPrice) || 0
-  const total = calculateLineTotal(qty, sale)
+  // OF-1 (review 2026-10-17): linjerabatten indgår i den viste total (før uden)
+  const lineDiscount = Number(item.discount_percentage ?? 0) || 0
+  const total = calculateLineTotal(qty, sale, lineDiscount)
   const effectiveMargin = cost > 0 && sale > 0
     ? Math.round((sale / cost - 1) * 100)
     : null
@@ -162,12 +166,14 @@ function EditableRow({ item, idx, currency, showCostData = true, thresholds, onS
       cost_price: parseFloat(costPrice) || null,
       // S-2: avance 0 er en gyldig værdi (før blev 0/tom til null)
       supplier_margin_applied: marginPct.trim() !== '' && Number.isFinite(parseFloat(marginPct.replace(',', '.'))) ? parseFloat(marginPct.replace(',', '.')) : null,
+      // OF-1 (review 2026-10-17): linjerabatten sendes med — før blev den nulstillet ved hver inline-redigering
+      discount_percentage: lineDiscount,
     })
     // M-17 (mobil-review 2026-10-14): kun markér som gemt når gem lykkedes — ellers viste feltet en værdi der aldrig
     // blev gemt, og der blev ikke forsøgt igen
     if (saved) setIsDirty(false)
     setIsSaving(false)
-  }, [isDirty, isSaving, item.id, description, quantity, unit, unitPrice, costPrice, marginPct, onSave])
+  }, [isDirty, isSaving, item.id, description, quantity, unit, unitPrice, costPrice, marginPct, lineDiscount, onSave])
 
   // Auto-save on blur with debounce
   const scheduleAutoSave = useCallback(() => {

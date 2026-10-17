@@ -1,4 +1,5 @@
 'use server'
+import { stripPortalLinks, containsPortalLink } from '@/lib/portal/strip-portal-links'
 import { secretTokenReader } from '@/lib/portal/token-reader'
 import { permissionDenied } from '@/lib/actions/action-helpers'
 
@@ -841,7 +842,7 @@ export async function sendOfferEmail(
     const trackingPixel = `${appUrl}/api/email/track/${trackingId}`
 
     // Inject tracking pixel into HTML
-    const finalHtml = bodyHtml.includes('tracking_pixel')
+    let finalHtml = bodyHtml.includes('tracking_pixel')
       ? bodyHtml.replace(/\{\{tracking_pixel\}\}/g, trackingPixel)
       : bodyHtml + `<img src="${trackingPixel}" width="1" height="1" style="display:none" alt="">`
 
@@ -901,6 +902,17 @@ export async function sendOfferEmail(
     const route = routeResult.route
     if (route.toEmail !== message.to_email) {
       await supabase.from('email_messages').update({ to_email: route.toEmail }).eq('id', message.id)
+    }
+    // PM-2 (portal-review 2026-10-17): routeren kan vælge betaler/slutkunde/bestiller (billing_mode) — portal-linket
+    // tilhører tilbuddets kunde og gav modtageren fuld adgang til den kundes portal. Anden modtager → intet portal-link
+    // (tilbuddet følger med som PDF); uden PDF sendes intet.
+    if (route.customerId && route.customerId !== offer.customer_id && containsPortalLink(finalHtml)) {
+      if (!emailAttachments.some((a) => a.contentType === 'application/pdf')) {
+        await supabase.from('email_messages').update({ status: 'failed', failed_at: new Date().toISOString(), error_message: 'Modtager er ikke tilbuddets kunde — send med PDF' }).eq('id', message.id)
+        return { success: false, error: 'Modtageren er ikke tilbuddets kunde, så portal-linket fjernes — send tilbuddet med PDF vedhæftet' }
+      }
+      finalHtml = stripPortalLinks(finalHtml, '<span style="font-size:15px;font-family:Arial,Helvetica,sans-serif;">Tilbuddet er vedhæftet som PDF.</span>')
+      await supabase.from('email_messages').update({ body_html: finalHtml }).eq('id', message.id)
     }
 
     // Mail-review 2026-10-08 (#2): dobbeltklik/to faner sendte tilbuddet to gange. Af trådens udgående beskeder fra det

@@ -1,4 +1,5 @@
 import React from 'react'
+import { isPlaceholderEmail } from '@/lib/customers/customer-email' // PM-8
 import {
   Document,
   Page,
@@ -382,7 +383,8 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
                 {offer.customer.billing_postal_code} {offer.customer.billing_city}
               </Text>
             )}
-            <Text style={styles.customerDetail}>{offer.customer.email}</Text>
+            {/* PM-8 (2026-10-17): pladsholder-adresser (auto+…@elta-crm.local) trykkes ikke på kundens PDF */}
+            {!isPlaceholderEmail(offer.customer.email) && <Text style={styles.customerDetail}>{offer.customer.email}</Text>}
             {offer.customer.phone && (
               <Text style={styles.customerDetail}>Tlf: {offer.customer.phone}</Text>
             )}
@@ -468,11 +470,18 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
                     <Text>{item.description}</Text>
                   </View>
                   <Text style={styles.colQuantity}>
-                    {item.quantity} {item.unit}
+                    {/* PM-12 (2026-10-17): dansk talformat (2,5 m — før 2.5 m), som faktura-PDF'en */}
+                    {Number(item.quantity).toLocaleString('da-DK', { maximumFractionDigits: 2 })} {item.unit}
                   </Text>
-                  <Text style={styles.colUnitPrice}>
-                    {formatCurrency(item.unit_price, offer.currency, 2)}
-                  </Text>
+                  <View style={{ ...styles.colUnitPrice, alignItems: 'flex-end' }}>
+                    <Text>{formatCurrency(item.unit_price, offer.currency, 2)}</Text>
+                    {/* OF-8 (2026-10-17): linjerabat vises (før 10 × 100 = 900 uden forklaring) — som portalen (O-4) */}
+                    {Number((item as { discount_percentage?: number | null }).discount_percentage ?? 0) > 0 && (
+                      <Text style={{ fontSize: 7, color: '#6b7280' }}>
+                        −{Number((item as { discount_percentage?: number | null }).discount_percentage).toLocaleString('da-DK', { maximumFractionDigits: 2 })} % rabat
+                      </Text>
+                    )}
+                  </View>
                   <Text style={styles.colTotal}>
                     {formatCurrency(item.total, offer.currency, 2)}
                   </Text>
