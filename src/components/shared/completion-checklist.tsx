@@ -159,7 +159,7 @@ export function CompletionChecklist({
                       <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
                         <img src={att.file_url} alt={att.file_name} className="w-full h-full object-cover" />
                       </a>
-                      {onDeleteAttachment && !disabled && (
+                      {onDeleteAttachment && !disabled && (att as { deletable_by_me?: boolean }).deletable_by_me !== false && (
                         <button
                           type="button"
                           onClick={() => { if (window.confirm('Slet foto?')) onDeleteAttachment(att.id) }}

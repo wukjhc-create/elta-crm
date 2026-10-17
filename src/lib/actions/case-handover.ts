@@ -60,7 +60,13 @@ export async function getCaseHandoverAction(caseId: string): Promise<ActionResul
     const { data: sc } = await db.from('service_cases').select('checklist, customer_signature, customer_signature_name, signed_at').eq('id', caseId).maybeSingle()
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
     const { data: rows } = await db.from('service_case_attachments').select('*').eq('service_case_id', caseId).order('created_at', { ascending: true })
-    const atts = (rows ?? []) as ServiceCaseAttachment[]
+    // MB-10 (mobil-review 2026-10-17): markér hvilke fotos brugeren må slette (kontor: alle; ellers egne) — samme regel
+    // som deleteHandoverPhotoAction; før blev slet-knappen vist på kollegaers fotos og afvist af serveren
+    const canDeleteAll = ctx.hasPermission('cases.edit')
+    const atts = ((rows ?? []) as ServiceCaseAttachment[]).map((a) => ({
+      ...a,
+      deletable_by_me: canDeleteAll || (a as { uploaded_by?: string | null }).uploaded_by === ctx.userId,
+    })) as ServiceCaseAttachment[]
     const paths = atts.map((a) => a.storage_path ?? '').filter(Boolean)
     if (paths.length) {
       const { getStorageSignedUrls, SIGNED_URL_TTL } = await import('@/lib/storage/signed-url')
