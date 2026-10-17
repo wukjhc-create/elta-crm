@@ -230,7 +230,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | EC-1 | Bankmatch postede betalinger automatisk i e-conomic (mod A-12) (S1) | DONE (a4085953) — registerPayment er kun CRM-status medmindre syncEconomic=true |
 | EC-2 | Afsendelse/godkendelse/automatik eksporterer til e-conomic som sideeffekt (også serviceleder uden settings.economic) (S2) | BESLUTNING (Henrik) — skal eksport kun ske via den eksplicitte "Eksportér"-knap? |
 | EC-3 | Leverandør-"Bogfør": kill switch/manglende konto meldt som "allerede bogført" (S2) | DONE (kode) |
-| EC-4 | Kreditnotaer når aldrig e-conomic og markeres ingen steder (S2) | TODO (arbejdsliste/alarm + ret forhåndsvisningstekst) |
+| EC-4 | Kreditnotaer når aldrig e-conomic og markeres ingen steder (S2) | DONE (kode) — regnskabs-widgeten tæller kreditnotaer på eksporterede fakturaer ("skal krediteres manuelt i e-conomic"); forhåndsvisningsteksten rettet |
 | EC-5 | Skrivninger efter lykket eksport fejltjekkes ikke → mulig dobbelt bogføring (S2, plausibel) | TODO |
 | EC-6 | Samtidige eksporter kan oprette to debitorer (S3) | TODO |
 | EC-7 | Samtidige betalingsregistreringer kan poste to gange (S3) | DELVIS — EC-1 fjerner den automatiske vej; manuel claim = TODO |

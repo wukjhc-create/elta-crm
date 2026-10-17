@@ -171,7 +171,9 @@ export function buildEconomicInvoiceDraft(input: EconomicDraftInput): EconomicIn
     issues.push({
       code: 'credit_note',
       severity: 'info',
-      message: 'Negativ faktura (kreditnota) — bogføres som faktura med negative linjer',
+      // EC-4 (e-conomic-review 2026-10-17): kreditnotaer sendes IKKE til e-conomic (klienten afviser dem) — før påstod
+      // teksten det modsatte
+      message: 'Negativ faktura (kreditnota) — sendes ikke til e-conomic; kreditér originalen manuelt i e-conomic',
     })
   }
 

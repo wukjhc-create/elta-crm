@@ -106,6 +106,13 @@ export function AccountingHealthWidget({ initial }: { initial?: { value: Account
             </Link>
           </div>
 
+          {(data.credit_manual_count ?? 0) > 0 && (
+            // EC-4: kreditnotaer sendes ikke til e-conomic — originalen skal krediteres manuelt dér
+            <div className="rounded-lg ring-1 ring-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800" data-testid="accounting-credit-manual">
+              {data.credit_manual_count} kreditnota(er) på eksporterede fakturaer skal krediteres manuelt i e-conomic.
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-xs text-gray-500 px-0.5">
             <span className="inline-flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />

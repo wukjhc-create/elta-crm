@@ -52,6 +52,11 @@ export interface AccountingHealthSummary {
   not_exported_count: number
   exported_7d: number
   exported_30d: number
+  /**
+   * EC-4 (e-conomic-review 2026-10-17): sendte kreditnotaer hvis original ER eksporteret — kreditnotaer sendes ikke til
+   * e-conomic, så de skal krediteres manuelt dér (ellers bliver omsætning/udgående moms stående)
+   */
+  credit_manual_count?: number
   latest_error: {
     invoice_id: string | null
     invoice_number: string | null
@@ -152,6 +157,24 @@ export async function computeAccountingHealthSummary(
     logger.error('computeAccountingHealthSummary: failed summary failed', { error: e })
   }
 
+  // EC-4: kreditnotaer på eksporterede originaler (skal krediteres manuelt i e-conomic)
+  let creditManual = 0
+  try {
+    const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+    const credits = await fetchAllRows<{ id: string; credit_of_invoice_id: string | null }>((f, t) => supabase.from('invoices')
+      .select('id, credit_of_invoice_id').eq('invoice_type', 'credit').in('status', ['sent', 'paid']).is('voided_at', null)
+      .not('credit_of_invoice_id', 'is', null).order('id').range(f, t))
+    const originals = Array.from(new Set(credits.map((c) => c.credit_of_invoice_id).filter((x): x is string => !!x)))
+    const exported = new Set<string>()
+    for (let i = 0; i < originals.length; i += 200) {
+      const { data } = await supabase.from('invoices').select('id').in('id', originals.slice(i, i + 200)).not('external_invoice_id', 'is', null)
+      for (const r of (data ?? []) as Array<{ id: string }>) exported.add(r.id)
+    }
+    creditManual = credits.filter((c) => c.credit_of_invoice_id && exported.has(c.credit_of_invoice_id)).length
+  } catch (e) {
+    logger.error('computeAccountingHealthSummary: credit-note count failed', { error: e })
+  }
+
   return {
     ok: true,
     integration_ready: integrationReady,
@@ -159,6 +182,7 @@ export async function computeAccountingHealthSummary(
     not_exported_count: notExported,
     exported_7d: exported7d,
     exported_30d: exported30d,
+    credit_manual_count: creditManual,
     latest_error: latestError,
   }
 }
