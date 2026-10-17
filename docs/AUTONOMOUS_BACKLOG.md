@@ -62,7 +62,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | # | Fund | Status |
 |---|---|---|
 | LC-1 | "Opret lead" fra almindelig mail tager Eltas egen e-mail/telefon fra den citerede signatur (S2) | DONE (kode) — almindelig mail: kontakt = (oprindelig) afsender; brødtekst kun over citeret svar; egne/relæ-adresser afvises |
-| LC-2 | Videresendt, allerede koblet mail kan oprette forældreløs dubletkunde (S2) | TODO — match-only når mailen allerede er koblet (email-intelligence) |
+| LC-2 | Videresendt, allerede koblet mail kan oprette forældreløs dubletkunde (S2) | DONE (kode) — allerede koblet mail → findOrCreateCustomer kun match (opretter aldrig). cli find-or-create-matchonly-check |
 | LC-3 | Kunder med Elta-/FormSubmit-adresser fanger intern mail (linker uden domæneværn) (S2) | DONE (kode) — linkeren matcher aldrig egne/relæ-domæner (inkl. underdomæner); "Opret kunde fra mail" afviser dem |
 | LC-4 | To samtidige synk-kørsler analyserer samme ventende mail (dobbelt kunde/AI) (S3) | BLOCKED_APPROVAL [MIGRATION] — samme lease som CR-7 (krav på processed_at ville miste genforsøg ved fejl midt i analysen) |
 | LC-5 | Linker kobler kontakt-mail til tilfældig kunde (limit 1, ingen aktiv/unik) (S3) | DONE (kode) — kunde-/kontaktmatch kun ved præcis én aktiv kunde |

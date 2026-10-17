@@ -518,6 +518,8 @@ export interface FindOrCreateInput {
   phone: string | null
   address: string | null
   fallbackEmail?: string | null
+  /** LC-2: kun match — opret aldrig (mailen er allerede koblet til en kunde) */
+  matchOnly?: boolean
 }
 
 export interface FindOrCreateResult {
@@ -607,6 +609,10 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
     console.log('SKIP: NO VALID CUSTOMER DATA', { name: !!data.name, phone: !!data.phone, address: !!data.address })
     return { customerId: null, created: false }
   }
+
+  // LC-2 (review 2026-10-17): mailen er allerede koblet (fx videresendt mail koblet til den oprindelige afsender) —
+  // ingen ny kunde (blev forældreløs: koblingen ændres ikke, men kunden blev oprettet og brugte døgnloftet)
+  if (data.matchOnly) return { customerId: null, created: false }
 
   // Mail-review 2026-10-09 (#4): loft over auto-oprettede kunder pr. døgn — en afsender kan ellers sende mange mails
   // med hver sit telefonnummer og fylde kundelisten. Mails over loftet forbliver ukoblede til manuel behandling.
@@ -863,9 +869,13 @@ async function processEmailIntelligenceUnsafe(
     console.log('FALLBACK EMAIL SUPPRESSED:', { reason: type === 'supplier' ? 'supplier' : 'forwarded' })
   }
 
+  // LC-2: allerede koblet → kun match (aldrig en ny, forældreløs kunde)
+  const { data: linkedRow } = await supabase.from('incoming_emails').select('customer_id').eq('id', emailId).maybeSingle()
+  const alreadyLinked = !!(linkedRow as { customer_id?: string | null } | null)?.customer_id
   const { customerId, created } = await findOrCreateCustomer({
     ...extracted,
     fallbackEmail,
+    matchOnly: alreadyLinked,
   })
 
   let action: 'created' | 'matched' | 'skipped' = 'skipped'

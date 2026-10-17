@@ -2195,6 +2195,31 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'find-or-create-matchonly-check') {
+    // LC-2 (review 2026-10-17): allerede koblet mail → findOrCreateCustomer({ matchOnly }) opretter aldrig en kunde,
+    // men finder stadig en eksisterende. Staging, ingen mail.
+    const { findOrCreateCustomer } = await import('../../src/lib/services/email-intelligence')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const phone = `9${String(stamp).slice(-7)}`
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    let custId: string | null = null
+    try {
+      const r1 = await findOrCreateCustomer({ name: `[HARNESS] LC2 ${stamp}`, phone, address: 'Testvej 1, 8000 Aarhus', fallbackEmail: null, matchOnly: true })
+      const { count: made } = await admin.from('customers').select('id', { count: 'exact', head: true }).eq('phone', phone)
+      check('matchOnly: ingen ny kunde for ukendt telefon', r1.customerId === null && !r1.created && (made ?? 0) === 0, JSON.stringify(r1))
+      const ins = await admin.from('customers').insert({ customer_number: `LC2-${stamp}`, company_name: `[HARNESS] LC2 eksisterende ${stamp}`, contact_person: 'X', email: `lc2-${stamp}@harness.test`, phone, created_by: owner }).select('id').single()
+      custId = (ins.data as { id: string } | null)?.id ?? null
+      const r2 = await findOrCreateCustomer({ name: null, phone, address: null, fallbackEmail: null, matchOnly: true })
+      check('matchOnly: eksisterende kunde findes stadig (telefon)', !!custId && r2.customerId === custId && !r2.created, JSON.stringify(r2))
+    } finally {
+      if (custId) await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ matchOnly ok')
+    process.exitCode = fails ? 2 : 0
+    return
+  }
   if (SUB === 'offer-reminder-plan-check') {
     // O-1 (review 2026-10-16): tilbudsrykker-plan/dry-run — intet sendes, intet tilbud ændres
     const { runOfferReminderPlanCheck, formatOfferReminderPlanCheck } = await import('./offer-reminder-plan-check')
