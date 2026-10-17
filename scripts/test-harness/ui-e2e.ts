@@ -3564,6 +3564,23 @@ ${m.text()}`) })
           if (woStatus !== 'done') await new Promise((res) => setTimeout(res, 1000))
         }
         r.afsluttet = woStatus === 'done' && afslutBekraeftet
+        // FW-4 (2026-10-17): montøren kan ikke genåbne; kontoret kan (↺ Genåbn → igangværende)
+        if (woStatus === 'done') {
+          await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await m.page.waitForTimeout(1000)
+          r.montoer_kan_ikke_genaabne = (await m.page.getByRole('button', { name: '↺ Genåbn' }).count()) === 0
+          await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const reopenBtn = a.page.getByRole('button', { name: '↺ Genåbn' }).first()
+          await reopenBtn.waitFor({ timeout: 30_000 }).catch(() => {})
+          await reopenBtn.click({ timeout: 30_000 }).catch(() => {})
+          let st = ''
+          for (let i = 0; i < 15 && st !== 'in_progress'; i++) {
+            st = String(((await c.admin.from('work_orders').select('status').eq('id', woId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+            if (st !== 'in_progress') await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.kontor_genaabner = st === 'in_progress'
+          if (st === 'in_progress') await c.admin.from('work_orders').update({ status: 'done' }).eq('id', woId) // tilbage som afsluttet for de næste trin
+        }
         if (!r.afsluttet) {
           await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-afslut.png'), fullPage: true }).catch(() => {})
           const errTxt = await m.page.locator('.text-red-700, .text-red-600, .bg-red-50').allInnerTexts().catch(() => [] as string[])

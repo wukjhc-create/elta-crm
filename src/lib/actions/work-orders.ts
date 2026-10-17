@@ -61,7 +61,8 @@ export interface CreateWorkOrderForCaseInput {
 const ALLOWED_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   planned:     ['in_progress', 'done', 'cancelled'],
   in_progress: ['done', 'cancelled'],
-  done:        [],
+  // FW-4 (montør-review 2026-10-17): et fejlagtigt "Afslut" kan genåbnes — kun af kontoret (work_orders.edit), med audit
+  done:        ['in_progress'],
   cancelled:   [],
 }
 
@@ -71,14 +72,14 @@ function montorStartJobEnabled(): boolean {
 }
 
 /** Hvilke status-handlinger den aktuelle bruger har på arbejdsordrer (UI viser kun brugbare knapper). */
-export async function getWorkOrderCapabilitiesAction(): Promise<{ canStart: boolean; canComplete: boolean; canCancel: boolean; canDelete: boolean }> {
+export async function getWorkOrderCapabilitiesAction(): Promise<{ canStart: boolean; canComplete: boolean; canCancel: boolean; canDelete: boolean; canReopen: boolean }> {
   try {
     const { hasPermission } = await getAuthenticatedClientWithRole()
     const canEdit = hasPermission('work_orders.edit')
     const canComplete = hasPermission('work_orders.complete')
-    return { canStart: canEdit || (canComplete && montorStartJobEnabled()), canComplete, canCancel: canEdit, canDelete: hasPermission('work_orders.delete') }
+    return { canStart: canEdit || (canComplete && montorStartJobEnabled()), canComplete, canCancel: canEdit, canDelete: hasPermission('work_orders.delete'), canReopen: canEdit }
   } catch {
-    return { canStart: false, canComplete: false, canCancel: false, canDelete: false }
+    return { canStart: false, canComplete: false, canCancel: false, canDelete: false, canReopen: false }
   }
 }
 
@@ -434,6 +435,11 @@ export async function changeWorkOrderStatus(
         error: `Status kan ikke gå fra ${cur.status} til ${next}`,
       }
     }
+    // FW-4: genåbning af en afsluttet arbejdsordre kun for kontoret (også når montøren må starte egne job, N11)
+    const reopening = cur.status === 'done' && next === 'in_progress'
+    if (reopening && !hasPermission('work_orders.edit')) {
+      return { success: false, error: 'Kun kontoret kan genåbne en afsluttet arbejdsordre' }
+    }
 
     // Block done if a timer is still open
     if (next === 'done') {
@@ -452,6 +458,7 @@ export async function changeWorkOrderStatus(
 
     const patch: Record<string, unknown> = { status: next }
     if (next === 'done') patch.completed_at = new Date().toISOString()
+    if (reopening) patch.completed_at = null
 
     const { data, error } = await supabase
       .from('work_orders')
@@ -468,6 +475,12 @@ export async function changeWorkOrderStatus(
     if (error || !data) {
       logger.error('changeWorkOrderStatus failed', { error })
       return { success: false, error: 'Kunne ikke ændre status' }
+    }
+    if (reopening) {
+      try {
+        const { logStatusChange } = await import('@/lib/audit/audit-log-writer')
+        await logStatusChange('service_case', (cur.case_id as string) ?? workOrderId, 'Arbejdsordre genåbnet', 'done', 'in_progress')
+      } catch { /* audit er best-effort */ }
     }
 
     if (data.case_id) {

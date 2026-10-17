@@ -217,7 +217,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | FW-1 | Montør modtog tilbudt/revideret beløb på sager (S2) | DONE (kode) — fjernes server-side uden invoices.view.own_cases (liste, detalje, kundens sager) + skjult i UI; U11 |
 | FW-2 | Aflevering kunne ændres/fotos slettes efter lukning; ingen spor (S2) | DONE (kode) — lukket sag afviser toggle/upload/slet; sletning auditeres |
 | FW-3 | Fotopunkter kunne afkrydses uden foto (kun UI-værn) (S3) | DONE (kode) |
-| FW-4 | "Udført" på arbejdsordre kan aldrig fortrydes (S3) | TODO |
+| FW-4 | "Udført" på arbejdsordre kan aldrig fortrydes (S3) | DONE (kode) — kontoret (work_orders.edit) kan genåbne en afsluttet arbejdsordre (↺ Genåbn, audit); montøren kan ikke; U11 |
 | FW-5 | Besigtigelsesbilleder kun som 24-t-links; fejlede uploads skjules (S3) | TODO |
 | FW-6 | Besigtigelse dubleres ved ustabilt net (S3) | TODO |
 | FW-7 | Kundens e-mail i prod-logs (besigtigelse-diagnostik) (S3) | DONE (kode) — ingen kunde-e-mail i logs; debug-grenen med storage-stier til UI fjernet |
@@ -235,7 +235,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | ML-4 | Arkiveret mailvedhæftning kunne sendes som besigtigelsesrapport (S3) | DONE (kode) — 3 veje afviser source_email_id |
 | ML-5 | "Gensend" går til standardmodtager uden PDF (S3) | TODO |
 | ML-6 | Eksportfejl-mail i UTC og uescapet API-tekst (S3) | DONE (kode) |
-| ML-7 | "Tilbud accepteret"-mail kun via SMTP (S3, plausibel) | TODO |
+| ML-7 | "Tilbud accepteret"-mail kun via SMTP (S3, plausibel) | DONE (kode) — Graph via den centrale router som afvisningen; SMTP kun som fallback med resultattjek; U10 |
 | ML-8 | Tilbudsmodtager ≠ indtastet/registreret (S3, plausibel) | TODO |
 | ML-9 | Ingen idempotens på opgavemail/booking/quote (S3) | TODO |
 | ML-10 | Sagsbekræftelse hilser på forkert person (S4) | DONE (kode) — route.toName |

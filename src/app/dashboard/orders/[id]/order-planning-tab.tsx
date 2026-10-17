@@ -44,12 +44,12 @@ const STATUS_COLORS: Record<WorkOrderStatus, string> = {
 }
 
 type WorkOrderCaps = Awaited<ReturnType<typeof getWorkOrderCapabilitiesAction>>
-const NO_CAPS: WorkOrderCaps = { canStart: false, canComplete: false, canCancel: false, canDelete: false }
+const NO_CAPS: WorkOrderCaps = { canStart: false, canComplete: false, canCancel: false, canDelete: false, canReopen: false }
 
 const NEXT_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   planned: ['in_progress', 'done', 'cancelled'],
   in_progress: ['done', 'cancelled'],
-  done: [],
+  done: ['in_progress'], // FW-4: kun kontoret (canReopen)
   cancelled: [],
 }
 
@@ -212,7 +212,7 @@ export function OrderPlanningTab({
   const onChangeStatus = async (woId: string, next: WorkOrderStatus) => {
     // U-8/U-9 (pilot-sweep 2026-10-15): "Annullér" og "Afslut" er endelige — bekræft først
     if (next === 'cancelled' && !window.confirm('Annullér arbejdsordren? Det kan ikke fortrydes.')) return
-    if (next === 'done' && !window.confirm('Afslut arbejdsordren? Den kan ikke genåbnes.')) return
+    if (next === 'done' && !window.confirm('Afslut arbejdsordren? Kun kontoret kan genåbne den.')) return
     setError(null)
     setIsWorking(true)
     const res = await safeAction(changeWorkOrderStatus(woId, next))
@@ -515,8 +515,8 @@ function WorkOrderRow({
   sharedEmployees?: { id: string; name: string }[] | null
 }) {
   // Kun knapper brugeren faktisk kan bruge — afgjort af serveren (rolle + N11-flag), samme regel som changeWorkOrderStatus.
-  const { canStart, canComplete, canCancel, canDelete } = caps
-  const transitions = NEXT_TRANSITIONS[wo.status].filter((t) => (t === 'done' ? canComplete : t === 'in_progress' ? canStart : canCancel))
+  const { canStart, canComplete, canCancel, canDelete, canReopen } = caps
+  const transitions = NEXT_TRANSITIONS[wo.status].filter((t) => (t === 'done' ? canComplete : t === 'in_progress' ? (wo.status === 'done' ? canReopen : canStart) : canCancel))
 
   return (
     <li className="bg-white border rounded-lg p-4">
@@ -581,7 +581,7 @@ function WorkOrderRow({
                   : 'bg-yellow-50 hover:bg-yellow-100 border-yellow-300 text-yellow-800'
               } disabled:opacity-50`}
             >
-              {t === 'in_progress' && '→ Start'}
+              {t === 'in_progress' && (wo.status === 'done' ? '↺ Genåbn' : '→ Start')}
               {t === 'done' && '✓ Afslut'}
               {t === 'cancelled' && '✕ Annullér'}
             </button>

@@ -725,10 +725,8 @@ ${link}`,
       const companyName = (companyRow as { company_name?: string | null } | null)?.company_name || 'Elta Solar'
       const smtpConfig = undefined
 
-      await sendEmail({
-        to: crmMailbox,
-        subject: `Tilbud accepteret: ${offerLabel(offer)}`,
-        html: `
+      const subject = `Tilbud accepteret: ${offerLabel(offer)}`
+      const html = `
           <h2>Tilbud accepteret</h2>
           <p>Kunden har accepteret et tilbud via kundeportalen.</p>
           <table style="border-collapse:collapse;margin:16px 0;">
@@ -740,9 +738,22 @@ ${link}`,
           <p>Se tilbuddet i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/offers/${encodeURIComponent(data.offer_id)}">Åbn tilbuddet</a></p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
           <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af ${companyName} CRM.</p>
-        `,
-        text: `Tilbud accepteret\n\nKunden har accepteret tilbud: ${offer.title}\nUnderskrevet af: ${data.signer_name} (${data.signer_email})\nBeløb: ${offer.final_amount} DKK\nTidspunkt: ${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}\n\nSe tilbuddet i ELTA Drift.`,
-      }, smtpConfig)
+        `
+      const text = `Tilbud accepteret\n\nKunden har accepteret tilbud: ${offer.title}\nUnderskrevet af: ${data.signer_name} (${data.signer_email})\nBeløb: ${offer.final_amount} DKK\nTidspunkt: ${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}\n\nSe tilbuddet i ELTA Drift.`
+      // ML-7 (mail-review 2026-10-17): som afvisningen — Graph via den centrale router når den er sat op (før KUN SMTP,
+      // som prod ikke har → hver accept-besked fejlede stille); resultatet logges
+      if (isGraphConfigured()) {
+        const { resolveInternalNotificationRoute, logMailRoute } = await import('@/lib/actions/mail-route-resolvers')
+        const routeResult = await resolveInternalNotificationRoute({ recipientEmail: crmMailbox, contextLabel: `offer_accepted:${data.offer_id}` })
+        if (routeResult.ok && routeResult.route) {
+          const route = routeResult.route
+          const sendResult = await sendEmailViaGraph({ to: route.toEmail, subject, html, text })
+          await logMailRoute(route, sendResult.success ? 'sent' : 'failed', { offer_id: data.offer_id, error: sendResult.error })
+        }
+      } else {
+        const res = await sendEmail({ to: crmMailbox, subject, html, text }, smtpConfig)
+        if (!res?.success) logger.warn('Acceptance notification (SMTP) not sent', { entityId: data.offer_id, metadata: { error: res?.error } })
+      }
     } catch (emailError) {
       logger.error('Failed to send acceptance confirmation email', { error: emailError })
       // Non-critical — don't fail the acceptance
