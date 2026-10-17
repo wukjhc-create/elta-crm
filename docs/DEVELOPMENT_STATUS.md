@@ -38,6 +38,9 @@
 | a4085953 · 83cbad0b · 195b064f · c8aaf357 · feb7283f | EC-1 (S1: bankmatch poster ikke i e-conomic), EC-3/11/12/13, EC-5 (ikke e2e — kill switch), EC-8 delvis, EC-4 |
 | 8ef56707 · 13853efe · ba147e5f · 84b22fbb | ES-5/8/9/12/13, ES-11 fuldmagt, ES-2/ES-6 revisioner, ES-3 underskriftsbevis (U10) |
 | b292df60 | AU-10 sprunget rykker bruger ikke reglens udførelse |
+| 3ba44c50 · 464914f6 | ES-3 PDF-blok "Accepteret og underskrevet"; migrationsforslag 00248–00250 (bevisintegritet) |
+| 69767864 · 48132a2c · 014b11d0 | FW-1 (montør ser ikke kontraktbeløb), FW-2/3/4/7/11/12/13/14/15; ML-1 (S1: portal-link kun til betalende kunde), ML-2/3/4/6/7/10/11/12 |
+| aa8e02fd · d83399dd · c05883a7 · 774e54be · 2c7a1f2f · d30b7264 | ML-9 (delvis), ML-5, FW-6 (idempotent besigtigelse, U189), FW-5, FW-8 (delvis), ML-8 |
 
 Ikke lavet (tilladelse): DF-1-værnet i create-invoice-from-offer.ts blev afvist af auto-mode-værnet to gange. Patchen står i
 docs/runbooks/auto-invoice-offer-guard-proposal.md. Reglen er dry_run i prod.
