@@ -43,6 +43,9 @@ interface NotificationsContextValue {
   setReminders: (u: Updater<CustomerTaskWithRelations>) => void
   setPriceAlerts: (u: Updater<PriceAlert>) => void
   setSystemAlerts: (u: Updater<SystemAlert>) => void
+  /** CR-8: ægte antal ulæste systemadvarsler (null = ukendt → brug listen) */
+  systemAlertsUnread: number | null
+  setSystemAlertsUnread: (n: number | null) => void
   refresh: () => void
 }
 
@@ -70,6 +73,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [reminders, setRemindersState] = useState<CustomerTaskWithRelations[]>([])
   const [priceAlerts, setPriceAlertsState] = useState<PriceAlert[]>([])
   const [systemAlerts, setSystemAlertsState] = useState<SystemAlert[]>([])
+  const [systemAlertsUnread, setSystemAlertsUnread] = useState<number | null>(null)
 
   // Refs mirror state so the poll can diff against the latest values
   // (including optimistic local mutations) without stale closures.
@@ -118,6 +122,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         systemAlertsRef.current = feed.systemAlerts
         setSystemAlertsState(feed.systemAlerts)
       }
+      if (feed.systemAlertsUnread !== null) setSystemAlertsUnread(feed.systemAlertsUnread)
     } catch {
       // Non-critical — keep last good data.
     }
@@ -132,6 +137,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     setReminders,
     setPriceAlerts,
     setSystemAlerts,
+    systemAlertsUnread,
+    setSystemAlertsUnread,
     refresh: load,
   }
 

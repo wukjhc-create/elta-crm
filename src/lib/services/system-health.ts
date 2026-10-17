@@ -166,6 +166,9 @@ interface ProbeOutcome {
   metadata?: Record<string, unknown>
 }
 
+/** CR-5: fakturaprobens vindue — proben kører én gang i døgnet */
+const INVOICE_PROBE_WINDOW_HOURS = 26
+
 export async function runHealthProbes(): Promise<ProbeOutcome[]> {
   const supabase = createAdminClient()
   const outcomes: ProbeOutcome[] = []
@@ -279,9 +282,11 @@ export async function runHealthProbes(): Promise<ProbeOutcome[]> {
     })
   }
 
-  // ---- 5. Invoice subsystem — count failed invoice flows in last hour
+  // ---- 5. Invoice subsystem — count failed invoice flows since the previous probe run
+  // CR-5 (cron-review 2026-10-17): proben kører dagligt (vercel.json "0 9 * * *"), men kiggede kun 1 time tilbage →
+  // fakturafejl fra resten af døgnet blev aldrig set. 26 t dækker ét døgn + forsinkelse/overlap.
   try {
-    const sinceIso = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const sinceIso = new Date(Date.now() - INVOICE_PROBE_WINDOW_HOURS * 60 * 60 * 1000).toISOString()
     const { count: invErr } = await supabase
       .from('system_health_log')
       .select('id', { count: 'exact', head: true })
@@ -289,11 +294,11 @@ export async function runHealthProbes(): Promise<ProbeOutcome[]> {
       .eq('status', 'error')
       .gte('created_at', sinceIso)
     if ((invErr ?? 0) > ERRORS_THRESHOLD_PER_HOUR) {
-      outcomes.push({ service: 'invoice', status: 'error', message: `${invErr} invoice errors in last hour` })
+      outcomes.push({ service: 'invoice', status: 'error', message: `${invErr} fakturafejl seneste ${INVOICE_PROBE_WINDOW_HOURS} t` })
     } else if ((invErr ?? 0) > 0) {
-      outcomes.push({ service: 'invoice', status: 'warning', message: `${invErr} invoice errors in last hour` })
+      outcomes.push({ service: 'invoice', status: 'warning', message: `${invErr} fakturafejl seneste ${INVOICE_PROBE_WINDOW_HOURS} t` })
     } else {
-      outcomes.push({ service: 'invoice', status: 'ok', message: 'no invoice errors last hour' })
+      outcomes.push({ service: 'invoice', status: 'ok', message: `ingen fakturafejl seneste ${INVOICE_PROBE_WINDOW_HOURS} t` })
     }
   } catch (err) {
     outcomes.push({

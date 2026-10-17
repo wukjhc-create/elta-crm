@@ -411,6 +411,42 @@ export async function markAlertRead(id: string): Promise<ActionResult> {
   }
 }
 
+/**
+ * CR-8 (cron-review 2026-10-17): klokken henter de 20 nyeste — tælleren stoppede ved 20, og "Markér alle som læst"
+ * ramte kun dem. Ægte antal ulæste (HEAD-count) og markér alle i én opdatering. Samme gate som visningen.
+ */
+export async function getUnreadSystemAlertCount(): Promise<number | null> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('economy.cost_prices')) return 0
+    const { count, error } = await ctx.supabase
+      .from('system_alerts')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_read', false)
+      .eq('is_dismissed', false)
+    if (error) return error.code === 'PGRST205' ? 0 : null
+    return count ?? 0
+  } catch {
+    return null
+  }
+}
+
+export async function markAllAlertsRead(): Promise<ActionResult<{ updated: number }>> {
+  try {
+    const { supabase } = await requireGate('economy.cost_prices')
+    const { data, error } = await supabase
+      .from('system_alerts')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('is_read', false)
+      .eq('is_dismissed', false)
+      .select('id')
+    if (error) throw new Error('DATABASE_ERROR')
+    return { success: true, data: { updated: data?.length ?? 0 } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke markere advarsler som læst') }
+  }
+}
+
 export async function dismissAlert(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'advarsel ID')

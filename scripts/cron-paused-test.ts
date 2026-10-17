@@ -21,6 +21,15 @@ ok(bodyStatus('{"success":false}') === 'error', 'success:false → error')
 ok(bodyStatus('{"success":true,"errors":["x"]}') === 'warning', 'errors[] → warning')
 ok(bodyStatus('{"success":true,"errors":[]}') === 'ok', 'tom errors → ok')
 ok(bodyStatus('ikke json') === 'ok', 'ikke-JSON → ok')
+// CR-6 (cron-review 2026-10-17): indlejrede fejl
+ok(bodyStatus('{"ok":true,"summary":{"scanned":4,"errors":3}}') === 'warning', 'summary.errors (tal) → warning')
+ok(bodyStatus('{"ok":true,"summary":{"scanned":4,"errors":0}}') === 'ok', 'summary.errors 0 → ok')
+ok(bodyStatus('{"success":true,"summary":{"checked":5,"sent":2,"failed":1}}') === 'warning', 'nogle afsendelser fejlet → warning')
+ok(bodyStatus('{"success":true,"summary":{"checked":5,"sent":0,"failed":5}}') === 'error', 'alle afsendelser fejlet → error')
+ok(bodyStatus('{"ok":true,"results":[{"mailbox":"a","errors":[]},{"mailbox":"b","errors":["x"]}]}') === 'warning', 'results[].errors → warning')
+ok(bodyStatus('{"ok":true,"results":[{"success":false}]}') === 'warning', 'delkørsel success:false → warning')
+ok(bodyStatus('{"success":true,"summary":{"checked":0,"sent":0,"failed":0}}') === 'ok', 'intet at gøre → ok')
+ok(bodyStatus('[1,2]') === 'ok', 'array-body → ok')
 
 // Cron-review 2026-10-09 (#6): pauset cron uden CRON_SECRET → 401 (ingen log-række, handleren kører ikke)
 async function pauseAuth() {

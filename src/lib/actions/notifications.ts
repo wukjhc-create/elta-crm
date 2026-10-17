@@ -21,7 +21,7 @@ import {
   getUnreadPriceAlerts,
   type PriceAlert,
 } from '@/lib/actions/customer-tasks'
-import { getSystemAlerts } from '@/lib/actions/calculation-intelligence'
+import { getSystemAlerts, getUnreadSystemAlertCount } from '@/lib/actions/calculation-intelligence'
 import type { CustomerTaskWithRelations } from '@/types/customer-tasks.types'
 import type { SystemAlert } from '@/types/calculation-intelligence.types'
 
@@ -36,14 +36,17 @@ export interface NotificationFeed {
   reminders: CustomerTaskWithRelations[] | null
   priceAlerts: PriceAlert[] | null
   systemAlerts: SystemAlert[] | null
+  /** CR-8: ægte antal ulæste systemadvarsler (listen er begrænset til 20); null = ukendt */
+  systemAlertsUnread: number | null
 }
 
 export async function getNotificationFeed(): Promise<NotificationFeed> {
   // allSettled: one failing source must not reject the whole feed.
-  const [remindersRes, priceAlertsRes, systemAlertsRes] = await Promise.allSettled([
+  const [remindersRes, priceAlertsRes, systemAlertsRes, unreadRes] = await Promise.allSettled([
     getMyPendingReminders(),
     getUnreadPriceAlerts(),
     getSystemAlerts({ limit: 20 }),
+    getUnreadSystemAlertCount(),
   ])
 
   return {
@@ -60,5 +63,6 @@ export async function getNotificationFeed(): Promise<NotificationFeed> {
       systemAlertsRes.value.data
         ? systemAlertsRes.value.data
         : null,
+    systemAlertsUnread: unreadRes.status === 'fulfilled' ? unreadRes.value : null,
   }
 }

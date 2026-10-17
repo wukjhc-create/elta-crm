@@ -17,7 +17,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { BRAND_COMPANY_NAME, BRAND_GREEN } from '@/lib/brand'
 import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
-import { ALERT_RECIPIENT_ROLES, CRITICAL_ALERT_COOLDOWN_MIN, criticalAlertSubject, isCriticalHealthEvent } from '@/lib/alerts/alert-policy'
+import { ALERT_RECIPIENT_ROLES, CRITICAL_ALERT_COOLDOWN_MIN, CRITICAL_SERVICES, criticalAlertSubject, isCriticalHealthEvent } from '@/lib/alerts/alert-policy'
 import type { HealthService } from '@/types/system-health.types'
 
 export type AlertSeverity = 'warning' | 'error'
@@ -168,27 +168,32 @@ export async function scanAndAlert(): Promise<ScanReport> {
   // (09:00 UTC) — med 1-times vindue blev natlige fejl (supplier-sync, bank-match, rykkere …) aldrig mailet.
   try {
     const sinceHour = new Date(Date.now() - SCAN_WINDOW_MS).toISOString()
+    // CR-3 (cron-review 2026-10-17): kun KRITISKE services hentes (før de 20 nyeste fejl af alle slags → "20+ kritiske"
+    // selv om de fleste var health_check-rækker), og services der allerede har fået straks-alarmen i vinduet
+    // springes over — én postkassefejl gav ellers straks-mail + "system-fejl"-mail + "email sync"-mail samme dag.
     const { data: errs } = await supabase
       .from('system_health_log')
       .select('service, message, created_at')
       .eq('status', 'error')
+      .in('service', [...CRITICAL_SERVICES])
       .gte('created_at', sinceHour)
       .order('created_at', { ascending: false })
-      .limit(20)
-    if (errs && errs.length > 0) {
-      // Kun kritiske services mailes (backstop for fejl der faldt i straks-alarmens cooldown); resten → Pilot Health
-      const critical = errs.filter((r) => isCriticalHealthEvent(r.service as HealthService, 'error'))
-      if (critical.length === 0) throw new SkipScan()
-      const sample = critical.slice(0, 5).map((r) => `[${r.service}] ${r.message ?? '(no message)'}`).join('\n')
+      .limit(SCAN_ROW_CAP)
+    const alerted = await servicesAlertedSince(sinceHour)
+    const critical = ((errs ?? []) as Array<{ service: string; message: string | null }>)
+      .filter((r) => isCriticalHealthEvent(r.service as HealthService, 'error') && !alerted.has(r.service))
+    if (critical.length > 0) {
+      const sample = critical.slice(0, 5).map((r) => `[${r.service}] ${r.message ?? '(ingen besked)'}`).join('\n')
+      const n = `${critical.length}${(errs?.length ?? 0) >= SCAN_ROW_CAP ? '+' : ''}`
       await dispatch(
         `system_errors`,
         'error',
-        `[ELTA Drift] ${errs.length >= 20 ? '20+' : critical.length} kritiske system-fejl det seneste døgn`,
-        `${critical.length} kritiske fejl-rækker registreret i system_health_log.\n\nSeneste:\n${sample}`,
+        `[ELTA Drift] ${n} kritiske system-fejl det seneste døgn`,
+        `${n} kritiske fejl-rækker registreret i system_health_log (services uden straks-alarm i perioden).\n\nSeneste:\n${sample}`,
       )
     }
   } catch (err) {
-    if (!(err instanceof SkipScan)) logger.warn('scanAndAlert: system errors probe failed', { error: err })
+    logger.warn('scanAndAlert: system errors probe failed', { error: err })
   }
 
   // 2. e-conomic not configured (warning).
@@ -218,7 +223,8 @@ export async function scanAndAlert(): Promise<ScanReport> {
       .from('graph_sync_state')
       .select('mailbox, last_sync_status, last_sync_error, last_sync_at')
       .eq('last_sync_status', 'failed')
-    if (failed && failed.length > 0) {
+    // CR-3: straks-alarmen for mail er allerede sendt i døgnet → ingen ekstra mail om det samme
+    if (failed && failed.length > 0 && !(await servicesAlertedSince(new Date(Date.now() - SCAN_WINDOW_MS).toISOString())).has('email')) {
       const lines = failed.map((m) => `${m.mailbox}: ${m.last_sync_error ?? 'failed'}`).join('\n')
       await dispatch(
         'email_sync_failed',
@@ -257,7 +263,28 @@ export async function scanAndAlert(): Promise<ScanReport> {
 // internals
 // =====================================================
 
-class SkipScan extends Error {}
+const SCAN_ROW_CAP = 500
+
+/** CR-3: services hvis straks-alarm (critical:<service>) faktisk blev sendt siden `sinceIso` */
+async function servicesAlertedSince(sinceIso: string): Promise<Set<string>> {
+  try {
+    const { data } = await createAdminClient()
+      .from('system_health_log')
+      .select('message')
+      .eq('service', 'health_check')
+      .like('message', 'admin_alert:critical:% sent')
+      .gte('created_at', sinceIso)
+      .limit(200)
+    const out = new Set<string>()
+    for (const r of (data ?? []) as Array<{ message: string | null }>) {
+      const m = /^admin_alert:critical:([a-z_]+) sent$/.exec(r.message ?? '')
+      if (m) out.add(m[1])
+    }
+    return out
+  } catch {
+    return new Set()
+  }
+}
 
 /**
  * Kritisk fejl logget via logHealth → straks-mail til admin + serviceleder (højst én pr. service pr. time) og en
@@ -300,17 +327,44 @@ export async function resolveAlertRecipients(): Promise<string[]> {
   return Array.from(new Set(emails.filter((e) => e.includes('@'))))
 }
 
-/** Notifikationsklokken: højst én åben (ikke afvist) række pr. alarmnøgle — ingen spam */
+/**
+ * Notifikationsklokken: højst én åben (ikke afvist) række pr. alarmnøgle — ingen spam.
+ * CR-4 (cron-review 2026-10-17): en åben (evt. læst) række skjulte senere fejl med samme nøgle (fx critical:cron for
+ * en ANDEN cron). Ny forekomst opdaterer rækken: seneste besked, ulæst igen, antal + første/seneste tidspunkt.
+ */
 async function raiseBellAlert(input: AdminAlertInput, severity: 'warning' | 'critical'): Promise<void> {
   try {
     const supabase = createAdminClient()
     const alertType = `admin_alert:${input.key}`
-    const { count } = await supabase
+    const { data: open } = await supabase
       .from('system_alerts')
-      .select('id', { count: 'exact', head: true })
+      .select('id, details, created_at')
       .eq('alert_type', alertType)
       .eq('is_dismissed', false)
-    if ((count ?? 0) > 0) return
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (open) {
+      const prev = ((open as { details?: Record<string, unknown> | null }).details ?? {}) as Record<string, unknown>
+      const now = new Date().toISOString()
+      await supabase.from('system_alerts').update({
+        severity,
+        title: input.subject.replace(/^\[ELTA Drift\]\s*/, ''),
+        message: input.body.slice(0, 1000),
+        is_read: false,
+        read_at: null,
+        created_at: now, // øverst i klokken (listen er de 20 nyeste)
+        details: {
+          ...prev,
+          key: input.key,
+          ...(input.metadata ?? {}),
+          occurrences: (typeof prev.occurrences === 'number' ? prev.occurrences : 1) + 1,
+          first_seen: typeof prev.first_seen === 'string' ? prev.first_seen : (open as { created_at: string }).created_at,
+          last_seen: now,
+        },
+      }).eq('id', (open as { id: string }).id)
+      return
+    }
     await supabase.from('system_alerts').insert({
       alert_type: alertType,
       severity,
@@ -332,7 +386,8 @@ async function markAttempted(
       'health_check',
       input.severity === 'error' ? 'error' : 'warning',
       `admin_alert:${input.key} ${outcome}`,
-      { ...input.metadata, recipients },
+      // CR-11 (cron-review 2026-10-17): ingen modtager-adresser i helbredsloggen (persondata) — kun antal
+      { ...input.metadata, ...(recipients ? { recipient_count: recipients.length } : {}) },
     )
   } catch { /* never crash */ }
 }

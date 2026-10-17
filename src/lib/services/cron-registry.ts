@@ -32,7 +32,10 @@ export const CRON_REGISTRY: CronInfo[] = [
   { name: 'offer-reminders', schedule: '0 8 * * *', purpose: 'Rykker-mail til kunder på ubesvarede tilbud', external: 'customer_mail', gate: 'company_settings.reminder_enabled (TIL i prod; 0 sendt seneste 30 dage)' },
   { name: 'invoice-reminders', schedule: '0 7 * * *', purpose: 'Betalingsrykker-mail til kunder', external: 'customer_mail', gate: null,
     knownIssue: 'Ingen on/off-kontakt. Virker ikke i prod: mail-routeren bruger anon-klient → "Faktura ikke fundet" dagligt siden 2026-07-10 (0 sendt). Rettes den, sendes straks rykker på en 83 dage forfalden faktura.' },
-  { name: 'bank-match', schedule: '30 6 * * *', purpose: 'Match bankposteringer til fakturaer', external: 'none', gate: null },
+  // CR-12 (cron-review 2026-10-17): sikre match kalder registerPayment → fuldt betalt poster betalingen i e-conomic,
+  // når ECONOMIC_PUSH_ENABLED=true (før stod der "ingen ekstern effekt")
+  { name: 'bank-match', schedule: '30 6 * * *', purpose: 'Match bankposteringer til fakturaer; sikre match registrerer betalingen (fuldt betalt → e-conomic, når ECONOMIC_PUSH_ENABLED=true)', external: 'none', gate: 'ECONOMIC_PUSH_ENABLED styrer e-conomic-delen; CRON_PAUSED=bank-match stopper kørslen',
+    knownIssue: 'Ekstern effekt: e-conomic-betaling (accounting) — typen CronExternalEffect har ingen værdi for bogføring endnu.' },
   { name: 'payment-report', schedule: '30 7 * * *', purpose: 'Intern betalingsrapport-mail', external: 'internal_mail', gate: 'payment_report_config.enabled' },
   { name: 'export-error-notification', schedule: '15 8 * * *', purpose: 'Intern mail om fejlede e-conomic-eksporter', external: 'internal_mail', gate: 'export_error_notification_config.enabled' },
   { name: 'system-health-check', schedule: '0 9 * * *', purpose: 'Sundhedstjek + admin-alarm', external: 'internal_mail', gate: 'cooldown' },

@@ -54,6 +54,12 @@ async function handleCron(request: Request): Promise<Response> {
     errors: [] as string[],
   }
 
+  // CR-10 (cron-review 2026-10-17): en afvist advarsel genopstod næste nat (dubletsikringen så kun på ikke-afviste).
+  // Afvist inden for DISMISS_SUPPRESS_DAYS tæller også som "findes" — samme type/titel/emne oprettes ikke igen.
+  const DISMISS_SUPPRESS_DAYS = 30
+  const dismissedSince = new Date(Date.now() - DISMISS_SUPPRESS_DAYS * 86_400_000).toISOString()
+  const openOrRecentlyDismissed = `is_dismissed.eq.false,dismissed_at.gte."${dismissedSince}"`
+
   async function insertAlert(alert: Record<string, unknown>) {
     // 00194: kørsel hver nat — en åben (ikke afvist) advarsel med samme type/emne/titel oprettes ikke igen
     // (før: kun margin_below var dubletsikret; prisændring/sync/leverandør ville fylde klokken med kopier hver dag)
@@ -62,7 +68,7 @@ async function handleCron(request: Request): Promise<Response> {
       .select('id', { count: 'exact', head: true })
       .eq('alert_type', String(alert.alert_type))
       .eq('title', String(alert.title))
-      .eq('is_dismissed', false)
+      .or(openOrRecentlyDismissed)
     dup = alert.entity_id ? dup.eq('entity_id', String(alert.entity_id)) : dup.is('entity_id', null)
     const { count: existing, error: dupErr } = await dup
     if (!dupErr && (existing ?? 0) > 0) {
@@ -214,7 +220,7 @@ async function handleCron(request: Request): Promise<Response> {
           .select('entity_id')
           .eq('entity_type', 'offer')
           .eq('alert_type', 'margin_below')
-          .eq('is_dismissed', false)
+          .or(openOrRecentlyDismissed) // CR-10
           .in('entity_id', offerIds.slice(k, k + 200))
         for (const a of existingMarginAlerts || []) offersWithMarginAlerts.add(a.entity_id)
       }

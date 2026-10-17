@@ -81,11 +81,38 @@ export function bodyStatus(body: string): 'ok' | 'warning' | 'error' {
   } catch {
     return 'ok'
   }
-  if (!parsed || typeof parsed !== 'object') return 'ok'
-  const b = parsed as { status?: unknown; success?: unknown; errors?: unknown }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return 'ok'
+  const b = parsed as { status?: unknown; success?: unknown }
   if (b.status === 'failed' || b.success === false) return 'error'
-  if (Array.isArray(b.errors) && b.errors.length > 0) return 'warning'
-  return 'ok'
+  return scanNested(parsed as Record<string, unknown>, 0)
+}
+
+const RANK = { ok: 0, warning: 1, error: 2 } as const
+const worst = (a: 'ok' | 'warning' | 'error', b: 'ok' | 'warning' | 'error') => (RANK[b] > RANK[a] ? b : a)
+const positive = (v: unknown) => typeof v === 'number' && v > 0
+
+/**
+ * CR-6 (cron-review 2026-10-17): fejl lå indlejret (`summary.errors: 3`, `summary.failed`, `results[].errors[]`) og
+ * blev logget 'ok'; "alle afsendelser fejlede" var kun en warning. Gennemgår objekter/arrays til dybde 3:
+ * fejl-tal/-lister → warning; `failed > 0` med `sent === 0` på samme niveau → error; indlejret success:false/
+ * status 'failed' (én delkørsel) → warning.
+ */
+function scanNested(o: Record<string, unknown>, depth: number): 'ok' | 'warning' | 'error' {
+  let s: 'ok' | 'warning' | 'error' = 'ok'
+  if (depth > 0 && (o.status === 'failed' || o.success === false)) s = 'warning'
+  const errs = o.errors
+  if ((Array.isArray(errs) && errs.length > 0) || positive(errs)) s = worst(s, 'warning')
+  if (positive(o.failed)) s = worst(s, o.sent === 0 ? 'error' : 'warning')
+  if (depth >= 3) return s
+  for (const [k, v] of Object.entries(o)) {
+    if (k === 'errors' || !v || typeof v !== 'object') continue
+    const items = Array.isArray(v) ? v.slice(0, 50) : [v]
+    for (const it of items) {
+      if (it && typeof it === 'object' && !Array.isArray(it)) s = worst(s, scanNested(it as Record<string, unknown>, depth + 1))
+      if (s === 'error') return s
+    }
+  }
+  return s
 }
 
 function hasCronSecret(request: Request): boolean {

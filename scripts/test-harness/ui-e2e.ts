@@ -79,6 +79,7 @@
  *   U47 salg: PDF for eget tilbud downloades (før: 500, firmaindstillinger krævede settings.view)
  *   U48 lukke-værn: "Markér afsluttet" på sag med ufaktureret materiale → advarsel med beløb; fortryd = forbliver åben;
  *       bekræft = lukket + audit "lukket trods"
+ *   U183 lukke-værn fastpris: sag med billing_model=fixed_price og ufaktureret kontraktsum → advarsel; fortryd = åben
  *   U49 dashboard-API: forfaldne = forfald før i dag (dansk), uden kreditnotaer og annullerede (som fakturalisten)
  *   U50 kundeportal: tilbudsdetalje + oversigt indeholder IKKE linjernes kostpris/leverandørkost/interne noter i sidens data
  *       (før: select('*') sendte dem til kundens browser)
@@ -184,9 +185,9 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182'],
-  montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -2623,6 +2624,26 @@ ${m.text()}`) })
         }
         r.audit_noterer = aud.some((x) => (x.action_description ?? '').includes('lukket trods'))
         out.push({ id: 'U48 lukke-værn (ufaktureret)', ok: !!u48CaseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · dialog="${dialogText.slice(0, 90)}"` })
+      }
+
+      // U183 DF-6 (dataflow-review 2026-10-17): fastprissag med ufaktureret kontraktsum lukkes ikke stille
+      if (want('U183') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U183 fastpris ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, billing_model: 'fixed_price', contract_sum: 10000 }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        let dialogText = ''
+        try {
+          a.page.once('dialog', (d) => { dialogText = d.message(); d.dismiss().catch(() => {}) })
+          await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=handlinger`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: 'Markér afsluttet' }).click({ timeout: 60_000 }).catch(() => {})
+          for (let i = 0; i < 10 && !dialogText; i++) await a.page.waitForTimeout(1000)
+          r.advaret = /Fastpris: 10\.000,00 kr\. ekskl\. moms af kontraktsummen er ikke faktureret/.test(dialogText)
+          r.forbliver_aaben = String(((await c.admin.from('service_cases').select('status').eq('id', caseId ?? '').maybeSingle()).data as { status?: string } | null)?.status ?? '') === 'in_progress'
+        } finally {
+          if (caseId) await c.admin.from('service_cases').delete().eq('id', caseId)
+        }
+        out.push({ id: 'U183 lukke-værn fastpris (rest af kontraktsum)', ok: !!caseId && Object.values(r).every(Boolean), note: `${sc.error?.message ?? ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · dialog="${dialogText.slice(0, 110)}"` })
       }
 
       // U49 dashboard: forfaldne fakturaer = samme regel som fakturalisten (dansk dato, ingen kreditnota/annulleret)
@@ -5727,6 +5748,39 @@ ${m.text()}`) })
           if (alertId) await c.admin.from('system_alerts').delete().eq('id', alertId)
         }
         out.push({ id: 'U138 klokken viser portal-hændelse; afvis virker; montør ser den ikke', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U184 CR-8 (cron-review 2026-10-17): klokkens tæller er det ægte antal ulæste (ikke højst 20), og "Markér alle som
+      // læst" rammer også advarsler uden for de 20 viste
+      if (want('U184')) {
+        const r: Record<string, boolean> = {}
+        const rows = Array.from({ length: 23 }, (_, i) => ({ alert_type: 'harness_u184', severity: 'info', title: `U184 ${stamp} #${i}`, message: 'Harness', entity_type: null as string | null }))
+        const ins = await c.admin.from('system_alerts').insert(rows).select('id')
+        const ids = ((ins.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        r.seed = ids.length === 23
+        try {
+          await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const bell = a.page.locator('button[aria-label^="Notifikationer"]').first()
+          let label = ''
+          for (let i = 0; i < 20; i++) {
+            label = (await bell.getAttribute('aria-label', { timeout: 30_000 }).catch(() => '')) ?? ''
+            const n = Number(/\((\d+) ulæste\)/.exec(label)?.[1] ?? 0)
+            if (n >= 23) break
+            await a.page.waitForTimeout(1500)
+          }
+          r.taeller_over_20 = Number(/\((\d+) ulæste\)/.exec(label)?.[1] ?? 0) >= 23
+          await bell.click({ timeout: 60_000 })
+          await a.page.getByRole('button', { name: 'Markér alle som læst' }).click({ timeout: 60_000 }).catch(() => {})
+          let left = -1
+          for (let i = 0; i < 20 && left !== 0; i++) {
+            left = ((await c.admin.from('system_alerts').select('id').in('id', ids).eq('is_read', false)).data ?? []).length
+            if (left !== 0) await a.page.waitForTimeout(500)
+          }
+          r.alle_markeret_laest = left === 0
+        } finally {
+          if (ids.length) await c.admin.from('system_alerts').delete().in('id', ids)
+        }
+        out.push({ id: 'U184 klokke: ægte antal ulæste + markér alle (>20)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { Bell, Check, X, AlertTriangle, Info, AlertCircle, FileSignature, ClipboardCheck, Mail } from 'lucide-react'
-import { markAlertRead, dismissAlert } from '@/lib/actions/calculation-intelligence'
+import { markAlertRead, dismissAlert, markAllAlertsRead } from '@/lib/actions/calculation-intelligence'
 import { useNotifications } from './notifications-provider'
 import type { SystemAlert, AlertSeverity, AlertType } from '@/types/calculation-intelligence.types'
 import { formatTimeAgo } from '@/lib/utils/format'
@@ -28,11 +28,13 @@ export function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false)
   // System alerts come from the shared NotificationsProvider (single 60 s
   // poll for the whole dashboard) — no per-component fetch loop here.
-  const { systemAlerts: alerts, setSystemAlerts: setAlerts } = useNotifications()
+  const { systemAlerts: alerts, setSystemAlerts: setAlerts, systemAlertsUnread, setSystemAlertsUnread, refresh } = useNotifications()
   const [isLoading, setIsLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const unreadCount = alerts.filter((a) => !a.is_read).length
+  // CR-8: listen viser de 20 nyeste — tælleren bruger det ægte antal ulæste
+  const listUnread = alerts.filter((a) => !a.is_read).length
+  const unreadCount = Math.max(listUnread, systemAlertsUnread ?? 0)
 
   // Close on outside click
   useEffect(() => {
@@ -61,22 +63,30 @@ export function NotificationDropdown() {
   const handleMarkRead = async (id: string) => {
     const result = await markAlertRead(id)
     if (result.success) {
+      const wasUnread = alerts.some((a) => a.id === id && !a.is_read)
       setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_read: true, read_at: new Date().toISOString() } : a)))
+      if (wasUnread && systemAlertsUnread != null) setSystemAlertsUnread(Math.max(0, systemAlertsUnread - 1))
     }
   }
 
   const handleDismiss = async (id: string) => {
     const result = await dismissAlert(id)
     if (result.success) {
+      const wasUnread = alerts.some((a) => a.id === id && !a.is_read)
       setAlerts((prev) => prev.filter((a) => a.id !== id))
+      if (wasUnread && systemAlertsUnread != null) setSystemAlertsUnread(Math.max(0, systemAlertsUnread - 1))
+      refresh() // næste advarsel ud over de 20 rykker op i listen
     }
   }
 
   const handleMarkAllRead = async () => {
     setIsLoading(true)
-    const unread = alerts.filter((a) => !a.is_read)
-    await Promise.allSettled(unread.map((a) => markAlertRead(a.id)))
-    setAlerts((prev) => prev.map((a) => ({ ...a, is_read: true, read_at: new Date().toISOString() })))
+    // CR-8: alle ulæste (ikke kun de 20 viste) i én opdatering
+    const res = await markAllAlertsRead()
+    if (res.success) {
+      setAlerts((prev) => prev.map((a) => ({ ...a, is_read: true, read_at: new Date().toISOString() })))
+      setSystemAlertsUnread(0)
+    }
     setIsLoading(false)
   }
 

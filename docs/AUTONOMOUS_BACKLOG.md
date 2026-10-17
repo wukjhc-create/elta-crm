@@ -45,6 +45,38 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-28 (dataflow-review 2026-10-17 — tilbud → sag → faktura)
+| # | Fund | Status |
+|---|---|---|
+| DF-1 | Regel "Auto-faktura ved tilbud accepteret" (create_invoice_from_offer) fakturerer tilbuddet uden case_id, selv om portal-accept netop har oprettet sagen → sagen kan fakturere igen (S1) | BLOCKED_APPROVAL — prod read-only (scripts/prod-auto-invoice-rule.ts): reglen er aktiv men `dry_run=true`, 2 dry-run-kørsler (seneste 2026-06-23), 0 fakturaer uden sag fra tilbud → ingen eksponering i dag. Forslag: aktionen springer over når `service_cases.source_offer_id = offer` findes (også i dry-run). Kodeændring i live-faktureringsautomatik afvist af værn → kræver Henriks godkendelse (docs/runbooks/auto-invoice-offer-guard-proposal.md). Slå IKKE dry_run fra før det er afgjort |
+| DF-2 | Kundeskift på tilbudskladde opdaterer ikke vat_mode | DONE (kode) — ny kundes vat_mode sættes ved kundeskift |
+| DF-3 | Arbejdsadresse kopieres ikke fra tilbud til sag | DONE (kode) — slutkundens leveringsadresse, ellers fakturaadresse |
+| DF-4 | Afvisning efter sag oprettet lader sagen stå aktiv | DONE (kode) — advarsel med sagsnummer ved afvisning. Sagen lukkes ikke automatisk |
+| DF-5 | Kreditnota frigiver ikke invoice_line_id (linjer kan ikke faktureres igen) | TODO (økonomi — forsigtigt) |
+| DF-6 | Fastprissag kan lukkes med resterende kontraktsum | DONE (kode) — lukke-værnet viser ufaktureret rest af kontraktsummen (fixed_price). UI U183 |
+| DF-7 | Telefon-accept melder succes selvom sagsoprettelse fejler | DONE (kode) — statusskiftet giver en advarsel (toast) med henvisning til "Opret sag fra tilbud" |
+| DF-8 | Fejl ved converted_case_id-kobling tjekkes ikke | DONE (kode) — fejl eller 0 rækker → nyt forsøg med admin-klient, derefter fejl-log |
+| DF-9 | Revision-accept (kun staging bag OFFER_REVISIONS_ENABLED) | Venter på 00203 |
+| DF-10 | Revision/dublering taber billing_model/vat_mode; intet skriver offers.billing_model | DONE (kopi) — kopiér medtager vat_mode og billing_model. Valg af afregningsform på tilbuddet (UI) = TODO |
+| DF-11 | Tabt lead bliver aldrig vundet ved accept | DONE (kode) — tilbuddets eget lead_id: tabt → vundet. Kunde-fallback uændret |
+| DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
+
+## NEXT-27 (review-bølge 2026-10-17 — crons, alarmer, notifikationer)
+| # | Fund | Status |
+|---|---|---|
+| CR-1 | Fuldmagt-/besigtigelsesrykkere sendes LIVE til kunder uden live-flag; fallback `reminder_enabled ?? true` (S1) | BESLUTNING (Henrik) — eksisterende live-mail-flow: skal det fortsætte, eller bag `FOLLOWUP_REMINDERS_LIVE` (default fra)? Intet ændret |
+| CR-2 | Fakturarykkere uden kill switch (kun CRON_PAUSED); i dag kun stoppet af anon-klient-fejl (S2) | BESLUTNING (Henrik) — forslag: `INVOICE_REMINDERS_LIVE` (default fra) i cron og regel-motorens send_reminder, dry-run-opsummering når slået fra; manuelle rykkere uændrede. Ændrer prod-adfærd for rykkermails → ikke bygget uden godkendelse. Nødstop i dag: `CRON_PAUSED=invoice-reminders` |
+| CR-3 | Én postkassefejl → ~4 alarmmails/dag + 3 klokkerækker; "20+ kritiske" forkert tal | DONE (kode) — scanningen henter kun kritiske services (op til 500 rækker, rigtigt antal) og springer services over, der allerede har fået straks-alarm i døgnet; "email sync"-mailen springes over, når straks-alarmen for mail er sendt |
+| CR-4 | Klokke-alarmer løses aldrig; én åben række skjuler senere fejl (fælles nøgle critical:cron) | DONE (kode, delvis) — ny forekomst opdaterer den åbne række (seneste besked, ulæst igen, antal, første/seneste tidspunkt, øverst i listen). Automatisk løsning ved grøn probe = senere |
+| CR-5 | Helbredsoversigt/fakturaprobe kigger kun 1 time tilbage, men kører dagligt | DONE (kode) — fakturaproben har et vindue på 26 t og danske tekster. Live-oversigten (getSystemHealth) bevarer 1 t |
+| CR-6 | Fejl indlejret i cron-svar (summary.errors m.fl.) logges som ok; alle afsendelser fejlet = kun warning | DONE (kode) — bodyStatus gennemgår op til dybde 3: fejl-tal og -lister → warning, failed>0 med sent=0 → error. Unit cron-paused-test 22/22 |
+| CR-7 | Mail-synk uden overlap-værn (dobbelt AI/auto-handlinger) | TODO |
+| CR-8 | Ulæst-tæller højst 20; "markér alle" rammer kun de 20 | DONE (kode) — HEAD-count i notifikations-feedet; markAllAlertsRead i én opdatering. UI U184 |
+| CR-9 | Læst/afvist er fælles for alle brugere | BLOCKED_APPROVAL [MIGRATION] — system_alert_reads |
+| CR-10 | Afviste intelligens-alarmer genopstår hver nat | TODO |
+| CR-11 | Helbredslog vokser uendeligt og gemmer persondata (modtagere) | DONE (kode) — kun recipient_count fremover (eksisterende rækker urørt). Sletning >90 dage = BLOCKED_APPROVAL (datasletning) |
+| CR-12 | Engelske alarmtekster; registry: bank-match skriver til e-conomic; UTC-kommentarer | TODO |
+
 ## NEXT-26 (review-bølge 2026-10-17 morgen — rapporter/eksport + indstillinger/team)
 | # | Fund | Status |
 |---|---|---|
