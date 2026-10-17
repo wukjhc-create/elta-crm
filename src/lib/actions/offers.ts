@@ -581,6 +581,11 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
         for (const k of ['orderer_customer_id', 'end_customer_id', 'payer_customer_id'] as const) {
           if (updateData[k] === undefined && (!prev[k] || prev[k] === prev.customer_id)) updateData[k] = customerId
         }
+        // DF-2 (dataflow-review 2026-10-17): momsmode arves fra kunden ved oprettelse (offer-number.ts) — ved
+        // kundeskift blev den gamle kundes mode stående (fx 0 %/omvendt betalingspligt på en privatkunde)
+        const { data: newCust } = await supabase.from('customers').select('vat_mode').eq('id', customerId).maybeSingle()
+        const mode = (newCust as { vat_mode?: string | null } | null)?.vat_mode
+        if (mode) updateData.vat_mode = mode
       }
     }
 
@@ -729,7 +734,7 @@ export async function updateOfferStatus(
   id: string,
   status: OfferStatus,
   options?: { acknowledgeLowDb?: boolean },
-): Promise<ActionResult<Offer>> {
+): Promise<ActionResult<Offer> & { warning?: string }> {
   try {
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('offers.edit')) {
@@ -866,6 +871,19 @@ export async function updateOfferStatus(
     // Gated on transition (current → accepted, not already-accepted) so a
     // re-save does not retry. Idempotent at app + DB level. Non-critical:
     // failure does NOT roll back the status change.
+    // DF-7 (dataflow-review 2026-10-17): accept via statusskift (fx telefonaccept) meldte "Status opdateret", selv om
+    // sagen ikke blev oprettet → ingen sag, ingen planlægning. Statusskiftet står fast; brugeren får en advarsel.
+    let caseWarning: string | undefined
+    // DF-4 (dataflow-review 2026-10-17): afvisning efter at sagen er oprettet lod sagen stå aktiv uden varsel (montør
+    // kunne blive sendt ud). Sagen lukkes IKKE automatisk (der kan være registreret arbejde) — brugeren advares.
+    const convertedCaseId = (current as { converted_case_id?: string | null }).converted_case_id
+    if (status === 'rejected' && convertedCaseId) {
+      const { data: cs } = await supabase.from('service_cases').select('case_number, status').eq('id', convertedCaseId).maybeSingle()
+      const c = cs as { case_number: string | null; status: string | null } | null
+      if (c && c.status !== 'closed') {
+        caseWarning = `Sag ${c.case_number ?? ''} fra dette tilbud er stadig aktiv — luk den på sagen, hvis arbejdet ikke skal udføres.`
+      }
+    }
     if (status === 'accepted' && current.status !== 'accepted') {
       // Salgspipeline: tilknyttede leads → vundet (service-role efter offers-gaten; kaster aldrig)
       {
@@ -880,6 +898,7 @@ export async function updateOfferStatus(
             entity: 'offer',
             entityId: id,
           })
+          caseWarning = `Tilbuddet er accepteret, men sagen blev ikke oprettet${sagResult.error ? `: ${sagResult.error}` : ''}. Brug "Opret sag fra tilbud" på tilbuddet.`
         }
       } catch (sagError) {
         logger.error('Service_case creation failed (non-critical)', {
@@ -887,6 +906,7 @@ export async function updateOfferStatus(
           entity: 'offer',
           entityId: id,
         })
+        caseWarning = 'Tilbuddet er accepteret, men sagen blev ikke oprettet. Brug "Opret sag fra tilbud" på tilbuddet.'
       }
     }
 
@@ -899,7 +919,7 @@ export async function updateOfferStatus(
     }
     revalidatePath('/dashboard/offers')
     revalidatePath(`/dashboard/offers/${id}`)
-    return { success: true, data: data as Offer }
+    return { success: true, data: data as Offer, ...(caseWarning ? { warning: caseWarning } : {}) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere status') }
   }
@@ -2657,6 +2677,8 @@ export async function getOfferConversionSummaryAction(): Promise<OfferConversion
 const DUPLICATE_HEADER_FIELDS = [
   'description', 'scope', 'customer_id', 'lead_id', 'discount_percentage', 'tax_percentage', 'currency',
   'terms_and_conditions', 'notes', 'orderer_customer_id', 'end_customer_id', 'payer_customer_id', 'billing_mode',
+  // DF-10 (dataflow-review 2026-10-17): moms- og afregningsform fulgte ikke med kopien (00231/00232)
+  'vat_mode', 'billing_model',
 ] as const
 
 /** Linjefelter der kopieres (inkl. kostpris/leverandørspor; total beregnes af trigger). */

@@ -1599,7 +1599,22 @@ async function unbilledCloseBlock(
   // Sags-review 2026-10-09 (#6): åbne arbejdsordrer (planlagt/i gang) — montøren så stadig jobbet efter lukning
   const open = work.workOrderStatuses.filter((st) => st === 'planned' || st === 'in_progress').length
   const openMsg = open ? `${open} arbejdsordre${open === 1 ? '' : 'r'} er stadig planlagt eller i gang.` : ''
-  return [msg, openMsg].filter(Boolean).join(' ') || null
+  // DF-6 (dataflow-review 2026-10-17): fastprissag kunne lukkes stille med ufaktureret kontraktsum (registreringerne
+  // er ikke grundlaget for fastpris, så tjekket ovenfor fangede det ikke). Advarsel via samme bekræftelse.
+  let fixedMsg = ''
+  const { data: sag } = await supabase.from('service_cases').select('contract_sum, revised_sum, billing_model').eq('id', caseId).maybeSingle()
+  const s = sag as { contract_sum: number | string | null; revised_sum: number | string | null; billing_model: string | null } | null
+  if (s?.billing_model === 'fixed_price') {
+    const { effectiveContractSum } = await import('@/lib/cases/expected-revenue')
+    const ref = effectiveContractSum({ contractSum: s.contract_sum, revisedSum: s.revised_sum, billingModel: s.billing_model })
+    if (ref != null && ref > 0) {
+      const { netInvoicedExVat } = await import('@/lib/invoices/net-invoiced')
+      const { data: inv } = await supabase.from('invoices').select('total_amount, status, invoice_type, voided_at').eq('case_id', caseId)
+      const rest = Math.round((ref - netInvoicedExVat((inv ?? []) as never[])) * 100) / 100
+      if (rest >= 1) fixedMsg = `Fastpris: ${rest.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr. ekskl. moms af kontraktsummen er ikke faktureret.`
+    }
+  }
+  return [msg, openMsg, fixedMsg].filter(Boolean).join(' ') || null
 }
 
 /** Sagens job-statusser + ufaktureret optælling (samme regler som fakturakladden). */

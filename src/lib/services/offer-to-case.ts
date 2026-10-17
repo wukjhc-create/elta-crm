@@ -105,8 +105,25 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       ? Math.round((Number(offer.final_amount) - Number(offer.tax_amount ?? 0)) * 100) / 100
       : null
 
+    // DF-3 (dataflow-review 2026-10-17): sagen fik ingen arbejdsadresse (montørens kort/navigation, AO-levering).
+    // Tilbud har ingen egen adresse → slutkundens leveringsadresse, ellers fakturaadresse. Fejl = ingen adresse.
+    const siteCustomerId = (offer.end_customer_id as string | null) ?? customerId
+    const { data: siteCustomer } = await supabase
+      .from('customers')
+      .select('shipping_address, shipping_postal_code, shipping_city, billing_address, billing_postal_code, billing_city')
+      .eq('id', siteCustomerId)
+      .maybeSingle()
+    const sc = siteCustomer as Record<string, string | null> | null
+    const useShipping = !!sc?.shipping_address?.trim()
+    const siteAddress = {
+      address: (useShipping ? sc?.shipping_address : sc?.billing_address)?.trim() || null,
+      postal_code: (useShipping ? sc?.shipping_postal_code : sc?.billing_postal_code)?.trim() || null,
+      city: (useShipping ? sc?.shipping_city : sc?.billing_city)?.trim() || null,
+    }
+
     const insertPayload = {
       source_offer_id: offer.id as string,
+      ...siteAddress,
       customer_id: customerId,
       // 00232: sagen arver tilbuddets afregningsform; ikke valgt på tilbuddet → vælges på sagen (ingen gæt)
       billing_model: (offer as { billing_model?: string | null }).billing_model ?? null,
@@ -223,11 +240,18 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
     }
 
     // 6. Forward-link på tilbuddet (status O(1) + ekstra dublet-sikring).
+    // DF-8 (dataflow-review 2026-10-17): fejlen blev aldrig tjekket (supabase kaster ikke), og RLS kan give 0 rækker
+    // → tilbuddet stod som "klar til sag" og kunne konverteres igen. Sagen er allerede oprettet af en gatet kalder,
+    // så koblingen gentages med admin-klienten; lykkes det heller ikke, logges en fejl.
     try {
-      await supabase
-        .from('offers')
-        .update({ converted_case_id: caseId, converted_at: new Date().toISOString() })
-        .eq('id', offerId)
+      const link = { converted_case_id: caseId, converted_at: new Date().toISOString() }
+      const { data: linked, error: linkErr } = await supabase.from('offers').update(link).eq('id', offerId).select('id')
+      if (linkErr || !linked?.length) {
+        const { data: linked2, error: linkErr2 } = await createAdminClient().from('offers').update(link).eq('id', offerId).select('id')
+        if (linkErr2 || !linked2?.length) {
+          logger.error('createServiceCaseFromOffer: offer forward-link failed', { error: linkErr2 ?? linkErr, entity: 'offer', entityId: offerId })
+        }
+      }
     } catch (e) {
       logger.error('createServiceCaseFromOffer: offer forward-link failed', { error: e })
     }

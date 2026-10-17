@@ -21,6 +21,8 @@ interface OfferRef {
   offer_number: string
   performer: string
   leadId: string | null
+  /** true = tilbuddets eget lead_id (ikke kunde-fallback) */
+  direct: boolean
 }
 
 async function resolveOfferLead(
@@ -37,7 +39,7 @@ async function resolveOfferLead(
   if (!offer) return null
   const performer = actorId ?? (offer.created_by as string | null)
   if (!performer) return null
-  if (offer.lead_id) return { offer_number: offer.offer_number as string, performer, leadId: offer.lead_id as string }
+  if (offer.lead_id) return { offer_number: offer.offer_number as string, performer, leadId: offer.lead_id as string, direct: true }
   if (!offer.customer_id) return null
   const { data: converted } = await admin
     .from('leads')
@@ -52,7 +54,7 @@ async function resolveOfferLead(
     }
     return null
   }
-  return { offer_number: offer.offer_number as string, performer, leadId: rows[0].id }
+  return { offer_number: offer.offer_number as string, performer, leadId: rows[0].id, direct: false }
 }
 
 async function moveLead(
@@ -87,7 +89,11 @@ export async function markLeadsWonForAcceptedOffer(
   try {
     const ref = await resolveOfferLead(admin, offerId, actorId, OPEN_STATUSES)
     if (!ref) return { updated: 0 }
-    const updated = await moveLead(admin, ref, OPEN_STATUSES, 'won', `Vundet — tilbud ${ref.offer_number} accepteret`)
+    // DF-11 (dataflow-review 2026-10-17): et lead markeret "tabt" blev aldrig vundet, selv når kunden accepterede
+    // tilbuddet på netop det lead → tragt/konvertering talte forkert. Kun for tilbuddets eget lead_id (ikke kunde-
+    // fallback, hvor et gammelt tabt lead kan være en anden forespørgsel).
+    const from = ref.direct ? [...OPEN_STATUSES, 'lost'] : OPEN_STATUSES
+    const updated = await moveLead(admin, ref, from, 'won', `Vundet — tilbud ${ref.offer_number} accepteret`)
     return { updated }
   } catch (err) {
     logger.error('markLeadsWonForAcceptedOffer failed (non-critical)', { error: err, entityId: offerId })

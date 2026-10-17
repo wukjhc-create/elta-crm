@@ -290,7 +290,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
       result = await updateOfferStatus(offer.id, newStatus, { acknowledgeLowDb: true })
     }
 
-    if (result.success) {
+    if (result.success && result.warning) {
+      toast.warning('Status opdateret — se advarsel', result.warning)
+    } else if (result.success) {
       toast.success('Status opdateret')
     } else {
       toast.error('Kunne ikke opdatere status', result.error)
