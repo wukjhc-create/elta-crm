@@ -5,7 +5,7 @@
  * afslutte på stedet. Samme data som Service-modulet. Adgang afgøres af serveren (kontor eller montør på egen sag).
  */
 import { downscaleImageForUpload } from '@/lib/utils/image-downscale'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { FileSignature, Loader2, ClipboardCheck } from 'lucide-react'
@@ -29,6 +29,11 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
     if (r.success && r.data) { setData(r.data); setError(null) } else setError(humanizeErrorText(r.error) ?? 'Kunne ikke hente aflevering')
   }, [caseId])
   useEffect(() => { load() }, [load])
+  // MB-4 (mobil-review 2026-10-17): fejlen står øverst i fanen — på telefon rulles den i syne (før skete "intet" synligt)
+  const errorRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [error])
 
   const run = async (fn: () => Promise<{ success: boolean; error?: string }>): Promise<boolean> => {
     let ok = false
@@ -53,7 +58,7 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
 
   return (
     <div className="space-y-4" data-testid="order-handover-tab">
-      {error && <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-800">{error}</div>}
+      {error && <div ref={errorRef} role="alert" className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-800">{error}</div>}
 
       {data.checklist.length === 0 ? (
         <div className="bg-white rounded-lg border p-6 text-center">
@@ -100,6 +105,9 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
         ) : !data.canEdit ? (
           <p className="text-sm text-gray-500">Ikke underskrevet endnu.</p>
         ) : showSign ? (
+          <>
+          {/* MB-4: fejl ved underskrift vises også ved underskriftsfeltet */}
+          {error && <p role="alert" className="text-sm text-red-700" data-testid="handover-signature-error">{error}</p>}
           <SignaturePad
             onSign={(dataUrl) => {
               // M-2 (pilot-review 2026-10-15): navn tjekkes før afsendelse, og feltet lukkes kun ved succes
@@ -110,6 +118,7 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
             onNameChange={setSignerName}
             disabled={busy}
           />
+          </>
         ) : (
           <button type="button" onClick={() => setShowSign(true)}
             className="inline-flex items-center gap-2 px-4 py-3 border-2 border-dashed rounded-lg text-sm text-gray-600 hover:bg-gray-50 w-full justify-center" data-testid="handover-open-signature">
