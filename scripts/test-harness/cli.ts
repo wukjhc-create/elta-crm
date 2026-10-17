@@ -4260,7 +4260,8 @@ async function main() {
     // øvrige eksporters select (samme strenge som src/lib/actions/export.ts)
     const others: Array<[string, string]> = [
       ['offers', 'offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, final_amount, valid_until, notes, created_at'],
-      ['projects', 'project_number, name, customer:customers(company_name, customer_number), status, priority, start_date, end_date, estimated_hours, actual_hours, budget, actual_cost, description, created_at'],
+      // RP-4 (2026-10-17): projekteksporten læser sagerne (service_cases)
+      ['service_cases', 'id, case_number, title, customer:customers!service_cases_customer_id_fkey(company_name, customer_number), status, priority, start_date, end_date, planned_hours, budget, description, created_at'],
       ['calculations', 'name, calculation_type, customer:customers(company_name, customer_number), is_template, total_amount:subtotal, final_amount, created_by_profile:profiles!created_by(full_name), created_at'],
     ]
     for (const [t, sel] of others) {

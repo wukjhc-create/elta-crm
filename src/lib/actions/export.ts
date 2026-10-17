@@ -277,16 +277,19 @@ export async function exportProjects(filters?: {
     if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
+    // RP-4 (rapport-review 2026-10-17): sagerne (service_cases) — den gamle projects-tabel bruges ikke længere, så
+    // eksporten var tom/forældet. Timer = godkendte/afventende (ikke afviste) registreringer på sagens arbejdsordrer.
     const build = () => {
     let query = supabase
-      .from('projects')
-      .select('project_number, name, customer:customers(company_name, customer_number), status, priority, start_date, end_date, estimated_hours, actual_hours, budget, actual_cost, description, created_at')
+      .from('service_cases')
+      .select('id, case_number, title, customer:customers!service_cases_customer_id_fkey(company_name, customer_number), status, priority, start_date, end_date, planned_hours, budget, description, created_at')
+      .eq('is_proposal', false)
       .order('created_at', { ascending: false })
       .order('id')
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
-      query = query.or(`name.ilike.${pgQuote(term)},project_number.ilike.${pgQuote(term)}`)
+      query = query.or(`title.ilike.${pgQuote(term)},case_number.ilike.${pgQuote(term)}`)
     }
 
     if (filters?.status) {
@@ -312,21 +315,41 @@ export async function exportProjects(filters?: {
       return { success: false, error: 'Kunne ikke hente projekter til eksport' }
     }
 
+    // RP-4: faktiske timer pr. sag (arbejdsordrer → ikke-afviste, afsluttede timeregistreringer), i bidder
+    const caseIds = (data || []).map((r) => r.id as string)
+    const hoursByCase = new Map<string, number>()
+    if (caseIds.length > 0) {
+      const { selectInChunks } = await import('@/lib/supabase/in-chunks')
+      const wos = await selectInChunks<{ id: string; case_id: string }>(caseIds, (chunk) => supabase.from('work_orders').select('id, case_id').in('case_id', chunk))
+      const caseByWo = new Map(wos.map((w) => [w.id, w.case_id]))
+      const woIds = wos.map((w) => w.id)
+      if (woIds.length > 0) {
+        const logs = await selectInChunks<{ work_order_id: string; hours: number | string | null }>(woIds, (chunk) => supabase
+          .from('time_logs').select('work_order_id, hours').in('work_order_id', chunk).not('end_time', 'is', null).neq('approval_status', 'rejected'))
+        for (const l of logs) {
+          const c = caseByWo.get(l.work_order_id)
+          if (c) hoursByCase.set(c, (hoursByCase.get(c) ?? 0) + (Number(l.hours) || 0))
+        }
+      }
+    }
+
     const flat: ExportProject[] = (data || []).map((row: Record<string, unknown>) => {
       const customer = row.customer as { company_name: string; customer_number: string } | null
+      const hrs = hoursByCase.get(row.id as string)
       return {
-        project_number: row.project_number as string | null,
-        name: row.name as string,
+        project_number: row.case_number as string | null,
+        name: row.title as string,
         customer_name: customer?.company_name || null,
         customer_number: customer?.customer_number || null,
         status: row.status as string,
         priority: row.priority as string | null,
         start_date: row.start_date as string | null,
         end_date: row.end_date as string | null,
-        estimated_hours: row.estimated_hours as number | null,
-        actual_hours: row.actual_hours as number | null,
+        estimated_hours: row.planned_hours as number | null,
+        actual_hours: hrs != null ? Math.round(hrs * 100) / 100 : null,
         budget: row.budget as number | null,
-        actual_cost: row.actual_cost as number | null,
+        // kost pr. sag ligger bag løn-/kostrettigheder (admin-klient) — se efterkalkulationen under Rapporter
+        actual_cost: null,
         description: row.description as string | null,
         created_at: row.created_at as string,
       }
