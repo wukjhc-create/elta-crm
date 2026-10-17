@@ -67,13 +67,18 @@ export function computeInvoiceTotals(rows: InvoiceTotalsRow[], nowMs: number): I
       const o = open(r)
       t.sentUnpaid += o
       t.outstanding += o
-      if (r.due_date && o > 0) {
+      // FIN-11 (finance-review 2026-10-17): øre-rest fra afrunding på opdelte kreditnotaer (fx 0,01 kr) er ikke forfalden —
+      // samme grænse (0,50 kr) som rykkerne
+      if (r.due_date && o >= 0.5) {
         const d = daysOverdue(String(r.due_date).slice(0, 10), nowMs)
         if (d > 0) { t.overdueCount += 1; t.overdueSum += o; t.overdue.push({ id: r.id, days: d, open: o }) }
       }
     } else if (r.status === 'paid' && r.paid_at && copenhagenParts(String(r.paid_at)).date.slice(0, 7) === ym) {
       if (!dkk) { t.otherCurrencyCount += 1; continue }
-      t.paidThisMonth += Number(r.final_amount ?? 0)
+      // FIN-6 (finance-review 2026-10-17): faktisk indbetalt (før final_amount — en krediteret del talte med som betalt);
+      // uden registreret indbetaling (ældre manuelt markerede) = beløb efter kreditnotaer
+      const paid = Number(r.amount_paid ?? 0)
+      t.paidThisMonth += paid > 0 ? paid : Math.max(0, r2(Number(r.final_amount ?? 0) - (credited.get(r.id) ?? 0)))
     }
   }
   t.sentUnpaid = r2(t.sentUnpaid)

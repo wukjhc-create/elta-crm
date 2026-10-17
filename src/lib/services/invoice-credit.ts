@@ -369,15 +369,19 @@ export async function createCreditNoteForInvoice(
   // Faktura-review 2026-10-14 (S1): en forskuds-/ratefaktura er allerede fratrukket på sagens slutfaktura — en
   // kreditnota på den ville give kunden beløbet tilbage en gang til. Slutfakturaen skal krediteres (eller kladden
   // slettes) først. Tjekkes på sagen (invoice_predecessors-linket er best-effort).
-  if ((original.invoice_type === 'deposit' || original.invoice_type === 'progress') && original.case_id) {
-    const { data: finals } = await supabase
+  // FIN-1 (finance-review 2026-10-17): fastpris-slutfakturaen (amount_basis kontraktsum/revideret) fratrækker OGSÅ
+  // 'standard'-delfakturaer (CONTRACT_PRIOR_TYPES) — kreditering af en sådan gav kunden beløbet tilbage to gange.
+  const isStandardOnCase = original.invoice_type === 'standard' && !!original.case_id
+  if ((original.invoice_type === 'deposit' || original.invoice_type === 'progress' || isStandardOnCase) && original.case_id) {
+    let finalsQuery = supabase
       .from('invoices')
       .select('id, invoice_number, status')
       .eq('case_id', original.case_id)
       .neq('id', original.id)
       .or('invoice_type.eq.final,is_final_invoice.eq.true')
       .is('voided_at', null)
-      .limit(1)
+    if (isStandardOnCase) finalsQuery = finalsQuery.in('amount_basis', ['contract_sum', 'revised_sum'])
+    const { data: finals } = await finalsQuery.limit(1)
     const fin = (finals ?? [])[0] as { invoice_number: string | null; status: string } | undefined
     if (fin) {
       return {

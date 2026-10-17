@@ -528,7 +528,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const ctx = roleCtx
         if (!ctx.hasPermission('invoices.view.all')) return
         overview.overdueInvoices.allowed = true
-        const { calendarDaysSince } = await import('@/lib/utils/copenhagen-time')
+        const { calendarDaysSince, copenhagenCalendarDaysBetween } = await import('@/lib/utils/copenhagen-time')
         const { nextReminder } = await import('@/lib/invoices/reminder-plan')
         const { data, error } = await supabase.from('invoices')
           .select('id, invoice_number, invoice_type, final_amount, amount_paid, due_date, reminder_count, last_reminder_at, customer_id')
@@ -559,9 +559,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           items: rows.slice(0, TOP_N).map((r) => ({
             id: r.id, invoice_number: r.invoice_number, customer_name: r.customer_id ? names.get(r.customer_id) ?? null : null,
             amount: r.open, daysOverdue: r.days, reminders: Number(r.reminder_count ?? 0),
-            // samme dagsberegning som invoice-reminders-cronen (floor af forløbne døgn), så trinnet matcher cronens valg
-            next: nextReminder(Math.floor((nowMs - Date.parse(r.due_date)) / 86_400_000), Number(r.reminder_count ?? 0),
-              r.last_reminder_at ? Math.floor((nowMs - Date.parse(r.last_reminder_at)) / 86_400_000) : null),
+            // FIN-10 (finance-review 2026-10-17): danske kalenderdage som invoice-reminders-cronen (A-11) — før UTC-døgn
+            next: nextReminder(copenhagenCalendarDaysBetween(r.due_date, new Date(nowMs)), Number(r.reminder_count ?? 0),
+              r.last_reminder_at ? copenhagenCalendarDaysBetween(r.last_reminder_at, new Date(nowMs)) : null),
           })),
         }
       } catch (err) {

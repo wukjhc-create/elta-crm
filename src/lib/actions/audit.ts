@@ -1,7 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type {
@@ -13,6 +13,21 @@ import type {
 } from '@/types/audit.types'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
+/**
+ * C-F1 (cost-review 2026-10-17): ældre audit-rækker ("Tilbud sendt med lav DB (X% < Y%)", metadata db_percentage) lod
+ * salg regne kostprisen ud af egne rækker. Uden offers.view.cost_prices fjernes procenterne ved visning.
+ */
+async function stripCostFromAudit(rows: AuditLogEntry[]): Promise<AuditLogEntry[]> {
+  const ctx = await getAuthenticatedClientWithRole()
+  if (ctx.hasPermission('offers.view.cost_prices')) return rows
+  return rows.map((r) => {
+    const meta = (r.metadata ?? null) as Record<string, unknown> | null
+    const cleanMeta = meta ? Object.fromEntries(Object.entries(meta).filter(([k]) => !/^(db_|threshold$|margin)/.test(k))) : meta
+    const desc = typeof r.action_description === 'string' ? r.action_description.replace(/\s*\(\s*-?[\d.,]+\s*%\s*<\s*-?[\d.,]+\s*%\s*\)/g, '') : r.action_description
+    return { ...r, metadata: cleanMeta, action_description: desc } as AuditLogEntry
+  })
+}
+
 // =====================================================
 // Query Functions
 // =====================================================
@@ -41,7 +56,7 @@ export async function getEntityAuditLogs(
       return { success: false, error: 'Kunne ikke hente audit logs' }
     }
 
-    return { success: true, data: data as AuditLogEntry[] }
+    return { success: true, data: await stripCostFromAudit(data as AuditLogEntry[]) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente audit logs') }
   }
@@ -130,7 +145,7 @@ export async function getAuditLogs(
     return {
       success: true,
       data: {
-        data: dataResult.data as AuditLogEntry[],
+        data: await stripCostFromAudit(dataResult.data as AuditLogEntry[]),
         total,
         page,
         pageSize,
@@ -161,7 +176,7 @@ export async function getRecentAuditActivity(
       return { success: false, error: 'Kunne ikke hente seneste aktivitet' }
     }
 
-    return { success: true, data: data as AuditLogEntry[] }
+    return { success: true, data: await stripCostFromAudit(data as AuditLogEntry[]) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente seneste aktivitet') }
   }

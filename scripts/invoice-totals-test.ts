@@ -42,5 +42,27 @@ const capped = computeInvoiceTotals(rows.slice(0, 500), now)
 ok(capped.overdueCount === 500 && t.overdueCount === 600, 'afkortet liste ville give forkert tal (500) — fuldt datasæt giver 600')
 ok(t.overdue.length === 600 && t.overdue[0].days >= t.overdue[t.overdue.length - 1].days, 'forfaldsliste sorteret efter dage')
 
+// FIN-6 (2026-10-17): betalt denne måned = faktisk indbetalt (12.500 − kredit 2.500, betalt 10.000)
+{
+  const r6: InvoiceTotalsRow[] = [
+    { id: 'f6', invoice_type: 'standard', status: 'paid', final_amount: 12500, amount_paid: 10000, currency: 'DKK', paid_at: '2026-10-05T10:00:00Z' },
+    { id: 'f6c', invoice_type: 'credit', status: 'sent', final_amount: -2500, credit_of_invoice_id: 'f6', currency: 'DKK' },
+    // ældre manuelt markeret betalt uden indbetalingsrække → beløb efter kreditnota
+    { id: 'f6m', invoice_type: 'standard', status: 'paid', final_amount: 1000, amount_paid: 0, currency: 'DKK', paid_at: '2026-10-06T10:00:00Z' },
+    { id: 'f6mc', invoice_type: 'credit', status: 'sent', final_amount: -200, credit_of_invoice_id: 'f6m', currency: 'DKK' },
+  ]
+  const t6 = computeInvoiceTotals(r6, now)
+  ok(t6.paidThisMonth === 10800, 'FIN-6: betalt denne måned = indbetalt 10.000 + (1.000 − 200)', String(t6.paidThisMonth))
+}
+// FIN-11 (2026-10-17): 0,01 kr afrundingsrest er ikke forfalden
+{
+  const r11: InvoiceTotalsRow[] = [
+    { id: 'f11', invoice_type: 'standard', status: 'sent', final_amount: 3.78, currency: 'DKK', due_date: '2026-10-01' },
+    { id: 'f11c', invoice_type: 'credit', status: 'sent', final_amount: -3.77, credit_of_invoice_id: 'f11', currency: 'DKK' },
+  ]
+  const t11 = computeInvoiceTotals(r11, now)
+  ok(t11.overdueCount === 0 && t11.overdue.length === 0, 'FIN-11: 0,01 kr rest tælles ikke som forfalden', String(t11.overdueCount))
+}
+
 console.log(bad ? `\n${bad} FAIL` : '\nALL PASS')
 process.exit(bad ? 1 : 0)

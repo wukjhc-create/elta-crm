@@ -128,11 +128,13 @@ export async function createStageInvoiceForCase(
   }
 
   // 2. Slut-gate — ingen ny deposit/progress når slut findes
+  // FIN-2 (finance-review 2026-10-17): en fuldt krediteret (annulleret) slutfaktura blokerer ikke længere
   const { count: finalCount } = await supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
     .eq('case_id', input.case_id)
     .eq('is_final_invoice', true)
+    .is('voided_at', null)
   if ((finalCount ?? 0) > 0) {
     return {
       ...empty,
@@ -382,6 +384,8 @@ export async function createFinalInvoiceForCase(
   }
 
   // 2. Slut-gate (UNIQUE-index er autoritativ men vi giver pænere fejl)
+  // FIN-2: indekset tæller også annullerede slutfakturaer, indtil 00245 er kørt — derfor ingen voided-filter her endnu
+  // (docs/runbooks/security-2026-10-17-proposal.md)
   const { data: existingFinal } = await supabase
     .from('invoices')
     .select('id, invoice_number')

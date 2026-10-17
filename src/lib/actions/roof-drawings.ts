@@ -153,7 +153,10 @@ export async function listRoofDrawings(
   input: ListRoofDrawingsInput,
 ): Promise<ActionResult<RoofDrawingWithUrl[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // F4 (security-review 2026-10-17): før kun login → signerede tagbilleder for enhver sag/kunde
+    const ctx = await getAuthenticatedClientWithRole()
+    const { supabase } = ctx
+    if (!ctx.hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
 
     if (!input.serviceCaseId && !input.customerId) {
       return { success: false, error: 'Mangler sag eller kunde' }
@@ -162,6 +165,8 @@ export async function listRoofDrawings(
     let query = supabase.from('roof_drawings').select('*')
     if (input.serviceCaseId) {
       validateUUID(input.serviceCaseId, 'sags-ID')
+      const { userCanViewCase } = await import('@/lib/auth/case-scope')
+      if (!(await userCanViewCase(input.serviceCaseId, ctx))) return { success: false, error: 'Du har ikke adgang til denne sag' }
       query = query.eq('service_case_id', input.serviceCaseId)
     } else if (input.customerId) {
       validateUUID(input.customerId, 'kunde-ID')
@@ -175,7 +180,16 @@ export async function listRoofDrawings(
       return { success: false, error: 'Kunne ikke hente tegninger' }
     }
 
-    const rows = (data || []) as RoofDrawing[]
+    let rows = (data || []) as RoofDrawing[]
+    // F4: kundevisning uden cases.view.all → kun tegninger på sager i scope (+ tegninger uden sag)
+    if (!input.serviceCaseId && !ctx.hasPermission('cases.view.all')) {
+      const { getCaseScope } = await import('@/lib/auth/case-scope')
+      const scope = await getCaseScope(ctx)
+      if (scope.type !== 'all') {
+        const allowed = new Set(scope.caseIds)
+        rows = rows.filter((r) => !r.service_case_id || allowed.has(r.service_case_id))
+      }
+    }
     const enriched = await Promise.all(rows.map(withSignedUrl))
     return { success: true, data: enriched }
   } catch (err) {

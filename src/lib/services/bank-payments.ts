@@ -414,9 +414,38 @@ async function findByAmount(amount: number): Promise<InvoiceRow[]> {
   } catch {
     partial = []
   }
+  // FIN-5 (finance-review 2026-10-17): kreditnotaer blev ignoreret — en betaling af det krediterede beløb (12.500 −
+  // kredit 2.500 = 10.000) eller resten efter delbetaling + kredit matchede aldrig. Sammenlign med det ÅBNE beløb
+  // (final − betalt − sendte/betalte, ikke-annullerede kreditnotaer), som registerPayment også bruger.
+  const credited = new Map<string, number>()
+  let creditedOriginals: InvoiceRow[] = []
+  try {
+    const credits = await fetchAllRows<{ id: string; credit_of_invoice_id: string | null; final_amount: number | string | null }>((from, to) => supabase
+      .from('invoices')
+      .select('id, credit_of_invoice_id, final_amount')
+      .eq('invoice_type', 'credit').in('status', ['sent', 'paid']).is('voided_at', null).not('credit_of_invoice_id', 'is', null)
+      .order('id')
+      .range(from, to))
+    for (const c of credits) {
+      if (c.credit_of_invoice_id) credited.set(c.credit_of_invoice_id, (credited.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.final_amount) || 0))
+    }
+    const ids = Array.from(credited.keys())
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data: originals } = await supabase.from('invoices').select('*').in('id', ids.slice(i, i + 200))
+        .neq('payment_status', 'paid').eq('status', 'sent').is('voided_at', null)
+      creditedOriginals = creditedOriginals.concat((originals ?? []) as InvoiceRow[])
+    }
+  } catch {
+    creditedOriginals = []
+  }
+  const openOf = (i: InvoiceRow) => Math.max(0, Math.round((Number(i.final_amount) - Number(i.amount_paid ?? 0) - (credited.get(i.id) ?? 0)) * 100))
+  const target = Math.round(amount * 100)
   const seen = new Set(full.map((i) => i.id))
-  const rest = partial.filter((i) => !seen.has(i.id)
-    && Math.abs(Math.round((Number(i.final_amount) - Number(i.amount_paid ?? 0)) * 100) - Math.round(amount * 100)) === 0)
+  const rest = [...partial, ...creditedOriginals].filter((i) => {
+    if (seen.has(i.id)) return false
+    seen.add(i.id)
+    return openOf(i) === target
+  })
   return [...full, ...rest]
 }
 

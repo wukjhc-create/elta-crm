@@ -56,23 +56,24 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | SEC2-6 | Kontaktformular: global timegrænse kan lukkes af spam; dubletsvar udleverer lead-id (S4) | DONE (kode, delvis) — intet leadId i dubletsvar (public-contact-limit-check 4/4). Grænse pr. IP kræver lagring (hash af IP) = BESLUTNING (GDPR/skema) |
 | F2 | sendExistingBesigtigelsesreport uden sags-scope + fri modtager (S2) | DONE (kode) — caseReadDenied på dokumentets sag og override |
 | F3 | sendBesigtigelseSequential / sendReadyChainStep uden sags-scope (S3) | DONE (kode) — caseReadDenied |
-| F4 | listRoofDrawings ugatet; getCustomerImages uden scope (S3/S4) | DELVIS — getCustomerImages kun for kunder med sag i scope (DONE); listRoofDrawings TODO |
-| C-F1 | Salg kan læse tilbuddets DB-% i egne audit-rækker (RLS user_id = auth.uid()) (S2/S3) | DONE (kode) — ingen DB-procent i audit (kun low_db_acknowledged). Gate på audit.ts-læsning TODO |
+| F4 | listRoofDrawings ugatet; getCustomerImages uden scope (S3/S4) | DONE (kode) — getCustomerImages og listRoofDrawings følger sags-scope (customers.view + userCanViewCase; kundevisning filtreret) |
+| C-F1 | Salg kan læse tilbuddets DB-% i egne audit-rækker (RLS user_id = auth.uid()) (S2/S3) | DONE (kode) — ingen DB-procent i nye audit-rækker; ældre rækker vises uden procenter for brugere uden offers.view.cost_prices (audit.ts). Direkte REST-læsning af egne ældre rækker består (RLS) |
 | C-F2 | solar_products.price og solar-kostnøgler i calculation_settings læsbare via REST (S2) | BLOCKED_APPROVAL [MIGRATION] — kolonne-REVOKE (00192-mønster) + nøgler i 00223-sættet |
 | C-F3 | auto_calculations / calculation_snapshots / calculation_feedback m.fl. med kost `USING (true)` (S3) | BLOCKED_APPROVAL [MIGRATION] — `_select_cost_roles`-politik; read-site-tjek først |
 | C-F4 | getCustomerQuoteHistory uden rettighed (S4) | DONE (kode) — offers.view |
-| FIN-1 | Kreditnota på 'standard'-delfaktura tilladt efter fastpris-slutfaktura har fratrukket den (S2) | TODO |
-| FIN-2 | Fuldt krediteret slutfaktura blokerer ny slutfaktura (voided ikke filtreret; unikt indeks uden voided_at) (S2) | TODO (kode) + BLOCKED_APPROVAL [MIGRATION] indeks |
+| FIN-1 | Kreditnota på 'standard'-delfaktura tilladt efter fastpris-slutfaktura har fratrukket den (S2) | DONE (kode) — kreditvagten gælder også standard-fakturaer, når sagen har en ikke-annulleret fastpris-slutfaktura (amount_basis kontraktsum/revideret). invoice-guards-check (2 nye tjek) |
+| FIN-2 | Fuldt krediteret slutfaktura blokerer ny slutfaktura (voided ikke filtreret; unikt indeks uden voided_at) (S2) | DELVIS (kode) — annulleret slutfaktura blokerer ikke længere nye rater/forskud eller skift af afregningsform; ny slutfaktura kræver indeksændringen 00245 (BLOCKED_APPROVAL) |
 | FIN-3 | e-conomic bogfører på kladdens oprettelsesdato, ikke udstedelsesdato (S2) | TODO (kun aktuel med ECONOMIC_PUSH_ENABLED) |
 | FIN-4 | Delvis betalt + krediteret rest forbliver "sendt/delvis" (S3) | TODO (økonomi — forsigtigt) |
-| FIN-5 | Bank-beløbsmatch ignorerer kreditnotaer (S3) | TODO |
-| FIN-6 | "Betalt denne måned"/likviditet/kunde summerer final_amount i stedet for betalt (S3) | TODO |
-| FIN-7 | "Markér som sendt" efter usikker afsendelse fejler altid (sent_at-krav) (S3) | TODO |
+| FIN-5 | Bank-beløbsmatch ignorerer kreditnotaer (S3) | DONE (kode) — beløbsmatch mod åbent beløb inkl. kreditnotaer (også delbetalte); registerPayment trækker allerede kreditnotaer fra |
+| FIN-6 | "Betalt denne måned"/likviditet/kunde summerer final_amount i stedet for betalt (S3) | DONE (kode) — betalt denne måned, likviditet og kundens betalt-total bruger indbetalt beløb (fallback: beløb efter kreditnotaer). Unit invoice-totals-test |
+| FIN-7 | "Markér som sendt" efter usikker afsendelse fejler altid (sent_at-krav) (S3) | DONE (kode) — mail-krav ældre end 2 min kan overtages af "Markér som sendt"; slette-krav aldrig. invoice-guards-check (2 nye tjek) |
 | FIN-8 | Fakturaer fra sag ignorerer betalingsbetingelser (fast 14 dage) (S3) | TODO |
-| FIN-9 | Dashboard forfaldne-top viser fuldt beløb, ikke åbent (S4) | TODO |
-| FIN-10 | Cockpit "næste rykker" bruger UTC-dage (S4) | TODO |
-| FIN-11 | Afrunding på opdelte kreditnotaer efterlader 0,01 kr som forfalden (S4) | TODO |
+| FIN-9 | Dashboard forfaldne-top viser fuldt beløb, ikke åbent (S4) | DONE (kode) — top-listen viser åbent beløb |
+| FIN-10 | Cockpit "næste rykker" bruger UTC-dage (S4) | DONE (kode) — copenhagenCalendarDaysBetween som cronen |
+| FIN-11 | Afrunding på opdelte kreditnotaer efterlader 0,01 kr som forfalden (S4) | DONE (kode) — forfalden kun ved åbent beløb ≥ 0,50 kr (som rykkerne). Unit invoice-totals-test |
 | FIN-12 | UTC-datoer i betalingsmål og leverandør-afvigelsesvindue (S4) | TODO |
+| HT-4 | invoice-guards-check: forældet seed (afregningsform NULL efter 00232; ikke-godkendte timer; medarbejder uden satser afvises af 00230) | DONE — seed opdateret |
 | HT-3 | portal-token-rules-check "fremmed sti" finder ikke dokumentet i portallisten (forældet test, portal.ts uændret) | TODO — opdatér testen til nuværende portalregler |
 
 ## NEXT-28 (dataflow-review 2026-10-17 — tilbud → sag → faktura)

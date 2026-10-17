@@ -1015,7 +1015,8 @@ export async function setCaseBillingModelAction(caseId: string, model: string): 
   if (!cur) return { ok: false, message: 'Sag ikke fundet' }
   const prev = (cur as { billing_model?: string | null }).billing_model ?? null
   if (prev === model) return { ok: true, message: 'Uændret' }
-  const { count: finals } = await supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('case_id', caseId).eq('is_final_invoice', true)
+  // FIN-2 (finance-review 2026-10-17): annulleret (fuldt krediteret) slutfaktura låser ikke afregningsformen
+  const { count: finals } = await supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('case_id', caseId).eq('is_final_invoice', true).is('voided_at', null)
   if ((finals ?? 0) > 0) return { ok: false, message: 'Sagen har allerede en slutfaktura — afregningsformen kan ikke ændres' }
   const { data: upd, error } = await supabase.from('service_cases').update({ billing_model: model }).eq('id', caseId).select('id')
   if (error || !(upd ?? []).length) return { ok: false, message: 'Afregningsformen kunne ikke gemmes' }
@@ -1802,7 +1803,7 @@ export async function getInvoiceDashboardAction(
   // indbetalinger og ikke-annullerede kreditnotaer, kun DKK summeres
   const totals = computeInvoiceTotals(list as InvoiceTotalsRow[], todayMs)
   const byId = new Map(list.map((r) => [r.id as string, r]))
-  const overdueRaw = totals.overdue.map((o) => ({ ...byId.get(o.id)!, _days: o.days }))
+  const overdueRaw = totals.overdue.map((o) => ({ ...byId.get(o.id)!, _days: o.days, _open: o.open }))
 
   // Top forfaldne (flest dage først — sorteret i computeInvoiceTotals) — berig kunde + sag (cost-free).
   const top = overdueRaw.slice(0, 6)
@@ -1828,7 +1829,8 @@ export async function getInvoiceDashboardAction(
     id: r.id as string,
     invoice_number: (r.invoice_number as string | null) ?? null,
     customer_name: r.customer_id ? custName.get(r.customer_id as string) ?? null : null,
-    final_amount: Number(r.final_amount ?? 0),
+    // FIN-9 (finance-review 2026-10-17): det ÅBNE beløb (som KPI'en ved siden af), ikke fakturaens fulde beløb
+    final_amount: r._open,
     currency: (r.currency as string | null) ?? 'DKK',
     due_date: (r.due_date as string | null) ?? null,
     days_overdue: r._days,
@@ -1937,7 +1939,7 @@ export async function getInvoiceLiquidityChartAction(
   // side for side (PostgREST max_rows 1000 — .limit(5000) gav for lave månedstal ved mange fakturaer)
   const { data, error } = await fetchAllRows((from, to) => supabase
     .from('invoices')
-    .select('id, status, invoice_type, final_amount, voided_at, sent_at, paid_at, created_at')
+    .select('id, status, invoice_type, final_amount, amount_paid, voided_at, sent_at, paid_at, created_at')
     // X1: en faktura oprettet FØR vinduet kan være sendt/betalt i det (før kun created_at → betalinger manglede)
     .or(`created_at.gte.${sinceIso},sent_at.gte.${sinceIso},paid_at.gte.${sinceIso}`)
     .order('id')
@@ -1964,7 +1966,9 @@ export async function getInvoiceLiquidityChartAction(
     // Betalt — paid_at i måneden
     if (active && r.status === 'paid' && r.paid_at) {
       const m = buckets.get(ym(r.paid_at) ?? '')
-      if (m) { m.paid_total += amount; hasData = true }
+      // FIN-6 (finance-review 2026-10-17): faktisk indbetalt, når det er registreret (krediteret del er ikke betalt)
+      const paid = Number((r as { amount_paid?: number | string | null }).amount_paid ?? 0)
+      if (m) { m.paid_total += paid > 0 ? paid : amount; hasData = true }
     }
     // Kladder — created_at i måneden (vises separat)
     if (r.status === 'draft' && !r.voided_at) {
@@ -2099,7 +2103,11 @@ export async function getCustomerInvoiceOverviewAction(
     const open = active ? openAmount({ id: r.id as string, final_amount: r.final_amount as number | null, amount_paid: (r as { amount_paid?: number | null }).amount_paid ?? null }, credited) : 0
     if (r.status === 'draft' && !r.voided_at) draftCount += 1
     if (active && r.status === 'sent') outstanding += open
-    if (active && r.status === 'paid') paidTotal += amount
+    // FIN-6: faktisk indbetalt; uden registreret indbetaling = beløb efter kreditnotaer
+    if (active && r.status === 'paid') {
+      const paid = Number((r as { amount_paid?: number | string | null }).amount_paid ?? 0)
+      paidTotal += paid > 0 ? paid : Math.max(0, Math.round((amount - (credited.get(r.id as string) ?? 0)) * 100) / 100)
+    }
     const createdAt = r.created_at as string
     if (!latestInvoiceAt || createdAt > latestInvoiceAt) latestInvoiceAt = createdAt
     if (r.paid_at && (!latestPaymentAt || String(r.paid_at) > latestPaymentAt)) latestPaymentAt = r.paid_at as string

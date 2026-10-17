@@ -283,7 +283,13 @@ export async function setInvoiceStatus(
     .eq('status', cur) // samtidigt statusskift må ikke overskrives blindt
   // Faktura-review 2026-10-14 #8: sletning af en kladde (og mail-afsendelse) tager sent_at som claim — "markér som
   // sendt" må ikke vinde over en igangværende sletning (ellers en sendt faktura uden linjer)
-  if (cur === 'draft' && next === 'sent') upd = upd.is('sent_at', null)
+  if (cur === 'draft' && next === 'sent') {
+    // FIN-7 (finance-review 2026-10-17): efter ukendt mail-udfald (A-1) står mail-kravet i sent_at, og brugeren bliver
+    // bedt om "Markér som sendt" — det fejlede altid. Et mail-krav ældre end 2 min (samme grænse som "Frigiv
+    // afsendelse") må overtages; et slette-krav (DRAFT_DELETE_CLAIM) aldrig.
+    const staleBefore = new Date(Date.now() - 2 * 60_000).toISOString()
+    upd = upd.or(`sent_at.is.null,and(sent_at.lt."${staleBefore}",sent_at.neq."${DRAFT_DELETE_CLAIM}")`)
+  }
   const { data: updated, error: updErr } = await upd
     .select('*')
     .single()
