@@ -36,7 +36,8 @@ export async function setProfileLoginActive(
   })
   if (banErr) {
     logger.error('setProfileLoginActive: ban toggle failed', { error: banErr, entityId: profileId })
-    return { ok: false, error: banErr.message }
+    // TM-10 (team-review 2026-10-17): dansk besked (rå Supabase-tekst logges)
+    return { ok: false, error: 'Kunne ikke ændre login-adgang — prøv igen' }
   }
 
   // 2) profiles.is_active flag (login-flow-gate + UI-visning)
@@ -46,7 +47,7 @@ export async function setProfileLoginActive(
     .eq('id', profileId)
   if (updErr) {
     logger.error('setProfileLoginActive: is_active update failed', { error: updErr, entityId: profileId })
-    return { ok: false, error: updErr.message }
+    return { ok: false, error: 'Kunne ikke ændre login-adgang — prøv igen' }
   }
 
   return { ok: true }

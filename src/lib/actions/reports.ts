@@ -700,13 +700,17 @@ export async function getRejectionStats(): Promise<ActionResult<RejectionStats>>
     const prev30Start = new Date(now - 2 * TREND_WINDOW_DAYS * 86_400_000)
 
     // 1 query for rejected i scope + 1 count-only for decided-rate
-    const [rejectedResult, acceptedCountResult] = await Promise.all([
-      supabase
+    // RP-1 (rapport-review 2026-10-17): side for side + tax_amount (tabt omsætning ekskl. moms som resten af rapporterne)
+    type RejRow = { id: string; rejection_reason: string | null; rejected_at: string | null; final_amount: number | null; tax_amount: number | null }
+    const [rejectedRows, acceptedCountResult] = await Promise.all([
+      fetchAllRows<RejRow>((from, to) => supabase
         .from('offers')
-        .select('id, rejection_reason, rejected_at, final_amount')
+        .select('id, rejection_reason, rejected_at, final_amount, tax_amount')
         .eq('status', 'rejected')
         .eq('is_proposal', false)
-        .gte('rejected_at', scopeStart.toISOString()),
+        .gte('rejected_at', scopeStart.toISOString())
+        .order('id')
+        .range(from, to)),
       supabase
         .from('offers')
         .select('id', { count: 'exact', head: true })
@@ -715,14 +719,16 @@ export async function getRejectionStats(): Promise<ActionResult<RejectionStats>>
         .gte('accepted_at', scopeStart.toISOString()),
     ])
 
-    const rejected = rejectedResult.data || []
+    if (acceptedCountResult.error) throw new Error('accepted count failed')
+    const rejected = rejectedRows
     const totalRejected = rejected.length
     const acceptedCount = acceptedCountResult.count || 0
 
     const decided = totalRejected + acceptedCount
     const rejectionRate = decided > 0 ? (totalRejected / decided) * 100 : 0
 
-    const lostRevenue = rejected.reduce((sum, r) => sum + (r.final_amount || 0), 0)
+    // RP-1: ekskl. moms (før inkl. — ~25 % for højt ved siden af ordreindgangen)
+    const lostRevenue = rejected.reduce((sum, r) => sum + exVat(r), 0)
 
     // Trend: count rejected i sidste 30 vs forrige 30
     let last30Count = 0
@@ -746,7 +752,7 @@ export async function getRejectionStats(): Promise<ActionResult<RejectionStats>>
       const code = (r.rejection_reason ?? 'unknown' as const) as RejectionReasonBucketKey
       const existing = bucketMap.get(code) || { count: 0, lostRevenue: 0 }
       existing.count++
-      existing.lostRevenue += r.final_amount || 0
+      existing.lostRevenue += exVat(r)
       bucketMap.set(code, existing)
     }
 

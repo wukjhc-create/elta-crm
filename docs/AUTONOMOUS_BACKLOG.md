@@ -48,16 +48,16 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-26 (review-bølge 2026-10-17 morgen — rapporter/eksport + indstillinger/team)
 | # | Fund | Status |
 |---|---|---|
-| RP-1 | Afvisningsstatistik: tabt omsætning inkl. moms (andre tal ekskl.), ikke pagineret, fejl tavs | TODO |
-| TM-2 | Rolleskift/deaktivering i Team ikke auditeret; selv-redigering kun blokeret i UI | DONE (venter commit) — audit (user_role_changed/user_(de)activated) + serverblok mod egen rolle/adgang |
-| TM-3 | Deaktivér bruger i Team lader medarbejderen være aktiv og tildelt job (S2) | DONE (venter commit) — deaktiveret login → employees.active=false + termination_date; advarsel om åbne tildelte job |
+| RP-1 | Afvisningsstatistik: tabt omsætning inkl. moms (andre tal ekskl.), ikke pagineret, fejl tavs | DONE (venter commit) — tabt omsætning ekskl. moms (exVat), fetchAllRows, fejl kastes til catch |
+| TM-2 | Rolleskift/deaktivering i Team ikke auditeret; selv-redigering kun blokeret i UI | DONE (1b562c1b) — audit (user_role_changed/user_(de)activated) + serverblok mod egen rolle/adgang |
+| TM-3 | Deaktivér bruger i Team lader medarbejderen være aktiv og tildelt job (S2) | DONE (1b562c1b) — deaktiveret login → employees.active=false + termination_date; advarsel om åbne tildelte job |
 | RP-4 | "Eksportér projekter" eksporterer den gamle projects-tabel (tom) | TODO — service_cases |
 | RP-5 | Materiale-CSV i kalkulation bryder i dansk Excel (komma, ingen BOM, ingen escaping) | TODO — generateCsv |
 | RP-6 | reports.export-rettigheden tjekkes aldrig (serviceleder kan masseeksportere persondata) | BESLUTNING — hvem må eksportere? (ændrer adgang) |
 | TM-7 | Samtidig nedgradering kan fjerne sidste admin | TODO — genoptælling efter skrivning |
 | TM-8 | Deaktiverede inviterede vises som afventende og kan gensendes | TODO |
 | RP-9 | Team-produktivitet: periode ≠ "30 dage", navne "Ukendt" ved >200 | TODO |
-| TM-10 | Engelske fejl fra login-adgang | TODO |
+| TM-10 | Engelske fejl fra login-adgang | DONE (venter commit) — dansk besked; rå Supabase-tekst logges |
 
 ## NEXT-25 (review-bølge 2026-10-17 nat — montørens telefon-flow)
 | # | Fund | Status |
@@ -138,7 +138,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | O-6 | Erstattet revision kan accepteres internt og konverteres til sag | DEFERRED — `superseded_by` findes kun med revisioner (00203, kun staging bag OFFER_REVISIONS_ENABLED); DB-filter på kolonnen ville fejle i prod. Tages med revisions-udrulningen |
 | O-7 | Erstattede revisioner får rykkere og tælles som klar til konvertering | DEFERRED — samme som O-6 (00203) |
 | O-8 | deactivatePortalToken melder succes uden at have opdateret en række | DONE (9c3f5f7c) — .select + 0 rækker = fejl |
-| O-9 | Fuldmagt-/besigtigelsesforespørgsler i rykker-cron uden paginering | DONE (venter commit) — fuldmagt-/besigtigelsesforespørgsler side for side (fetchAllRows, sorteret) |
+| O-9 | Fuldmagt-/besigtigelsesforespørgsler i rykker-cron uden paginering | DONE (1b562c1b) — fuldmagt-/besigtigelsesforespørgsler side for side (fetchAllRows, sorteret) |
 | O-10 | viewed_at nulstilles ikke ved viewed→kladde→sendt | DONE (46ab9f18) |
 | O-11 | Portaldatoer uden timeZone (server-renderet UTC) | DONE (9c3f5f7c) — timeZone Europe/Copenhagen i portalens besigtigelse/fuldmagt/bekræftelse |
 | O-12 | Portal: afvis uden udløbs-/erstattet-tjek; PDF-route serverer erstattede revisioner; rabatrække-betingelse PDF ≠ portal | DONE (184b807c) — fælles `portalResponseBlockReason` (udløb/status/afløst bag revisionsflag). Unit portal-response-guard 11/11 (gyldig, udløbet, accepteret, afvist, kladde, afløst, dansk dato) |
