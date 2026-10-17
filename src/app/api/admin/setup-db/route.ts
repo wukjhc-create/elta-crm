@@ -10,7 +10,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal'
 
 const MIGRATIONS = [
   {
@@ -598,7 +598,7 @@ function authorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   const header = request.headers.get('authorization') ?? ''
   const expected = `Bearer ${secret}`
-  return !!secret && header.length === expected.length && timingSafeEqual(Buffer.from(header), Buffer.from(expected))
+  return !!secret && header.length === expected.length && safeEqual(header, expected)
 }
 
 export async function POST(request: Request) {

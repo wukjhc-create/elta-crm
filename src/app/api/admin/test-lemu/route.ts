@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal'
 import { logger } from '@/lib/utils/logger'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       !CRON_SECRET ||
       !authHeader ||
       authHeader.length !== expected.length ||
-      !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+      !safeEqual(authHeader, expected)
     ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -61,11 +61,10 @@ export async function GET(request: Request) {
     const diagnostics: string[] = []
     diagnostics.push(`Host: ${host}`)
     diagnostics.push(`Port: 22`)
-    diagnostics.push(`Username: "${username}" (length: ${username.length})`)
+    // API-1 (review 2026-10-17): før stod adgangskodens første/sidste 5 tegn og ALLE tegnkoder i svaret (= hele den
+    // dekrypterede SFTP-adgangskode til enhver med CRON_SECRET). Kun længder — aldrig værdier.
+    diagnostics.push(`Username length: ${username.length}`)
     diagnostics.push(`Password length: ${password.length}`)
-    diagnostics.push(`Password first 5 chars: ${password.substring(0, 5)}...`)
-    diagnostics.push(`Password last 5 chars: ...${password.substring(password.length - 5)}`)
-    diagnostics.push(`Password chars: ${[...password].map(c => c.charCodeAt(0)).join(',')}`)
 
     // Test DNS resolution
     try {
@@ -150,7 +149,7 @@ export async function GET(request: Request) {
           readyTimeout: 20000,
           debug: (msg: string) => {
             // Capture auth-related debug lines
-            if (msg.includes('Auth') || msg.includes('auth') || msg.includes('password') || msg.includes('keyboard') || msg.includes('handshake') || msg.includes('Handshake')) {
+            if (!(password && msg.includes(password)) && (msg.includes('Auth') || msg.includes('auth') || msg.includes('password') || msg.includes('keyboard') || msg.includes('handshake') || msg.includes('Handshake'))) {
               sshDebugLines.push(msg)
             }
           },

@@ -8,6 +8,7 @@
  */
 import { NextResponse } from 'next/server'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,8 +32,10 @@ export async function GET() {
 
     return NextResponse.json({ generated_at: new Date().toISOString(), insights })
   } catch (err) {
+    // API-7 (review 2026-10-17): generisk tekst til klienten, detaljen i loggen
+    logger.error('dashboard/ai-insights failed', { error: err instanceof Error ? err : new Error(String(err)) })
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error', insights: [] },
+      { error: 'Kunne ikke hente indsigter', insights: [] },
       { status: 200 }   // never break the dashboard — return empty list with 200
     )
   }

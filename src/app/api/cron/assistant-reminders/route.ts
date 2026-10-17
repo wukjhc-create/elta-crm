@@ -6,7 +6,7 @@
  * forbundne Telegram-chat. Kræver CRON_SECRET (timing-safe), som de øvrige crons.
  */
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { dispatchAssistantReminders } from '@/lib/assistant/reminders'
 import { telegramReminderSender } from '@/lib/assistant/telegram/reminder-sender'
@@ -18,7 +18,7 @@ async function handleCron(request: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET
   const auth = request.headers.get('authorization')
   const expected = `Bearer ${secret}`
-  if (!secret || !auth || auth.length !== expected.length || !timingSafeEqual(Buffer.from(auth), Buffer.from(expected))) {
+  if (!secret || !auth || auth.length !== expected.length || !safeEqual(auth, expected)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   if (process.env.ASSISTANT_TELEGRAM_ENABLED !== 'true') {

@@ -109,6 +109,7 @@ export async function GET(
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,
         'Content-Length': pdfBuffer.length.toString(),
+        'Cache-Control': 'private, no-store', // API-8: som faktura-/portal-PDF
       },
     })
   } catch (error) {

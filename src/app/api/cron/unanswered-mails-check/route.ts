@@ -13,8 +13,8 @@
  * Schedule: every 4 hours (configurable in vercel.json).
  */
 
+import { safeEqual } from '@/lib/security/safe-equal'
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
 import {
   createAutoTasksForUnansweredEmails,
   autoCloseRespondedTasks,
@@ -37,7 +37,7 @@ async function handleCron(request: Request): Promise<Response> {
     !CRON_SECRET ||
     !authHeader ||
     authHeader.length !== expected.length ||
-    !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+    !safeEqual(authHeader, expected)
   ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

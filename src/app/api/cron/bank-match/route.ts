@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
 
@@ -22,7 +22,7 @@ async function handleCron(request: Request): Promise<Response> {
     if (
       !CRON_SECRET ||
       authHeader.length !== expected.length ||
-      !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+      !safeEqual(authHeader, expected)
     ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

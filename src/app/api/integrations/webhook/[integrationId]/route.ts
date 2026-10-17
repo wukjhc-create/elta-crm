@@ -70,18 +70,11 @@ export async function POST(
       .eq('id', integrationId)
       .single()
 
-    if (intError || !integration) {
-      return NextResponse.json(
-        { error: 'Integration not found' },
-        { status: 404 }
-      )
-    }
-
-    if (!integration.is_active) {
-      return NextResponse.json(
-        { error: 'Integration is disabled' },
-        { status: 403 }
-      )
+    // API-6 (review 2026-10-17): samme 401 for ukendt, deaktiveret og forkert nøgle (før 404/403 = eksistens-orakel
+    // før godkendelse)
+    if (intError || !integration || !integration.is_active) {
+      logger.warn('integration webhook: unauthorized', { entityId: integrationId, metadata: { reason: !integration ? 'not found' : 'disabled' } })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Verify webhook signature/API key

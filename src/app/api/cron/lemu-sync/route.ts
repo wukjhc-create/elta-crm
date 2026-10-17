@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { executeFtpSync, buildFtpCredentials } from '@/lib/services/supplier-ftp-sync'
 import { decryptCredentials } from '@/lib/utils/encryption'
@@ -31,7 +31,7 @@ async function handleCron(request: Request): Promise<Response> {
       !CRON_SECRET ||
       !authHeader ||
       authHeader.length !== expected.length ||
-      !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+      !safeEqual(authHeader, expected)
     ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

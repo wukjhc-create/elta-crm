@@ -6,7 +6,7 @@
  * blind SSRF). Ruterne kræver nu CRON_SECRET (fail-closed, timing-safe) og accepterer kun billeder som data-URL.
  * Bevidst IKKE 'use server'.
  */
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal'
 
 /** Headers et internt kald skal sende. */
 export function internalRequestHeaders(): Record<string, string> {
@@ -19,7 +19,7 @@ export function isInternalRequest(request: Request): boolean {
   if (!secret) return false
   const header = request.headers.get('authorization') ?? ''
   const expected = `Bearer ${secret}`
-  return header.length === expected.length && timingSafeEqual(Buffer.from(header), Buffer.from(expected))
+  return header.length === expected.length && safeEqual(header, expected)
 }
 
 const DATA_IMAGE = /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=\s]*$/

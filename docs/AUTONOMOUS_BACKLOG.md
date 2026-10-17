@@ -211,6 +211,28 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-38 (review-bølge 2026-10-17 eftermiddag — API-ruter + kundemodul)
+| # | Fund | Status |
+|---|---|---|
+| API-1 | admin/test-lemu returnerede den dekrypterede LEMU-SFTP-adgangskode (tegnkoder) til CRON_SECRET-indehavere (S2) | DONE (kode) — kun længder; ssh-debuglinjer med adgangskoden filtreres |
+| API-2 | admin/setup-lemu kunne udskifte LM-vært/login med CRON_SECRET; test-lm-health (GET) deaktiverede synken ved én fejl (S3) | DONE (kode) — setup-lemu 410 (opsætning i Indstillinger → Leverandører); health-tjek registrerer kun status |
+| API-3 | `timingSafeEqual(Buffer.from(a), Buffer.from(b))` efter tegn-længdetjek kastede RangeError ved ikke-ASCII → 500 + fejlrække i system_health_log for anonyme (S3) | DONE (kode) — `lib/security/safe-equal.ts` (SHA-256), 22 steder; scripts/safe-equal-test.ts |
+| API-4 | Offentlig kontaktformular: kun globalt loft (30/t) → bot kan låse den en time (S3) | BLOCKED_APPROVAL [MIGRATION] — per-IP-loft kræver tabel/KV (= SEC2-6) |
+| API-5 | /api/address/search uden login (åben DAWA-proxy) (S4) | DONE (kode) — kræver login |
+| API-6 | Integrations-webhook: 404/403 før godkendelse = eksistens-orakel (S4) | DONE (kode) — samme 401 |
+| API-7 | dashboard/stats + ai-insights sendte rå fejltekst (S4) | DONE (kode) — generisk tekst, detalje i log |
+| API-8 | Tilbuds-PDF uden no-store; offer-reminders accepterede hemmeligheden uden "Bearer " (S4) | DONE (kode) |
+| CU-1 | Montør kan hente sagsløse dokumenter (rapporter, uploads) for alle kunder (S2) | TODO |
+| CU-2 | Prisaftaleformular uden key → redigering af B overskriver A; gemning genaktiverer inaktiv aftale (S3) | TODO |
+| CU-3 | Sletning af kunde: SET NULL-referencer (mails forbliver 'linked' uden kunde, tilbudsmails, kalkulationer) (S3) | TODO |
+| CU-4 | Redigering af kunde: ingen dublet-e-mail-tjek/normalisering (S3) | TODO |
+| CU-5 | Montør ser hele kunderegistret + noter (S3, design) | BESLUTNING (Henrik) — scope montør til egne sagers kunder? |
+| CU-6 | Kundeflow-widget viser lead/tilbud/mail-trin uden de respektive rettigheder (S3, plausibel) | TODO |
+| CU-7 | Opdatering af kontakt nulstiller primær før opdatering (S4) | TODO |
+| CU-8 | createCustomerTask kun customers.view; assigned_to/offer_id ukontrolleret (S4) | TODO |
+| CU-9 | Escape lukker kontaktformular uden spørgsmål (S4) | TODO |
+| CU-10 | AI-projekt kundevælger højst 100 kunder (S4) | TODO |
+
 ## NEXT-27 (review-bølge 2026-10-17 — crons, alarmer, notifikationer)
 | # | Fund | Status |
 |---|---|---|

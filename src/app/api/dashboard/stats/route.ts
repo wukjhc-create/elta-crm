@@ -233,9 +233,7 @@ export async function GET() {
     return NextResponse.json(payload)
   } catch (err) {
     logger.error('dashboard/stats failed', { error: err instanceof Error ? err : new Error(String(err)) })
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error' },
-      { status: 500 }
-    )
+    // API-7 (review 2026-10-17): ingen rå database-fejltekst til klienten (detaljen står i loggen)
+    return NextResponse.json({ error: 'Kunne ikke hente nøgletal' }, { status: 500 })
   }
 }

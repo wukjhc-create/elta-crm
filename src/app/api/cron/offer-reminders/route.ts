@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { shouldRemindBesigtigelse, type BesigtigelseTaskLike } from '@/lib/tasks/besigtigelse-task'
 import { logger } from '@/lib/utils/logger'
@@ -35,11 +35,12 @@ async function handleCron(request: Request): Promise<Response> {
     if (!CRON_SECRET || !authHeader) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const token = authHeader.replace('Bearer ', '')
+    if (!authHeader.startsWith('Bearer ')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) // API-8: kun Bearer-formen (som de andre crons)
+    const token = authHeader.slice('Bearer '.length)
     if (token.length !== CRON_SECRET.length) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const isValid = timingSafeEqual(Buffer.from(token), Buffer.from(CRON_SECRET))
+    const isValid = safeEqual(token, CRON_SECRET)
     if (!isValid) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

@@ -16,7 +16,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal'
 import { logger } from '@/lib/utils/logger'
 
 export const dynamic = 'force-dynamic'
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     if (
       !CRON_SECRET ||
       authHeader.length !== expected.length ||
-      !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+      !safeEqual(authHeader, expected)
     ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -106,13 +106,13 @@ export async function GET(request: Request) {
 
     // ---- failure path: log, mark failed, disable ----
     const errMsg = result.error || 'Unknown FTP/SFTP failure'
-    logger.error('LM FTP/SFTP health-check FAILED — disabling sync', {
+    logger.error('LM FTP/SFTP health-check FAILED', {
       entity: 'supplier_credentials',
       entityId: cred.id,
       metadata: { supplier: supplier.code, host: ftpCreds.host, port: ftpCreds.port },
       error: new Error(errMsg),
     })
-    console.error('LM HEALTH FAIL — DISABLING:', errMsg)
+    console.error('LM HEALTH FAIL:', errMsg)
 
     const { error: updErr } = await supabase
       .from('supplier_credentials')
@@ -120,11 +120,12 @@ export async function GET(request: Request) {
         last_test_at: nowIso,
         last_test_status: 'failed',
         last_test_error: errMsg,
-        is_active: false,
+        // API-2 (review 2026-10-17): én forbigående fejl i et manuelt GET-tjek slog før den natlige synk fra
+        // (is_active=false). Status registreres; deaktivering sker kun bevidst i leverandørindstillingerne.
       })
       .eq('id', cred.id)
     if (updErr) {
-      logger.error('Failed to disable LM credential after health failure', {
+      logger.error('Failed to record LM credential health failure', {
         entityId: cred.id,
         error: updErr,
       })
@@ -135,8 +136,8 @@ export async function GET(request: Request) {
         ok: false,
         supplier: supplier.code,
         credential_id: cred.id,
-        is_active: false,
-        disabled: true,
+        is_active: true,
+        disabled: false,
         error: errMsg,
         tested_at: nowIso,
       },

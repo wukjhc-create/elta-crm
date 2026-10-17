@@ -21,10 +21,16 @@
 
 import { NextResponse } from 'next/server'
 import { searchDanishAddresses } from '@/lib/services/address-lookup'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
+  // API-5 (review 2026-10-17): kun indloggede (bruges kun i dashboardets dialoger) — før en åben DAWA-proxy for alle
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const url = new URL(req.url)
   const q = url.searchParams.get('q') || ''
   const limitParam = url.searchParams.get('limit')

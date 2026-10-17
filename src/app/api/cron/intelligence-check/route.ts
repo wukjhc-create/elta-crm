@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal'
 import { MONITORING_CONFIG } from '@/lib/constants'
 import { calculateDBPercentage } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
@@ -29,7 +29,7 @@ async function handleCron(request: Request): Promise<Response> {
     !CRON_SECRET ||
     !authHeader ||
     authHeader.length !== expected.length ||
-    !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+    !safeEqual(authHeader, expected)
   ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
