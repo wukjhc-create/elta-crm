@@ -1,6 +1,20 @@
 # Development status — checkpoint til næste session
 
-**Opdateret:** 2026-10-16 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
+**Opdateret:** 2026-10-17 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
+
+## Long-run 2026-10-17 — NEXT-27/28/29 (kun kode, ingen migrationer, intet live)
+| Commit | Indhold |
+|---|---|
+| e016ac3a | DF-2/3/4/6/7/8/10/11 tilbud→sag→faktura (UI U183) |
+| 6a94ef7e | CR-3/4/5/6/8/10/11/12 alarmer og crons (UI U184) |
+| 3195fcc4 | CR-2 `INVOICE_REMINDERS_LIVE` (standard fra; prod sendte 0 i forvejen), CR-1 nødstop `FOLLOWUP_REMINDERS_PAUSED` |
+| 7707d6f7 | SEC2-1/2/3/5/6, F2/F3/F4, C-F1/C-F4 sikkerhed; migrationsforslag 00241–00245 |
+| 94997dfe | FIN-1/2(kode)/5/6/7/9/10/11; F4 tagtegninger; C-F1 audit-visning |
+| cd52e229 | FIN-3/4/8/12; HT-2/HT-3 harness |
+| 4c0bcace | DF-5 fuld kreditering frigiver kilderækker |
+
+Ikke lavet (tilladelse): DF-1-værnet i create-invoice-from-offer.ts blev afvist af auto-mode-værnet to gange. Patchen står i
+docs/runbooks/auto-invoice-offer-guard-proposal.md. Reglen er dry_run i prod.
 
 ## Long-run 2026-10-16 eftermiddag — NEXT-21/22/23 (kun kode, ingen migrationer, intet live)
 | Commit | Indhold |
@@ -99,6 +113,14 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **DB-sikkerhed 2026-10-16** (docs/runbooks/db-security-2026-10-16-proposal.md): 00238 ai_suggestions margin_alert, 00239 kladdelås via status, 00240 interne dokumenter i portal (app-værn i kode), hygiejne-REVOKE; DB-8 sygefravær for bogholderi = beslutning
 - **CR-1 live-flag for fuldmagt-/besigtigelsesrykkere?** Nødstop findes nu (`FOLLOWUP_REMINDERS_PAUSED=true`); default uændret (live)
 - **DF-1 auto-faktura ved accept** — værnet kan ikke skrives af Claude (auto-mode-værn afviser redigering af create-invoice-from-offer.ts). Henrik: anvend patchen i docs/runbooks/auto-invoice-offer-guard-proposal.md eller tillad redigeringen. Reglen er dry_run i prod — slå ikke dry_run fra før
+- **Sikkerhed/økonomi 2026-10-17** (docs/runbooks/security-2026-10-17-proposal.md):
+  - 00241 webhooks: kun admin må ændre, SELECT begrænset
+  - 00242 customer_documents: trigger på følsomme kolonner
+  - 00243 solar-kostpris
+  - 00244 kostkolonner i AI-/kalkulationstabeller
+  - 00245 slutfaktura-indeks uden annullerede
+- **SEC2-6 grænse pr. IP på kontaktformularen** — kræver lagring (hash af IP) = GDPR-/skemabeslutning
+- **DF-5 delvis kreditering** — frigivelse kræver kolonnen kreditlinje → original linje [MIGRATION]
 - **"Registrér også betaling i e-conomic"** (efter A-12-beslutningen) — eksplicit action: permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit
 P-2/P-4/P-8/P-10/P-11 (round 3) — UI U178/U13/U4/U5/U43/U160/U166 grønne.
 
