@@ -133,7 +133,9 @@ export async function fillOfferStarterLines(args: {
             // Linkage
             material_id: material.id,
             supplier_product_id: supplier.supplier_product_id,
-            supplier_cost_price_at_creation: priced.costPrice,
+            // OF-11 (review 2026-10-17): leverandørens rå kost (ikke kost efter kunderabat) — ellers meldte prisændrings-
+            // tjekket en "ændring" lig rabatten og omprissatte linjerne (samme klasse som GP-6/00224)
+            supplier_cost_price_at_creation: Number((supplier as { raw_cost_price?: number | null }).raw_cost_price ?? priced.costPrice) || priced.costPrice,
             supplier_name_at_creation: supplier.supplier_name_at_creation,
             notes: resolved.fromBinding
               ? `Material: ${material.slug ?? material.name} (bundet leverandør)`
@@ -208,7 +210,7 @@ export async function fillOfferStarterLines(args: {
         discount_percentage: 0,
         total: fallbackPriced.total,
         supplier_product_id: match.supplier_product_id,
-        supplier_cost_price_at_creation: fallbackPriced.costPrice,
+        supplier_cost_price_at_creation: Number((match as { raw_cost_price?: number | null }).raw_cost_price ?? fallbackPriced.costPrice) || fallbackPriced.costPrice, // OF-11
         supplier_name_at_creation: match.supplier_name_at_creation,
         notes: `Fallback (search: "${term}")`,
       })

@@ -66,7 +66,7 @@ export async function createOfferRevision(offerId: string, userId: string): Prom
   if (!offerRevisionsEnabled()) return { ok: false, error: 'Revisioner er ikke slået til' }
   const admin = createAdminClient()
   const { data: src } = await admin.from('offers')
-    .select('id, title, offer_number, status, revision_number, superseded_by, description, scope, customer_id, lead_id, discount_percentage, tax_percentage, currency, terms_and_conditions, notes, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode, valid_until, is_proposal')
+    .select('id, title, offer_number, status, revision_number, superseded_by, description, scope, customer_id, lead_id, discount_percentage, tax_percentage, currency, terms_and_conditions, notes, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode, valid_until, is_proposal, vat_mode, billing_model')
     .eq('id', offerId).maybeSingle()
   if (!src) return { ok: false, error: 'Tilbud ikke fundet' }
   const s = src as Record<string, unknown> & { status: string; revision_number: number; superseded_by: string | null; offer_number: string; title: string }
@@ -83,8 +83,17 @@ export async function createOfferRevision(offerId: string, userId: string): Prom
     revision_of: offerId, revision_number: nextRev,
   }
   for (const f of ['description', 'scope', 'customer_id', 'lead_id', 'discount_percentage', 'tax_percentage', 'currency', 'terms_and_conditions',
-    'notes', 'orderer_customer_id', 'end_customer_id', 'payer_customer_id', 'billing_mode', 'valid_until', 'is_proposal']) {
+    'notes', 'orderer_customer_id', 'end_customer_id', 'payer_customer_id', 'billing_mode', 'valid_until', 'is_proposal',
+    // OF-10 (review 2026-10-17): moms- og afregningsform følger med (som kopiér, DF-10)
+    'vat_mode', 'billing_model']) {
     if (s[f] !== null && s[f] !== undefined) insert[f] = s[f]
+  }
+  // OF-10: ny gyldighed fra i dag (et udløbet tilbud kan revideres — før kunne revisionen ikke sendes uden at rette datoen)
+  {
+    const { data: cs } = await admin.from('company_settings').select('default_offer_validity_days').maybeSingle()
+    const days = Number((cs as { default_offer_validity_days?: number | null } | null)?.default_offer_validity_days ?? 30) || 30
+    const { copenhagenDatePlusDays } = await import('@/lib/utils/copenhagen-time')
+    insert.valid_until = copenhagenDatePlusDays(days)
   }
   const { data: created, error: insErr } = await admin.from('offers').insert([insert]).select('id, offer_number').single()
   if (insErr || !created) {

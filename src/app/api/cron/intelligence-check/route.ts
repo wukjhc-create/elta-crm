@@ -178,14 +178,18 @@ async function handleCron(request: Request): Promise<Response> {
     // Check active offers with low margins
     // =====================================================
 
-    const { data: activeOffers } = await supabase
+    // OF-7 (review 2026-10-17): tilbudsrabatten med (før DB regnet før rabat → 25 % i stedet for 16,7 %, ingen alarm) og
+    // pagineret (PostgREST-loft 1.000)
+    const activeOffers = await fetchAllRows<{ id: string; title: string; offer_number: string; final_amount: number | null; discount_percentage: number | null; line_items: Array<{ cost_price: number | null; quantity: number | null; total: number | null; supplier_product_id: string | null }> }>((from, to) => supabase
       .from('offers')
       .select(`
-        id, title, offer_number, final_amount,
+        id, title, offer_number, final_amount, discount_percentage,
         line_items:offer_line_items(cost_price, quantity, total, supplier_product_id)
       `)
       // aktive tilbud inkl. 'viewed' (kunden har åbnet det — stadig åbent; før sprunget over)
       .in('status', ['draft', 'sent', 'viewed'])
+      .order('id')
+      .range(from, to) as never).catch(() => null)
 
     if (activeOffers) {
       // Collect all supplier_product_ids across all offers to batch-load current prices
@@ -228,7 +232,8 @@ async function handleCron(request: Request): Promise<Response> {
       for (const offer of activeOffers) {
         const lineItems = offer.line_items || []
         // kost = kostpris × antal (før enhedskost mod linjetotal → marginen blev overvurderet, se offer-margin.ts)
-        const { totalCost, totalSale } = offerCostAndSale(lineItems)
+        const { totalCost, totalSale: saleBeforeDiscount } = offerCostAndSale(lineItems)
+        const totalSale = saleBeforeDiscount * (1 - (Number(offer.discount_percentage ?? 0) || 0) / 100) // OF-7
 
         if (totalCost > 0 && totalSale > 0) {
           const marginPct = calculateDBPercentage(totalCost, totalSale)

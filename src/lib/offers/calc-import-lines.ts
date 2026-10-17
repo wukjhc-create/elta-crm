@@ -14,6 +14,9 @@ import { rowOfferMode } from '@/types/calculations.types'
 export const HIDDEN_INCLUDED_LINE_DESCRIPTION = 'Øvrige materialer og ydelser'
 
 export interface CalcImportRow {
+  /** OF-9: kalkulationens rækkefølge og type ('section' = overskrift) */
+  position?: number | null
+  row_type?: string | null
   product_id?: string | null
   section?: string | null
   description: string
@@ -59,8 +62,10 @@ export function buildCalculationImportLines(input: {
 }): CalcImportLine[] {
   const includeHidden = input.includeHiddenRows ?? false
   const withCost = input.includeCostPrices ?? true
-  let visible = input.rows.filter((r) => rowOfferMode(r) === 'visible' || (includeHidden && rowOfferMode(r) === 'hidden_included'))
-  const hiddenIncluded = includeHidden ? [] : input.rows.filter((r) => rowOfferMode(r) === 'hidden_included')
+  // OF-9 (review 2026-10-17): kalkulationens rækkefølge (position) — før databasens tilfældige rækkefølge
+  const ordered = [...input.rows].sort((a, b) => (Number(a.position ?? 0) || 0) - (Number(b.position ?? 0) || 0))
+  let visible = ordered.filter((r) => rowOfferMode(r) === 'visible' || (includeHidden && rowOfferMode(r) === 'hidden_included'))
+  const hiddenIncluded = includeHidden ? [] : input.rows.filter((r) => rowOfferMode(r) === 'hidden_included' && r.row_type !== 'section')
   if (visible.length === 0 && hiddenIncluded.length === 0) return []
 
   if (input.groupBySection) {
@@ -77,6 +82,15 @@ export function buildCalculationImportLines(input: {
   const base = { offer_id: input.offerId, calculation_id: input.calculationId }
 
   for (const row of visible) {
+    // OF-9: sektionsrækker bliver overskrifter (line_type 'section', 0 kr) — før "Køkken 1 stk 0,00" som produktlinje
+    if (row.row_type === 'section') {
+      lines.push({
+        ...base, line_type: 'section', product_id: null, section: row.section ?? null, position: pos++,
+        description: row.description, quantity: 0, unit: '', unit_price: 0, sale_price: 0, cost_price: null,
+        discount_percentage: 0, total: 0,
+      })
+      continue
+    }
     const unitPrice = Number(row.hourly_rate || row.sale_price || 0) // timepris for arbejdsrækker
     lines.push({
       ...base,

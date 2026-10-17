@@ -481,7 +481,9 @@ export async function loadSupplierPricesForVariant(
         }
         if (customerProductPrice.discount !== null) {
           discount = customerProductPrice.discount
-          effectiveCost = baseCost * (1 - discount / 100)
+          // OF-6 (review 2026-10-17): rabatten gælder kundens egen kostpris, når den findes (som supplierLinePricing og
+          // get_customer_product_price) — før blev den overskrevet med listepris × rabat (80 + 10 % → 90 i stedet for 72)
+          effectiveCost = (customerProductPrice.cost ?? baseCost) * (1 - discount / 100)
         }
       } else {
         // Check customer-supplier agreement

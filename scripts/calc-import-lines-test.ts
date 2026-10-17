@@ -41,5 +41,19 @@ ok(buildCalculationImportLines({ rows: [{ description: 'x', total: 1, offer_mode
 const noCost = buildCalculationImportLines({ rows, offerId: 'o', calculationId: 'c', startPosition: 0, marginPercentage: 0, discountPercentage: 0, includeCostPrices: false })
 ok(noCost.every((l) => l.cost_price === null), 'uden kost: ingen kostpriser på linjerne')
 
+// OF-9 (2026-10-17): kalkulationens rækkefølge (position) og sektioner som overskrifter
+const ordered = buildCalculationImportLines({
+  rows: [
+    { position: 3, description: 'Stikkontakt', quantity: 2, sale_price: 100, total: 200, offer_mode: 'visible' },
+    { position: 1, row_type: 'section', description: 'Køkken', quantity: 1, sale_price: 0, total: 0, offer_mode: 'visible' },
+    { position: 2, description: 'Kabel', quantity: 10, sale_price: 12, total: 120, offer_mode: 'visible' },
+  ],
+  offerId: 'o', calculationId: 'c', startPosition: 0, marginPercentage: 0, discountPercentage: 0,
+})
+ok(ordered.map((l) => l.description).join('|') === 'Køkken|Kabel|Stikkontakt', 'linjer i kalkulationens rækkefølge', ordered.map((l) => l.description).join('|'))
+const sec = ordered.find((l) => l.description === 'Køkken')
+ok(!!sec && sec.line_type === 'section' && sec.quantity === 0 && sec.total === 0, 'sektionsrække → overskrift (0 stk, 0 kr)', JSON.stringify(sec))
+ok(sum(ordered) === 320, 'sektion påvirker ikke summen', String(sum(ordered)))
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ kalkulation→tilbud-linjer ok')
 process.exitCode = bad ? 1 : 0

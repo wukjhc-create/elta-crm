@@ -53,12 +53,12 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | OF-3 | "Indsæt pakke i tilbud": prod-funktionen skriver til total_price, som ikke findes → fejler altid (S2) | DELVIS — prod read-only bekræftet (scripts/prod-offer-line-columns.ts); klar fejlbesked i stedet for generisk. Ny funktion = BLOCKED_APPROVAL [MIGRATION] |
 | OF-4 | Salgspris i leverandørsøgning ≠ linjens pris (margin-regler/standardavance) (S2) | TODO |
 | OF-5 | Tilbud fra pakkebygger: linjekost lavere end vist (tillæg/spild mangler) → DB for god (S3) | TODO |
-| OF-6 | Kalkia-leverandørpris: kundens egen kostpris overskrives ved rabat (S3) | TODO |
-| OF-7 | Natlig lav-DB-alarm ignorerer tilbudsrabat; ikke pagineret (S3) | TODO |
+| OF-6 | Kalkia-leverandørpris: kundens egen kostpris overskrives ved rabat (S3) | DONE (kode) — rabat på kundens egen kostpris (som supplierLinePricing/DB-funktionen) |
+| OF-7 | Natlig lav-DB-alarm ignorerer tilbudsrabat; ikke pagineret (S3) | DONE (kode) — tilbudsrabat med i DB; pagineret (fetchAllRows) |
 | OF-8 | Tilbuds-PDF viser ikke linjerabat (S3) | DONE (kode) — "−x % rabat" under enhedsprisen |
-| OF-9 | Kalkulationsimport: tilfældig rækkefølge; sektioner bliver 0-kr-linjer (S3) | TODO |
-| OF-10 | Tilbudsrevision (staging) taber vat_mode/billing_model og gyldighed (S3) | TODO |
-| OF-11 | Startpakker gemmer rabatteret kost som leverandørkost → falske prisændringer (S4) | TODO |
+| OF-9 | Kalkulationsimport: tilfældig rækkefølge; sektioner bliver 0-kr-linjer (S3) | DONE (kode) — sorteret efter position; sektionsrækker → overskrifter. Unit calc-import-lines-test |
+| OF-10 | Tilbudsrevision (staging) taber vat_mode/billing_model og gyldighed (S3) | DONE (kode, staging) — vat_mode/billing_model kopieres; ny gyldighed fra i dag |
+| OF-11 | Startpakker gemmer rabatteret kost som leverandørkost → falske prisændringer (S4) | DONE (kode) — rå leverandørkost som supplier_cost_price_at_creation |
 | OF-12 | Kalkia-motorens regelnøgler matcher ikke seed (latent) (S4) | TODO (latent — ingen UI) |
 
 ## NEXT-32 (review-bølge 2026-10-17 aften — portal, kundemails, PDF)
