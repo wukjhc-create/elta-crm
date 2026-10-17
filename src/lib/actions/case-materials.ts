@@ -236,9 +236,11 @@ export async function createCaseMaterial(
         // Uden kost-ret (montør) prissætter kontoret — klientens priser ignoreres.
         unit_cost: hasPermission(PRICE_VISIBILITY_PERMISSION) ? unit_cost : 0,
         unit_sales_price: hasPermission(PRICE_VISIBILITY_PERMISSION) ? unit_sales_price : 0,
-        source: input.source ?? 'manual',
-        source_offer_line_id: input.source_offer_line_id || null,
-        source_incoming_invoice_line_id: input.source_incoming_invoice_line_id || null,
+        // SC-13 (sags-review 2026-10-17): kilde og kildelinks kun fra kontoret (materials.edit) — ellers kunne montøren
+        // forfalske tilbudt-vs-faktisk og LF-5-undtagelsen for negativ kost
+        source: hasPermission('materials.edit') ? (input.source ?? 'manual') : 'manual',
+        source_offer_line_id: hasPermission('materials.edit') ? (input.source_offer_line_id || null) : null,
+        source_incoming_invoice_line_id: hasPermission('materials.edit') ? (input.source_incoming_invoice_line_id || null) : null,
         billable: input.billable ?? true,
         notes: input.notes?.trim() || null,
         created_by: userId,

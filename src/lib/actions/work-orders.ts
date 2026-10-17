@@ -344,10 +344,17 @@ export async function updateWorkOrderPlanning(
     }
 
     // X4: udførte/annullerede arbejdsordrer kan ikke omplanlægges (UI'et skjuler det; serveren håndhævede det ikke)
-    const { data: curWo } = await supabase.from('work_orders').select('status').eq('id', workOrderId).maybeSingle()
+    const { data: curWo } = await supabase.from('work_orders').select('status, case_id').eq('id', workOrderId).maybeSingle()
     if (!curWo) return { success: false, error: 'Arbejdsordre ikke fundet' }
     if (['done', 'cancelled'].includes((curWo as { status: string }).status)) {
       return { success: false, error: 'En udført eller annulleret arbejdsordre kan ikke omplanlægges' }
+    }
+    // SC-10 (sags-review 2026-10-17): samme regler som ved oprettelse — ikke på lukket sag eller forslag-sag
+    const woCaseId = (curWo as { case_id: string | null }).case_id
+    if (woCaseId) {
+      const { data: wc } = await supabase.from('service_cases').select('status, is_proposal').eq('id', woCaseId).maybeSingle()
+      if ((wc as { status?: string } | null)?.status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+      if ((wc as { is_proposal?: boolean } | null)?.is_proposal) return { success: false, error: 'Sagen er et forslag — godkend den først' }
     }
 
     const { data, error } = await supabase

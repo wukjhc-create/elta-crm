@@ -235,11 +235,11 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | SC-7 | Sagens "Auto-faktura ved afsluttet" gør intet (S3) | TODO |
 | SC-8 | receipt_url accepterer vilkårlig receipts/-sti (S3, plausibel) | DONE (kode) — storage-sti skal ligge under sagens mappe; fil slettes kun uden andre referencer |
 | SC-9 | Materialer/omkostninger kan ændres på lukket sag (S4) | DONE (kode) — ingen ændring/sletning på lukket sag |
-| SC-10 | updateWorkOrderPlanning uden lukket-sag/forslag-tjek (S4) | TODO |
+| SC-10 | updateWorkOrderPlanning uden lukket-sag/forslag-tjek (S4) | DONE (kode) — omplanlægning afvises på lukket sag/forslag |
 | SC-11 | deleteServiceCase uden værn (latent, ubrugt) (S4) | TODO |
 | SC-12 | Indkøbsoversigt uden fetchAllRows; leverandørfakturaer .limit(50) (S4) | TODO |
-| SC-13 | Montør kan sætte source/kildelinks på materialer (S4) | TODO |
-| SC-14 | Øvrige omkostninger viser rediger/slet til montør (S4) | TODO |
+| SC-13 | Montør kan sætte source/kildelinks på materialer (S4) | DONE (kode) — kilde/kildelinks kun med materials.edit |
+| SC-14 | Øvrige omkostninger viser rediger/slet til montør (S4) | DONE (kode) — rediger/slet kun med other_costs.edit/.delete (UI U71/U40) |
 
 ## NEXT-38 (review-bølge 2026-10-17 eftermiddag — API-ruter + kundemodul)
 | # | Fund | Status |

@@ -107,6 +107,9 @@ export default async function OrderDetailPage({
     add: await pageHasPermission('materials.add_to_case'),
     edit: await pageHasPermission('materials.edit'),
     del: await pageHasPermission('materials.delete'),
+    // SC-14 (sags-review 2026-10-17): øvrige omkostninger har egne rettigheder (rediger/slet kun admin/serviceleder)
+    otherEdit: await pageHasPermission('other_costs.edit'),
+    otherDel: await pageHasPermission('other_costs.delete'),
   }
 
   return (

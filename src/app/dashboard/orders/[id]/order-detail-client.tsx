@@ -91,7 +91,7 @@ export function OrderDetailClient({
   canCreateInvoice = false,
   canAddNote = false,
   canEditCase = false,
-  materialPerms = { seePrices: false, add: false, edit: false, del: false },
+  materialPerms = { seePrices: false, add: false, edit: false, del: false, otherEdit: false, otherDel: false },
   canManageAllNotes = false,
 }: {
   sag: ServiceCaseWithRelations
@@ -110,7 +110,7 @@ export function OrderDetailClient({
   canAddNote?: boolean
   /** cases.edit — Handlinger-fanen (status, afslut, DB-flag) */
   canEditCase?: boolean
-  materialPerms?: { seePrices: boolean; add: boolean; edit: boolean; del: boolean }
+  materialPerms?: { seePrices: boolean; add: boolean; edit: boolean; del: boolean; otherEdit?: boolean; otherDel?: boolean }
   /** Sprint Ø7.4 — cases.edit: må redigere/slette ALLE noter (ikke kun egne). */
   canManageAllNotes?: boolean
 }) {
@@ -292,7 +292,7 @@ export function OrderDetailClient({
               canDelete={materialPerms.del}
             />
           )}
-          {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} canSeeCost={materialPerms.seePrices} />}
+          {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} canSeeCost={materialPerms.seePrices} canEdit={materialPerms.otherEdit} canDelete={materialPerms.otherDel} />}
           {active === 'mails' && <OrderMailsTab caseId={sag.id} />}
           {active === 'dokumenter' && (
             <OrderDocumentsTab caseId={sag.id} customerId={sag.customer_id ?? null} />

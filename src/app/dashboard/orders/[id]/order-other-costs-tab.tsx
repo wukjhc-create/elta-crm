@@ -60,10 +60,15 @@ function fmtDate(s: string): string {
 export function OrderOtherCostsTab({
   caseId,
   canSeeCost = true,
+  canEdit = true,
+  canDelete = true,
 }: {
   caseId: string
   /** materials.view.cost_prices — uden: ingen kost-/DB-visning (serveren sender 0 for kost; montør) */
   canSeeCost?: boolean
+  /** SC-14: other_costs.edit / other_costs.delete — uden vises knapperne ikke (serveren afviste dem alligevel) */
+  canEdit?: boolean
+  canDelete?: boolean
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -297,7 +302,7 @@ export function OrderOtherCostsTab({
                     </td>
                     <td className="px-2 py-2 text-center">
                       <div className="inline-flex items-center gap-1">
-                        <button
+                        {canEdit && <button
                           type="button"
                           onClick={() => {
                             setEditing(r)
@@ -308,8 +313,8 @@ export function OrderOtherCostsTab({
                           className="p-1 rounded hover:bg-emerald-100 text-emerald-700 disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
+                        </button>}
+                        {canDelete && <button
                           type="button"
                           onClick={() => handleDelete(r)}
                           disabled={isLocked || deletingId === r.id}
@@ -321,7 +326,7 @@ export function OrderOtherCostsTab({
                           ) : (
                             <Trash2 className="w-3.5 h-3.5" />
                           )}
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>
@@ -401,14 +406,14 @@ export function OrderOtherCostsTab({
                   </div>
                   {!isLocked && (
                     <div className="flex shrink-0 gap-1">
-                      <button type="button" onClick={() => { setEditing(r); setDialogOpen(true) }} aria-label="Rediger omkostning"
+                      {canEdit && <button type="button" onClick={() => { setEditing(r); setDialogOpen(true) }} aria-label="Rediger omkostning"
                         className="h-11 w-11 inline-flex items-center justify-center rounded-md border text-emerald-700">
                         <Pencil className="w-4 h-4" />
-                      </button>
-                      <button type="button" onClick={() => handleDelete(r)} disabled={deletingId === r.id} aria-label="Slet omkostning"
+                      </button>}
+                      {canDelete && <button type="button" onClick={() => handleDelete(r)} disabled={deletingId === r.id} aria-label="Slet omkostning"
                         className="h-11 w-11 inline-flex items-center justify-center rounded-md border text-red-600 disabled:opacity-40">
                         {deletingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
+                      </button>}
                     </div>
                   )}
                 </div>
