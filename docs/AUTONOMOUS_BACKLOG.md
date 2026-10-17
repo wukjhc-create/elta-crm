@@ -65,7 +65,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | PF2-1 | bank-match genlæser alle kandidater pr. transaktion; ikke-matchede bliver i puljen (60 s) (S1 ved vækst) | TODO (design: kandidatsæt én gang pr. kørsel + tidsbudget) |
 | PF2-2 | incoming-invoices genparser alle PDF'er fra 72 t hver kørsel (S2 ved vækst) | DONE (kode) — allerede indlæste mails springes over før PDF-download/-parsing; tidsbudget 45 s i cron. invoice-pipeline 10/10, invoice-attachments 8/8 |
-| PF2-3 | "Kræver svar": .in() med lange conversation-id'er i bidder á 200 + ubegrænset kandidatscan (S2) | TODO |
+| PF2-3 | "Kræver svar": .in() med lange conversation-id'er i bidder á 200 + ubegrænset kandidatscan (S2) | DELVIS (kode) — conversation-id-bidder á 40 (URL-længde). Ubegrænset kandidatscan (tidsvindue/RPC) = TODO |
 | PF2-4 | Sags-scope: egne sager højst 1.000 og genberegnet pr. action (S2) | DONE (87815583) — userCanViewCase som ét-rækkeopslag; egne sager pagineret. UI montør/salg 18/18 |
 | PF2-5 | Lukke-værn/faktureringsstatus læser materialer/øvrige uden paginering (S2) | DONE (kode) — lukke-værn, faktureringsstatus og øvrige omkostninger pagineret (fetchAllRows) |
 | PF2-6 | intelligence-check: mange sekventielle dublettjek; hængende sync-log (completed_at NULL) skjuler forældet-alarm (S3) | DONE (kode) — én prisændrings-advarsel pr. tilbud; sync-log uden completed_at ignoreres |

@@ -93,7 +93,10 @@ async function computeRequiresResponse(
       try {
         // PF-4: trådenes bidder hentes samtidig (før én ad gangen)
         const convChunks: string[][] = []
-        for (let k = 0; k < convIds.length; k += 200) convChunks.push(convIds.slice(k, k + 200))
+        // PF2-3 (performance-review 2026-10-17): Graph-conversation-id'er er lange (~80–150 tegn) — 200 pr. kald gav en
+        // URL langt over gatewayens grænse (målt ~13 KB ved 350 UUID'er). 40 pr. kald holder sig under.
+        const CONV_CHUNK = 40
+        for (let k = 0; k < convIds.length; k += CONV_CHUNK) convChunks.push(convIds.slice(k, k + CONV_CHUNK))
         const pages = await Promise.all(convChunks.map((chunk) => fetchAllRows<{ conversation_id: string | null; sender_email: string | null; received_at: string }>((from, to) => supabase
           .from('incoming_emails')
           .select('id, conversation_id, sender_email, received_at')
