@@ -25,6 +25,10 @@
 | 87815583 | PF2-4 sagsadgang som ét-rækkeopslag |
 | 3501710d | EM-2(app)/3/4/5/6/7(app)/9 medarbejdere/indstillinger/audit |
 | 37d1a9bb / ee21237f / 35f7edbf / 0bdd8576 | PF2-5/6/8, PF2-2, PF2-3, PF2-1 (tidsbudget) |
+| 7f4d5a94 / 73c6665b | TK-1–12 opgaver/påmindelser; SU-2/3(lemu)/5/6/9 leverandører |
+| b0ea6b35 / a22dfb5f | SU-8 API-faktura ikke dublet af mail-kopi uden leverandør; SU-3 historik pr. lykket batch (supplier-sync + manuel) |
+| dd32d5ec | SU-7 prisfil-import med tidsbudget, ingen hængende "processing" (U17) |
+| d4043622 | SU-1 manuel LEMU-synk = cronens bulk-anvendelse (`lib/suppliers/lemu-apply.ts`, unit-test); SU-4 LM-faktura-SFTP springer indlæste filer over + budget |
 
 Ikke lavet (tilladelse): DF-1-værnet i create-invoice-from-offer.ts blev afvist af auto-mode-værnet to gange. Patchen står i
 docs/runbooks/auto-invoice-offer-guard-proposal.md. Reglen er dry_run i prod.
