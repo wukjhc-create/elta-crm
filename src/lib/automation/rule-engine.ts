@@ -89,10 +89,13 @@ export async function evaluateAndRunAutomations(event: AutomationEvent): Promise
       continue
     }
 
-    // Dry run?
-    if (event.globalDryRun || rule.dry_run) {
+    // Dry run? AU-2 (automations-review 2026-10-17): uden AUTOMATION_RULES_LIVE=true er ALLE regler dry-run (fail-closed),
+    // også en regel der ved et fejlklik er sat LIVE. Handleren får en kopi med dry_run=true + globalDryRun, så ingen
+    // handler kan udføre noget i dette spor (AU-6: før afhang det af at hver handler selv tjekkede).
+    const { automationRulesLive } = await import('@/lib/reminders/reminder-switches')
+    if (event.globalDryRun || rule.dry_run || !automationRulesLive()) {
       try {
-        const result = await handler({ rule, event })
+        const result = await handler({ rule: { ...rule, dry_run: true }, event: { ...event, globalDryRun: true } })
         await logExecution(rule, event, 'dry_run', result.data ?? null, result.message ?? null)
         summary.executions.push({ ruleId: rule.id, ruleName: rule.name, status: 'dry_run', message: result.message })
       } catch (err) {

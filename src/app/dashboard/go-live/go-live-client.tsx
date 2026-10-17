@@ -203,7 +203,13 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
               {status.autopilot.rules.map((r) => (
                 <tr key={r.id} className="border-t">
                   <td className="py-2 pr-3">{r.name}</td>
-                  <td className="py-2 pr-3 text-gray-600">{r.trigger}</td>
+                  <td className="py-2 pr-3 text-gray-600">
+                    {r.trigger}
+                    {/* AU-7 (automations-review 2026-10-17): kun disse udløsere sendes i dag — de øvrige reglers LIVE-knap gør intet */}
+                    {!['offer_accepted', 'invoice_overdue'].includes(r.trigger) && (
+                      <span className="ml-1 text-xs text-amber-700" title="Udløseren sendes ikke af systemet endnu — reglen kører aldrig">(ikke koblet)</span>
+                    )}
+                  </td>
                   <td className="py-2 pr-3 text-gray-600">{r.action}</td>
                   <td className="py-2 pr-3">{r.active ? 'ja' : 'nej'}</td>
                   <td className="py-2 pr-3">
@@ -218,12 +224,16 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
                       size="sm"
                       variant={r.dry_run ? 'default' : 'outline'}
                       disabled={writeDisabled}
-                      onClick={() =>
+                      onClick={() => {
+                        // AU-2: LIVE kun efter bekræftelse; uden AUTOMATION_RULES_LIVE=true forbliver reglen dry-run i motoren
+                        if (r.dry_run && !window.confirm(`Sæt "${r.name}" LIVE?
+
+Reglen kan sende rigtige mails til kunder eller oprette fakturaer. Den kører kun live, når AUTOMATION_RULES_LIVE=true er sat i miljøet.`)) return
                         run(
                           r.dry_run ? `Sæt LIVE: ${r.name}` : `Sæt dry_run: ${r.name}`,
-                          () => toggleRuleDryRunAction(r.id, !r.dry_run)
+                          () => toggleRuleDryRunAction(r.id, !r.dry_run, { confirm: r.dry_run })
                         )
-                      }
+                      }}
                     >
                       {r.dry_run ? 'Sæt LIVE' : 'Sæt dry_run'}
                     </Button>

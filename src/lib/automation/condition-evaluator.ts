@@ -18,6 +18,9 @@ export function evaluateCondition(
   if (!condition || Object.keys(condition).length === 0) return true
 
   for (const [path, expr] of Object.entries(condition)) {
+    // AU-8 (automations-review 2026-10-17): fejlformet udtryk ({"x": null}) kastede og afbrød ALLE resterende regler for
+    // hændelsen → nu blot "betingelse ikke opfyldt" (fail-closed)
+    if (!expr || typeof expr !== 'object' || typeof (expr as ConditionExpr).op !== 'string') return false
     const actual = readPath(payload, path)
     if (!checkOp(actual, expr.op, expr.value)) return false
   }
@@ -41,7 +44,8 @@ function readPath(obj: unknown, path: string): unknown {
 function checkOp(actual: unknown, op: ConditionOp, expected: unknown): boolean {
   switch (op) {
     case 'eq':  return actual === expected
-    case 'neq': return actual !== expected
+    // AU-8: et felt der ikke findes i hændelsen opfylder ikke "forskellig fra" (før sandt → værn som status≠paid passerede)
+    case 'neq': return actual !== undefined && actual !== expected
     case 'gt':  return Number(actual) >  Number(expected)
     case 'gte': return Number(actual) >= Number(expected)
     case 'lt':  return Number(actual) <  Number(expected)

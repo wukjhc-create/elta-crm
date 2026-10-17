@@ -2,6 +2,8 @@ import type { ActionContext, ActionResult } from '@/types/automation.types'
 
 export async function runNotify(ctx: ActionContext): Promise<ActionResult> {
   const message = String(ctx.rule.action_config?.message || `Trigger: ${ctx.event.trigger}`)
+  // AU-6 (automations-review 2026-10-17): dry-run skriver ingen helbredslog-række
+  if (ctx.event.globalDryRun || ctx.rule.dry_run) return { ok: true, message: 'dry_run', data: { message } }
   console.log('AUTOMATION NOTIFY:', ctx.event.entityType, ctx.event.entityId, message)
   // Also write a system_health_log entry so the dashboard sees it.
   try {

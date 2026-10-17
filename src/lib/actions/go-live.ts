@@ -243,10 +243,16 @@ async function alertOnFailure(label: string, message: string): Promise<void> {
 
 export async function toggleRuleDryRunAction(
   ruleId: string,
-  dryRun: boolean
+  dryRun: boolean,
+  options?: { confirm?: boolean }
 ): Promise<ActionOutcome> {
   const ctx = await requireAdmin()
   if ('ok' in ctx) return ctx
+  // AU-2 (automations-review 2026-10-17): LIVE kræver eksplicit bekræftelse (før ét klik). Uden AUTOMATION_RULES_LIVE=true
+  // kører reglen stadig som dry-run (rule-engine) — beskeden siger det.
+  if (!dryRun && options?.confirm !== true) {
+    return { ok: false, message: 'At sætte en regel LIVE kan sende mails/oprette fakturaer — bekræft for at fortsætte' }
+  }
 
   try {
     const { data: prev } = await ctx.supabase
@@ -397,6 +403,13 @@ export async function runInvoiceRemindersNowAction(options?: { confirm?: boolean
   // loft pr. kørsel som cron'en (før: alle forfaldne på én gang, uden bekræftelse)
   if (options?.confirm !== true) {
     return { ok: false, message: 'Rykker-tjek sender rigtige mails til kunder — bekræft for at fortsætte' }
+  }
+  // AU-1 (automations-review 2026-10-17): masse-kørslen fra Go-Live omgik INVOICE_REMINDERS_LIVE (kun cron og regel-
+  // motoren tjekkede) → rigtige rykkere på den gamle forfaldne bunke. Samme kontakt som cron'en; enkelt-rykkere fra
+  // fakturasiden er uændrede.
+  const { invoiceRemindersLive } = await import('@/lib/reminders/reminder-switches')
+  if (!invoiceRemindersLive()) {
+    return { ok: false, message: 'Betalingsrykkere er slået fra (INVOICE_REMINDERS_LIVE er ikke true) — intet sendt' }
   }
 
   try {

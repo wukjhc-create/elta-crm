@@ -111,7 +111,7 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 | a74486b4 | NEXT-20 økonomi: F-1 (S1 moms-værn på fast-pris-slutfaktura), F-2..F-10; Q-4/6/7/8/9/12 |
 | ce0ae73e | Q-1/Q-10/Q-11 + migrationsforslag F-5/F-11/F-12 |
 
-Rykker-kontakter (2026-10-17): `INVOICE_REMINDERS_LIVE` (standard fra), `OFFER_REMINDERS_LIVE` (standard fra), `FOLLOWUP_REMINDERS_PAUSED` (nødstop, standard ikke sat), `CRON_PAUSED=<cron>` (hele kørslen).
+Rykker-kontakter (2026-10-17): `INVOICE_REMINDERS_LIVE` (standard fra), `OFFER_REMINDERS_LIVE` (standard fra), `FOLLOWUP_REMINDERS_PAUSED` (nødstop, standard ikke sat), `CRON_PAUSED=<cron>` (hele kørslen). Regel-motoren: `AUTOMATION_RULES_LIVE` (standard fra = alle automation_rules dry-run, AU-2).
 
 BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **00233 lead-opfølgning** (docs/runbooks/lead-follow-up-proposal.md) — koden ligger i prod bag `LEAD_FOLLOW_UP_ENABLED` (slået fra)
@@ -143,6 +143,7 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **NEXT-38 (2026-10-17 eftermiddag)**:
   - **CU-5 montørens kundeadgang** — montøren ser hele kunderegistret (kontaktdata, interne noter). Afgrænse til kunder på egne sager? (ændrer adgang)
   - **CU-8 hvem må oprette kundeopgaver** — i dag alle med customers.view (også montør/bogholderi). Kræv customers.edit/tasks.create?
+  - **AU-3 agenters suggest-tilstand** — dokumentationen siger "intet eksekverer", koden udfører godkendte forslag. Hvilken kontrakt gælder?
   - **API-4/SEC2-6 per-IP-loft på den offentlige kontaktformular** [MIGRATION/KV]
   - **API-1 opfølgning (drift)**: `/api/admin/test-lemu` udleverede indtil 56a44e1a LEMU-SFTP-adgangskoden til enhver med CRON_SECRET. Har nogen kaldt ruten, bør LEMU-adgangskoden roteres
 - **PM-7 fuldmagtsrykker til den tiltænkte underskriver** (ændrer modtager af en live-rykker) + link til portalen

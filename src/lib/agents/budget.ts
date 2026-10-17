@@ -14,15 +14,16 @@
 
 import type { AgentConfig, AgentType } from '@/types/agent-core.types'
 import { logger } from '@/lib/utils/logger'
+import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 
 export interface BudgetResult {
   ok: boolean
   reason?: string
 }
 
-function utcDayStartISO(now: Date = new Date()): string {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-  return d.toISOString()
+// AU-4 (automations-review 2026-10-17): dagen er den danske kalenderdag (før UTC-midnat = 01/02 dansk tid)
+function copenhagenDayStartISO(now: Date = new Date()): string {
+  return copenhagenLocalToIso(copenhagenParts(now).date, '00:00')
 }
 
 /**
@@ -41,7 +42,7 @@ export async function checkAgentBudget(
       return { ok: false, reason: 'agent disabled' }
     }
 
-    const dayStart = utcDayStartISO()
+    const dayStart = copenhagenDayStartISO()
 
     // 1) Per-run action cap
     const perRun = await admin
@@ -54,25 +55,20 @@ export async function checkAgentBudget(
       return { ok: false, reason: `max_actions_per_run (${config.max_actions_per_run}) naaet` }
     }
 
-    // 2) Daily action budget (pr. agent_type) — join via runs
-    const runsToday = await admin
-      .from('agent_runs')
-      .select('id')
-      .eq('agent_type', agentType)
-      .gte('created_at', dayStart)
-    if (runsToday.error) return { ok: false, reason: 'daglig run-lookup fejlede (fail-closed)' }
-    const runIds: string[] = (runsToday.data ?? []).map((r: { id: string }) => r.id)
+    // 2) Daily action budget (pr. agent_type) — AU-4: actions UDFØRT i dag (executed_at), uanset hvornår run'et blev
+    //    oprettet. Før talte kun actions fra runs oprettet i dag → godkendte gårsdagens forslag i dag talte 0.
+    const dailyActions = await admin
+      .from('agent_actions')
+      .select('id, run:agent_runs!inner(agent_type)', { count: 'exact', head: true })
+      .eq('run.agent_type', agentType)
+      .eq('status', 'executed')
+      .gte('executed_at', dayStart)
+    if (dailyActions.error) return { ok: false, reason: 'daglig action-count fejlede (fail-closed)' }
+    if ((dailyActions.count ?? 0) >= config.daily_action_budget) {
+      return { ok: false, reason: `daily_action_budget (${config.daily_action_budget}) naaet` }
+    }
 
-    if (runIds.length > 0) {
-      const dailyActions = await admin
-        .from('agent_actions')
-        .select('id', { count: 'exact', head: true })
-        .in('run_id', runIds)
-        .eq('status', 'executed')
-      if (dailyActions.error) return { ok: false, reason: 'daglig action-count fejlede (fail-closed)' }
-      if ((dailyActions.count ?? 0) >= config.daily_action_budget) {
-        return { ok: false, reason: `daily_action_budget (${config.daily_action_budget}) naaet` }
-      }
+    {
 
       // 3) Daily token budget (pr. agent_type)
       const tokenRows = await admin

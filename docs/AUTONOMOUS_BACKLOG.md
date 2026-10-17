@@ -211,6 +211,36 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-39 (review-bølge 2026-10-17 aften — automatik/agenter + sager/materialer)
+| # | Fund | Status |
+|---|---|---|
+| AU-1 | Go-Live "Kør rykker-tjek" omgik INVOICE_REMINDERS_LIVE (rigtige rykkere) (S2) | DONE (kode) — samme kontakt som cron'en |
+| AU-2 | Ét klik satte en regel LIVE; ingen env-kontakt for regel-motoren (send_email/fakturaer) (S2) | DONE (kode) — `AUTOMATION_RULES_LIVE` (standard fra = alle regler dry-run; prod: alle dry_run i forvejen), bekræftelse ved LIVE; automation-claim-check +1, UI U53 |
+| AU-3 | safety_mode='suggest' og run.dry_run håndhæves ikke af executoren (S3) | BESLUTNING — docs siger "intet eksekverer" i suggest, men kode+harness bruger suggest+godkendelse → udfør. Prod: 0 agenter enabled |
+| AU-4 | Dagligt agent-budget talte kun actions fra runs oprettet i dag; UTC-dag (S3) | DONE (kode) — udført i dag (executed_at, dansk dag). harness agent-gating 13/13 |
+| AU-5 | Krav-række "executed" før handler — nedbrud efterlader falsk "udført" for altid (S3) | BLOCKED_APPROVAL [MIGRATION] — status 'executing' kræver CHECK/indeks-ændring |
+| AU-6 | Dry-run kaldte handlere med rule.dry_run=false-kopi; notify ignorerede dry_run (S4) | DONE (kode) — handler får dry_run-kopi; notify tjekker |
+| AU-7 | 4 af 6 udløsere sendes aldrig — LIVE-knapper gør intet (S4) | DONE (kode, visning) — "(ikke koblet)" på Go-Live |
+| AU-8 | Fejlformet betingelse kastede (afbrød alle regler); neq på manglende felt = sand (S4) | DONE (kode) — scripts/condition-evaluator-test.ts |
+| AU-9 | Opfølgningsagent: tilbuds-udløb i servertid (S4) | DONE (kode) |
+| AU-10 | Sprunget rykker bruger reglens ene udførelse pr. faktura (S4) | TODO — kræver skelnen skipped/failed uden alarm-støj |
+| AU-11 | Auto-faktura: fejlet fakturamail logges som succes (S4) | BLOCKED (create-invoice-from-offer.ts — se DF-1) |
+| HT-4 | harness agent-actions M5 "intet sagsforslag for mail2" — fejler også uden dagens ændringer | TODO (harness/staging-tilstand) |
+| SC-1 | Sletning af materiale/omkostning fra leverandørfaktura taber kosten stille (S2) | TODO |
+| SC-2 | Lukket sag efterlader åbne arbejdsordrer der ikke kan ændres (S2/S3) | TODO |
+| SC-3 | Ordreliste/dashboard bruger revised_sum ?? contract_sum uden afregningsform (S3) | TODO |
+| SC-4 | Økonomifanen prissætter tid anderledes end fakturaen (S3) | TODO |
+| SC-5 | work_order_id ikke valideret mod sagen (øvrige omk. + opdateringer) (S3) | TODO |
+| SC-6 | Fakturalås på rækker kan omgås ved samtidighed (S3) | TODO |
+| SC-7 | Sagens "Auto-faktura ved afsluttet" gør intet (S3) | TODO |
+| SC-8 | receipt_url accepterer vilkårlig receipts/-sti (S3, plausibel) | TODO |
+| SC-9 | Materialer/omkostninger kan ændres på lukket sag (S4) | TODO |
+| SC-10 | updateWorkOrderPlanning uden lukket-sag/forslag-tjek (S4) | TODO |
+| SC-11 | deleteServiceCase uden værn (latent, ubrugt) (S4) | TODO |
+| SC-12 | Indkøbsoversigt uden fetchAllRows; leverandørfakturaer .limit(50) (S4) | TODO |
+| SC-13 | Montør kan sætte source/kildelinks på materialer (S4) | TODO |
+| SC-14 | Øvrige omkostninger viser rediger/slet til montør (S4) | TODO |
+
 ## NEXT-38 (review-bølge 2026-10-17 eftermiddag — API-ruter + kundemodul)
 | # | Fund | Status |
 |---|---|---|

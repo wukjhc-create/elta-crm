@@ -17,6 +17,15 @@ export function invoiceRemindersLive(env: Record<string, string | undefined> = p
   return isTrue(env.INVOICE_REMINDERS_LIVE)
 }
 
+/**
+ * AU-2 (automations-review 2026-10-17): regel-motoren (automation_rules) kører KUN live når AUTOMATION_RULES_LIVE=true —
+ * ellers behandles alle regler som dry-run, også hvis en regel ved et fejlklik er sat LIVE. Prod 2026-10-17: alle regler
+ * dry_run=true (scripts/prod-automation-rules.ts) → ingen ændring i dag.
+ */
+export function automationRulesLive(env: Record<string, string | undefined> = process.env): boolean {
+  return isTrue(env.AUTOMATION_RULES_LIVE)
+}
+
 export function followUpRemindersPaused(env: Record<string, string | undefined> = process.env): boolean {
   return isTrue(env.FOLLOWUP_REMINDERS_PAUSED)
 }

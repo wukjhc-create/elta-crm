@@ -14,6 +14,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import type { ActionResult } from '@/types/common.types'
 import type { CapabilityContext, CapabilityResult } from '@/types/agent-core.types'
 
@@ -52,7 +53,8 @@ export function followupBlocker(o: FollowupOffer, now: Date, minAgeDays: number)
   if (!OPEN_OFFER_STATUSES.includes(o.status)) return `tilbuddet er ${o.status}`
   if (!o.sent_at) return 'tilbuddet er ikke sendt'
   if (now.getTime() - new Date(o.sent_at).getTime() < minAgeDays * DAY_MS) return `sendt for under ${minAgeDays} dage siden`
-  if (o.valid_until && new Date(`${o.valid_until}T23:59:59`) < now) return 'tilbuddet er udloebet'
+  // AU-9 (automations-review 2026-10-17): gyldig t.o.m. dagen i dansk tid (før serverens tidszone = UTC → 1–2 t for længe)
+  if (o.valid_until && o.valid_until.slice(0, 10) < copenhagenParts(now).date) return 'tilbuddet er udloebet'
   return null
 }
 
@@ -139,7 +141,7 @@ export async function executeFollowupTask(ctx: CapabilityContext): Promise<Capab
   const o = toFollowupOffer(row as Record<string, unknown>)
   if (o.customer_id !== p.customer_id) return { ok: false, error: 'tilbuddets kunde er aendret siden forslaget' }
   if (!OPEN_OFFER_STATUSES.includes(o.status)) return { ok: false, error: `tilbuddet er ${o.status} - opfoelgning ikke laengere relevant` }
-  if (o.valid_until && new Date(`${o.valid_until}T23:59:59`) < new Date()) return { ok: false, error: 'tilbuddet er udloebet' }
+  if (o.valid_until && o.valid_until.slice(0, 10) < copenhagenParts(new Date()).date) return { ok: false, error: 'tilbuddet er udloebet' } // AU-9
 
   const existing = await openFollowupTaskId(ctx.admin, o.id)
   if (existing) return { ok: true, data: { task_id: existing, created: false, already_existed: true, offer_id: o.id } }

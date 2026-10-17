@@ -1431,15 +1431,27 @@ async function main() {
     if (rErr) throw new Error(`regel: ${rErr.message}`)
     const ruleId = (ru as { id: string }).id
     try {
+      // AU-2 (2026-10-17): uden AUTOMATION_RULES_LIVE=true kører en LIVE-regel som dry-run — ingen opgave
+      const prevLive = process.env.AUTOMATION_RULES_LIVE
+      delete process.env.AUTOMATION_RULES_LIVE
+      const evDry = { trigger, entityType: 'lead', entityId: crypto.randomUUID(), payload: { customer_id: custId } } as never
+      await evaluateAndRunAutomations(evDry)
+      const exDry = (await admin.from('automation_executions').select('status').eq('rule_id', ruleId).eq('entity_type', 'lead')).data as Array<{ status: string }>
+      const tasksDry = (await admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', custId).eq('title', `[HARNESS] claim ${stamp}`)).count
+      check('AU-2: uden AUTOMATION_RULES_LIVE → dry_run, ingen opgave', exDry.length === 1 && exDry[0].status === 'dry_run' && tasksDry === 0, `${JSON.stringify(exDry)} opgaver=${tasksDry}`)
+      process.env.AUTOMATION_RULES_LIVE = 'true'
       const ev = { trigger, entityType: 'customer', entityId: custId, payload: { customer_id: custId } } as never
       await Promise.all([evaluateAndRunAutomations(ev), evaluateAndRunAutomations(ev), evaluateAndRunAutomations(ev)])
+      if (prevLive === undefined) delete process.env.AUTOMATION_RULES_LIVE; else process.env.AUTOMATION_RULES_LIVE = prevLive
       const ex = (await admin.from('automation_executions').select('status').eq('rule_id', ruleId)).data as Array<{ status: string }>
       const tasks = (await admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', custId).eq('title', `[HARNESS] claim ${stamp}`)).count
       check('3 samtidige hændelser → præcis én udførelse', ex.filter((e) => e.status === 'executed').length === 1, JSON.stringify(ex.map((e) => e.status)))
       check('præcis én opgave oprettet', tasks === 1, String(tasks))
       // fejlende handling (ingen kunde) → failed, ingen 'executed'-række tilbage
       const ev2 = { trigger, entityType: 'offer', entityId: crypto.randomUUID(), payload: {} } as never
+      process.env.AUTOMATION_RULES_LIVE = 'true'
       await evaluateAndRunAutomations(ev2)
+      if (prevLive === undefined) delete process.env.AUTOMATION_RULES_LIVE; else process.env.AUTOMATION_RULES_LIVE = prevLive
       const ex2 = (await admin.from('automation_executions').select('status').eq('rule_id', ruleId).eq('entity_type', 'offer')).data as Array<{ status: string }>
       check('fejlende handling → failed (pladsen frigivet)', ex2.length === 1 && ex2[0].status === 'failed', JSON.stringify(ex2))
     } finally {
