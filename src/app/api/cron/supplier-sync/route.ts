@@ -199,6 +199,22 @@ async function handleCron(request: Request): Promise<Response> {
                   && (ep.is_available ?? null) === (price.isAvailable ?? null) && (ep.lead_time_days ?? null) === (price.leadTimeDays ?? null)
                 if (unchanged) { unchangedIds.push(productId); updatedProducts++; continue }
 
+                // SU-3 (review 2026-10-17): historik kun når opdateringen faktisk lykkes (før også for fejlede)
+                let hist: Record<string, unknown> | null = null
+                if (oldPrice !== newPrice) {
+                  const changePercentage = oldPrice && oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0
+                  hist = {
+                    supplier_product_id: existingProduct.id,
+                    old_cost_price: oldPrice,
+                    new_cost_price: newPrice,
+                    old_list_price: existingProduct.list_price,
+                    new_list_price: price.listPrice,
+                    change_percentage: Math.round(changePercentage * 100) / 100,
+                    change_source: 'api_sync',
+                  }
+                  priceChanges++
+                }
+
                 updateFns.push(async () => {
                   const { error } = await supabase
                     .from('supplier_products')
@@ -211,23 +227,10 @@ async function handleCron(request: Request): Promise<Response> {
                     })
                     .eq('id', productId)
                   if (error) throw error
+                  if (hist) priceHistoryBatch.push(hist)
                 })
 
                 updatedProducts++
-
-                if (oldPrice !== newPrice) {
-                  const changePercentage = oldPrice && oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0
-                  priceHistoryBatch.push({
-                    supplier_product_id: existingProduct.id,
-                    old_cost_price: oldPrice,
-                    new_cost_price: newPrice,
-                    old_list_price: existingProduct.list_price,
-                    new_list_price: price.listPrice,
-                    change_percentage: Math.round(changePercentage * 100) / 100,
-                    change_source: 'api_sync',
-                  })
-                  priceChanges++
-                }
               }
 
               if (unchangedIds.length > 0) {
@@ -475,6 +478,22 @@ async function executeFtpSyncSchedule(
           // Leverandør-review 2026-10-08 (#6): kost ≤ 0 = ingen prisaftale → behold kendt kost, ingen historik
           const newCost = row.parsed.cost_price != null && row.parsed.cost_price > 0 ? row.parsed.cost_price : null
 
+          // SU-3 (review 2026-10-17): historik kun for lykkede opdateringer, skrevet pr. batch (ikke først til sidst)
+          let hist: Record<string, unknown> | null = null
+          if (oldCost !== null && newCost !== null && oldCost !== newCost) {
+            const changePct = oldCost > 0 ? ((newCost - oldCost) / oldCost) * 100 : 0
+            hist = {
+              supplier_product_id: existing.id,
+              old_cost_price: oldCost,
+              new_cost_price: newCost,
+              old_list_price: existing.list_price,
+              new_list_price: row.parsed.list_price,
+              change_percentage: Math.round(changePct * 100) / 100,
+              change_source: 'ftp_sync',
+            }
+            priceChanges++
+          }
+
           updateFns.push(async () => {
             const { error } = await supabase
               .from('supplier_products')
@@ -492,24 +511,10 @@ async function executeFtpSyncSchedule(
               })
               .eq('id', existing.id)
             if (error) throw error
+            if (hist) priceHistoryBatch.push(hist)
           })
 
           updatedProducts++
-
-          // Track price change
-          if (oldCost !== null && newCost !== null && oldCost !== newCost) {
-            const changePct = oldCost > 0 ? ((newCost - oldCost) / oldCost) * 100 : 0
-            priceHistoryBatch.push({
-              supplier_product_id: existing.id,
-              old_cost_price: oldCost,
-              new_cost_price: newCost,
-              old_list_price: existing.list_price,
-              new_list_price: row.parsed.list_price,
-              change_percentage: Math.round(changePct * 100) / 100,
-              change_source: 'ftp_sync',
-            })
-            priceChanges++
-          }
         } else if (!(row.parsed.cost_price != null && row.parsed.cost_price > 0)) {
           // GP-13: opret aldrig en ny vare uden gyldig kostpris (før cost_price || 0 → "0 kr"-varer fra parsefejl/tomme felter)
           needsReview++
@@ -542,6 +547,11 @@ async function executeFtpSyncSchedule(
       const failedUpdates = updateResults.filter((r) => r.status === 'rejected')
       if (failedUpdates.length > 0) {
         errors.push(`FTP batch ${Math.floor(i / batchSize) + 1}: ${failedUpdates.length} upserts failed`)
+      }
+      // SU-3: historik for batchens lykkede rækker straks (overlever en senere timeout)
+      if (priceHistoryBatch.length > 0) {
+        const { error: historyError } = await supabase.from('price_history').insert(priceHistoryBatch.splice(0))
+        if (historyError) logger.error('Price history insert error (FTP)', { error: historyError })
       }
     } catch (batchError) {
       errors.push(`FTP batch ${Math.floor(i / batchSize) + 1}: ${batchError instanceof Error ? batchError.message : 'Unknown error'}`)

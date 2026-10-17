@@ -155,8 +155,8 @@ export async function syncSupplierPrices(
                 ? ((newCostPrice - oldCostPrice) / oldCostPrice) * 100
                 : 0
 
-            // Update product
-            await supabase
+            // Update product — SU-3 (review 2026-10-17): fejlet opdatering = ingen historik (før skrevet alligevel)
+            const { error: updErr } = await supabase
               .from('supplier_products')
               .update({
                 cost_price: newCostPrice,
@@ -166,6 +166,7 @@ export async function syncSupplierPrices(
                 last_synced_at: new Date().toISOString(),
               })
               .eq('id', existingProduct.id)
+            if (updErr) { errors.push(`${sku}: ${updErr.message}`); continue }
 
             priceChangeRecords.push({
               supplier_product_id: existingProduct.id,
@@ -195,11 +196,11 @@ export async function syncSupplierPrices(
       } catch (error) {
         errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${error instanceof Error ? error.message : 'Ukendt fejl'}`)
       }
-    }
-
-    // Record price changes
-    if (priceChangeRecords.length > 0) {
-      await supabase.from('price_history').insert(priceChangeRecords)
+      // SU-3: historik pr. batch (overlever en senere timeout/fejl)
+      if (priceChangeRecords.length > 0) {
+        const { error: histErr } = await createAdminClient().from('price_history').insert(priceChangeRecords.splice(0)) // P-009: systemdata (insert kun admin-rolle)
+        if (histErr) errors.push(`Prishistorik: ${histErr.message}`)
+      }
     }
 
     // Create sync log entry
@@ -373,7 +374,7 @@ export async function importProductsFromAPI(
 
     for (const product of products) {
       // Check if product exists
-      const { data: existing } = await supabase
+      const { data: existing } = await createAdminClient() // 00192: kostkolonner bag settings.suppliers
         .from('supplier_products')
         .select('id, cost_price, list_price')
         .eq('supplier_id', supplierId)
@@ -385,7 +386,7 @@ export async function importProductsFromAPI(
         // — fakturakontrol på fakturadato manglede ellers ændringen
         const oldCost = (existing as { cost_price?: number | null }).cost_price ?? null
         if (product.costPrice > 0 && oldCost != null && Number(oldCost) !== product.costPrice) {
-          await supabase.from('price_history').insert({
+          await createAdminClient().from('price_history').insert({ // P-009: insert kun admin-rolle
             supplier_product_id: existing.id,
             old_cost_price: oldCost,
             new_cost_price: product.costPrice,
