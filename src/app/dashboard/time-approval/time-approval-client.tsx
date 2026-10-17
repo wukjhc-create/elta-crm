@@ -71,7 +71,13 @@ export function TimeApprovalClient() {
     const r = await approveTimeLogsAction(ids, seen)
     setBusy(null)
     if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke godkende'); return }
-    setMsg(`${r.data?.updated ?? 0} registrering(er) godkendt${r.data?.skipped ? ` · ${r.data.skipped} sprunget over (egne/igangværende/ændret siden visning)` : ''}`)
+    // T-11: årsager i klartekst (før en samlet parentes uden tal)
+    const rs = r.data?.reasons
+    const parts = rs ? [
+      rs.own ? `${rs.own} egne` : '', rs.running ? `${rs.running} kører stadig` : '', rs.already ? `${rs.already} allerede godkendt` : '',
+      rs.changed ? `${rs.changed} ændret siden visning` : '', rs.invoiced ? `${rs.invoiced} faktureret` : '', rs.hidden ? `${rs.hidden} ikke tilgængelige` : '',
+    ].filter(Boolean) : []
+    setMsg(`${r.data?.updated ?? 0} registrering(er) godkendt${r.data?.skipped ? ` · ${r.data.skipped} sprunget over${parts.length ? ` (${parts.join(', ')})` : ''}` : ''}`)
     await load()
   }
 

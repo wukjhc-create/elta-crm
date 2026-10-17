@@ -100,7 +100,10 @@ function sameInstant(a: string | null | undefined, b: string | null | undefined)
 /** Det godkenderen så pr. id (start/slut) — godkendes kun hvis registreringen ikke er ændret siden */
 export type SeenTimes = Record<string, { start_time: string; end_time: string | null; pay_rate_type?: string; employee_rate_id?: string | null }>
 
-async function decide(ids: string[], decision: 'approved' | 'rejected', reason: string | null, seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number }>> {
+/** T-11 (review 2026-10-16): hvorfor registreringer blev sprunget over (før kun et samlet tal uden årsag) */
+export interface SkipReasons { own: number; running: number; already: number; invoiced: number; changed: number; hidden: number }
+
+async function decide(ids: string[], decision: 'approved' | 'rejected', reason: string | null, seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number; reasons?: SkipReasons }>> {
   const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('time_logs.approve')) return { success: false, error: 'Manglende tilladelse: time_logs.approve' }
   const unique = [...new Set(ids)]
@@ -124,6 +127,18 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
       && (seen[v.id].pay_rate_type === undefined || seen[v.id].pay_rate_type === (v.pay_rate_type ?? 'normal'))
       && (seen[v.id].employee_rate_id === undefined || (seen[v.id].employee_rate_id ?? null) === (v.employee_rate_id ?? null)))))
   const skipped = unique.length - eligible.length
+  // T-11: årsag pr. sprunget-over række (første regel der fejler) — skjulte = ikke synlige for brugeren (RLS/scope)
+  const visibleRows = (visible ?? []) as unknown as V[]
+  const eligibleIds = new Set(eligible.map((e) => e.id))
+  const reasons: SkipReasons = { own: 0, running: 0, already: 0, invoiced: 0, changed: 0, hidden: unique.length - visibleRows.length }
+  for (const v of visibleRows) {
+    if (eligibleIds.has(v.id)) continue
+    if (v.end_time === null) reasons.running++
+    else if (v.approval_status === decision) reasons.already++
+    else if (one(v.employee)?.profile_id === userId) reasons.own++
+    else if (decision === 'rejected' && v.invoice_line_id) reasons.invoiced++
+    else reasons.changed++
+  }
   if (eligible.length === 0) {
     return { success: false, error: 'Ingen af de valgte registreringer kan behandles (egne timer, igangværende timer, allerede behandlet eller allerede faktureret)' }
   }
@@ -168,10 +183,11 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   }
   revalidatePath('/dashboard/time-approval')
   // T-1: rækker ændret/faktureret mellem læsning og skrivning tæller som sprunget over
-  return { success: true, data: { updated: upd.length, skipped: skipped + (eligible.length - upd.length) } }
+  reasons.changed += eligible.length - upd.length
+  return { success: true, data: { updated: upd.length, skipped: skipped + (eligible.length - upd.length), reasons } }
 }
 
-export async function approveTimeLogsAction(ids: string[], seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number }>> {
+export async function approveTimeLogsAction(ids: string[], seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number; reasons?: SkipReasons }>> {
   try {
     const denied = await permissionDenied('time_logs.approve') // eksplicit (decide() gater også)
     if (denied) return { success: false, error: denied }

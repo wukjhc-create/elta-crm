@@ -45,6 +45,20 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-26 (review-bølge 2026-10-17 morgen — rapporter/eksport + indstillinger/team)
+| # | Fund | Status |
+|---|---|---|
+| RP-1 | Afvisningsstatistik: tabt omsætning inkl. moms (andre tal ekskl.), ikke pagineret, fejl tavs | TODO |
+| TM-2 | Rolleskift/deaktivering i Team ikke auditeret; selv-redigering kun blokeret i UI | TODO — audit + server-blok |
+| TM-3 | Deaktivér bruger i Team lader medarbejderen være aktiv og tildelt job (S2) | TODO — employees.active=false + advarsel om åbne job |
+| RP-4 | "Eksportér projekter" eksporterer den gamle projects-tabel (tom) | TODO — service_cases |
+| RP-5 | Materiale-CSV i kalkulation bryder i dansk Excel (komma, ingen BOM, ingen escaping) | TODO — generateCsv |
+| RP-6 | reports.export-rettigheden tjekkes aldrig (serviceleder kan masseeksportere persondata) | BESLUTNING — hvem må eksportere? (ændrer adgang) |
+| TM-7 | Samtidig nedgradering kan fjerne sidste admin | TODO — genoptælling efter skrivning |
+| TM-8 | Deaktiverede inviterede vises som afventende og kan gensendes | TODO |
+| RP-9 | Team-produktivitet: periode ≠ "30 dage", navne "Ukendt" ved >200 | TODO |
+| TM-10 | Engelske fejl fra login-adgang | TODO |
+
 ## NEXT-25 (review-bølge 2026-10-17 nat — montørens telefon-flow)
 | # | Fund | Status |
 |---|---|---|
@@ -59,7 +73,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | MB-9 | Dokumenter lover 20 MB, grænsen er ~4,5–10 MB | DONE (46946371) — klienttjek 4 MB efter formindskelse med dansk besked; korrekt tekst i feltet |
 | MB-10 | Slet-foto vist på andres fotos | DONE (f9c895a4) — serveren markerer deletable_by_me (kontor: alle; ellers egne) |
 | MB-11 | Tider i enhedens tidszone i tidslisten | DONE (130fde1c) — timeZone Europe/Copenhagen i tidslisten |
-| MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | DONE (pinch-zoom 130fde1c; touch-mål venter commit) — Mine job-links, underskrift Ryd/Bekræft og Foto-knapper ≥ 44 px på telefon |
+| MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | DONE (pinch-zoom 130fde1c; touch-mål 05f77171) — Mine job-links, underskrift Ryd/Bekræft og Foto-knapper ≥ 44 px på telefon |
 
 ## NEXT-24 (review-bølge 2026-10-16 aften — leverandørfakturaer/indkøb + DB-sikkerhed)
 | # | Fund | Status |
@@ -138,7 +152,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | T-8 | Lead-liste sortBy fra URL uvalideret → DATABASE_ERROR | DONE (46ab9f18) — whitelist |
 | T-9 | Ulæst-tæller trækkes ned for arkiverede/ignorerede mails | DONE (9c3f5f7c) — tæller kun ikke-arkiverede/ikke-ignorerede (som serveren) |
 | T-10 | Markér læst/ulæst melder succes ved 0 opdaterede rækker | DONE (9c3f5f7c) — .select + 0 rækker = fejl |
-| T-11 | Godkendelse: sprunget-over uden årsag (faktureret/ændret/skjult) | TODO |
+| T-11 | Godkendelse: sprunget-over uden årsag (faktureret/ændret/skjult) | DONE (venter commit) — årsager pr. sprunget-over (egne, kører, allerede godkendt, ændret, faktureret, ikke tilgængelige) |
 | T-12 | Små Godkend/Afvis-knapper på telefon; ASCII-dansk ("Proev", "paakraevet", "aendre", "oejeblik", "Email ikke fundet") | DONE (46ab9f18) — dansk retskrivning; 44 px knapper på telefon |
 
 ## NEXT-21 (review-bølge 2026-10-16 middag — fakturamail/bank/e-conomic + rettigheds-sweep)
