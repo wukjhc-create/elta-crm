@@ -32,6 +32,11 @@ export const createOfferSchema = z.object({
     emptyStringToNull,
     z.enum(OFFER_BILLING_MODES).nullable().optional(),
   ),
+  // DF-10 (dataflow-review 2026-10-17): afregningsform (00232) — sagen arver den ved accept; tom = vælges på sagen
+  billing_model: z.preprocess(
+    emptyStringToNull,
+    z.enum(['fixed_price', 'time_and_materials']).nullable().optional(),
+  ),
   discount_percentage: z
     .number()
     .min(0, 'Rabat skal være mindst 0%')

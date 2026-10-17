@@ -282,6 +282,7 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       end_customer_id: (formData.get('end_customer_id') as string) || null,
       payer_customer_id: (formData.get('payer_customer_id') as string) || null,
       billing_mode: (formData.get('billing_mode') as string) || null,
+      billing_model: (formData.get('billing_model') as string) || null, // DF-10
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,
@@ -541,6 +542,7 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       end_customer_id: (formData.get('end_customer_id') as string) || null,
       payer_customer_id: (formData.get('payer_customer_id') as string) || null,
       billing_mode: (formData.get('billing_mode') as string) || null,
+      billing_model: (formData.get('billing_model') as string) || null, // DF-10
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,

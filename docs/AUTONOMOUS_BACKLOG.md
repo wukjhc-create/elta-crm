@@ -117,7 +117,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | DF-7 | Telefon-accept melder succes selvom sagsoprettelse fejler | DONE (kode) — statusskiftet giver en advarsel (toast) med henvisning til "Opret sag fra tilbud" |
 | DF-8 | Fejl ved converted_case_id-kobling tjekkes ikke | DONE (kode) — fejl eller 0 rækker → nyt forsøg med admin-klient, derefter fejl-log |
 | DF-9 | Revision-accept (kun staging bag OFFER_REVISIONS_ENABLED) | Venter på 00203 |
-| DF-10 | Revision/dublering taber billing_model/vat_mode; intet skriver offers.billing_model | DONE (kopi) — kopiér medtager vat_mode og billing_model. Valg af afregningsform på tilbuddet (UI) = TODO |
+| DF-10 | Revision/dublering taber billing_model/vat_mode; intet skriver offers.billing_model | DONE — kopi medtager vat_mode/billing_model; afregningsform kan vælges på tilbuddet ("Vælg senere" = vælges på sagen). UI U185 |
 | DF-11 | Tabt lead bliver aldrig vundet ved accept | DONE (kode) — tilbuddets eget lead_id: tabt → vundet. Kunde-fallback uændret |
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |

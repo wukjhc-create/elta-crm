@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -2013,6 +2013,31 @@ ${m.text()}`) })
       }
 
       // U42 kopiér tilbud (tilbud/salg)
+      // U185 DF-10 (2026-10-17): afregningsform vælges på tilbuddet og gemmes (sagen arver den ved accept)
+      if (want('U185') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const ins = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-BM-${stamp}`, title: `[HARNESS] U185 afregning ${stamp}`, customer_id: profitCustomerId,
+          status: 'draft', created_by: adminUser.id, valid_until: new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10) }]).select('id')
+        const offerId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/offers/${offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: 'Rediger' }).first().click({ timeout: 60_000 }).catch(() => {})
+          const sel = a.page.getByTestId('offer-billing-model')
+          r.felt_vises = await sel.waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+          await sel.selectOption('fixed_price').catch(() => {})
+          await a.page.getByRole('button', { name: 'Gem ændringer' }).click({ timeout: 30_000 }).catch(() => {})
+          let bm: string | null = null
+          for (let i = 0; i < 20 && bm !== 'fixed_price'; i++) {
+            bm = ((await c.admin.from('offers').select('billing_model').eq('id', offerId ?? '').maybeSingle()).data as { billing_model?: string | null } | null)?.billing_model ?? null
+            if (bm !== 'fixed_price') await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.gemt_fast_pris = bm === 'fixed_price'
+        } finally {
+          if (offerId) await c.admin.from('offers').delete().eq('id', offerId)
+        }
+        out.push({ id: 'U185 afregningsform på tilbud gemmes', ok: !!offerId && Object.values(r).every(Boolean), note: `${ins.error?.message ?? ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
       if (want('U42') && profitCustomerId) {
         const r: Record<string, boolean> = {}
         const src = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-OK-${stamp}`, title: `[HARNESS] kopikilde ${stamp}`, customer_id: profitCustomerId,

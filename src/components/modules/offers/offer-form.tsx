@@ -93,6 +93,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
           lead_id: offer.lead_id,
           discount_percentage: offer.discount_percentage,
           tax_percentage: offer.tax_percentage,
+          billing_model: ((offer as { billing_model?: 'fixed_price' | 'time_and_materials' | null }).billing_model ?? null),
           valid_until: offer.valid_until,
           terms_and_conditions: offer.terms_and_conditions,
           notes: offer.notes,
@@ -300,7 +301,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
           </div>
 
           {/* Financial settings */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-1">
               <label htmlFor="discount_percentage" className="text-sm font-medium">
                 Rabat (%)
@@ -331,6 +332,24 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 disabled={isLoading}
               />
+            </div>
+
+            <div className="space-y-1">
+              {/* DF-10 (2026-10-17): afregningsform — sagen arver den ved accept (før altid "ikke valgt") */}
+              <label htmlFor="billing_model" className="text-sm font-medium">
+                Afregningsform
+              </label>
+              <select
+                {...register('billing_model')}
+                id="billing_model"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                disabled={isLoading}
+                data-testid="offer-billing-model"
+              >
+                <option value="">Vælg senere (på sagen)</option>
+                <option value="fixed_price">Fast pris</option>
+                <option value="time_and_materials">Regning (timer og materialer)</option>
+              </select>
             </div>
 
             <div className="space-y-1">
