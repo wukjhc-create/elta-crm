@@ -770,6 +770,12 @@ export async function createOfferFromCalculation(
       }
     })
 
+    // OF-5 (review 2026-10-17): linjernes kost manglede tillæg (indirekte/personlig tid, bygnings-/arbejdstypefaktor,
+    // overtid) og materialespild, som kalkulationen viste → DB på tilbuddet (og lav-DB-tjekket) var for god. Linjerne
+    // skaleres til kalkulationens samlede kostpris; en evt. rest lægges på reguleringslinjen nedenfor.
+    const { scaleLineCostsToTotal } = await import('@/lib/offers/calc-cost-scaling')
+    const remainingCost = scaleLineCostsToTotal(lineItems, input.result?.costPrice)
+
     // Kalkule-review 2026-10-08 (#1, S1): linjerne prises med katalogets salgspris, mens dialogen viser kalkulationens
     // pris (kost + overhead + risiko + avance + arbejdstype-faktorer). Tilbuddet blev derfor et andet beløb end det viste
     // (fx 0 kr). Afviger summen, tilføjes en eksplicit reguleringslinje, så tilbuddet = den viste kalkulationspris.
@@ -785,7 +791,7 @@ export async function createOfferFromCalculation(
         unit: 'stk',
         unit_price: diff,
         sale_price: diff,
-        cost_price: 0,
+        cost_price: remainingCost, // OF-5: kost uden linjer at fordele på
         discount_percentage: 0,
         total: diff,
         line_type: 'calculation' as const,
