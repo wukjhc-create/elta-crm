@@ -136,7 +136,7 @@ export function CompletionChecklist({
                       type="button"
                       onClick={() => fileInputRefs.current[item.key]?.click()}
                       disabled={disabled || isUploading}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 px-3 py-2.5 sm:px-2.5 sm:py-1.5 min-h-11 sm:min-h-0 text-sm sm:text-xs font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50"
                     >
                       {isUploading ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -227,7 +227,7 @@ export function CompletionChecklist({
                           type="button"
                           onClick={() => fileInputRefs.current[item.key]?.click()}
                           disabled={disabled || isUploading}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3 py-2.5 sm:px-2.5 sm:py-1.5 min-h-11 sm:min-h-0 text-sm sm:text-xs font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50"
                         >
                           {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
                           {isUploading ? 'Uploader...' : 'Foto'}

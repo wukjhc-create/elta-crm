@@ -53,13 +53,13 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | MB-3 | Montør ser altid "Alle påkrævede punkter skal udfyldes" selv ved komplet tjekliste | DONE (e1fc5051) — checklistComplete separat; komplet uden lukkeret → "Tjeklisten er komplet — kontoret lukker sagen" |
 | MB-4 | Aflevering: fejl vises øverst uden for skærmen | DONE (c224890f) — fejl rulles i syne (role=alert) og vises også ved underskriftsfeltet |
 | MB-5 | Gem/Afslut-knapper i tidsregistrering ~24 px | DONE (130fde1c) — Gem/Annullér fuld bredde og ≥ 44 px på telefon |
-| MB-6 | Tidstabel uden mobilvisning (Ret/Slet i sidste kolonne) | DONE (venter commit) — på telefon står Ret/Slet i den fulde "Afvist"-række (44 px); fuld kortliste = senere |
+| MB-6 | Tidstabel uden mobilvisning (Ret/Slet i sidste kolonne) | DONE (2208e2ef) — på telefon står Ret/Slet i den fulde "Afvist"-række (44 px); fuld kortliste = senere |
 | MB-7 | Satsvælger vist på kollegaers rækker (serveren afviser) | DONE (d0c428ac) — serveren markerer editable_by_me; kollegaers rækker vises låst med forklaring |
 | MB-8 | Små HEIC-fotos uploades ukonverteret (vises ikke i Chrome/Android) | DONE (dba9209c) — HEIC/HEIF konverteres altid til JPEG (unit image-downscale +3) |
 | MB-9 | Dokumenter lover 20 MB, grænsen er ~4,5–10 MB | DONE (46946371) — klienttjek 4 MB efter formindskelse med dansk besked; korrekt tekst i feltet |
 | MB-10 | Slet-foto vist på andres fotos | DONE (f9c895a4) — serveren markerer deletable_by_me (kontor: alle; ellers egne) |
 | MB-11 | Tider i enhedens tidszone i tidslisten | DONE (130fde1c) — timeZone Europe/Copenhagen i tidslisten |
-| MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | DONE (130fde1c) — pinch-zoom tilladt (viewport uden maximum-scale/user-scalable=no); øvrige små touch-mål = senere |
+| MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | DONE (pinch-zoom 130fde1c; touch-mål venter commit) — Mine job-links, underskrift Ryd/Bekræft og Foto-knapper ≥ 44 px på telefon |
 
 ## NEXT-24 (review-bølge 2026-10-16 aften — leverandørfakturaer/indkøb + DB-sikkerhed)
 | # | Fund | Status |
@@ -132,7 +132,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | T-2 | linkEmailToCase: mail uden kunde kan kobles til anden kundes sag, søskende-mails flyttes uanset kunde, fejl ignoreres (S2) | DONE (46ab9f18) — mail uden kunde afvises; tråd kun samme kunde; fejl meldes |
 | T-3 | Fjern kobling efterlader service_case_id → mail vises fortsat på den gamle kundes sag (S2) | DONE (46ab9f18) — unlink slipper sagen (+ 0-rækker = fejl); kundeskift slipper fremmed sag |
 | T-4 | createCustomerFromEmail melder succes trods fejl (lead/opdatering/kobling), overskriver allerede koblet mail | DONE (9c3f5f7c) — eksisterende kunde: kun mail uden/samme kunde + linked_at, fejl meldes; lead-/koblingsfejl → advarsel (toast.warning) |
-| T-5 | Kunde-dubletkontrol kun i klienten (samtidige/direkte kald opretter dublet-mail) | → NEXT-23 (Henrik: separat) — server-side, normaliseret, race-sikker, dansk fejl; gennemgå ALLE createCustomer-kaldere først; DB-constraint = forslag + BLOCKED_APPROVAL |
+| T-5 | Kunde-dubletkontrol kun i klienten (samtidige/direkte kald opretter dublet-mail) | DONE (59377465, NEXT-23) |
 | T-6 | Lead-kanban: statusskift kun via træk-og-slip (virker ikke på telefon), min-bredde 1200 px | DONE (9c3f5f7c) — statusvælger pr. kort (kun tilladte overgange) på telefon; kolonner stables. UI U179 |
 | T-7 | Lead-tabel uden mobil-kortliste | DONE (9c3f5f7c) — kortliste md:hidden efter tabellen. UI U179 |
 | T-8 | Lead-liste sortBy fra URL uvalideret → DATABASE_ERROR | DONE (46ab9f18) — whitelist |

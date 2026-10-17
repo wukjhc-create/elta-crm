@@ -186,7 +186,7 @@ export function SignaturePad({
           type="button"
           onClick={clearCanvas}
           disabled={disabled || !hasDrawn}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md hover:bg-gray-50 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 sm:px-3 sm:py-1.5 min-h-11 sm:min-h-0 text-sm border rounded-md hover:bg-gray-50 disabled:opacity-50"
         >
           <Eraser className="w-3.5 h-3.5" /> Ryd
         </button>
@@ -194,7 +194,7 @@ export function SignaturePad({
           type="button"
           onClick={confirmSignature}
           disabled={disabled || !hasDrawn}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 sm:px-3 sm:py-1.5 min-h-11 sm:min-h-0 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
         >
           <Check className="w-3.5 h-3.5" /> Bekræft underskrift
         </button>
