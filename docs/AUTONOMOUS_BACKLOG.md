@@ -223,9 +223,9 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | CR-7 | Mail-synk uden overlap-værn (dobbelt AI/auto-handlinger) | BLOCKED_APPROVAL [MIGRATION] — lease-kolonne på graph_sync_state (sync_lock_until) med betinget UPDATE pr. postkasse; alternativ uden migration (last_sync_status='running') ville ændre visning i go-live/system-health |
 | CR-8 | Ulæst-tæller højst 20; "markér alle" rammer kun de 20 | DONE (kode) — HEAD-count i notifikations-feedet; markAllAlertsRead i én opdatering. UI U184 |
 | CR-9 | Læst/afvist er fælles for alle brugere | BLOCKED_APPROVAL [MIGRATION] — system_alert_reads |
-| CR-10 | Afviste intelligens-alarmer genopstår hver nat | TODO |
+| CR-10 | Afviste intelligens-alarmer genopstår hver nat | DONE (6a94ef7e) — afvist inden for 30 dage tæller som eksisterende i dubletsikringen |
 | CR-11 | Helbredslog vokser uendeligt og gemmer persondata (modtagere) | DONE (kode) — kun recipient_count fremover (eksisterende rækker urørt). Sletning >90 dage = BLOCKED_APPROVAL (datasletning) |
-| CR-12 | Engelske alarmtekster; registry: bank-match skriver til e-conomic; UTC-kommentarer | TODO |
+| CR-12 | Engelske alarmtekster; registry: bank-match skriver til e-conomic; UTC-kommentarer | DONE (6a94ef7e) — registret nævner e-conomic-effekten af bank-match; intelligence-check-tekster er danske (gennemgået 2026-10-17) |
 
 ## NEXT-26 (review-bølge 2026-10-17 morgen — rapporter/eksport + indstillinger/team)
 | # | Fund | Status |
@@ -379,7 +379,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | Q-2 (S2) | Dashboard-widgets henter serielt (client server-actions) | TODO (større) |
 | Q-3 (S3) | Overblik: chunk-løkker sekventielle + N+1 på webhenvendelser | DONE — bidder og kundeopslag samtidig. UI U67/U68/U70 |
 | Q-4 (S2) | Kalender henter montørens job to gange | DONE — ét opslag, delt i JS. UI U43/U151 |
-| Q-5 (S3) | Arbejdsordre-scope henter alle id'er unødigt | TODO |
+| Q-5 (S3) | Arbejdsordre-scope henter alle id'er unødigt | DONE — dublet af Q-5 ovenfor (8584ccf9) |
 | Q-6 (S2) | Mail-søgning genindlæser ved hvert tastetryk (4 actions) | DONE — 300 ms debounce. UI U171 |
 | Q-7 (S3) | Mail-sync-interval kører i skjulte faner | DONE — useVisiblePolling |
 | Q-8 (S2) | 4 dialoger kan ikke rulles på telefon (materiale, øvrig omkostning, rediger/planlæg arbejdsordre) | DONE — overlay rulbart (items-start på telefon). UI U34/U43 |
