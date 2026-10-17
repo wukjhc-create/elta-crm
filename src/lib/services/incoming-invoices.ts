@@ -968,6 +968,26 @@ export async function ingestFromSupplierAPI(
         continue
       }
 
+      // SU-8 (review 2026-10-17): samme faktura kom før via mail UDEN løst leverandør (fx videresendt eller manglende
+      // CVR på leverandøren) → API-kopien blev en ny, aktiv faktura (dobbelt kost/bogføring). Aktiv mail-kopi med samme
+      // nummer og (når kendt) samme beløb = dublet; den eksisterende får en audit-note.
+      {
+        const { data: unresolved } = await supabase
+          .from('incoming_invoices')
+          .select('id, amount_incl_vat')
+          .is('supplier_id', null)
+          .eq('invoice_number', norm.invoiceNumber)
+          .not('status', 'in', '(rejected,cancelled)')
+          .limit(5)
+        const hit = ((unresolved ?? []) as Array<{ id: string; amount_incl_vat: number | null }>).find((r) =>
+          r.amount_incl_vat == null || norm.amountInclVat == null || Math.abs(Number(r.amount_incl_vat) - Number(norm.amountInclVat)) < 0.01)
+        if (hit) {
+          result.duplicates++
+          await auditLog({ incomingInvoiceId: hit.id, action: 'duplicate_detected', message: `samme faktura hentet via ${provider}-API — ikke oprettet igen (leverandør bør kobles på denne)` })
+          continue
+        }
+      }
+
       const { data: ins, error } = await supabase
         .from('incoming_invoices')
         .insert({
