@@ -425,6 +425,12 @@ export async function submitSignedFuldmagt(
         .eq('id', documentId).eq('description', claimedDescText)
     }
 
+    // ES-11 (e-sign-review 2026-10-17): underskriftsbevis som ved tilbud/bekræftelser — IP (første led) + user agent.
+    // Feltet når aldrig klienten (safeDocumentDescription er en hvidliste).
+    const { captureRejectionMeta } = await import('@/lib/services/offer-rejection')
+    // uden for en HTTP-anmodning (cron/harness) findes ingen headers → 'unknown' (som rejectOffer)
+    const signMeta = await captureRejectionMeta().catch(() => ({ ip: 'unknown', userAgent: 'unknown' }))
+
     // Update description with signed data
     const updatedDesc = {
       ...existingDesc,
@@ -433,6 +439,8 @@ export async function submitSignedFuldmagt(
       signature_data: input.signature_data,
       signer_name: input.signer_name,
       signed_at: now.toISOString(),
+      signer_ip: signMeta.ip,
+      signer_user_agent: signMeta.userAgent,
       status: 'signed',
     }
 
@@ -544,7 +552,7 @@ export async function submitSignedFuldmagt(
               <p style="font-size: 16px; color: #111827;"><strong>${escapeHtml(input.signer_name)}</strong> har underskrevet fuldmagten.</p>
               <table style="margin: 16px 0; font-size: 14px; color: #374151;">
                 <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Ordrenr:</td><td>${escapeHtml(updatedDesc.order_number)}</td></tr>
-                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Fødselsdato/CVR:</td><td>${escapeHtml(input.foedselsdato_cvr)}</td></tr>
+                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Fødselsdato/CVR:</td><td>${escapeHtml(maskPersonalId(input.foedselsdato_cvr))}</td></tr>
                 <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Marketing:</td><td>${input.marketing_samtykke ? 'Ja — billeder må bruges' : 'Nej'}</td></tr>
               </table>
               <p style="color: #374151;">PDF'en er gemt under kundens dokumenter i ELTA Drift.</p>
@@ -595,4 +603,14 @@ export async function submitSignedFuldmagt(
     logger.error('Error in submitSignedFuldmagt', { error })
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
   }
+}
+
+/**
+ * ES-11 (e-sign-review 2026-10-17): et fuldt CPR-nummer (10 cifre) vises aldrig i notifikationsmailen til den fælles
+ * postkasse — kun fødselsdatoen (DDMMÅÅ-****). CVR (8 cifre) og fødselsdato (6 cifre) vises som indtastet.
+ */
+function maskPersonalId(value: string | null | undefined): string {
+  const v = String(value ?? '').trim()
+  const digits = v.replace(/\D/g, '')
+  return digits.length === 10 ? `${digits.slice(0, 6)}-****` : v
 }

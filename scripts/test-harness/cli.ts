@@ -981,8 +981,8 @@ async function main() {
     try {
       await admin.from('partner_access_tokens').insert({ partner_customer_id: partner, token: tok, email: `pfp-${stamp}@harness.test`, is_active: true, created_by: owner })
       const fm = JSON.stringify({ type: 'fuldmagt', status: 'signed', foedselsdato_cvr: 'HARNESS-CPR' })
-      const { data: d1 } = await admin.from('customer_documents').insert({ customer_id: partner, service_case_id: caseId, title: 'Fuldmagt [HARNESS]', description: fm, document_type: 'contract', file_url: '', storage_path: `harness/${stamp}-fm.pdf`, file_name: 'fuldmagt.pdf', mime_type: 'application/pdf' }).select('id').single()
-      await admin.from('customer_documents').insert({ customer_id: partner, service_case_id: caseId, title: 'Kontrakt [HARNESS]', description: 'almindelig', document_type: 'contract', file_url: '', storage_path: `harness/${stamp}-k.pdf`, file_name: 'kontrakt.pdf', mime_type: 'application/pdf' })
+      const { data: d1 } = await admin.from('customer_documents').insert({ customer_id: partner, service_case_id: caseId, title: 'Fuldmagt [HARNESS]', description: fm, document_type: 'contract', file_url: '', storage_path: `harness/${stamp}-fm.pdf`, file_name: 'fuldmagt.pdf', mime_type: 'application/pdf', visible_in_portal: true }).select('id').single()
+      await admin.from('customer_documents').insert({ customer_id: partner, service_case_id: caseId, title: 'Kontrakt [HARNESS]', description: 'almindelig', document_type: 'contract', file_url: '', storage_path: `harness/${stamp}-k.pdf`, file_name: 'kontrakt.pdf', mime_type: 'application/pdf', visible_in_portal: true }) // partner-ruten viser kun visible_in_portal (seed forældet)
       const list = await getPartnerDocuments(tok)
       const titles = (list.success ? list.data ?? [] : []).map((x) => x.title)
       check('partner-listen indeholder IKKE fuldmagten', list.success && !titles.includes('Fuldmagt [HARNESS]'), JSON.stringify(titles))
@@ -1524,7 +1524,7 @@ async function main() {
       check('portal viser kun gældende revision (R2)', list.success && ids.includes(r2) && !ids.includes(r1), JSON.stringify(ids.length))
       const old = await getPortalOffer(tok, r1)
       check('afløst revision i portal → henvisning til ny version', !old.success && /erstattet/.test(old.error ?? ''), old.error ?? '')
-      const acc = await acceptOffer(tok, { offer_id: r1, signer_name: 'Test', signer_email: `rev-${stamp}@harness.test`, signature_data: 'data:image/png;base64,AA' } as never)
+      const acc = await acceptOffer(tok, { offer_id: r1, signer_name: 'Test', signer_email: `rev-${stamp}@harness.test`, signature_data: `data:image/png;base64,${'A'.repeat(240)}` } as never) // gyldig længde (≥200, tilbuds-review #6) — ellers stoppede valideringen før revisionstjekket
       check('afløst revision kan ikke accepteres (afvist før underskrift/mail)', !acc.success && /erstattet/.test(acc.error ?? ''), acc.error ?? '')
       const sigs = (await admin.from('offer_signatures').select('id', { count: 'exact', head: true }).eq('offer_id', r1)).count
       check('ingen underskrift gemt på afløst revision', sigs === 0)

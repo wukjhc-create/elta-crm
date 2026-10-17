@@ -591,7 +591,7 @@ export async function acceptOffer(
     // ES-12 (e-sign-review 2026-10-17): første led af x-forwarded-for (før hele kæden "ip, proxy") + user agent i
     // aktivitetens metadata — samme helper som afvisningen
     const { captureRejectionMeta } = await import('@/lib/services/offer-rejection')
-    const clientMeta = await captureRejectionMeta()
+    const clientMeta = await captureRejectionMeta().catch(() => ({ ip: 'unknown', userAgent: 'unknown' }))
     const clientIp = clientMeta.ip
 
     // Create signature — offer_id er verificeret kunde-ejet ovenfor

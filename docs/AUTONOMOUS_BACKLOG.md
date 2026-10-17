@@ -224,7 +224,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | ES-8 | Portal-afvisning efterlader aktiv sag uden advarsel (S3) | DONE (kode) — advarsel i klokken når en aktiv sag findes |
 | ES-9 | Sagsoprettelse efter portal-accept fejler stille (S3) | DONE (kode) — advarsel i klokken |
 | ES-10 | Dokumentbekræftelser bindes ikke til filens indhold (S3) | BLOCKED_APPROVAL [MIGRATION] |
-| ES-11 | Fuldmagt: ingen IP/UA; CPR i klartekst i mail (S3) | TODO |
+| ES-11 | Fuldmagt: ingen IP/UA; CPR i klartekst i mail (S3) | DONE (kode) — IP (første led) + UA i underskriftsdata; CPR maskeres i notifikationsmailen (DDMMÅÅ-****) |
 | ES-12 | Underskrift: rå x-forwarded-for, ingen UA/vilkår (S4) | DELVIS (kode) — første led af x-forwarded-for + UA i aktivitetens metadata; UA/vilkår som kolonner = migration |
 | ES-13 | Dobbelt "set"-aktivitet/webhook ved samtidige første visninger (S4) | DONE (kode) — aktivitet/webhook kun når denne visning satte viewed |
 | EC-1 | Bankmatch postede betalinger automatisk i e-conomic (mod A-12) (S1) | DONE (a4085953) — registerPayment er kun CRM-status medmindre syncEconomic=true |
