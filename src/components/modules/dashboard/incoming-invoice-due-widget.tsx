@@ -18,19 +18,23 @@ import { formatCurrency } from '@/lib/utils/format'
 
 const fmtDate = (s: string | null) => (s ? s.slice(0, 10) : '—')
 
-export function IncomingInvoiceDueWidget() {
-  const [data, setData] = useState<IncomingDueSummary | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function IncomingInvoiceDueWidget({ initial }: { initial?: Awaited<ReturnType<typeof getIncomingInvoiceDueSummaryAction>> | null } = {}) {
+  // PF-1 (performance-review 2026-10-16): forsiden henter på serveren (parallelt via Suspense) og giver resultatet som
+  // `initial`; uden det henter widgetten selv som før
+  const initData = initial?.ok ? initial : null
+  const [data, setData] = useState<IncomingDueSummary | null>(initData as IncomingDueSummary | null)
+  const [loading, setLoading] = useState(!initial)
+  const [error, setError] = useState<string | null>(initial && !initData ? (initial.message || 'Kunne ikke hente forfaldsoverblik') : null)
 
   useEffect(() => {
+    if (initial) return
     let alive = true
     getIncomingInvoiceDueSummaryAction()
       .then((r) => { if (!alive) return; if (r.ok) setData(r); else setError(r.message || 'Kunne ikke hente forfaldsoverblik') })
       .catch(() => { if (alive) setError('Kunne ikke hente forfaldsoverblik') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [])
+  }, [initial])
 
   const kr = (n: number) => formatCurrency(n, data?.currency || 'DKK', 0)
 

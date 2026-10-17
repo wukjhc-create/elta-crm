@@ -12,7 +12,7 @@
  */
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { AlertCircle, ArrowRight, Loader2, TrendingUp } from 'lucide-react'
 import {
   getInvoiceLiquidityChartAction,
@@ -24,11 +24,15 @@ function kr(n: number): string {
   return formatCurrency(n, 'DKK', 0)
 }
 
-export function InvoiceLiquidityChart() {
-  const [months, setMonths] = useState<LiquidityMonth[] | null>(null)
-  const [hasData, setHasData] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function InvoiceLiquidityChart({ initial }: { initial?: Awaited<ReturnType<typeof getInvoiceLiquidityChartAction>> | null } = {}) {
+  // PF-1 (performance-review 2026-10-16): forsiden henter på serveren (parallelt via Suspense) og giver resultatet som
+  // `initial`; uden det henter widgetten selv som før
+  const initOk = !!initial && initial.ok && !!initial.months
+  const [months, setMonths] = useState<LiquidityMonth[] | null>(initOk ? initial!.months! : null)
+  const [hasData, setHasData] = useState(initOk ? !!initial!.has_data : false)
+  const [loading, setLoading] = useState(!initial)
+  const [error, setError] = useState<string | null>(initial && !initOk ? (initial.message ?? 'Kunne ikke hente likviditetsdata') : null)
+  const skipFirstLoad = useRef(!!initial)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -51,6 +55,7 @@ export function InvoiceLiquidityChart() {
   }, [])
 
   useEffect(() => {
+    if (skipFirstLoad.current) { skipFirstLoad.current = false; return }
     void load()
   }, [load])
 

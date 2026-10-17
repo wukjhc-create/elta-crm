@@ -12,7 +12,7 @@
  */
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import {
   AlertCircle, AlertTriangle, BadgeCheck, Bell, FileText, Loader2, Receipt,
   Send, Undo2, Wallet, ArrowRight, RefreshCw,
@@ -69,10 +69,14 @@ function focusText(d: InvoiceDashboard): string {
   return parts.join('. ') + '.'
 }
 
-export function InvoiceEconomySection() {
-  const [data, setData] = useState<InvoiceDashboard | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function InvoiceEconomySection({ initial }: { initial?: Awaited<ReturnType<typeof getInvoiceDashboardAction>> | null } = {}) {
+  // PF-1 (performance-review 2026-10-16): forsiden henter på serveren (parallelt via Suspense) og giver resultatet som
+  // `initial`; uden det henter widgetten selv som før
+  const initData = initial?.ok && initial.data ? initial.data : null
+  const [data, setData] = useState<InvoiceDashboard | null>(initData)
+  const [loading, setLoading] = useState(!initial)
+  const [error, setError] = useState<string | null>(initial && !initData ? (initial.message ?? 'Kunne ikke hente fakturaøkonomi') : null)
+  const skipFirstLoad = useRef(!!initial)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -94,6 +98,7 @@ export function InvoiceEconomySection() {
   }, [])
 
   useEffect(() => {
+    if (skipFirstLoad.current) { skipFirstLoad.current = false; return }
     void load()
   }, [load])
 

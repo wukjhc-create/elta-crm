@@ -22,6 +22,13 @@ import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-a
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 import { formatWorkOrderTime } from '@/lib/planning/work-order-time'
 
+// MB-1 (mobil-review 2026-10-17): en server action der KASTER (ingen forbindelse i kælderen) efterlod formularen
+// låst på "Gemmer…" — nu bliver det til en almindelig fejl med dansk besked, og indtastningerne bevares
+const OFFLINE_RESULT = { success: false as const, error: 'Ingen forbindelse — dine indtastninger er bevaret, prøv igen' }
+async function safeAction<T>(p: Promise<T>): Promise<T | typeof OFFLINE_RESULT> {
+  try { return await p } catch { return OFFLINE_RESULT }
+}
+
 const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   planned: 'Planlagt',
   in_progress: 'I gang',
@@ -177,7 +184,7 @@ export function OrderPlanningTab({
       estimated_hours: formEst || null,
       assigned_employee_id: formEmployee || null,
     }
-    let res = await createWorkOrderForCase(payload)
+    let res = await safeAction(createWorkOrderForCase(payload))
     // 00228: fravær → eksplicit bekræftelse (audit-logges på serveren)
     if (!res.success && isAbsenceConflict(res.error)) {
       if (!window.confirm((res.error ?? '').slice(ABSENCE_CONFLICT_PREFIX.length).trim())) {
@@ -185,7 +192,7 @@ export function OrderPlanningTab({
         setError('Ikke planlagt — medarbejderen har fravær den dag')
         return
       }
-      res = await createWorkOrderForCase({ ...payload, override_absence: true })
+      res = await safeAction(createWorkOrderForCase({ ...payload, override_absence: true }))
     }
     setIsWorking(false)
     if (!res.success) {
@@ -204,7 +211,7 @@ export function OrderPlanningTab({
     if (next === 'done' && !window.confirm('Afslut arbejdsordren? Den kan ikke genåbnes.')) return
     setError(null)
     setIsWorking(true)
-    const res = await changeWorkOrderStatus(woId, next)
+    const res = await safeAction(changeWorkOrderStatus(woId, next))
     setIsWorking(false)
     if (!res.success) {
       setError(humanizeErrorText(res.error) || 'Kunne ikke ændre status')
@@ -218,7 +225,7 @@ export function OrderPlanningTab({
     if (!window.confirm('Slet denne planlagte arbejdsordre? Handlingen kan ikke fortrydes.')) return
     setError(null)
     setIsWorking(true)
-    const res = await deletePlannedWorkOrder(woId)
+    const res = await safeAction(deletePlannedWorkOrder(woId))
     setIsWorking(false)
     if (!res.success) {
       setError(humanizeErrorText(res.error) || 'Kunne ikke slette')

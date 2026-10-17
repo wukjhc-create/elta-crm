@@ -24,18 +24,21 @@ const fmtDateTime = (s: string) =>
     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
   }).format(new Date(s))
 
-export function AccountingHealthWidget() {
-  const [data, setData] = useState<AccountingHealthSummary | null>(null)
-  const [loading, setLoading] = useState(true)
+export function AccountingHealthWidget({ initial }: { initial?: { value: AccountingHealthSummary | null } } = {}) {
+  // PF-1 (performance-review 2026-10-16): forsiden henter på serveren (parallelt via Suspense) og giver resultatet som
+  // `initial`; uden det henter widgetten selv som før
+  const [data, setData] = useState<AccountingHealthSummary | null>(initial ? initial.value : null)
+  const [loading, setLoading] = useState(!initial)
 
   useEffect(() => {
+    if (initial) return
     let alive = true
     getAccountingHealthSummaryAction()
       .then((res) => { if (alive) setData(res) })
       .catch(() => { if (alive) setData(null) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [])
+  }, [initial])
 
   return (
     <div className="bg-white p-6 rounded-lg border">

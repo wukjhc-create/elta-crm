@@ -140,13 +140,13 @@ export default async function DashboardPage() {
       <StyringsCockpit overview={overview} />
 
       {/* Sprint Ø4.0 — Driftsdashboard: cost-free fakturaøkonomi (få pengene hjem) */}
-      {canViewInvoices && <InvoiceEconomySection />}
+      {canViewInvoices && <Suspense fallback={<WidgetSkeleton />}><InvoiceEconomyServer /></Suspense>}
 
       {/* Sprint Ø4.2 — Likviditetsgraf: faktureret vs. betalt 6 mdr. */}
-      {canViewInvoices && <InvoiceLiquidityChart />}
+      {canViewInvoices && <Suspense fallback={<WidgetSkeleton />}><InvoiceLiquidityServer /></Suspense>}
 
       {/* Sprint Ø6.4 — Regnskabsstatus: e-conomic eksportfejl proaktivt */}
-      {canViewEconomic && <AccountingHealthWidget />}
+      {canViewEconomic && <Suspense fallback={<WidgetSkeleton />}><AccountingHealthServer /></Suspense>}
 
       {/* Sprint Ø7.3 — Tilbud klar til sag: proaktiv konverterings-synlighed */}
       {canViewOffers && <Suspense fallback={<WidgetSkeleton />}><OfferConversionServer /></Suspense>}
@@ -161,10 +161,10 @@ export default async function DashboardPage() {
       {canViewEconomy && <Suspense fallback={<WidgetSkeleton />}><OverBudgetCasesServer /></Suspense>}
 
       {/* Sprint Ø9.1 — Leverandørfaktura-forfald (intern indkøb, "pengene ud") */}
-      {canViewIncoming && <IncomingInvoiceDueWidget />}
+      {canViewIncoming && <Suspense fallback={<WidgetSkeleton />}><IncomingInvoiceDueServer /></Suspense>}
 
       {/* Sprint Ø9.5 — Porteføljevidt indkøbsdrift-overblik (drift + forfald pr. sag) */}
-      {canViewIncoming && <PurchaseOperationsWidget />}
+      {canViewIncoming && <Suspense fallback={<WidgetSkeleton />}><PurchaseOperationsServer /></Suspense>}
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />
@@ -426,4 +426,29 @@ async function OverBudgetCasesServer() {
 async function OfferConversionServer() {
   const v = await getOfferConversionSummaryAction().then((value) => ({ value })).catch(() => undefined)
   return <OfferConversionWidget initial={v} />
+}
+async function InvoiceEconomyServer() {
+  const { getInvoiceDashboardAction } = await import('@/lib/actions/invoices')
+  const r = await getInvoiceDashboardAction().catch(() => null)
+  return <InvoiceEconomySection initial={r} />
+}
+async function InvoiceLiquidityServer() {
+  const { getInvoiceLiquidityChartAction } = await import('@/lib/actions/invoices')
+  const r = await getInvoiceLiquidityChartAction().catch(() => null)
+  return <InvoiceLiquidityChart initial={r} />
+}
+async function AccountingHealthServer() {
+  const { getAccountingHealthSummaryAction } = await import('@/lib/actions/accounting')
+  const v = await getAccountingHealthSummaryAction().then((value) => ({ value })).catch(() => undefined)
+  return <AccountingHealthWidget initial={v} />
+}
+async function IncomingInvoiceDueServer() {
+  const { getIncomingInvoiceDueSummaryAction } = await import('@/lib/actions/incoming-invoices')
+  const r = await getIncomingInvoiceDueSummaryAction().catch(() => null)
+  return <IncomingInvoiceDueWidget initial={r} />
+}
+async function PurchaseOperationsServer() {
+  const { getPurchaseOperationsDashboardAction } = await import('@/lib/actions/purchase-operations')
+  const r = await getPurchaseOperationsDashboardAction().catch(() => null)
+  return <PurchaseOperationsWidget initial={r} />
 }

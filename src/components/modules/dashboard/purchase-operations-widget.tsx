@@ -14,19 +14,23 @@ import { useEffect, useState } from 'react'
 import { ClipboardList, ArrowRight, Loader2, CheckCircle2, AlertTriangle, Clock } from 'lucide-react'
 import { getPurchaseOperationsDashboardAction, type PurchaseOperationsDashboard } from '@/lib/actions/purchase-operations'
 
-export function PurchaseOperationsWidget() {
-  const [data, setData] = useState<PurchaseOperationsDashboard | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function PurchaseOperationsWidget({ initial }: { initial?: Awaited<ReturnType<typeof getPurchaseOperationsDashboardAction>> | null } = {}) {
+  // PF-1 (performance-review 2026-10-16): forsiden henter på serveren (parallelt via Suspense) og giver resultatet som
+  // `initial`; uden det henter widgetten selv som før
+  const initData = initial?.ok ? initial : null
+  const [data, setData] = useState<PurchaseOperationsDashboard | null>(initData as PurchaseOperationsDashboard | null)
+  const [loading, setLoading] = useState(!initial)
+  const [error, setError] = useState<string | null>(initial && !initData ? (initial.message || 'Kunne ikke hente indkøbsdrift') : null)
 
   useEffect(() => {
+    if (initial) return
     let alive = true
     getPurchaseOperationsDashboardAction()
       .then((r) => { if (!alive) return; if (r.ok) setData(r); else setError(r.message || 'Kunne ikke hente indkøbsdrift') })
       .catch(() => { if (alive) setError('Kunne ikke hente indkøbsdrift') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [])
+  }, [initial])
 
   const nothing = !!data && data.total_cases_with_action === 0
 

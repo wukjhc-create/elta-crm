@@ -32,6 +32,13 @@ import { PAY_RATE_TYPE_OPTIONS, PAY_RATE_TYPE_LABEL, type PayRateType } from '@/
 import { toNumberDa } from '@/lib/utils/danish-number'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
+// MB-1 (mobil-review 2026-10-17): en server action der KASTER (ingen forbindelse i kælderen) efterlod formularen
+// låst på "Gemmer…" — nu bliver det til en almindelig fejl med dansk besked, og indtastningerne bevares
+const OFFLINE_RESULT = { success: false as const, error: 'Ingen forbindelse — dine indtastninger er bevaret, prøv igen' }
+async function safeAction<T>(p: Promise<T>): Promise<T | typeof OFFLINE_RESULT> {
+  try { return await p } catch { return OFFLINE_RESULT }
+}
+
 const fmtAmount = (n: number | null | undefined) =>
   n == null
     ? '—'
@@ -193,7 +200,7 @@ export function WorkOrderTimeLogs({
     }
 
     setIsWorking(true)
-    const res = await createTimeLog({
+    const res = await safeAction(createTimeLog({
       work_order_id: workOrderId,
       employee_id: employeeId,
       date,
@@ -203,7 +210,7 @@ export function WorkOrderTimeLogs({
       description,
       billable,
       pay_rate_type: payRateType,
-    })
+    }))
     setIsWorking(false)
 
     if (!res.success) {
@@ -238,7 +245,7 @@ export function WorkOrderTimeLogs({
   const saveFix = async (l: TimeLogWithEmployee) => {
     setError(null)
     setIsWorking(true)
-    const res = await updateTimeLog(l.id, { date: fixDate, start_clock: fixStart, end_clock: fixEnd || undefined, description: fixDesc })
+    const res = await safeAction(updateTimeLog(l.id, { date: fixDate, start_clock: fixStart, end_clock: fixEnd || undefined, description: fixDesc }))
     setIsWorking(false)
     if (!res.success) { setError(humanizeErrorText(res.error) || 'Kunne ikke rette timeregistreringen'); return }
     setFixId(null)
@@ -250,7 +257,7 @@ export function WorkOrderTimeLogs({
     if (!window.confirm('Slet den afviste timeregistrering? (Afvisningen og registreringen gemmes i historikken)')) return
     setError(null)
     setIsWorking(true)
-    const res = await deleteRejectedTimeLogAction(l.id)
+    const res = await safeAction(deleteRejectedTimeLogAction(l.id))
     setIsWorking(false)
     if (!res.success) { setError(humanizeErrorText(res.error) || 'Kunne ikke slette'); return }
     await reload()
@@ -263,7 +270,7 @@ export function WorkOrderTimeLogs({
   const onChangeRateType = async (logId: string, value: PayRateType) => {
     setError(null)
     setIsWorking(true)
-    const res = await updateTimeLog(logId, { pay_rate_type: value, employee_rate_id: null })
+    const res = await safeAction(updateTimeLog(logId, { pay_rate_type: value, employee_rate_id: null }))
     setIsWorking(false)
     if (!res.success) {
       setError(humanizeErrorText(res.error) || 'Kunne ikke ændre satstype')
