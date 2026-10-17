@@ -148,6 +148,14 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
   let bodyInvoice = existing.find((r) => r.file_name === bodyInvoiceName(emailId) && !LOCKED_INVOICE_STATUSES.includes(r.status)) ?? null
   let mailHasInvoice = existing.length > 0
 
+  // PF2-2 (performance-review 2026-10-17): allerede indlæst (mindst én faktura pr. vedhæftning, ingen brødtekst-faktura
+  // at opgradere) → ingen ny download/PDF-parsing (cron'en kører samme mail igennem 3 døgn i træk)
+  const attachmentRows = existing.filter((r) => r.file_name !== bodyInvoiceName(emailId)).length
+  if (!bodyInvoice && attachmentRows >= candidates.length) {
+    result.duplicates += candidates.length
+    return logIngest(emailId, result)
+  }
+
   // Udtraek tekst foerst; vedhaeftninger MED fakturanummer behandles foerst (deterministisk raekkefoelge).
   const texts = await Promise.all(candidates.map(async (att) => ({ att, text: await extractAttachmentText(att) })))
   const ranked = texts

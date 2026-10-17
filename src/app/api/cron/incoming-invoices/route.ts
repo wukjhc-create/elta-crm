@@ -56,8 +56,11 @@ async function handleCron(request: Request): Promise<Response> {
       .order('received_at', { ascending: false })
       .limit(200)
 
-    const summary = { scanned: 0, ingested: 0, duplicates: 0, errors: 0 }
+    const summary = { scanned: 0, ingested: 0, duplicates: 0, errors: 0, deferred: 0 }
+    // PF2-2: tidsbudget (maxDuration 60 s) — resten tages ved næste kørsel (vinduet er 72 t)
+    const startedAt = Date.now()
     for (const e of emails ?? []) {
+      if (Date.now() - startedAt > 45_000) { summary.deferred++; continue }
       const sender = (e.sender_email || '').toLowerCase()
       const senderDomain = sender.split('@')[1] || ''
       const subjectHit = /faktura|invoice|kreditnota|credit\s*note/i.test(e.subject || '')
