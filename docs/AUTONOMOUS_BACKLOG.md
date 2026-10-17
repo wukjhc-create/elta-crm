@@ -64,8 +64,8 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-32 (review-bølge 2026-10-17 aften — portal, kundemails, PDF)
 | # | Fund | Status |
 |---|---|---|
-| PM-1 | Servicesagsbekræftelse sender sagskundens portal-link til kontakt/kunde på adressen (S1) | DONE (kode) — link kun når modtageren er sagens kunde; udløbne tokens filtreres |
-| PM-2 | Tilbudsmail til betaler/partner/slutkunde indeholder tilbudskundens portal-link (S1) | DONE (kode) — anden modtager → portal-link fjernes ("Tilbuddet er vedhæftet som PDF"); uden PDF sendes intet. Tilbudsrykker (dry-run) skal have samme værn før live |
+| PM-1 | Servicesagsbekræftelse sender sagskundens portal-link til kontakt/kunde på adressen (S1) | DONE (kode) — link kun når modtageren er sagens kunde; udløbne tokens filtreres Prod read-only (scripts/prod-billing-mode-counts.ts): alle 15 tilbud same_as_customer, 0 sager med anden betaler/adresse-kunde → ingen historisk eksponering |
+| PM-2 | Tilbudsmail til betaler/partner/slutkunde indeholder tilbudskundens portal-link (S1) | DONE (kode) — anden modtager → portal-link fjernes ("Tilbuddet er vedhæftet som PDF"); uden PDF sendes intet. Tilbudsrykker (dry-run) skal have samme værn før live Prod read-only (scripts/prod-billing-mode-counts.ts): alle 15 tilbud same_as_customer, 0 sager med anden betaler/adresse-kunde → ingen historisk eksponering |
 | PM-3 | Døde portal-links (genbrug/nyt token afvist, /view-offer-fallback, udløbne tokens) (S2) | DONE — tilbudsmail genbruger/forlænger gyldigt token (U187); getPortalOfferUrl giver null uden gyldig adgang (rykker springes over); udløbne tokens filtreres i besigtigelsesbooking |
 | PM-4 | Fakturamail-router bruger cookie-klient → automatik/rykkere finder aldrig fakturaen (S2) | DONE (kode) — valgfri klient i resolveInvoiceMailRoute; rykker og automatisk fakturamail bruger service-klienten. Afsendelse af rykkere stadig KUN med INVOICE_REMINDERS_LIVE=true (standard fra) |
 | PM-5 | Pladsholder-kontaktinfo (+45 12 34 56 78, info@) på portal-/fejlsider (S2) | DONE (kode) — falsk telefonnummer fjernet; kontakt@ (BRAND_EMAIL) på portal-/partner-/fejlsider |
