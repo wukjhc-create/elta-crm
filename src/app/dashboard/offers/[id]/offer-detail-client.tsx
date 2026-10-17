@@ -44,6 +44,7 @@ import { OfferForm } from '@/components/modules/offers/offer-form'
 import { OfferPartiesCard } from '@/components/modules/offers/offer-parties-card'
 import { EditOfferPartiesDialog } from '@/components/modules/offers/edit-offer-parties-dialog'
 import { OfferToCaseCard } from './offer-to-case-card'
+import { OfferSignatureCard } from './offer-signature-card'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
 import { OfferRevisionsPanel } from '@/components/modules/offers/offer-revisions-panel'
 import { REJECTION_REASON_LABELS, type RejectionReasonCode } from '@/types/offers.types'
@@ -1353,6 +1354,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
             {offer.status === 'rejected' && (
               <OfferRejectionDetailsCard offer={offer} />
             )}
+
+            {/* ES-3: underskriftsbevis for accepterede tilbud */}
+            {offer.status === 'accepted' && <OfferSignatureCard offerId={offer.id} />}
 
             {/* Lønsomhed (Profit Engine) — kun roller med kostpris-adgang */}
             {showFinancials && !costOpen && lineItems.length > 0 && (

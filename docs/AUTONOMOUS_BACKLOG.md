@@ -216,7 +216,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | ES-1 | Accepteret tilbud kan sættes til kladde via REST (status ikke låst i DB) og ændres mens underskriften består (S2) | BLOCKED_APPROVAL [MIGRATION] — trigger: accepted er endelig for authenticated + beløb/hash på underskriften |
 | ES-2 | (flag) Snapshot overskrives ikke ved kladde→ændring→gensend (S2, staging) | DONE (kode) — med revisioner slået til: sendt/set → kladde afvises (ny revision i stedet); offer-revisions-check |
-| ES-3 | Underskrift (navn/IP/tid/billede) vises ingen steder uden for portalen; PDF uden underskriftsblok (S2) | TODO (større: gated action + PDF-blok) |
+| ES-3 | Underskrift (navn/IP/tid/billede) vises ingen steder uden for portalen; PDF uden underskriftsblok (S2) | DELVIS (kode) — underskriftsbevis (navn, e-mail, dansk tid, IP, billede) på tilbuddet bag offers.view (U10); PDF-blok = TODO |
 | ES-4 | Fuldmagtens CPR/underskrift læsbar for alle via REST; underskrevet fuldmagt kan ændres (S2) | BLOCKED_APPROVAL [MIGRATION] |
 | ES-5 | Accept-opdateringen tjekker ikke sent_at (race mod gensend) (S3) | DONE (kode) — compare-and-set på sent_at |
 | ES-6 | (flag) To revisioner kan begge accepteres (S3, staging) | DONE (kode) — revision af accepteret tilbud kan ikke sendes (status + mail); offer-revisions-check |

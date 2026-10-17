@@ -939,8 +939,16 @@ ${m.text()}`) })
           if (offerStatus === 'accepted' && sag && akt) break
           await new Promise((r) => setTimeout(r, 1000))
         }
+        // ES-3 (2026-10-17): kontoret ser underskriftsbeviset (navn + billede) på tilbuddet
+        let underskriftVist = false
+        if (offerStatus === 'accepted') {
+          await gotoSafe(a.page, `${base}/dashboard/offers/${portalOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const card = a.page.getByTestId('offer-signature-card')
+          await card.waitFor({ timeout: 30_000 }).catch(() => {})
+          underskriftVist = (await card.getByText('Harness Kunde').count()) > 0 && (await a.page.getByTestId('offer-signature-image').count()) > 0
+        }
         const pa = { forste_klik: forsteKlik, saelger_vist: saelgerVist, ingen_kundefejl: !kundeFejl, accepteret: offerStatus === 'accepted', sag: !!sag?.id,
-          saelger_ansvarlig: sag?.created_by === adminUser.id, tidslinje: akt === 1 }
+          saelger_ansvarlig: sag?.created_by === adminUser.id, tidslinje: akt === 1, underskrift_vist: underskriftVist }
         out.push({ id: 'U10 kundeportal-accept (kunde uden login)', ok: !seedErr && Object.values(pa).every(Boolean),
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(pa).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
