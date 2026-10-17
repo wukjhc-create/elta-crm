@@ -60,6 +60,8 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'portal.ts:portalRequestReschedule': T('kunden beder om ny tid via portal-token'),
   'document-confirmations.ts:submitConfirmation': T('kunden bekræfter dokument via engangstoken (status + udløb i opdateringen)'),
   'fuldmagt.ts:submitSignedFuldmagt': T('kunden underskriver fuldmagt via aktivt portal-token'),
+  // SEC2-5 (2026-10-17): validatePortalToken opdaterer last_accessed_at → læse-actionen tæller nu som skrivende
+  'fuldmagt.ts:getPortalFuldmagter': T('kunden læser egne fuldmagter via aktivt portal-token (validatePortalToken)'),
   // ---- egne data
   'personal-reminders.ts:createPersonalReminder': U('kun egne påmindelser (owner_id = indlogget bruger; RLS owner_id = auth.uid())'),
   'personal-reminders.ts:reschedulePersonalReminder': U('kun egne påmindelser (owner_id = indlogget bruger; RLS owner_id = auth.uid())'),

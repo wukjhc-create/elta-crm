@@ -66,7 +66,10 @@ export async function getCustomerQuoteHistory(
   totalOffers: number
 }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // C-F4 (cost-review 2026-10-17): før kun login — montøren (uden offers.view) kunne hente enhver kundes seneste
+    // tilbud med linjer og priser
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) return { success: false, error: 'Manglende tilladelse: offers.view' }
 
     // Get the most recent offer for this customer
     const { data: offers, error } = await supabase

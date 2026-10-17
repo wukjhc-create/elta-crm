@@ -850,7 +850,9 @@ export async function updateOfferStatus(
       metadata: {
         offer_number: data.offer_number,
         final_amount: data.final_amount,
-        ...(lowDbSent ? { low_db_acknowledged: true, db_percentage: lowDbSent.dbPercentage, db_threshold: lowDbSent.threshold } : {}),
+        // C-F1 (cost-review 2026-10-17): ingen DB-procent i audit — rækken bærer afsenderens user_id, og RLS lader
+        // brugeren læse egne audit-rækker (salg kunne regne kostprisen ud). DB vises på tilbuddet for kostroller.
+        ...(lowDbSent ? { low_db_acknowledged: true } : {}),
       },
     })
 

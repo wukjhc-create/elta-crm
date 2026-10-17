@@ -978,8 +978,9 @@ export async function sendOfferEmail(
     if (lowDb?.low) {
       await insertAuditRow({
         user_id: userId, entity_type: 'offer', entity_id: offer.id, entity_name: offer.offer_number ?? null,
-        action: 'offer_sent_low_db', action_description: `Tilbud sendt med lav DB (${lowDb.dbPercentage}% < ${lowDb.threshold}%) efter bekræftet advarsel`,
-        changes: null, metadata: { db_percentage: lowDb.dbPercentage, threshold: lowDb.threshold, via: 'email' },
+        // C-F1 (cost-review 2026-10-17): ingen DB-procent i audit (afsenderen kan læse egne audit-rækker)
+        action: 'offer_sent_low_db', action_description: 'Tilbud sendt med lav DB efter bekræftet advarsel',
+        changes: null, metadata: { low_db_acknowledged: true, via: 'email' },
       })
     }
 

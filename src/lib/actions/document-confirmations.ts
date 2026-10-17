@@ -38,6 +38,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { secretColumnReader } from '@/lib/portal/token-reader'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
+import { isBesigtigelseDocument } from '@/lib/documents/is-besigtigelse'
 import type { ActionResult } from '@/types/common.types'
 import {
   RECIPIENT_ROLE_LABELS,
@@ -199,11 +200,21 @@ export async function createConfirmationRequests(
     // Valider dokumentet eksisterer og hent service_case_id som default
     const { data: doc, error: docErr } = await supabase
       .from('customer_documents')
-      .select('id, customer_id, service_case_id, document_type, title')
+      .select('id, customer_id, service_case_id, document_type, title, source_email_id')
       .eq('id', input.documentId)
       .single()
     if (docErr || !doc) {
       return { success: false, error: 'Dokument ikke fundet' }
+    }
+    // SEC2-3 (security-review 2026-10-17): et offentligt bekræftelseslink udleverer dokumentets PDF. Før kunne enhver
+    // med service.edit lave et link til ETHVERT dokument (interne, mail-vedhæftninger med kostpriser, fuldmagter) på
+    // enhver sag. Nu kun besigtigelsesrapporter (ikke mail-vedhæftninger) på sager i brugerens scope.
+    if (!isBesigtigelseDocument(doc.document_type as string | null, doc.title as string | null) || (doc as { source_email_id?: string | null }).source_email_id) {
+      return { success: false, error: 'Kun besigtigelsesrapporter kan sendes til bekræftelse' }
+    }
+    {
+      const denied = await confirmationGateDenied('service.edit', (doc.service_case_id as string | null) ?? null)
+      if (denied) return { success: false, error: denied }
     }
 
     const expiresInDays = input.expiresInDays ?? DEFAULT_EXPIRES_IN_DAYS
@@ -350,7 +361,7 @@ export async function getConfirmationContext(
     // Hent dokument-metadata
     const { data: doc } = await admin
       .from('customer_documents')
-      .select('title, file_name, storage_path, document_type, service_case_id')
+      .select('title, file_name, storage_path, document_type, service_case_id, source_email_id')
       .eq('id', row.customer_document_id)
       .maybeSingle()
 
@@ -373,8 +384,9 @@ export async function getConfirmationContext(
     }
 
     // PDF signed URL (kort levetid)
+    // SEC2-3: kun besigtigelsesrapporter (ikke mail-vedhæftninger) udleveres via det offentlige link
     let pdfUrl: string | null = null
-    if (doc.storage_path) {
+    if (doc.storage_path && isBesigtigelseDocument(doc.document_type as string | null, doc.title as string | null) && !(doc as { source_email_id?: string | null }).source_email_id) {
       const { data: signed } = await admin.storage
         .from('attachments')
         .createSignedUrl(doc.storage_path, PDF_SIGNED_URL_TTL_SECONDS)

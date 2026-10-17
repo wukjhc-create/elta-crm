@@ -45,6 +45,36 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-29 (review-bølge 2026-10-17 eftermiddag — sikkerhed, montør-scope, kostdata, økonomi)
+| # | Fund | Status |
+|---|---|---|
+| SEC2-1 | getDocumentDownloadUrls signerede enhver kundes fuldmagt (CPR + underskrift) og dokumenter på sager uden for montørens scope; storage_path sendt for fuldmagter (S2) | DONE (kode) — samme regler som getCustomerDocuments (scope, fuldmagt kræver customers.emails.view, billeder kun for kunder med sag i scope); storage_path blankt for fuldmagt |
+| SEC2-2 | Salg/serviceleder kan ændre integration_webhooks.url (RLS) → dekrypterede API-nøgler sendes til fremmed vært; SSRF (S2, kun med aktiv webhook — prod: 0 webhooks) | DONE (kode) — https + offentlig vært (inkl. DNS-tjek), ingen redirect, validering ved opret/ret; unit webhook-url-guard-test 19/19. RLS (UPDATE kun admin, SELECT/headers) = BLOCKED_APPROVAL [MIGRATION] |
+| SEC2-3 | Offentligt bekræftelseslink kunne laves for ethvert dokument på enhver sag (service.edit) (S3) | DONE (kode) — kun besigtigelsesrapporter (ikke mail-vedhæftninger) på sager i scope; den offentlige side signerer kun besigtigelsesrapporter. Token returneres stadig til kalderen (gatet) |
+| SEC2-4 | customer_documents UPDATE-politik tillader montør/salg at ændre visible_in_portal/type/sti på alle rækker (S3) | BLOCKED_APPROVAL [MIGRATION] — UPDATE kun admin/serviceleder eller BEFORE UPDATE-trigger på følsomme kolonner |
+| SEC2-5 | Fuldmagt-token tjekkede ikke deaktiveret kunde; ubegrænset input (S4) | DONE (kode) — validatePortalToken + længde/format på navn, fødselsdato/CVR, underskrift (PNG data-URL). fuldmagt-sign-race-check 6/6 |
+| SEC2-6 | Kontaktformular: global timegrænse kan lukkes af spam; dubletsvar udleverer lead-id (S4) | DONE (kode, delvis) — intet leadId i dubletsvar (public-contact-limit-check 4/4). Grænse pr. IP kræver lagring (hash af IP) = BESLUTNING (GDPR/skema) |
+| F2 | sendExistingBesigtigelsesreport uden sags-scope + fri modtager (S2) | DONE (kode) — caseReadDenied på dokumentets sag og override |
+| F3 | sendBesigtigelseSequential / sendReadyChainStep uden sags-scope (S3) | DONE (kode) — caseReadDenied |
+| F4 | listRoofDrawings ugatet; getCustomerImages uden scope (S3/S4) | DELVIS — getCustomerImages kun for kunder med sag i scope (DONE); listRoofDrawings TODO |
+| C-F1 | Salg kan læse tilbuddets DB-% i egne audit-rækker (RLS user_id = auth.uid()) (S2/S3) | DONE (kode) — ingen DB-procent i audit (kun low_db_acknowledged). Gate på audit.ts-læsning TODO |
+| C-F2 | solar_products.price og solar-kostnøgler i calculation_settings læsbare via REST (S2) | BLOCKED_APPROVAL [MIGRATION] — kolonne-REVOKE (00192-mønster) + nøgler i 00223-sættet |
+| C-F3 | auto_calculations / calculation_snapshots / calculation_feedback m.fl. med kost `USING (true)` (S3) | BLOCKED_APPROVAL [MIGRATION] — `_select_cost_roles`-politik; read-site-tjek først |
+| C-F4 | getCustomerQuoteHistory uden rettighed (S4) | DONE (kode) — offers.view |
+| FIN-1 | Kreditnota på 'standard'-delfaktura tilladt efter fastpris-slutfaktura har fratrukket den (S2) | TODO |
+| FIN-2 | Fuldt krediteret slutfaktura blokerer ny slutfaktura (voided ikke filtreret; unikt indeks uden voided_at) (S2) | TODO (kode) + BLOCKED_APPROVAL [MIGRATION] indeks |
+| FIN-3 | e-conomic bogfører på kladdens oprettelsesdato, ikke udstedelsesdato (S2) | TODO (kun aktuel med ECONOMIC_PUSH_ENABLED) |
+| FIN-4 | Delvis betalt + krediteret rest forbliver "sendt/delvis" (S3) | TODO (økonomi — forsigtigt) |
+| FIN-5 | Bank-beløbsmatch ignorerer kreditnotaer (S3) | TODO |
+| FIN-6 | "Betalt denne måned"/likviditet/kunde summerer final_amount i stedet for betalt (S3) | TODO |
+| FIN-7 | "Markér som sendt" efter usikker afsendelse fejler altid (sent_at-krav) (S3) | TODO |
+| FIN-8 | Fakturaer fra sag ignorerer betalingsbetingelser (fast 14 dage) (S3) | TODO |
+| FIN-9 | Dashboard forfaldne-top viser fuldt beløb, ikke åbent (S4) | TODO |
+| FIN-10 | Cockpit "næste rykker" bruger UTC-dage (S4) | TODO |
+| FIN-11 | Afrunding på opdelte kreditnotaer efterlader 0,01 kr som forfalden (S4) | TODO |
+| FIN-12 | UTC-datoer i betalingsmål og leverandør-afvigelsesvindue (S4) | TODO |
+| HT-3 | portal-token-rules-check "fremmed sti" finder ikke dokumentet i portallisten (forældet test, portal.ts uændret) | TODO — opdatér testen til nuværende portalregler |
+
 ## NEXT-28 (dataflow-review 2026-10-17 — tilbud → sag → faktura)
 | # | Fund | Status |
 |---|---|---|

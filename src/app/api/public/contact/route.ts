@@ -186,7 +186,9 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (recentSame) {
       return NextResponse.json(
-        { success: true, leadId: recentSame.id, message: 'Tak for din henvendelse! Vi kontakter dig hurtigst muligt.' },
+        // SEC2-6 (security-review 2026-10-17): intet leadId her — ellers udleverede svaret id'et på en eksisterende
+        // henvendelse for enhver indsendt e-mail
+        { success: true, message: 'Tak for din henvendelse! Vi kontakter dig hurtigst muligt.' },
         { status: 200, headers: cors }
       )
     }

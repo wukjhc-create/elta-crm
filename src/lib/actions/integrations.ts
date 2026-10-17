@@ -282,6 +282,8 @@ export async function createWebhook(
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await requireGate('settings.manage')
+    // SEC2-2 (security-review 2026-10-17): kun https til offentlige værter
+    { const { webhookUrlBlockReason } = await import('@/lib/integrations/webhook-url-guard'); const r = webhookUrlBlockReason(input.url); if (r) return { success: false, error: r } }
 
     const { data, error } = await supabase
       .from('integration_webhooks')
@@ -309,6 +311,12 @@ export async function updateWebhook(
     const { supabase } = await requireGate('settings.manage')
 
     const { id, ...updateData } = input
+    // SEC2-2: kun https til offentlige værter
+    if (typeof updateData.url === 'string') {
+      const { webhookUrlBlockReason } = await import('@/lib/integrations/webhook-url-guard')
+      const r = webhookUrlBlockReason(updateData.url)
+      if (r) return { success: false, error: r }
+    }
 
     const { data, error } = await supabase
       .from('integration_webhooks')

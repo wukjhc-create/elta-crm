@@ -6255,6 +6255,7 @@ ${m.text()}`) })
     // ---- salg (G6): egen sag fra eget tilbud skal kunne ses
     {
       const r: Record<string, boolean> = {}
+      let u13Diag = '' // HT-2: hvorfor admin_fakturer_paa_sag fejler i grund-kørslen
       const title = `[HARNESS] salgstilbud ${stamp}`
       const off = profitCustomerId ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-S-${stamp}`, title, created_by: salg.id,
         customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString() }]).select('id') : null
@@ -6281,6 +6282,11 @@ ${m.text()}`) })
         await a.page.waitForURL(/tab=fakturakladde/, { timeout: 60_000 }).catch(() => {})
         await a.page.getByText(/Stage-fakturaer på sagen|Fakturakladde|Forskudsfaktura|Slutfaktura/).first().waitFor({ timeout: 90_000 }).catch(() => {})
         r.admin_fakturer_paa_sag = /tab=fakturakladde/.test(a.page.url()) && (await a.page.getByText(/Stage-fakturaer på sagen|Slutfaktura/).count()) > 0
+        if (!r.admin_fakturer_paa_sag) {
+          const btn = await c.admin.from('offers').select('status, converted_case_id').eq('id', salgOfferId).maybeSingle()
+          u13Diag = ` · HT-2 url=${a.page.url().replace(base, '')} tilbud=${JSON.stringify(btn.data)} fejltekst=${(await a.page.locator('.bg-red-50').first().innerText({ timeout: 2_000 }).catch(() => '')).slice(0, 80)}`
+          await a.page.screenshot({ caret: 'initial', path: join(shots, 'u13-admin-fakturakladde.png'), fullPage: true }).catch(() => {})
+        }
         await sp.page.screenshot({ caret: 'initial', path: join(shots, 'u13-salg-sag.png'), fullPage: true }).catch(() => {})
       }
       // U14 opfølgning (N1)
@@ -6412,7 +6418,7 @@ ${m.text()}`) })
         out.push({ id: 'U55 salg: tilbuds-print m. firmaoplysninger', ok: Object.values(g).every(Boolean), note: Object.entries(g).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
       out.push({ id: 'U13 salg: sag fra eget tilbud', ok: sp.ok && !!salgOfferId && Object.keys(r).length === 6 && Object.values(r).every(Boolean),
-        note: `${!sp.ok ? `salg-login fejlede (${loginFailures.join(' | ')}) · ` : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+        note: `${!sp.ok ? `salg-login fejlede (${loginFailures.join(' | ')}) · ` : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${u13Diag}` })
     }
 
     // Dev-serveren kan genstarte ved hukommelsespres (maskinen har ~6 GB). Netværksfejl i browseren

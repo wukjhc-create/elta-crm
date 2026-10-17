@@ -1035,6 +1035,12 @@ export async function sendExistingBesigtigelsesreport(
     if (!doc.storage_path) {
       return { success: false, error: 'Dokumentet mangler storage path' }
     }
+    // F2 (security-review 2026-10-17): som getBesigtigelseRecipientOptions — kun sager i brugerens scope (før kunne
+    // montøren sende enhver kundes rapport til en vilkårlig ekstern adresse)
+    {
+      const denied = (await caseReadDenied(doc.service_case_id)) ?? (input.serviceCaseIdOverride ? await caseReadDenied(input.serviceCaseIdOverride) : null)
+      if (denied) return { success: false, error: denied }
+    }
 
     const { data: docCustomer } = await supabase
       .from('customers')
@@ -1620,6 +1626,11 @@ export async function sendBesigtigelseSequential(input: {
         error: 'Rapporten er ikke koblet til en sag — kobl den til en sag før sekventiel godkendelse',
       }
     }
+    // F3 (security-review 2026-10-17): kun sager i brugerens scope
+    {
+      const denied = await caseReadDenied(doc.service_case_id)
+      if (denied) return { success: false, error: denied }
+    }
 
     const { resolveCaseParties } = await import('@/lib/services/case-parties')
     const parties = await resolveCaseParties(supabase, doc.service_case_id)
@@ -1711,6 +1722,14 @@ export async function sendReadyChainStep(
       .eq('id', confirmationId)
       .maybeSingle()
     if (!row) return { success: false, error: 'Trin ikke fundet' }
+    // F3 (security-review 2026-10-17): kun trin på dokumenter fra sager i brugerens scope
+    {
+      const { data: d } = await supabase.from('customer_documents').select('service_case_id')
+        .eq('id', (row as { customer_document_id: string | null }).customer_document_id ?? '').maybeSingle()
+      if (!d) return { success: false, error: 'Trin ikke fundet' }
+      const denied = await caseReadDenied((d as { service_case_id: string | null }).service_case_id)
+      if (denied) return { success: false, error: denied }
+    }
 
     const meta = (row.metadata ?? {}) as {
       sequence?: { chainId?: string; order?: number; gated?: boolean }

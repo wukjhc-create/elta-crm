@@ -190,19 +190,14 @@ export async function getPortalFuldmagter(
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const supabase = createAdminClient()
 
-    // Validate token and get customer
-    const { data: tokenData, error: tokenErr } = await supabase
-      .from('portal_access_tokens')
-      .select('customer_id')
-      .eq('token', token)
-      .eq('is_active', true)
-      // Q10: udløbne links viste stadig CPR/CVR + underskrift og kunne underskrive (som validatePortalToken)
-      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-      .single()
-
-    if (tokenErr || !tokenData) {
+    // SEC2-5 (security-review 2026-10-17): samme tokentjek som resten af portalen (validatePortalToken) — før blev
+    // en deaktiveret kundes link ikke afvist (kunne læse og underskrive fuldmagten)
+    const { validatePortalToken } = await import('@/lib/actions/portal')
+    const session = await validatePortalToken(token)
+    if (!session.success || !session.data) {
       return { success: false, error: 'Ugyldig adgang' }
     }
+    const tokenData = { customer_id: session.data.customer_id }
 
     const tokenCustomerId = tokenData.customer_id as string
 
@@ -344,19 +339,25 @@ export async function submitSignedFuldmagt(
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const supabase = createAdminClient()
 
-    // Validate token
-    const { data: tokenData, error: tokenErr } = await supabase
-      .from('portal_access_tokens')
-      .select('customer_id')
-      .eq('token', token)
-      .eq('is_active', true)
-      // Q10: udløbne links viste stadig CPR/CVR + underskrift og kunne underskrive (som validatePortalToken)
-      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-      .single()
-
-    if (tokenErr || !tokenData) {
+    // SEC2-5 (security-review 2026-10-17): samme tokentjek som resten af portalen + server-side grænser på input
+    // (før ubegrænset længde/format i PDF, beskrivelses-JSON og intern mail)
+    const { validatePortalToken } = await import('@/lib/actions/portal')
+    const session = await validatePortalToken(token)
+    if (!session.success || !session.data) {
       return { success: false, error: 'Ugyldig adgang' }
     }
+    const tokenData = { customer_id: session.data.customer_id }
+    const signerName = String(input?.signer_name ?? '').trim()
+    const idValue = String(input?.foedselsdato_cvr ?? '').trim()
+    const signature = String(input?.signature_data ?? '')
+    if (!signerName || signerName.length > 200) return { success: false, error: 'Angiv dit navn' }
+    if (!idValue || idValue.length > 20 || !/^[0-9][0-9 .\-\/]*$/.test(idValue)) {
+      return { success: false, error: 'Angiv fødselsdato eller CVR-nummer (kun tal)' }
+    }
+    if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signature) || signature.length < 200 || signature.length > 400_000) {
+      return { success: false, error: 'Underskriften mangler — tegn venligst igen' }
+    }
+    input = { foedselsdato_cvr: idValue, marketing_samtykke: input.marketing_samtykke === true, signature_data: signature, signer_name: signerName }
 
     // Get existing document (kun på id — ejerskab afgøres af rolle-gaten nedenfor)
     const { data: doc, error: docErr } = await supabase

@@ -1218,7 +1218,8 @@ async function main() {
       const a1 = await call(form('a'))
       const a2 = await call(form('a'))
       check('første henvendelse opretter lead', a1.status === 200 && !!a1.json.leadId, JSON.stringify(a1))
-      check('samme e-mail inden for 10 min → samme lead, ingen ny række', a2.status === 200 && a2.json.leadId === a1.json.leadId && (await leadCount('a')) === 1)
+      // SEC2-6 (2026-10-17): dubletsvaret udleverer ikke længere lead-id'et
+      check('samme e-mail inden for 10 min → succes uden lead-id, ingen ny række', a2.status === 200 && a2.json.success === true && a2.json.leadId === undefined && (await leadCount('a')) === 1)
       const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
       const { count: already } = await admin.from('leads').select('id', { count: 'exact', head: true }).eq('source', 'website').gte('created_at', new Date(Date.now() - 3_600_000).toISOString())
       const need = Math.max(0, 30 - (already ?? 0))
@@ -1295,7 +1296,10 @@ async function main() {
       const origDesc = JSON.stringify({ type: 'fuldmagt', status: 'pending', order_number: `H-${stamp}`, customer_name: 'X', expected_signer_customer_id: cust })
       const { data: d } = await admin.from('customer_documents').insert({ customer_id: cust, title: 'Fuldmagt [HARNESS]', description: origDesc, document_type: 'contract', file_url: 'harness://none', file_name: 'fuldmagt.pdf', mime_type: 'application/pdf' }).select('id').single()
       const docId = (d as { id: string }).id
-      const input = { foedselsdato_cvr: 'HARNESS', marketing_samtykke: false, signature_data: 'data:image/png;base64,HARNESS', signer_name: 'X' }
+      // SEC2-5 (2026-10-17): server-side format — tal-ID og en underskrift i rimelig længde (stadig ingen ægte PNG → PDF fejler)
+      const bad1 = await submitSignedFuldmagt(tok, docId, { foedselsdato_cvr: 'HARNESS', marketing_samtykke: false, signature_data: `data:image/png;base64,${'A'.repeat(300)}`, signer_name: 'X' })
+      check('ugyldigt fødselsdato/CVR afvises før krav', !bad1.success && /fødselsdato eller CVR/.test(bad1.error ?? ''), bad1.error ?? '')
+      const input = { foedselsdato_cvr: '12345678', marketing_samtykke: false, signature_data: `data:image/png;base64,${'A'.repeat(300)}`, signer_name: 'X' }
       const [r1, r2] = await Promise.all([submitSignedFuldmagt(tok, docId, input), submitSignedFuldmagt(tok, docId, input)])
       const errs = [r1, r2].map((r) => (r.success ? 'OK' : r.error ?? ''))
       check('samtidige underskrifter: præcis én får kravet (den anden afvises)', errs.filter((e) => e.includes('ved at blive underskrevet')).length === 1 && errs.some((e) => e === 'Kunne ikke generere PDF'), JSON.stringify(errs))

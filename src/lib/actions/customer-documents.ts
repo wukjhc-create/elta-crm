@@ -154,7 +154,9 @@ export async function getCustomerDocuments(
         description: safeDocumentDescription(doc.description as string | null),
         document_type: doc.document_type,
         file_url: fileUrl,
-        storage_path: doc.storage_path,
+        // SEC2-1 (security-review 2026-10-17): stien til fuldmagtens PDF blev stadig sendt → kunne signeres via
+        // getDocumentDownloadUrls. Samme regel som file_url.
+        storage_path: fuldmagt_status && !hasPermission('customers.emails.view') ? null : doc.storage_path,
         file_name: doc.file_name,
         mime_type: doc.mime_type || 'application/pdf',
         file_size: doc.file_size,
@@ -188,8 +190,25 @@ export async function getCustomerImages(
   customerId: string
 ): Promise<ActionResult<CustomerImage[]>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, role, userId } = await getAuthenticatedClientWithRole()
     if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
+    validateUUID(customerId, 'kunde ID')
+
+    // F4 (security-review 2026-10-17): uden cases.view.all kun billeder for kunder med en sag i brugerens scope —
+    // før fik montøren signerede besigtigelsesbilleder for enhver kunde
+    if (!hasPermission('cases.view.all')) {
+      const { getCaseScope } = await import('@/lib/auth/case-scope')
+      const scope = await getCaseScope({ role, userId, supabase })
+      if (scope.type !== 'all') {
+        let inScope = false
+        for (let i = 0; i < scope.caseIds.length && !inScope; i += 200) {
+          const { count } = await supabase.from('service_cases').select('id', { count: 'exact', head: true })
+            .eq('customer_id', customerId).in('id', scope.caseIds.slice(i, i + 200))
+          inScope = (count ?? 0) > 0
+        }
+        if (!inScope) return { success: true, data: [] }
+      }
+    }
 
     const folderPath = `customer-documents/${customerId}/besigtigelse-images`
 
@@ -237,19 +256,49 @@ export async function getDocumentDownloadUrls(
   storagePaths: string[]
 ): Promise<ActionResult<{ path: string; url: string; name: string }[]>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, role, userId } = await getAuthenticatedClientWithRole()
     // Kunde-review: signerede før ENHVER sti i attachments-bucket'en for enhver indlogget bruger. Nu kun stier der
     // hører til kundedokumenter brugeren må se (mail-vedhæftninger kræver customers.emails.view) eller
     // besigtigelsesbilleder (customer-documents/<kunde>/besigtigelse-images/…).
     if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
     const requested = Array.from(new Set((storagePaths ?? []).filter((p) => typeof p === 'string' && p && !p.includes('..'))))
-    const allowed = new Set(requested.filter((p) => /^customer-documents\/[0-9a-f-]{36}\/besigtigelse-images\/[^/]+$/i.test(p)))
-    const docPaths = requested.filter((p) => !allowed.has(p))
+    // SEC2-1 (security-review 2026-10-17): samme regler som getCustomerDocuments — før kunne montøren signere enhver
+    // kundes fuldmagt (CPR + underskrift) og dokumenter på sager uden for sit scope (stierne kan læses via REST).
+    //  - uden cases.view.all: kun dokumenter på sager i scope (+ kundedokumenter uden sag); besigtigelsesbilleder kun
+    //    for kunder med en sag i scope
+    //  - uden customers.emails.view: ingen mail-vedhæftninger og ingen fuldmagter
+    const { isFuldmagtDocument } = await import('@/lib/documents/is-fuldmagt')
+    let scopeCases: Set<string> | null = null
+    let scopeCustomers: Set<string> | null = null
+    if (!hasPermission('cases.view.all')) {
+      const { getCaseScope } = await import('@/lib/auth/case-scope')
+      const scope = await getCaseScope({ role, userId, supabase })
+      if (scope.type !== 'all') {
+        scopeCases = new Set(scope.caseIds)
+        scopeCustomers = new Set()
+        for (let i = 0; i < scope.caseIds.length; i += 200) {
+          const { data: cs } = await supabase.from('service_cases').select('customer_id').in('id', scope.caseIds.slice(i, i + 200))
+          for (const c of (cs ?? []) as Array<{ customer_id: string | null }>) if (c.customer_id) scopeCustomers.add(c.customer_id)
+        }
+      }
+    }
+    const imageRe = /^customer-documents\/([0-9a-f-]{36})\/besigtigelse-images\/[^/]+$/i
+    const allowed = new Set(requested.filter((p) => {
+      const m = imageRe.exec(p)
+      return !!m && (!scopeCustomers || scopeCustomers.has(m[1].toLowerCase()))
+    }))
+    const docPaths = requested.filter((p) => !imageRe.test(p))
+    const canSeeFuldmagt = hasPermission('customers.emails.view')
     for (let i = 0; i < docPaths.length; i += 200) {
-      let q = supabase.from('customer_documents').select('storage_path').in('storage_path', docPaths.slice(i, i + 200))
-      if (!hasPermission('customers.emails.view')) q = q.is('source_email_id', null)
+      let q = supabase.from('customer_documents').select('storage_path, service_case_id, document_type, description').in('storage_path', docPaths.slice(i, i + 200))
+      if (!canSeeFuldmagt) q = q.is('source_email_id', null)
       const { data: rows } = await q
-      for (const r of (rows ?? []) as Array<{ storage_path: string | null }>) if (r.storage_path) allowed.add(r.storage_path)
+      for (const r of (rows ?? []) as Array<{ storage_path: string | null; service_case_id: string | null; document_type: string | null; description: string | null }>) {
+        if (!r.storage_path) continue
+        if (!canSeeFuldmagt && isFuldmagtDocument(r)) continue
+        if (scopeCases && r.service_case_id && !scopeCases.has(r.service_case_id)) continue
+        allowed.add(r.storage_path)
+      }
     }
 
     const urls: { path: string; url: string; name: string }[] = []

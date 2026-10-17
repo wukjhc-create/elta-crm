@@ -54,6 +54,11 @@ export async function dispatchWebhooks(
     const startTime = Date.now()
 
     try {
+      // SEC2-2 (security-review 2026-10-17): kun https til offentlige værter (inkl. DNS-tjek) — ellers kunne en ændret
+      // URL få de dekrypterede nøgler sendt til en fremmed eller en intern tjeneste. Fejl logges som mislykket kald.
+      const { assertWebhookUrlAllowed } = await import('@/lib/integrations/webhook-url-guard')
+      await assertWebhookUrlAllowed(webhook.url)
+
       // Build headers
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -82,6 +87,8 @@ export async function dispatchWebhooks(
         headers,
         body: JSON.stringify(requestBody),
         signal: AbortSignal.timeout(integration.timeout_ms || 30000),
+        // SEC2-2: ingen omdirigering (nøglerne må ikke følge med til en anden vært) — 3xx logges som fejl
+        redirect: 'manual',
       })
 
       const duration = Date.now() - startTime
