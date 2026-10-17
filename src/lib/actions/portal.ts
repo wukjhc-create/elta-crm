@@ -18,7 +18,6 @@ async function requireGate(permission: Permission) {
   ctx.requirePermission(permission)
   return ctx
 }
-import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { convertOfferToCase } from '@/lib/services/offer-to-case'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
@@ -444,17 +443,21 @@ ${link}`,
         })
       }
 
-      // Log view activity (anon-INSERT droppet i 00124)
-      await admin.from('offer_activities').insert({
-        offer_id: offerId,
-        activity_type: 'viewed',
-        description: 'Tilbud åbnet i kundeportalen',
-        performed_by: null,
-        metadata: { viewedViaPortal: true },
-      })
+      // ES-13 (e-sign-review 2026-10-17): aktivitet + webhook kun når DENNE anmodning satte 'viewed' (compare-and-set) —
+      // to samtidige første visninger (to faner, link-forhåndsvisning) gav to "set"-aktiviteter og to webhooks
+      if ((viewedRows ?? []).length > 0) {
+        // Log view activity (anon-INSERT droppet i 00124)
+        await admin.from('offer_activities').insert({
+          offer_id: offerId,
+          activity_type: 'viewed',
+          description: 'Tilbud åbnet i kundeportalen',
+          performed_by: null,
+          metadata: { viewedViaPortal: true },
+        })
 
-      // Webhook offer.viewed — kaster aldrig (kunden er ikke logget ind; tidligere -> redirect til oversigten)
-      await emitOfferEvent(admin, offerId, 'offer.viewed')
+        // Webhook offer.viewed — kaster aldrig (kunden er ikke logget ind; tidligere -> redirect til oversigten)
+        await emitOfferEvent(admin, offerId, 'offer.viewed')
+      }
     }
 
     // Get line items — offer_id er allerede customer-scoped via offer-SELECT
@@ -585,11 +588,11 @@ export async function acceptOffer(
       return { success: false, error: 'Tilbuddet er ændret siden du åbnede det — genindlæs siden og gennemse det igen' }
     }
 
-    // Get client IP
-    const headersList = await headers()
-    const clientIp = headersList.get('x-forwarded-for') ||
-                     headersList.get('x-real-ip') ||
-                     'unknown'
+    // ES-12 (e-sign-review 2026-10-17): første led af x-forwarded-for (før hele kæden "ip, proxy") + user agent i
+    // aktivitetens metadata — samme helper som afvisningen
+    const { captureRejectionMeta } = await import('@/lib/services/offer-rejection')
+    const clientMeta = await captureRejectionMeta()
+    const clientIp = clientMeta.ip
 
     // Create signature — offer_id er verificeret kunde-ejet ovenfor
     const { data: sigRow, error: signatureError } = await admin
@@ -623,6 +626,9 @@ export async function acceptOffer(
       .in('status', ['sent', 'viewed'])
       // compare-and-set også på beløbet kunden underskrev (tilbuds-review 2026-10-09 #3)
       .eq('final_amount', offer.final_amount as number)
+      // ES-5 (e-sign-review 2026-10-17): og på udsendelsen — kladde→ændring→gensend mellem læsning og opdatering (samme
+      // total) bandt ellers underskriften til indhold kunden ikke så
+      .filter('sent_at', (offer as { sent_at?: string | null }).sent_at ? 'eq' : 'is', (offer as { sent_at?: string | null }).sent_at ?? null)
       .select('id')
       .maybeSingle()
 
@@ -644,7 +650,7 @@ export async function acceptOffer(
       activity_type: 'accepted',
       description: `Tilbud accepteret af ${data.signer_name} (${data.signer_email})`,
       performed_by: null,
-      metadata: { signerName: data.signer_name, signerEmail: data.signer_email, signerIp: clientIp },
+      metadata: { signerName: data.signer_name, signerEmail: data.signer_email, signerIp: clientIp, userAgent: clientMeta.userAgent },
     })
 
     // D39: før blev et projekt i den gamle projects-model oprettet her med BRUGER-session — kunden er ikke logget ind,
@@ -670,6 +676,14 @@ export async function acceptOffer(
           error: sagResult.error,
           entity: 'offer',
           entityId: data.offer_id,
+        })
+        // ES-9 (e-sign-review 2026-10-17): før kun en log-linje — tilbuddet stod accepteret uden sag og uden at nogen vidste det
+        const { createSystemAlertAdmin } = await import('@/lib/actions/system-alerts-admin')
+        await createSystemAlertAdmin({
+          alert_type: 'anomaly_detected', severity: 'warning',
+          title: `Tilbud ${String(offer.offer_number ?? '')} accepteret, men sagen blev ikke oprettet`.replace(/\s+/g, ' '),
+          message: 'Kunden har accepteret i portalen, men sagen kunne ikke oprettes automatisk. Opret sagen fra tilbuddet ("Opret sag fra tilbud").',
+          entity_type: 'offer', entity_id: data.offer_id,
         })
       }
     } catch (sagError) {
@@ -884,6 +898,25 @@ export async function rejectOffer(
     // Trigger webhooks for offer.rejected (best effort)
     await emitOfferEvent(admin, offerId, 'offer.rejected')
     await closeOfferFollowUpTasks(admin, offerId) // S-5
+
+    // ES-8 (e-sign-review 2026-10-17): er der allerede oprettet en sag fra tilbuddet, kan den planlægges/udføres selv om
+    // kunden har afvist — DF-4-advarslen fandtes kun i dashboardet
+    try {
+      const { data: activeCases } = await admin.from('service_cases').select('id, case_number, status')
+        .eq('source_offer_id', offerId).neq('status', 'closed').limit(3)
+      const cases = (activeCases ?? []) as Array<{ id: string; case_number: string | null }>
+      if (cases.length > 0) {
+        const { createSystemAlertAdmin } = await import('@/lib/actions/system-alerts-admin')
+        await createSystemAlertAdmin({
+          alert_type: 'anomaly_detected', severity: 'warning',
+          title: `Tilbud afvist — sag ${cases.map((c) => c.case_number ?? '').join(', ')} er stadig aktiv`,
+          message: 'Kunden har afvist tilbuddet i portalen, men en sag oprettet fra tilbuddet er stadig åben. Luk eller annullér sagen, hvis arbejdet ikke skal udføres.',
+          entity_type: 'service_case', entity_id: cases[0].id,
+        })
+      }
+    } catch (e) {
+      logger.warn('rejectOffer: kontrol af aktiv sag fejlede', { entityId: offerId, error: e })
+    }
 
     // Send email notification to CRM mailbox (non-critical)
     try {

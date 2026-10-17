@@ -218,15 +218,15 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | ES-2 | (flag) Snapshot overskrives ikke ved kladde→ændring→gensend (S2, staging) | TODO |
 | ES-3 | Underskrift (navn/IP/tid/billede) vises ingen steder uden for portalen; PDF uden underskriftsblok (S2) | TODO (større: gated action + PDF-blok) |
 | ES-4 | Fuldmagtens CPR/underskrift læsbar for alle via REST; underskrevet fuldmagt kan ændres (S2) | BLOCKED_APPROVAL [MIGRATION] |
-| ES-5 | Accept-opdateringen tjekker ikke sent_at (race mod gensend) (S3) | TODO |
+| ES-5 | Accept-opdateringen tjekker ikke sent_at (race mod gensend) (S3) | DONE (kode) — compare-and-set på sent_at |
 | ES-6 | (flag) To revisioner kan begge accepteres (S3, staging) | TODO |
-| ES-7 | Accept indtastet i dashboardet udløser ikke offer_accepted-automatik (S3) | TODO |
-| ES-8 | Portal-afvisning efterlader aktiv sag uden advarsel (S3) | TODO |
-| ES-9 | Sagsoprettelse efter portal-accept fejler stille (S3) | TODO |
+| ES-7 | Accept indtastet i dashboardet udløser ikke offer_accepted-automatik (S3) | BESLUTNING — hører sammen med DF-1/EC-2 (ville give auto-faktura-reglen en ekstra udløser); reglerne er dry-run + AUTOMATION_RULES_LIVE fra |
+| ES-8 | Portal-afvisning efterlader aktiv sag uden advarsel (S3) | DONE (kode) — advarsel i klokken når en aktiv sag findes |
+| ES-9 | Sagsoprettelse efter portal-accept fejler stille (S3) | DONE (kode) — advarsel i klokken |
 | ES-10 | Dokumentbekræftelser bindes ikke til filens indhold (S3) | BLOCKED_APPROVAL [MIGRATION] |
 | ES-11 | Fuldmagt: ingen IP/UA; CPR i klartekst i mail (S3) | TODO |
-| ES-12 | Underskrift: rå x-forwarded-for, ingen UA/vilkår (S4) | TODO (første led = kode; UA/vilkår = kolonner) |
-| ES-13 | Dobbelt "set"-aktivitet/webhook ved samtidige første visninger (S4) | TODO |
+| ES-12 | Underskrift: rå x-forwarded-for, ingen UA/vilkår (S4) | DELVIS (kode) — første led af x-forwarded-for + UA i aktivitetens metadata; UA/vilkår som kolonner = migration |
+| ES-13 | Dobbelt "set"-aktivitet/webhook ved samtidige første visninger (S4) | DONE (kode) — aktivitet/webhook kun når denne visning satte viewed |
 | EC-1 | Bankmatch postede betalinger automatisk i e-conomic (mod A-12) (S1) | DONE (a4085953) — registerPayment er kun CRM-status medmindre syncEconomic=true |
 | EC-2 | Afsendelse/godkendelse/automatik eksporterer til e-conomic som sideeffekt (også serviceleder uden settings.economic) (S2) | BESLUTNING (Henrik) — skal eksport kun ske via den eksplicitte "Eksportér"-knap? |
 | EC-3 | Leverandør-"Bogfør": kill switch/manglende konto meldt som "allerede bogført" (S2) | DONE (kode) |
