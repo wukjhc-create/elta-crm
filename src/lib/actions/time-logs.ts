@@ -261,7 +261,7 @@ export async function createTimeLog(
         .maybeSingle(),
       supabase
         .from('employees')
-        .select('id, active')
+        .select('id, active, termination_date')
         .eq('id', input.employee_id)
         .maybeSingle(),
       // PR-4b: ingen tid uden gyldig timepris (DB-triggeren ville ellers fryse en skjult standardpris). Satsen læses med
@@ -298,6 +298,12 @@ export async function createTimeLog(
     const emp = empRes.data
     if (!emp) return { success: false, error: 'Medarbejder ikke fundet' }
     if (!emp.active) return { success: false, error: 'Medarbejder er inaktiv' }
+    // TP-7 (review 2026-10-17): fratrådt (termination_date før arbejdsdagen) — planlægningen behandler dem allerede som
+    // inaktive, men timer blev stadig modtaget
+    {
+      const term = (emp as { termination_date?: string | null }).termination_date
+      if (term && String(term).slice(0, 10) < input.date) return { success: false, error: `Medarbejderen er fratrådt (${String(term).slice(0, 10)}) — der kan ikke registreres timer efter fratrædelsen` }
+    }
     if (rateErr) return { success: false, error: rateErr }
 
     // Compute start_time / end_time.

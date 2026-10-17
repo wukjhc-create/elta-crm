@@ -11,6 +11,7 @@
  * Used by both the cron endpoint and manual sync trigger.
  */
 
+import { redactSubject, redactEmail } from '@/lib/utils/log-redact'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   isGraphConfigured,
@@ -210,7 +211,7 @@ async function syncOneMailbox(
 
     const subject = msg.subject || '(Intet emne)'
     const senderEmail = msg.from.emailAddress.address.toLowerCase()
-    console.log('PROCESSING EMAIL:', i + 1, '/', messages.length, subject, 'from:', senderEmail)
+    console.log('PROCESSING EMAIL:', i + 1, '/', messages.length, redactSubject(subject), 'from:', redactEmail(senderEmail))
 
     // Insert directly — no separate function call that could silently fail
     const insertPayload: Record<string, unknown> = {
@@ -249,7 +250,7 @@ async function syncOneMailbox(
       insertError.message?.includes('mailbox_source')
     )
     if (isMissingColumnError) {
-      console.log('RETRY UPSERT without new columns:', subject, 'code:', insertError?.code)
+      console.log('RETRY UPSERT without new columns:', redactSubject(subject), 'code:', insertError?.code)
       delete insertPayload.internet_message_id
       delete insertPayload.mailbox_source
       const retry = await supabase
@@ -262,7 +263,7 @@ async function syncOneMailbox(
     }
 
     if (insertError) {
-      console.error('UPSERT FAILED:', subject, 'error:', insertError.message, 'code:', insertError.code, 'details:', insertError.details)
+      console.error('UPSERT FAILED:', redactSubject(subject), 'error:', insertError.message, 'code:', insertError.code, 'details:', insertError.details)
       result.errors.push(`${mailbox}: upsert failed: ${insertError.message}`)
       continue
     }
@@ -276,17 +277,17 @@ async function syncOneMailbox(
         .eq('graph_message_id', msg.id)
         .maybeSingle()
       if (existing) {
-        console.log('DUPLICATE SKIP:', subject, 'id:', existing.id)
+        console.log('DUPLICATE SKIP:', redactSubject(subject), 'id:', existing.id)
         result.emailsSkipped++
         continue
       }
       // Truly nothing returned → treat as failure so it shows up in errors
-      console.error('UPSERT NO ROW:', subject)
-      result.errors.push(`${mailbox}: upsert returned no row for ${subject}`)
+      console.error('UPSERT NO ROW:', redactSubject(subject))
+      result.errors.push(`${mailbox}: upsert returned no row for ${redactSubject(subject)}`)
       continue
     }
 
-    console.log('INSERT OK:', subject, 'id:', inserted.id)
+    console.log('INSERT OK:', redactSubject(subject), 'id:', inserted.id)
     result.emailsInserted++
     mailboxInserted++
 
@@ -428,20 +429,20 @@ async function linkAndAnalyze(
 
     if (shouldRunIntel) {
       if (forwarded && linkResult.status === 'linked') {
-        console.log('INTEL RUN ON FORWARDED EMAIL (linker matched forwarder):', email.subject)
+        console.log('INTEL RUN ON FORWARDED EMAIL (linker matched forwarder):', redactSubject(email.subject))
       }
       try {
         const intel = await processEmailIntelligence(email.id, intelInput)
         if (intel.customerId && !intel.skipped) result.emailsLinked++
         if (intel.created) {
-          console.log('CUSTOMER CREATED for email:', email.subject, '→', intel.customerId)
+          console.log('CUSTOMER CREATED for email:', redactSubject(email.subject), '→', intel.customerId)
         }
       } catch (intelErr) {
-        console.warn('INTELLIGENCE FAILED:', email.subject, intelErr instanceof Error ? intelErr.message : '')
+        console.warn('INTELLIGENCE FAILED:', redactSubject(email.subject), intelErr instanceof Error ? intelErr.message : '')
       }
     }
   } catch (linkErr) {
-    console.warn('LINK FAILED:', email.subject, linkErr instanceof Error ? linkErr.message : '')
+    console.warn('LINK FAILED:', redactSubject(email.subject), linkErr instanceof Error ? linkErr.message : '')
   }
 }
 
@@ -457,7 +458,7 @@ async function insertEmail(
   const subject = msg.subject || '(Intet emne)'
   const senderEmail = msg.from?.emailAddress?.address?.toLowerCase() || 'unknown'
 
-  console.log('INSERT EMAIL:', subject, 'from:', senderEmail, 'mailbox:', mailbox)
+  console.log('INSERT EMAIL:', redactSubject(subject), 'from:', redactEmail(senderEmail), 'mailbox:', mailbox)
 
   // Upsert by graph_message_id — if it exists, skip silently; if not, insert
   const insertPayload: Record<string, unknown> = {
@@ -491,7 +492,7 @@ async function insertEmail(
 
   // If column doesn't exist yet → retry without new columns
   if (error && (error.message?.includes('internet_message_id') || error.message?.includes('mailbox_source'))) {
-    console.log('INSERT RETRY without new columns for:', subject)
+    console.log('INSERT RETRY without new columns for:', redactSubject(subject))
     delete insertPayload.internet_message_id
     delete insertPayload.mailbox_source
     const retry = await supabase.from('incoming_emails').insert(insertPayload).select('id').single()
@@ -501,16 +502,16 @@ async function insertEmail(
 
   // If duplicate (graph_message_id unique constraint) → not an error, just skip
   if (error && (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique'))) {
-    console.log('INSERT SKIP (duplicate):', subject)
+    console.log('INSERT SKIP (duplicate):', redactSubject(subject))
     return null
   }
 
   if (error) {
-    console.error('INSERT FAILED:', subject, 'error:', error.message, 'code:', error.code, 'details:', error.details)
+    console.error('INSERT FAILED:', redactSubject(subject), 'error:', error.message, 'code:', error.code, 'details:', error.details)
     return null
   }
 
-  console.log('INSERT OK:', subject, 'id:', data?.id)
+  console.log('INSERT OK:', redactSubject(subject), 'id:', data?.id)
   return data
 }
 

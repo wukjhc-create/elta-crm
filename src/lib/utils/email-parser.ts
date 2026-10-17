@@ -99,8 +99,26 @@ function emptyResult(): ParsedCustomerData {
   return { name: null, contactPerson: null, email: null, phone: null, address: null, postalCode: null, city: null }
 }
 
+/**
+ * LC-11 (review 2026-10-17): store bogstaver bevares (&Oslash;stergade → Østergade, før østergade), hex-entiteter og
+ * &quot;/&#39; afkodes, og &amp; afkodes SIDST (ellers blev "&amp;oslash;" til ø).
+ */
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: ' ', lt: '<', gt: '>', quot: '"', apos: "'",
+  aelig: 'æ', AElig: 'Æ', oslash: 'ø', Oslash: 'Ø', aring: 'å', Aring: 'Å',
+  auml: 'ä', Auml: 'Ä', ouml: 'ö', Ouml: 'Ö', uuml: 'ü', Uuml: 'Ü', eacute: 'é', Eacute: 'É',
+}
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&([a-z]+);/gi, (m: string, name: string) => (name === 'amp' ? m : NAMED_ENTITIES[name] ?? m))
+    .replace(/&amp;/g, '&')
+}
+
 function stripHtml(html: string): string {
-  return html
+  const text = html
+    .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, '')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<\/div>/gi, '\n')
@@ -109,14 +127,7 @@ function stripHtml(html: string): string {
     .replace(/<\/th>/gi, ' ')
     .replace(/<\/li>/gi, '\n')
     .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&aelig;/gi, 'æ')
-    .replace(/&oslash;/gi, 'ø')
-    .replace(/&aring;/gi, 'å')
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+  return decodeEntities(text)
     .replace(/[ \t]+/g, ' ')
     .replace(/\n /g, '\n')
     .replace(/\n{3,}/g, '\n\n')

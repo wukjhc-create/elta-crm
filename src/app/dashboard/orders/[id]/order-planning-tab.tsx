@@ -137,15 +137,19 @@ export function OrderPlanningTab({
     else setSharedEmployees(null)
     setCaseLogs(logsRes.success && logsRes.data ? logsRes.data : null)
     if (logsRes.success && logsRes.data) {
-      const logs = logsRes.data
+      // TP-2 (review 2026-10-17): kun afsluttede, ikke-afviste registreringer (samme sæt som kostprisen fra
+      // getCaseLaborCostTotal); salg = frosset sale_amount (overtid) for fakturerbare, ellers timer × sats
+      const logs = logsRes.data.filter((l) => (l as { approval_status?: string | null }).approval_status !== 'rejected' && (l as { end_time?: string | null }).end_time != null)
       setCaseTotals({
         count: logs.length,
         hours: logs.reduce((s, l) => s + (l.hours ?? 0), 0),
         cost: costRes?.success && costRes.data ? costRes.data.cost : logs.reduce((s, l) => s + (l.cost_amount ?? 0), 0),
-        sale: logs.reduce(
+        sale: logs.filter((l) => (l as { billable?: boolean | null }).billable !== false).reduce(
           (s, l) =>
             s +
-            (l.hours != null && l.employee?.hourly_rate != null
+            ((l as { sale_amount?: number | string | null }).sale_amount != null
+              ? Number((l as { sale_amount?: number | string | null }).sale_amount)
+              : l.hours != null && l.employee?.hourly_rate != null
               ? Number(l.hours) * Number(l.employee.hourly_rate)
               : 0),
           0

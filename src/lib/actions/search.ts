@@ -1,5 +1,6 @@
 'use server'
 
+import { phoneDigitsPattern } from '@/lib/utils/phone-search'
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { sanitizeSearchTerm } from '@/lib/validations/common'
@@ -18,7 +19,8 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
     const none = Promise.resolve({ data: null, count: 0 })
 
     // P-3 (pilot-review 2026-10-16): også telefon/mobil (opkald) og sager (sagsnr./titel)
-    const phoneTerm = `%${sanitizeSearchTerm(query.trim().replace(/[\s-]/g, ''))}%`
+    // LC-8 (review 2026-10-17): cifre med % imellem matcher også numre gemt med mellemrum
+    const phoneTerm = phoneDigitsPattern(query) ?? `%${sanitizeSearchTerm(query.trim().replace(/[\s-]/g, ''))}%`
     const [leadsResult, customersResult, offersResult, projectsResult, casesResult] = await Promise.all([
       !hasPermission('leads.view') ? none : supabase
         .from('leads')

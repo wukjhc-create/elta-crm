@@ -101,7 +101,7 @@ function sameInstant(a: string | null | undefined, b: string | null | undefined)
 export type SeenTimes = Record<string, { start_time: string; end_time: string | null; pay_rate_type?: string; employee_rate_id?: string | null }>
 
 /** T-11 (review 2026-10-16): hvorfor registreringer blev sprunget over (før kun et samlet tal uden årsag) */
-export interface SkipReasons { own: number; running: number; already: number; invoiced: number; changed: number; hidden: number }
+export interface SkipReasons { own: number; running: number; already: number; invoiced: number; changed: number; hidden: number; overlap: number }
 
 async function decide(ids: string[], decision: 'approved' | 'rejected', reason: string | null, seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number; reasons?: SkipReasons }>> {
   const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
@@ -113,10 +113,10 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   // Læs med brugerens session (RLS-scope) — kun rækker brugeren må se, kan besluttes
   const { data: visible, error: readErr } = await supabase
     .from('time_logs')
-    .select('id, start_time, end_time, approval_status, invoice_line_id, pay_rate_type, employee_rate_id, employee:employees(profile_id)')
+    .select('id, employee_id, start_time, end_time, approval_status, invoice_line_id, pay_rate_type, employee_rate_id, employee:employees(profile_id)')
     .in('id', unique)
   if (readErr) return { success: false, error: 'Kunne ikke hente timer' }
-  type V = { id: string; start_time: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; pay_rate_type: string | null; employee_rate_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }
+  type V = { id: string; employee_id: string; start_time: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; pay_rate_type: string | null; employee_rate_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }
   const eligible = ((visible ?? []) as unknown as V[]).filter((v) =>
     v.end_time !== null && v.approval_status !== decision && one(v.employee)?.profile_id !== userId
     // HR-review 2026-10-08 (#4): fakturerede timer kan ikke afvises (de forsvandt fra kost/avance, men stod på fakturaen)
@@ -126,11 +126,11 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
       // PL-2: satstype/sats ændret efter godkenderen så den (fx normal → overtid 100 %) → springes over
       && (seen[v.id].pay_rate_type === undefined || seen[v.id].pay_rate_type === (v.pay_rate_type ?? 'normal'))
       && (seen[v.id].employee_rate_id === undefined || (seen[v.id].employee_rate_id ?? null) === (v.employee_rate_id ?? null)))))
-  const skipped = unique.length - eligible.length
+  let skipped = unique.length - eligible.length
   // T-11: årsag pr. sprunget-over række (første regel der fejler) — skjulte = ikke synlige for brugeren (RLS/scope)
   const visibleRows = (visible ?? []) as unknown as V[]
   const eligibleIds = new Set(eligible.map((e) => e.id))
-  const reasons: SkipReasons = { own: 0, running: 0, already: 0, invoiced: 0, changed: 0, hidden: unique.length - visibleRows.length }
+  const reasons: SkipReasons = { own: 0, running: 0, already: 0, invoiced: 0, changed: 0, hidden: unique.length - visibleRows.length, overlap: 0 }
   for (const v of visibleRows) {
     if (eligibleIds.has(v.id)) continue
     if (v.end_time === null) reasons.running++
@@ -146,6 +146,23 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const admin = createAdminClient()
   const now = new Date().toISOString()
+
+  // TP-1 (review 2026-10-17): overlap-vagten ser bort fra afviste rækker (PL-1), så montøren kan registrere samme
+  // tidsrum igen efter en afvisning. Godkendes den afviste række senere ("Godkend alle" på Afvist-fanen), blev samme
+  // tidsrum talt to gange i kost/avance/fakturering. En afvist række godkendes derfor kun uden overlap.
+  if (decision === 'approved') {
+    const { findOverlappingTimeLog } = await import('@/lib/time-logs/guards')
+    for (let k = eligible.length - 1; k >= 0; k--) {
+      const v = eligible[k]
+      if (v.approval_status !== 'rejected' || !v.end_time) continue
+      const clash = await findOverlappingTimeLog(admin, v.employee_id, v.start_time, v.end_time, v.id)
+      if (clash) { eligible.splice(k, 1); reasons.overlap++ }
+    }
+    skipped += reasons.overlap
+    if (eligible.length === 0) {
+      return { success: false, error: 'Registreringen overlapper en anden registrering i samme tidsrum — ret eller slet den ene først' }
+    }
+  }
   const patchRow = decision === 'approved'
     ? { approval_status: 'approved', approved_by: userId, approved_at: now, rejection_reason: null }
     : { approval_status: 'rejected', approved_by: userId, approved_at: now, rejection_reason: reason }

@@ -64,6 +64,8 @@ export async function getIncomingEmails(options?: {
   page?: number
   pageSize?: number
 }): Promise<{ data: IncomingEmailWithCustomer[]; count: number; error?: string }> {
+  // LC-9 (review 2026-10-17): app-gate som sidens (inbox.view) — RLS lader salg læse hele kontakt@/ordre@ (leverandør-nettopriser)
+  { const denied = await gateDenied('inbox.view'); if (denied) return { data: [], count: 0, error: denied } }
   const supabase = await createClient()
   const filter = options?.filter || 'all'
   const readFilter = options?.readFilter || 'all'
@@ -199,6 +201,8 @@ export async function getIncomingEmails(options?: {
 export async function getIncomingEmail(
   id: string
 ): Promise<IncomingEmailWithCustomer | null> {
+  // LC-9 (review 2026-10-17): app-gate som sidens (inbox.view) — RLS lader salg læse hele kontakt@/ordre@ (leverandør-nettopriser)
+  if (await gateDenied('inbox.view')) return null
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -244,6 +248,8 @@ export async function getIncomingEmailStats(): Promise<{
   /** S-8 (pilot-review 2026-10-15): mindst én tæller fejlede — klienten beholder de forrige tal i stedet for at vise 0 */
   failed?: boolean
 }> {
+  // LC-9 (review 2026-10-17): app-gate som sidens
+  if (await gateDenied('inbox.view')) return { total: 0, unread: 0, unidentified: 0, linked: 0, pending: 0, ignored: 0, aoMatches: 0, requiresResponse: 0, webform: 0, archived: 0, failed: true }
   const supabase = await createClient()
 
   // Sprint 8E noise-cleanup: total + unread ekskluderer ignored/noise
@@ -298,6 +304,7 @@ export async function getIncomingEmailStats(): Promise<{
 export async function getLeadForEmail(
   emailId: string
 ): Promise<{ id: string; company_name: string; status: string } | null> {
+  if (await gateDenied('inbox.view')) return null // LC-9
   const supabase = await createClient()
 
   const { data } = await supabase
@@ -817,6 +824,14 @@ export async function createCustomerFromEmail(
   }
 
   if (!senderEmail) return { success: false, error: 'Ingen afsender-email fundet' }
+  // LC-3 (review 2026-10-17): aldrig en kunde med egen (eltasolar.dk) eller relæ-adresse (formsubmit.co) — den ville
+  // fange al intern mail / alle webhenvendelser fremover
+  {
+    const { isNonCustomerDomain } = await import('@/lib/email/free-mail-domains')
+    if (isNonCustomerDomain(senderEmail.split('@')[1])) {
+      return { success: false, error: 'Afsenderen er en intern/relæ-adresse — brug "Opret som ny kunde" og udfyld kundens oplysninger' }
+    }
+  }
 
   // 3. Clean subject and extract data from body
   const cleanedSubject = cleanSubject(email.subject)
@@ -982,7 +997,7 @@ export async function createCustomerFromEmail(
   }
 
   // 9. Link the email
-  const { error: finalLinkErr } = await supabase
+  const { data: finalLinked, error: finalLinkErr } = await supabase
     .from('incoming_emails')
     .update({
       customer_id: newCustomer.id,
@@ -991,9 +1006,14 @@ export async function createCustomerFromEmail(
       linked_at: new Date().toISOString(),
     })
     .eq('id', emailId)
+    // LC-6 (review 2026-10-17): en eksisterende kobling (anden kunde) overskrives ikke stille
+    .or(`customer_id.is.null,customer_id.eq.${newCustomer.id}`)
+    .select('id')
   if (finalLinkErr) {
     logger.error('createCustomerFromEmail: link failed', { error: finalLinkErr, entityId: emailId })
     warnings.push('mailen kunne ikke kobles til den nye kunde — kobl den manuelt')
+  } else if (!finalLinked?.length) {
+    warnings.push('mailen var allerede koblet til en anden kunde og er ikke flyttet — flyt den manuelt, hvis den hører til den nye kunde')
   }
 
   logger.info('Customer + lead created from email', {
@@ -1564,13 +1584,16 @@ export async function findCustomerSuggestions(
   }
 
   // Fallback: search by sender email domain (e.g., @firma.dk → customer with same domain)
-  if (suggestions.length === 0 && email.sender_email) {
-    const domain = email.sender_email.split('@')[1]
-    if (domain && !['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.dk', 'icloud.com'].includes(domain)) {
+  // LC-10 (review 2026-10-17): fælles gratis-mail-liste + egne/relæ-domæner, videresendt → oprindelig afsender, escapet
+  const suggestSender = email.original_sender_email || email.sender_email
+  if (suggestions.length === 0 && suggestSender) {
+    const domain = suggestSender.split('@')[1]?.toLowerCase()
+    const { isFreeMailDomain, isNonCustomerDomain } = await import('@/lib/email/free-mail-domains')
+    if (domain && !isFreeMailDomain(domain) && !isNonCustomerDomain(domain)) {
       const { data: domainMatches } = await supabase
         .from('customers')
         .select('id, company_name, customer_number, email')
-        .ilike('email', `%@${domain}`)
+        .ilike('email', `%@${escapeLike(domain)}`)
         .limit(3)
 
       if (domainMatches) {
@@ -2038,18 +2061,34 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
     const { data: existing } = await supabase.from('leads').select('id').eq('custom_fields->>source_email_id', emailId).limit(1).maybeSingle()
     if (existing) return { success: true, data: { leadId: (existing as { id: string }).id, existed: true } }
     const { data: email } = await supabase.from('incoming_emails')
-      .select('id, subject, sender_email, sender_name, reply_to, body_text, body_html').eq('id', emailId).maybeSingle()
+      .select('id, subject, sender_email, sender_name, original_sender_email, original_sender_name, reply_to, body_text, body_html').eq('id', emailId).maybeSingle()
     if (!email) return { success: false, error: 'Mail ikke fundet' }
-    const e = email as { id: string; subject: string | null; sender_email: string; sender_name: string | null; reply_to: string | null; body_text: string | null; body_html: string | null }
+    const e = email as { id: string; subject: string | null; sender_email: string; sender_name: string | null; original_sender_email: string | null; original_sender_name: string | null; reply_to: string | null; body_text: string | null; body_html: string | null }
     const { isWebsiteInquiry } = await import('@/lib/mail/website-inquiry')
     const { parseCustomerFromEmail, extractFormSubmitFields } = await import('@/lib/utils/email-parser')
+    const { isNonCustomerDomain } = await import('@/lib/email/free-mail-domains')
     const web = isWebsiteInquiry({ senderEmail: e.sender_email, subject: e.subject })
-    const parsed = parseCustomerFromEmail(e.body_text, e.body_html, web ? null : e.sender_email)
-    const contactEmail = (parsed.email || (web ? e.reply_to : e.sender_email) || '').trim().toLowerCase()
-    if (!contactEmail || !contactEmail.includes('@') || /formsubmit\.co$/i.test(contactEmail)) {
+    // LC-1 (review 2026-10-17): almindelig mail → kontakten er afsenderen (videresendt: den oprindelige); brødteksten
+    // læses kun OVER det citerede svar — før vandt den første "E-mail:/Telefon:" i Eltas citerede signatur
+    const sender = (e.original_sender_email || e.sender_email || '').trim().toLowerCase()
+    const cutQuoted = (t: string | null) => {
+      if (!t) return t
+      const m = /^\s*(?:-{2,}\s*(?:Original|Oprindelig)[^\n]*|(?:Fra|From)\s*:\s.+)$/im.exec(t)
+      return m ? t.slice(0, m.index) : t
+    }
+    const parsed = web
+      ? parseCustomerFromEmail(e.body_text, e.body_html, null)
+      : parseCustomerFromEmail(cutQuoted(e.body_text), e.body_text ? null : e.body_html, sender)
+    const contactEmail = (web ? (parsed.email || e.reply_to || '') : sender).trim().toLowerCase()
+    if (!contactEmail || !contactEmail.includes('@') || isNonCustomerDomain(contactEmail.split('@')[1])) {
       return { success: false, error: 'Kundens mailadresse kunne ikke læses fra mailen — opret leadet manuelt' }
     }
-    const name = (parsed.name || parsed.contactPerson || (web ? '' : e.sender_name) || contactEmail).trim()
+    if (!web && parsed.phone) {
+      // telefon fra en ikke-kunde-adresses signatur må ikke følge med
+      const pe = (parsed.email || '').toLowerCase()
+      if (pe && isNonCustomerDomain(pe.split('@')[1])) parsed.phone = null
+    }
+    const name = (parsed.name || parsed.contactPerson || (web ? '' : (e.original_sender_name || e.sender_name)) || contactEmail).trim()
     const { data: lead, error } = await supabase.from('leads').insert({
       company_name: name,
       contact_person: (parsed.contactPerson || name).trim(),

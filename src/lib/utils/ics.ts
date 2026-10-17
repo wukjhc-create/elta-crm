@@ -34,7 +34,26 @@ function escapeICS(text: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n')
+    // TP-9 (review 2026-10-17): også CR/CRLF (før rå CR midt i SUMMARY/DESCRIPTION → brudt fil i nogle kalendere)
+    .replace(/\r\n|\r|\n/g, '\\n')
+}
+
+/** TP-9: RFC 5545 linjefoldning — højst 75 oktetter pr. linje, fortsættelse starter med mellemrum (UTF-8-sikker). */
+export function foldICSLine(line: string): string {
+  const enc = new TextEncoder()
+  if (enc.encode(line).length <= 75) return line
+  const parts: string[] = []
+  let cur = ''
+  let curBytes = 0
+  for (const ch of line) {
+    const b = enc.encode(ch).length
+    const limit = parts.length === 0 ? 75 : 74 // fortsættelseslinjer har et førende mellemrum
+    if (curBytes + b > limit) { parts.push(cur); cur = ''; curBytes = 0 }
+    cur += ch
+    curBytes += b
+  }
+  if (cur) parts.push(cur)
+  return parts.join('\r\n ')
 }
 
 function generateUID(): string {
@@ -108,7 +127,7 @@ export function generateBesigtigelseICS(options: ICSEventOptions): string {
     'END:VCALENDAR',
   )
 
-  return lines.join('\r\n')
+  return lines.map(foldICSLine).join('\r\n') // TP-9: foldning
 }
 
 /**
@@ -188,7 +207,7 @@ export function generateWorkOrdersICS(events: WorkOrderICSEvent[], now: Date = n
   }
   if (events.some((e) => e.startTime)) lines.push(...CPH_VTIMEZONE)
   lines.push('END:VCALENDAR')
-  return lines.join('\r\n')
+  return lines.map(foldICSLine).join('\r\n') // TP-9: foldning
 }
 
 /**
@@ -209,5 +228,5 @@ export function generateFollowUpICS(e: { id: string; date: string; startTime: st
   ]
   if (e.description) lines.push(`DESCRIPTION:${escapeICS(e.description)}`)
   lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeICS(e.title)}`, 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT', ...CPH_VTIMEZONE, 'END:VCALENDAR')
-  return lines.join('\r\n')
+  return lines.map(foldICSLine).join('\r\n') // TP-9: foldning
 }

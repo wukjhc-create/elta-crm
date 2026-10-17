@@ -28,5 +28,8 @@ export function isFreeMailDomain(domain: string | null | undefined): boolean {
 export const NON_CUSTOMER_SENDER_DOMAINS: readonly string[] = ['eltasolar.dk', 'formsubmit.co']
 
 export function isNonCustomerDomain(domain: string | null | undefined): boolean {
-  return !!domain && NON_CUSTOMER_SENDER_DOMAINS.includes(domain.trim().toLowerCase())
+  if (!domain) return false
+  const d = domain.trim().toLowerCase()
+  // LC-3 (review 2026-10-17): også underdomæner (fx mail.eltasolar.dk)
+  return NON_CUSTOMER_SENDER_DOMAINS.some((x) => d === x || d.endsWith(`.${x}`))
 }

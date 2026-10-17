@@ -11,6 +11,7 @@
  * Used by email-sync-orchestrator after each email is inserted.
  */
 
+import { redactSubject, redactEmail } from '@/lib/utils/log-redact'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
@@ -690,7 +691,7 @@ export async function processEmailIntelligence(
     return await processEmailIntelligenceUnsafe(emailId, email)
   } catch (err) {
     // Top-level safety net — a single malformed email must NEVER crash the sync.
-    console.error('INTELLIGENCE PIPELINE FAILED:', email?.subject, err)
+    console.error('INTELLIGENCE PIPELINE FAILED:', redactSubject(email?.subject), err)
     logger.error('processEmailIntelligence top-level failure', {
       entityId: emailId,
       error: err,
@@ -698,7 +699,7 @@ export async function processEmailIntelligence(
     try {
       const { logHealth } = await import('@/lib/services/system-health')
       const msg = err instanceof Error ? err.message : String(err)
-      await logHealth('email_intel', 'error', `intelligence threw: ${msg}`, { emailId, subject: email?.subject?.slice(0, 200) })
+      await logHealth('email_intel', 'error', `intelligence threw: ${msg}`, { emailId } /* LC-7: intet emne i helbredsloggen */)
     } catch { /* never crash */ }
     return { type: 'customer', customerId: null, created: false, skipped: true }
   }
@@ -732,10 +733,10 @@ async function processEmailIntelligenceUnsafe(
 
   // -------- Stage 0: priority score (no AI) --------
   const score = scoreEmail(email)
-  console.log('EMAIL SCORE:', score, email.subject)
+  console.log('EMAIL SCORE:', score, redactSubject(email.subject))
 
   if (score < 0) {
-    console.log('EMAIL IGNORED:', email.subject)
+    console.log('EMAIL IGNORED:', redactSubject(email.subject))
     await supabase
       .from('incoming_emails')
       .update({ link_status: 'ignored', processed_at: new Date().toISOString() })
@@ -753,7 +754,7 @@ async function processEmailIntelligenceUnsafe(
   }
 
   if (score < 2) {
-    console.log('LOW SCORE SKIP —', email.subject, 'score:', score)
+    console.log('LOW SCORE SKIP —', redactSubject(email.subject), 'score:', score)
     await supabase
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
@@ -772,12 +773,12 @@ async function processEmailIntelligenceUnsafe(
 
   // -------- Stage 1: classify --------
   const type = await classifyEmail(email)
-  console.log('EMAIL TYPE:', type, '—', email.subject)
+  console.log('EMAIL TYPE:', type, '—', redactSubject(email.subject))
 
   // Hard-ignored or newsletter → skip ALL AI extraction, mark email ignored.
   if (type === 'ignored' || type === 'newsletter') {
     if (type === 'ignored') {
-      console.log('EMAIL IGNORED:', email.subject)
+      console.log('EMAIL IGNORED:', redactSubject(email.subject))
     }
     await supabase
       .from('incoming_emails')
@@ -796,7 +797,7 @@ async function processEmailIntelligenceUnsafe(
   }
 
   if (type === 'supplier') {
-    console.log('SUPPLIER EMAIL PARSED —', email.subject, 'from:', email.senderEmail)
+    console.log('SUPPLIER EMAIL PARSED —', redactSubject(email.subject), 'from:', redactEmail(email.senderEmail))
   }
 
   // -------- Stage 2: extract --------
@@ -805,7 +806,7 @@ async function processEmailIntelligenceUnsafe(
   const extracted = await extractCustomer(body, { forwarded: isForwardedEmail(email) })
 
   if (!extracted.name && !extracted.phone) {
-    console.log('SKIP: NO VALID CUSTOMER DATA —', email.subject)
+    console.log('SKIP: NO VALID CUSTOMER DATA —', redactSubject(email.subject))
     await supabase
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
@@ -827,7 +828,7 @@ async function processEmailIntelligenceUnsafe(
   }
 
   if (extracted.confidence < 0.5) {
-    console.log('LOW CONFIDENCE SKIP —', email.subject, 'confidence:', extracted.confidence)
+    console.log('LOW CONFIDENCE SKIP —', redactSubject(email.subject), 'confidence:', extracted.confidence)
     await supabase
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
@@ -947,7 +948,7 @@ async function processEmailIntelligenceUnsafe(
         )
         if (caseId) console.log('CASE CREATED:', caseId, 'intent:', intent, 'priority:', priority)
       } catch (caseErr) {
-        console.warn('CASE CREATION FAILED:', email.subject, caseErr instanceof Error ? caseErr.message : '')
+        console.warn('CASE CREATION FAILED:', redactSubject(email.subject), caseErr instanceof Error ? caseErr.message : '')
       }
 
       // Step 2: smart tasks (only if we have a case)
@@ -955,7 +956,7 @@ async function processEmailIntelligenceUnsafe(
         try {
           await createSmartTasks(caseId, intent)
         } catch (taskErr) {
-          console.warn('SMART TASKS FAILED:', email.subject, taskErr instanceof Error ? taskErr.message : '')
+          console.warn('SMART TASKS FAILED:', redactSubject(email.subject), taskErr instanceof Error ? taskErr.message : '')
         }
       }
 
@@ -987,7 +988,7 @@ async function processEmailIntelligenceUnsafe(
           })
           if (offerId) console.log('OFFER CREATED:', offerId)
         } catch (offerErr) {
-          console.warn('OFFER DRAFT FAILED:', email.subject, offerErr instanceof Error ? offerErr.message : '')
+          console.warn('OFFER DRAFT FAILED:', redactSubject(email.subject), offerErr instanceof Error ? offerErr.message : '')
         }
       }
 
@@ -1005,7 +1006,7 @@ async function processEmailIntelligenceUnsafe(
             console.log('CASE SUMMARY NOTE:', summary.urgency)
           }
         } catch (sumErr) {
-          console.warn('AI SUMMARY FAILED:', email.subject, sumErr instanceof Error ? sumErr.message : '')
+          console.warn('AI SUMMARY FAILED:', redactSubject(email.subject), sumErr instanceof Error ? sumErr.message : '')
         }
       }
     }

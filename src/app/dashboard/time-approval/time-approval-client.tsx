@@ -39,6 +39,7 @@ function when(l: ApprovalTimeLog): string {
 export function TimeApprovalClient() {
   const [tab, setTab] = useState<TimeApprovalStatus>('pending')
   const [rows, setRows] = useState<ApprovalTimeLog[] | null>(null)
+  const [capNote, setCapNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -49,6 +50,8 @@ export function TimeApprovalClient() {
     const r = await listTimeLogsForApprovalAction(tab)
     if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke hente timer'); setRows([]); return }
     setRows(r.data ?? [])
+    // TP-8: listen er begrænset til 500 — sig det (før forsvandt de nyeste ventende uden besked)
+    setCapNote((r.data ?? []).length >= 500 ? 'Viser de 500 ældste — godkend/afvis dem, så vises de næste.' : null)
   }, [tab])
 
   useEffect(() => { setRows(null); load() }, [load])
@@ -68,14 +71,30 @@ export function TimeApprovalClient() {
     setBusy(key); setMsg(null); setError(null)
     // HR-review 2026-10-08 (#3): send det viste tidsrum med — ændrede registreringer godkendes ikke ubeset
     const seen = Object.fromEntries((rows ?? []).filter((l) => ids.includes(l.id)).map((l) => [l.id, { start_time: l.start_time, end_time: l.end_time, pay_rate_type: l.pay_rate_type, employee_rate_id: l.employee_rate_id }]))
-    const r = await approveTimeLogsAction(ids, seen)
+    // TP-8 (review 2026-10-17): serveren tager højst 200 pr. kald — "Godkend alle" over 200 sendes i bidder
+    let updated = 0
+    let skipped = 0
+    const rs = { own: 0, running: 0, already: 0, invoiced: 0, changed: 0, hidden: 0, overlap: 0 }
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200)
+      const part = await approveTimeLogsAction(chunk, Object.fromEntries(chunk.map((id) => [id, seen[id]]).filter(([, v]) => v)))
+      if (!part.success) {
+        setBusy(null)
+        setError(`${humanizeErrorText(part.error) ?? 'Kunne ikke godkende'}${updated ? ` (${updated} godkendt før fejlen)` : ''}`)
+        await load()
+        return
+      }
+      updated += part.data?.updated ?? 0
+      skipped += part.data?.skipped ?? 0
+      const pr = part.data?.reasons
+      if (pr) for (const k of Object.keys(rs) as Array<keyof typeof rs>) rs[k] += pr[k] ?? 0
+    }
     setBusy(null)
-    if (!r.success) { setError(humanizeErrorText(r.error) ?? 'Kunne ikke godkende'); return }
+    const r = { data: { updated, skipped, reasons: rs } }
     // T-11: årsager i klartekst (før en samlet parentes uden tal)
-    const rs = r.data?.reasons
     const parts = rs ? [
       rs.own ? `${rs.own} egne` : '', rs.running ? `${rs.running} kører stadig` : '', rs.already ? `${rs.already} allerede godkendt` : '',
-      rs.changed ? `${rs.changed} ændret siden visning` : '', rs.invoiced ? `${rs.invoiced} faktureret` : '', rs.hidden ? `${rs.hidden} ikke tilgængelige` : '',
+      rs.changed ? `${rs.changed} ændret siden visning` : '', rs.overlap ? `${rs.overlap} overlapper en anden registrering` : '', rs.invoiced ? `${rs.invoiced} faktureret` : '', rs.hidden ? `${rs.hidden} ikke tilgængelige` : '',
     ].filter(Boolean) : []
     setMsg(`${r.data?.updated ?? 0} registrering(er) godkendt${r.data?.skipped ? ` · ${r.data.skipped} sprunget over${parts.length ? ` (${parts.join(', ')})` : ''}` : ''}`)
     await load()
@@ -121,6 +140,7 @@ export function TimeApprovalClient() {
         </div>
       )}
       {msg && <div className="rounded-md bg-emerald-50 ring-1 ring-emerald-200 px-3 py-2 text-sm text-emerald-900" data-testid="time-approval-msg">{msg}</div>}
+      {capNote && <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" data-testid="time-approval-cap">{capNote}</div>}
 
       {rows === null && (
         <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />Henter timer…</div>

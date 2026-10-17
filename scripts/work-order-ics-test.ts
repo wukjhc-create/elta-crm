@@ -2,7 +2,7 @@
  * Unit-tests for arbejdsordrer som kalenderfil (src/lib/utils/ics.ts generateWorkOrdersICS). Ingen DB.
  *   npx tsx scripts/work-order-ics-test.ts
  */
-import { generateFollowUpICS, generateWorkOrdersICS, icsUtcStamp } from '../src/lib/utils/ics'
+import { foldICSLine, generateFollowUpICS, generateWorkOrdersICS, icsUtcStamp } from '../src/lib/utils/ics'
 
 let bad = 0
 const ok = (c: boolean, label: string, extra = '') => { if (!c) bad++; console.log(`${c ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`) }
@@ -39,6 +39,18 @@ ok(fu.includes('DESCRIPTION:Tlf: 1\\nlinje 2') && fu.includes('BEGIN:VTIMEZONE')
 let threw = false
 try { generateFollowUpICS({ id: 'x', date: '31-12-2026', startTime: '9', title: 't' }) } catch { threw = true }
 ok(threw, 'ugyldig dato/tid afvises')
+
+// TP-9 (2026-10-17): CR/CRLF escapes og linjer foldes til højst 75 oktetter
+{
+  const crIcs = generateWorkOrdersICS([{ id: 'cr1', date: '2026-10-20', title: 'Kunde A\r\nLinje 2\rLinje 3', description: 'æ'.repeat(60) }], now)
+  const unfolded = crIcs.replace(/\r\n /g, '')
+  ok(!/\r(?!\n)/.test(crIcs), 'ingen rå CR i filen')
+  ok(unfolded.includes('SUMMARY:Kunde A\\nLinje 2\\nLinje 3'), 'CRLF og CR i titel escapes som \\n')
+  const enc = new TextEncoder()
+  ok(crIcs.split('\r\n').every((l) => enc.encode(l).length <= 75), 'alle linjer ≤ 75 oktetter (UTF-8)')
+  ok(unfolded.includes(`DESCRIPTION:${'æ'.repeat(60)}`), 'foldet linje samles korrekt igen')
+  ok(foldICSLine('kort') === 'kort', 'kort linje uændret')
+}
 
 console.log(bad ? `\n${bad} FEJL` : '\nalle bestået')
 process.exitCode = bad ? 1 : 0

@@ -45,6 +45,35 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-31 (review-bølge 2026-10-17 eftermiddag — timer, godkendelse, fravær, planlægning)
+| # | Fund | Status |
+|---|---|---|
+| TP-1 | Godkendelse af afviste registreringer ("Afvist"-fanen) uden overlap-tjek → samme tidsrum talt to gange (S2) | DONE (kode) — afvist række godkendes kun uden overlap (ny årsag "overlapper") |
+| TP-2 | Sagstotal på planlægningsfanen tæller afviste timer og live-sats (S2) | DONE (kode) — sagstotal: kun afsluttede, ikke-afviste; salg = frosset sale_amount for fakturerbare |
+| TP-3 | Arbejdsordrens timetabel: totaler inkl. afviste og ikke-fakturerbare (S3) | DONE (kode) — timetabellens totaler uden afviste; salg kun fakturerbare |
+| TP-4 | Projekteksport: timer kan afkortes ved > 1.000 rækker pr. bid (S3) | DONE (kode) — fetchAllRows pr. bid i projekteksporten |
+| TP-5 | Planlægningsagenten ignorerer fravær (S2) | DONE (kode) — agenten springer fraværsdage over; godkendelse afviser forslag med senere registreret fravær. Unit agent-planning-test |
+| TP-6 | Timer kan registreres på en fraværsdag uden markering (S3) | BESLUTNING — blokér timer på fraværsdag, eller tillad med markering/audit på godkendelsesrækken? |
+| TP-7 | Fratrådt medarbejder (termination_date) kan registrere timer (S4) | DONE (kode) — termination_date før arbejdsdagen afvises |
+| TP-8 | Godkendelseskø afkortet ved 500; "Godkend alle" fejler over 200 (S4) | DONE (kode) — "Godkend alle" i bidder á 200; besked når listen er afkortet ved 500 |
+| TP-9 | ICS-escaping mangler CR og linjefoldning (S4) | DONE (kode) — CR/CRLF escapes, RFC 5545-foldning (UTF-8). Unit work-order-ics-test |
+
+## NEXT-30 (review-bølge 2026-10-17 eftermiddag — leads, kunder, mail)
+| # | Fund | Status |
+|---|---|---|
+| LC-1 | "Opret lead" fra almindelig mail tager Eltas egen e-mail/telefon fra den citerede signatur (S2) | DONE (kode) — almindelig mail: kontakt = (oprindelig) afsender; brødtekst kun over citeret svar; egne/relæ-adresser afvises |
+| LC-2 | Videresendt, allerede koblet mail kan oprette forældreløs dubletkunde (S2) | TODO — match-only når mailen allerede er koblet (email-intelligence) |
+| LC-3 | Kunder med Elta-/FormSubmit-adresser fanger intern mail (linker uden domæneværn) (S2) | DONE (kode) — linkeren matcher aldrig egne/relæ-domæner (inkl. underdomæner); "Opret kunde fra mail" afviser dem |
+| LC-4 | To samtidige synk-kørsler analyserer samme ventende mail (dobbelt kunde/AI) (S3) | BLOCKED_APPROVAL [MIGRATION] — samme lease som CR-7 (krav på processed_at ville miste genforsøg ved fejl midt i analysen) |
+| LC-5 | Linker kobler kontakt-mail til tilfældig kunde (limit 1, ingen aktiv/unik) (S3) | DONE (kode) — kunde-/kontaktmatch kun ved præcis én aktiv kunde |
+| LC-6 | "Opret kunde" fra mail overskriver eksisterende kobling (S3) | DONE (kode) — eksisterende kobling til anden kunde overskrives ikke (advarsel/log) |
+| LC-7 | Persondata (emne/afsender/kundemail) i logs og helbredslog (S3, GDPR) | DONE (kode) — emne → længde, adresse → domæne i mail-logs; intet emne i helbredsloggen; kontaktformular logger kun domæne |
+| LC-8 | Telefonsøgning finder ikke numre gemt med mellemrum (S3) | DONE (kode) — cifre med % imellem (kunder, leads, global søgning). Unit phone-search-test |
+| LC-9 | Indbakke-læseactions uden app-gate (salg kan læse hele kontakt@/ordre@ via RLS) (S3) | DONE (kode) — inbox.view-gate på liste/detalje/tællere/lead-opslag/forslag. RLS for salg = beslutning |
+| LC-10 | findCustomerSuggestions: egen kort gratis-mail-liste, ikke-escaped domæne (S4) | DONE (kode) — fælles gratis-mail-liste + egne/relæ, oprindelig afsender, escapet domæne |
+| LC-11 | Parserens HTML-afkodning: Æ/Ø/Å bliver små bogstaver, hex-entiteter ikke afkodet (S4) | DONE (kode) — store bogstaver bevares, hex/&quot;/&#39;, &amp; sidst, <style>/<script> fjernes. Unit email-parser-city-test |
+| LC-12 | Lead-kanban taber åbne leads ud over 500 uden besked (S4) | DONE (kode) — besked "viser N af M" på tavlen |
+
 ## NEXT-29 (review-bølge 2026-10-17 eftermiddag — sikkerhed, montør-scope, kostdata, økonomi)
 | # | Fund | Status |
 |---|---|---|

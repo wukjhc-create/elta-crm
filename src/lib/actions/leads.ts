@@ -1,5 +1,6 @@
 'use server'
 
+import { phoneDigitsPattern } from '@/lib/utils/phone-search'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
@@ -59,7 +60,8 @@ export async function getLeads(filters?: {
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
       // W-18: også telefon (salg søger ofte på nummeret fra et opkald)
-      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)},phone.ilike.${pgQuote(`%${sanitized}%`)}`
+      const digitPat = phoneDigitsPattern(filters.search) // LC-8
+      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)},phone.ilike.${pgQuote(`%${sanitized}%`)}${digitPat ? `,phone.ilike.${pgQuote(digitPat)}` : ''}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }

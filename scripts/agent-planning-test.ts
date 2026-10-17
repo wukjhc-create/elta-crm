@@ -59,6 +59,18 @@ assert(isFieldTechnician(T('x', 'X', 'elektriker'), fri), 'elektriker kan planla
   assert(suggestSlot([T('k', 'Kontor', 'kontor')], [], fri) === null, 'ingen feltmontoerer -> null')
 }
 
+// TP-5 (2026-10-17): fravaer springes over — feriedage foreslaas aldrig
+{
+  const days = nextWorkingDays(fri, 5)
+  const ferie = [{ id: 'f1', employee_id: 'a', kind: 'ferie', start_date: days[0], end_date: days[1] }]
+  const s = suggestSlot([T('a', 'Anders')], [], fri, { absences: ferie })
+  assert(s?.scheduled_date === days[2], 'foerste dag efter ferien foreslaas', String(s?.scheduled_date))
+  const s2 = suggestSlot([T('a', 'Anders'), T('b', 'Bo')], [], fri, { absences: ferie })
+  assert(s2?.employee_id === 'a' && s2?.scheduled_date === days[2], 'deterministisk: Anders efter ferien (mindst belastet, navn)', `${s2?.employee_id} ${s2?.scheduled_date}`)
+  const all = [{ id: 'f2', employee_id: 'a', kind: 'syg', start_date: days[0], end_date: days[days.length - 1] }]
+  assert(suggestSlot([T('a', 'Anders')], [], fri, { absences: all, horizonWorkingDays: 5 }) === null, 'fravaer hele horisonten -> null')
+}
+
 // Blockers
 assert(planningBlocker(C(), 0) === null, 'bekraeftet sag uden arbejdsordre -> ok')
 assert(!!planningBlocker(C({ customer_id: null }), 0), 'uden kunde -> blokeret')

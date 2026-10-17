@@ -1,4 +1,5 @@
 import { escapeLike } from '@/lib/validations/postgrest-filter'
+import { redactEmail } from '@/lib/utils/log-redact'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
@@ -252,7 +253,7 @@ export async function POST(request: NextRequest) {
       logger.info('Contact form: Matched existing customer', {
         entity: 'customers',
         entityId: customerId,
-        metadata: { email, customer_number: existingCustomer.customer_number },
+        metadata: { email_domain: redactEmail(email), customer_number: existingCustomer.customer_number }, // LC-7
       })
     } else {
       // 6. Create new customer — Sprint 9E Phase 5d: faelles helper med retry
@@ -281,7 +282,7 @@ export async function POST(request: NextRequest) {
       if (customerError || !newCustomer) {
         logger.error('Contact form: Failed to create customer', {
           error: customerError,
-          metadata: { email },
+          metadata: { email_domain: redactEmail(email) }, // LC-7
         })
         return NextResponse.json(
           { success: false, error: 'Kunne ikke oprette kunde' },
@@ -293,7 +294,7 @@ export async function POST(request: NextRequest) {
       logger.info('Contact form: Customer created', {
         entity: 'customers',
         entityId: customerId,
-        metadata: { customer_number: newCustomer.customer_number, email },
+        metadata: { customer_number: newCustomer.customer_number, email_domain: redactEmail(email) }, // LC-7
       })
     }
 
@@ -334,7 +335,7 @@ export async function POST(request: NextRequest) {
     if (leadError) {
       logger.error('Contact form: Failed to create lead', {
         error: leadError,
-        metadata: { email },
+        metadata: { email_domain: redactEmail(email) }, // LC-7
       })
       return NextResponse.json(
         { success: false, error: 'Kunne ikke oprette henvendelse' },
@@ -354,7 +355,7 @@ export async function POST(request: NextRequest) {
       entity: 'leads',
       entityId: lead.id,
       metadata: {
-        email,
+        email_domain: redactEmail(email), // LC-7
         inquiry_type,
         customerId,
         isNewCustomer: !existingCustomer,

@@ -286,10 +286,13 @@ export function WorkOrderTimeLogs({
     return <div className="text-xs text-gray-500 py-2">Henter timer…</div>
   }
 
-  const totalHours = logs.reduce((s, l) => s + (l.hours ?? 0), 0)
-  const totalCost = logs.reduce((s, l) => s + (l.cost_amount ?? 0), 0)
+  // TP-3 (review 2026-10-17): afviste registreringer tæller ikke (rækken vises rød, men indgik i totalerne);
+  // ikke-fakturerbare tæller ikke i salg
+  const counted = logs.filter((l) => (l as { approval_status?: string | null }).approval_status !== 'rejected')
+  const totalHours = counted.reduce((s, l) => s + (l.hours ?? 0), 0)
+  const totalCost = counted.reduce((s, l) => s + (l.cost_amount ?? 0), 0)
   // Sprint Ø2.9 — sum frosset sale_amount (overtid korrekt); fallback live.
-  const totalSale = logs.reduce(
+  const totalSale = counted.filter((l) => (l as { billable?: boolean | null }).billable !== false).reduce(
     (s, l) =>
       s +
       (l.sale_amount != null

@@ -1,5 +1,6 @@
 'use server'
 
+import { phoneDigitsPattern } from '@/lib/utils/phone-search'
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import {
@@ -117,7 +118,9 @@ export async function getCustomers(filters?: {
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
       // P-3 (pilot-review 2026-10-16): også telefon/mobil (kontoret søger på nummeret fra et opkald)
-      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)},customer_number.ilike.${pgQuote(`%${sanitized}%`)},phone.ilike.${pgQuote(`%${sanitized}%`)},mobile.ilike.${pgQuote(`%${sanitized}%`)}`
+      // LC-8 (review 2026-10-17): nummer uden mellemrum finder også "20 34 56 78"
+      const digitPat = phoneDigitsPattern(filters.search)
+      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)},customer_number.ilike.${pgQuote(`%${sanitized}%`)},phone.ilike.${pgQuote(`%${sanitized}%`)},mobile.ilike.${pgQuote(`%${sanitized}%`)}${digitPat ? `,phone.ilike.${pgQuote(digitPat)},mobile.ilike.${pgQuote(digitPat)}` : ''}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -240,7 +243,8 @@ export async function getCustomersWithPaymentState(
     const searchFilter = input?.search
       ? (() => {
           const s = sanitizeSearchTerm(input.search!)
-          return `company_name.ilike.${pgQuote(`%${s}%`)},contact_person.ilike.${pgQuote(`%${s}%`)},email.ilike.${pgQuote(`%${s}%`)},customer_number.ilike.${pgQuote(`%${s}%`)},phone.ilike.${pgQuote(`%${s}%`)},mobile.ilike.${pgQuote(`%${s}%`)}`
+          const digitPat = phoneDigitsPattern(input.search) // LC-8
+          return `company_name.ilike.${pgQuote(`%${s}%`)},contact_person.ilike.${pgQuote(`%${s}%`)},email.ilike.${pgQuote(`%${s}%`)},customer_number.ilike.${pgQuote(`%${s}%`)},phone.ilike.${pgQuote(`%${s}%`)},mobile.ilike.${pgQuote(`%${s}%`)}${digitPat ? `,phone.ilike.${pgQuote(digitPat)},mobile.ilike.${pgQuote(digitPat)}` : ''}`
         })()
       : null
 

@@ -319,13 +319,22 @@ export async function exportProjects(filters?: {
     const caseIds = (data || []).map((r) => r.id as string)
     const hoursByCase = new Map<string, number>()
     if (caseIds.length > 0) {
-      const { selectInChunks } = await import('@/lib/supabase/in-chunks')
-      const wos = await selectInChunks<{ id: string; case_id: string }>(caseIds, (chunk) => supabase.from('work_orders').select('id, case_id').in('case_id', chunk))
+      // TP-4 (review 2026-10-17): 1:N-opslag — hver bid kan give > 1.000 rækker, så hver bid pagineres (fetchAllRows)
+      const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+      const chunked = async <T,>(ids: string[], q: (chunk: string[], from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>): Promise<T[]> => {
+        const out: T[] = []
+        for (let i = 0; i < ids.length; i += 200) {
+          const chunk = ids.slice(i, i + 200)
+          out.push(...(await fetchAllRows<T>((from, to) => q(chunk, from, to) as never)))
+        }
+        return out
+      }
+      const wos = await chunked<{ id: string; case_id: string }>(caseIds, (chunk, from, to) => supabase.from('work_orders').select('id, case_id').in('case_id', chunk).order('id').range(from, to))
       const caseByWo = new Map(wos.map((w) => [w.id, w.case_id]))
       const woIds = wos.map((w) => w.id)
       if (woIds.length > 0) {
-        const logs = await selectInChunks<{ work_order_id: string; hours: number | string | null }>(woIds, (chunk) => supabase
-          .from('time_logs').select('work_order_id, hours').in('work_order_id', chunk).not('end_time', 'is', null).neq('approval_status', 'rejected'))
+        const logs = await chunked<{ work_order_id: string; hours: number | string | null }>(woIds, (chunk, from, to) => supabase
+          .from('time_logs').select('id, work_order_id, hours').in('work_order_id', chunk).not('end_time', 'is', null).neq('approval_status', 'rejected').order('id').range(from, to))
         for (const l of logs) {
           const c = caseByWo.get(l.work_order_id)
           if (c) hoursByCase.set(c, (hoursByCase.get(c) ?? 0) + (Number(l.hours) || 0))

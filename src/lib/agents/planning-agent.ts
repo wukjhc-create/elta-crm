@@ -12,6 +12,7 @@
  * og ét aktivt forslag pr. sag (generations-noegle som tilbudsagenten).
  */
 
+import { absenceOn, absenceLabel, type AbsenceRow } from '@/lib/planning/absence'
 import { holidayName } from '@/lib/planning/danish-holidays'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
@@ -79,7 +80,7 @@ export function suggestSlot(
   techs: Technician[],
   workload: WorkloadEntry[],
   today: string,
-  opts: { horizonWorkingDays?: number; maxPerDay?: number } = {},
+  opts: { horizonWorkingDays?: number; maxPerDay?: number; absences?: AbsenceRow[] } = {},
 ): Slot | null {
   const days = nextWorkingDays(today, opts.horizonWorkingDays ?? PLANNING_DEFAULTS.horizonWorkingDays)
   const maxPerDay = opts.maxPerDay ?? PLANNING_DEFAULTS.maxPerDay
@@ -94,8 +95,11 @@ export function suggestSlot(
   }
   const candidates = techs.filter((t) => isFieldTechnician(t, today))
     .sort((a, b) => (load.get(a.id) ?? 0) - (load.get(b.id) ?? 0) || a.name.localeCompare(b.name, 'da'))
+  // TP-5 (review 2026-10-17): aldrig en dag hvor montøren har fravær (ferie/syg/kursus …) — før foreslog agenten
+  // feriedage, og godkendelsen oprettede jobbet uden advarsel/override-audit
+  const absences = opts.absences ?? []
   for (const t of candidates) {
-    const day = days.find((d) => (perDay.get(`${t.id}|${d}`) ?? 0) < maxPerDay)
+    const day = days.find((d) => (perDay.get(`${t.id}|${d}`) ?? 0) < maxPerDay && !absenceOn(absences, t.id, d))
     if (day) return { employee_id: t.id, employee_name: t.name, scheduled_date: day, load_in_horizon: load.get(t.id) ?? 0 }
   }
   return null
@@ -126,12 +130,15 @@ const TECH_COLUMNS = 'id, name, role, active, termination_date'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function loadPlanningContext(admin: any, today: string) {
   const days = nextWorkingDays(today, PLANNING_DEFAULTS.horizonWorkingDays)
-  const [{ data: techs }, { data: workload }] = await Promise.all([
+  const [{ data: techs }, { data: workload }, { data: absences }] = await Promise.all([
     admin.from('employees').select(TECH_COLUMNS).eq('active', true),
     admin.from('work_orders').select('assigned_employee_id, scheduled_date, status')
       .in('status', ACTIVE_WO_STATUSES).gte('scheduled_date', days[0]).lte('scheduled_date', days[days.length - 1]),
+    // TP-5: fravær der rører horisonten
+    admin.from('employee_absences').select('id, employee_id, kind, start_date, end_date')
+      .lte('start_date', days[days.length - 1]).gte('end_date', days[0]),
   ])
-  return { techs: (techs ?? []) as Technician[], workload: (workload ?? []) as WorkloadEntry[] }
+  return { techs: (techs ?? []) as Technician[], workload: (workload ?? []) as WorkloadEntry[], absences: (absences ?? []) as AbsenceRow[] }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -197,6 +204,13 @@ export async function executePlanningProposal(ctx: CapabilityContext): Promise<C
   if ((sameDay ?? 0) >= PLANNING_DEFAULTS.maxPerDay) {
     return { ok: false, error: `forældet forslag: ${p.employee_name ?? 'montøren'} er fuldt booket ${p.scheduled_date} — kør agenten igen` }
   }
+  // TP-5: fravær registreret efter forslaget → forældet (manuel planlægning kræver bekræftelse + audit)
+  {
+    const { data: abs } = await admin.from('employee_absences').select('id, employee_id, kind, start_date, end_date')
+      .eq('employee_id', p.assigned_employee_id).lte('start_date', p.scheduled_date).gte('end_date', p.scheduled_date).limit(1)
+    const hit = ((abs ?? []) as AbsenceRow[])[0]
+    if (hit) return { ok: false, error: `forældet forslag: ${p.employee_name ?? 'montøren'} har ${absenceLabel(hit.kind).toLowerCase()} ${p.scheduled_date} — kør agenten igen` }
+  }
 
   const { data: wo, error } = await admin.from('work_orders').insert({
     case_id: c.id, customer_id: c.customer_id, title: p.title,
@@ -224,7 +238,7 @@ export async function runPlanningAgent(
     return { success: false, error: 'Kunne ikke hente sager' }
   }
 
-  const { techs, workload } = await loadPlanningContext(admin, today)
+  const { techs, workload, absences } = await loadPlanningContext(admin, today)
   const skipped: Array<{ case_id: string; reason: string }> = []
   const proposals: PlanningPayload[] = []
   for (const c of rows) {
@@ -236,7 +250,7 @@ export async function runPlanningAgent(
     if (((open ?? []) as Array<{ status: string }>).some((a) => !INACTIVE_ACTION_STATUSES.includes(a.status) && a.status !== 'executed')) {
       skipped.push({ case_id: c.id, reason: 'der findes allerede et planlaegningsforslag' }); continue
     }
-    const slot = suggestSlot(techs, workload, today)
+    const slot = suggestSlot(techs, workload, today, { absences })
     const proposal = buildPlanningProposal(c, active, slot)
     if (!proposal) { skipped.push({ case_id: c.id, reason: 'ingen ledig montør i horisonten' }); continue }
     proposals.push(proposal)

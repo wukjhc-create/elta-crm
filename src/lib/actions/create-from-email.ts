@@ -199,7 +199,8 @@ export async function createCustomerAndCaseFromEmail(
     }
 
     // 3. Kobl mailen til betaler-kunden
-    await supabase
+    // LC-6 (review 2026-10-17): overskriv ikke en eksisterende kobling til en anden kunde; fejl logges (før ignoreret)
+    const { data: linkedRows, error: linkErr } = await supabase
       .from('incoming_emails')
       .update({
         customer_id: customerId,
@@ -208,6 +209,10 @@ export async function createCustomerAndCaseFromEmail(
         linked_at: new Date().toISOString(),
       })
       .eq('id', input.emailId)
+      .or(`customer_id.is.null,customer_id.eq.${customerId}`)
+      .select('id')
+    if (linkErr) logger.error('createFromEmail: link failed', { error: linkErr, entityId: input.emailId })
+    else if (!linkedRows?.length) logger.warn('createFromEmail: mailen var koblet til en anden kunde — ikke flyttet', { entityId: input.emailId })
 
     // 4. Hvis mode C: opret site_contact (under betaler) — body-data
     if (input.mode === 'payer_plus_site' && input.site && input.site.contactName.trim().length > 0) {
@@ -227,7 +232,7 @@ export async function createCustomerAndCaseFromEmail(
       if (contactErr) {
         logger.warn('createFromEmail: site_contact insert failed', {
           error: contactErr,
-          metadata: { customerId, name: input.site.contactName },
+          metadata: { customerId }, // LC-7: intet kontaktnavn i loggen
         })
       } else if (contact) {
         siteContactId = contact.id as string

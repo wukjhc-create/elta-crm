@@ -21,5 +21,12 @@ eq('samlet "postnr/by"', [c.postalCode, c.city], ['4000', 'Roskilde'])
 const d = p(['Navn: Hans Hansen', 'Postnr/by: 4000 Roskilde', 'By: Køge'])
 eq('første fund vinder (by overskrives ikke)', [d.postalCode, d.city], ['4000', 'Roskilde'])
 
+// LC-11 (2026-10-17): HTML-entiteter — store bogstaver bevares, hex afkodes, &amp; sidst, <style> fjernes
+const h = parseCustomerFromEmail(null, '<style>p{color:red}</style><p>Navn: S&oslash;ren &Oslash;stergaard</p><p>Adresse: &Aring;boulevarden 1</p><p>Postnr/by: 8000 &#xC5;rhus C</p>', null)
+eq('HTML: Ø/Å bevares som store bogstaver', [h.name, h.address], ['Søren Østergaard', 'Åboulevarden 1'])
+eq('HTML: hex-entitet afkodes', h.city, 'Århus C')
+const amp = parseCustomerFromEmail(null, '<p>Navn: Hansen &amp;oslash; Co</p>', null)
+eq('HTML: &amp; afkodes sidst (ikke til ø)', amp.name, 'Hansen &oslash; Co')
+
 if (failed) { console.log(`❌ ${failed} fejlede`); process.exit(1) }
 console.log('✅ alle parser-by-tests bestået')

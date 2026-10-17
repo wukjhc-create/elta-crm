@@ -64,6 +64,10 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       ? getLeads({ page: 1, pageSize: 200, search, statuses: ['won', 'lost'], updatedSince: since, source, assigned_to })
       : Promise.resolve(null),
   ])
+  // LC-12 (review 2026-10-17): åbne leads ud over tavlens 500 forsvandt uden besked
+  const openNote = isKanban && result.success && result.data && result.data.total > result.data.data.length
+    ? `Åbne leads: viser ${result.data.data.length} af ${result.data.total} — brug søgning/filtre eller tabelvisningen for resten.`
+    : null
   if (kanbanSplit && result.success && result.data && closed) {
     if (closed.success && closed.data) {
       result.data.data = [...result.data.data, ...closed.data.data]
@@ -93,7 +97,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       filters={{ search, status, source, mine }}
       sort={{ sortBy, sortOrder }}
       initialView={isKanban ? 'kanban' : 'table'}
-      closedNote={closedNote}
+      closedNote={[openNote, closedNote].filter(Boolean).join(' ') || null}
     />
   )
 }

@@ -145,15 +145,21 @@ export async function matchCustomer(
 }> {
   const supabase = await createClient()
   const emailLower = email.toLowerCase()
+  const noMatch = { customerId: null, customerContactId: null, matchedOn: null, confidence: 'low' as const }
+
+  // LC-3 (review 2026-10-17): egne/relæ-adresser (eltasolar.dk, formsubmit.co) kobles ALDRIG — en kunde oprettet med
+  // en kollegas eller FormSubmits adresse fangede ellers al intern mail / alle webhenvendelser
+  if (isNonCustomerDomain(emailLower.split('@')[1])) return noMatch
 
   // 1. Direct match on customers.email
-  const { data: customerMatch } = await supabase
+  // LC-5: kun ved PRÆCIS én aktiv kunde med adressen (dubletter fra før T-5 → ingen gætning)
+  const { data: customerRows } = await supabase
     .from('customers')
     .select('id')
     .ilike('email', escapeLike(emailLower))
     .eq('is_active', true)
-    .limit(1)
-    .maybeSingle()
+    .limit(2)
+  const customerMatch = (customerRows ?? []).length === 1 ? (customerRows as Array<{ id: string }>)[0] : null
 
   if (customerMatch) {
     return {
@@ -165,12 +171,16 @@ export async function matchCustomer(
   }
 
   // 2. Match on customer_contacts.email
-  const { data: contactMatch } = await supabase
+  // LC-5 (review 2026-10-17): en kontakt (fx vicevært/rådgiver) på flere kunder blev koblet til en tilfældig — evt.
+  // deaktiveret — kunde. Kun ved præcis én aktiv kunde blandt kontaktens kunder.
+  const { data: contactRows } = await supabase
     .from('customer_contacts')
-    .select('id, customer_id')
+    .select('id, customer_id, customer:customers!inner(is_active)')
     .ilike('email', escapeLike(emailLower))
-    .limit(1)
-    .maybeSingle()
+    .eq('customer.is_active', true)
+    .limit(5)
+  const contactList = (contactRows ?? []) as Array<{ id: string; customer_id: string }>
+  const contactMatch = new Set(contactList.map((c) => c.customer_id)).size === 1 ? contactList[0] : null
 
   if (contactMatch) {
     return {
@@ -190,7 +200,7 @@ export async function matchCustomer(
     const { data: domainRows } = await supabase
       .from('customers')
       .select('id')
-      .ilike('email', `%@${domain}`)
+      .ilike('email', `%@${escapeLike(domain)}`) // LC-10: escapet
       .eq('is_active', true)
       .limit(2)
     const domainMatches = (domainRows ?? []).length === 1 ? (domainRows as Array<{ id: string }>)[0] : null
