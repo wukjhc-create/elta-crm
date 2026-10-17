@@ -26,6 +26,8 @@ export interface CaseHandover {
   signature: { image: string | null; name: string | null; signed_at: string | null }
   canEdit: boolean
   canClose: boolean
+  /** MB-3: alle påkrævede punkter udfyldt (uanset om brugeren må lukke sagen) */
+  checklistComplete: boolean
 }
 
 /** Læse- og skriveadgang til sagens aflevering for den aktuelle bruger. */
@@ -72,6 +74,9 @@ export async function getCaseHandoverAction(caseId: string): Promise<ActionResul
       data: {
         checklist, attachments: atts, canEdit,
         canClose: canCloseCase(checklist) && ctx.hasPermission('cases.close'),
+        // MB-3 (mobil-review 2026-10-17): banneret skal følge tjeklisten — før så montøren (uden cases.close) altid
+        // "Alle påkrævede punkter skal udfyldes", også ved 5/5
+        checklistComplete: canCloseCase(checklist),
         signature: { image: (sc.customer_signature as string | null) ?? null, name: (sc.customer_signature_name as string | null) ?? null, signed_at: (sc.signed_at as string | null) ?? null },
       },
     }

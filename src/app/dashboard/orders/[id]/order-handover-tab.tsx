@@ -77,6 +77,7 @@ export function OrderHandoverTab({ caseId }: { caseId: string }) {
           }}
           onDeleteAttachment={async (attachmentId: string) => { await run(() => deleteHandoverPhotoAction(caseId, attachmentId)) }}
           canClose={data.canClose}
+          checklistComplete={data.checklistComplete}
           disabled={busy || !data.canEdit}
         />
       )}

@@ -49,17 +49,17 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | # | Fund | Status |
 |---|---|---|
 | MB-1 | Tidsregistrering/planlægning fryser på "Gemmer…" ved netfejl (setIsWorking efter kast nås aldrig) (S2) | DONE (03b39a24) — safeAction: kastet server action → dansk fejl, formular låses ikke (tidsregistrering + planlægning) |
-| MB-2 | Bunden skjules af bundmenuen (pb-20 < 64 px + safe-area; sm:p-6 overskriver) | DONE (venter commit) — bundpolstring 5rem + safe-area; sm:p-6 nulstiller ikke bunden |
-| MB-3 | Montør ser altid "Alle påkrævede punkter skal udfyldes" selv ved komplet tjekliste | TODO — checklistComplete separat |
+| MB-2 | Bunden skjules af bundmenuen (pb-20 < 64 px + safe-area; sm:p-6 overskriver) | DONE (130fde1c) — bundpolstring 5rem + safe-area; sm:p-6 nulstiller ikke bunden |
+| MB-3 | Montør ser altid "Alle påkrævede punkter skal udfyldes" selv ved komplet tjekliste | DONE (venter commit) — checklistComplete separat; komplet uden lukkeret → "Tjeklisten er komplet — kontoret lukker sagen" |
 | MB-4 | Aflevering: fejl vises øverst uden for skærmen | TODO |
-| MB-5 | Gem/Afslut-knapper i tidsregistrering ~24 px | DONE (venter commit) — Gem/Annullér fuld bredde og ≥ 44 px på telefon |
+| MB-5 | Gem/Afslut-knapper i tidsregistrering ~24 px | DONE (130fde1c) — Gem/Annullér fuld bredde og ≥ 44 px på telefon |
 | MB-6 | Tidstabel uden mobilvisning (Ret/Slet i sidste kolonne) | TODO |
 | MB-7 | Satsvælger vist på kollegaers rækker (serveren afviser) | TODO |
 | MB-8 | Små HEIC-fotos uploades ukonverteret (vises ikke i Chrome/Android) | TODO |
 | MB-9 | Dokumenter lover 20 MB, grænsen er ~4,5–10 MB | TODO |
 | MB-10 | Slet-foto vist på andres fotos | TODO |
-| MB-11 | Tider i enhedens tidszone i tidslisten | DONE (venter commit) — timeZone Europe/Copenhagen i tidslisten |
-| MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | DONE (venter commit) — pinch-zoom tilladt (viewport uden maximum-scale/user-scalable=no); øvrige små touch-mål = senere |
+| MB-11 | Tider i enhedens tidszone i tidslisten | DONE (130fde1c) — timeZone Europe/Copenhagen i tidslisten |
+| MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | DONE (130fde1c) — pinch-zoom tilladt (viewport uden maximum-scale/user-scalable=no); øvrige små touch-mål = senere |
 
 ## NEXT-24 (review-bølge 2026-10-16 aften — leverandørfakturaer/indkøb + DB-sikkerhed)
 | # | Fund | Status |

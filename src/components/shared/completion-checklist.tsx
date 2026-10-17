@@ -18,6 +18,8 @@ interface CompletionChecklistProps {
   onUpload: (key: string, file: File) => Promise<void>
   onDeleteAttachment?: (attachmentId: string) => Promise<void>
   canClose: boolean
+  /** MB-3: tjeklisten er komplet (banneret følger den; lukning kræver stadig cases.close) */
+  checklistComplete?: boolean
   disabled?: boolean
 }
 
@@ -37,6 +39,7 @@ export function CompletionChecklist({
   onUpload,
   onDeleteAttachment,
   canClose,
+  checklistComplete,
   disabled,
 }: CompletionChecklistProps) {
   const [uploadingKey, setUploadingKey] = useState<string | null>(null)
@@ -248,13 +251,17 @@ export function CompletionChecklist({
         </>
       )}
 
-      {/* Close blocking warning */}
-      {!canClose && (
+      {/* Close blocking warning — MB-3: følger tjeklisten; komplet uden lukkeret → kontoret lukker */}
+      {!(checklistComplete ?? canClose) ? (
         <div className="p-3 bg-amber-50 border-t border-amber-100 flex items-center gap-2 text-sm text-amber-800">
           <Lock className="w-4 h-4 shrink-0" />
           <span>Alle påkrævede punkter skal udfyldes for at lukke sagen</span>
         </div>
-      )}
+      ) : !canClose ? (
+        <div className="p-3 bg-emerald-50 border-t border-emerald-100 text-sm text-emerald-800" data-testid="checklist-complete-office-closes">
+          Tjeklisten er komplet — kontoret lukker sagen
+        </div>
+      ) : null}
     </div>
   )
 }
