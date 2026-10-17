@@ -1454,6 +1454,25 @@ async function main() {
       if (prevLive === undefined) delete process.env.AUTOMATION_RULES_LIVE; else process.env.AUTOMATION_RULES_LIVE = prevLive
       const ex2 = (await admin.from('automation_executions').select('status').eq('rule_id', ruleId).eq('entity_type', 'offer')).data as Array<{ status: string }>
       check('fejlende handling → failed (pladsen frigivet)', ex2.length === 1 && ex2[0].status === 'failed', JSON.stringify(ex2))
+      // AU-10 (2026-10-17): en sprunget handling (send_reminder uden INVOICE_REMINDERS_LIVE — intet kan sendes) logges
+      // som 'skipped' og bruger IKKE reglens udførelse: anden hændelse behandles igen
+      const prevRem = process.env.INVOICE_REMINDERS_LIVE
+      delete process.env.INVOICE_REMINDERS_LIVE
+      const { data: rr } = await admin.from('automation_rules').insert({ name: `[HARNESS] skip ${stamp}`, trigger: `${trigger}_skip`, condition_json: {},
+        action: 'send_reminder', action_config: {}, active: true, dry_run: false }).select('id').single()
+      const skipRuleId = (rr as { id: string } | null)?.id
+      try {
+        process.env.AUTOMATION_RULES_LIVE = 'true'
+        const evS = { trigger: `${trigger}_skip`, entityType: 'invoice', entityId: crypto.randomUUID(), payload: {} } as never
+        await evaluateAndRunAutomations(evS)
+        await evaluateAndRunAutomations(evS)
+        const exS = skipRuleId ? ((await admin.from('automation_executions').select('status').eq('rule_id', skipRuleId)).data ?? []) as Array<{ status: string }> : []
+        check('AU-10: sprunget handling → skipped ×2 (pladsen ikke brugt)', exS.length === 2 && exS.every((e) => e.status === 'skipped'), JSON.stringify(exS))
+      } finally {
+        if (prevLive === undefined) delete process.env.AUTOMATION_RULES_LIVE; else process.env.AUTOMATION_RULES_LIVE = prevLive
+        if (prevRem !== undefined) process.env.INVOICE_REMINDERS_LIVE = prevRem
+        if (skipRuleId) { await admin.from('automation_executions').delete().eq('rule_id', skipRuleId); await admin.from('automation_rules').delete().eq('id', skipRuleId) }
+      }
     } finally {
       await admin.from('automation_executions').delete().eq('rule_id', ruleId)
       await admin.from('automation_rules').delete().eq('id', ruleId)

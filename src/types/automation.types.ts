@@ -66,4 +66,6 @@ export interface ActionResult {
   ok: boolean
   message?: string
   data?: Record<string, unknown>
+  /** AU-10: intet udført (fx ikke live, cooldown, ikke forfalden) — bruger ikke reglens ene udførelse pr. entitet */
+  skipped?: boolean
 }

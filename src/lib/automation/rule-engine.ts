@@ -123,7 +123,9 @@ export async function evaluateAndRunAutomations(event: AutomationEvent): Promise
     }
     try {
       const result = await handler({ rule, event })
-      const status: AutomationStatus = result.ok ? 'executed' : 'failed'
+      // AU-10 (automations-review 2026-10-17): en handler der intet udførte (skipped) frigiver pladsen (det unikke indeks
+      // gælder kun 'executed') og tæller ikke som fejl — før brugte fx en sprunget rykker reglens eneste udførelse
+      const status: AutomationStatus = result.skipped ? 'skipped' : result.ok ? 'executed' : 'failed'
       await finishExecution(claim, status, result.data ?? null, result.message ?? null)
       summary.executions.push({ ruleId: rule.id, ruleName: rule.name, status, message: result.message })
       if (status === 'executed') {

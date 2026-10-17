@@ -255,7 +255,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | AU-7 | 4 af 6 udløsere sendes aldrig — LIVE-knapper gør intet (S4) | DONE (kode, visning) — "(ikke koblet)" på Go-Live |
 | AU-8 | Fejlformet betingelse kastede (afbrød alle regler); neq på manglende felt = sand (S4) | DONE (kode) — scripts/condition-evaluator-test.ts |
 | AU-9 | Opfølgningsagent: tilbuds-udløb i servertid (S4) | DONE (kode) |
-| AU-10 | Sprunget rykker bruger reglens ene udførelse pr. faktura (S4) | TODO — kræver skelnen skipped/failed uden alarm-støj |
+| AU-10 | Sprunget rykker bruger reglens ene udførelse pr. faktura (S4) | DONE (kode) — handler kan melde skipped (ikke live/cooldown/ikke forfalden) → status skipped, pladsen frigives, ingen alarm; automation-claim-check +1 |
 | AU-11 | Auto-faktura: fejlet fakturamail logges som succes (S4) | BLOCKED (create-invoice-from-offer.ts — se DF-1) |
 | HT-6 | security storage_access_no_right forventede authenticated download efter 00209 (bevidst afvist) | DONE — vendt til sikkerheds-assertion (direkte download = lækage) |
 | HT-5 | harness agent-actions M5 "intet sagsforslag for mail2" | ANALYSERET → MA-1 (produktgab, ikke harness) |
