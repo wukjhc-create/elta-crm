@@ -379,6 +379,9 @@ export async function saveBesigtigelsesnotat(
       const { data: inserted, error: insErr } = await supabase
         .from('customer_documents')
         .insert({
+          // FW-6 (montør-review 2026-10-17): klient-genereret id (validateUUID ovenfor) → en gentagelse efter et mistet svar
+          // opdaterer samme række i stedet for at oprette en dublet. Optaget af en anden række → PK-konflikt = fejl (sikkert).
+          ...(input.documentId ? { id: input.documentId } : {}),
           customer_id: input.customerId,
           // Fase 2a — sag-kobling er obligatorisk (valideret ovenfor).
           service_case_id: input.serviceCaseId,

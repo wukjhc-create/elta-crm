@@ -361,6 +361,8 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
   const [isSaving, setIsSaving] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
+  // FW-6 (montør-review 2026-10-17): id genereres FØR første forsøg — mistes svaret, rammer gentagelsen samme rapport
+  const [draftId] = useState(() => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : null))
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [showSendDialog, setShowSendDialog] = useState(false)
   const [images, setImages] = useState<ImageUpload[]>([])
@@ -584,7 +586,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
         sendToCustomer,
         // Idempotens: genbrug id fra en tidligere gemning, så anden gemning
         // opdaterer samme rapport i stedet for at oprette en dublet.
-        documentId: savedId,
+        documentId: savedId ?? draftId,
       })
 
       if (result.success && result.data) {

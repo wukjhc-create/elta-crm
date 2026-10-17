@@ -219,7 +219,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | FW-3 | Fotopunkter kunne afkrydses uden foto (kun UI-værn) (S3) | DONE (kode) |
 | FW-4 | "Udført" på arbejdsordre kan aldrig fortrydes (S3) | DONE (kode) — kontoret (work_orders.edit) kan genåbne en afsluttet arbejdsordre (↺ Genåbn, audit); montøren kan ikke; U11 |
 | FW-5 | Besigtigelsesbilleder kun som 24-t-links; fejlede uploads skjules (S3) | TODO |
-| FW-6 | Besigtigelse dubleres ved ustabilt net (S3) | TODO |
+| FW-6 | Besigtigelse dubleres ved ustabilt net (S3) | DONE (kode) — klient-genereret dokument-id før første forsøg; gentagelse efter mistet svar opdaterer samme rapport (U189 simulerer mistet svar) |
 | FW-7 | Kundens e-mail i prod-logs (besigtigelse-diagnostik) (S3) | DONE (kode) — ingen kunde-e-mail i logs; debug-grenen med storage-stier til UI fjernet |
 | FW-8 | Besigtigelsesformular uden kladde/advarsel ved forladelse (S3, plausibel) | TODO |
 | FW-9 | getCustomer uden sags-scope for montør (S3, plausibel) | BESLUTNING — hører under CU-5 |

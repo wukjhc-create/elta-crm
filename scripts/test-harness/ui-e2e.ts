@@ -185,7 +185,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
-  montor: ['U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -304,6 +304,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     // Mere heap KUN til testserveren (ændrer ikke next.config for andre).
     NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3584`.trim() }
   for (const k of NEUTRALIZE) env[k] = ''
+  // Lokal, tilfældig CRON_SECRET pr. kørsel (aldrig den rigtige): de interne PDF-ruter (besigtigelse/fuldmagt) kræver den
+  // fail-closed — uden den kunne besigtigelse/fuldmagt-PDF aldrig dannes i testen (U189). Ingen cron kører lokalt.
+  env.CRON_SECRET = `harness-local-${(await import('crypto')).randomBytes(24).toString('hex')}`
 
   let server: ChildProcess | null = null
   const serverLog: string[] = []
@@ -3693,6 +3696,58 @@ ${m.text()}`) })
           if (caseId) await c.admin.from('customer_documents').delete().eq('service_case_id', caseId)
         }
         out.push({ id: 'U174 slet dokument på sag (rolle, beskyttelse, storage, audit)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U189 FW-6 (montør-review 2026-10-17): besigtigelse gemt, men svaret mistes (netværk) → nyt "Gem" opdaterer SAMME
+      // rapport (klient-genereret id), ingen dublet. Ingen mail (kun "Gem").
+      if (want('U189')) {
+        const r: Record<string, boolean> = {}
+        const bc = await c.admin.from('customers').insert([{ customer_number: `U189-${stamp}`, company_name: `[HARNESS] U189 ${stamp}`,
+          contact_person: 'Besigtiget', email: `u189-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        const bCust = (bc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const bs = bCust ? await c.admin.from('service_cases').insert([{ title: `[HARNESS] U189 sag ${stamp}`, customer_id: bCust, status: 'new',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id') : null
+        const bCase = (bs?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!bCust && !!bCase
+        const docs = async () => ((await c.admin.from('customer_documents').select('id, storage_path').eq('customer_id', bCust ?? '').eq('document_type', 'besigtigelse')).data ?? []) as Array<{ id: string; storage_path: string | null }>
+        try {
+          if (bCust && bCase) {
+            await gotoSafe(a.page, `${base}/dashboard/customers/${bCust}?tab=besigtigelse`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const saveBtn = a.page.getByRole('button', { name: 'Gem', exact: true }).first()
+            await saveBtn.waitFor({ timeout: 60_000 }).catch(() => {})
+            // første gemning: serveren behandler den, men svaret "mistes" (afbrydes efter hentning)
+            let aborted = false
+            await a.page.route('**/*', async (route) => {
+              const req = route.request()
+              // kun selve gemningen (bærer sags-id og formdata) — ikke baggrunds-server-actions
+              if (!aborted && req.method() === 'POST' && req.headers()['next-action'] && (req.postData() ?? '').includes(bCase) && (req.postData() ?? '').includes('serviceCaseId')) {
+                aborted = true
+                await route.fetch().catch(() => null)
+                return route.abort()
+              }
+              return route.continue()
+            })
+            await saveBtn.click({ timeout: 30_000 }).catch(() => {})
+            let first: Array<{ id: string }> = []
+            for (let i = 0; i < 30 && first.length === 0; i++) { first = await docs(); if (!first.length) await new Promise((res) => setTimeout(res, 1000)) }
+            r.foerste_gemt_trods_mistet_svar = aborted && first.length === 1
+            if (!r.foerste_gemt_trods_mistet_svar) r[`diag_aborted=${aborted}_docs=${first.length}`] = false
+            await a.page.unroute('**/*').catch(() => {})
+            await a.page.waitForTimeout(1500)
+            await saveBtn.click({ timeout: 30_000 }).catch(() => {})
+            await a.page.waitForTimeout(8000)
+            const after = await docs()
+            r.ingen_dublet = after.length === 1 && after[0].id === first[0]?.id
+          }
+        } finally {
+          const left = await docs()
+          const paths = left.map((d) => d.storage_path).filter((p): p is string => !!p)
+          if (paths.length) await c.admin.storage.from('attachments').remove(paths).catch(() => {})
+          if (bCust) await c.admin.from('customer_documents').delete().eq('customer_id', bCust)
+          if (bCase) await c.admin.from('service_cases').delete().eq('id', bCase)
+          if (bCust) await c.admin.from('customers').delete().eq('id', bCust)
+        }
+        out.push({ id: 'U189 besigtigelse: mistet svar giver ingen dublet (FW-6)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U188 CU-1 (kunde-review 2026-10-17): sagsløse kundedokumenter — montør ser dem kun for kunder med en sag i sit
