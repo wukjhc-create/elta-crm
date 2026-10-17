@@ -148,6 +148,12 @@ async function handleCron(request: Request): Promise<Response> {
               continue
             }
             const route = routeResult.route
+            // PM-2 (portal-review 2026-10-17): portal-linket tilhører tilbudskunden — en rykker til betaler/partner/
+            // slutkunde ville give modtageren den kundes portal. Rykkeren har ingen PDF → springes over (meldes).
+            if (route.customerId && route.customerId !== offer.customer_id) {
+              errors.push(`Tilbud ${offer.offer_number}: modtager er ikke tilbuddets kunde (afregningsform) — rykker ikke sendt`)
+              continue
+            }
 
             const subject = settings?.reminder_email_subject || 'Påmindelse: Dit tilbud fra Elta Solar'
             const emailParams = {
