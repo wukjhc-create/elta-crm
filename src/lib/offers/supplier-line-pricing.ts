@@ -72,7 +72,13 @@ export async function supplierLinePricing(input: {
   } else if (agreement?.custom_margin_percentage !== null && agreement?.custom_margin_percentage !== undefined) {
     marginPercentage = Number(agreement.custom_margin_percentage)
   } else {
-    marginPercentage = input.productMargin ?? CALC_DEFAULTS.MARGINS.PRODUCTS
+    // OF-4 (review 2026-10-17): firmaets standard-produktavance (calculation_settings), ikke en fast 20 % — samme som
+    // leverandørsøgningen viste
+    if (input.productMargin != null) marginPercentage = input.productMargin
+    else {
+      const { loadDefaultProductMargin } = await import('@/lib/settings/product-margin')
+      marginPercentage = await loadDefaultProductMargin().catch(() => CALC_DEFAULTS.MARGINS.PRODUCTS)
+    }
   }
   const unitPrice = Math.round(calculateSalePrice(effectiveCost, marginPercentage, { fixedMarkup, roundTo }) * 100) / 100
   return { unitPrice, marginPercentage, effectiveCost }

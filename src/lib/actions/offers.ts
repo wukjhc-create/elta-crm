@@ -1824,6 +1824,7 @@ export async function searchSupplierProductsForOffer(
         image_url: sp.image_url || null,
         price_updated_at: (sp as { updated_at?: string | null }).updated_at ?? null,
         _ean: sp.ean || undefined,
+        _product_margin: sp.margin_percentage ?? null, // OF-4: samme input som linjeoprettelsen
       }
     })
 
@@ -1977,6 +1978,26 @@ export async function searchSupplierProductsForOffer(
     results.length = 0
     results.push(...ranked)
 
+    // OF-4 (review 2026-10-17): den viste salgspris = den linjen får (avanceregler, fast tillæg/afrunding, produktspecifik
+    // kundepris) — før kun produkt-/standardavance + leverandøraftale, så søgning og linje kunne afvige (125 vs 135 kr)
+    {
+      const { supplierLinePricing } = await import('@/lib/offers/supplier-line-pricing')
+      for (let k = 0; k < results.length; k += 10) {
+        await Promise.all(results.slice(k, k + 10).map(async (r) => {
+          if (!(r.cost_price > 0) || !r.supplier_id) return
+          try {
+            const p = await supplierLinePricing({
+              supplierId: r.supplier_id, supplierProductId: r.id, customerId: options?.customerId ?? null,
+              costPrice: r.cost_price, productMargin: (r as { _product_margin?: number | null })._product_margin ?? null,
+            })
+            r.estimated_sale_price = p.unitPrice
+            r.margin_percentage = p.marginPercentage
+          } catch { /* behold estimatet */ }
+        }))
+      }
+    }
+
+    for (const r of results) delete (r as { _product_margin?: unknown })._product_margin // OF-4: kun til beregning
     // D44 (privacy/RBAC): netto-/kostpris og avance kun for offers.view.cost_prices — salg ser salgspris (rækkefølge
     // og "billigst"-markering bevares)
     if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {

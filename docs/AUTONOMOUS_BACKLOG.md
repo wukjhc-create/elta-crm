@@ -51,7 +51,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | OF-1 | Inline-redigering af en tilbudslinje nulstiller linjerabatten (S2) | DONE (kode) — linjerabatten sendes med ved inline-redigering og indgår i den viste total. UI U186 |
 | OF-2 | Solcelleberegner overdriver årsproduktion ~200× (× 1000 + paneleffektivitet to gange) — vist til kunder (S2) | DONE (kode) — kWp × solskinstimer × inverter-virkningsgrad (begge beregnere). Unit solar-production-test |
 | OF-3 | "Indsæt pakke i tilbud": prod-funktionen skriver til total_price, som ikke findes → fejler altid (S2) | DELVIS — prod read-only bekræftet (scripts/prod-offer-line-columns.ts); klar fejlbesked i stedet for generisk. Ny funktion = BLOCKED_APPROVAL [MIGRATION] |
-| OF-4 | Salgspris i leverandørsøgning ≠ linjens pris (margin-regler/standardavance) (S2) | TODO |
+| OF-4 | Salgspris i leverandørsøgning ≠ linjens pris (margin-regler/standardavance) (S2) | DONE (kode) — søgningens salgspris via supplierLinePricing (samme som linjen); standardavance fra calculation_settings i stedet for fast 20 % |
 | OF-5 | Tilbud fra pakkebygger: linjekost lavere end vist (tillæg/spild mangler) → DB for god (S3) | TODO |
 | OF-6 | Kalkia-leverandørpris: kundens egen kostpris overskrives ved rabat (S3) | DONE (kode) — rabat på kundens egen kostpris (som supplierLinePricing/DB-funktionen) |
 | OF-7 | Natlig lav-DB-alarm ignorerer tilbudsrabat; ikke pagineret (S3) | DONE (kode) — tilbudsrabat med i DB; pagineret (fetchAllRows) |
