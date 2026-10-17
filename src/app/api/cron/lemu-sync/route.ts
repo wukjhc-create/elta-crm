@@ -14,14 +14,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { executeFtpSync, buildFtpCredentials } from '@/lib/services/supplier-ftp-sync'
 import { decryptCredentials } from '@/lib/utils/encryption'
 import { logger } from '@/lib/utils/logger'
-import { loadExistingSupplierProducts } from '@/lib/suppliers/load-existing-products'
+import { applyLemuRows } from '@/lib/suppliers/lemu-apply'
 import { withCronRun } from '@/lib/services/cron-run'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes max
 
 const CRON_SECRET = process.env.CRON_SECRET
-const UPSERT_BATCH_SIZE = 1000 // Supabase bulk upsert batch size
 
 async function handleCron(request: Request): Promise<Response> {
   try {
@@ -82,19 +81,8 @@ async function handleCron(request: Request): Promise<Response> {
     // Execute SFTP sync (download + parse)
     const ftpResult = await executeFtpSync(creds, 'LM')
 
-    // Filter valid rows and deduplicate by SKU (keep last occurrence)
-    const rowsBySku = new Map<string, typeof ftpResult.rows[0]>()
-    for (const row of ftpResult.rows) {
-      if (row.parsed.sku && row.errors.length === 0) {
-        rowsBySku.set(row.parsed.sku, row)
-      }
-    }
-    const validRows = Array.from(rowsBySku.values())
-
-    const totalParsed = ftpResult.rows.length
-    const deduplicatedCount = validRows.length
-
-    if (validRows.length === 0) {
+    // SU-1 (review 2026-10-17): fælles anvendelse med den manuelle synk (lib/suppliers/lemu-apply.ts)
+    if (!ftpResult.rows.some((r) => r.parsed.sku && r.errors.length === 0)) {
       await supabase.from('supplier_sync_logs').insert({
         supplier_id: supplier.id,
         job_type: 'ftp',
@@ -105,142 +93,15 @@ async function handleCron(request: Request): Promise<Response> {
         duration_ms: Date.now() - startTime,
         total_items: ftpResult.rows.length,
         processed_items: 0,
-        details: { file_name: ftpResult.file_name, total_parsed: totalParsed, note: 'No valid rows after parsing' },
+        details: { file_name: ftpResult.file_name, total_parsed: ftpResult.rows.length, note: 'No valid rows after parsing' },
       })
       return NextResponse.json({ message: 'No valid rows in CSV', file: ftpResult.file_name })
     }
 
-    // Load existing products for price change tracking
-    // X4 (pris-review 2026-10-07): ALLE produkter (før højst 1.000 → resten "nye", aldrig price_history). Parallel
-    // paginering med tidsbudget, så cronen (300 s, i dag 150–200 s) aldrig bliver dårligere end før.
-    const existingLoad = await loadExistingSupplierProducts(supabase, supplier.id, { budgetMs: 60_000 })
-    const productsBySku = existingLoad.bySku
-    if (!existingLoad.complete) {
-      logger.warn('LEMU cron: eksisterende produkter kun delvist indlæst (tidsbudget)', { metadata: { loaded: existingLoad.loaded, total: existingLoad.total, ms: existingLoad.ms } })
-    }
+    const applied = await applyLemuRows(supabase, supplier.id, ftpResult.rows, { existingBudgetMs: 60_000, logLabel: 'LEMU cron' })
+    const { newProducts, updatedProducts, priceChanges, errors, skippedNoCost, totalParsed } = applied
+    const deduplicatedCount = applied.deduplicated
     const now = new Date().toISOString()
-
-    let newProducts = 0
-    let updatedProducts = 0
-    let priceChanges = 0
-    const errors: string[] = []
-    const priceHistoryBatch: Array<Record<string, unknown>> = []
-    const historySkus: string[] = [] // SU-3: sku pr. historikrække (samme indeks)
-    let skippedNoCost = 0 // SU-2
-
-    // Separate new products from updates
-    const newRecords: Array<Record<string, unknown>> = []
-    const updateRecords: Array<Record<string, unknown>> = []
-
-    for (const row of validRows) {
-      const existing = productsBySku.get(row.parsed.sku)
-      const category = row.parsed.category || 'Lemu Import'
-
-      if (existing) {
-        updatedProducts++
-        // Track price changes
-        const oldCost = existing.cost_price
-        // SU-2 (review 2026-10-17): kost ≤ 0 = ingen prisaftale i filen → behold kendt kost (som supplier-sync, GP-13)
-        const newCost = row.parsed.cost_price != null && row.parsed.cost_price > 0 ? row.parsed.cost_price : null
-        if (oldCost !== null && newCost !== null && oldCost !== newCost) {
-          const changePct = oldCost > 0 ? ((newCost - oldCost) / oldCost) * 100 : 0
-          priceHistoryBatch.push({
-            supplier_product_id: existing.id,
-            old_cost_price: oldCost,
-            new_cost_price: newCost,
-            old_list_price: existing.list_price,
-            new_list_price: row.parsed.list_price,
-            change_percentage: Math.round(changePct * 100) / 100,
-            change_source: 'ftp_sync',
-          })
-          historySkus.push(row.parsed.sku) // SU-3: skrives først når opdateringen er lykkedes
-          priceChanges++
-        }
-
-        updateRecords.push({
-          supplier_id: supplier.id,
-          supplier_sku: row.parsed.sku,
-          supplier_name: row.parsed.name || row.parsed.sku,
-          // X4/SU-2: tom priscelle eller 0 overskriver ikke en kendt kostpris
-          cost_price: newCost ?? existing.cost_price ?? 0,
-          list_price: row.parsed.list_price ?? existing.list_price,
-          unit: row.parsed.unit || 'stk',
-          // SU-5 (review 2026-10-17): kategori/underkategori/EAN/producent sendes IKKE ved opdatering — filen har ingen
-          // underkategori og tomme EAN-celler; før nulstillede hver kørsel manuelle værdier (og GP-3-avanceregler)
-          is_available: true,
-          last_synced_at: now,
-        })
-      } else {
-        // SU-2: ny vare uden kostpris (> 0) oprettes ikke (0-kr-produkter)
-        if (!(row.parsed.cost_price != null && row.parsed.cost_price > 0)) { skippedNoCost++; continue }
-        newProducts++
-        newRecords.push({
-          supplier_id: supplier.id,
-          supplier_sku: row.parsed.sku,
-          supplier_name: row.parsed.name || row.parsed.sku,
-          cost_price: row.parsed.cost_price,
-          list_price: row.parsed.list_price,
-          unit: row.parsed.unit || 'stk',
-          category,
-          sub_category: row.parsed.sub_category || null,
-          ean: row.parsed.ean || null,
-          manufacturer: row.parsed.manufacturer || null,
-          is_available: true,
-          status: 'pending',
-          data_source: 'import',
-          last_synced_at: now,
-        })
-      }
-    }
-
-    // Bulk UPSERT new products
-    for (let i = 0; i < newRecords.length; i += UPSERT_BATCH_SIZE) {
-      const batch = newRecords.slice(i, i + UPSERT_BATCH_SIZE)
-      const batchNum = Math.floor(i / UPSERT_BATCH_SIZE) + 1
-      try {
-        const { error: insertErr } = await supabase
-          .from('supplier_products')
-          .upsert(batch, {
-            onConflict: 'supplier_id,supplier_sku',
-            ignoreDuplicates: false,
-          })
-        if (insertErr) {
-          errors.push(`New batch ${batchNum}: ${insertErr.message}`)
-          logger.warn(`LEMU new batch ${batchNum} error`, { error: insertErr })
-        }
-      } catch (batchError) {
-        errors.push(`New batch ${batchNum}: ${batchError instanceof Error ? batchError.message : 'Unknown error'}`)
-      }
-    }
-
-    // Bulk UPSERT existing products (preserves status/data_source)
-    for (let i = 0; i < updateRecords.length; i += UPSERT_BATCH_SIZE) {
-      const batch = updateRecords.slice(i, i + UPSERT_BATCH_SIZE)
-      const batchNum = Math.floor(i / UPSERT_BATCH_SIZE) + 1
-      try {
-        const { error: upsertErr } = await supabase
-          .from('supplier_products')
-          .upsert(batch, {
-            onConflict: 'supplier_id,supplier_sku',
-            ignoreDuplicates: false,
-          })
-        if (upsertErr) {
-          errors.push(`Update batch ${batchNum}: ${upsertErr.message}`)
-          logger.warn(`LEMU update batch ${batchNum} error`, { error: upsertErr })
-        } else {
-          // SU-3 (review 2026-10-17): prishistorik kun for rækker hvis opdatering lykkedes, skrevet sammen med batchen
-          // (før til sidst for alle — også fejlede — og slet ikke ved timeout)
-          const okSkus = new Set(batch.map((r) => String(r.supplier_sku)))
-          const hist = priceHistoryBatch.filter((_, k) => okSkus.has(historySkus[k]))
-          for (let h = 0; h < hist.length; h += UPSERT_BATCH_SIZE) {
-            const { error: histErr } = await supabase.from('price_history').insert(hist.slice(h, h + UPSERT_BATCH_SIZE))
-            if (histErr) logger.error('Price history insert error (LEMU cron)', { error: histErr })
-          }
-        }
-      } catch (batchError) {
-        errors.push(`Update batch ${batchNum}: ${batchError instanceof Error ? batchError.message : 'Unknown error'}`)
-      }
-    }
 
     const durationMs = Date.now() - startTime
     const status = errors.length === 0 ? 'success' : 'partial'
@@ -270,7 +131,7 @@ async function handleCron(request: Request): Promise<Response> {
         updated_items: updatedProducts,
         price_changes_count: priceChanges,
         error_message: errors.length > 0 ? errors.join('; ') : null,
-        details: { file_name: ftpResult.file_name, file_size: ftpResult.file_size_bytes, total_parsed: totalParsed, deduplicated: deduplicatedCount, partial: errors.length > 0, existing_loaded: existingLoad.loaded, existing_total: existingLoad.total, existing_ms: existingLoad.ms, skipped_no_cost: skippedNoCost },
+        details: { file_name: ftpResult.file_name, file_size: ftpResult.file_size_bytes, total_parsed: totalParsed, deduplicated: deduplicatedCount, partial: errors.length > 0, existing_loaded: applied.existingLoaded, existing_total: applied.existingTotal, existing_ms: applied.existingMs, skipped_no_cost: skippedNoCost },
       }),
     ])
 

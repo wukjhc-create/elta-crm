@@ -9,7 +9,6 @@
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { loadExistingSupplierProducts } from '@/lib/suppliers/load-existing-products'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 
@@ -237,89 +236,13 @@ export async function triggerLemuSync(): Promise<ActionResult<{
       return { success: false, error: 'CSV-filen fra LEMU indeholdt ingen gyldige rækker.' }
     }
 
-    // Load existing products for upsert
-    // 00192: kostkolonner — admin-klient bag settings.suppliers
-    // X4 (pris-review 2026-10-07): alle produkter, ikke kun de første 1.000 (PostgREST-loft)
-    const productsBySku = (await loadExistingSupplierProducts(createAdminClient(), supplier.id, { budgetMs: 120_000 })).bySku
+    // SU-1 (review 2026-10-17): samme bulk-anvendelse som cronen (før rækkevis update/insert — kunne ikke blive færdig
+    // på ~300.000 varer, oprettede 0-kr-varer, nulstillede kategori/EAN og skrev historik for fejlede rækker)
+    const { applyLemuRows } = await import('@/lib/suppliers/lemu-apply')
+    // 00192: kostkolonner og systemdata — admin-klient bag settings.suppliers (admin)
+    const applied = await applyLemuRows(createAdminClient(), supplier.id, ftpResult.rows, { existingBudgetMs: 120_000, logLabel: 'LEMU manuel' })
+    const { newProducts, updatedProducts, priceChanges } = applied
     const now = new Date().toISOString()
-
-    let updatedProducts = 0
-    let newProducts = 0
-    let priceChanges = 0
-    const priceHistoryBatch: Array<Record<string, unknown>> = []
-
-    for (const row of ftpResult.rows) {
-      if (!row.parsed.sku || row.errors.length > 0) continue
-
-      const existing = productsBySku.get(row.parsed.sku)
-
-      if (existing) {
-        // Update existing product
-        const oldCost = existing.cost_price
-        const newCost = row.parsed.cost_price
-
-        await supabase
-          .from('supplier_products')
-          .update({
-            supplier_name: row.parsed.name || undefined,
-            cost_price: newCost ?? undefined, // X4: tom priscelle overskriver ikke kendt kostpris med NULL
-            list_price: row.parsed.list_price,
-            unit: row.parsed.unit || undefined,
-            category: row.parsed.category || undefined,
-            sub_category: row.parsed.sub_category || undefined,
-            ean: row.parsed.ean || undefined,
-            manufacturer: row.parsed.manufacturer || undefined,
-            is_available: true,
-            last_synced_at: now,
-          })
-          .eq('id', existing.id)
-
-        updatedProducts++
-
-        if (oldCost !== null && newCost !== null && oldCost !== newCost) {
-          const changePct = oldCost > 0 ? ((newCost - oldCost) / oldCost) * 100 : 0
-          priceHistoryBatch.push({
-            supplier_product_id: existing.id,
-            old_cost_price: oldCost,
-            new_cost_price: newCost,
-            old_list_price: existing.list_price,
-            new_list_price: row.parsed.list_price,
-            change_percentage: Math.round(changePct * 100) / 100,
-            change_source: 'ftp_sync',
-          })
-          priceChanges++
-        }
-      } else {
-        // New product — create as draft under 'Lemu Import' category
-        const category = row.parsed.category || 'Lemu Import'
-
-        await supabase
-          .from('supplier_products')
-          .insert({
-            supplier_id: supplier.id,
-            supplier_sku: row.parsed.sku,
-            supplier_name: row.parsed.name || row.parsed.sku,
-            cost_price: row.parsed.cost_price || 0,
-            list_price: row.parsed.list_price,
-            unit: row.parsed.unit || 'stk',
-            category,
-            sub_category: row.parsed.sub_category || null,
-            ean: row.parsed.ean || null,
-            manufacturer: row.parsed.manufacturer || null,
-            is_available: true,
-            status: 'pending',
-            data_source: 'import',
-            last_synced_at: now,
-          })
-
-        newProducts++
-      }
-    }
-
-    // Insert price history
-    if (priceHistoryBatch.length > 0) {
-      await supabase.from('price_history').insert(priceHistoryBatch)
-    }
 
     const durationMs = Date.now() - syncStart
 
@@ -327,7 +250,7 @@ export async function triggerLemuSync(): Promise<ActionResult<{
     await supabase.from('supplier_sync_logs').insert({
       supplier_id: supplier.id,
       job_type: 'ftp',
-      status: 'completed',
+      status: applied.errors.length === 0 ? 'completed' : 'failed', // 'partial' findes ikke i CHECK (00043)
       trigger_type: 'manual',
       started_at: new Date(syncStart).toISOString(),
       completed_at: now,
@@ -337,7 +260,8 @@ export async function triggerLemuSync(): Promise<ActionResult<{
       new_items: newProducts,
       updated_items: updatedProducts,
       price_changes_count: priceChanges,
-      details: { file_name: ftpResult.file_name, file_size: ftpResult.file_size_bytes },
+      error_message: applied.errors.length > 0 ? applied.errors.join('; ') : null,
+      details: { file_name: ftpResult.file_name, file_size: ftpResult.file_size_bytes, total_parsed: applied.totalParsed, deduplicated: applied.deduplicated, skipped_no_cost: applied.skippedNoCost, existing_loaded: applied.existingLoaded, existing_total: applied.existingTotal },
     })
 
     // Update schedule if exists
@@ -345,7 +269,7 @@ export async function triggerLemuSync(): Promise<ActionResult<{
       .from('supplier_sync_schedules')
       .update({
         last_run_at: now,
-        last_run_status: 'success',
+        last_run_status: applied.errors.length === 0 ? 'success' : 'partial',
         last_run_duration_ms: durationMs,
         last_run_items_processed: updatedProducts + newProducts,
       })

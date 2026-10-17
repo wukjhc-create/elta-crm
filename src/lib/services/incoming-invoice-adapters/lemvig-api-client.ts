@@ -30,6 +30,8 @@ interface LmCredentials {
 
 const DEFAULT_INVOICE_DIR = '/FromLEMU/invoic'
 const DEFAULT_PORT = 22
+/** SU-4: cron-loftet er 120 s for AO + LM tilsammen */
+const LM_DOWNLOAD_BUDGET_MS = 60_000
 
 export class LemvigInvoiceAdapter implements SupplierInvoiceAdapter {
   readonly provider = 'LM' as const
@@ -70,13 +72,36 @@ export class LemvigInvoiceAdapter implements SupplierInvoiceAdapter {
       if (files === null) {
         return { invoices: [], skipped: true, skipReason: 'LM SFTP listing failed' }
       }
-      const fresh = files.filter((f) => !f.isDir && f.mtimeMs >= sinceMs)
-      if (fresh.length === 0) {
+      const inWindow = files.filter((f) => !f.isDir && f.mtimeMs >= sinceMs)
+      if (inWindow.length === 0) {
         return { invoices: [], skipped: true, skipReason: 'LM no invoice files in window' }
       }
 
+      // SU-4 (review 2026-10-17): før blev HELE 30-dages-vinduet hentet ved hver kørsel (én SSH-forbindelse pr. fil) i en
+      // cron med 120 s loft → filer der allerede er indlæst springes over, og download stopper efter et tidsbudget
+      // (resten tages næste kørsel; ældste først så intet sulter).
+      const known = new Set<string>()
+      const names = inWindow.map((f) => f.name)
+      for (let k = 0; k < names.length; k += 200) {
+        const { data: seen } = await supabase
+          .from('incoming_invoices')
+          .select('file_name')
+          .eq('notes', 'api-ingest:LM')
+          .in('file_name', names.slice(k, k + 200))
+        for (const r of (seen ?? []) as Array<{ file_name: string | null }>) if (r.file_name) known.add(r.file_name)
+      }
+      const fresh = inWindow.filter((f) => !known.has(f.name)).sort((a, b) => a.mtimeMs - b.mtimeMs)
+      if (fresh.length === 0) {
+        return { invoices: [], skipped: true, skipReason: 'LM no new invoice files in window' }
+      }
+
+      const started = Date.now()
       const invoices: NormalisedInvoice[] = []
       for (const f of fresh) {
+        if (Date.now() - started > LM_DOWNLOAD_BUDGET_MS) {
+          logger.warn('LM invoice download stopped at time budget (rest next run)', { metadata: { remaining: fresh.length - fresh.indexOf(f) } })
+          break
+        }
         try {
           const content = await downloadSftpFile({ host, port: DEFAULT_PORT, username, password, path: `${dir}/${f.name}` })
           if (!content || content.trim().length < 50) continue

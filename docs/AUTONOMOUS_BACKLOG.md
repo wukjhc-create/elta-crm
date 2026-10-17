@@ -48,10 +48,10 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-37 (review-bølge 2026-10-17 aften — leverandørintegration)
 | # | Fund | Status |
 |---|---|---|
-| SU-1 | Manuel "Synk LEMU nu" kan ikke blive færdig på det rigtige katalog (rækkevis); delvise kørsler uden prishistorik (S2) | TODO |
+| SU-1 | Manuel "Synk LEMU nu" kan ikke blive færdig på det rigtige katalog (rækkevis); delvise kørsler uden prishistorik (S2) | FIXED (kode) — manuel synk bruger samme bulk-anvendelse som cronen (lib/suppliers/lemu-apply.ts: SU-2/3/5-regler, tæller kun lykkede batches); scripts/lemu-apply-test.ts |
 | SU-2 | lemu-sync overskriver kendt kostpris med 0 og opretter 0-kr-produkter (S2) | DONE (kode) — kost ≤ 0 bevarer kendt kost; nye varer uden kost oprettes ikke (tælles skippedNoCost); historik kun med reel ny kost |
 | SU-3 | Prissynk skriver priser først, historik til sidst (timeout = ændringer uden historik); historik for fejlede opdateringer (S2) | FIXED (kode) — lemu-sync, supplier-sync API+FTP og manuel sync: historik kun for lykkede opdateringer, skrevet pr. batch; manuel historik via admin-klient (insert-politik kun admin) |
-| SU-4 | LM-faktura-SFTP henter hele 30-dages-vinduet hver kørsel; ingen tidsbudget (S2) | TODO |
+| SU-4 | LM-faktura-SFTP henter hele 30-dages-vinduet hver kørsel; ingen tidsbudget (S2) | FIXED (kode) — allerede indlæste filer (file_name, api-ingest:LM) springes over, ældste først, 60 s download-budget (rest næste kørsel). Rest: filer uden fakturanr. hentes igen hver gang |
 | SU-5 | lemu-sync nulstiller EAN/underkategori/producent/listepris/kategori (S3) | DONE (kode) — opdatering sender ikke kategori/underkategori/EAN/producent; listepris falder tilbage til eksisterende |
 | SU-6 | Vedhæftet PDF på mailfaktura erstatter ikke værdier læst fra brødteksten (S3) | DONE (kode) — vedhæftet PDF nulstiller mailtekstens header-værdier (ikke ved header_edited). cli invoice-attach-reset-check 2/2 |
 | SU-7 | Stor manuel prisfil-import kan afbrydes midtvejs; batch hænger i "processing" (S3) | FIXED (kode) — importsiden maxDuration 300, executeImport stopper pænt efter 240 s (status failed + antal), hængende "processing" >15 min markeres fejlet ved næste import; wizard viser delvis import (U17 PASS) |
