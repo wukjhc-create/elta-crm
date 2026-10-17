@@ -12,6 +12,9 @@
 | 94997dfe | FIN-1/2(kode)/5/6/7/9/10/11; F4 tagtegninger; C-F1 audit-visning |
 | cd52e229 | FIN-3/4/8/12; HT-2/HT-3 harness |
 | 4c0bcace | DF-5 fuld kreditering frigiver kilderækker |
+| 749a0806 | LC-1/3/5/6/7/8/9/10/11/12 mail/leads; TP-1/2/3/4/5/7/8/9 timer/planlægning |
+| ed4d7911 | LC-2 allerede koblet mail opretter ingen ny kunde |
+| b735b7a3 | DF-10 afregningsform på tilbuddet (U185) |
 
 Ikke lavet (tilladelse): DF-1-værnet i create-invoice-from-offer.ts blev afvist af auto-mode-værnet to gange. Patchen står i
 docs/runbooks/auto-invoice-offer-guard-proposal.md. Reglen er dry_run i prod.
@@ -119,6 +122,9 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
   - 00243 solar-kostpris
   - 00244 kostkolonner i AI-/kalkulationstabeller
   - 00245 slutfaktura-indeks uden annullerede
+- **TP-6 timer på fraværsdag** — blokér, eller tillad med markering/audit på godkendelsesrækken?
+- **LC-9 RLS for salg på incoming_emails** — app-gaten er på; skal salg også begrænses i DB (kun koblede/egne)?
+- **CR-7 + LC-4 lease på mail-synk** [MIGRATION] — graph_sync_state.sync_lock_until + betinget UPDATE; krav pr. mail
 - **SEC2-6 grænse pr. IP på kontaktformularen** — kræver lagring (hash af IP) = GDPR-/skemabeslutning
 - **DF-5 delvis kreditering** — frigivelse kræver kolonnen kreditlinje → original linje [MIGRATION]
 - **"Registrér også betaling i e-conomic"** (efter A-12-beslutningen) — eksplicit action: permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit
