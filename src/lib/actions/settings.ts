@@ -1088,11 +1088,15 @@ export async function getTeamMembers(): Promise<ActionResult<Profile[]>> {
 export async function updateTeamMember(
   memberId: string,
   input: { role?: string; department?: string; is_active?: boolean }
-): Promise<ActionResult<Profile>> {
+): Promise<ActionResult<Profile> & { warning?: string }> {
   try {
-    const { hasPermission } = await getAuthenticatedClientWithRole()
+    const { hasPermission, userId } = await getAuthenticatedClientWithRole()
     if (!hasPermission('users.edit')) {
       return { success: false, error: 'Manglende tilladelse: users.edit' }
+    }
+    // TM-2 (team-review 2026-10-17): egen rolle/adgang kan ikke ændres her — før kun blokeret i klienten
+    if (memberId === userId && (input.role !== undefined || input.is_active !== undefined)) {
+      return { success: false, error: 'Du kan ikke ændre din egen rolle eller adgang — bed en anden administrator' }
     }
 
     // Auth-review: kun kendte roller, og den sidste aktive admin kan ikke degraderes/deaktiveres
@@ -1102,6 +1106,11 @@ export async function updateTeamMember(
       const block = await lastAdminBlock(createAdminClient(), memberId, { role: input.role, isActive: input.is_active })
       if (block) return { success: false, error: block }
     }
+
+    // TM-2: gammel rolle/adgang til audit
+    const adminForAudit = createAdminClient()
+    const { data: before } = await adminForAudit.from('profiles').select('role, is_active, full_name').eq('id', memberId).maybeSingle()
+    const prev = before as { role?: string | null; is_active?: boolean | null; full_name?: string | null } | null
 
     // Sprint Ø2.2: is_active håndhæves via central helper (sætter flag OG
     // auth-ban) — ikke som et løst profil-felt. Resten (role/department)
@@ -1137,8 +1146,41 @@ export async function updateTeamMember(
       return { success: false, error: 'Kunne ikke opdatere teammedlem' }
     }
 
+    // TM-2: audit af rolleskift og (de)aktivering
+    if (input.role !== undefined && prev?.role !== input.role) {
+      await insertAuditRow({
+        user_id: userId, entity_type: 'user', entity_id: memberId, entity_name: prev?.full_name ?? null,
+        action: 'user_role_changed', action_description: `Rolle ændret: ${prev?.role ?? '—'} → ${input.role}`,
+        changes: { role: { old: prev?.role ?? null, new: input.role } }, metadata: null,
+      })
+    }
+    let warning: string | undefined
+    if (input.is_active !== undefined && prev?.is_active !== input.is_active) {
+      await insertAuditRow({
+        user_id: userId, entity_type: 'user', entity_id: memberId, entity_name: prev?.full_name ?? null,
+        action: input.is_active ? 'user_activated' : 'user_deactivated',
+        action_description: input.is_active ? 'Bruger aktiveret' : 'Bruger deaktiveret (login spærret)',
+        changes: { is_active: { old: prev?.is_active ?? null, new: input.is_active } }, metadata: null,
+      })
+      // TM-3 (team-review 2026-10-17): deaktiveret login → medarbejderkortet deaktiveres også (kunne før stadig
+      // planlægges), og åbne job, der stadig er tildelt, meldes
+      if (input.is_active === false) {
+        const { data: emp } = await adminForAudit.from('employees').select('id, active').eq('profile_id', memberId).maybeSingle()
+        const e = emp as { id: string; active: boolean | null } | null
+        if (e) {
+          if (e.active) {
+            const { copenhagenParts } = await import('@/lib/utils/copenhagen-time')
+            await adminForAudit.from('employees').update({ active: false, termination_date: copenhagenParts(new Date()).date }).eq('id', e.id).eq('active', true)
+          }
+          const { count: openJobs } = await adminForAudit.from('work_orders').select('id', { count: 'exact', head: true })
+            .eq('assigned_employee_id', e.id).in('status', ['planned', 'in_progress'])
+          if ((openJobs ?? 0) > 0) warning = `${openJobs} planlagte/igangværende job er stadig tildelt medarbejderen — omplanlæg dem i kalenderen`
+        }
+      }
+    }
+
     revalidatePath('/dashboard/settings/team')
-    return { success: true, data: data as Profile }
+    return { success: true, data: data as Profile, ...(warning ? { warning } : {}) }
   } catch (error) {
     logger.error('Error in updateTeamMember', { error: error })
     return { success: false, error: 'Der opstod en fejl' }

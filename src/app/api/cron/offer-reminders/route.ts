@@ -18,6 +18,7 @@ import { withCronRun } from '@/lib/services/cron-run'
 import { isOfferExpired } from '@/lib/offers/validity'
 import { markReminderSent, reminderAlreadySent } from '@/lib/tasks/reminder-marker'
 import { escapeHtml } from '@/lib/utils/html-escape'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 /** Mail-review 2026-10-07: højst så mange rykkere pr. kørsel (tidsgrænse 60 s; hver Graph-afsendelse kan tage op til ~8 s) */
 const MAX_REMINDERS_PER_RUN = 5
@@ -225,11 +226,17 @@ async function handleCron(request: Request): Promise<Response> {
 
     // ─── 2. FULDMAGT REMINDERS ───
     try {
-      const { data: pendingFuldmagter } = await supabase
+      // O-9 (review 2026-10-16): side for side (sorteret) — over 1.000 kontrakt-dokumenter skar PostgREST tavst resten fra,
+      // så afventende fuldmagter blev aldrig rykket
+      type FuldmagtDoc = { id: string; customer_id: string; title: string | null; description: string | null; created_at: string; customer: unknown }
+      const pendingFuldmagter = await fetchAllRows<FuldmagtDoc>((from, to) => supabase
         .from('customer_documents')
         .select('id, customer_id, title, description, created_at, customer:customers(company_name, contact_person, email, is_active)')
         .eq('document_type', 'contract')
         .lt('created_at', cutoffDate.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to))
 
       if (pendingFuldmagter && pendingFuldmagter.length > 0) {
         for (const doc of pendingFuldmagter) {
@@ -297,12 +304,17 @@ async function handleCron(request: Request): Promise<Response> {
 
     // ─── 3. BESIGTIGELSE CONFIRMATION REMINDERS ───
     try {
-      const { data: pendingTasks } = await supabase
+      // O-9: side for side (sorteret) — som fuldmagterne
+      type BesigtigelseRow = { id: string; customer_id: string; title: string; description: string | null; created_at: string; due_date: string | null; status: string; auto_rule: string | null; customer: unknown }
+      const pendingTasks = await fetchAllRows<BesigtigelseRow>((from, to) => supabase
         .from('customer_tasks')
         .select('id, customer_id, title, description, created_at, due_date, status, auto_rule, customer:customers(company_name, contact_person, email, is_active)')
         .ilike('title', '%esigtigelse%')
         .eq('status', 'pending')
         .lt('created_at', cutoffDate.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to))
 
       // X4 (kommunikations-review 2026-10-07): KUN bookede, kundevendte besigtigelser med en fremtidig tid. Før fik
       // kunden en rykker om den INTERNE opstartsopgave "Planlæg besigtigelse eller montage" (oprettes ved hver

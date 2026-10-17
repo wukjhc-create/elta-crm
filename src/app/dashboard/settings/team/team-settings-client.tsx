@@ -93,6 +93,8 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
           prev.map(m => (m.id === memberId ? result.data! : m))
         )
         toast.success(currentActive ? 'Bruger deaktiveret' : 'Bruger aktiveret')
+        // TM-3: åbne job tildelt den deaktiverede medarbejder
+        if ((result as { warning?: string }).warning) toast.warning('Åbne job', (result as { warning?: string }).warning)
       } else {
         toast.error(result.error || 'Kunne ikke opdatere status')
       }
