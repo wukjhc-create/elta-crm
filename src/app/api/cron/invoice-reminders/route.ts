@@ -38,6 +38,19 @@ async function handleCron(request: Request): Promise<Response> {
     const { getOverdueInvoices, sendInvoiceReminder } = await import(
       '@/lib/services/invoices'
     )
+
+    // CR-2 (cron-review 2026-10-17): uden INVOICE_REMINDERS_LIVE=true sendes ingen betalingsrykkere — kørslen tæller
+    // kun forfaldne fakturaer (samme udfald som i prod i dag: 0 sendt). Se lib/reminders/reminder-switches.ts.
+    const { invoiceRemindersLive } = await import('@/lib/reminders/reminder-switches')
+    if (!invoiceRemindersLive()) {
+      const overdueCount = (await getOverdueInvoices()).length
+      return NextResponse.json({
+        ok: true,
+        live: false,
+        message: 'Betalingsrykkere er slået fra (INVOICE_REMINDERS_LIVE er ikke true) — intet sendt',
+        summary: { checked: overdueCount, sent: 0, manual_review: 0, skipped: overdueCount, failed: 0 },
+      })
+    }
     const { evaluateAndRunAutomations } = await import('@/lib/automation/rule-engine')
 
     // F-10: fakturaer hvis rykker fejlede inden for 3 døgn tages sidst — de må ikke blokere de øvrige

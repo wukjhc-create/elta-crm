@@ -78,6 +78,8 @@ Kontrolleret én ad gangen: pre-check → migration → post-check → målrette
 | a74486b4 | NEXT-20 økonomi: F-1 (S1 moms-værn på fast-pris-slutfaktura), F-2..F-10; Q-4/6/7/8/9/12 |
 | ce0ae73e | Q-1/Q-10/Q-11 + migrationsforslag F-5/F-11/F-12 |
 
+Rykker-kontakter (2026-10-17): `INVOICE_REMINDERS_LIVE` (standard fra), `OFFER_REMINDERS_LIVE` (standard fra), `FOLLOWUP_REMINDERS_PAUSED` (nødstop, standard ikke sat), `CRON_PAUSED=<cron>` (hele kørslen).
+
 BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **00233 lead-opfølgning** (docs/runbooks/lead-follow-up-proposal.md) — koden ligger i prod bag `LEAD_FOLLOW_UP_ENABLED` (slået fra)
 - **00234 kostkolonner på sagsmaterialer/øvrige** (docs/runbooks/cost-columns-case-materials-proposal.md) — F-11
@@ -95,8 +97,8 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **CR-9 per-bruger læst/afvist på alarmer** [MIGRATION]
 - **RP-6 eksport-rettighed** — `reports.export` (admin/bogholderi) håndhæves ikke; serviceleder kan masseeksportere kunde-/lead-data. Håndhæve? (ændrer adgang)
 - **DB-sikkerhed 2026-10-16** (docs/runbooks/db-security-2026-10-16-proposal.md): 00238 ai_suggestions margin_alert, 00239 kladdelås via status, 00240 interne dokumenter i portal (app-værn i kode), hygiejne-REVOKE; DB-8 sygefravær for bogholderi = beslutning
-- **CR-2 live-flag for fakturarykkere** (`INVOICE_REMINDERS_LIVE`, default fra) — ændrer prod-adfærd; nødstop i dag via `CRON_PAUSED=invoice-reminders`
-- **DF-1 auto-faktura ved accept springer over når sagen findes** — reglen er aktiv i prod med `dry_run=true` (0 dobbeltfakturaer); kodeværn klar som forslag, ændring af live-faktureringsautomatik kræver godkendelse. Slå ikke dry_run fra før
+- **CR-1 live-flag for fuldmagt-/besigtigelsesrykkere?** Nødstop findes nu (`FOLLOWUP_REMINDERS_PAUSED=true`); default uændret (live)
+- **DF-1 auto-faktura ved accept** — værnet kan ikke skrives af Claude (auto-mode-værn afviser redigering af create-invoice-from-offer.ts). Henrik: anvend patchen i docs/runbooks/auto-invoice-offer-guard-proposal.md eller tillad redigeringen. Reglen er dry_run i prod — slå ikke dry_run fra før
 - **"Registrér også betaling i e-conomic"** (efter A-12-beslutningen) — eksplicit action: permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit
 P-2/P-4/P-8/P-10/P-11 (round 3) — UI U178/U13/U4/U5/U43/U160/U166 grønne.
 

@@ -29,9 +29,9 @@ export const CRON_REGISTRY: CronInfo[] = [
     knownIssue: 'Bruger anon-klient → behandler 0 rækker (stille no-op).' },
   { name: 'email-sync', schedule: '0 5 * * *', purpose: 'Hent mails fra Microsoft Graph', external: 'mail_read', gate: 'AUTO_CREATE_CASES_ENABLED (OFF) styrer auto-sager',
     knownIssue: 'Kobling mail→kunde (linkEmail) bruger anon-klient → formentlig stille no-op.' },
-  { name: 'offer-reminders', schedule: '0 8 * * *', purpose: 'Rykker-mail til kunder på ubesvarede tilbud', external: 'customer_mail', gate: 'company_settings.reminder_enabled (TIL i prod; 0 sendt seneste 30 dage)' },
-  { name: 'invoice-reminders', schedule: '0 7 * * *', purpose: 'Betalingsrykker-mail til kunder', external: 'customer_mail', gate: null,
-    knownIssue: 'Ingen on/off-kontakt. Virker ikke i prod: mail-routeren bruger anon-klient → "Faktura ikke fundet" dagligt siden 2026-07-10 (0 sendt). Rettes den, sendes straks rykker på en 83 dage forfalden faktura.' },
+  { name: 'offer-reminders', schedule: '0 8 * * *', purpose: 'Rykker-mail til kunder på ubesvarede tilbud', external: 'customer_mail', gate: 'company_settings.reminder_enabled; tilbudsrykkere kun med OFFER_REMINDERS_LIVE=true (dry-run ellers); FOLLOWUP_REMINDERS_PAUSED=true = nødstop for fuldmagt/besigtigelse' },
+  { name: 'invoice-reminders', schedule: '0 7 * * *', purpose: 'Betalingsrykker-mail til kunder', external: 'customer_mail', gate: 'INVOICE_REMINDERS_LIVE=true (standard fra → intet sendt; CR-2)',
+    knownIssue: 'Mail-routeren bruger anon-klient → "Faktura ikke fundet" (0 sendt nogensinde, prod 2026-10-17). Slås INVOICE_REMINDERS_LIVE til efter rettelsen, rykkes der straks på gamle forfaldne fakturaer — gennemgå dem først.' },
   // CR-12 (cron-review 2026-10-17): sikre match kalder registerPayment → fuldt betalt poster betalingen i e-conomic,
   // når ECONOMIC_PUSH_ENABLED=true (før stod der "ingen ekstern effekt")
   { name: 'bank-match', schedule: '30 6 * * *', purpose: 'Match bankposteringer til fakturaer; sikre match registrerer betalingen (fuldt betalt → e-conomic, når ECONOMIC_PUSH_ENABLED=true)', external: 'none', gate: 'ECONOMIC_PUSH_ENABLED styrer e-conomic-delen; CRON_PAUSED=bank-match stopper kørslen',

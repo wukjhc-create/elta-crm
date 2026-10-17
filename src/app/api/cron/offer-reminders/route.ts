@@ -224,8 +224,13 @@ async function handleCron(request: Request): Promise<Response> {
       errors.push(`Tilbuds-rykkere fejlede: ${err instanceof Error ? err.message : 'Fejl'}`)
     }
 
+    // CR-1 (cron-review 2026-10-17): nødstop for fuldmagt-/besigtigelsesrykkere (kører LIVE til kunder i dag).
+    // FOLLOWUP_REMINDERS_PAUSED=true springer afsnit 2+3 over; ikke sat = uændret adfærd.
+    const { followUpRemindersPaused } = await import('@/lib/reminders/reminder-switches')
+    const followUpPaused = followUpRemindersPaused()
+
     // ─── 2. FULDMAGT REMINDERS ───
-    try {
+    if (!followUpPaused) try {
       // O-9 (review 2026-10-16): side for side (sorteret) — over 1.000 kontrakt-dokumenter skar PostgREST tavst resten fra,
       // så afventende fuldmagter blev aldrig rykket
       type FuldmagtDoc = { id: string; customer_id: string; title: string | null; description: string | null; created_at: string; customer: unknown }
@@ -303,7 +308,7 @@ async function handleCron(request: Request): Promise<Response> {
     }
 
     // ─── 3. BESIGTIGELSE CONFIRMATION REMINDERS ───
-    try {
+    if (!followUpPaused) try {
       // O-9: side for side (sorteret) — som fuldmagterne
       type BesigtigelseRow = { id: string; customer_id: string; title: string; description: string | null; created_at: string; due_date: string | null; status: string; auto_rule: string | null; customer: unknown }
       const pendingTasks = await fetchAllRows<BesigtigelseRow>((from, to) => supabase
@@ -387,6 +392,7 @@ async function handleCron(request: Request): Promise<Response> {
       sent: totalSent,
       // O-1: tilbudsrykkere i dry-run — hvad der VILLE være sendt (intet sendt)
       offer_reminders_dry_run: offerDryRun ?? undefined,
+      followup_reminders_paused: followUpPaused || undefined,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (err) {

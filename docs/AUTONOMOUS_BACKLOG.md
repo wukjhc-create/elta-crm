@@ -48,7 +48,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-28 (dataflow-review 2026-10-17 — tilbud → sag → faktura)
 | # | Fund | Status |
 |---|---|---|
-| DF-1 | Regel "Auto-faktura ved tilbud accepteret" (create_invoice_from_offer) fakturerer tilbuddet uden case_id, selv om portal-accept netop har oprettet sagen → sagen kan fakturere igen (S1) | BLOCKED_APPROVAL — prod read-only (scripts/prod-auto-invoice-rule.ts): reglen er aktiv men `dry_run=true`, 2 dry-run-kørsler (seneste 2026-06-23), 0 fakturaer uden sag fra tilbud → ingen eksponering i dag. Forslag: aktionen springer over når `service_cases.source_offer_id = offer` findes (også i dry-run). Kodeændring i live-faktureringsautomatik afvist af værn → kræver Henriks godkendelse (docs/runbooks/auto-invoice-offer-guard-proposal.md). Slå IKKE dry_run fra før det er afgjort |
+| DF-1 | Regel "Auto-faktura ved tilbud accepteret" fakturerer tilbuddet uden case_id, selv om portal-accept netop har oprettet sagen → sagen kan fakturere igen (S1) | BLOCKED (tilladelse) — værnet (spring over når sag findes) afvist 2× af auto-mode-værnet ved redigering af create-invoice-from-offer.ts. Patch i docs/runbooks/auto-invoice-offer-guard-proposal.md. Prod: aktiv men dry_run=true, 0 dobbeltfakturaer. Slå IKKE dry_run fra før værnet er inde |
 | DF-2 | Kundeskift på tilbudskladde opdaterer ikke vat_mode | DONE (kode) — ny kundes vat_mode sættes ved kundeskift |
 | DF-3 | Arbejdsadresse kopieres ikke fra tilbud til sag | DONE (kode) — slutkundens leveringsadresse, ellers fakturaadresse |
 | DF-4 | Afvisning efter sag oprettet lader sagen stå aktiv | DONE (kode) — advarsel med sagsnummer ved afvisning. Sagen lukkes ikke automatisk |
@@ -60,17 +60,18 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | DF-10 | Revision/dublering taber billing_model/vat_mode; intet skriver offers.billing_model | DONE (kopi) — kopiér medtager vat_mode og billing_model. Valg af afregningsform på tilbuddet (UI) = TODO |
 | DF-11 | Tabt lead bliver aldrig vundet ved accept | DONE (kode) — tilbuddets eget lead_id: tabt → vundet. Kunde-fallback uændret |
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
+| HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | TODO — undersøg skærmbillede/tekst på fakturakladde-fanen |
 
 ## NEXT-27 (review-bølge 2026-10-17 — crons, alarmer, notifikationer)
 | # | Fund | Status |
 |---|---|---|
-| CR-1 | Fuldmagt-/besigtigelsesrykkere sendes LIVE til kunder uden live-flag; fallback `reminder_enabled ?? true` (S1) | BESLUTNING (Henrik) — eksisterende live-mail-flow: skal det fortsætte, eller bag `FOLLOWUP_REMINDERS_LIVE` (default fra)? Intet ændret |
-| CR-2 | Fakturarykkere uden kill switch (kun CRON_PAUSED); i dag kun stoppet af anon-klient-fejl (S2) | BESLUTNING (Henrik) — forslag: `INVOICE_REMINDERS_LIVE` (default fra) i cron og regel-motorens send_reminder, dry-run-opsummering når slået fra; manuelle rykkere uændrede. Ændrer prod-adfærd for rykkermails → ikke bygget uden godkendelse. Nødstop i dag: `CRON_PAUSED=invoice-reminders` |
+| CR-1 | Fuldmagt-/besigtigelsesrykkere sendes LIVE til kunder uden live-flag; fallback `reminder_enabled ?? true` (S1) | NØDSTOP DONE (kode) — `FOLLOWUP_REMINDERS_PAUSED=true` springer afsnit 2+3 over (ikke sat = uændret). BESLUTNING (Henrik) stadig åben: skal de bag et live-flag (default fra)? |
+| CR-2 | Fakturarykkere uden kill switch (kun CRON_PAUSED); i dag kun stoppet af anon-klient-fejl (S2) | DONE (kode) — `INVOICE_REMINDERS_LIVE` (standard fra) i cron og regel-motorens send_reminder; manuelle rykkere uændrede. Prod read-only (scripts/prod-reminder-status.ts): 0 sendt nogensinde, 30/30 kørsler "Faktura ikke fundet", regel invoice_overdue i dry-run, 2 forfaldne → standard fra = samme udfald som i dag. Unit reminder-switches-test 11/11 |
 | CR-3 | Én postkassefejl → ~4 alarmmails/dag + 3 klokkerækker; "20+ kritiske" forkert tal | DONE (kode) — scanningen henter kun kritiske services (op til 500 rækker, rigtigt antal) og springer services over, der allerede har fået straks-alarm i døgnet; "email sync"-mailen springes over, når straks-alarmen for mail er sendt |
 | CR-4 | Klokke-alarmer løses aldrig; én åben række skjuler senere fejl (fælles nøgle critical:cron) | DONE (kode, delvis) — ny forekomst opdaterer den åbne række (seneste besked, ulæst igen, antal, første/seneste tidspunkt, øverst i listen). Automatisk løsning ved grøn probe = senere |
 | CR-5 | Helbredsoversigt/fakturaprobe kigger kun 1 time tilbage, men kører dagligt | DONE (kode) — fakturaproben har et vindue på 26 t og danske tekster. Live-oversigten (getSystemHealth) bevarer 1 t |
 | CR-6 | Fejl indlejret i cron-svar (summary.errors m.fl.) logges som ok; alle afsendelser fejlet = kun warning | DONE (kode) — bodyStatus gennemgår op til dybde 3: fejl-tal og -lister → warning, failed>0 med sent=0 → error. Unit cron-paused-test 22/22 |
-| CR-7 | Mail-synk uden overlap-værn (dobbelt AI/auto-handlinger) | TODO |
+| CR-7 | Mail-synk uden overlap-værn (dobbelt AI/auto-handlinger) | BLOCKED_APPROVAL [MIGRATION] — lease-kolonne på graph_sync_state (sync_lock_until) med betinget UPDATE pr. postkasse; alternativ uden migration (last_sync_status='running') ville ændre visning i go-live/system-health |
 | CR-8 | Ulæst-tæller højst 20; "markér alle" rammer kun de 20 | DONE (kode) — HEAD-count i notifikations-feedet; markAllAlertsRead i én opdatering. UI U184 |
 | CR-9 | Læst/afvist er fælles for alle brugere | BLOCKED_APPROVAL [MIGRATION] — system_alert_reads |
 | CR-10 | Afviste intelligens-alarmer genopstår hver nat | TODO |
@@ -200,7 +201,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | A-2 | Bankmatch overskrev fakturaens betalingsreference med banktekst | DONE (dc8491e7) — kun invoice_payments.reference |
 | A-3 | Bank-dedup uden afsendernavn → to kunders ens betaling samme dag droppes | BLOCKED_APPROVAL [MIGRATION] — unikt indeks + eksistenstjek inkl. sender_name |
 | A-4 | e-conomic: netværksfejl/timeout frigav kravet → mulig dobbelt bogføring ved genforsøg | TODO (forslag) — behold krav som uncertain + opslag i drafts/booked før ny POST; kræver test mod e-conomic sandbox |
-| A-5 | Mislykket bogføring gemt som draft-N → vist som eksporteret | DONE (visning, venter commit) — status "fejl" + forklaring, intet genforsøg herfra; TODO: eksplicit "bogfør kladden" kræver e-conomic-sandbox-test |
+| A-5 | Mislykket bogføring gemt som draft-N → vist som eksporteret | DONE (visning, f48b9310) — status "fejl" + forklaring, intet genforsøg herfra; TODO: eksplicit "bogfør kladden" kræver e-conomic-sandbox-test |
 | A-6 | e-conomic 'skipped' meldt som "allerede eksporteret" | DONE (dc8491e7) — `describeEconomicSkip` |
 | A-7 | Betaling registreret før eksport bogføres aldrig i e-conomic; ingen krav om cashbook-post | TODO — kræver e-conomic-test (live-skriv) |
 | A-8 | Manuelt bankmatch: kladder/kreditnotaer i søgning, fejl som succes, ingen bekræftelse | DONE (dc8491e7) — filter, bekræftelse, dansk udfald, escapeLike |
