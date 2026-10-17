@@ -319,7 +319,10 @@ export async function sendTaskEmail(
         .update({
           status: 'failed',
           failed_at: new Date().toISOString(),
-          error_message: sendResult.error || 'Ukendt fejl ved afsendelse',
+          // ML-9 (mail-review 2026-10-17): uvist resultat (timeout) markeres tydeligt — mailen kan være sendt
+          error_message: sendResult.uncertain
+            ? `UVIST: ${sendResult.error || 'timeout'} — kontrollér Sendt post før gensendelse`
+            : (sendResult.error || 'Ukendt fejl ved afsendelse'),
         })
         .eq('id', messageRowId)
 
@@ -333,7 +336,9 @@ export async function sendTaskEmail(
 
       return {
         success: false,
-        error: sendResult.error || 'Mail kunne ikke sendes',
+        error: sendResult.uncertain
+          ? 'Mailen er MULIGVIS sendt (svaret udeblev) — kontrollér Sendt post, før du sender igen'
+          : (sendResult.error || 'Mail kunne ikke sendes'),
         thread_id: threadId || undefined,
         message_id: messageRowId,
       }

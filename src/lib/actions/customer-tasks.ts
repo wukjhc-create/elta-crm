@@ -816,6 +816,20 @@ export async function bookBesigtigelse(
       return { success: false, error: taskError?.message ?? 'Kunne ikke oprette opgaven' }
     }
     const taskId = (task as { id: string }).id
+    // ML-9 (mail-review 2026-10-17): tjek-så-indsæt kunne overhales af et samtidigt klik (begge passerede tjekket) → to
+    // bekræftelser + to kalenderinvitationer. Efter indsættelsen vinder kun den ÆLDSTE identiske opgave; taberen fjerner
+    // sin egen og sender intet.
+    {
+      const { data: same } = await supabase.from('customer_tasks').select('id, created_at')
+        .eq('customer_id', customerId).eq('title', title).eq('due_date', date)
+        .gte('created_at', new Date(Date.now() - 2 * 60_000).toISOString())
+        .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(5)
+      const first = ((same ?? []) as Array<{ id: string }>)[0]
+      if (first && first.id !== taskId) {
+        await supabase.from('customer_tasks').delete().eq('id', taskId)
+        return { success: true } // samtidigt klik: den anden anmodning booker og mailer
+      }
+    }
 
     const emailResult = await sendEmailViaGraph({
       to: route.toEmail,
