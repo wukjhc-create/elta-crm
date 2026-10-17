@@ -60,11 +60,14 @@ export async function getCaseScope(ctx: ScopeContext): Promise<CaseScope> {
   const caseIdSet = new Set<string>()
 
   // Kilde 1: cases hvor user direkte er assigned_to / created_by (salg-pattern).
-  const ownCasesRes = await ctx.supabase
+  // PF2-4 (performance-review 2026-10-17): side for side — over 1.000 egne sager mistede vilkårlige sager adgang
+  const ownRows = await fetchAllRows<{ id: string }>((from, to) => ctx.supabase
     .from('service_cases')
     .select('id')
     .or(`assigned_to.eq.${ctx.userId},created_by.eq.${ctx.userId}`)
-  for (const row of ownCasesRes.data ?? []) {
+    .order('id')
+    .range(from, to))
+  for (const row of ownRows) {
     if (row.id) caseIdSet.add(row.id as string)
   }
 
@@ -151,9 +154,33 @@ export async function userCanViewCase(
   caseId: string,
   ctx: ScopeContext
 ): Promise<boolean> {
-  const scope = await getCaseScope(ctx)
-  if (scope.type === 'all') return true
-  return scope.caseIds.includes(caseId)
+  // PF2-4 (performance-review 2026-10-17): samme regler som getCaseScope, men som opslag på ÉN sag (før blev hele
+  // scopet — alle egne sager + alle montørens arbejdsordrer — hentet ved hvert kald, ~40 kaldesteder pr. sidevisning)
+  if (hasPermission(ctx.role, 'cases.view.all')) return true
+  if (!hasPermission(ctx.role, 'cases.view.assigned')) return false
+  const { data: own } = await ctx.supabase
+    .from('service_cases')
+    .select('id')
+    .eq('id', caseId)
+    .or(`assigned_to.eq.${ctx.userId},created_by.eq.${ctx.userId}`)
+    .maybeSingle()
+  if (own) return true
+  const { data: emp } = await ctx.supabase
+    .from('employees')
+    .select('id')
+    .eq('profile_id', ctx.userId)
+    .eq('active', true)
+    .maybeSingle()
+  const employeeId = (emp?.id as string | undefined) ?? null
+  if (!employeeId) return false
+  const { data: wo } = await ctx.supabase
+    .from('work_orders')
+    .select('id')
+    .eq('case_id', caseId)
+    .eq('assigned_employee_id', employeeId)
+    .limit(1)
+    .maybeSingle()
+  return !!wo
 }
 
 /**
