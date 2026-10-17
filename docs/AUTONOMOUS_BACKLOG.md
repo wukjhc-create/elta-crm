@@ -236,7 +236,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | ML-5 | "Gensend" går til standardmodtager uden PDF (S3) | DONE (kode, ikke UI-testet — ville sende mail) — samme modtager (to_email), PDF hvis originalen havde vedhæftning, kun udgående |
 | ML-6 | Eksportfejl-mail i UTC og uescapet API-tekst (S3) | DONE (kode) |
 | ML-7 | "Tilbud accepteret"-mail kun via SMTP (S3, plausibel) | DONE (kode) — Graph via den centrale router som afvisningen; SMTP kun som fallback med resultattjek; U10 |
-| ML-8 | Tilbudsmodtager ≠ indtastet/registreret (S3, plausibel) | TODO |
+| ML-8 | Tilbudsmodtager ≠ indtastet/registreret (S3, plausibel) | DONE (kode, ikke UI-testet — ville sende mail) — sent_quotes og opfølgningsteksten registrerer den faktiske modtager |
 | ML-9 | Ingen idempotens på opgavemail/booking/quote (S3) | DELVIS (kode, ikke UI-testet — ville sende mail) — booking: kun ældste identiske opgave mailer; opgavemail: uvist resultat markeres tydeligt. Quote-guard = TODO |
 | ML-10 | Sagsbekræftelse hilser på forkert person (S4) | DONE (kode) — route.toName |
 | ML-11 | sendEmailToCustomer escaper kun < og > (S4) | DONE (kode) |

@@ -178,6 +178,9 @@ export async function generateAndSendQuote(
 
     let emailResult: { success: boolean; error?: string }
 
+    // ML-8 (mail-review 2026-10-17): routeren kan vælge en anden adresse (faktureringskontakt/kundens mail) end den
+    // indtastede — registrering og opfølgningstekst skal vise den, mailen faktisk gik til
+    let actualRecipient: string = input.customer.email
     if (!isGraphConfigured()) {
       logger.error('Microsoft Graph not configured — cannot send email')
       emailResult = { success: false, error: 'Microsoft Graph er ikke konfigureret. Sæt AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET.' }
@@ -197,6 +200,7 @@ export async function generateAndSendQuote(
         emailResult = { success: false, error: routeResult.error || 'Kunne ikke bygge mail-route' }
       } else {
         const route = routeResult.route
+        actualRecipient = route.toEmail // ML-8: det faktiske modtagerfelt registreres (ikke det indtastede)
         emailResult = await sendEmailViaGraph({
           to: route.toEmail,
           subject: emailSubject,
@@ -232,7 +236,7 @@ export async function generateAndSendQuote(
           quote_reference: quoteReference,
           template_type: input.templateType,
           customer_id: input.customerId || null,
-          customer_email: input.customer.email,
+          customer_email: actualRecipient,
           customer_name: input.customer.contactPerson,
           customer_company: input.customer.companyName,
           incoming_email_id: incomingEmailId || null,
@@ -277,7 +281,7 @@ export async function generateAndSendQuote(
           customer_id: input.customerId,
           offer_id: null,
           title: `Følg op: ${input.title} (${quoteReference}) — intet svar modtaget`,
-          description: `Automatisk opfølgning oprettet ved afsendelse af tilbud ${quoteReference} til ${input.customer.email}.`,
+          description: `Automatisk opfølgning oprettet ved afsendelse af tilbud ${quoteReference} til ${actualRecipient}.`,
           priority: 'normal',
           assigned_to: userId,
           reminder_at: reminderDate.toISOString(),
