@@ -49,11 +49,19 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
 
     const wos: unknown[] = []
     for (let k = 0; k < list.length; k += 200) {
-      const { data, error: woErr } = await supabase
-        .from('work_orders')
-        .select('case_id, status, scheduled_date, assigned_employee_id')
-        .in('case_id', list.slice(k, k + 200).map((c) => c.id))
-      if (woErr) {
+      // PF2-8 (performance-review 2026-10-17): 1:N — hver bid side for side (200 sager × 6 ordrer > 1.000-loftet gav
+      // falsk "Ingen arbejdsordre")
+      const chunkIds = list.slice(k, k + 200).map((c) => c.id)
+      const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+      let data: unknown[]
+      try {
+        data = await fetchAllRows((f, t) => supabase
+          .from('work_orders')
+          .select('id, case_id, status, scheduled_date, assigned_employee_id')
+          .in('case_id', chunkIds)
+          .order('id')
+          .range(f, t))
+      } catch (woErr) {
         logger.error('getPlanningBacklogAction: work_orders failed', { error: woErr })
         return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
       }

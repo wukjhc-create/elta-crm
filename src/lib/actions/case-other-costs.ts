@@ -74,13 +74,16 @@ export async function listCaseOtherCosts(
     // (Vi genbruger materials-permission da samme rolle-kreds har behov.)
     const canSeeCostPrices = hasPermission('materials.view.cost_prices')
 
-    const { data, error } = await supabase
+    // PF2-5 (performance-review 2026-10-17): alle rækker (før .limit(500) → totaler regnet på et udsnit)
+    const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+    const { data, error } = await fetchAllRows((f, t) => supabase
       .from('case_other_costs')
       .select(SELECT_COLUMNS)
       .eq('case_id', caseId)
       .order('cost_date', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(500)
+      .order('id')
+      .range(f, t)).then((rows) => ({ data: rows, error: null as { message: string } | null }), (e: Error) => ({ data: null, error: { message: e.message } }))
 
     if (error) {
       logger.error('listCaseOtherCosts failed', { error, entityId: caseId })

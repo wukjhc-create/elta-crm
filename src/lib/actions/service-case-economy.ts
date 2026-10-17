@@ -618,9 +618,10 @@ export async function getServiceCaseBillingStatus(
         ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
         : // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
           fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).neq('approval_status', 'rejected').order('id').range(f, t)).then((data) => ({ data })),
-      supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
-      supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
-      supabase.from('invoices').select('total_amount, status, invoice_type, voided_at').eq('case_id', caseId),
+      // PF2-5 (performance-review 2026-10-17): side for side (1.000-loftet gav "Fuldt faktureret" på store sager)
+      fetchAllRows((f, t) => supabase.from('case_materials').select('id, total_sales_price, billable, invoice_line_id').eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data })),
+      fetchAllRows((f, t) => supabase.from('case_other_costs').select('id, total_sales_price, billable, invoice_line_id').eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data })),
+      fetchAllRows((f, t) => supabase.from('invoices').select('id, total_amount, status, invoice_type, voided_at').eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data })),
     ])
 
     // X1: samme optælling og prisregel som lukke-værnet og fakturaen (summarizeUnbilled → priceTimeLog)

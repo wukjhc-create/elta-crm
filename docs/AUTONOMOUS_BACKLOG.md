@@ -67,11 +67,11 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PF2-2 | incoming-invoices genparser alle PDF'er fra 72 t hver kørsel (S2 ved vækst) | TODO |
 | PF2-3 | "Kræver svar": .in() med lange conversation-id'er i bidder á 200 + ubegrænset kandidatscan (S2) | TODO |
 | PF2-4 | Sags-scope: egne sager højst 1.000 og genberegnet pr. action (S2) | DONE (87815583) — userCanViewCase som ét-rækkeopslag; egne sager pagineret. UI montør/salg 18/18 |
-| PF2-5 | Lukke-værn/faktureringsstatus læser materialer/øvrige uden paginering (S2) | TODO |
-| PF2-6 | intelligence-check: mange sekventielle dublettjek; hængende sync-log (completed_at NULL) skjuler forældet-alarm (S3) | TODO |
+| PF2-5 | Lukke-værn/faktureringsstatus læser materialer/øvrige uden paginering (S2) | DONE (kode) — lukke-værn, faktureringsstatus og øvrige omkostninger pagineret (fetchAllRows) |
+| PF2-6 | intelligence-check: mange sekventielle dublettjek; hængende sync-log (completed_at NULL) skjuler forældet-alarm (S3) | DONE (kode) — én prisændrings-advarsel pr. tilbud; sync-log uden completed_at ignoreres |
 | PF2-7 | Dashboard henter alle afsluttede timer og accepterede tilbud pr. visning (S3) | TODO (aggregat) |
-| PF2-8 | Planlægningsbacklog: arbejdsordreopslag afkortes ved 1.000; kalender venter på det (S3) | TODO |
-| PF2-9 | Kalenderens månedsvisning henter op til 1.000 nyeste besigtigelser i stedet for måneden (S3/S4) | TODO |
+| PF2-8 | Planlægningsbacklog: arbejdsordreopslag afkortes ved 1.000; kalender venter på det (S3) | DONE (kode) — arbejdsordreopslag side for side pr. bid |
+| PF2-9 | Kalenderens månedsvisning henter op til 1.000 nyeste besigtigelser i stedet for måneden (S3/S4) | TODO — månedsvisningen navigerer i klienten med alle opgaver; kræver hentning pr. måned ved navigation |
 
 ## NEXT-33 (review-bølge 2026-10-17 aften — tilbud, kalkulation, sol)
 | # | Fund | Status |

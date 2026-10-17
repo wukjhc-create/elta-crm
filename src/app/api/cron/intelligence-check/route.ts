@@ -229,6 +229,7 @@ async function handleCron(request: Request): Promise<Response> {
         for (const a of existingMarginAlerts || []) offersWithMarginAlerts.add(a.entity_id)
       }
 
+      const offersAlerted = new Set<string>() // PF2-6
       for (const offer of activeOffers) {
         const lineItems = offer.line_items || []
         // kost = kostpris × antal (før enhedskost mod linjetotal → marginen blev overvurderet, se offer-margin.ts)
@@ -263,11 +264,16 @@ async function handleCron(request: Request): Promise<Response> {
         )
         for (const item of supplierItems) {
           if (!item.supplier_product_id) continue
+          if (offersAlerted.has(offer.id)) break // PF2-6
 
           const currentProduct = supplierProductMap.get(item.supplier_product_id)
           if (currentProduct && item.cost_price) {
             const priceDiff = ((currentProduct.cost_price - item.cost_price) / item.cost_price) * 100
             if (Math.abs(priceDiff) > MONITORING_CONFIG.PRICE_CHANGE_OFFER_THRESHOLD) {
+              // PF2-6 (performance-review 2026-10-17): én advarsel pr. tilbud (samme titel/emne → dubletsikringen ville
+              // alligevel afvise resten, men efter én tælleforespørgsel pr. linje, hver nat)
+              if (offersAlerted.has(offer.id)) continue
+              offersAlerted.add(offer.id)
               await insertAlert({
                 alert_type: priceDiff > 0 ? 'price_increase' : 'price_decrease',
                 severity: 'warning',
@@ -303,10 +309,13 @@ async function handleCron(request: Request): Promise<Response> {
       // Batch-load last sync per supplier to avoid N+1 queries
       const supplierIds = suppliers.map(s => s.id)
 
+      // PF2-6: kun afsluttede kørsler — en hængende/igangværende log (completed_at NULL sorteres først ved DESC) gav
+      // "seneste synk" = NaN dage, så forældet-/fejl-advarslen aldrig udløstes
       const { data: allSyncLogs } = await supabase
         .from('supplier_sync_logs')
         .select('supplier_id, completed_at, status')
         .in('supplier_id', supplierIds)
+        .not('completed_at', 'is', null)
         .order('completed_at', { ascending: false })
 
       // Build map of supplier_id → most recent sync log
