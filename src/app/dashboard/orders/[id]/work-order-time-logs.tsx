@@ -607,7 +607,7 @@ export function WorkOrderTimeLogs({
                         </span>
                       )}
                       {isRejected && canEditOwn && fixId !== l.id && (
-                        <span className="ml-2 inline-flex gap-1">
+                        <span className="ml-2 hidden md:inline-flex gap-1">
                           <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="text-xs px-3 py-2 sm:text-[11px] sm:px-1.5 sm:py-0.5 rounded border border-gray-300 hover:bg-white" data-testid="time-log-fix">Ret</button>
                           <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="text-xs px-3 py-2 sm:text-[11px] sm:px-1.5 sm:py-0.5 rounded border border-red-200 text-red-700 hover:bg-red-50" data-testid="time-log-delete-rejected">Slet</button>
                         </span>
@@ -619,6 +619,14 @@ export function WorkOrderTimeLogs({
                       <td colSpan={20} className="pb-2 pr-2 text-xs text-red-800">
                         <span className="uppercase text-[10px] bg-red-100 px-1.5 py-0.5 rounded mr-1">Afvist</span>
                         {(l as { rejection_reason?: string | null }).rejection_reason ?? 'Ingen begrundelse'}
+                        {/* MB-6 (mobil-review 2026-10-17): på telefon står Ret/Slet her (fuld bredde) — før lå de i tabellens
+                            sidste kolonne, kun nåelige ved at rulle sidelæns */}
+                        {canEditOwn && fixId !== l.id && (
+                          <span className="mt-2 flex gap-2 md:hidden">
+                            <button type="button" onClick={() => startFix(l)} disabled={isWorking} className="flex-1 min-h-11 text-sm px-3 rounded border border-gray-300 bg-white" data-testid="time-log-fix-mobile">Ret</button>
+                            <button type="button" onClick={() => deleteRejected(l)} disabled={isWorking} className="flex-1 min-h-11 text-sm px-3 rounded border border-red-200 bg-white text-red-700" data-testid="time-log-delete-rejected-mobile">Slet</button>
+                          </span>
+                        )}
                         {fixId === l.id && (
                           <div className="mt-2 flex flex-wrap items-end gap-2 text-gray-800" data-testid="time-log-fix-form">
                             <label className="flex flex-col">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-1 py-0.5" /></label>
