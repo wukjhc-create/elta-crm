@@ -19,6 +19,7 @@ import type { CalculationItem } from './CalculationPreview'
 import { formatCurrency } from '@/lib/utils/format'
 import { calculateDBAmount, calculateDBPercentage } from '@/lib/logic/pricing'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { generateCsv, downloadCsv, csvCurrency } from '@/lib/utils/csv-export'
 
 interface MaterialSummaryProps {
   items: CalculationItem[]
@@ -158,22 +159,26 @@ export function MaterialSummary({ items, className = '' }: MaterialSummaryProps)
   }
 
   // Export as CSV
+  // RP-5 (rapport-review 2026-10-17): fælles CSV-værktøj — semikolon, UTF-8 BOM, danske decimaler og escaping af
+  // anførselstegn/formler (før komma-separeret uden BOM: én kolonne og ødelagte æøå i dansk Excel, og 3/4" brød rækken)
   const handleExportCSV = () => {
-    const header = 'Materiale,Antal,Enhed,Kostpris pr. stk,Salgspris pr. stk,Total kostpris,Total salgspris,Brugt i\n'
-    const rows = filteredMaterials
-      .map(
-        (mat) =>
-          `"${mat.name}",${mat.totalQuantity},"${mat.unit}",${mat.costPrice.toFixed(2)},${mat.salePrice.toFixed(2)},${mat.totalCost.toFixed(2)},${mat.totalSale.toFixed(2)},"${mat.usedIn.join(', ')}"`
-      )
-      .join('\n')
-
-    const totalRow = `\n"TOTAL",,,,,${totals.totalCost.toFixed(2)},${totals.totalSale.toFixed(2)},`
-
-    const blob = new Blob([header + rows + totalRow], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `materialer-${copenhagenParts(new Date()).date}.csv`
-    link.click()
+    type Row = { name: string; qty: number | string; unit: string; cost: number | null; sale: number | null; totalCost: number; totalSale: number; usedIn: string }
+    const rows: Row[] = filteredMaterials.map((mat) => ({
+      name: mat.name, qty: mat.totalQuantity.toLocaleString('da-DK'), unit: mat.unit, cost: mat.costPrice, sale: mat.salePrice,
+      totalCost: mat.totalCost, totalSale: mat.totalSale, usedIn: mat.usedIn.join(', '),
+    }))
+    rows.push({ name: 'TOTAL', qty: '', unit: '', cost: null, sale: null, totalCost: totals.totalCost, totalSale: totals.totalSale, usedIn: '' })
+    const csv = generateCsv<Row>(rows, [
+      { header: 'Materiale', accessor: (r) => r.name },
+      { header: 'Antal', accessor: (r) => r.qty },
+      { header: 'Enhed', accessor: (r) => r.unit },
+      { header: 'Kostpris pr. stk', accessor: (r) => csvCurrency(r.cost) },
+      { header: 'Salgspris pr. stk', accessor: (r) => csvCurrency(r.sale) },
+      { header: 'Total kostpris', accessor: (r) => csvCurrency(r.totalCost) },
+      { header: 'Total salgspris', accessor: (r) => csvCurrency(r.totalSale) },
+      { header: 'Brugt i', accessor: (r) => r.usedIn },
+    ])
+    downloadCsv(csv, `materialer-${copenhagenParts(new Date()).date}.csv`)
   }
 
   if (consolidatedMaterials.length === 0) {
