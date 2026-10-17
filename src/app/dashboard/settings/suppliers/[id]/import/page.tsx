@@ -4,6 +4,9 @@ import { getSupplier } from '@/lib/actions/suppliers'
 import { ImportPageClient } from './import-page-client'
 
 export const dynamic = 'force-dynamic'
+// SU-7 (review 2026-10-17): importens server-action kører under sidens tidsloft — store prisfiler skal have tid
+// (executeImport stopper selv pænt efter IMPORT_TIME_BUDGET_MS)
+export const maxDuration = 300
 
 interface ImportPageProps {
   params: Promise<{ id: string }>

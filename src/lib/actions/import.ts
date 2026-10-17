@@ -27,6 +27,11 @@ import { dedupeRowsBySku } from '@/lib/import/dedupe-sku'
  * kostpriser via direkte server-action-kald). Kraever nu settings.suppliers (admin) — samme gate som credentials.
  * Laese-actions (produktsoegning i tilbud/kalkulation) er uaendrede.
  */
+/** SU-7: under sidens maxDuration (300 s) med margin til afslutning */
+const IMPORT_TIME_BUDGET_MS = 240_000
+/** SU-7: "processing" længere end dette = afbrudt */
+const STALE_IMPORT_MINUTES = 15
+
 async function requireSupplierWrite() {
   const ctx = await getAuthenticatedClientWithRole()
   ctx.requirePermission('settings.suppliers')
@@ -217,6 +222,18 @@ export async function executeImport(
       .eq('supplier_id', supplierId)
       .maybeSingle()
 
+    // SU-7 (review 2026-10-17): en import der blev afbrudt af platformens tidsloft blev hængende i "processing" for
+    // altid. Batches uden afslutning efter STALE_IMPORT_MINUTES markeres som fejlet (før en ny import starter).
+    await supabase
+      .from('import_batches')
+      .update({
+        status: 'failed',
+        errors: [{ row: 0, message: 'Importen blev afbrudt (tidsloft/fejl) uden at blive afsluttet — kør den igen' }],
+        completed_at: new Date().toISOString(),
+      })
+      .eq('status', 'processing')
+      .lt('started_at', new Date(Date.now() - STALE_IMPORT_MINUTES * 60_000).toISOString())
+
     // Create import batch record
     const { data: batch, error: batchError } = await supabase
       .from('import_batches')
@@ -327,9 +344,15 @@ export async function executeImport(
       let updatedProducts = 0
       let failedInsertRows = 0
       const insertErrors: Array<{ row: number; message: string }> = []
+      const importStart = Date.now()
+      let processedValid = 0
+      let stoppedByBudget = false
 
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+        // SU-7: stop pænt før platformens tidsloft — batchen afsluttes med status og antal i stedet for at hænge
+        if (Date.now() - importStart > IMPORT_TIME_BUDGET_MS) { stoppedByBudget = true; break }
         const rowBatch = validRows.slice(i, i + BATCH_SIZE)
+        processedValid += rowBatch.length
         const now = new Date().toISOString()
 
         // Separate updates from inserts
@@ -468,18 +491,24 @@ export async function executeImport(
         status: 'completed',
       }
       if (failedInsertRows > 0) result.skipped_rows += failedInsertRows
+      if (stoppedByBudget) {
+        // SU-7: delvis import — ærligt som fejlet med hvor langt den nåede (allerede opdaterede varer er gemt;
+        // en ny kørsel af samme fil er sikker: opdateringer er idempotente og kendte varer oprettes ikke igen)
+        result.status = 'failed'
+        result.errors.unshift({ row: 0, message: `Importen stoppede efter tidsbudgettet: ${processedValid} af ${validRows.length} gyldige rækker behandlet — kør filen igen for resten` })
+      }
 
       // Update batch with final results
       await supabase
         .from('import_batches')
         .update({
           total_rows: result.total_rows,
-          processed_rows: result.total_rows,
+          processed_rows: stoppedByBudget ? processedValid : result.total_rows,
           new_products: result.new_products,
           updated_products: result.updated_products,
           skipped_rows: result.skipped_rows,
           errors: result.errors,
-          status: 'completed',
+          status: result.status,
           completed_at: new Date().toISOString(),
         })
         .eq('id', batch.id)

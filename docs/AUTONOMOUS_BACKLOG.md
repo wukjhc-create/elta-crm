@@ -54,7 +54,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | SU-4 | LM-faktura-SFTP henter hele 30-dages-vinduet hver kørsel; ingen tidsbudget (S2) | TODO |
 | SU-5 | lemu-sync nulstiller EAN/underkategori/producent/listepris/kategori (S3) | DONE (kode) — opdatering sender ikke kategori/underkategori/EAN/producent; listepris falder tilbage til eksisterende |
 | SU-6 | Vedhæftet PDF på mailfaktura erstatter ikke værdier læst fra brødteksten (S3) | DONE (kode) — vedhæftet PDF nulstiller mailtekstens header-værdier (ikke ved header_edited). cli invoice-attach-reset-check 2/2 |
-| SU-7 | Stor manuel prisfil-import kan afbrydes midtvejs; batch hænger i "processing" (S3) | TODO |
+| SU-7 | Stor manuel prisfil-import kan afbrydes midtvejs; batch hænger i "processing" (S3) | FIXED (kode) — importsiden maxDuration 300, executeImport stopper pænt efter 240 s (status failed + antal), hængende "processing" >15 min markeres fejlet ved næste import; wizard viser delvis import (U17 PASS) |
 | SU-8 | Samme AO-faktura aktiv to gange (mail uden leverandør + API) (S3) | FIXED (kode, b0ea6b35) — API-ingest tjekker aktiv mail-kopi uden leverandør (nr.+beløb) → dublet + audit |
 | SU-9 | Import af produkter fra API-søgning ændrer kostpris uden prishistorik (S4) | DONE (kode) — prishistorik (api_sync) ved kostændring fra API-import |
 

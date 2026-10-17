@@ -121,10 +121,15 @@ export function ImportWizard({
         setResult(importResult.data)
         if (!dryRun) {
           setStep('complete')
-          toast.success(
-            'Import gennemført',
-            `${importResult.data.new_products} nye, ${importResult.data.updated_products} opdaterede`
-          )
+          // SU-7: importen kan stoppe pænt ved tidsbudgettet (delvis) — sig det i stedet for "gennemført"
+          if (importResult.data.status === 'failed') {
+            toast.error('Import ikke færdig', importResult.data.errors[0]?.message ?? 'Kør filen igen for resten')
+          } else {
+            toast.success(
+              'Import gennemført',
+              `${importResult.data.new_products} nye, ${importResult.data.updated_products} opdaterede`
+            )
+          }
         }
       } else {
         toast.error('Import fejlede', importResult.error)
@@ -391,10 +396,15 @@ export function ImportWizard({
       {/* Step 4: Complete */}
       {step === 'complete' && result && (
         <div className="space-y-4">
+          {result.status === 'failed' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800" data-testid="import-partial">
+              {result.errors[0]?.message ?? 'Importen blev ikke færdig — kør filen igen for resten'}
+            </div>
+          )}
           {/* Success message */}
           <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
             <Check className="w-16 h-16 mx-auto mb-4 text-green-500" />
-            <h3 className="text-lg font-medium text-green-800 mb-2">Import gennemført</h3>
+            <h3 className="text-lg font-medium text-green-800 mb-2">{result.status === 'failed' ? 'Import delvist gennemført' : 'Import gennemført'}</h3>
             <p className="text-sm text-green-700">
               {result.new_products} nye produkter og {result.updated_products} opdateringer
             </p>
