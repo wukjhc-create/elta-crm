@@ -3667,21 +3667,26 @@ ${m.text()}`) })
           contact_person: 'Fremmed', email: `u188-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
         const foreignId = (fc.data?.[0] as { id?: string } | undefined)?.id ?? null
         const docIns = foreignId ? await c.admin.from('customer_documents').insert([
-          { customer_id: foreignId, service_case_id: null, title: `CU1 fremmed ${stamp}`, document_type: 'other', file_url: '', file_name: `cu1-fremmed-${stamp}.pdf`, mime_type: 'application/pdf' },
-          { customer_id: profitCustomerId, service_case_id: null, title: `CU1 egen ${stamp}`, document_type: 'other', file_url: '', file_name: `cu1-egen-${stamp}.pdf`, mime_type: 'application/pdf' },
+          // fanen viser kun "øvrige" dokumenter med file_url (kun et link — hentes ikke)
+          { customer_id: foreignId, service_case_id: null, title: `CU1 fremmed ${stamp}`, document_type: 'other', file_url: 'https://example.invalid/cu1.pdf', file_name: `cu1-fremmed-${stamp}.pdf`, mime_type: 'application/pdf' },
+          { customer_id: profitCustomerId, service_case_id: null, title: `CU1 egen ${stamp}`, document_type: 'other', file_url: 'https://example.invalid/cu1.pdf', file_name: `cu1-egen-${stamp}.pdf`, mime_type: 'application/pdf' },
         ]).select('id') : null
         const docIds = ((docIns?.data ?? []) as Array<{ id: string }>).map((x) => x.id)
         r.seed = !!foreignId && docIds.length === 2
         try {
           const sees = async (pg: import('playwright').Page, custId: string, title: string) => {
             await gotoSafe(pg, `${base}/dashboard/customers/${custId}?tab=dokumenter`, { waitUntil: 'networkidle', timeout: 180_000 })
-            await pg.getByText(title).first().waitFor({ timeout: 20_000 }).catch(() => {})
-            return (await pg.getByText(title).count()) > 0
+            const fileName = title.replace('CU1 ', 'cu1-') + '.pdf'
+            const hit = pg.getByText(title).or(pg.getByText(fileName))
+            await hit.first().waitFor({ timeout: 20_000 }).catch(() => {})
+            return (await hit.count()) > 0
           }
           if (foreignId) {
             r.montoer_ser_ikke_fremmed = !(await sees(m.page, foreignId, `CU1 fremmed ${stamp}`))
             r.montoer_ser_egen_kunde = await sees(m.page, profitCustomerId, `CU1 egen ${stamp}`)
-            r.salg_ser_fremmed = await sees(s.page, foreignId, `CU1 fremmed ${stamp}`)
+            const sp = await login(salg)
+            r.salg_ser_fremmed = await sees(sp.page, foreignId, `CU1 fremmed ${stamp}`)
+            await sp.ctx.close().catch(() => {})
           }
         } finally {
           if (docIds.length) await c.admin.from('customer_documents').delete().in('id', docIds)

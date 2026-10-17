@@ -29,6 +29,8 @@
 | b0ea6b35 / a22dfb5f | SU-8 API-faktura ikke dublet af mail-kopi uden leverandør; SU-3 historik pr. lykket batch (supplier-sync + manuel) |
 | dd32d5ec | SU-7 prisfil-import med tidsbudget, ingen hængende "processing" (U17) |
 | d4043622 | SU-1 manuel LEMU-synk = cronens bulk-anvendelse (`lib/suppliers/lemu-apply.ts`, unit-test); SU-4 LM-faktura-SFTP springer indlæste filer over + budget |
+| 56a44e1a | API-1/2/3/5/6/7/8 API-ruter (SFTP-adgangskode ikke længere i svar, byte-sikker hemmeligheds-sammenligning, m.m.); UI-full 160/160 |
+| 283c3879 | CU-1/2/3/4/7/8/9/10 kundemodul (U188) |
 
 Ikke lavet (tilladelse): DF-1-værnet i create-invoice-from-offer.ts blev afvist af auto-mode-værnet to gange. Patchen står i
 docs/runbooks/auto-invoice-offer-guard-proposal.md. Reglen er dry_run i prod.
@@ -138,6 +140,11 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
   - 00243 solar-kostpris
   - 00244 kostkolonner i AI-/kalkulationstabeller
   - 00245 slutfaktura-indeks uden annullerede
+- **NEXT-38 (2026-10-17 eftermiddag)**:
+  - **CU-5 montørens kundeadgang** — montøren ser hele kunderegistret (kontaktdata, interne noter). Afgrænse til kunder på egne sager? (ændrer adgang)
+  - **CU-8 hvem må oprette kundeopgaver** — i dag alle med customers.view (også montør/bogholderi). Kræv customers.edit/tasks.create?
+  - **API-4/SEC2-6 per-IP-loft på den offentlige kontaktformular** [MIGRATION/KV]
+  - **API-1 opfølgning (drift)**: `/api/admin/test-lemu` udleverede indtil 56a44e1a LEMU-SFTP-adgangskoden til enhver med CRON_SECRET. Har nogen kaldt ruten, bør LEMU-adgangskoden roteres
 - **PM-7 fuldmagtsrykker til den tiltænkte underskriver** (ændrer modtager af en live-rykker) + link til portalen
 - **OF-3 insert_package_into_offer** [MIGRATION] — funktionen skriver til total_price (findes ikke); omskriv eller fjern
 - **TP-6 timer på fraværsdag** — blokér, eller tillad med markering/audit på godkendelsesrækken?
