@@ -314,10 +314,15 @@ export async function createCustomerInEconomic(
   }
 
   const externalId = String(res.data.customerNumber)
-  await supabase
+  // EC-5: fejltjek + kun når kunden ikke er koblet imens (ellers overskrev en samtidig kørsel den anden debitor)
+  const { error: custLinkErr } = await supabase
     .from('customers')
     .update({ external_customer_id: externalId, external_provider: PROVIDER })
     .eq('id', customerId)
+    .is('external_customer_id', null)
+  if (custLinkErr) {
+    logger.error('e-conomic: debitor oprettet, men linket kunne ikke gemmes', { entityId: customerId, metadata: { externalId }, error: custLinkErr })
+  }
 
   await logAttempt({
     entity_type: 'customer',
@@ -363,6 +368,20 @@ export async function createInvoiceInEconomic(
   if (pendingClaim && Date.now() - Number(pendingClaim.slice(EXPORT_CLAIM_PREFIX.length)) < EXPORT_CLAIM_STALE_MS) {
     await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'skip', status: 'skipped', error_message: 'export in progress' })
     return { ok: false, status: 'skipped', reason: 'export in progress' }
+  }
+  // EC-5 (e-conomic-review 2026-10-17): et hængt krav efter en LYKKET eksport (linket kunne ikke gemmes) må aldrig føre
+  // til en ny postering — findes en succes-log med e-conomic-nummer, genskabes linket i stedet
+  if (pendingClaim) {
+    const { data: done } = await supabase.from('accounting_sync_log').select('external_id')
+      .eq('entity_type', 'invoice').eq('entity_id', invoiceId).eq('action', 'create').eq('status', 'success')
+      .not('external_id', 'is', null).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    const prevExternal = (done as { external_id?: string | null } | null)?.external_id
+    if (prevExternal) {
+      await supabase.from('invoices').update({ external_invoice_id: prevExternal, external_provider: PROVIDER })
+        .eq('id', invoiceId).eq('external_invoice_id', pendingClaim)
+      await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'skip', status: 'skipped', external_id: prevExternal, error_message: 'already exported (link restored from log)' })
+      return { ok: true, status: 'skipped', externalId: prevExternal }
+    }
   }
 
   // Idempotency.
@@ -531,10 +550,19 @@ export async function createInvoiceInEconomic(
   }
 
   const externalId = bookedNumber || `draft-${draftNumber}`
-  await supabase
-    .from('invoices')
-    .update({ external_invoice_id: externalId, external_provider: PROVIDER })
-    .eq('id', invoiceId)
+  // EC-5: linket SKAL gemmes (ellers blev kravet forældet og en ny kørsel postede igen). Bundet til eget krav; ét
+  // genforsøg; derefter kritisk log — succes-loggen nedenfor gør, at et senere forsøg genskaber linket (se ovenfor).
+  const saveLink = () => supabase.from('invoices').update({ external_invoice_id: externalId, external_provider: PROVIDER })
+    .eq('id', invoiceId).eq('external_invoice_id', claimValue).select('id')
+  let linkRes = await saveLink()
+  if (linkRes.error || !linkRes.data?.length) linkRes = await saveLink()
+  if (linkRes.error || !linkRes.data?.length) {
+    logger.error('e-conomic: faktura eksporteret, men linket kunne ikke gemmes', { entityId: invoiceId, metadata: { externalId }, error: linkRes.error ?? undefined })
+    try {
+      const { logHealth } = await import('@/lib/services/system-health')
+      await logHealth('economic', 'error', `Faktura eksporteret som ${externalId}, men linket blev ikke gemt i CRM — eksportér IKKE igen; ret linket`, { invoiceId, externalId })
+    } catch { /* never crash */ }
+  }
 
   await logAttempt({
     entity_type: 'invoice',

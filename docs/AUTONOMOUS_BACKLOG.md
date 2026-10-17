@@ -231,7 +231,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | EC-2 | Afsendelse/godkendelse/automatik eksporterer til e-conomic som sideeffekt (også serviceleder uden settings.economic) (S2) | BESLUTNING (Henrik) — skal eksport kun ske via den eksplicitte "Eksportér"-knap? |
 | EC-3 | Leverandør-"Bogfør": kill switch/manglende konto meldt som "allerede bogført" (S2) | DONE (kode) |
 | EC-4 | Kreditnotaer når aldrig e-conomic og markeres ingen steder (S2) | DONE (kode) — regnskabs-widgeten tæller kreditnotaer på eksporterede fakturaer ("skal krediteres manuelt i e-conomic"); forhåndsvisningsteksten rettet |
-| EC-5 | Skrivninger efter lykket eksport fejltjekkes ikke → mulig dobbelt bogføring (S2, plausibel) | TODO |
+| EC-5 | Skrivninger efter lykket eksport fejltjekkes ikke → mulig dobbelt bogføring (S2, plausibel) | DONE (kode, ikke end-to-end-testet — kræver e-conomic-sandbox) — linket fejltjekkes og bindes til kravet (+1 genforsøg, ellers kritisk helbredslog); et forældet krav med succes-log genskaber linket i stedet for at poste igen; debitor-link kun når kunden ikke er koblet |
 | EC-6 | Samtidige eksporter kan oprette to debitorer (S3) | TODO |
 | EC-7 | Samtidige betalingsregistreringer kan poste to gange (S3) | DELVIS — EC-1 fjerner den automatiske vej; manuel claim = TODO |
 | EC-8 | Moms kontrolleres ikke før bogføring (S3) | TODO |
