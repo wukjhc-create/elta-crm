@@ -1194,7 +1194,12 @@ export async function updateTeamMember(
 // Invitationer bygger på Supabase Auth (statisk skematjek 2026-10-06: tabellen team_invitations findes ikke i prod —
 // listen var altid tom, og gensend/annullér virkede aldrig). En afventende invitation = auth-bruger med invited_at og
 // uden første login. Ingen ny tabel; intet slettes herfra.
-type AuthInviteUser = { id: string; email?: string; invited_at?: string | null; last_sign_in_at?: string | null; user_metadata?: Record<string, unknown> }
+type AuthInviteUser = { id: string; email?: string; invited_at?: string | null; last_sign_in_at?: string | null; banned_until?: string | null; user_metadata?: Record<string, unknown> }
+
+/** TM-8 (team-review 2026-10-17): spærret (deaktiveret) bruger — vises ikke som afventende og kan ikke få nyt link */
+function isBanned(u: AuthInviteUser): boolean {
+  return !!u.banned_until && Date.parse(u.banned_until) > Date.now()
+}
 
 async function listPendingInviteUsers(admin: ReturnType<typeof createAdminClient>): Promise<AuthInviteUser[]> {
   const out: AuthInviteUser[] = []
@@ -1202,7 +1207,7 @@ async function listPendingInviteUsers(admin: ReturnType<typeof createAdminClient
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
     if (error) throw error
     const users = (data?.users ?? []) as AuthInviteUser[]
-    out.push(...users.filter((u) => !!u.invited_at && !u.last_sign_in_at && !!u.email))
+    out.push(...users.filter((u) => !!u.invited_at && !u.last_sign_in_at && !!u.email && !isBanned(u)))
     if (users.length < 200) break
   }
   return out
@@ -1416,6 +1421,10 @@ export async function resendInvitation(invitationId: string): Promise<ActionResu
     const u = got?.user as AuthInviteUser | undefined
     if (getErr || !u?.email || !u.invited_at || u.last_sign_in_at) {
       return { success: false, error: 'Invitation ikke fundet (brugeren er måske allerede logget ind)' }
+    }
+    // TM-8: en deaktiveret bruger får ikke et nyt (ubrugeligt) link — aktivér brugeren først
+    if (isBanned(u)) {
+      return { success: false, error: 'Brugeren er deaktiveret — aktivér brugeren under Team, før invitationen gensendes' }
     }
 
     // Nyt link erstatter det gamle token (det tidligere link er ikke længere aktivt); Graph sender, Supabase-SMTP kun som fallback

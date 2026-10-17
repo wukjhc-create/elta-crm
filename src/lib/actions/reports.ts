@@ -617,8 +617,8 @@ export async function getTeamProductivity(
       return { success: false, error: 'Manglende tilladelse: economy.view' }
     }
 
-    const since = new Date()
-    since.setMonth(since.getMonth() - months)
+    // RP-9 (rapport-review 2026-10-17): faste 30-dages-perioder (UI: "seneste 30 dage") — setMonth gav 28–31 dage
+    const since = new Date(Date.now() - months * 30 * 86_400_000)
 
     // N26b: medarbejdernes timer fra time_logs (før: den gamle time_entries-tabel)
     // HR-review 2026-10-08 (#7): side for side (før afkortet ved 1.000) og navne via admin-klienten efter gaten
@@ -632,7 +632,12 @@ export async function getTeamProductivity(
       .order('id')
       .range(f, t)).catch(() => [] as Record<string, unknown>[])
     const empIds = [...new Set(logs.map((l) => l.employee_id as string).filter(Boolean))]
-    const { data: emps } = empIds.length ? await createAdminClient().from('employees').select('id, name').in('id', empIds) : { data: [] }
+    // RP-9: navne i bidder (> ~350 id'er i én .in() fejlede tavst → alle "Ukendt")
+    const { selectInChunks } = await import('@/lib/supabase/in-chunks')
+    const adminForNames = createAdminClient()
+    const emps = empIds.length
+      ? await selectInChunks<{ id: string; name: string | null }>(empIds, (chunk) => adminForNames.from('employees').select('id, name').in('id', chunk)).catch(() => [] as Array<{ id: string; name: string | null }>)
+      : []
     const empName = new Map(((emps ?? []) as Array<{ id: string; name: string | null }>).map((e) => [e.id, e.name]))
     for (const l of logs) (l as { employee: unknown }).employee = { name: empName.get(l.employee_id as string) ?? null }
 

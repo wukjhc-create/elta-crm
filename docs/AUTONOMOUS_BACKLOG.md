@@ -52,11 +52,11 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | TM-2 | Rolleskift/deaktivering i Team ikke auditeret; selv-redigering kun blokeret i UI | DONE (1b562c1b) — audit (user_role_changed/user_(de)activated) + serverblok mod egen rolle/adgang |
 | TM-3 | Deaktivér bruger i Team lader medarbejderen være aktiv og tildelt job (S2) | DONE (1b562c1b) — deaktiveret login → employees.active=false + termination_date; advarsel om åbne tildelte job |
 | RP-4 | "Eksportér projekter" eksporterer den gamle projects-tabel (tom) | TODO — service_cases |
-| RP-5 | Materiale-CSV i kalkulation bryder i dansk Excel (komma, ingen BOM, ingen escaping) | DONE (venter commit) — generateCsv/downloadCsv (semikolon, BOM, danske decimaler, escaping) |
+| RP-5 | Materiale-CSV i kalkulation bryder i dansk Excel (komma, ingen BOM, ingen escaping) | DONE (8823ec0c) — generateCsv/downloadCsv (semikolon, BOM, danske decimaler, escaping) |
 | RP-6 | reports.export-rettigheden tjekkes aldrig (serviceleder kan masseeksportere persondata) | BESLUTNING — hvem må eksportere? (ændrer adgang) |
 | TM-7 | Samtidig nedgradering kan fjerne sidste admin | TODO — genoptælling efter skrivning |
-| TM-8 | Deaktiverede inviterede vises som afventende og kan gensendes | TODO |
-| RP-9 | Team-produktivitet: periode ≠ "30 dage", navne "Ukendt" ved >200 | TODO |
+| TM-8 | Deaktiverede inviterede vises som afventende og kan gensendes | DONE (venter commit) — spærrede brugere ikke i afventende-listen; gensend afvises med dansk besked |
+| RP-9 | Team-produktivitet: periode ≠ "30 dage", navne "Ukendt" ved >200 | DONE (venter commit) — faste 30-dages-perioder; navne i bidder (selectInChunks) |
 | TM-10 | Engelske fejl fra login-adgang | DONE (9d9c226e) — dansk besked; rå Supabase-tekst logges |
 
 ## NEXT-25 (review-bølge 2026-10-17 nat — montørens telefon-flow)
