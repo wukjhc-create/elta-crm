@@ -54,9 +54,9 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | RP-4 | "Eksportér projekter" eksporterer den gamle projects-tabel (tom) | TODO — service_cases |
 | RP-5 | Materiale-CSV i kalkulation bryder i dansk Excel (komma, ingen BOM, ingen escaping) | DONE (8823ec0c) — generateCsv/downloadCsv (semikolon, BOM, danske decimaler, escaping) |
 | RP-6 | reports.export-rettigheden tjekkes aldrig (serviceleder kan masseeksportere persondata) | BESLUTNING — hvem må eksportere? (ændrer adgang) |
-| TM-7 | Samtidig nedgradering kan fjerne sidste admin | TODO — genoptælling efter skrivning |
-| TM-8 | Deaktiverede inviterede vises som afventende og kan gensendes | DONE (venter commit) — spærrede brugere ikke i afventende-listen; gensend afvises med dansk besked |
-| RP-9 | Team-produktivitet: periode ≠ "30 dage", navne "Ukendt" ved >200 | DONE (venter commit) — faste 30-dages-perioder; navne i bidder (selectInChunks) |
+| TM-7 | Samtidig nedgradering kan fjerne sidste admin | DONE (venter commit) — genoptælling af aktive admins efter skrivning; 0 → ændringen rulles tilbage |
+| TM-8 | Deaktiverede inviterede vises som afventende og kan gensendes | DONE (ff853a24) — spærrede brugere ikke i afventende-listen; gensend afvises med dansk besked |
+| RP-9 | Team-produktivitet: periode ≠ "30 dage", navne "Ukendt" ved >200 | DONE (ff853a24) — faste 30-dages-perioder; navne i bidder (selectInChunks) |
 | TM-10 | Engelske fejl fra login-adgang | DONE (9d9c226e) — dansk besked; rå Supabase-tekst logges |
 
 ## NEXT-25 (review-bølge 2026-10-17 nat — montørens telefon-flow)

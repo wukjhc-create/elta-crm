@@ -1146,6 +1146,18 @@ export async function updateTeamMember(
       return { success: false, error: 'Kunne ikke opdatere teammedlem' }
     }
 
+    // TM-7 (team-review 2026-10-17): to admins der nedgraderer/deaktiverer hinanden samtidig kunne begge passere
+    // forhåndstjekket → ingen admins. Genkontrol efter skrivningen; 0 aktive admins → rul denne ændring tilbage.
+    if (prev?.role === 'admin' && prev?.is_active !== false && ((input.role !== undefined && input.role !== 'admin') || input.is_active === false)) {
+      const { activeAdminCount } = await import('@/lib/auth/role-guard')
+      if ((await activeAdminCount(adminForAudit)) === 0) {
+        if (input.role !== undefined) await adminForAudit.from('profiles').update({ role: 'admin' }).eq('id', memberId)
+        if (input.is_active === false) await setProfileLoginActive(memberId, true)
+        logger.warn('updateTeamMember: sidste admin-ændring rullet tilbage (samtidig nedgradering)', { entityId: memberId })
+        return { success: false, error: 'Den sidste aktive administrator kan ikke miste admin-rollen eller deaktiveres' }
+      }
+    }
+
     // TM-2: audit af rolleskift og (de)aktivering
     if (input.role !== undefined && prev?.role !== input.role) {
       await insertAuditRow({

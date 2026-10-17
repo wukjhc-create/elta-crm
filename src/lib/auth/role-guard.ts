@@ -27,3 +27,9 @@ export async function lastAdminBlock(
     .eq('role', 'admin').eq('is_active', true).neq('id', profileId)
   return (count ?? 0) === 0 ? 'Den sidste aktive administrator kan ikke miste admin-rollen eller deaktiveres' : null
 }
+
+/** TM-7 (team-review 2026-10-17): antal aktive admins EFTER en skrivning (genkontrol mod samtidige nedgraderinger) */
+export async function activeAdminCount(admin: SupabaseClient): Promise<number> {
+  const { count } = await admin.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'admin').eq('is_active', true)
+  return count ?? 0
+}
