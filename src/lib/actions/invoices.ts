@@ -1033,6 +1033,26 @@ export async function setCaseBillingModelAction(caseId: string, model: string): 
   return { ok: true, message: `Afregningsform: ${BILLING_MODEL_LABEL[model]}` }
 }
 
+/**
+ * FIN-8 (finance-review 2026-10-17): standard-betalingsfrist for fakturaer på sagen = betalerens (ellers kundens)
+ * betingelse → firmastandard → 14. Fakturafanen udfylder feltet med den i stedet for fast 14 dage.
+ */
+export async function getCaseDefaultDueDaysAction(caseId: string): Promise<{ ok: boolean; days: number }> {
+  try {
+    validateUUID(caseId, 'case_id')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('invoices.create')) return { ok: false, days: 14 }
+    const { data: sag } = await supabase.from('service_cases').select('customer_id, payer_customer_id').eq('id', caseId).maybeSingle()
+    const s = sag as { customer_id: string | null; payer_customer_id: string | null } | null
+    if (!s) return { ok: false, days: 14 }
+    const { resolvePaymentTermsDays } = await import('@/lib/services/invoices')
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    return { ok: true, days: await resolvePaymentTermsDays(createAdminClient(), s.payer_customer_id ?? s.customer_id) }
+  } catch {
+    return { ok: false, days: 14 }
+  }
+}
+
 export async function createFinalInvoiceAction(
   input: CreateFinalInvoiceInput
 ): Promise<CreateFinalInvoiceResult> {
@@ -1630,7 +1650,10 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
     const dueIso = r.due_date as string | null
     let isOverdue = false
     let daysOverdue: number | null = null
-    if (dueIso && r.status === 'sent' && !r.voided_at && !isCredit) {
+    // FIN-4 (finance-review 2026-10-17): kun forfalden med et åbent beløb (≥ 0,50 kr) — en udlignet faktura (betalt +
+    // krediteret) blev vist som forfalden
+    const openForOverdue = isCredit || r.voided_at ? 0 : openAmount({ id: r.id as string, final_amount: r.final_amount as number | null, amount_paid: (r as { amount_paid?: number | null }).amount_paid ?? null }, credited)
+    if (dueIso && r.status === 'sent' && !r.voided_at && !isCredit && openForOverdue >= 0.5) {
       const diff = calendarDaysSince(dueIso, todayMs) // dansk kalenderdag (ikke serverens UTC-midnat)
       if (diff > 0) {
         isOverdue = true

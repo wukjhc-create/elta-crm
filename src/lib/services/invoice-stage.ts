@@ -183,7 +183,8 @@ export async function createStageInvoiceForCase(
   const tax = r2(subtotal * VAT_RATE)
   const final = r2(subtotal + tax)
 
-  const dueDays = input.due_days ?? 14
+  // FIN-8 (finance-review 2026-10-17): betalerens/kundens betalingsbetingelse, ikke fast 14 dage
+  const dueDays = input.due_days ?? await caseDueDays(sag as { customer_id: string | null; payer_customer_id: string | null })
   const dueDate = copenhagenDatePlusDays(dueDays)
 
   // Auto-foreslået label hvis operatør ikke har valgt en
@@ -707,7 +708,8 @@ export async function createFinalInvoiceForCase(
   const tax = r2(subtotal * VAT_RATE)
   const final = r2(subtotal + tax)
 
-  const dueDays = input.due_days ?? 14
+  // FIN-8: betalerens/kundens betalingsbetingelse
+  const dueDays = input.due_days ?? await caseDueDays(sag as { customer_id: string | null; payer_customer_id: string | null })
   const dueDate = copenhagenDatePlusDays(dueDays)
 
   // 8. INSERT invoice header med UNIQUE-guard via DB
@@ -982,7 +984,7 @@ async function createContractFinalInvoice(
       final_amount: final,
       amount_paid: 0,
       currency: 'DKK',
-      due_date: copenhagenDatePlusDays(input.due_days ?? 14),
+      due_date: copenhagenDatePlusDays(input.due_days ?? await caseDueDays(sag)), // FIN-8
       reminder_count: 0,
       notes: input.notes?.trim() || null,
     })
@@ -1186,3 +1188,10 @@ export async function listStageInvoicesForCase(
 
 // Re-exports so /actions can pass through types without circular imports
 export type { InvoiceRow as _InvoiceRow, InvoiceLineRow as _InvoiceLineRow }
+
+/** FIN-8 (finance-review 2026-10-17): betalingsfrist for sagsfakturaer = betalerens (ellers kundens) betingelse */
+async function caseDueDays(sag: { customer_id: string | null; payer_customer_id: string | null }): Promise<number> {
+  const { resolvePaymentTermsDays } = await import('@/lib/services/invoices')
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  return resolvePaymentTermsDays(createAdminClient(), sag.payer_customer_id ?? sag.customer_id)
+}

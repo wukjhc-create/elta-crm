@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import {
   createFinalInvoiceAction,
+  getCaseDefaultDueDaysAction,
   getContractFinalPreviewAction,
   setCaseBillingModelAction,
   type ContractFinalPreview,
@@ -561,6 +562,7 @@ function BillingPercentMode({
   const [percent, setPercent] = useState<string>('30')
   const [stageLabel, setStageLabel] = useState<string>('')
   const [dueDays, setDueDays] = useState<number>(14)
+  useCaseDefaultDueDays(caseId, setDueDays) // FIN-8: kundens/betalerens betalingsbetingelse
   const [notes, setNotes] = useState<string>('')
   const [allowOver, setAllowOver] = useState(false)
 
@@ -937,7 +939,8 @@ function BillingFinalMode({
   // PR-6 (Henrik 2026-10-15): fastprissag → restbeløb af kontraktsum (samme plan som serveren)
   const [contract, setContract] = useState<ContractFinalPreview | null>(null)
   const [modelBusy, setModelBusy] = useState(false)
-  const [dueDays, setDueDays] = useState(14)
+  const [dueDays, setDueDays] = useState<number>(14)
+  useCaseDefaultDueDays(caseId, setDueDays) // FIN-8: kundens/betalerens betalingsbetingelse
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -1336,7 +1339,8 @@ export function BillingStandardMode({
   const [selectedMaterials, setSelectedMaterials] = useState<Set<string>>(new Set())
   const [selectedOtherCosts, setSelectedOtherCosts] = useState<Set<string>>(new Set())
 
-  const [dueDays, setDueDays] = useState(14)
+  const [dueDays, setDueDays] = useState<number>(14)
+  useCaseDefaultDueDays(caseId, setDueDays) // FIN-8: kundens/betalerens betalingsbetingelse
   const [notes, setNotes] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
@@ -1976,4 +1980,13 @@ function Total({
       </div>
     </div>
   )
+}
+
+/** FIN-8 (finance-review 2026-10-17): udfyld betalingsfristen med betalerens/kundens betingelse (før fast 14 dage) */
+function useCaseDefaultDueDays(caseId: string, setDueDays: (n: number) => void) {
+  useEffect(() => {
+    let cancelled = false
+    getCaseDefaultDueDaysAction(caseId).then((r) => { if (!cancelled && r.ok) setDueDays(r.days) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [caseId, setDueDays])
 }

@@ -29,6 +29,7 @@ export interface EconomicDraftInput {
     invoice_number: string
     currency?: string | null
     created_at?: string | null
+    sent_at?: string | null
     total_amount: number | string | null
   }
   customer: {
@@ -176,8 +177,10 @@ export function buildEconomicInvoiceDraft(input: EconomicDraftInput): EconomicIn
 
   const body: EconomicInvoiceDraftBody = {
     currency: invoice.currency || 'DKK',
-    // Dansk kalenderdato (samme dag som på kundens PDF) — før UTC-dato.
-    date: copenhagenParts(invoice.created_at || new Date().toISOString()).date,
+    // Dansk kalenderdato som på kundens PDF (sent_at || created_at) — før UTC-dato.
+    // FIN-3 (finance-review 2026-10-17): kladdens oprettelsesdato blev brugt, selv om fakturaen blev udstedt senere
+    // (fx oprettet 28/9, sendt 3/10 → bogført i forkert momsperiode).
+    date: copenhagenParts(invoice.sent_at || invoice.created_at || new Date().toISOString()).date,
     paymentTerms: { paymentTermsNumber: config.paymentTermsNumber ?? null },
     customer: { customerNumber: input.customerNumber },
     recipient: {

@@ -570,7 +570,7 @@ export async function previewInvoiceForEconomic(
   const supabase = createAdminClient()
   const { data: inv } = await supabase
     .from('invoices')
-    .select('id, invoice_number, currency, created_at, total_amount, customer_id, external_invoice_id, external_provider')
+    .select('id, invoice_number, currency, created_at, sent_at, total_amount, customer_id, external_invoice_id, external_provider')
     .eq('id', invoiceId)
     .maybeSingle()
   if (!inv) return { ok: false, error: 'Faktura ikke fundet' }

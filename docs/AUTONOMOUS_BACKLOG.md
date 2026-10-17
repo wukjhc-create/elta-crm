@@ -63,18 +63,18 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | C-F4 | getCustomerQuoteHistory uden rettighed (S4) | DONE (kode) — offers.view |
 | FIN-1 | Kreditnota på 'standard'-delfaktura tilladt efter fastpris-slutfaktura har fratrukket den (S2) | DONE (kode) — kreditvagten gælder også standard-fakturaer, når sagen har en ikke-annulleret fastpris-slutfaktura (amount_basis kontraktsum/revideret). invoice-guards-check (2 nye tjek) |
 | FIN-2 | Fuldt krediteret slutfaktura blokerer ny slutfaktura (voided ikke filtreret; unikt indeks uden voided_at) (S2) | DELVIS (kode) — annulleret slutfaktura blokerer ikke længere nye rater/forskud eller skift af afregningsform; ny slutfaktura kræver indeksændringen 00245 (BLOCKED_APPROVAL) |
-| FIN-3 | e-conomic bogfører på kladdens oprettelsesdato, ikke udstedelsesdato (S2) | TODO (kun aktuel med ECONOMIC_PUSH_ENABLED) |
-| FIN-4 | Delvis betalt + krediteret rest forbliver "sendt/delvis" (S3) | TODO (økonomi — forsigtigt) |
+| FIN-3 | e-conomic bogfører på kladdens oprettelsesdato, ikke udstedelsesdato (S2) | DONE (kode) — e-conomic-dato = sent_at || created_at (som kundens PDF). Unit economic-draft-test |
+| FIN-4 | Delvis betalt + krediteret rest forbliver "sendt/delvis" (S3) | DONE (kode) — dækker indbetalt + sendte kreditnotaer beløbet, sættes fakturaen betalt (kun CRM, ingen e-conomic jf. A-12); fakturaoverblikkets "forfalden" kræver åbent beløb ≥ 0,50 kr. invoice-guards-check |
 | FIN-5 | Bank-beløbsmatch ignorerer kreditnotaer (S3) | DONE (kode) — beløbsmatch mod åbent beløb inkl. kreditnotaer (også delbetalte); registerPayment trækker allerede kreditnotaer fra |
 | FIN-6 | "Betalt denne måned"/likviditet/kunde summerer final_amount i stedet for betalt (S3) | DONE (kode) — betalt denne måned, likviditet og kundens betalt-total bruger indbetalt beløb (fallback: beløb efter kreditnotaer). Unit invoice-totals-test |
 | FIN-7 | "Markér som sendt" efter usikker afsendelse fejler altid (sent_at-krav) (S3) | DONE (kode) — mail-krav ældre end 2 min kan overtages af "Markér som sendt"; slette-krav aldrig. invoice-guards-check (2 nye tjek) |
-| FIN-8 | Fakturaer fra sag ignorerer betalingsbetingelser (fast 14 dage) (S3) | TODO |
+| FIN-8 | Fakturaer fra sag ignorerer betalingsbetingelser (fast 14 dage) (S3) | DONE (kode) — sagsfakturaer bruger betalerens/kundens betingelse (resolvePaymentTermsDays) som standard; fakturafanen udfylder fristen med den |
 | FIN-9 | Dashboard forfaldne-top viser fuldt beløb, ikke åbent (S4) | DONE (kode) — top-listen viser åbent beløb |
 | FIN-10 | Cockpit "næste rykker" bruger UTC-dage (S4) | DONE (kode) — copenhagenCalendarDaysBetween som cronen |
 | FIN-11 | Afrunding på opdelte kreditnotaer efterlader 0,01 kr som forfalden (S4) | DONE (kode) — forfalden kun ved åbent beløb ≥ 0,50 kr (som rykkerne). Unit invoice-totals-test |
-| FIN-12 | UTC-datoer i betalingsmål og leverandør-afvigelsesvindue (S4) | TODO |
+| FIN-12 | UTC-datoer i betalingsmål og leverandør-afvigelsesvindue (S4) | DONE (kode) — copenhagenCalendarDaysBetween i betalingsmål; leverandør-afvigelsesvindue fra dansk dato |
 | HT-4 | invoice-guards-check: forældet seed (afregningsform NULL efter 00232; ikke-godkendte timer; medarbejder uden satser afvises af 00230) | DONE — seed opdateret |
-| HT-3 | portal-token-rules-check "fremmed sti" finder ikke dokumentet i portallisten (forældet test, portal.ts uændret) | TODO — opdatér testen til nuværende portalregler |
+| HT-3 | portal-token-rules-check "fremmed sti" finder ikke dokumentet i portallisten (forældet test, portal.ts uændret) | DONE — seed manglede visible_in_portal=true (portalen viser kun synlige dokumenter); portal-token-rules-check 4/4 |
 
 ## NEXT-28 (dataflow-review 2026-10-17 — tilbud → sag → faktura)
 | # | Fund | Status |
@@ -91,7 +91,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | DF-10 | Revision/dublering taber billing_model/vat_mode; intet skriver offers.billing_model | DONE (kopi) — kopiér medtager vat_mode og billing_model. Valg af afregningsform på tilbuddet (UI) = TODO |
 | DF-11 | Tabt lead bliver aldrig vundet ved accept | DONE (kode) — tilbuddets eget lead_id: tabt → vundet. Kunde-fallback uændret |
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
-| HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | TODO — undersøg skærmbillede/tekst på fakturakladde-fanen |
+| HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
 ## NEXT-27 (review-bølge 2026-10-17 — crons, alarmer, notifikationer)
 | # | Fund | Status |

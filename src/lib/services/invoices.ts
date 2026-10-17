@@ -35,7 +35,8 @@ export interface CreateInvoiceOptions {
  * Kæde: customer.payment_terms_days → company_settings.default_payment_terms_days → 14.
  * Bruges kun når caller ikke har angivet options.dueDays (eksplicit override).
  */
-async function resolvePaymentTermsDays(
+/** Kundens betalingsbetingelse (0 = omgående) → firmastandard → 14. Eksporteret til sagsfakturering (FIN-8). */
+export async function resolvePaymentTermsDays(
   supabase: ReturnType<typeof createAdminClient>,
   customerId: string | null,
 ): Promise<number> {
@@ -171,7 +172,7 @@ async function recomputeOriginalVoidStatus(
 
   const { data: original } = await supabase
     .from('invoices')
-    .select('id, final_amount, voided_at')
+    .select('id, final_amount, voided_at, status, amount_paid, payment_status')
     .eq('id', originalInvoiceId)
     .maybeSingle()
   if (!original) return
@@ -210,6 +211,25 @@ async function recomputeOriginalVoidStatus(
         entityId: originalInvoiceId,
         error,
       })
+    }
+  } else if (!shouldBeVoided && !currentlyVoided) {
+    // FIN-4 (finance-review 2026-10-17): delvist betalt + resten krediteret (6.000 betalt, kredit 4.000 af 10.000) stod
+    // som "sendt/delvis" for evigt — forfalden, bankmatch-kandidat, i udestående. Dækker indbetalt + sendte kreditnotaer
+    // hele beløbet, er fakturaen betalt (kun CRM-status; ingen automatisk e-conomic-postering, jf. A-12).
+    const o = original as { status: string; amount_paid: number | string | null; payment_status: string | null }
+    const paid = Number(o.amount_paid ?? 0)
+    if (o.status === 'sent' && paid > 0 && paid + creditedAbsIncl + 0.005 >= origFinal) {
+      const { data: settled, error } = await supabase
+        .from('invoices')
+        .update({ status: 'paid', payment_status: 'paid', paid_at: new Date().toISOString() })
+        .eq('id', originalInvoiceId)
+        .eq('status', 'sent')
+        .select('id')
+      if (error) {
+        logger.warn('recomputeOriginalVoidStatus: settle failed', { entityId: originalInvoiceId, error })
+      } else if (settled?.length) {
+        logger.info('Faktura udlignet: indbetaling + kreditnota dækker beløbet', { entityId: originalInvoiceId, metadata: { paid, credited: creditedAbsIncl } })
+      }
     }
   } else if (!shouldBeVoided && currentlyVoided) {
     // Self-healing — clear stale voided_at when finalized credits no

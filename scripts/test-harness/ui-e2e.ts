@@ -6280,8 +6280,14 @@ ${m.text()}`) })
         await gotoSafe(a.page, `${base}/dashboard/offers/${salgOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByTestId('offer-invoice-on-case').first().click({ timeout: 60_000 }).catch(() => {})
         await a.page.waitForURL(/tab=fakturakladde/, { timeout: 60_000 }).catch(() => {})
-        await a.page.getByText(/Stage-fakturaer på sagen|Fakturakladde|Forskudsfaktura|Slutfaktura/).first().waitFor({ timeout: 90_000 }).catch(() => {})
-        r.admin_fakturer_paa_sag = /tab=fakturakladde/.test(a.page.url()) && (await a.page.getByText(/Stage-fakturaer på sagen|Slutfaktura/).count()) > 0
+        // HT-2 (2026-10-17): waitFor kastede straks under navigationen (fanget) → optælling mens siden stadig hentede.
+        // Poll i stedet (skærmbillede viste fanen med "Slutfaktura" kort efter)
+        let fakturaTekst = 0
+        for (let i = 0; i < 60 && fakturaTekst === 0; i++) {
+          fakturaTekst = /tab=fakturakladde/.test(a.page.url()) ? await a.page.getByText(/Stage-fakturaer på sagen|Slutfaktura/).count().catch(() => 0) : 0
+          if (fakturaTekst === 0) await a.page.waitForTimeout(1500)
+        }
+        r.admin_fakturer_paa_sag = /tab=fakturakladde/.test(a.page.url()) && fakturaTekst > 0
         if (!r.admin_fakturer_paa_sag) {
           const btn = await c.admin.from('offers').select('status, converted_case_id').eq('id', salgOfferId).maybeSingle()
           u13Diag = ` · HT-2 url=${a.page.url().replace(base, '')} tilbud=${JSON.stringify(btn.data)} fejltekst=${(await a.page.locator('.bg-red-50').first().innerText({ timeout: 2_000 }).catch(() => '')).slice(0, 80)}`

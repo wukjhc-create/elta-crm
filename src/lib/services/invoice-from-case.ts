@@ -121,7 +121,7 @@ export async function createInvoiceDraftFromCase(
   void options.vat_rate
   const vatRate = STANDARD_VAT_PERCENT / 100
   const defaultHourlyRate = options.default_hourly_rate ?? 650
-  const dueDays = options.due_days ?? 14
+  let dueDays = options.due_days ?? 14 // FIN-8: erstattes af betalerens/kundens betingelse, når sagen er læst
 
   // ---- 1. Validate sag + customer ----
   const { data: sag, error: sagErr } = await supabase
@@ -173,6 +173,11 @@ export async function createInvoiceDraftFromCase(
   const invoiceNumber = String(numData)
 
   // ---- 3. Insert invoice header (totals filled in later) ----
+  if (options.due_days == null) {
+    const { resolvePaymentTermsDays } = await import('@/lib/services/invoices')
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    dueDays = await resolvePaymentTermsDays(createAdminClient(), (sag.payer_customer_id as string | null) ?? (sag.customer_id as string))
+  }
   const dueDate = copenhagenDatePlusDays(dueDays)
 
   const { data: header, error: hdrErr } = await supabase

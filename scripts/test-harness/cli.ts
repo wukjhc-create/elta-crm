@@ -949,8 +949,8 @@ async function main() {
       await admin.from('customers').update({ is_active: true }).eq('id', cust)
       check('genaktiveret → link virker igen', (await validatePortalToken(tok)).success)
       await admin.from('customer_documents').insert([
-        { customer_id: cust, title: 'Egen [HARNESS]', document_type: 'other', file_url: 'https://gammelt-link', storage_path: `customer-documents/${cust}/egen.pdf`, file_name: 'egen.pdf', mime_type: 'application/pdf' },
-        { customer_id: cust, title: 'Fremmed [HARNESS]', document_type: 'other', file_url: 'https://gammelt-link', storage_path: 'supplier-invoices/x/faktura.pdf', file_name: 'f.pdf', mime_type: 'application/pdf' },
+        { customer_id: cust, visible_in_portal: true, title: 'Egen [HARNESS]', document_type: 'other', file_url: 'https://gammelt-link', storage_path: `customer-documents/${cust}/egen.pdf`, file_name: 'egen.pdf', mime_type: 'application/pdf' },
+        { customer_id: cust, visible_in_portal: true, title: 'Fremmed [HARNESS]', document_type: 'other', file_url: 'https://gammelt-link', storage_path: 'supplier-invoices/x/faktura.pdf', file_name: 'f.pdf', mime_type: 'application/pdf' },
       ])
       const docs = await getPortalDocuments(tok)
       const fremmed = (docs.data ?? []).find((d) => d.title === 'Fremmed [HARNESS]')
@@ -3064,6 +3064,14 @@ async function main() {
       await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', finL.id)
       const s2 = await createCreditNoteForInvoice({ invoice_id: std1.id, credit_type: 'full', reason: 'harness' }, owner)
       check('FIN-1: linjebaseret slutfaktura fratrækker ikke standard → kreditering tilladt', s2.ok, s2.message)
+      // FIN-4 (2026-10-17): 6.000 indbetalt + kreditnota 4.000 (inkl. moms) af 10.000 → fakturaen er udlignet (betalt)
+      const { markInvoiceSent: markSent4 } = await import('../../src/lib/services/invoices')
+      const inv4 = await mkInv({ invoice_type: 'standard', total_amount: 8000, tax_amount: 2000, final_amount: 10000 }, [['Arbejde', 1, 4800], ['Materialer', 1, 3200]])
+      await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString(), amount_paid: 6000, payment_status: 'partial' }).eq('id', inv4.id)
+      const cn4 = await createCreditNoteForInvoice({ invoice_id: inv4.id, credit_type: 'partial', reason: 'harness', selected_line_ids: [inv4.lines[1]] }, owner)
+      if (cn4.ok && cn4.credit_invoice_id) await markSent4(cn4.credit_invoice_id).catch(() => {})
+      const after4 = (await admin.from('invoices').select('status, payment_status, paid_at').eq('id', inv4.id).single()).data as { status: string; payment_status: string; paid_at: string | null } | null
+      check('FIN-4: delbetalt + krediteret rest → betalt', !!cn4.ok && after4?.status === 'paid' && after4?.payment_status === 'paid' && !!after4?.paid_at, `${cn4.message ?? ''} · ${JSON.stringify(after4)}`)
 
       // Faktura-review 2026-10-14 F-3/F-2: slutfaktura med negativ total afvises; timer uden timepris blokerer slutfakturaen
       const { createFinalInvoiceForCase } = await import('../../src/lib/services/invoice-stage')

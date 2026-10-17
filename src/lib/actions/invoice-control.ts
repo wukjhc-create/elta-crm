@@ -37,7 +37,9 @@ export async function getInvoiceDeviationOverview(days = 90): Promise<ActionResu
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission('incoming_invoices.view')) return { success: false, error: 'Manglende tilladelse: incoming_invoices.view' }
     const span = Math.min(365, Math.max(7, Math.floor(days) || 90))
-    const since = new Date(Date.now() - span * 86_400_000).toISOString().slice(0, 10)
+    // FIN-12 (finance-review 2026-10-17): dansk dato (før UTC-dato via toISOString)
+    const { copenhagenDatePlusDays } = await import('@/lib/utils/copenhagen-time')
+    const since = copenhagenDatePlusDays(-span)
     const { data, error } = await ctx.supabase.from('incoming_invoices')
       .select('id, invoice_number, invoice_date, status, supplier_name_extracted, suppliers:supplier_id ( name )')
       // fakturadato i perioden — eller, uden fakturadato (ikke-parset), modtaget i perioden

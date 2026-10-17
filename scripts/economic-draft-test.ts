@@ -20,6 +20,9 @@ eq('e-conomic netto = CRM netto', [ok.economicNet, ok.crmNet], [1120, 1120])
 eq('dato = dansk kalenderdag (22:30Z = 00:30 dansk dagen efter)', ok.body.date, '2026-10-15')
 eq('varenr. fra opsætning', ok.body.lines[0].product.productNumber, '100')
 eq('reference = fakturanr.', ok.body.references.other, 'F-1001')
+// FIN-3 (2026-10-17): udstedelsesdatoen (sent_at) som på kundens PDF — ikke kladdens oprettelsesdato
+const sentLater = buildEconomicInvoiceDraft({ ...base, invoice: { ...base.invoice, created_at: '2026-09-28T09:00:00Z', sent_at: '2026-10-03T08:00:00Z' } })
+eq('dato = udstedelsesdato (oprettet 28/9, sendt 3/10)', sentLater.body.date, '2026-10-03')
 
 const odd = buildEconomicInvoiceDraft({ ...base, invoice: { ...base.invoice, total_amount: 173.25 + 120 },
   lines: [{ position: 1, description: 'Timer', quantity: 0.33, unit_price: 525.1, total_price: 173.25 }, base.lines[1]] })
