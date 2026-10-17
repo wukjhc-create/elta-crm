@@ -125,6 +125,8 @@ async function handleCron(request: Request): Promise<Response> {
     let priceChanges = 0
     const errors: string[] = []
     const priceHistoryBatch: Array<Record<string, unknown>> = []
+    const historySkus: string[] = [] // SU-3: sku pr. historikrække (samme indeks)
+    let skippedNoCost = 0 // SU-2
 
     // Separate new products from updates
     const newRecords: Array<Record<string, unknown>> = []
@@ -138,7 +140,8 @@ async function handleCron(request: Request): Promise<Response> {
         updatedProducts++
         // Track price changes
         const oldCost = existing.cost_price
-        const newCost = row.parsed.cost_price
+        // SU-2 (review 2026-10-17): kost ≤ 0 = ingen prisaftale i filen → behold kendt kost (som supplier-sync, GP-13)
+        const newCost = row.parsed.cost_price != null && row.parsed.cost_price > 0 ? row.parsed.cost_price : null
         if (oldCost !== null && newCost !== null && oldCost !== newCost) {
           const changePct = oldCost > 0 ? ((newCost - oldCost) / oldCost) * 100 : 0
           priceHistoryBatch.push({
@@ -150,6 +153,7 @@ async function handleCron(request: Request): Promise<Response> {
             change_percentage: Math.round(changePct * 100) / 100,
             change_source: 'ftp_sync',
           })
+          historySkus.push(row.parsed.sku) // SU-3: skrives først når opdateringen er lykkedes
           priceChanges++
         }
 
@@ -157,24 +161,24 @@ async function handleCron(request: Request): Promise<Response> {
           supplier_id: supplier.id,
           supplier_sku: row.parsed.sku,
           supplier_name: row.parsed.name || row.parsed.sku,
-          // X4: tom priscelle overskriver ikke en kendt kostpris med 0
-          cost_price: row.parsed.cost_price ?? existing.cost_price ?? 0,
-          list_price: row.parsed.list_price,
+          // X4/SU-2: tom priscelle eller 0 overskriver ikke en kendt kostpris
+          cost_price: newCost ?? existing.cost_price ?? 0,
+          list_price: row.parsed.list_price ?? existing.list_price,
           unit: row.parsed.unit || 'stk',
-          category,
-          sub_category: row.parsed.sub_category || null,
-          ean: row.parsed.ean || null,
-          manufacturer: row.parsed.manufacturer || null,
+          // SU-5 (review 2026-10-17): kategori/underkategori/EAN/producent sendes IKKE ved opdatering — filen har ingen
+          // underkategori og tomme EAN-celler; før nulstillede hver kørsel manuelle værdier (og GP-3-avanceregler)
           is_available: true,
           last_synced_at: now,
         })
       } else {
+        // SU-2: ny vare uden kostpris (> 0) oprettes ikke (0-kr-produkter)
+        if (!(row.parsed.cost_price != null && row.parsed.cost_price > 0)) { skippedNoCost++; continue }
         newProducts++
         newRecords.push({
           supplier_id: supplier.id,
           supplier_sku: row.parsed.sku,
           supplier_name: row.parsed.name || row.parsed.sku,
-          cost_price: row.parsed.cost_price ?? 0,
+          cost_price: row.parsed.cost_price,
           list_price: row.parsed.list_price,
           unit: row.parsed.unit || 'stk',
           category,
@@ -223,18 +227,18 @@ async function handleCron(request: Request): Promise<Response> {
         if (upsertErr) {
           errors.push(`Update batch ${batchNum}: ${upsertErr.message}`)
           logger.warn(`LEMU update batch ${batchNum} error`, { error: upsertErr })
+        } else {
+          // SU-3 (review 2026-10-17): prishistorik kun for rækker hvis opdatering lykkedes, skrevet sammen med batchen
+          // (før til sidst for alle — også fejlede — og slet ikke ved timeout)
+          const okSkus = new Set(batch.map((r) => String(r.supplier_sku)))
+          const hist = priceHistoryBatch.filter((_, k) => okSkus.has(historySkus[k]))
+          for (let h = 0; h < hist.length; h += UPSERT_BATCH_SIZE) {
+            const { error: histErr } = await supabase.from('price_history').insert(hist.slice(h, h + UPSERT_BATCH_SIZE))
+            if (histErr) logger.error('Price history insert error (LEMU cron)', { error: histErr })
+          }
         }
       } catch (batchError) {
         errors.push(`Update batch ${batchNum}: ${batchError instanceof Error ? batchError.message : 'Unknown error'}`)
-      }
-    }
-
-    // Insert price history in batches
-    if (priceHistoryBatch.length > 0) {
-      for (let i = 0; i < priceHistoryBatch.length; i += UPSERT_BATCH_SIZE) {
-        const batch = priceHistoryBatch.slice(i, i + UPSERT_BATCH_SIZE)
-        const { error: histErr } = await supabase.from('price_history').insert(batch)
-        if (histErr) logger.error('Price history insert error (LEMU cron)', { error: histErr })
       }
     }
 
@@ -266,7 +270,7 @@ async function handleCron(request: Request): Promise<Response> {
         updated_items: updatedProducts,
         price_changes_count: priceChanges,
         error_message: errors.length > 0 ? errors.join('; ') : null,
-        details: { file_name: ftpResult.file_name, file_size: ftpResult.file_size_bytes, total_parsed: totalParsed, deduplicated: deduplicatedCount, partial: errors.length > 0, existing_loaded: existingLoad.loaded, existing_total: existingLoad.total, existing_ms: existingLoad.ms },
+        details: { file_name: ftpResult.file_name, file_size: ftpResult.file_size_bytes, total_parsed: totalParsed, deduplicated: deduplicatedCount, partial: errors.length > 0, existing_loaded: existingLoad.loaded, existing_total: existingLoad.total, existing_ms: existingLoad.ms, skipped_no_cost: skippedNoCost },
       }),
     ])
 
@@ -285,6 +289,7 @@ async function handleCron(request: Request): Promise<Response> {
       priceChanges,
       totalParsed,
       deduplicated: deduplicatedCount,
+      skippedNoCost, // SU-2: nye varer uden kostpris oprettes ikke
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (error) {

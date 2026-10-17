@@ -375,12 +375,26 @@ export async function importProductsFromAPI(
       // Check if product exists
       const { data: existing } = await supabase
         .from('supplier_products')
-        .select('id')
+        .select('id, cost_price, list_price')
         .eq('supplier_id', supplierId)
         .eq('supplier_sku', product.sku)
         .maybeSingle()
 
       if (existing) {
+        // SU-9 (review 2026-10-17): kostændring fra API-importen får prishistorik (som synk og manuelle rettelser, GP-12)
+        // — fakturakontrol på fakturadato manglede ellers ændringen
+        const oldCost = (existing as { cost_price?: number | null }).cost_price ?? null
+        if (product.costPrice > 0 && oldCost != null && Number(oldCost) !== product.costPrice) {
+          await supabase.from('price_history').insert({
+            supplier_product_id: existing.id,
+            old_cost_price: oldCost,
+            new_cost_price: product.costPrice,
+            old_list_price: (existing as { list_price?: number | null }).list_price ?? null,
+            new_list_price: product.listPrice ?? null,
+            change_percentage: Number(oldCost) > 0 ? Math.round(((product.costPrice - Number(oldCost)) / Number(oldCost)) * 10000) / 100 : 0,
+            change_source: 'api_sync',
+          })
+        }
         // Update existing
         await supabase
           .from('supplier_products')

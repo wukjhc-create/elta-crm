@@ -421,7 +421,17 @@ export async function attachFileToInvoice(input: UploadInput & { invoiceId: stri
   if (LOCKED_INVOICE_STATUSES.includes(row.status as string)) return { ok: false, message: `Fakturaen er ${row.status} — bilag kan ikke ændres` }
   if (row.file_url) return { ok: false, message: 'Fakturaen har allerede et bilag' }
   const text = input.rawText.trim()
+  // SU-6 (review 2026-10-17): PDF-teksten er autoritativ — header-værdier læst fra mailteksten (fx et ordrenr. som
+  // fakturanr., "at betale" som beløb) nulstilles som ved IC11-opgraderingen, så genparsningen tager PDF'ens værdier.
+  // Manuelt rettede headers (audit 'header_edited') bevares.
+  let resetBody: Record<string, null> = {}
+  if (text) {
+    const { count: edited } = await supabase.from('incoming_invoice_audit_log').select('id', { count: 'exact', head: true })
+      .eq('incoming_invoice_id', input.invoiceId).eq('action', 'header_edited')
+    if (!edited) resetBody = Object.fromEntries(BODY_DERIVED_FIELDS.map((f) => [f, null]))
+  }
   const { data: updated, error: upErr } = await supabase.from('incoming_invoices').update({
+    ...resetBody,
     file_name: input.fileName,
     file_url: input.fileUrl ?? null,
     mime_type: input.mime,

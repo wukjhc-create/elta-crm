@@ -2195,6 +2195,42 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'invoice-attach-reset-check') {
+    // SU-6 (2026-10-17): vedhæftet PDF-tekst nulstiller værdier læst fra mailteksten (fakturanr./beløb), medmindre de er
+    // rettet manuelt. Staging, ingen mail.
+    const { attachFileToInvoice } = await import('../../src/lib/services/incoming-invoices')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const ids: string[] = []
+    try {
+      const mk = async (n: string) => {
+        const { data, error } = await admin.from('incoming_invoices').insert({ source: 'manual', status: 'received', invoice_number: n, amount_incl_vat: 9375, currency: 'DKK', raw_text: 'Ordre ORD bekræftet — at betale 9.375,00' }).select('id').single()
+        if (error) throw new Error(error.message)
+        ids.push((data as { id: string }).id)
+        return (data as { id: string }).id
+      }
+      const pdfText = `FAKTURA
+Fakturanr.: 4711${stamp}
+Fakturadato: 15-10-2026
+Total inkl. moms 11.718,75
+`
+      const a = await mk(`ORD-${stamp}`)
+      const r1 = await attachFileToInvoice({ invoiceId: a, fileName: 'f.pdf', mime: 'application/pdf', rawText: pdfText, fileUrl: `harness://${stamp}` })
+      const ra = (await admin.from('incoming_invoices').select('invoice_number, amount_incl_vat').eq('id', a).single()).data as { invoice_number: string | null; amount_incl_vat: number | null } | null
+      check('mailtekstens fakturanr. erstattes (ikke ORD-…)', r1.ok && ra?.invoice_number !== `ORD-${stamp}`, `${r1.message} · ${JSON.stringify(ra)}`)
+      const b = await mk(`ORDB-${stamp}`)
+      await admin.from('incoming_invoice_audit_log').insert({ incoming_invoice_id: b, action: 'header_edited', message: 'harness' })
+      await attachFileToInvoice({ invoiceId: b, fileName: 'f.pdf', mime: 'application/pdf', rawText: pdfText, fileUrl: `harness://b${stamp}` })
+      const rb = (await admin.from('incoming_invoices').select('invoice_number').eq('id', b).single()).data as { invoice_number: string | null } | null
+      check('manuelt rettet header bevares', rb?.invoice_number === `ORDB-${stamp}`, JSON.stringify(rb))
+    } finally {
+      if (ids.length) { await admin.from('incoming_invoice_audit_log').delete().in('incoming_invoice_id', ids); await admin.from('incoming_invoices').delete().in('id', ids) }
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ bilag-nulstilling ok')
+    process.exitCode = fails ? 2 : 0
+    return
+  }
   if (SUB === 'bank-auto-match-check') {
     // PF2-1/FIN-5 (2026-10-17): auto-match på staging — reference-match og beløb efter kreditnota (12.500 − 2.500 = 10.000
     // med afsendernavn = kunden); kørslen holder sit tidsbudget. Ingen mail.

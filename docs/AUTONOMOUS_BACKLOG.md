@@ -49,14 +49,14 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | # | Fund | Status |
 |---|---|---|
 | SU-1 | Manuel "Synk LEMU nu" kan ikke blive færdig på det rigtige katalog (rækkevis); delvise kørsler uden prishistorik (S2) | TODO |
-| SU-2 | lemu-sync overskriver kendt kostpris med 0 og opretter 0-kr-produkter (S2) | TODO |
-| SU-3 | Prissynk skriver priser først, historik til sidst (timeout = ændringer uden historik); historik for fejlede opdateringer (S2) | TODO |
+| SU-2 | lemu-sync overskriver kendt kostpris med 0 og opretter 0-kr-produkter (S2) | DONE (kode) — kost ≤ 0 bevarer kendt kost; nye varer uden kost oprettes ikke (tælles skippedNoCost); historik kun med reel ny kost |
+| SU-3 | Prissynk skriver priser først, historik til sidst (timeout = ændringer uden historik); historik for fejlede opdateringer (S2) | DELVIS (kode) — lemu-sync: historik pr. lykket batch. supplier-sync FTP/API + manuel sync = TODO |
 | SU-4 | LM-faktura-SFTP henter hele 30-dages-vinduet hver kørsel; ingen tidsbudget (S2) | TODO |
-| SU-5 | lemu-sync nulstiller EAN/underkategori/producent/listepris/kategori (S3) | TODO |
-| SU-6 | Vedhæftet PDF på mailfaktura erstatter ikke værdier læst fra brødteksten (S3) | TODO |
+| SU-5 | lemu-sync nulstiller EAN/underkategori/producent/listepris/kategori (S3) | DONE (kode) — opdatering sender ikke kategori/underkategori/EAN/producent; listepris falder tilbage til eksisterende |
+| SU-6 | Vedhæftet PDF på mailfaktura erstatter ikke værdier læst fra brødteksten (S3) | DONE (kode) — vedhæftet PDF nulstiller mailtekstens header-værdier (ikke ved header_edited). cli invoice-attach-reset-check 2/2 |
 | SU-7 | Stor manuel prisfil-import kan afbrydes midtvejs; batch hænger i "processing" (S3) | TODO |
 | SU-8 | Samme AO-faktura aktiv to gange (mail uden leverandør + API) (S3) | TODO |
-| SU-9 | Import af produkter fra API-søgning ændrer kostpris uden prishistorik (S4) | TODO |
+| SU-9 | Import af produkter fra API-søgning ændrer kostpris uden prishistorik (S4) | DONE (kode) — prishistorik (api_sync) ved kostændring fra API-import |
 
 ## NEXT-36 (review-bølge 2026-10-17 aften — opgaver, påmindelser, beskeder, portal-chat)
 | # | Fund | Status |
