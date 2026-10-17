@@ -51,7 +51,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | RP-1 | Afvisningsstatistik: tabt omsætning inkl. moms (andre tal ekskl.), ikke pagineret, fejl tavs | DONE (9d9c226e) — tabt omsætning ekskl. moms (exVat), fetchAllRows, fejl kastes til catch |
 | TM-2 | Rolleskift/deaktivering i Team ikke auditeret; selv-redigering kun blokeret i UI | DONE (1b562c1b) — audit (user_role_changed/user_(de)activated) + serverblok mod egen rolle/adgang |
 | TM-3 | Deaktivér bruger i Team lader medarbejderen være aktiv og tildelt job (S2) | DONE (1b562c1b) — deaktiveret login → employees.active=false + termination_date; advarsel om åbne tildelte job |
-| RP-4 | "Eksportér projekter" eksporterer den gamle projects-tabel (tom) | DONE (venter commit) — service_cases + faktiske timer (ikke afviste) i bidder; kost tom (bag kostrettighed). Staging export-probe ok |
+| RP-4 | "Eksportér projekter" eksporterer den gamle projects-tabel (tom) | DONE (73eea0a2) — service_cases + faktiske timer (ikke afviste) i bidder; kost tom (bag kostrettighed). Staging export-probe ok |
 | RP-5 | Materiale-CSV i kalkulation bryder i dansk Excel (komma, ingen BOM, ingen escaping) | DONE (8823ec0c) — generateCsv/downloadCsv (semikolon, BOM, danske decimaler, escaping) |
 | RP-6 | reports.export-rettigheden tjekkes aldrig (serviceleder kan masseeksportere persondata) | BESLUTNING — hvem må eksportere? (ændrer adgang) |
 | TM-7 | Samtidig nedgradering kan fjerne sidste admin | DONE (f7e2c9b0) — genoptælling af aktive admins efter skrivning; 0 → ændringen rulles tilbage |

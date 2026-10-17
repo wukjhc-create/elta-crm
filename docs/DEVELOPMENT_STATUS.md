@@ -14,6 +14,9 @@
 | d95d4ccc / e99f0ba0 / 303db8e8 / 82ecf6b0 | PF-5/10/12/2/4/3/6 performance; HT-1 |
 | e30abfbd / 5aeed624 / a400b21d / dbb06659 | PF-8 tid, PF-9 faner via next/dynamic, ST-7 filer ved slet, ST-2 ingen langtidslinks i DB |
 | dc8491e7 / 55971f6b / 209701b2 / fbfb111f / b39f376e | NEXT-24: LF-1..4/6/7/9..13 leverandørfakturaer, DB-4 app-værn (interne dokumenter), PF-7 opgaver |
+| cbc712d8 / 93f9fc7e / 03b39a24 | LF-5/8, ST-8; PF-1 forside-widgets på serveren (9 stk); MB-1 |
+| 130fde1c … 05f77171 | NEXT-25 montørens telefon-flow (MB-2..MB-12) |
+| 8aa79bf1 … 73eea0a2 | T-11, TM-2/3/7/8/10, O-9, RP-1/4/5/9 (NEXT-26) |
 Tests: UI-grupper sales/portal-mail/economy/montor/smoke grønne pr. bølge (nye U179–U182), staging-tjek offer-reminder-plan 8/8, customer-email-dup 5/5, dashboard-stats-equivalence 4/4, concurrency 8/8.
 
 ## Prod-kørsel 2026-10-15 — 00221–00225 (Henrik: "Alle fire migrationer er GODKENDT TIL PROD")
@@ -87,6 +90,7 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
 - **PF-11 indeks på incoming_emails** (service_case_id; is_archived/link_status/received_at) [MIGRATION]
 - **ST-2 blanking af gamle 1-års signerede URL'er** (sent_quotes.pdf_public_url, service_case_attachments.file_url) [MIGRATION, data]
 - **O-6/O-7** venter på revisionsskema 00203 i relevant miljø
+- **RP-6 eksport-rettighed** — `reports.export` (admin/bogholderi) håndhæves ikke; serviceleder kan masseeksportere kunde-/lead-data. Håndhæve? (ændrer adgang)
 - **DB-sikkerhed 2026-10-16** (docs/runbooks/db-security-2026-10-16-proposal.md): 00238 ai_suggestions margin_alert, 00239 kladdelås via status, 00240 interne dokumenter i portal (app-værn i kode), hygiejne-REVOKE; DB-8 sygefravær for bogholderi = beslutning
 - **"Registrér også betaling i e-conomic"** (efter A-12-beslutningen) — eksplicit action: permission, ECONOMIC_PUSH_ENABLED, idempotens/dedup, eksistens-tjek, bekræftelse, audit
 P-2/P-4/P-8/P-10/P-11 (round 3) — UI U178/U13/U4/U5/U43/U160/U166 grønne.
