@@ -490,11 +490,23 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
     setHasSignature(false)
   }
 
-  const set = (field: keyof BesigtigelseFormData, value: string) =>
+  // FW-8 (montør-review 2026-10-17): ugemte ændringer → advarsel før siden forlades (før tabtes alt ved et fejlklik)
+  const [dirty, setDirty] = useState(false)
+  useEffect(() => {
+    if (!dirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty])
+
+  const set = (field: keyof BesigtigelseFormData, value: string) => {
+    setDirty(true)
     setForm((prev) => ({ ...prev, [field]: value }))
+  }
 
   const addImage = (category: ImageUpload['category'], files: FileList | null) => {
     if (!files) return
+    setDirty(true)
     const newImages: ImageUpload[] = Array.from(files).map((file) => ({
       file,
       preview: URL.createObjectURL(file),
@@ -590,6 +602,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
       })
 
       if (result.success && result.data) {
+        setDirty(false) // FW-8
         setSavedId(result.data.id)
         setPdfUrl(result.data.pdfUrl)
         toast.success(

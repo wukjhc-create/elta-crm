@@ -221,7 +221,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | FW-5 | Besigtigelsesbilleder kun som 24-t-links; fejlede uploads skjules (S3) | DONE (kode) — fejlede billed-uploads tælles og meldes (toast); stien gemmes i rapporten. NB: billederne var ikke tabt — galleriet signerer friskt fra kundens mappe (F4) |
 | FW-6 | Besigtigelse dubleres ved ustabilt net (S3) | DONE (kode) — klient-genereret dokument-id før første forsøg; gentagelse efter mistet svar opdaterer samme rapport (U189 simulerer mistet svar) |
 | FW-7 | Kundens e-mail i prod-logs (besigtigelse-diagnostik) (S3) | DONE (kode) — ingen kunde-e-mail i logs; debug-grenen med storage-stier til UI fjernet |
-| FW-8 | Besigtigelsesformular uden kladde/advarsel ved forladelse (S3, plausibel) | TODO |
+| FW-8 | Besigtigelsesformular uden kladde/advarsel ved forladelse (S3, plausibel) | DELVIS (kode) — advarsel ved forladelse med ugemte ændringer (beforeunload); kladde i localStorage = TODO (kolliderer med indlæsning af eksisterende rapport) |
 | FW-9 | getCustomer uden sags-scope for montør (S3, plausibel) | BESLUTNING — hører under CU-5 |
 | FW-10 | Montør kan læse egne salgssatser direkte i DB (S3, plausibel) | BLOCKED_APPROVAL [MIGRATION] — rls-cost-columns |
 | FW-11 | Annullerede arbejdsordrer giver stadig sagsadgang (S4) | DONE (kode) — annullerede arbejdsordrer giver ikke sagsadgang |
