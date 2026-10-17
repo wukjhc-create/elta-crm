@@ -98,7 +98,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PF2-4 | Sags-scope: egne sager højst 1.000 og genberegnet pr. action (S2) | DONE (87815583) — userCanViewCase som ét-rækkeopslag; egne sager pagineret. UI montør/salg 18/18 |
 | PF2-5 | Lukke-værn/faktureringsstatus læser materialer/øvrige uden paginering (S2) | DONE (kode) — lukke-værn, faktureringsstatus og øvrige omkostninger pagineret (fetchAllRows) |
 | PF2-6 | intelligence-check: mange sekventielle dublettjek; hængende sync-log (completed_at NULL) skjuler forældet-alarm (S3) | DONE (kode) — én prisændrings-advarsel pr. tilbud; sync-log uden completed_at ignoreres |
-| PF2-7 | Dashboard henter alle afsluttede timer og accepterede tilbud pr. visning (S3) | TODO (aggregat) |
+| PF2-7 | Dashboard henter alle afsluttede timer og accepterede tilbud pr. visning (S3) | UDSAT — ingen effekt ved prod-volumen (prod-volume-probe: 1 timelog, 15 tilbud); rigtig løsning = aggregat-RPC = BLOCKED_APPROVAL [MIGRATION] når volumen vokser |
 | PF2-8 | Planlægningsbacklog: arbejdsordreopslag afkortes ved 1.000; kalender venter på det (S3) | DONE (kode) — arbejdsordreopslag side for side pr. bid |
 | PF2-9 | Kalenderens månedsvisning henter op til 1.000 nyeste besigtigelser i stedet for måneden (S3/S4) | DONE (kode) — besigtigelser med forfald ±12 måneder; besked i måneder uden for vinduet. UI U144/U140 |
 
