@@ -83,7 +83,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | DF-2 | Kundeskift på tilbudskladde opdaterer ikke vat_mode | DONE (kode) — ny kundes vat_mode sættes ved kundeskift |
 | DF-3 | Arbejdsadresse kopieres ikke fra tilbud til sag | DONE (kode) — slutkundens leveringsadresse, ellers fakturaadresse |
 | DF-4 | Afvisning efter sag oprettet lader sagen stå aktiv | DONE (kode) — advarsel med sagsnummer ved afvisning. Sagen lukkes ikke automatisk |
-| DF-5 | Kreditnota frigiver ikke invoice_line_id (linjer kan ikke faktureres igen) | TODO (økonomi — forsigtigt) |
+| DF-5 | Kreditnota frigiver ikke invoice_line_id (linjer kan ikke faktureres igen) | DONE (kode, fuld kreditering) — når sendte kreditnotaer annullerer fakturaen fuldt, frigives timer/materialer/øvrige omkostninger (invoice_line_id) til ny fakturering. Delvis kreditering frigiver intet (ingen kobling kreditlinje → original linje; kræver kolonne) = forslag. invoice-guards-check |
 | DF-6 | Fastprissag kan lukkes med resterende kontraktsum | DONE (kode) — lukke-værnet viser ufaktureret rest af kontraktsummen (fixed_price). UI U183 |
 | DF-7 | Telefon-accept melder succes selvom sagsoprettelse fejler | DONE (kode) — statusskiftet giver en advarsel (toast) med henvisning til "Opret sag fra tilbud" |
 | DF-8 | Fejl ved converted_case_id-kobling tjekkes ikke | DONE (kode) — fejl eller 0 rækker → nyt forsøg med admin-klient, derefter fejl-log |

@@ -211,6 +211,25 @@ async function recomputeOriginalVoidStatus(
         entityId: originalInvoiceId,
         error,
       })
+    } else {
+      // DF-5 (dataflow-review 2026-10-17): en fuldt krediteret faktura holdt sine timer/materialer/øvrige omkostninger
+      // bundet (invoice_line_id) → arbejdet kunne aldrig faktureres igen på en rettet faktura. Ved fuld annullering
+      // frigives kilderækkerne. Delvise kreditnotaer frigiver intet (ingen kobling kreditlinje → original linje).
+      try {
+        const { data: lines } = await supabase.from('invoice_lines').select('id').eq('invoice_id', originalInvoiceId)
+        const lineIds = ((lines ?? []) as Array<{ id: string }>).map((l) => l.id)
+        let released = 0
+        for (let i = 0; i < lineIds.length; i += 200) {
+          const chunk = lineIds.slice(i, i + 200)
+          for (const table of ['time_logs', 'case_materials', 'case_other_costs'] as const) {
+            const { data: rel } = await supabase.from(table).update({ invoice_line_id: null }).in('invoice_line_id', chunk).select('id')
+            released += (rel ?? []).length
+          }
+        }
+        if (released > 0) logger.info('Fuldt krediteret faktura: kilderækker frigivet til ny fakturering', { entityId: originalInvoiceId, metadata: { released } })
+      } catch (relErr) {
+        logger.warn('recomputeOriginalVoidStatus: release of source rows failed', { entityId: originalInvoiceId, error: relErr })
+      }
     }
   } else if (!shouldBeVoided && !currentlyVoided) {
     // FIN-4 (finance-review 2026-10-17): delvist betalt + resten krediteret (6.000 betalt, kredit 4.000 af 10.000) stod
@@ -235,6 +254,8 @@ async function recomputeOriginalVoidStatus(
     // Self-healing — clear stale voided_at when finalized credits no
     // longer cover the original (e.g. a draft was deleted that had
     // erroneously triggered an old version of the auto-void).
+    // DF-5: kilderækker frigivet ved annulleringen bindes IKKE igen automatisk — tjek sagen for dobbeltfakturering.
+    logger.warn('recomputeOriginalVoidStatus: annullering ophævet — kilderækker kan være frigivet', { entityId: originalInvoiceId })
     const { error } = await supabase
       .from('invoices')
       .update({

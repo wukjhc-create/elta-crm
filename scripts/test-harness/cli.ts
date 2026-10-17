@@ -3093,6 +3093,17 @@ async function main() {
       const fmiss = await createFinalInvoiceForCase({ case_id: finalCaseId!, include_unbilled_lines: true }, owner)
       const tlNow = noRateTlId ? (await admin.from('time_logs').select('hours, approval_status, sale_amount').eq('id', noRateTlId).maybeSingle()).data : null
       check('timer uden timepris blokerer slutfakturaen (før skjult 650 kr/t)', !fmiss.ok && /timepris/.test(fmiss.message), `${fmiss.message.slice(0, 90)} · tl=${JSON.stringify(tlNow)} ${tl3.error?.message ?? ''}`)
+      // DF-5 (2026-10-17): fuldt krediteret faktura frigiver sine kilderækker (timer) til ny fakturering
+      if (noRateTlId) {
+        const inv5 = await mkInv({ invoice_type: 'standard', case_id: finalCaseId, total_amount: 1000, tax_amount: 250, final_amount: 1250 }, [['Timer', 1, 1000]])
+        await admin.from('time_logs').update({ invoice_line_id: inv5.lines[0] }).eq('id', noRateTlId)
+        await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', inv5.id)
+        const cn5 = await createCreditNoteForInvoice({ invoice_id: inv5.id, credit_type: 'full', reason: 'harness' }, owner)
+        if (cn5.ok && cn5.credit_invoice_id) await (await import('../../src/lib/services/invoices')).markInvoiceSent(cn5.credit_invoice_id).catch(() => {})
+        const tl5 = (await admin.from('time_logs').select('invoice_line_id').eq('id', noRateTlId).single()).data as { invoice_line_id: string | null } | null
+        const v5 = (await admin.from('invoices').select('voided_at').eq('id', inv5.id).single()).data as { voided_at: string | null } | null
+        check('DF-5: fuldt krediteret faktura frigiver timerne (kan faktureres igen)', !!cn5.ok && !!v5?.voided_at && tl5?.invoice_line_id === null, `${cn5.message ?? ''} · voided=${!!v5?.voided_at} line=${tl5?.invoice_line_id}`)
+      }
 
       // Faktura-review 2026-10-14 #8/#9: "markér som sendt" taber til en igangværende sletning; kreditnota-PDF på momsfri faktura
       const { markInvoiceSent, getInvoicePdfPayload } = await import('../../src/lib/services/invoices')
