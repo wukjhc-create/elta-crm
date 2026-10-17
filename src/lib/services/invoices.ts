@@ -948,10 +948,12 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
   const { resolveInvoiceMailRoute, logMailRoute } = await import(
     '@/lib/actions/mail-route-resolvers'
   )
+  // PM-4 (portal-review 2026-10-17): service-klienten (cron har ingen session → "Faktura ikke fundet" hver dag).
+  // Afsendelse er stadig bag INVOICE_REMINDERS_LIVE (CR-2).
   const routeResult = await resolveInvoiceMailRoute(invoiceId, {
     isReminder: true,
     fromMailboxOverride: REMINDER_FROM_MAILBOX,
-  })
+  }, createAdminClient())
   if (!routeResult.ok || !routeResult.route) {
     await logReminder(
       invoiceId,
@@ -1266,9 +1268,10 @@ async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   const { resolveInvoiceMailRoute, logMailRoute } = await import(
     '@/lib/actions/mail-route-resolvers'
   )
+  // PM-4: service-klient (automatik efter portal-accept har ingen session); kalderen har allerede kravet på fakturaen
   const routeResult = await resolveInvoiceMailRoute(invoiceId, {
     fromMailboxOverride: INVOICE_FROM_MAILBOX,
-  })
+  }, createAdminClient())
   if (!routeResult.ok || !routeResult.route) {
     return {
       invoiceId,

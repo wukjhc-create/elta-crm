@@ -67,7 +67,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | PM-1 | Servicesagsbekræftelse sender sagskundens portal-link til kontakt/kunde på adressen (S1) | DONE (kode) — link kun når modtageren er sagens kunde; udløbne tokens filtreres |
 | PM-2 | Tilbudsmail til betaler/partner/slutkunde indeholder tilbudskundens portal-link (S1) | DONE (kode) — anden modtager → portal-link fjernes ("Tilbuddet er vedhæftet som PDF"); uden PDF sendes intet. Tilbudsrykker (dry-run) skal have samme værn før live |
 | PM-3 | Døde portal-links (genbrug/nyt token afvist, /view-offer-fallback, udløbne tokens) (S2) | TODO |
-| PM-4 | Fakturamail-router bruger cookie-klient → automatik/rykkere finder aldrig fakturaen (S2) | TODO (forudsætning for INVOICE_REMINDERS_LIVE) |
+| PM-4 | Fakturamail-router bruger cookie-klient → automatik/rykkere finder aldrig fakturaen (S2) | DONE (kode) — valgfri klient i resolveInvoiceMailRoute; rykker og automatisk fakturamail bruger service-klienten. Afsendelse af rykkere stadig KUN med INVOICE_REMINDERS_LIVE=true (standard fra) |
 | PM-5 | Pladsholder-kontaktinfo (+45 12 34 56 78, info@) på portal-/fejlsider (S2) | DONE (kode) — falsk telefonnummer fjernet; kontakt@ (BRAND_EMAIL) på portal-/partner-/fejlsider |
 | PM-6 | Kundenavn ikke escapet i besigtigelsesrapport-mail (S2) | DONE (kode) — escapet |
 | PM-7 | Fuldmagtsrykker går til kortets kunde, ikke den tiltænkte underskriver; intet link (S3) | TODO (ændrer modtager af live-rykker → beslutning) |

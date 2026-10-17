@@ -31,7 +31,7 @@ export const CRON_REGISTRY: CronInfo[] = [
     knownIssue: 'Kobling mail→kunde (linkEmail) bruger anon-klient → formentlig stille no-op.' },
   { name: 'offer-reminders', schedule: '0 8 * * *', purpose: 'Rykker-mail til kunder på ubesvarede tilbud', external: 'customer_mail', gate: 'company_settings.reminder_enabled; tilbudsrykkere kun med OFFER_REMINDERS_LIVE=true (dry-run ellers); FOLLOWUP_REMINDERS_PAUSED=true = nødstop for fuldmagt/besigtigelse' },
   { name: 'invoice-reminders', schedule: '0 7 * * *', purpose: 'Betalingsrykker-mail til kunder', external: 'customer_mail', gate: 'INVOICE_REMINDERS_LIVE=true (standard fra → intet sendt; CR-2)',
-    knownIssue: 'Mail-routeren bruger anon-klient → "Faktura ikke fundet" (0 sendt nogensinde, prod 2026-10-17). Slås INVOICE_REMINDERS_LIVE til efter rettelsen, rykkes der straks på gamle forfaldne fakturaer — gennemgå dem først.' },
+    knownIssue: 'Router-fejlen ("Faktura ikke fundet", anon-klient) er rettet (PM-4, 2026-10-17) — afsendelse styres nu KUN af INVOICE_REMINDERS_LIVE. Slås den til, rykkes der straks på gamle forfaldne fakturaer — gennemgå dem først (scripts/prod-reminder-status.ts).' },
   // CR-12 (cron-review 2026-10-17): sikre match kalder registerPayment → fuldt betalt poster betalingen i e-conomic,
   // når ECONOMIC_PUSH_ENABLED=true (før stod der "ingen ekstern effekt")
   { name: 'bank-match', schedule: '30 6 * * *', purpose: 'Match bankposteringer til fakturaer; sikre match registrerer betalingen (fuldt betalt → e-conomic, når ECONOMIC_PUSH_ENABLED=true)', external: 'none', gate: 'ECONOMIC_PUSH_ENABLED styrer e-conomic-delen; CRON_PAUSED=bank-match stopper kørslen',

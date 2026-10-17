@@ -511,7 +511,9 @@ export async function resolveOfferMailRoute(
  */
 export async function resolveInvoiceMailRoute(
   invoiceId: string,
-  ctx?: MailRouteContext & { isReminder?: boolean; fromMailboxOverride?: string }
+  ctx?: MailRouteContext & { isReminder?: boolean; fromMailboxOverride?: string },
+  /** PM-4 (portal-review 2026-10-17): valgfri klient (cron/automatik uden session) — som O-1 for tilbud */
+  client?: SupabaseClient
 ): Promise<ResolvedRouteResult> {
   try {
     validateUUID(invoiceId, 'invoiceId')
@@ -523,7 +525,7 @@ export async function resolveInvoiceMailRoute(
     }
   }
 
-  const supabase = await createClient()
+  const supabase = client ?? (await createClient())
   const { data: invoice } = await supabase
     .from('invoices')
     .select(`
