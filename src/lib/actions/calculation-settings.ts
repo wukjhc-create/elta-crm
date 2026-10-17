@@ -207,6 +207,8 @@ export async function updateSetting(
       return { success: false, error: 'Indstillingsnøgle er påkrævet' }
     }
 
+    // EM-6 (review 2026-10-17): timesatser/avancer/DB-tærskler styrer alle priser — revisionsspor med gammel/ny værdi
+    const { data: prev } = await supabase.from('calculation_settings').select('setting_value').eq('setting_key', settingKey).maybeSingle()
     const { data, error } = await supabase
       .from('calculation_settings')
       .update({
@@ -216,6 +218,14 @@ export async function updateSetting(
       .eq('setting_key', settingKey)
       .select()
       .single()
+    if (!error && data) {
+      const { insertAuditRow } = await import('@/lib/audit/insert-audit-row')
+      await insertAuditRow({
+        user_id: userId, entity_type: 'calculation_setting', entity_id: null, entity_name: settingKey,
+        action: 'calculation_setting_changed', action_description: `Kalkulationsindstilling ændret: ${settingKey}`,
+        changes: { setting_value: { old: (prev as { setting_value?: unknown } | null)?.setting_value ?? null, new: value } }, metadata: null,
+      })
+    }
 
     if (error) {
       if (error.code === 'PGRST116') {

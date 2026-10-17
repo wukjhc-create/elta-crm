@@ -76,13 +76,14 @@ export function EmployeeLoginPanel({
     }
   }, [status])
 
-  const run = (fn: () => Promise<{ success: boolean; error?: string }>, okMsg: string) => {
+  const run = (fn: () => Promise<{ success: boolean; error?: string; warning?: string }>, okMsg: string) => {
     setError(null)
     setInfo(null)
     startTransition(async () => {
       const res = await fn()
       if (res.success) {
-        setInfo(okMsg)
+        // EM-9: fx "N planlagte job er stadig tildelt medarbejderen"
+        setInfo(res.warning ? `${okMsg} — ${res.warning}` : okMsg)
         await load()
       } else {
         setError(humanizeErrorText(res.error) ?? 'Handlingen fejlede')

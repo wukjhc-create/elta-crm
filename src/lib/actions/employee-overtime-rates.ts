@@ -1,4 +1,5 @@
 'use server'
+import { auditChange } from '@/lib/audit/audit-change' // EM-6
 import { permissionDenied } from '@/lib/actions/action-helpers'
 
 /**
@@ -151,6 +152,7 @@ export async function createOvertimeRate(
       return { success: false, error: 'Kunne ikke oprette sats' }
     }
     revalidatePath(`/dashboard/employees/${employeeId}`)
+    await auditChange({ action: 'overtime_rate_created', entityType: 'employee', entityId: employeeId, description: 'Overtidssats oprettet', changes: { rate: input } })
     return { success: true }
   } catch (e) {
     return { success: false, error: formatError(e, 'Kunne ikke oprette sats') }
@@ -183,6 +185,7 @@ export async function updateOvertimeRate(
       .maybeSingle()
     if (error || !data) return { success: false, error: 'Kunne ikke opdatere sats' }
     revalidatePath(`/dashboard/employees/${data.employee_id}`)
+    await auditChange({ action: 'overtime_rate_changed', entityType: 'employee', entityId: data.employee_id as string, description: 'Overtidssats ændret', changes: { rate_id: rateId, patch: input } })
     return { success: true }
   } catch (e) {
     return { success: false, error: formatError(e, 'Kunne ikke opdatere sats') }

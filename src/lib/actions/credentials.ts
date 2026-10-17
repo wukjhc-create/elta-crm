@@ -1,5 +1,6 @@
 'use server'
 
+import { auditChange } from '@/lib/audit/audit-change' // EM-6
 import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
 import { encryptCredentials, decryptCredentials, isEncryptionConfigured, maskSensitive } from '@/lib/utils/encryption'
@@ -143,6 +144,7 @@ export async function createSupplierCredential(
       throw new Error('DATABASE_ERROR')
     }
 
+    await auditChange({ action: 'supplier_credential_created', entityType: 'supplier_credential', entityId: (result as { id?: string }).id ?? null, description: 'Leverandørlogin oprettet', changes: { supplier_id: data.supplier_id } }) // ingen værdier
     revalidatePath(`/dashboard/settings/suppliers/${data.supplier_id}`)
 
     return {
@@ -220,6 +222,7 @@ export async function updateSupplierCredential(
       throw new Error('DATABASE_ERROR')
     }
 
+    await auditChange({ action: 'supplier_credential_changed', entityType: 'supplier_credential', entityId: id, description: 'Leverandørlogin ændret', changes: { fields: Object.keys(data ?? {}) } }) // kun feltnavne — aldrig værdier
     revalidatePath('/dashboard/settings/suppliers')
 
     return {
@@ -260,6 +263,7 @@ export async function deleteSupplierCredential(id: string): Promise<ActionResult
       throw new Error('DATABASE_ERROR')
     }
 
+    await auditChange({ action: 'supplier_credential_deleted', entityType: 'supplier_credential', entityId: id, description: 'Leverandørlogin slettet' })
     revalidatePath('/dashboard/settings/suppliers')
     return { success: true }
   } catch (err) {

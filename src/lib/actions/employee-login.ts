@@ -242,11 +242,19 @@ export async function linkExistingProfile(
       .maybeSingle()
     if (clash) return { success: false, error: 'Brugeren er allerede knyttet til en anden medarbejder' }
 
+    const { data: before } = await admin.from('employees').select('profile_id, name').eq('id', employeeId).maybeSingle()
     const { error } = await admin
       .from('employees')
       .update({ profile_id: profileId, updated_at: new Date().toISOString() })
       .eq('id', employeeId)
     if (error) return { success: false, error: 'Kunne ikke knytte bruger' }
+    // EM-5 (review 2026-10-17): koblingen afgør montørens scope (current_employee_id) — revisionsspor
+    await insertAuditRow({
+      user_id: ctx.userId, entity_type: 'employee', entity_id: employeeId, entity_name: (before as { name?: string | null } | null)?.name ?? null,
+      action: 'employee_login_linked', action_description: 'Login knyttet til medarbejder',
+      changes: { profile_id: { old: (before as { profile_id?: string | null } | null)?.profile_id ?? null, new: profileId } }, metadata: null,
+    })
+    await logEmployeeEvent({ employeeId, eventType: 'login_linked', title: 'Login knyttet til medarbejderen', createdBy: ctx.userId })
 
     revalidatePath(`/dashboard/employees/${employeeId}`)
     return { success: true }
@@ -265,11 +273,38 @@ export async function setEmployeeLoginActive(
       return { success: false, error: 'Manglende tilladelse: users.edit' }
     }
     const admin = createAdminClient()
-    const { data: emp } = await admin.from('employees').select('profile_id').eq('id', employeeId).maybeSingle()
+    const { data: emp } = await admin.from('employees').select('profile_id, name, active').eq('id', employeeId).maybeSingle()
     if (!emp?.profile_id) return { success: false, error: 'Medarbejderen har intet login' }
+    // EM-3 (review 2026-10-17): som Team-siden (TM-2) — egen adgang ændres ikke herfra
+    if (emp.profile_id === ctx.userId) return { success: false, error: 'Du kan ikke ændre din egen login-adgang' }
+    const { data: prevProf } = await admin.from('profiles').select('role, is_active').eq('id', emp.profile_id as string).maybeSingle()
 
     const res = await setProfileLoginActive(emp.profile_id as string, active)
     if (!res.ok) return { success: false, error: res.error ?? 'Kunne ikke ændre login-adgang' }
+    // EM-3: TM-7-genkontrol — to admins der deaktiverer hinanden samtidig må ikke efterlade 0 aktive admins
+    if (!active && (prevProf as { role?: string } | null)?.role === 'admin') {
+      const { activeAdminCount } = await import('@/lib/auth/role-guard')
+      if ((await activeAdminCount(admin)) === 0) {
+        await setProfileLoginActive(emp.profile_id as string, true)
+        return { success: false, error: 'Den sidste aktive administrator kan ikke deaktiveres' }
+      }
+    }
+    await insertAuditRow({
+      user_id: ctx.userId, entity_type: 'user', entity_id: emp.profile_id, entity_name: (emp as { name?: string | null }).name ?? null,
+      action: active ? 'user_activated' : 'user_deactivated', action_description: active ? 'Login aktiveret (medarbejderkort)' : 'Login deaktiveret (medarbejderkort)',
+      changes: { is_active: { old: (prevProf as { is_active?: boolean } | null)?.is_active ?? null, new: active } }, metadata: { employee_id: employeeId },
+    })
+    // EM-9 (review 2026-10-17): som TM-3 — deaktiveret login → medarbejderen kan ikke længere planlægges
+    let warning: string | undefined
+    if (!active) {
+      if ((emp as { active?: boolean | null }).active) {
+        const { copenhagenParts } = await import('@/lib/utils/copenhagen-time')
+        await admin.from('employees').update({ active: false, termination_date: copenhagenParts(new Date()).date }).eq('id', employeeId).eq('active', true)
+      }
+      const { count: openJobs } = await admin.from('work_orders').select('id', { count: 'exact', head: true })
+        .eq('assigned_employee_id', employeeId).in('status', ['planned', 'in_progress'])
+      if ((openJobs ?? 0) > 0) warning = `${openJobs} planlagte/igangværende job er stadig tildelt medarbejderen — omplanlæg dem i kalenderen`
+    }
 
     await logEmployeeEvent({
       employeeId,
@@ -278,7 +313,7 @@ export async function setEmployeeLoginActive(
       createdBy: ctx.userId,
     })
     revalidatePath(`/dashboard/employees/${employeeId}`)
-    return { success: true }
+    return { success: true, ...(warning ? { warning } : {}) }
   } catch (e) {
     return { success: false, error: formatError(e, 'Kunne ikke ændre login-adgang') }
   }
@@ -300,12 +335,31 @@ export async function setEmployeeAuthRole(
     if (!isValidRole(role)) return { success: false, error: 'Ukendt rolle' }
     const block = await lastAdminBlock(admin, emp.profile_id as string, { role })
     if (block) return { success: false, error: block }
+    // EM-3 (review 2026-10-17): egen rolle ændres ikke herfra (som Team-siden)
+    if (emp.profile_id === ctx.userId) return { success: false, error: 'Du kan ikke ændre din egen rolle' }
+    const { data: prevProf } = await admin.from('profiles').select('role, full_name').eq('id', emp.profile_id as string).maybeSingle()
+    const prevRole = (prevProf as { role?: string } | null)?.role ?? null
 
     const { error } = await admin
       .from('profiles')
       .update({ role, updated_at: new Date().toISOString() })
       .eq('id', emp.profile_id as string)
     if (error) return { success: false, error: 'Kunne ikke ændre adgangsrolle' }
+    // EM-3: TM-7-genkontrol efter skrivning
+    if (prevRole === 'admin' && role !== 'admin') {
+      const { activeAdminCount } = await import('@/lib/auth/role-guard')
+      if ((await activeAdminCount(admin)) === 0) {
+        await admin.from('profiles').update({ role: 'admin' }).eq('id', emp.profile_id as string)
+        return { success: false, error: 'Den sidste aktive administrator kan ikke miste admin-rollen' }
+      }
+    }
+    if (prevRole !== role) {
+      await insertAuditRow({
+        user_id: ctx.userId, entity_type: 'user', entity_id: emp.profile_id, entity_name: (prevProf as { full_name?: string | null } | null)?.full_name ?? null,
+        action: 'user_role_changed', action_description: `Rolle ændret (medarbejderkort): ${prevRole ?? '—'} → ${role}`,
+        changes: { role: { old: prevRole, new: role } }, metadata: { employee_id: employeeId },
+      })
+    }
 
     await logEmployeeEvent({
       employeeId,
@@ -347,6 +401,12 @@ export async function getEmployeeSetPasswordLink(
 
     const { link, error } = await buildSetPasswordLink(admin, email)
     if (!link) return { success: false, error: error ?? 'Kunne ikke generere link' }
+    // EM-4 (review 2026-10-17): linket giver adgang som brugeren — revisionsspor ved hver udlevering
+    await insertAuditRow({
+      user_id: ctx.userId, entity_type: 'user', entity_id: emp.profile_id, entity_name: null,
+      action: 'user_password_link_generated', action_description: 'Sæt-adgangskode-link udleveret til administrator',
+      changes: null, metadata: { employee_id: employeeId, via: 'copy_link' },
+    })
     return { success: true, data: { link, email } }
   } catch (e) {
     return { success: false, error: formatError(e, 'Kunne ikke generere sæt-kode-link') }
@@ -412,6 +472,7 @@ export async function sendEmployeeAccessEmail(
 
     // Graph ikke opsat → giv admin linket som fallback (ingen mail).
     if (!isGraphConfigured()) {
+      await auditLinkFallback(ctx.userId, emp.profile_id as string, employeeId, 'graph_not_configured') // EM-4
       return { success: true, data: { sent: false, link } }
     }
 
@@ -419,6 +480,7 @@ export async function sendEmployeeAccessEmail(
     const res = await sendAccessMail({ email, name: fullName, link, mode })
     if (!res.success) {
       // Mail fejlede — giv admin linket som fallback frem for en blind fejl.
+      await auditLinkFallback(ctx.userId, emp.profile_id as string, employeeId, 'mail_failed') // EM-4
       return { success: true, data: { sent: false, link } }
     }
     if (authMeta) {
@@ -444,4 +506,13 @@ async function authEmailForProfile(admin: ReturnType<typeof createAdminClient>, 
   const { data, error } = await admin.auth.admin.getUserById(profileId)
   if (error || !data?.user?.email) return null
   return data.user.email
+}
+
+/** EM-4: link udleveret til administrator (mail ikke sendt) — revisionsspor */
+async function auditLinkFallback(actorId: string, profileId: string, employeeId: string, reason: string): Promise<void> {
+  await insertAuditRow({
+    user_id: actorId, entity_type: 'user', entity_id: profileId, entity_name: null,
+    action: 'user_password_link_generated', action_description: 'Adgangslink udleveret til administrator (mail ikke sendt)',
+    changes: null, metadata: { employee_id: employeeId, via: reason },
+  })
 }

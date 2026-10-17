@@ -1,5 +1,6 @@
 'use server'
 
+import { auditChange } from '@/lib/audit/audit-change' // EM-6
 import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
@@ -120,6 +121,7 @@ export async function createMarginRule(
 
     revalidatePath('/dashboard/settings/suppliers')
 
+    await auditChange({ action: 'margin_rule_created', entityType: 'supplier_margin_rule', entityId: (result as { id?: string }).id ?? null, description: 'Avanceregel oprettet', changes: { rule: result } })
     return { success: true, data: result as SupplierMarginRule }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette marginregel') }
@@ -178,6 +180,7 @@ export async function updateMarginRule(
 
     revalidatePath('/dashboard/settings/suppliers')
 
+    await auditChange({ action: 'margin_rule_changed', entityType: 'supplier_margin_rule', entityId: id, description: 'Avanceregel ændret', changes: { patch: data } })
     return { success: true, data: result as SupplierMarginRule }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere marginregel') }
@@ -204,6 +207,7 @@ export async function deleteMarginRule(id: string): Promise<ActionResult> {
 
     revalidatePath('/dashboard/settings/suppliers')
 
+    await auditChange({ action: 'margin_rule_deleted', entityType: 'supplier_margin_rule', entityId: id, description: 'Avanceregel slettet' })
     return { success: true }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke slette marginregel') }
@@ -244,6 +248,7 @@ export async function toggleMarginRule(id: string): Promise<ActionResult<Supplie
 
     revalidatePath('/dashboard/settings/suppliers')
 
+    await auditChange({ action: 'margin_rule_toggled', entityType: 'supplier_margin_rule', entityId: id, description: 'Avanceregel slået til/fra', changes: { is_active: (result as { is_active?: boolean }).is_active } })
     return { success: true, data: result as SupplierMarginRule }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke ændre marginregel') }
@@ -406,6 +411,7 @@ export async function setDefaultSupplierMargin(
       }
 
       revalidatePath('/dashboard/settings/suppliers')
+      await auditChange({ action: 'margin_rule_changed', entityType: 'supplier_margin_rule', entityId: (data as { id?: string }).id ?? null, description: 'Standard-avance for leverandør ændret', changes: { rule: data } })
       return { success: true, data: data as SupplierMarginRule }
     } else {
       // Create new supplier-level rule
@@ -430,6 +436,7 @@ export async function setDefaultSupplierMargin(
       }
 
       revalidatePath('/dashboard/settings/suppliers')
+      await auditChange({ action: 'margin_rule_changed', entityType: 'supplier_margin_rule', entityId: (data as { id?: string }).id ?? null, description: 'Standard-avance for leverandør oprettet', changes: { rule: data } })
       return { success: true, data: data as SupplierMarginRule }
     }
   } catch (err) {

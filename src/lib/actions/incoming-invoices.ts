@@ -371,10 +371,10 @@ async function requireAdminClient() {
   const { supabase, userId } = await getAuthenticatedClient()
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, is_active')
     .eq('id', userId)
     .maybeSingle()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || profile.role !== 'admin' || profile.is_active === false) { // EM-7
     throw new Error('Kun administratorer må oprette testdata')
   }
   return { supabase, userId }

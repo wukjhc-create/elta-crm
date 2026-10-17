@@ -121,6 +121,13 @@ export async function updateCompanySettings(
     // Settings-review 2026-10-09 (#5): kun kendte felter skrives (før hele klientobjektet → fx company_logo_storage_path,
     // som logo-sletningen siden fjernede fra storage)
     const patch = Object.fromEntries(Object.entries(input ?? {}).filter(([k]) => COMPANY_SETTINGS_UPDATABLE.has(k)))
+    // EM-6 (review 2026-10-17): revisionsspor for ALLE ændrede felter (før kun kostbasis) — hemmeligheder (SMTP-kode
+    // o.l.) kun som "ændret", aldrig værdien
+    const isSecretKey = (k: string) => /password|secret|token|api_key/i.test(k)
+    const plainKeys = Object.keys(patch).filter((k) => !isSecretKey(k))
+    const { data: before } = plainKeys.length
+      ? await createAdminClient().from('company_settings').select(plainKeys.join(', ')).eq('id', existing.id).maybeSingle()
+      : { data: null }
     const { data, error } = await supabase
       .from('company_settings')
       .update(patch)
@@ -131,6 +138,21 @@ export async function updateCompanySettings(
     if (error) {
       logger.error('Error updating company settings', { error: error })
       return { success: false, error: 'Kunne ikke opdatere virksomhedsindstillinger' }
+    }
+    {
+      const prev = (before ?? {}) as Record<string, unknown>
+      const changes: Record<string, { old: unknown; new: unknown }> = {}
+      for (const [k, v] of Object.entries(patch)) {
+        if (isSecretKey(k)) { if (v !== undefined && v !== null && v !== '') changes[k] = { old: '••••', new: '•••• (ændret)' }; continue }
+        if (JSON.stringify(prev[k] ?? null) !== JSON.stringify(v ?? null)) changes[k] = { old: prev[k] ?? null, new: v ?? null }
+      }
+      if (Object.keys(changes).length > 0) {
+        await insertAuditRow({
+          user_id: userId, entity_type: 'company_settings', entity_id: existing.id, entity_name: 'Firmaindstillinger',
+          action: 'company_settings_changed', action_description: `Firmaindstillinger ændret: ${Object.keys(changes).join(', ')}`,
+          changes, metadata: null,
+        })
+      }
     }
 
     // Sprint Ø2.11 — audit kostbasis-ændring (påvirker kun nye/ændrede timer).

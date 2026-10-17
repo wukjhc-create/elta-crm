@@ -29,11 +29,11 @@ export async function getUserActivityList(): Promise<ActionResult<UserActivityEn
     // Check admin
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', userId)
       .maybeSingle()
 
-    if (profile?.role !== 'admin') {
+    if (profile?.role !== 'admin' || profile?.is_active === false) { // EM-7: deaktiveret admin = ingen adgang
       return { success: false, error: 'Kun administratorer kan se brugeraktivitet' }
     }
 

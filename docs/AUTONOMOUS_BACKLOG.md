@@ -45,6 +45,34 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | E-8 | ICS-eksport af egne arbejdsordrer (montørens telefon-kalender) | DONE (download) — `/api/calendar/my-jobs` (kun egne job, også for planlæggere; heldag, fast UID), link "Til telefonens kalender" i Mine job; ics.ts bruger UTC-getters (DTSTAMP/datoer). Unit work-order-ics-test 7/7, UI U151. Abonnement (auto-opdatering) kræver token-tabel → senere |
 | E-9 | Ugevisning på mobil (7 × 140 px) — kompakt agenda-tilstand | DONE — under md: dag-for-dag-agenda (medarbejder pr. job, i dag fremhævet), tabellen fra md. UI U160 (375 px uden vandret scroll) + U43 |
 
+## NEXT-35 (review-bølge 2026-10-17 aften — medarbejdere, indstillinger, rettigheder, audit)
+| # | Fund | Status |
+|---|---|---|
+| EM-1 | integration_webhooks UPDATE for salg/serviceleder via REST (= SEC2-2 RLS-delen) (S2, latent: 0 webhooks i prod) | BLOCKED_APPROVAL [MIGRATION] — 00241 |
+| EM-2 | Godkendt/faktureret tidsregistrering omprises til dagens sats ved gem uden ændring (trigger på SET-liste) (S3) | DELVIS (kode) — godkendt registrering: uændrede start/slut/sats udelades af patchen (ingen omprisning ved "Gem"). Trigger IS DISTINCT FROM + DB-fakturalås = BLOCKED_APPROVAL [MIGRATION] |
+| EM-3 | Login-panelet på medarbejdersiden: ingen audit/sidste-admin-genkontrol/selvblok ved rolle/adgang (S3) | DONE (kode) — audit (user_role_changed/user_(de)activated), selvblok, TM-7-genkontrol efter skrivning |
+| EM-4 | Sæt-adgangskode-link til enhver profil (også admin) uden audit (S3) | DONE (kode) — audit user_password_link_generated ved hver udlevering (kopi-link, Graph ikke opsat, mail fejlede) |
+| EM-5 | Kobling login ↔ medarbejder uden audit (S3) | DONE (kode) — audit employee_login_linked (gammel/ny profile_id) + medarbejderhændelse |
+| EM-6 | Ændringer af leverandørlogins, avanceregler, kalkulationssatser, overtidssatser, firmaindstillinger uden audit (S3) | DONE (kode) — audit for kalkulationsindstillinger, firmaindstillinger (hemmeligheder kun "ændret"), avanceregler, overtidssatser, leverandørlogins (kun feltnavne) |
+| EM-7 | Deaktiveret bruger beholder DB-rettigheder til JWT udløber; inline-tjek ignorerer is_active (S3) | DELVIS (kode) — inline admin-tjek (brugeraktivitet, autokalibrering, testdata) kræver is_active. user_role()/is_admin() = BLOCKED_APPROVAL [MIGRATION] |
+| EM-8 | Webhook-headers i klartekst og læsbare for alle (S4) | TODO — maskering i getWebhooks kræver at redigeringsformularen ikke gemmer masken tilbage; SELECT kun admin = BLOCKED_APPROVAL [MIGRATION] |
+| EM-9 | Deaktivér login fra medarbejderkortet lader medarbejderen være aktiv (S4) | DONE (kode) — deaktiveret login fra medarbejderkortet sætter employees.active=false + fratrædelsesdato og advarer om åbne job |
+
+## NEXT-34 (review-bølge 2026-10-17 aften — performance/robusthed)
+Prod-mængder 2026-10-17 (scripts/prod-volume-probe.ts): 4 banktransaktioner, 861 mails (3 med bilag/72 t), 1 timeregistrering,
+maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → skaleringsrisici, ingen akutte nedbrud.
+| # | Fund | Status |
+|---|---|---|
+| PF2-1 | bank-match genlæser alle kandidater pr. transaktion; ikke-matchede bliver i puljen (60 s) (S1 ved vækst) | TODO (design: kandidatsæt én gang pr. kørsel + tidsbudget) |
+| PF2-2 | incoming-invoices genparser alle PDF'er fra 72 t hver kørsel (S2 ved vækst) | TODO |
+| PF2-3 | "Kræver svar": .in() med lange conversation-id'er i bidder á 200 + ubegrænset kandidatscan (S2) | TODO |
+| PF2-4 | Sags-scope: egne sager højst 1.000 og genberegnet pr. action (S2) | DONE (87815583) — userCanViewCase som ét-rækkeopslag; egne sager pagineret. UI montør/salg 18/18 |
+| PF2-5 | Lukke-værn/faktureringsstatus læser materialer/øvrige uden paginering (S2) | TODO |
+| PF2-6 | intelligence-check: mange sekventielle dublettjek; hængende sync-log (completed_at NULL) skjuler forældet-alarm (S3) | TODO |
+| PF2-7 | Dashboard henter alle afsluttede timer og accepterede tilbud pr. visning (S3) | TODO (aggregat) |
+| PF2-8 | Planlægningsbacklog: arbejdsordreopslag afkortes ved 1.000; kalender venter på det (S3) | TODO |
+| PF2-9 | Kalenderens månedsvisning henter op til 1.000 nyeste besigtigelser i stedet for måneden (S3/S4) | TODO |
+
 ## NEXT-33 (review-bølge 2026-10-17 aften — tilbud, kalkulation, sol)
 | # | Fund | Status |
 |---|---|---|

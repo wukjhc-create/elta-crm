@@ -100,11 +100,11 @@ export async function runAutoCalibration(): Promise<ActionResult<{ adjustments: 
     // Verify admin role
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', userId)
       .maybeSingle()
 
-    if (profile?.role !== 'admin') {
+    if (profile?.role !== 'admin' || profile?.is_active === false) { // EM-7: deaktiveret admin = ingen adgang
       return { success: false, error: 'Kun administratorer kan køre autokalibrering' }
     }
 
@@ -128,11 +128,11 @@ export async function applyCalibration(
     // Verify admin role
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', userId)
       .maybeSingle()
 
-    if (profile?.role !== 'admin') {
+    if (profile?.role !== 'admin' || profile?.is_active === false) { // EM-7: deaktiveret admin = ingen adgang
       return { success: false, error: 'Kun administratorer kan anvende kalibreringer' }
     }
 
@@ -286,11 +286,11 @@ export async function collectProjectFeedback(): Promise<
     // Verify admin role
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', userId)
       .maybeSingle()
 
-    if (profile?.role !== 'admin') {
+    if (profile?.role !== 'admin' || profile?.is_active === false) { // EM-7: deaktiveret admin = ingen adgang
       return { success: false, error: 'Kun administratorer kan køre feedback-indsamling' }
     }
 
@@ -428,11 +428,11 @@ export async function runAutoCalibrationAndApply(): Promise<
     // Verify admin role
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', userId)
       .maybeSingle()
 
-    if (profile?.role !== 'admin') {
+    if (profile?.role !== 'admin' || profile?.is_active === false) { // EM-7: deaktiveret admin = ingen adgang
       return { success: false, error: 'Kun administratorer kan køre autokalibrering' }
     }
 
