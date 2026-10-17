@@ -51,11 +51,11 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | MB-1 | Tidsregistrering/planlægning fryser på "Gemmer…" ved netfejl (setIsWorking efter kast nås aldrig) (S2) | DONE (03b39a24) — safeAction: kastet server action → dansk fejl, formular låses ikke (tidsregistrering + planlægning) |
 | MB-2 | Bunden skjules af bundmenuen (pb-20 < 64 px + safe-area; sm:p-6 overskriver) | DONE (130fde1c) — bundpolstring 5rem + safe-area; sm:p-6 nulstiller ikke bunden |
 | MB-3 | Montør ser altid "Alle påkrævede punkter skal udfyldes" selv ved komplet tjekliste | DONE (e1fc5051) — checklistComplete separat; komplet uden lukkeret → "Tjeklisten er komplet — kontoret lukker sagen" |
-| MB-4 | Aflevering: fejl vises øverst uden for skærmen | DONE (venter commit) — fejl rulles i syne (role=alert) og vises også ved underskriftsfeltet |
+| MB-4 | Aflevering: fejl vises øverst uden for skærmen | DONE (c224890f) — fejl rulles i syne (role=alert) og vises også ved underskriftsfeltet |
 | MB-5 | Gem/Afslut-knapper i tidsregistrering ~24 px | DONE (130fde1c) — Gem/Annullér fuld bredde og ≥ 44 px på telefon |
 | MB-6 | Tidstabel uden mobilvisning (Ret/Slet i sidste kolonne) | TODO |
 | MB-7 | Satsvælger vist på kollegaers rækker (serveren afviser) | DONE (d0c428ac) — serveren markerer editable_by_me; kollegaers rækker vises låst med forklaring |
-| MB-8 | Små HEIC-fotos uploades ukonverteret (vises ikke i Chrome/Android) | TODO |
+| MB-8 | Små HEIC-fotos uploades ukonverteret (vises ikke i Chrome/Android) | DONE (venter commit) — HEIC/HEIF konverteres altid til JPEG (unit image-downscale +3) |
 | MB-9 | Dokumenter lover 20 MB, grænsen er ~4,5–10 MB | DONE (46946371) — klienttjek 4 MB efter formindskelse med dansk besked; korrekt tekst i feltet |
 | MB-10 | Slet-foto vist på andres fotos | DONE (f9c895a4) — serveren markerer deletable_by_me (kontor: alle; ellers egne) |
 | MB-11 | Tider i enhedens tidszone i tidslisten | DONE (130fde1c) — timeZone Europe/Copenhagen i tidslisten |

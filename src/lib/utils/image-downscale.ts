@@ -10,7 +10,10 @@ export const UPLOAD_JPEG_QUALITY = 0.82
 export const UPLOAD_DOWNSCALE_FROM_BYTES = 1.5 * 1024 * 1024
 
 export function shouldDownscale(file: { type: string; size: number }): boolean {
-  return /^image\/(jpeg|png|webp|heic|heif)$/i.test(file.type) && file.size > UPLOAD_DOWNSCALE_FROM_BYTES
+  // MB-8 (mobil-review 2026-10-17): HEIC/HEIF konverteres ALTID til JPEG (også små) — Chrome/Android/kontorets PC kan
+  // ikke vise HEIC, så fotos fra iPhone stod som brudte billeder
+  if (/^image\/(heic|heif)$/i.test(file.type)) return true
+  return /^image\/(jpeg|png|webp)$/i.test(file.type) && file.size > UPLOAD_DOWNSCALE_FROM_BYTES
 }
 
 export function scaledSize(w: number, h: number, max = UPLOAD_MAX_DIMENSION): { width: number; height: number } {
@@ -31,7 +34,8 @@ export async function downscaleImageForUpload(file: File): Promise<File> {
     ctx.drawImage(bitmap, 0, 0, width, height)
     bitmap.close?.()
     const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', UPLOAD_JPEG_QUALITY))
-    if (!blob || blob.size >= file.size) return file
+    // HEIC beholdes aldrig, selv om JPEG'en er større (den skal kunne vises overalt)
+    if (!blob || (blob.size >= file.size && !/^image\/(heic|heif)$/i.test(file.type))) return file
     const name = file.name.replace(/\.(png|webp|heic|heif|jpe?g)$/i, '') + '.jpg'
     return new File([blob], name, { type: 'image/jpeg', lastModified: file.lastModified })
   } catch {
