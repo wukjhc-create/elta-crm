@@ -1076,7 +1076,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
 
   await finishLog('sent', null, null)
   await logMailRoute(route, 'sent', { invoiceId, level, messageId: result.messageId })
-  console.log('INVOICE REMINDER SENT:', invoice.invoice_number, 'level', level, '→', recipient)
+  console.log('INVOICE REMINDER SENT:', invoice.invoice_number, 'level', level) // ML-3: ingen modtageradresse i logs
   return { invoiceId, status: 'sent', level }
 }
 
@@ -1446,7 +1446,7 @@ async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   console.log('INVOICE SENT:', invoiceId)
   try {
     const { logHealth } = await import('@/lib/services/system-health')
-    await logHealth('invoice', 'ok', `invoice sent: ${invoice.invoice_number}`, { invoiceId, recipient })
+    await logHealth('invoice', 'ok', `invoice sent: ${invoice.invoice_number}`, { invoiceId }) // ML-3: ingen modtager i helbredsloggen
   } catch { /* never crash */ }
 
   // Sync to e-conomic (Phase 5.4). Best-effort — never blocks send.

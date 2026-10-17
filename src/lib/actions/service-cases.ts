@@ -52,6 +52,11 @@ const PAGE_SIZE = 25
 // List / Get
 // =====================================================
 
+/** FW-1 (montør-review 2026-10-17): kontrakt-/revideret beløb fjernes for roller uden faktura-adgang (montør) */
+function stripCaseMoney<T extends { contract_sum?: number | null; revised_sum?: number | null }>(c: T, canSeeMoney: boolean): T {
+  return canSeeMoney ? c : { ...c, contract_sum: null, revised_sum: null }
+}
+
 export async function getServiceCases(filters?: {
   search?: string
   status?: ServiceCaseStatus
@@ -160,7 +165,8 @@ export async function getServiceCases(filters?: {
     return {
       success: true,
       data: {
-        data: ((data || []) as ServiceCaseWithRelations[]).map((c) => (showEconomy ? c : { ...c, budget: null, low_profit: false })),
+        // FW-1 (montør-review 2026-10-17): tilbudt/revideret beløb kun for roller med faktura-adgang (D42: montør ser timer, ikke penge)
+        data: ((data || []) as ServiceCaseWithRelations[]).map((c) => stripCaseMoney(showEconomy ? c : { ...c, budget: null, low_profit: false }, hasPermission('invoices.view.own_cases'))),
         total,
         page,
         pageSize,
@@ -206,7 +212,8 @@ export async function getServiceCase(id: string): Promise<ActionResult<ServiceCa
 
     // D46: internt budget og lav-DB-markering kun for economy.cost_prices
     const sag = data as ServiceCaseWithRelations
-    return { success: true, data: hasPermission('economy.cost_prices') ? sag : { ...sag, budget: null, low_profit: false } }
+    const visible = hasPermission('economy.cost_prices') ? sag : { ...sag, budget: null, low_profit: false }
+    return { success: true, data: stripCaseMoney(visible, hasPermission('invoices.view.own_cases')) } // FW-1
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -667,6 +674,7 @@ export async function getCustomerServiceCasesResult(customerId: string): Promise
     // SEC-4 (permission-review 2026-10-16): samme D46-regel som sagslisten — internt budget og lav-DB-markering kun for
     // economy.cost_prices (før så salg/montør dem på kundekortet)
     if (!hasPermission('economy.cost_prices')) rows = rows.map((c) => ({ ...c, budget: null, low_profit: false }))
+    rows = rows.map((c) => stripCaseMoney(c, hasPermission('invoices.view.own_cases'))) // FW-1
     return { ok: true, cases: rows, restricted: !all }
   } catch (error) {
     logger.error('Failed to fetch customer service cases', { error, entityId: customerId })
@@ -1277,7 +1285,7 @@ async function sendServiceCaseConfirmation(
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Tak for din henvendelse</h2>
-        <p>Kære ${escapeHtml(customer.contact_person || customer.company_name || 'kunde')},</p>
+        <p>Kære __GREETING__,</p>
         <p>Vi har modtaget din henvendelse og oprettet en serviceopgave:</p>
         <div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0;">
           <p style="margin: 0;"><strong>Sagsnr.:</strong> ${escapeHtml(String(serviceCase.case_number ?? ''))}</p>
@@ -1303,7 +1311,13 @@ async function sendServiceCaseConfirmation(
         // PM-1 (portal-review 2026-10-17): routeren foretrækker kontakt/kunde på adressen — portal-linket tilhører sagens
         // kunde (fx partner/udlejer) og gav beboeren fuld adgang til den portal. Kun til sagens egen kunde.
         const { stripPortalLinks } = await import('@/lib/portal/strip-portal-links')
-        const safeHtml = route.customerId === customerId ? html : stripPortalLinks(html)
+        // ML-1 (mail-review 2026-10-17): routeren sætter customerId = sagens kunde også for site_contact/site_customer,
+        // så tjekket herover var altid sandt → beboer/anlægskontakt fik udlejerens portal. Kun betalende kunde får linket.
+        const linkOk = route.recipientRole === 'paying_customer' && route.customerId === customerId
+        // ML-10: hilsen til den faktiske modtager (før sagens kontaktperson, fx udlejerens navn til lejeren)
+        const greetName = (route as { toName?: string | null }).toName || (route.recipientRole === 'paying_customer' ? (customer.contact_person || customer.company_name) : null) || 'kunde'
+        const named = html.replace('__GREETING__', escapeHtml(greetName))
+        const safeHtml = linkOk ? named : stripPortalLinks(named)
         const sendResult = await sendEmailViaGraph({
           to: route.toEmail,
           subject,

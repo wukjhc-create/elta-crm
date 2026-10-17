@@ -11,6 +11,7 @@
  * når der findes åbne fejl + dedup tillader det. Ingen secrets, cost-free.
  */
 
+import { escapeHtml } from '@/lib/utils/html-escape'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { computeAccountingHealthSummary } from '@/lib/services/accounting-health'
@@ -31,8 +32,9 @@ export interface ExportErrorNotificationResult {
 }
 
 function fmtDateTime(s: string): string {
+  // ML-6 (mail-review 2026-10-17): cron kører i UTC — dansk tid eksplicit
   return new Intl.DateTimeFormat('da-DK', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen',
   }).format(new Date(s))
 }
 
@@ -108,8 +110,8 @@ export async function sendExportErrorNotification(opts: {
     </p>
     ${le ? `
     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:12px 16px;margin:0 0 16px">
-      <p style="margin:0;color:#6b7280;font-size:13px">Seneste fejl${le.invoice_number ? ` · faktura ${le.invoice_number}` : ''} (${fmtDateTime(le.at)})</p>
-      <p style="margin:4px 0 0;color:#b91c1c;font-weight:600">${le.message}</p>
+      <p style="margin:0;color:#6b7280;font-size:13px">Seneste fejl${le.invoice_number ? ` · faktura ${escapeHtml(le.invoice_number)}` : ''} (${fmtDateTime(le.at)})</p>
+      <p style="margin:4px 0 0;color:#b91c1c;font-weight:600">${escapeHtml(le.message)}</p>
     </div>` : ''}
     ${!summary.integration_ready ? `
     <p style="color:#b45309;margin:0 0 16px">

@@ -41,6 +41,13 @@ async function handoverAccess(ctx: Ctx, caseId: string) {
   return { ctx, canView: inScope, canEdit }
 }
 
+/** FW-2 (montør-review 2026-10-17): afleveringen er frosset på en lukket sag (før kunne fotos slettes/afkrydsning fjernes
+ *  efter lukning/fakturering — ingen spor). Returnerer en fejltekst eller null. */
+async function closedCaseBlock(caseId: string): Promise<string | null> {
+  const { data } = await (await admin()).from('service_cases').select('status').eq('id', caseId).maybeSingle()
+  return (data as { status?: string } | null)?.status === 'closed' ? 'Sagen er lukket — genåbn den først' : null
+}
+
 async function admin() {
   const { createAdminClient } = await import('@/lib/supabase/admin')
   return createAdminClient()
@@ -135,6 +142,14 @@ export async function toggleHandoverItemAction(caseId: string, key: string, comp
     const { canEdit } = await handoverAccess(ctx, caseId)
     if (!canEdit) return { success: false, error: 'Manglende tilladelse til at redigere sagen' }
     if (typeof key !== 'string' || !/^[a-z0-9_]{1,40}$/.test(key)) return { success: false, error: 'Ugyldigt punkt' }
+    const closed = await closedCaseBlock(caseId)
+    if (closed) return { success: false, error: closed }
+    // FW-3 (montør-review 2026-10-17): et fotopunkt kan kun afkrydses med mindst ét foto (før kun håndhævet i UI'et)
+    if (completed && key.endsWith('_photo')) {
+      const { count } = await (await admin()).from('service_case_attachments').select('id', { count: 'exact', head: true })
+        .eq('service_case_id', caseId).eq('category', key)
+      if ((count ?? 0) === 0) return { success: false, error: 'Tilføj et foto for at afkrydse punktet' }
+    }
     const r = await setItem(caseId, key, !!completed)
     if (!r.ok) return { success: false, error: r.error }
     revalidateCase(caseId)
@@ -155,6 +170,8 @@ export async function uploadHandoverPhotoAction(caseId: string, formData: FormDa
     if (!file || file.size === 0) return { success: false, error: 'Ingen fil valgt' }
     if (file.size > PHOTO_MAX_BYTES) return { success: false, error: 'Billedet er for stort (max 15 MB)' }
     if (!PHOTO_MIME.test(file.type || '')) return { success: false, error: 'Kun billeder (JPG, PNG, WEBP, HEIC)' }
+    const closed = await closedCaseBlock(caseId)
+    if (closed) return { success: false, error: closed }
 
     const db = await admin()
     const { data: sc } = await db.from('service_cases').select('checklist').eq('id', caseId).maybeSingle()
@@ -176,8 +193,10 @@ export async function uploadHandoverPhotoAction(caseId: string, formData: FormDa
       await db.storage.from('service-case-files').remove([storagePath])
       return { success: false, error: 'Kunne ikke gemme billedet' }
     }
-    await setItem(caseId, key, true, (att as { id: string }).id)
+    // FW-13: resultatet tjekkes — før "gemt" selv om punktet ikke blev afkrydset
+    const ticked = await setItem(caseId, key, true, (att as { id: string }).id)
     revalidateCase(caseId)
+    if (!ticked.ok) return { success: false, error: `Billedet er gemt, men punktet blev ikke afkrydset: ${ticked.error} — afkryds det igen` }
     return { success: true, data: att as ServiceCaseAttachment }
   } catch (err) {
     return { success: false, error: formatError(err, 'Uventet fejl') }
@@ -195,9 +214,17 @@ export async function deleteHandoverPhotoAction(caseId: string, attachmentId: st
     const { data: att } = await db.from('service_case_attachments').select('id, storage_path, uploaded_by, category').eq('id', attachmentId).eq('service_case_id', caseId).maybeSingle()
     if (!att) return { success: false, error: 'Billedet findes ikke på sagen' }
     if (!ctx.hasPermission('cases.edit') && att.uploaded_by !== ctx.userId) return { success: false, error: 'Du kan kun slette dine egne billeder' }
-    if (att.storage_path) await db.storage.from('service-case-files').remove([att.storage_path as string])
+    const closed = await closedCaseBlock(caseId)
+    if (closed) return { success: false, error: closed }
+    // FW-13: rækken først, derefter filen (før: filen fjernet og rækken stod tilbage ved fejl)
     const { error } = await db.from('service_case_attachments').delete().eq('id', attachmentId)
     if (error) return { success: false, error: 'Kunne ikke slette billedet' }
+    if (att.storage_path) await db.storage.from('service-case-files').remove([att.storage_path as string])
+    // FW-2: sletning af dokumentation auditeres
+    try {
+      const { logDelete } = await import('@/lib/audit/audit-log-writer')
+      await logDelete('service_case', caseId, `Afleveringsfoto (${String(att.category ?? '')})`, { attachment_id: attachmentId, category: att.category })
+    } catch { /* audit er best-effort */ }
     // Punktet er ikke længere dokumenteret, hvis det var det eneste billede
     const { count } = await db.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', caseId).eq('category', att.category as string)
     if ((count ?? 0) === 0 && typeof att.category === 'string' && att.category.endsWith('_photo')) await setItem(caseId, att.category, false, null)

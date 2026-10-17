@@ -575,13 +575,8 @@ export async function submitSignedFuldmagt(
             to: route.toEmail,
             subject: `Fuldmagt underskrevet — ${updatedDesc.customer_name}`,
             html: emailHtml,
-            attachments: [
-              {
-                filename: fileName,
-                content: pdfBuffer,
-                contentType: 'application/pdf',
-              },
-            ],
+            // ML-2 (mail-review 2026-10-17): PDF'en (fuldt CPR) vedhæftes IKKE den fælles postkasse — den er arkiveret
+            // på kunden (ES-11 maskerer kun brødteksten)
           })
           await logMailRoute(
             route,

@@ -211,6 +211,38 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-41 (review-bølge 2026-10-17 nat — montør-flow + udgående mail)
+| # | Fund | Status |
+|---|---|---|
+| FW-1 | Montør modtog tilbudt/revideret beløb på sager (S2) | DONE (kode) — fjernes server-side uden invoices.view.own_cases (liste, detalje, kundens sager) + skjult i UI; U11 |
+| FW-2 | Aflevering kunne ændres/fotos slettes efter lukning; ingen spor (S2) | DONE (kode) — lukket sag afviser toggle/upload/slet; sletning auditeres |
+| FW-3 | Fotopunkter kunne afkrydses uden foto (kun UI-værn) (S3) | DONE (kode) |
+| FW-4 | "Udført" på arbejdsordre kan aldrig fortrydes (S3) | TODO |
+| FW-5 | Besigtigelsesbilleder kun som 24-t-links; fejlede uploads skjules (S3) | TODO |
+| FW-6 | Besigtigelse dubleres ved ustabilt net (S3) | TODO |
+| FW-7 | Kundens e-mail i prod-logs (besigtigelse-diagnostik) (S3) | TODO |
+| FW-8 | Besigtigelsesformular uden kladde/advarsel ved forladelse (S3, plausibel) | TODO |
+| FW-9 | getCustomer uden sags-scope for montør (S3, plausibel) | BESLUTNING — hører under CU-5 |
+| FW-10 | Montør kan læse egne salgssatser direkte i DB (S3, plausibel) | BLOCKED_APPROVAL [MIGRATION] — rls-cost-columns |
+| FW-11 | Annullerede arbejdsordrer giver stadig sagsadgang (S4) | TODO |
+| FW-12 | updateTimeLog uden create-værnene (annulleret ordre, fratrædelse) (S4) | TODO |
+| FW-13 | Aflevering: upload/slet ikke atomisk (S4) | DONE (kode) — resultat tjekkes; række før fil |
+| FW-14 | Kalenderens "i dag" i enhedens/serverens tidszone (S4) | TODO |
+| FW-15 | Medarbejderopslag uden active-filter (mine timer/ICS) (S4) | TODO |
+| ML-1 | Sagsbekræftelse: PM-1-værnet virkede aldrig → beboer/anlægskontakt fik udlejerens portal-link (S1) | DONE (kode) — link kun til betalende kunde |
+| ML-2 | Fuldmagtsmail vedhæftede PDF med fuldt CPR (S2) | DONE (kode) — ingen vedhæftning (arkiveret på kunden) |
+| ML-3 | Modtageradresser/emner i logs og helbredslog (S3) | DELVIS (kode) — Graph-logs redigeret, faktura-helbredslog uden modtager; logMailRoute + quick-reply = TODO |
+| ML-4 | Arkiveret mailvedhæftning kunne sendes som besigtigelsesrapport (S3) | DONE (kode) — 3 veje afviser source_email_id |
+| ML-5 | "Gensend" går til standardmodtager uden PDF (S3) | TODO |
+| ML-6 | Eksportfejl-mail i UTC og uescapet API-tekst (S3) | DONE (kode) |
+| ML-7 | "Tilbud accepteret"-mail kun via SMTP (S3, plausibel) | TODO |
+| ML-8 | Tilbudsmodtager ≠ indtastet/registreret (S3, plausibel) | TODO |
+| ML-9 | Ingen idempotens på opgavemail/booking/quote (S3) | TODO |
+| ML-10 | Sagsbekræftelse hilser på forkert person (S4) | DONE (kode) — route.toName |
+| ML-11 | sendEmailToCustomer escaper kun < og > (S4) | DONE (kode) |
+| ML-12 | offer-notification-email uescapet (latent, ingen kaldere) (S4) | TODO (slet filen) |
+| ML-13 | Fakturamail sendes uden faktura-PDF ved renderfejl (S4) | TODO |
+
 ## NEXT-40 (review-bølge 2026-10-17 aften — e-sign/accept + e-conomic)
 | # | Fund | Status |
 |---|---|---|

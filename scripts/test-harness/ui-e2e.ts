@@ -3481,6 +3481,17 @@ ${m.text()}`) })
         r.foto_upload = /1 fil uploadet/.test(upMsg) && docs === 1
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-dokumenter.png'), fullPage: true }).catch(() => {})
 
+        // FW-1 (2026-10-17): montøren ser timer, ikke penge — intet "Tilbudt beløb"/"Revideret" på sagen (kontoret gør)
+        if (jobCaseId) {
+          await c.admin.from('service_cases').update({ contract_sum: 12345 }).eq('id', jobCaseId)
+          await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await m.page.waitForTimeout(1000)
+          r.montoer_ingen_kontraktsum = (await m.page.getByText('Tilbudt beløb').count()) === 0 && (await m.page.getByText(/12[.\s]?345/).count()) === 0
+          await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByText('Tilbudt beløb').first().waitFor({ timeout: 30_000 }).catch(() => {})
+          r.kontor_ser_kontraktsum = (await a.page.getByText('Tilbudt beløb').count()) > 0
+        }
+
         // N9a Aflevering på ordresiden: tjekliste → foto til første påkrævede punkt → kundens underskrift (montør, egen sag)
         await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=aflevering`, { waitUntil: 'networkidle', timeout: 180_000 })
         await m.page.getByTestId('handover-start').click({ timeout: 60_000 }).catch(() => {})

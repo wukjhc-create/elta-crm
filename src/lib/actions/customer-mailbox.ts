@@ -1,4 +1,5 @@
 'use server'
+import { escapeHtml } from '@/lib/utils/html-escape'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { permissionDenied } from '@/lib/actions/action-helpers'
 
@@ -371,7 +372,7 @@ export async function sendEmailToCustomer(
           <h1 style="color: white; margin: 0; font-size: 18px;">${BRAND_COMPANY_NAME}</h1>
         </div>
         <div style="padding: 28px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-          <div style="font-size: 15px; color: #111827; line-height: 1.6; white-space: pre-wrap;">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          <div style="font-size: 15px; color: #111827; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(message)}</div>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
           ${signature.html}
         </div>

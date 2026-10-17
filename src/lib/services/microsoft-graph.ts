@@ -14,6 +14,7 @@
  *                           Falls back to GRAPH_MAILBOX if not set.
  */
 
+import { redactEmail, redactSubject } from '@/lib/utils/log-redact'
 import { logger } from '@/lib/utils/logger'
 import type {
   GraphMailMessage,
@@ -735,8 +736,9 @@ export async function sendEmailViaGraph(
         url,
         mailbox,
         mailboxLength: mailbox.length,
-        to: recipients,
-        subject: options.subject,
+        // ML-3 (mail-review 2026-10-17): ingen modtageradresser/emner i logs (LC-7) — kun redigeret form
+        to: recipients.map((r) => redactEmail(r)),
+        subject: redactSubject(options.subject),
         bodyLength: options.html.length,
         payloadKeys: Object.keys(message),
       },
@@ -801,7 +803,7 @@ export async function sendEmailViaGraph(
           status: response.status,
           graphError,
           mailbox,
-          to: recipients,
+          to: recipients.map((r) => redactEmail(r)),
         },
       })
 
@@ -830,7 +832,7 @@ export async function sendEmailViaGraph(
 
     // 202 Accepted = success (no body returned)
     logger.info('Email sent via Graph API', {
-      metadata: { to: recipients, subject: options.subject, mailbox },
+      metadata: { to: recipients.map((r) => redactEmail(r)), subject: redactSubject(options.subject), mailbox },
     })
 
     // Try to find the sent message ID from the Sent Items folder
@@ -879,7 +881,7 @@ export async function sendEmailViaGraph(
           sentInternetMessageId = match.internetMessageId || undefined
           if (attempt > 0) {
             logger.info('Graph sentItems lookup succeeded after retry', {
-              metadata: { mailbox, attempt: attempt + 1, subject: options.subject },
+              metadata: { mailbox, attempt: attempt + 1, subject: redactSubject(options.subject) },
             })
           }
           break
@@ -887,7 +889,7 @@ export async function sendEmailViaGraph(
       } catch (lookupErr) {
         // Non-fatal — vi prøver igen i næste iteration
         logger.warn('Graph sentItems lookup attempt failed', {
-          metadata: { mailbox, attempt: attempt + 1, subject: options.subject },
+          metadata: { mailbox, attempt: attempt + 1, subject: redactSubject(options.subject) },
           error: lookupErr,
         })
       }
@@ -897,7 +899,7 @@ export async function sendEmailViaGraph(
       logger.warn('Graph sentItems lookup gave up without conversationId', {
         metadata: {
           mailbox,
-          subject: options.subject,
+          subject: redactSubject(options.subject),
           attempts: SENT_LOOKUP_DELAYS_MS.length,
           totalWaitMs: SENT_LOOKUP_DELAYS_MS.reduce((a, b) => a + b, 0),
         },

@@ -766,13 +766,15 @@ export async function getBesigtigelseRecipientOptions(
 
     const { data: doc, error: docErr } = await supabase
       .from('customer_documents')
-      .select('id, customer_id, service_case_id, document_type, title, file_name')
+      .select('id, customer_id, service_case_id, document_type, title, file_name, source_email_id')
       .eq('id', documentId)
       .single()
     if (docErr || !doc) {
       return { success: false, error: 'Dokument ikke fundet' }
     }
-    if (!isBesigtigelseDocument(doc.document_type, doc.title)) {
+    // ML-4 (mail-review 2026-10-17): en arkiveret mailvedhæftning (fx leverandørfaktura i en mail med "besigtigelse" i
+    // emnet) er INTERN og sendes aldrig som rapport — samme regel som sendBesigtigelsePdf
+    if (!isBesigtigelseDocument(doc.document_type, doc.title) || (doc as { source_email_id?: string | null }).source_email_id) {
       return { success: false, error: 'Dokumentet er ikke en besigtigelsesrapport' }
     }
     {
@@ -1023,13 +1025,15 @@ export async function sendExistingBesigtigelsesreport(
 
     const { data: doc, error: docErr } = await supabase
       .from('customer_documents')
-      .select('id, customer_id, service_case_id, document_type, title, file_name, storage_path')
+      .select('id, customer_id, service_case_id, document_type, title, file_name, storage_path, source_email_id')
       .eq('id', input.documentId)
       .single()
     if (docErr || !doc) {
       return { success: false, error: 'Dokument ikke fundet' }
     }
-    if (!isBesigtigelseDocument(doc.document_type, doc.title)) {
+    // ML-4 (mail-review 2026-10-17): en arkiveret mailvedhæftning (fx leverandørfaktura i en mail med "besigtigelse" i
+    // emnet) er INTERN og sendes aldrig som rapport — samme regel som sendBesigtigelsePdf
+    if (!isBesigtigelseDocument(doc.document_type, doc.title) || (doc as { source_email_id?: string | null }).source_email_id) {
       return { success: false, error: 'Dokumentet er ikke en besigtigelsesrapport' }
     }
     if (!doc.storage_path) {
@@ -1612,11 +1616,13 @@ export async function sendBesigtigelseSequential(input: {
 
     const { data: doc, error: docErr } = await supabase
       .from('customer_documents')
-      .select('id, customer_id, service_case_id, document_type, title, file_name, storage_path')
+      .select('id, customer_id, service_case_id, document_type, title, file_name, storage_path, source_email_id')
       .eq('id', input.documentId)
       .single()
     if (docErr || !doc) return { success: false, error: 'Dokument ikke fundet' }
-    if (!isBesigtigelseDocument(doc.document_type, doc.title)) {
+    // ML-4 (mail-review 2026-10-17): en arkiveret mailvedhæftning (fx leverandørfaktura i en mail med "besigtigelse" i
+    // emnet) er INTERN og sendes aldrig som rapport — samme regel som sendBesigtigelsePdf
+    if (!isBesigtigelseDocument(doc.document_type, doc.title) || (doc as { source_email_id?: string | null }).source_email_id) {
       return { success: false, error: 'Dokumentet er ikke en besigtigelsesrapport' }
     }
     if (!doc.storage_path) return { success: false, error: 'Dokumentet mangler storage path' }

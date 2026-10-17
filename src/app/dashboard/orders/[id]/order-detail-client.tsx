@@ -191,8 +191,9 @@ export function OrderDetailClient({
           {/* W-14: "Ansvarlig" = den tildelte (som i sagslisten), ikke opretteren */}
           <Stat label="Ansvarlig" value={sag.assignee?.full_name ?? creator?.full_name ?? '—'} />
           <Stat label="Formand" value={formand?.name ?? '—'} />
-          <Stat label="Tilbudt beløb" value={fmtAmount(sag.contract_sum)} />
-          <Stat label="Revideret" value={fmtAmount(sag.revised_sum)} />
+          {/* FW-1: beløb kun for roller med faktura-adgang (montør ser timer, ikke penge) */}
+          {canSeeBilling && <Stat label="Tilbudt beløb" value={fmtAmount(sag.contract_sum)} />}
+          {canSeeBilling && <Stat label="Revideret" value={fmtAmount(sag.revised_sum)} />}
           <Stat label="Planlagt timer" value={sag.planned_hours == null ? '—' : `${sag.planned_hours}`} />
           <Stat
             label="Planlagt tid"
@@ -674,8 +675,8 @@ function OverblikTab({
 
       {/* Økonomi */}
       <Panel title="Økonomi">
-        <Row label="Tilbudt beløb" value={fmtAmount(sag.contract_sum)} />
-        <Row label="Revideret beløb" value={fmtAmount(sag.revised_sum)} />
+        {canSeeBilling && <Row label="Tilbudt beløb" value={fmtAmount(sag.contract_sum)} />}
+        {canSeeBilling && <Row label="Revideret beløb" value={fmtAmount(sag.revised_sum)} />}
         {/* Privacy (Henrik 2026-10-03): internt budget og lav-DB står ikke på overblikket — se fanen Økonomi */}
         <Row label="Planlagt timer" value={sag.planned_hours == null ? '—' : `${sag.planned_hours}`} />
         {sag.source_offer_id && (
