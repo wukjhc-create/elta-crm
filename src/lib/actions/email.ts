@@ -573,20 +573,29 @@ export async function generateEmailPreview(
 
     // Get or create portal token for offer link
     let portalToken = ''
+    // PM-3 (portal-review 2026-10-17): før blev et gyldigt token med < 30 dage tilbage ikke genbrugt, og et nyt blev
+    // afvist ("aktiv adgang findes") → linket faldt tilbage til /view-offer, som ikke virker. Nu: gyldigt token
+    // genbruges, og udløber det inden for 30 dage, forlænges det et år (samme kunde, stadig gyldigt).
+    const nowIso = new Date().toISOString()
     const { data: existingToken } = await (await secretTokenReader())
       .from('portal_access_tokens')
-      .select('token')
+      .select('id, token, expires_at')
       .eq('customer_id', offer.customer_id)
       .eq('is_active', true)
-      // Uden udløb (NULL) ELLER mindst 30 dage tilbage (nye links udløber efter 365 dage — et link der snart udløber
-      // genbruges ikke i en ny tilbudsmail); nyeste ved flere aktive.
-      .or(`expires_at.is.null,expires_at.gt.${new Date(Date.now() + 30 * 86_400_000).toISOString()}`)
+      .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
     if (existingToken) {
       portalToken = existingToken.token
+      const exp = (existingToken as { expires_at?: string | null }).expires_at
+      if (exp && Date.parse(exp) < Date.now() + 30 * 86_400_000) {
+        const { error: extErr } = await supabase.from('portal_access_tokens')
+          .update({ expires_at: new Date(Date.now() + 365 * 86_400_000).toISOString() })
+          .eq('id', (existingToken as { id: string }).id)
+        if (extErr) logger.warn('Offer email: kunne ikke forlænge portal-link', { entityId: offer.id, error: extErr })
+      }
     } else {
       const tokenResult = await createPortalToken({
         customer_id: offer.customer_id,
@@ -598,9 +607,11 @@ export async function generateEmailPreview(
     }
 
     const appUrl = APP_URL
-    const portalLink = portalToken
-      ? `${appUrl}/portal/${portalToken}/offers/${offer.id}`
-      : `${appUrl}/view-offer/${offer.id}`
+    // PM-3: aldrig /view-offer-fallback (udleverer intet og ender på "ugyldigt link")
+    if (!portalToken) {
+      return { success: false, error: 'Kunne ikke oprette kundens portal-link — prøv igen, eller opret adgang på kundekortet' }
+    }
+    const portalLink = `${appUrl}/portal/${portalToken}/offers/${offer.id}`
 
     // Fetch line items for the branded template
     // 00192: kun offentlige linjekolonner — salg kan sende tilbud, mailen viser ingen kost
