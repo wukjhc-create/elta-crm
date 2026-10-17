@@ -305,6 +305,11 @@ export async function updateCaseMaterial(
         error: 'Materialet er faktureret og kan ikke ændres',
       }
     }
+    const guards = await import('@/lib/cases/cost-row-guards')
+    if (await guards.caseIsClosed(supabase, cur.case_id)) return { success: false, error: 'Sagen er lukket — genåbn den først' } // SC-9
+    if (patch.work_order_id && !(await guards.workOrderBelongsToCase(supabase, patch.work_order_id, cur.case_id))) {
+      return { success: false, error: 'Arbejdsordren hører ikke til sagen' } // SC-5
+    }
 
     const update: Record<string, unknown> = {}
     if (patch.description !== undefined) {
@@ -356,12 +361,13 @@ export async function updateCaseMaterial(
       .from('case_materials')
       .update(update)
       .eq('id', id)
+      .is('invoice_line_id', null) // SC-6: faktureret imens -> ingen ændring
       .select(SELECT_COLUMNS)
-      .single()
+      .maybeSingle()
 
     if (error || !data) {
       logger.error('updateCaseMaterial failed', { error, entityId: id })
-      return { success: false, error: 'Kunne ikke opdatere materiale' }
+      return { success: false, error: error ? 'Kunne ikke opdatere materiale' : 'Materialet blev ikke ændret (faktureret imens eller ingen adgang)' }
     }
 
     // Sprint Ø2.12 — audit pris-/antal-ændringer på materialesnapshot (fra/til).
@@ -423,12 +429,18 @@ export async function deleteCaseMaterial(id: string): Promise<ActionResult> {
         error: 'Materialet er faktureret og kan ikke slettes',
       }
     }
+    const guards = await import('@/lib/cases/cost-row-guards')
+    if (await guards.caseIsClosed(supabase, cur.case_id)) return { success: false, error: 'Sagen er lukket — genåbn den først' } // SC-9
+    const supplierLines = await guards.findConvertedSupplierLines('material', id) // SC-1
 
-    const { error } = await supabase.from('case_materials').delete().eq('id', id)
+    const { data: gone, error } = await supabase.from('case_materials').delete().eq('id', id).is('invoice_line_id', null).select('id')
     if (error) {
       logger.error('deleteCaseMaterial failed', { error, entityId: id })
       return { success: false, error: 'Kunne ikke slette materiale' }
     }
+    // SC-6: 0 rækker = faktureret imens eller RLS-afvist (før meldt som slettet)
+    if (!gone || gone.length === 0) return { success: false, error: 'Materialet blev ikke slettet (faktureret imens eller ingen adgang)' }
+    await guards.releaseSupplierLines(supplierLines)
 
     revalidatePath(`/dashboard/orders/${cur.case_id}`)
     return { success: true }

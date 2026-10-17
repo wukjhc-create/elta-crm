@@ -6247,8 +6247,13 @@ ${m.text()}`) })
             if (!rowGone) await new Promise((res) => setTimeout(res, 500))
           }
           r.slet_fjerner_raekke = rowGone
-          const dl = await c.admin.storage.from('attachments').download(row.receipt_url)
-          r.slet_fjerner_kvittering = !!dl.error
+          // filen fjernes EFTER rækken (serveren tjekker først andre referencer, SC-8) → poll
+          let fileGone = false
+          for (let i = 0; i < 20 && !fileGone; i++) {
+            fileGone = !!(await c.admin.storage.from('attachments').download(row.receipt_url)).error
+            if (!fileGone) await new Promise((res) => setTimeout(res, 500))
+          }
+          r.slet_fjerner_kvittering = fileGone
         }
         if (row?.receipt_url) await c.admin.storage.from('attachments').remove([row.receipt_url])
         out.push({ id: 'U71 N30 kvittering på øvrig omkostning', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })

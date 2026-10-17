@@ -228,6 +228,11 @@ export async function createCaseOtherCost(
     }
     // Sags-review 2026-10-09 (#6): intet nyt arbejde på en lukket sag (det blev aldrig faktureret og gav ingen advarsel)
     if ((caseRow as { status?: string }).status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+    const guards = await import('@/lib/cases/cost-row-guards')
+    if (input.work_order_id && !(await guards.workOrderBelongsToCase(supabase, input.work_order_id, caseRow.id))) {
+      return { success: false, error: 'Arbejdsordren hører ikke til sagen' } // SC-5
+    }
+    if (!guards.receiptPathAllowed(input.receipt_url?.trim(), caseRow.id)) return { success: false, error: 'Ugyldig kvittering' } // SC-8
 
     const { data, error } = await supabase
       .from('case_other_costs')
@@ -310,6 +315,14 @@ export async function updateCaseOtherCost(
     if (cur.invoice_line_id) {
       return { success: false, error: 'Omkostningen er faktureret og kan ikke ændres' }
     }
+    const guards = await import('@/lib/cases/cost-row-guards')
+    if (await guards.caseIsClosed(supabase, cur.case_id)) return { success: false, error: 'Sagen er lukket — genåbn den først' } // SC-9
+    if (patch.work_order_id && !(await guards.workOrderBelongsToCase(supabase, patch.work_order_id, cur.case_id))) {
+      return { success: false, error: 'Arbejdsordren hører ikke til sagen' } // SC-5
+    }
+    if (patch.receipt_url !== undefined && !guards.receiptPathAllowed(patch.receipt_url?.trim(), cur.case_id)) {
+      return { success: false, error: 'Ugyldig kvittering' } // SC-8
+    }
 
     const update: Record<string, unknown> = {}
 
@@ -375,12 +388,13 @@ export async function updateCaseOtherCost(
       .from('case_other_costs')
       .update(update)
       .eq('id', id)
+      .is('invoice_line_id', null) // SC-6
       .select(SELECT_COLUMNS)
-      .single()
+      .maybeSingle()
 
     if (error || !data) {
       logger.error('updateCaseOtherCost failed', { error, entityId: id })
-      return { success: false, error: 'Kunne ikke opdatere omkostning' }
+      return { success: false, error: error ? 'Kunne ikke opdatere omkostning' : 'Omkostningen blev ikke ændret (faktureret imens eller ingen adgang)' }
     }
 
     // Sprint Ø2.13 — audit pris-/antal-ændringer på øvrig-omkostning-snapshot.
@@ -439,17 +453,25 @@ export async function deleteCaseOtherCost(id: string): Promise<ActionResult> {
     if (cur.invoice_line_id) {
       return { success: false, error: 'Omkostningen er faktureret og kan ikke slettes' }
     }
+    const guards = await import('@/lib/cases/cost-row-guards')
+    if (await guards.caseIsClosed(supabase, cur.case_id)) return { success: false, error: 'Sagen er lukket — genåbn den først' } // SC-9
+    const supplierLines = await guards.findConvertedSupplierLines('other_cost', id) // SC-1
 
     // ST-7 (storage-review 2026-10-16): kvitteringen fjernes også fra storage (før blev filen liggende) — rækken først
-    const { data: gone, error } = await supabase.from('case_other_costs').delete().eq('id', id).select('receipt_url')
+    const { data: gone, error } = await supabase.from('case_other_costs').delete().eq('id', id).is('invoice_line_id', null).select('receipt_url')
     if (error) {
       logger.error('deleteCaseOtherCost failed', { error, entityId: id })
       return { success: false, error: 'Kunne ikke slette omkostning' }
     }
     if (!gone || gone.length === 0) return { success: false, error: 'Omkostningen blev ikke slettet (findes ikke eller må ikke slettes)' }
+    await guards.releaseSupplierLines(supplierLines)
     const receipt = (gone[0] as { receipt_url?: string | null }).receipt_url
-    if (receipt && receipt.startsWith('receipts/')) {
-      const { createAdminClient } = await import('@/lib/supabase/admin')
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    // SC-8: filen fjernes kun når den ligger i sagens egen mappe og ingen anden række peger på den
+    const otherRefs = receipt
+      ? (await createAdminClient().from('case_other_costs').select('id', { count: 'exact', head: true }).eq('receipt_url', receipt)).count ?? 0
+      : 0
+    if (receipt && receipt.startsWith(`receipts/${cur.case_id}/`) && otherRefs === 0) {
       const { error: rmErr } = await createAdminClient().storage.from('attachments').remove([receipt])
       if (rmErr) logger.warn('deleteCaseOtherCost: kvittering kunne ikke fjernes (rækken er slettet)', { error: rmErr, entityId: id })
     }

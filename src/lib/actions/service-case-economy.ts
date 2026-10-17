@@ -208,7 +208,7 @@ export async function getServiceCaseEconomy(
           // 00192: kostkolonnen læses med admin-klienten bag economy.cost_prices-gaten ovenfor
           fetchAllRows((f, t) => createAdminClient()
             .from('time_logs')
-            .select('id, hours, end_time, cost_amount, sale_amount, billable, invoice_line_id, employee:employees(hourly_rate)')
+            .select('id, hours, end_time, cost_amount, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)')
             .in('work_order_id', woIds)
             .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
             .order('id')
@@ -286,10 +286,14 @@ export async function getServiceCaseEconomy(
       // Salgs-side: brug frosset sale_amount (00136/00137 snapshot) når den
       // findes; historiske raekker uden snapshot falder tilbage til den gamle
       // live-beregning hours * employees.hourly_rate (uaendret adfaerd).
-      const saleSnapshot = tl.sale_amount == null ? null : Number(tl.sale_amount)
-      const lineSale = saleSnapshot != null && Number.isFinite(saleSnapshot)
-        ? saleSnapshot
-        : (Number.isFinite(hours) && rate != null ? hours * rate : 0)
+      // SC-4 (sags-review 2026-10-17): samme prisregel som fakturaen, faktureringsstatus og lukke-værnet (snapshot →
+      // live sats → standardsats). Før: uden snapshot og sats = 0 kr her, men faktureret til standardsatsen.
+      const { priceTimeLog } = await import('@/lib/invoices/time-log-price')
+      const lineSale = priceTimeLog({
+        hours: tl.hours, sale_amount: tl.sale_amount,
+        sale_rate_snapshot: (tl as { sale_rate_snapshot?: number | string | null }).sale_rate_snapshot ?? null,
+        live_hourly_rate: rate,
+      }).total
       // X1: kun fakturerbart arbejde er salg (garanti/internt tæller som kost, ikke som omsætning → oppustet DB%)
       if (tl.billable !== false) total_labor_sale += lineSale
       // Klar-til-fakturering: fakturalåst vs. fakturerbar & ikke-faktureret.
@@ -825,7 +829,7 @@ export async function getServiceCaseEconomyBatch(
     // X4n: i bidder af 200 — ordrelistens fakturafilter sender op til 500 sager; én .in() sprængte URL-grænsen (~350)
     // → ingen kontrakt/faktureret/udestående på nogen række
     const [caseRows, invRows] = await Promise.all([
-      selectInChunks<Record<string, unknown>>(ids, (chunk) => supabase.from('service_cases').select('id, contract_sum, revised_sum').in('id', chunk)),
+      selectInChunks<Record<string, unknown>>(ids, (chunk) => supabase.from('service_cases').select('id, contract_sum, revised_sum, billing_model').in('id', chunk)),
       (async () => {
         const out: Array<Record<string, unknown>> = []
         for (let k = 0; k < ids.length; k += IN_CHUNK_SIZE) {
@@ -841,9 +845,10 @@ export async function getServiceCaseEconomyBatch(
     const invRes = { data: invRows }
 
     const refByCase = new Map<string, number | null>()
-    for (const c of (caseRes.data ?? []) as Array<{ id: string; contract_sum: number | string | null; revised_sum: number | string | null }>) {
-      const ref = c.revised_sum != null ? Number(c.revised_sum) : c.contract_sum != null ? Number(c.contract_sum) : null
-      refByCase.set(c.id, ref)
+    for (const c of (caseRes.data ?? []) as Array<{ id: string; contract_sum: number | string | null; revised_sum: number | string | null; billing_model?: string | null }>) {
+      // SC-3 (sags-review 2026-10-17): samme regel som sagens økonomifane (F-4) — regningsarbejde har intet
+      // kontraktgrundlag, revideret 0 tæller ikke (før: "rest at fakturere"/overfaktureret på regningssager)
+      refByCase.set(c.id, effectiveContractSum({ contractSum: c.contract_sum, revisedSum: c.revised_sum, billingModel: c.billing_model }))
     }
 
     // X1: pr. sag via summarizeCaseInvoices — rest at fakturere mod netto EKSKL. moms (kontraktsummen er ekskl. moms;
@@ -1029,23 +1034,23 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
     // 2) Kandidat-sager: dem med fakturaer + alle afsluttede (ready_final kan
     //    gælde en afsluttet sag uden fakturaer). Bounded queries.
     const caseMeta = new Map<string, { status: string | null; ref: number | null }>()
-    const addRows = (rows: Array<{ id: string; status: string | null; contract_sum: number | string | null; revised_sum: number | string | null }>) => {
+    const addRows = (rows: Array<{ id: string; status: string | null; contract_sum: number | string | null; revised_sum: number | string | null; billing_model?: string | null }>) => {
       for (const c of rows) {
-        const ref = c.revised_sum != null ? Number(c.revised_sum) : c.contract_sum != null ? Number(c.contract_sum) : null
-        caseMeta.set(c.id, { status: c.status, ref })
+        // SC-3: effektiv kontraktsum (F-4) — som ordrelisten og økonomifanen
+        caseMeta.set(c.id, { status: c.status, ref: effectiveContractSum({ contractSum: c.contract_sum, revisedSum: c.revised_sum, billingModel: c.billing_model }) })
       }
     }
     if (invoicedIds.length) {
       // Økonomi-review 2026-10-08 (#11): i bidder — .in() med op til 500 id'er fejlede stille over ~350
       const data = await selectInChunks<unknown>(invoicedIds.slice(0, BILLING_FOLLOWUP_CAP), (chunk) => supabase
         .from('service_cases')
-        .select('id, status, contract_sum, revised_sum')
+        .select('id, status, contract_sum, revised_sum, billing_model')
         .in('id', chunk))
       addRows(data as never)
     }
     const { data: closedRows } = await supabase
       .from('service_cases')
-      .select('id, status, contract_sum, revised_sum')
+      .select('id, status, contract_sum, revised_sum, billing_model')
       .eq('status', 'closed')
       .limit(BILLING_FOLLOWUP_CAP)
     addRows((closedRows ?? []) as never)

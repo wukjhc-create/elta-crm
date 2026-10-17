@@ -225,16 +225,16 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | AU-9 | Opfølgningsagent: tilbuds-udløb i servertid (S4) | DONE (kode) |
 | AU-10 | Sprunget rykker bruger reglens ene udførelse pr. faktura (S4) | TODO — kræver skelnen skipped/failed uden alarm-støj |
 | AU-11 | Auto-faktura: fejlet fakturamail logges som succes (S4) | BLOCKED (create-invoice-from-offer.ts — se DF-1) |
-| HT-4 | harness agent-actions M5 "intet sagsforslag for mail2" — fejler også uden dagens ændringer | TODO (harness/staging-tilstand) |
-| SC-1 | Sletning af materiale/omkostning fra leverandørfaktura taber kosten stille (S2) | TODO |
-| SC-2 | Lukket sag efterlader åbne arbejdsordrer der ikke kan ændres (S2/S3) | TODO |
-| SC-3 | Ordreliste/dashboard bruger revised_sum ?? contract_sum uden afregningsform (S3) | TODO |
-| SC-4 | Økonomifanen prissætter tid anderledes end fakturaen (S3) | TODO |
-| SC-5 | work_order_id ikke valideret mod sagen (øvrige omk. + opdateringer) (S3) | TODO |
-| SC-6 | Fakturalås på rækker kan omgås ved samtidighed (S3) | TODO |
+| HT-5 | harness agent-actions M5 "intet sagsforslag for mail2" — fejler også uden dagens ændringer | TODO (harness/staging-tilstand) |
+| SC-1 | Sletning af materiale/omkostning fra leverandørfaktura taber kosten stille (S2) | DONE (kode) — leverandørfakturalinjen frigives (converted_at nulstilles) efter sletning |
+| SC-2 | Lukket sag efterlader åbne arbejdsordrer der ikke kan ændres (S2/S3) | DONE (kode) — lukning afvises med arbejdsordre i gang; planlagte annulleres ved lukning |
+| SC-3 | Ordreliste/dashboard bruger revised_sum ?? contract_sum uden afregningsform (S3) | DONE (kode) — effectiveContractSum (F-4) i ordreliste og opfølgning |
+| SC-4 | Økonomifanen prissætter tid anderledes end fakturaen (S3) | DONE (kode) — priceTimeLog i økonomifanen |
+| SC-5 | work_order_id ikke valideret mod sagen (øvrige omk. + opdateringer) (S3) | DONE (kode) — arbejdsordre skal høre til sagen (øvrige omk. oprettelse + begge opdateringer) |
+| SC-6 | Fakturalås på rækker kan omgås ved samtidighed (S3) | DONE (kode) — update/delete med invoice_line_id IS NULL og 0-rækker = fejl |
 | SC-7 | Sagens "Auto-faktura ved afsluttet" gør intet (S3) | TODO |
-| SC-8 | receipt_url accepterer vilkårlig receipts/-sti (S3, plausibel) | TODO |
-| SC-9 | Materialer/omkostninger kan ændres på lukket sag (S4) | TODO |
+| SC-8 | receipt_url accepterer vilkårlig receipts/-sti (S3, plausibel) | DONE (kode) — storage-sti skal ligge under sagens mappe; fil slettes kun uden andre referencer |
+| SC-9 | Materialer/omkostninger kan ændres på lukket sag (S4) | DONE (kode) — ingen ændring/sletning på lukket sag |
 | SC-10 | updateWorkOrderPlanning uden lukket-sag/forslag-tjek (S4) | TODO |
 | SC-11 | deleteServiceCase uden værn (latent, ubrugt) (S4) | TODO |
 | SC-12 | Indkøbsoversigt uden fetchAllRows; leverandørfakturaer .limit(50) (S4) | TODO |

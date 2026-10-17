@@ -1735,6 +1735,13 @@ export async function setServiceCaseStatus(
       }
       closedDespite = block
       update.closed_at = new Date().toISOString()
+      // SC-2 (sags-review 2026-10-17): en arbejdsordre i gang skal afsluttes først — før kunne sagen lukkes, og
+      // arbejdsordren kunne derefter hverken afsluttes eller annulleres (lukket sag), men stod i montørens "Mine job"
+      const { count: running } = await supabase.from('work_orders').select('id', { count: 'exact', head: true })
+        .eq('case_id', id).eq('status', 'in_progress')
+      if ((running ?? 0) > 0) {
+        return { success: false, error: `Sagen har ${running} arbejdsordre${running === 1 ? '' : 'r'} i gang — afslut eller annullér ${running === 1 ? 'den' : 'dem'} først` }
+      }
     } else if (status !== 'closed') {
       update.closed_at = null // genåbnet (sags-review 2026-10-09 #10)
     }
@@ -1750,12 +1757,20 @@ export async function setServiceCaseStatus(
       logger.error('Error setting service case status', { error })
       return { success: false, error: 'Kunne ikke ændre status' }
     }
+    // SC-2: planlagte (ikke påbegyndte) arbejdsordrer annulleres ved lukning, så de ikke hænger i kalender/"Mine job"
+    let cancelledPlanned = 0
+    if (status === 'closed' && !prior?.status?.toString()?.includes('closed')) {
+      const { data: cancelled, error: woErr } = await supabase.from('work_orders').update({ status: 'cancelled' })
+        .eq('case_id', id).eq('status', 'planned').select('id')
+      if (woErr) logger.warn('setServiceCaseStatus: planlagte arbejdsordrer kunne ikke annulleres', { error: woErr, entityId: id })
+      cancelledPlanned = (cancelled ?? []).length
+    }
 
     await logServiceCaseAudit(
       id,
       (data?.case_number as string) ?? id,
       'status_change',
-      `Status ændret: ${prior?.status ?? '—'} → ${status}${note ? ` (${note})` : ''}${closedDespite ? ` — lukket trods: ${closedDespite}` : ''}`,
+      `Status ændret: ${prior?.status ?? '—'} → ${status}${note ? ` (${note})` : ''}${closedDespite ? ` — lukket trods: ${closedDespite}` : ''}${cancelledPlanned ? ` — ${cancelledPlanned} planlagt(e) arbejdsordre(r) annulleret` : ''}`,
       { status: { old: prior?.status ?? null, new: status }, ...(closedDespite ? { unbilled_at_close: { old: null, new: closedDespite } } : {}) }
     )
 
