@@ -77,8 +77,12 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     // Besigtigelser + opkald/påmindelser oprettet via ELTA Assistant (T2 — CRM-kalenderen er stedet de ses)
     // P-11 (pilot-review 2026-10-16): en fejl vises som besked (før: tom måned = "ingen besigtigelser")
     let tasksLoadError = false
+    // PF2-9 (performance-review 2026-10-17): besigtigelser med forfald ±12 måneder fra i dag (før de 1.000 nyest
+    // OPRETTEDE, inkl. alle udførte — ældre måneder blev tomme og datamængden voksede med hver besigtigelse)
+    const windowFrom = addDays(todayKey(), -365)
+    const windowTo = addDays(todayKey(), 366)
     const [allTasks, assistantTasks] = await Promise.all([
-      getAllTasks({ search: 'besigtigelse', throwOnError: true }).catch(() => { tasksLoadError = true; return [] }),
+      getAllTasks({ search: 'besigtigelse', dueFrom: windowFrom, dueTo: windowTo, throwOnError: true }).catch(() => { tasksLoadError = true; return [] }),
       getAllTasks({ autoRules: ASSISTANT_RULES, throwOnError: true }).catch(() => { tasksLoadError = true; return [] }),
     ])
     const besigtigelser = allTasks.filter((t) =>
@@ -88,7 +92,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     // Mine personlige påmindelser (00197; tom hvor tabellen ikke findes)
     const mine = await getMyPersonalReminders().catch(() => ({ available: false, reminders: [] }))
     const personalReminders = mine.reminders.map((r) => ({ id: r.id, title: r.title, due_at: r.due_at, status: r.status }))
-    return <CalendarPageClient tasks={[...besigtigelser, ...assistantTasks.filter((t) => !seen.has(t.id))]} personalReminders={personalReminders} loadError={tasksLoadError} />
+    return <CalendarPageClient tasks={[...besigtigelser, ...assistantTasks.filter((t) => !seen.has(t.id))]} personalReminders={personalReminders} loadError={tasksLoadError} windowFrom={windowFrom} windowTo={windowTo} />
   }
 
   // ----- Day or Week view (work_orders × employees) -----

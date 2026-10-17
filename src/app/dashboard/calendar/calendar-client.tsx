@@ -17,6 +17,9 @@ interface CalendarPageClientProps {
   personalReminders?: CalendarPersonalReminder[]
   /** P-11: besigtigelser/opkald kunne ikke hentes */
   loadError?: boolean
+  /** PF2-9: besigtigelser hentes kun med forfald i dette vindue (YYYY-MM-DD) */
+  windowFrom?: string
+  windowTo?: string
 }
 
 const WEEKDAY_NAMES = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn']
@@ -35,7 +38,7 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return day === 0 ? 6 : day - 1
 }
 
-export function CalendarPageClient({ tasks: initialTasks, personalReminders = [], loadError = false }: CalendarPageClientProps) {
+export function CalendarPageClient({ tasks: initialTasks, personalReminders = [], loadError = false, windowFrom, windowTo }: CalendarPageClientProps) {
   const [tasks, setTasks] = useState(initialTasks)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -126,6 +129,16 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
           Besigtigelser og opkald kunne ikke hentes lige nu — kalenderen er måske ufuldstændig. Genindlæs siden.
         </div>
       )}
+      {/* PF2-9: måned uden for indlæsningsvinduet (±12 mdr.) → besked i stedet for en tilsyneladende tom måned */}
+      {windowFrom && windowTo && (() => {
+        const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`
+        const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
+        return monthEnd < windowFrom || monthStart >= windowTo ? (
+          <div className="mb-3 rounded-md bg-gray-50 ring-1 ring-gray-200 px-3 py-2 text-sm text-gray-700" data-testid="calendar-month-outside-window">
+            Besigtigelser vises for de seneste og kommende 12 måneder — søg under Opgaver for ældre eller senere.
+          </div>
+        ) : null
+      })()}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

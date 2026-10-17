@@ -71,7 +71,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PF2-6 | intelligence-check: mange sekventielle dublettjek; hængende sync-log (completed_at NULL) skjuler forældet-alarm (S3) | DONE (kode) — én prisændrings-advarsel pr. tilbud; sync-log uden completed_at ignoreres |
 | PF2-7 | Dashboard henter alle afsluttede timer og accepterede tilbud pr. visning (S3) | TODO (aggregat) |
 | PF2-8 | Planlægningsbacklog: arbejdsordreopslag afkortes ved 1.000; kalender venter på det (S3) | DONE (kode) — arbejdsordreopslag side for side pr. bid |
-| PF2-9 | Kalenderens månedsvisning henter op til 1.000 nyeste besigtigelser i stedet for måneden (S3/S4) | TODO — månedsvisningen navigerer i klienten med alle opgaver; kræver hentning pr. måned ved navigation |
+| PF2-9 | Kalenderens månedsvisning henter op til 1.000 nyeste besigtigelser i stedet for måneden (S3/S4) | DONE (kode) — besigtigelser med forfald ±12 måneder; besked i måneder uden for vinduet. UI U144/U140 |
 
 ## NEXT-33 (review-bølge 2026-10-17 aften — tilbud, kalkulation, sol)
 | # | Fund | Status |
