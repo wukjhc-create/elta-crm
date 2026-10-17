@@ -57,14 +57,15 @@ const fmtDate = (s: string | null | undefined) => {
   if (!s) return '—'
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleDateString('da-DK', { day: '2-digit', month: 'short', year: 'numeric' })
+  // MB-11 (mobil-review 2026-10-17): dansk tidszone — en telefon i anden tidszone viste andre tider end rette-formularen
+  return d.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 const fmtTime = (s: string | null | undefined) => {
   if (!s) return '—'
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit' })
 }
 
 // Dansk dato (ikke enhedens tidszone)
@@ -465,7 +466,8 @@ export function WorkOrderTimeLogs({
               />
               Fakturerbar
             </label>
-            <div className="flex gap-1">
+            {/* MB-5 (mobil-review 2026-10-17): fuld bredde og ≥ 44 px på telefon (før ~24 px) */}
+            <div className="flex gap-2 sm:gap-1 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => {
@@ -474,14 +476,14 @@ export function WorkOrderTimeLogs({
                   setError(null)
                 }}
                 disabled={isWorking}
-                className="text-xs px-2 py-1 border rounded hover:bg-gray-50"
+                className="flex-1 sm:flex-none min-h-11 sm:min-h-0 text-sm sm:text-xs px-4 py-2.5 sm:px-2 sm:py-1 border rounded hover:bg-gray-50"
               >
                 Annullér
               </button>
               <button
                 type="submit"
                 disabled={isWorking}
-                className="text-xs px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 sm:flex-none min-h-11 sm:min-h-0 text-sm sm:text-xs px-4 py-2.5 sm:px-2 sm:py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
               >
                 {isWorking ? 'Gemmer…' : 'Gem timer'}
               </button>

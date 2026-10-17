@@ -33,7 +33,9 @@ export default async function DashboardLayout({
           <Header />
 
           {/* Page content — extra bottom padding for mobile bottom nav */}
-          <main className="flex-1 overflow-y-auto bg-gray-50 p-3 sm:p-6 pb-20 md:pb-6">
+          {/* MB-2 (mobil-review 2026-10-17): bunden plads til bundmenuen inkl. iPhones hjemmeindikator (før pb-20 = 80 px < 98 px,
+              og sm:p-6 nulstillede bunden til 24 px mellem 640 og 767 px) */}
+          <main className="flex-1 overflow-y-auto bg-gray-50 px-3 pt-3 sm:px-6 sm:pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">
             {children}
           </main>
         </div>

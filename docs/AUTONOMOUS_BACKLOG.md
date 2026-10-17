@@ -48,18 +48,18 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 ## NEXT-25 (review-bølge 2026-10-17 nat — montørens telefon-flow)
 | # | Fund | Status |
 |---|---|---|
-| MB-1 | Tidsregistrering/planlægning fryser på "Gemmer…" ved netfejl (setIsWorking efter kast nås aldrig) (S2) | DONE (venter commit) — safeAction: kastet server action → dansk fejl, formular låses ikke (tidsregistrering + planlægning) |
-| MB-2 | Bunden skjules af bundmenuen (pb-20 < 64 px + safe-area; sm:p-6 overskriver) | TODO |
+| MB-1 | Tidsregistrering/planlægning fryser på "Gemmer…" ved netfejl (setIsWorking efter kast nås aldrig) (S2) | DONE (03b39a24) — safeAction: kastet server action → dansk fejl, formular låses ikke (tidsregistrering + planlægning) |
+| MB-2 | Bunden skjules af bundmenuen (pb-20 < 64 px + safe-area; sm:p-6 overskriver) | DONE (venter commit) — bundpolstring 5rem + safe-area; sm:p-6 nulstiller ikke bunden |
 | MB-3 | Montør ser altid "Alle påkrævede punkter skal udfyldes" selv ved komplet tjekliste | TODO — checklistComplete separat |
 | MB-4 | Aflevering: fejl vises øverst uden for skærmen | TODO |
-| MB-5 | Gem/Afslut-knapper i tidsregistrering ~24 px | TODO |
+| MB-5 | Gem/Afslut-knapper i tidsregistrering ~24 px | DONE (venter commit) — Gem/Annullér fuld bredde og ≥ 44 px på telefon |
 | MB-6 | Tidstabel uden mobilvisning (Ret/Slet i sidste kolonne) | TODO |
 | MB-7 | Satsvælger vist på kollegaers rækker (serveren afviser) | TODO |
 | MB-8 | Små HEIC-fotos uploades ukonverteret (vises ikke i Chrome/Android) | TODO |
 | MB-9 | Dokumenter lover 20 MB, grænsen er ~4,5–10 MB | TODO |
 | MB-10 | Slet-foto vist på andres fotos | TODO |
-| MB-11 | Tider i enhedens tidszone i tidslisten | TODO |
-| MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | TODO |
+| MB-11 | Tider i enhedens tidszone i tidslisten | DONE (venter commit) — timeZone Europe/Copenhagen i tidslisten |
+| MB-12 | Små touch-mål; pinch-zoom blokeret (user-scalable=no) | DONE (venter commit) — pinch-zoom tilladt (viewport uden maximum-scale/user-scalable=no); øvrige små touch-mål = senere |
 
 ## NEXT-24 (review-bølge 2026-10-16 aften — leverandørfakturaer/indkøb + DB-sikkerhed)
 | # | Fund | Status |
@@ -100,7 +100,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | ST-10 | Portal-tilbuds-PDF vælger alle kolonner (linjer/company_settings) + mangler no-store | DONE (b8107bd2) — OFFER_LINE_PUBLIC_COLUMNS + COMPANY_SETTINGS_PUBLIC_COLUMNS + Cache-Control private, no-store |
 | ST-11 | Ubrugt downloadAndStoreAttachment uden de nye værn | DONE (b8107bd2) — fjernet |
 | HT-1 | U135 (slet kunde med tilbud) flaky 2× i dag — sletteklik/alertdialog-timing (`.catch` på klik) | DONE (d95d4ccc) — venter på knap/dialog + poll på resultat; U135 grøn i første kørsel |
-| PF-1 | Klient-udløste server actions køres serielt af browseren: dashboard (~12 widgets), kundekort (5), sagsdetalje (5) | DONE (runde 1 93f9fc7e + runde 2 venter commit) — 9 forside-widgets hentes på serveren (Suspense, parallelt) med initial-prop; tilbage selvhentende: driftsoverblik, månedsgraf, advarsler/priser/leverandørhelbred (lette eller auto-opdaterende) |
+| PF-1 | Klient-udløste server actions køres serielt af browseren: dashboard (~12 widgets), kundekort (5), sagsdetalje (5) | DONE (runde 1 93f9fc7e + runde 2 03b39a24) — 9 forside-widgets hentes på serveren (Suspense, parallelt) med initial-prop; tilbage selvhentende: driftsoverblik, månedsgraf, advarsler/priser/leverandørhelbred (lette eller auto-opdaterende) |
 | PF-2 | getDashboardStats summerer hele historikken (alle timer/tilbud) i JS + to serielle batches | DONE (e99f0ba0) — én parallel runde; tilbud som HEAD-count pr. status + i alt, beløb kun sendt/set/accepteret; timer uændret (hele historikken — vindue/RPC = beslutning/[MIGRATION]). Staging dashboard-stats-equivalence 4/4 (624 tilbud, identiske tal) |
 | PF-3 | "Sager over estimat" kører fuld efterkalkulation af 200 sager pr. indlæsning (serielle bidder, kvadratisk kopi) | DONE (303db8e8) — sagsbidder samtidig + push i stedet for kopiering; lazy/hoursOnly-tilstand = senere |
 | PF-4 | "Kræver svar" genlæser hele den koblede indbakke (~45 serielle kald ved 5k mails) ved hver statistik/realtime-hændelse | DONE (e99f0ba0) — kandidater med beregningens kolonner (ingen genhentning), bidder samtidig, cache() pr. request |
