@@ -1,5 +1,5 @@
 /**
- * Dom-mærket ombrydes. De fire domme er uændret.
+ * Linjedommen på fakturakontrollen ombrydes. Domsteksten er uændret.
  *   npx tsx scripts/invoice-control-verdict-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -12,17 +12,27 @@ const ok = (c: boolean, label: string) => {
 }
 
 const view = readFileSync(join('src', 'app', 'dashboard', 'incoming-invoices', '[id]', 'invoice-control-panel.tsx'), 'utf8')
-const start = view.indexOf('data-testid="invoice-control-verdict"')
-const row = start >= 0 ? view.slice(start - 130, start + 70) : ''
-ok(row.includes('break-words min-w-0'), 'dommen ombrydes')
-ok(row.includes('{v.label}'), 'dommen kommer fra de fire tekster')
-ok(!row.includes('shrink-0'), 'dommen kan blive smallere')
-ok(!row.includes('truncate'), 'dommen klippes ikke')
-ok(view.includes("ok: { label: 'Priser stemmer'"), 'stemmer er uændret')
-ok(view.includes("deviation: { label: 'Prisafvigelse'"), 'afvigelse er uændret')
-ok(view.includes("partially_controlled: { label: 'Delvist kontrolleret'"), 'delvist er uændret')
-ok(view.includes("not_controllable: { label: 'Kan ikke kontrolleres'"), 'ukontrolleret er uændret')
-ok(view.includes('data-testid="invoice-control-load-error"'), 'fejlen er uændret')
+const line = view.slice(view.indexOf('const LINE'), view.indexOf('const METHOD'))
+for (const word of ["ok: 'OK'", "overcharge: 'Overpris'", "undercharge: 'Underpris'", "not_controllable: '—'"]) {
+  ok(line.includes(word), `dommen ${word} er uændret`)
+}
+
+const mobileStart = view.indexOf('invoice-control-lines-mobile')
+const mobileEnd = view.indexOf('hidden md:block', mobileStart)
+const mobile = mobileStart >= 0 && mobileEnd > mobileStart ? view.slice(mobileStart, mobileEnd) : ''
+const mobileAt = mobile.indexOf('data-testid="invoice-control-mobile-verdict"')
+const mobileRow = mobileAt >= 0 ? mobile.slice(mobileAt - 280, mobileAt + 80) : ''
+ok(mobileRow.includes('shrink-0 max-w-[45%] break-words min-w-0'), 'mobil-dommen ombrydes og bliver på linjen')
+ok(mobileRow.includes('{LINE[l.verdict] ?? l.verdict}'), 'mobil-dommen bruger de samme ord')
+ok(mobileRow.includes("bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : 'text-gray-600'"), 'mobil-farven er uændret')
+
+const deskAt = view.indexOf('data-testid="invoice-control-desktop-verdict"')
+const desk = deskAt >= 0 ? view.slice(deskAt - 240, deskAt + 80) : ''
+ok(desk.includes('break-words min-w-0'), 'skrivebords-dommen ombrydes')
+ok(desk.includes('{LINE[l.verdict] ?? l.verdict}'), 'skrivebords-dommen bruger de samme ord')
+ok(desk.includes("bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : ''"), 'skrivebords-farven er uændret')
+ok(view.includes('Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr.'), 'nul-linjen er uændret')
+ok(!mobile.includes(' truncate') && !mobile.includes('truncate '), 'mobilkortet klippes ikke')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

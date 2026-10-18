@@ -111,7 +111,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
                 <div key={l.lineNumber} className={`p-3 ${bad ? 'bg-red-50' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-gray-900 break-words min-w-0"><span className="text-gray-400">{l.lineNumber}.</span> {l.description}<ChargeMark description={l.description} /></p>
-                    <span className={`shrink-0 ${bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : 'text-gray-600'}`}>{LINE[l.verdict] ?? l.verdict}</span>
+                    <span className={`shrink-0 max-w-[45%] break-words min-w-0 ${bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : 'text-gray-600'}`} data-testid="invoice-control-mobile-verdict">{LINE[l.verdict] ?? l.verdict}</span>
                   </div>
                   <p className="mt-1 text-gray-600 break-all">{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : (l.reason ?? 'ingen')}</p>
                   <p>Forventet {m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</p>
@@ -134,7 +134,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
                       <td>{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : <span className="text-gray-400">{l.reason ?? 'ingen'}</span>}</td>
                       <td className="text-right">{m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</td>
                       <td className="text-right">{l.varianceAmount != null && l.verdict !== 'not_controllable' ? `${kr(l.varianceAmount)}${l.variancePct != null ? ` (${l.variancePct} %)` : ''}` : '—'}</td>
-                      <td className={`pl-4 ${bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : ''}`}>{LINE[l.verdict] ?? l.verdict}</td>
+                      <td className={`pl-4 break-words min-w-0 ${bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : ''}`} data-testid="invoice-control-desktop-verdict">{LINE[l.verdict] ?? l.verdict}</td>
                     </tr>
                   )
                 })}
