@@ -790,7 +790,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-56 | 1 Profit | ÅBEN. Skrivebordslinjens afvigelse ombrydes. | `moneyDev` og "Kan ikke beregnes" er uændret. |
 | G18-34 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk kost. | Kosttallet uændret. |
 | G18-39 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk antal. | `qty()` uændret. |
-| G18-53 | 1 Profit | ÅBEN. Skrivebordslinjens antalceller ombrydes. | `qty()` er uændret. |
+| G18-53 | 1 Profit | DONE skrivebordslinjens antalceller ombrydes. | `qty()` er uændret. |
+| G18-57 | 1 Profit | ÅBEN. Skrivebordslinjens enhed ombrydes. | Beskrivelse og kost er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | ÅBEN. Den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
 
