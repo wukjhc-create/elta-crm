@@ -12,6 +12,7 @@ import { getAftercalcOverview } from '@/lib/actions/case-aftercalc'
 import { DATA_QUALITY_LABELS, type DataQualityCode } from '@/lib/cases/aftercalc'
 import {
   invoicedStateLabel,
+  offerMissingCostFilter,
   type AftercalcOverviewFilters,
   type AftercalcOverviewResult,
   type AftercalcSort,
@@ -161,9 +162,14 @@ export function AftercalcOverviewClient() {
                     Viser de {data.cases_considered} nyeste sager i filtret. Ældre sager er ikke beregnet.
                   </p>
                 )}
-                <p className="text-sm text-gray-800 break-words min-w-0" data-testid="aftercalc-quality-summary">
+                <div className="text-sm text-gray-800 break-words min-w-0" data-testid="aftercalc-quality-summary">
                   {data.quality.missingCost} af {data.quality.cases} sager i filtret mangler kost. DB kan ikke beregnes for {data.quality.dbUnknown}. {data.quality.warning} har datakvalitet advarsel.
-                </p>
+                  {offerMissingCostFilter(data.quality.missingCost, filters.missingCostOnly) && (
+                    <button type="button" className="ml-1 text-blue-700 hover:underline" data-testid="aftercalc-show-missing-cost" onClick={() => setFilter({ missingCostOnly: true })}>
+                      Vis dem
+                    </button>
+                  )}
+                </div>
                 {data.rows.length === 0 ? (
                   <div className="text-sm text-gray-500" data-testid="aftercalc-empty">
                     <p>{filtersActive ? 'Ingen sager matcher filtrene.' : 'Ingen sager i oversigten. Opret en sag fra kunden, så den kan efterkalkuleres her.'}</p>

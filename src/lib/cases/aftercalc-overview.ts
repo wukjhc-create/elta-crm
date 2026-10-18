@@ -50,6 +50,11 @@ export function invoicedStateLabel(state: AftercalcOverviewRow['invoiced_state']
   return 'Faktureret'
 }
 
+/** Om kvalitetslinjen må slå det eksisterende filter til. Selve filteret ændres ikke. */
+export function offerMissingCostFilter(missingCost: number, missingCostOnly: boolean | null | undefined): boolean {
+  return missingCost > 0 && missingCostOnly !== true
+}
+
 export interface AftercalcOverviewItem {
   row: AftercalcOverviewRow
   /** Faktisk DB i kroner. Bruges kun til sortering. */

@@ -748,20 +748,25 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-9 | 8 Pilot | DONE leverandørlisten: fejlet hentning siger det og beholder sidste liste. Tom succes siger stadig opret. | Fejl forbliver fejl. |
 | G18-10 | 3 Ledelse | DONE `05f1d751` oversigten tæller advarsler i filtret. | Samme quality-tal. Ingen ny forespørgsel. |
 | G18-11 | 2 Faktura | DÆKKET AF `356a74e7`: tællingen ligger over mobil-listen og ombrydes. | Samme tal som desktop. |
-| G18-12 | 4 Pris | ÅBEN. Prishistorik: senest lagrede pris med dato. Ingen række siges højt. | Ingen nutidspris opfindes. |
+| G18-12 | 4 Pris | ÅBEN. Materialets prishistorik siger datoen på den senest lagrede række, kun når listen har rækker. | Tom liste siger stadig ingen prisændringer. Ingen nutidspris opfindes. |
 | G18-13 | 6 Salg | ÅBEN. Tilbud ude: filter- eller tælle-mærke på en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
-| G18-14 | 5 Plan | ÅBEN. Dagsbelastning som antal opgaver. Ikke calendar-workforce eller employee-day-load-hint. | Ingen ny kalender-query. |
-| G18-15 | 8 Pilot | ÅBEN. Prissidens beløb ombrydes, hvis de ikke allerede gør det. | `pricing-client.tsx` uden truncate. Ingen nye priser. |
+| G18-14 | 5 Plan | ÅBEN. `calendar-client.tsx` dagsoverskrift viser `selectedTasks.length`. Tom dag siger stadig ingen besigtigelser. | Ikke calendar-workforce. Ingen ny query. |
+| G18-15 | 8 Pilot | ÅBEN. Desktop-celler i `pricing-client.tsx` for gammel/ny pris, tilbudsbeløb, difference og trendpris mangler `break-words`. Mobil ombryder allerede. | Ingen truncate. Ingen nye priser. |
 | G18-16 | 2 Faktura | DONE fragt og gebyr vises hver for sig. Beløb og motor uændret. | Ingen e-conomic. |
 | G18-17 | 1 Profit | DONE dansk faktureringsstatus på efterkalk-rækken fra `invoiced_state`. | Statusberegningen uændret. |
-| G18-18 | 8 Pilot | ÅBEN. Produktlistens fejltekst må ikke sige at kataloget er tomt, hvis hentningen fejlede. | Tom succes forbliver tom. |
-| G18-19 | 4 Pris | ÅBEN. Et nullable pris felt uden for leave-listen bruger samme "Ingen lagret pris". | Ingen opfundet pris. |
+| G18-18 | 8 Pilot | ALLEREDE I PRODUKT: produktlisten siger at fejlet hentning ikke tælles som ingen produkter. Ingen ny commit. | Tom succes forbliver tom. |
+| G18-19 | 4 Pris | ÅBEN. `supplier-products-table` viser "-" ved null kost. Brug `storedCostText`. 0 kr forbliver 0 kr. | Listen viser allerede kost. Ingen opfundet pris. |
 | G18-20 | 6 Salg | ÅBEN. Ren konverteringstekst på en fil der ikke er leads-page-client eller lead-detail. | Ikke `follow-up.ts`. |
-| G18-21 | 7 Assistent | ÅBEN. Note- eller callback-svar forbliver staging og siger hvad der blev gemt. | Ingen live afsendelse. |
-| G18-22 | 3 Ledelse | ÅBEN. Oversigten siger hvilket afvigelsesfilter der er aktivt. | Filterlogikken uændret. |
-| G18-23 | 8 Pilot | ÅBEN. Hvis `pricing-client.tsx` allerede ombryder beløb, erstattes G18-15 af næste friktion der. | Ingen truncate. |
-| G18-24 | 1 Profit | ÅBEN. "Vis dem" på kvalitetslinjen slår det eksisterende filter "Kun manglende kostdata" til. | `missingCostOnly` regnes som i dag. |
-| G18-25 | 2 Faktura | ÅBEN. Vis et dublet-mærke kun hvis panelet allerede har dublet-data. | Ingen ny matching og ingen e-conomic. |
+| G18-21 | 7 Assistent | ÅBEN. Note-svaret citerer de første 120 tegn af den gemte tekst. | Insert og afsendelse uændret. |
+| G18-22 | 3 Ledelse | ÅBEN. Oversigten siger Negativ DB, Positiv DB eller Alle med en ren tekst. | `selectOverviewPage` uændret. |
+| G18-23 | 7 Assistent | ÅBEN. Callback-svaret siger at kunden ikke er kontaktet. | Insert og afsendelse uændret. Ingen webhook. |
+| G18-24 | 1 Profit | DONE "Vis dem" slår det eksisterende filter kun manglende kost til. | Filterreglen uændret. |
+| G18-25 | 2 Faktura | ÅBEN. Giv panelet `duplicate_of_id` fra detaljen, som allerede har feltet, og vis linket kun da. | Ingen ny matching og ingen e-conomic. |
+| G18-26 | 1 Profit | ÅBEN. Sagspanelet bruger `invoicedStateLabel` i stedet for det lokale kort. | Samme tre ord. Beregningen uændret. |
+| G18-27 | 2 Faktura | ÅBEN. Kontrollinjen viser `quantity` som allerede ligger på linjen. Null er ikke 0. | Motoren uændret. |
+| G18-28 | 5 Plan | ÅBEN. "Mine påmindelser" på den valgte dag viser antallet fra `remindersByDate`. | Blokken er skjult ved 0. Ingen ny query. |
+| G18-29 | 1 Profit | ÅBEN. Forrige/Næste på efterkalk-oversigten får min-h 44 px. | Sidetal og side-størrelse uændret. |
+| G18-30 | 2 Faktura | ÅBEN. Kontrollinjen viser den fakturerede enhedspris som allerede ligger på linjen. Null er ikke 0 kr. | Afvigelsesbeløbet uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
