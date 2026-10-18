@@ -1907,10 +1907,21 @@ async function main() {
     const stamp = Date.now()
     let fails = 0
     const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
-    const { data: inv, error } = await admin.from('invoices').insert({ invoice_number: `H-CLAIM-${stamp}`, status: 'draft' }).select('id').single()
+    const { data: inv, error } = await admin.from('invoices').insert({ invoice_number: `H-CLAIM-${stamp}`, status: 'draft', total_amount: 80, tax_amount: 20, final_amount: 100 }).select('id').single()
     if (error) throw new Error(error.message)
     const id = (inv as { id: string }).id
+    // IV2-5: faktura med total 0 eller negativ sendes ikke (afvises før kravet)
+    const zeroIds: string[] = []
+    for (const [tag, amt] of [['0', 0], ['neg', -500]] as const) {
+      const { data: z } = await admin.from('invoices').insert({ invoice_number: `H-CLAIM-${tag}-${stamp}`, status: 'draft', total_amount: amt, tax_amount: 0, final_amount: amt }).select('id').single()
+      if (z) zeroIds.push((z as { id: string }).id)
+    }
     try {
+      for (const zid of zeroIds) {
+        const r = await sendInvoiceEmail(zid)
+        const row = (await admin.from('invoices').select('sent_at, status').eq('id', zid).single()).data as { sent_at: string | null; status: string }
+        check('total ≤ 0 → afvist uden afsendelse', r.status === 'failed' && /0 kr eller negativ/.test(r.error ?? '') && row.sent_at === null && row.status === 'draft', `${r.status} ${r.error ?? ''}`)
+      }
       const [a, b] = await Promise.all([sendInvoiceEmail(id), sendInvoiceEmail(id)])
       const statuses = [a.status, b.status].sort().join(',')
       check('to samtidige kald: højst ét kommer forbi kravet', statuses === 'already_sent,skipped' || statuses === 'skipped,skipped', statuses)
@@ -1921,6 +1932,7 @@ async function main() {
       check('allerede krævet/sendt → already_sent', c.status === 'already_sent', c.status)
     } finally {
       await admin.from('invoices').delete().eq('id', id)
+      if (zeroIds.length) await admin.from('invoices').delete().in('id', zeroIds)
     }
     log(fails ? `❌ ${fails} fejl` : '✅ send-krav ok')
     process.exitCode = fails ? 1 : 0

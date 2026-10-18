@@ -1203,6 +1203,15 @@ export interface SendInvoiceEmailResult {
  */
 export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEmailResult> {
   const supabase = createAdminClient()
+  // IV2-5 (validerings-review 2026-10-18): en (ikke-kredit) faktura med total ≤ 0 sendes ikke — før gik en "Faktura" med
+  // negativt beløb til kunden og e-conomic (rabat-/rettelseslinjer); brug en kreditnota i stedet
+  {
+    const { data: pre } = await supabase.from('invoices').select('invoice_type, final_amount').eq('id', invoiceId).maybeSingle()
+    const p = pre as { invoice_type?: string | null; final_amount?: number | string | null } | null
+    if (p && p.invoice_type !== 'credit' && !(Number(p.final_amount ?? 0) > 0)) {
+      return { invoiceId, status: 'failed', error: 'Fakturaens total er 0 kr eller negativ — ret linjerne, eller lav en kreditnota i stedet' }
+    }
+  }
   const { data: claimed, error: claimErr } = await supabase
     .from('invoices')
     .update({ sent_at: new Date().toISOString() })

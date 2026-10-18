@@ -218,7 +218,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV2-2 | sendQuoteAction uden validering; samtidige afsendelser kan overskrive en anden kundes PDF (samme ref + upsert) (S2) | TODO |
 | IV2-3 | Tilbudslinjens image_url hentes af PDF-renderen (SSRF/lokal fil/hængning) (S3) | TODO |
 | IV2-4 | Sag opret/ret uden server-skema; vilkårlige kolonner (source_offer_id, status=closed, contract_sum for salg) (S3) | TODO |
-| IV2-5 | Standardfaktura kan sendes med total ≤ 0 (S3) | TODO |
+| IV2-5 | Standardfaktura kan sendes med total ≤ 0 (S3) | DONE (kode) — sendInvoiceEmail afviser ikke-kreditfaktura med total ≤ 0 før kravet (invoice-send-claim-check +2, U15/U29/U31/U32/U33) |
 | IV2-6 | createOfferFromCalculation stoler på klientens tal (S3) | TODO |
 | IV2-7 | Tilbudslinjers tal tillader Infinity/ingen øvre grænse (S4) | TODO |
 | IV2-8 | updateOfferField uden længdegrænse (S4) | TODO |
