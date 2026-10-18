@@ -763,7 +763,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-17 | 1 Profit | DONE dansk faktureringsstatus på efterkalk-rækken fra `invoiced_state`. | Statusberegningen uændret. |
 | G18-18 | 8 Pilot | ALLEREDE I PRODUKT: produktlisten siger at fejlet hentning ikke tælles som ingen produkter. Ingen ny commit. | Tom succes forbliver tom. |
 | G18-19 | 4 Pris | DONE null kost på leverandørvaren siger "Ingen lagret pris". 0 kr forbliver 0 kr. | Listepris og salgspris uændret. |
-| G18-40 | 4 Pris | ÅBEN. Null salgspris i `supplier-products-table` siger "Ingen lagret pris". | Ingen opfundet salgspris. 0 kr forbliver 0 kr. |
+| G18-40 | 4 Pris | DONE null salgspris siger "Ingen lagret pris". | Ingen opfundet salgspris. 0 kr forbliver 0 kr. |
+| G18-47 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens mobilkort ombrydes. | Priser, varenummer og status er uændret. |
 | G18-20 | 6 Salg | ÅBEN. Ren konverteringstekst på en fil der ikke er leads-page-client eller lead-detail. | Ikke `follow-up.ts`. |
 | G18-21 | 7 Assistent | ÅBEN. Note-svaret citerer de første 120 tegn af den gemte tekst. | Insert og afsendelse uændret. |
 | G18-22 | 3 Ledelse | DONE oversigten siger Negativ DB, Positiv DB eller Alle. | `selectOverviewPage` uændret. |

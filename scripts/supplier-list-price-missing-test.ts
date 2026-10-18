@@ -20,7 +20,7 @@ const table = readFileSync(join('src', 'components', 'modules', 'suppliers', 'su
 ok((table.match(/storedCostText\(product\.list_price\)/g) ?? []).length === 2, 'mobil og tabel bruger teksten')
 ok(!table.includes("formatCurrency(product.list_price)"), 'listeprisen opfindes ikke via bindestreg')
 ok(!table.includes("product.list_price !== null ? formatCurrency"), 'null er ikke en bindestreg')
-ok(table.includes('formatCurrency(product.effective_sale_price)'), 'salgsprisen er uændret')
+ok((table.match(/storedCostText\(product\.effective_sale_price\)/g) ?? []).length === 2, 'salgspris bruger samme lagrede tekst')
 ok((table.match(/storedCostText\(product\.cost_price\)/g) ?? []).length === 2, 'kostteksten er uændret')
 
 if (bad > 0) {

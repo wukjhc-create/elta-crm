@@ -20,7 +20,7 @@ eq('fejl er en alert', src.includes('role="alert"') && src.includes('{loadError}
 eq('kostpris bruger lagret tekst', src.includes('storedCostText(product.cost_price)'), true)
 eq('kostpris opfinder ikke 0', src.includes('formatCurrency(product.cost_price)'), false)
 eq('listepris siger at den mangler', src.includes('storedCostText(product.list_price)'), true)
-eq('salgspris bliver', src.includes('formatCurrency(product.effective_sale_price)'), true)
+eq('salgspris siger at den mangler', src.includes('storedCostText(product.effective_sale_price)'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nsupplier-products-load-test OK')
 process.exitCode = fail ? 1 : 0
