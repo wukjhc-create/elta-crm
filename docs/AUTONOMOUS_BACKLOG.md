@@ -787,7 +787,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-33 | 1 Profit | DONE sagspanelets mobil-resumé ombryder tilbudt, faktisk og afvigelse. | Tallene uændret. |
 | G18-38 | 1 Profit | DONE sagspanelets skrivebords-resumé ombrydes. | Tallene uændret. |
 | G18-52 | 1 Profit | DONE skrivebordslinjens kostceller ombrydes. | `kr()` og `qty()` er uændret. |
-| G18-56 | 1 Profit | ÅBEN. Skrivebordslinjens afvigelse ombrydes. | `moneyDev` og "Kan ikke beregnes" er uændret. |
+| G18-56 | 1 Profit | DONE skrivebordslinjens afvigelse ombrydes. | `moneyDev` og "Kan ikke beregnes" er uændret. |
+| G18-58 | 1 Profit | ÅBEN. Mobil-linjens afvigelse ombrydes. | "Kan ikke beregnes" og `moneyDev` er uændret. |
 | G18-34 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk kost. | Kosttallet uændret. |
 | G18-39 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk antal. | `qty()` uændret. |
 | G18-53 | 1 Profit | DONE skrivebordslinjens antalceller ombrydes. | `qty()` er uændret. |
