@@ -385,13 +385,13 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-gray-50">
-              <th className="text-left px-4 py-2.5 font-medium">Tilbud</th>
-              <th className="text-left px-4 py-2.5 font-medium">Kunde</th>
-              <th className="text-left px-4 py-2.5 font-medium">Status</th>
-              <th className="text-right px-4 py-2.5 font-medium">Beløb</th>
-              <th className="text-center px-4 py-2.5 font-medium">Ber. linjer</th>
-              <th className="text-right px-4 py-2.5 font-medium">Potentielt tab</th>
-              <th className="text-right px-4 py-2.5 font-medium">Oprettet</th>
+              <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-offer-col-title">Tilbud</th>
+              <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-offer-col-customer">Kunde</th>
+              <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-offer-col-status">Status</th>
+              <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-offer-col-amount">Beløb</th>
+              <th className="text-center px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-offer-col-lines">Ber. linjer</th>
+              <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-offer-col-loss">Potentielt tab</th>
+              <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-offer-col-created">Oprettet</th>
             </tr>
           </thead>
           <tbody>
