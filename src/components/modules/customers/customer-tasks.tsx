@@ -268,7 +268,7 @@ function TaskRow({
             </span>
           )}
           {task.assigned_profile && (
-            <span className="text-xs text-gray-500 break-words">
+            <span className="text-xs text-gray-500 break-words min-w-0" data-testid="customer-task-assignee">
               {task.assigned_profile.full_name || task.assigned_profile.email}
             </span>
           )}
