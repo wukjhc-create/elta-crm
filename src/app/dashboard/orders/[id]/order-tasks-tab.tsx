@@ -43,8 +43,8 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
   }
 
   if (tasks === null && !error) return <div className="text-sm text-gray-500 py-6 text-center">Henter opgaver…</div>
-  if (tasks === null) return <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>
-  if (error && tasks.length === 0) return <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>
+  if (tasks === null) return <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 break-words min-w-0" data-testid="case-tasks-load-error">{error}</div>
+  if (error && tasks.length === 0) return <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 break-words min-w-0" data-testid="case-tasks-load-error">{error}</div>
   if (tasks.length === 0) {
     return (
       <div className="text-center py-12">
