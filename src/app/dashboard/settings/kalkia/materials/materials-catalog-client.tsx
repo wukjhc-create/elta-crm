@@ -43,7 +43,7 @@ import {
 import type { Material, MaterialPriceHistory } from '@/types/component-intelligence.types'
 import { useToast } from '@/components/ui/toast'
 import { formatCurrency } from '@/lib/utils/format'
-import { latestStoredHistoryDate } from '@/lib/materials/latest-stored-history-date'
+import { latestStoredHistoryDate, storedHistoryDate } from '@/lib/materials/latest-stored-history-date'
 import { calculateDBPercentage } from '@/lib/logic/pricing'
 
 interface MaterialsCatalogClientProps {
@@ -616,9 +616,7 @@ export function MaterialsCatalogClient({ initialMaterials, loadError = null }: M
                               className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
                             >
                               <div className="flex items-center gap-4">
-                                <span className="text-gray-500">
-                                  {new Date(history.effective_from).toLocaleDateString('da-DK')}
-                                </span>
+                                <span className="text-gray-500 break-words" data-testid="materials-history-date">{storedHistoryDate(history.effective_from) ?? 'Dato mangler'}</span>
                                 <div className="flex items-center gap-2">
                                   <span>Kost:</span>
                                   <span className={costChange > 0 ? 'text-red-600' : costChange < 0 ? 'text-green-600' : ''}>
