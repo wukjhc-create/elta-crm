@@ -159,7 +159,7 @@ export function AftercalcOverviewClient() {
             {data && (
               <>
                 {data.truncated && (
-                  <p className="text-xs text-amber-800 bg-amber-50 rounded px-2 py-1">
+                  <p className="text-xs text-amber-800 bg-amber-50 rounded px-2 py-1 break-words min-w-0" data-testid="aftercalc-truncated">
                     Viser de {data.cases_considered} nyeste sager i filtret. Ældre sager er ikke beregnet.
                   </p>
                 )}
