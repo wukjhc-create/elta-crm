@@ -1,3 +1,4 @@
+import { parseDanishDecimal } from '@/lib/utils/danish-number'
 /**
  * 00227 (Henrik 2026-10-15): valgfrit tidspunkt + estimeret varighed på arbejdsordrer. Tom = som før (heldag / ukendt
  * varighed) — intet gættes. Rene funktioner, bruges af server actions og tests.
@@ -19,7 +20,7 @@ export function parseStartTime(input: string | null | undefined): ParseResult<st
 /** dansk eller punktum-decimal; tom → null; 0 < x <= 24 */
 export function parseEstimatedHours(input: string | number | null | undefined): ParseResult<number | null> {
   if (input === null || input === undefined || (typeof input === 'string' && !input.trim())) return { ok: true, value: null }
-  const n = typeof input === 'number' ? input : Number(input.trim().replace(',', '.'))
+  const n = parseDanishDecimal(input) ?? NaN // TZ-1/TZ-2: fælles dansk parser
   if (!Number.isFinite(n)) return { ok: false, error: 'Estimerede timer skal være et tal' }
   if (n <= 0 || n > 24) return { ok: false, error: 'Estimerede timer skal være mellem 0 og 24' }
   return { ok: true, value: Math.round(n * 100) / 100 }

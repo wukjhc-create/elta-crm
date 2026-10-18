@@ -8,6 +8,7 @@
  *    independently and snapshotted into employee_compensation_history
  *    on every change.
  */
+import { parseDanishDecimal } from '@/lib/utils/danish-number'
 import { z } from 'zod'
 
 // .nullable() er påkrævet: klientens zodResolver transformerer "" → null,
@@ -35,17 +36,27 @@ const optionalNumber = z
   .union([z.number(), z.string()])
   .nullable()
   .optional()
-  .transform((v) => {
-    if (v === undefined || v === null || v === '') return null
-    const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'))
-    return Number.isFinite(n) ? n : null
+  .transform((v, ctx) => {
+    if (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')) return null
+    // TZ-1/TZ-2: fælles dansk parser ("1.250" = 1250, før 1,25); ugyldigt = fejl (før lydløst null)
+    const n = parseDanishDecimal(v)
+    if (n === null) {
+      ctx.addIssue({ code: 'custom', message: 'Ugyldigt tal (brug fx 1.250 eller 312,50)' })
+      return z.NEVER
+    }
+    return n
   })
 
 const requiredPercent = z
   .union([z.number(), z.string()])
-  .transform((v) => {
-    const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'))
-    return Number.isFinite(n) ? n : 0
+  .transform((v, ctx) => {
+    // TZ-1/TZ-2: tomt/ugyldigt er en fejl — før blev det lydløst 0 %
+    const n = parseDanishDecimal(v)
+    if (n === null) {
+      ctx.addIssue({ code: 'custom', message: 'Angiv procent som tal (0 hvis ingen)' })
+      return z.NEVER
+    }
+    return n
   })
   .pipe(z.number().min(0, 'Procent kan ikke være negativ').max(100, 'Procent kan ikke overstige 100'))
 
@@ -69,7 +80,7 @@ const weeklyHours = z
   .transform((v, ctx) => {
     if (v === undefined) return undefined
     if (v === null || (typeof v === 'string' && v.trim() === '')) return null
-    const n = typeof v === 'number' ? v : Number(String(v).trim().replace(',', '.'))
+    const n = parseDanishDecimal(v) ?? NaN // TZ-1/TZ-2: fælles parser
     if (!Number.isFinite(n) || n < 0 || n > 60) {
       ctx.addIssue({ code: 'custom', message: 'Normtimer skal være mellem 0 og 60 (eller tomt)' })
       return z.NEVER

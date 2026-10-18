@@ -1,5 +1,6 @@
 'use client'
 
+import { toNumberDa } from '@/lib/utils/danish-number'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -418,7 +419,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   }
 
   const handleAddSupplierProduct = async (productId: string) => {
-    const qty = Number(supplierAddQty.replace(',', '.'))
+    const qty = toNumberDa(supplierAddQty) // TZ-2: "1.000" = 1000 (før 1)
     if (!Number.isFinite(qty) || qty <= 0) {
       toast.error('Ugyldigt antal', 'Angiv et antal større end 0')
       return

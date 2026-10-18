@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { parseDanishDecimal } from '@/lib/utils/danish-number'
 import {
   SERVICE_CASE_STATUSES,
   SERVICE_CASE_PRIORITIES,
@@ -22,14 +23,20 @@ const optionalString = (max: number, label: string) =>
     .optional()
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : null))
 
+// TZ-1/TZ-2 (format-review 2026-10-18): fælles dansk parser — før blev "10.000" til 10 kr (Number("10.000")), og et
+// ugyldigt beløb ryddede feltet lydløst (null). Tomt = null; ugyldigt = valideringsfejl.
 const optionalNumber = z
   .union([z.number(), z.string()])
   .nullable()
   .optional()
-  .transform((v) => {
-    if (v == null || v === '') return null
-    const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
-    return Number.isFinite(n) ? n : null
+  .transform((v, ctx) => {
+    if (v == null || (typeof v === 'string' && v.trim() === '')) return null
+    const n = parseDanishDecimal(v)
+    if (n === null) {
+      ctx.addIssue({ code: 'custom', message: 'Ugyldigt tal (brug fx 10.000 eller 1.234,50)' })
+      return z.NEVER
+    }
+    return n
   })
 
 const optionalUuid = z

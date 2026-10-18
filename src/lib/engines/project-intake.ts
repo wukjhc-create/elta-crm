@@ -12,6 +12,7 @@
  * - Confidence scores indicate parsing reliability
  */
 
+import { parseDanishDecimal } from '@/lib/utils/danish-number'
 import type {
   ProjectIntakeInput,
   ProjectIntakeResult,
@@ -154,7 +155,9 @@ function extractRoomSize(text: string): number | null {
   for (const pattern of patterns) {
     const match = text.match(pattern)
     if (match) {
-      return parseFloat(match[1].replace(',', '.'))
+      // TZ-1/TZ-2: fælles dansk parser — "1.250 kvm" er 1250 m² (før 1,25)
+      const n = parseDanishDecimal(match[1])
+      if (n !== null) return n
     }
   }
 

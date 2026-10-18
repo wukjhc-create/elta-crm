@@ -5,6 +5,7 @@
  * Serveren validerer og auditerer (editIncomingInvoiceHeaderAction); formularen sender kun ændrede felter.
  */
 
+import { parseDanishDecimal } from '@/lib/utils/danish-number'
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { editIncomingInvoiceHeaderAction } from '@/lib/actions/incoming-invoices'
@@ -25,10 +26,10 @@ const toText = (v: number | string | null) => (v === null || v === undefined ? '
 
 /** Dansk eller punktum-format → tal; tomt felt = null; ugyldigt = NaN (serveren afviser) */
 function parseAmount(s: string): number | null {
-  const t = s.trim().replace(/\s/g, '')
-  if (!t) return null
-  const normalized = t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t
-  return Number(normalized)
+  if (!s.trim()) return null
+  // TZ-1 (format-review 2026-10-18): "12.500" er 12.500 kr (dansk tusindtal) — før blev det 12,50 kr
+  const n = parseDanishDecimal(s)
+  return n === null ? NaN : n
 }
 
 export function HeaderEditForm({

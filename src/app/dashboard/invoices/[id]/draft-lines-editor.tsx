@@ -98,7 +98,10 @@ export function DraftLinesEditor({ invoiceId, lines, onChanged }: { invoiceId: s
         className="mt-3 grid grid-cols-2 sm:grid-cols-[1fr_5rem_5rem_7rem_auto] gap-2 items-end"
         onSubmit={async (e) => {
           e.preventDefault()
-          const ok = await run(() => addDraftInvoiceLineAction(invoiceId, { description: add.description, quantity: num(add.quantity), unit: add.unit, unit_price: num(add.unit_price) }))
+          // TZ-2 (format-review 2026-10-18): tom/ugyldig pris eller antal er en fejl — før blev en tom pris til en 0 kr-linje
+          const q = num(add.quantity), up = num(add.unit_price)
+          if (!Number.isFinite(q) || !Number.isFinite(up)) { onChanged(false, 'Angiv antal og pris som tal (fx 1.250,00 — 0 hvis gratis)'); return }
+          const ok = await run(() => addDraftInvoiceLineAction(invoiceId, { description: add.description, quantity: q, unit: add.unit, unit_price: up }))
           if (ok) setAdd({ description: '', quantity: '1', unit: 'stk', unit_price: '' })
         }}
       >
