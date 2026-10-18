@@ -231,7 +231,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | CA-1 | Salgspakke: basispris + stykliste fakturerede dobbelt (S1, latent — pakkevælgeren er ikke monteret) | DONE (værn, kode) — kombinationen afvises indtil styklisten kan indsættes som ren kost |
 | CA-2 | PackageBuilder: tilsidesat salgspris fordelt efter arbejdstid (S1/S2) | TODO |
 | CA-3 | get_customer_product_price: RECORD IS NOT NULL springer aftaler over (S2) | BLOCKED_APPROVAL [MIGRATION 00251] — forslag docs/runbooks/pricing-functions-proposal.md (prod bekræftet read-only) |
-| CA-4 | AI-analyse → tilbud ignorerer beregnet pris/arbejde/kost (S2) | TODO |
+| CA-4 | AI-analyse → tilbud ignorerer beregnet pris/arbejde/kost (S2) | DELVIS (kode, ikke UI-testet — kræver AI-analyse) — reguleringslinje op til analysens pris ekskl. moms; kost pr. linje = TODO (afhænger af arbejdskost-modellen, PE) |
 | CA-5 | refreshLineItemPrice overskriver linjens egen avance/manuelle pris (S2) | DONE (kode) — linjens supplier_margin_applied bevares ved genberegning |
 | CA-6 | Avance-præcedens forkert og forskellig pr. prissti (S2) | BESLUTNING + [MIGRATION] — én præcedens (kunde > produkt > …) |
 | CA-7 | Solar-kostpriser læsbare for alle via REST (S2) | BLOCKED_APPROVAL [MIGRATION] — jf. 00243-forslaget |

@@ -582,7 +582,7 @@ export async function createOfferFromAnalysis(
     }
 
     // Create offer line items (sale_price = unit_price — fakturering fra tilbud kræver det)
-    const lineItems = calculation.components.map((comp, idx) => ({
+    const lineItems: Array<Record<string, unknown>> = calculation.components.map((comp, idx) => ({
       offer_id: offer.id,
       position: idx + 1,
       description: comp.name,
@@ -591,6 +591,26 @@ export async function createOfferFromAnalysis(
       unit_price: comp.unit_price,
       sale_price: comp.unit_price,
     }))
+    // CA-4 (kalkule-review 2026-10-18): analysens pris (materialer + timer × sats × faktorer, + avance og risiko) nåede
+    // aldrig tilbuddet — kun komponenternes katalogpriser (fx 4.500 i stedet for ~6.600). Som createOfferFromCalculation:
+    // en reguleringslinje op til den beregnede pris ekskl. moms.
+    {
+      const r2 = (n: number) => Math.round(n * 100) / 100
+      const linesSum = calculation.components.reduce((sum, comp) => sum + (Number(comp.unit_price) || 0) * (Number(comp.quantity) || 0), 0)
+      const target = Number(calculation.price?.total_price ?? 0)
+      const diff = r2(target - linesSum)
+      if (Number.isFinite(diff) && diff > 0.5) {
+        lineItems.push({
+          offer_id: offer.id,
+          position: lineItems.length + 1,
+          description: `Arbejde, kompleksitet og risiko (beregnet ${Number(calculation.time?.total_hours ?? 0).toLocaleString('da-DK', { maximumFractionDigits: 1 })} timer)`,
+          quantity: 1,
+          unit: 'stk',
+          unit_price: diff,
+          sale_price: diff,
+        })
+      }
+    }
 
     if (lineItems.length > 0) {
       const { error: lineErr } = await supabase.from('offer_line_items').insert(lineItems)
