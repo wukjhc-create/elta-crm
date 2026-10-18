@@ -889,6 +889,125 @@ Når `grok-next` må ses: kost-gates og falsk-tom leverandørliste først. Deref
 
 G18-50, G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-62, G18-72, G18-89, G18-60.
 
+## Checkpoint 2026-10-18 fortsat (Grok-shift, grok-next)
+
+Dette checkpoint afløser den åbne kø i checkpointet ovenfor. Produktspids: `53cf508e`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Hvert `git push origin grok-next` blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `80ab0dab..53cf508e`
+
+```
+53cf508e feat(plan): påmindelsestitler ombrydes
+7ca6b1dd feat(efterkalk): mobilstatus ombrydes
+dbb2daa3 feat(efterkalk): skrivebordsafvigelse ombrydes
+41ba94d4 feat(efterkalk): skrivebordsbeloeb ombrydes
+d70d8608 feat(efterkalk): manglende kostdata ombrydes
+dd85f002 feat(efterkalk): skjult oversigt ombrydes
+bee06793 feat(efterkalk): vis dem ombrydes
+99a6a824 feat(efterkalk): nulstil filtre ombrydes
+fa3a4a5c feat(efterkalk): den tomme oversigt ombrydes
+3aa8baee feat(plan): påmindelseslinket ombrydes
+a1f2bc11 docs: checkpoint for grok-shift 2026-10-18
+d29f508d feat(efterkalk): afkortningsnoticen ombrydes
+4c9521c2 feat(plan): aftalefejlen ombrydes
+96e170ca feat(plan): navnefejlen ombrydes
+9faab0d5 feat(efterkalk): medarbejderfejlen ombrydes
+a06e6a06 feat(efterkalk): skjult kostlinje ombrydes
+dadd1649 feat(efterkalk): tilbud mod faktisk fejl ombrydes
+972ad2c7 feat(efterkalk): tilbud mod faktisk henter ombrydes
+efc6353d feat(efterkalk): sagspanelets fejl ombrydes
+5666897f feat(efterkalk): sagspanelets henter ombrydes
+4b936072 feat(efterkalk): henter ombrydes
+efbd62e1 feat(faktura): kontrollerer priser ombrydes
+47b6a1de feat(faktura): dommen ombrydes
+afa96728 feat(faktura): kontrolfejlen ombrydes
+55aa8bdc feat(faktura): statuslinjen ombrydes
+0c7de99e feat(faktura): toleranceteksten ombrydes
+cfb40753 feat(efterkalk): tilbage til rapporter ombrydes
+8ea3a09d feat(plan): dagens påmindelser tælles
+732a6851 feat(plan): ingen kommende besigtigelser ombrydes
+9aa7888f feat(efterkalk): fejlteksten ombrydes
+f322fa93 feat(plan): den tomme dag ombrydes
+cfff4bc6 feat(plan): klik på en dag ombrydes
+4232b0cf feat(efterkalk): oversigtsindledningen ombrydes
+9daadfc0 feat(efterkalk): sager i visningen ombrydes
+35fb02cd feat(efterkalk): sidetallet ombrydes
+0e18439e feat(efterkalk): højdepunktets overskrift ombrydes
+bdd14049 feat(efterkalk): mobil-linjens enhed ombrydes
+7f9a23de feat(efterkalk): skrivebordslinjens enhed ombrydes
+d10fd0db feat(efterkalk): tomme højdepunkter ombrydes
+511ddb11 feat(efterkalk): tom linjeliste ombrydes
+583f67b9 feat(efterkalk): den lukkede linje ombrydes
+104d95f7 feat(efterkalk): mobil-linjens afvigelse ombrydes
+508bfa89 feat(efterkalk): skrivebordslinjens afvigelse ombrydes
+027cc5da feat(efterkalk): skrivebordslinjens antal ombrydes
+5847da04 feat(efterkalk): skrivebordslinjens kost ombrydes
+69eef75f feat(efterkalk): linje-forklaringen ombrydes
+b11b53db feat(efterkalk): sagspanelets advarsler ombrydes
+baeed2b6 feat(efterkalk): mobil-linjen ombryder antal
+a5430a40 feat(efterkalk): skrivebords-resuméet ombryder beløb
+bddfbcc1 feat(efterkalk): sagspanelets indledning ombrydes
+d20ddc9e feat(pris): materialekortets mærke og enhed ombrydes
+6e161063 feat(efterkalk): Forrige og Næste er høje nok til en finger
+8e8c2f8e feat(plan): dagsoverskriften vises i dansk tid
+33261682 feat(pris): manglende salgspris siger at den ikke er lagret
+25fcbc76 feat(pris): manglende listepris siger at den ikke er lagret
+ba59b060 feat(pris): materialekortets navn og varenummer ombrydes
+81906982 feat(pris): materialekortets kost og salg ombrydes
+84007beb feat(pris): prishistorik-rækken ombrydes
+4905d6a0 feat(pris): prishistorik-rækker viser dato i dansk tid
+4cc21d28 feat(pris): prishistorik siger datoen på den senest lagrede række
+0bed1770 feat(pris): manglende leverandørkost siger at prisen ikke er lagret
+b09a8a09 feat(efterkalk): mobil-linjens kost ombrydes
+f625a8cc feat(efterkalk): mobil-resuméet ombryder beløb
+b8c5f088 feat(plan): dagsoverskriften tæller de hentede opgaver
+8de7b141 feat(efterkalk): højdepunktets beløb ombrydes
+aa700e15 feat(efterkalk): sagspanelet bruger den fælles faktureringsstatus
+d0d8c7da feat(efterkalk): oversigten siger det aktive afvigelsesfilter
+705908c1 feat(efterkalk): Vis dem slår manglende-kost-filteret til
+e4cce248 feat(efterkalk): dansk faktureringsstatus på oversigtsrækken
+d3e70bd1 feat(faktura): fragt og gebyr vises hver for sig
+9837a396 fix(pilot): fejlet leverandørhentning er ikke et tomt katalog
+065ea641 docs: opdater grok-shift-koen efter syv leverancer
+8055c9c5 feat(pris): manglende kostpris siges, lagret nul bliver
+05f1d751 feat(ledelse): efterkalk-oversigten tæller advarsler i filtret
+a61d701a feat(assistent): opslag siger ingen træf eller antal kandidater
+eb73e7b7 feat(salg): månedens sendt- og vinderrate i tragten
+3199b17e feat(efterkalk): tæl linjer der mangler kost på sagen
+356a74e7 feat(faktura): tæl overpris, underpris og fragt/gebyr
+ef833b0a feat(efterkalk): filtreret datakvalitet i oversigten
+47241aeb docs: koe med 15 sikre opgaver til grok-shift 2026-10-18
+```
+
+Listen er alle commits fra `80ab0dab` til og med `53cf508e`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features siden `a1f2bc11`
+
+Påmindelseslinket og titlerne i dagens liste ombrydes. Overskriften, adressen og tællingen er uændret. Efterkalk-oversigten ombryder den tomme tekst, "Nulstil filtre", "Vis dem", den lukkede oversigt, "Kun manglende kostdata", skrivebordets tilbudt og faktisk beløb, skrivebordets DB-afvigelse og mobilstatus. `kr()`, `pct()`, `varianceText` og statusordene er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil eller kalder den shippede funktion. De kørte med `npx tsx` og exiterede 0. Når `src/` ændredes, kørte `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` og exiterede 0 før commit. Resultaterne er tilføjet i `{SCRATCH}/tests.log`, ikke skrevet om. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv. G18-25, G18-27 og G18-30 er stadig sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og falsk-tom leverandørliste først. Derefter de nye ombrydninger på efterkalk-oversigten og kalenderens påmindelseslink og titler. Ingen af dem poster, sender eller ændrer en lagret pris.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og falsk-tom først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-99, G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-62, G18-72, G18-98, G18-60.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
