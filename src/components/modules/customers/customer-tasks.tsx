@@ -285,10 +285,10 @@ function TaskRow({
       </div>
 
       <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-        <button onClick={onEdit} className="p-1 hover:bg-gray-200 rounded" aria-label="Rediger opgave">
+        <button onClick={onEdit} className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1 hover:bg-gray-200 rounded" aria-label="Rediger opgave" data-testid="customer-task-edit">
           <Pencil className="w-3.5 h-3.5 text-gray-500" />
         </button>
-        <button onClick={onDelete} className="p-1 hover:bg-red-100 rounded" aria-label="Slet opgave">
+        <button onClick={onDelete} className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1 hover:bg-red-100 rounded" aria-label="Slet opgave" data-testid="customer-task-delete">
           <Trash2 className="w-3.5 h-3.5 text-red-500" />
         </button>
       </div>
