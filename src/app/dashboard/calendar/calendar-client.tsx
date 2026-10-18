@@ -153,7 +153,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
         </div>
         <button
           onClick={goToToday}
-          className="min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 transition-colors"
+          className="min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 transition-colors break-words min-w-0"
           data-testid="calendar-go-today"
         >
           I dag
