@@ -237,7 +237,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | CA-7 | Solar-kostpriser læsbare for alle via REST (S2) | BLOCKED_APPROVAL [MIGRATION] — jf. 00243-forslaget |
 | CA-8 | Pakkesti indsætter 0-kr-linjer (S3) | DONE (kode) — linjer uden kost > 0 springes over i begge pakkestier; package-pricing-check grøn |
 | CA-9 | round_to: ceil i TS, round i SQL (S3) | TODO (+migration) |
-| CA-10 | min/max-avance håndhæves aldrig (S3) | TODO |
+| CA-10 | min/max-avance håndhæves aldrig (S3) | DELVIS (kode) — avance/min/max valideres ved oprettelse/ændring (0–1.000 %, min ≤ avance ≤ max); håndhævelse i prisberegning kræver migration (get_effective_margin skal returnere grænser) |
 | CA-11 | createLineItemFromSupplierProduct accepterer negativt antal/rabat >100 % (S3) | DONE (kode) |
 | CA-12 | Salgspakke: customerId fra klienten; forkert kategori; mangler rå kost (S3) | DELVIS (kode) — kunden fra tilbuddet; kategori/rå kost = TODO |
 | CA-13 | AI-tid: adgangsfaktorer talt dobbelt; 0 % = standard (S3) | DONE (kode) |

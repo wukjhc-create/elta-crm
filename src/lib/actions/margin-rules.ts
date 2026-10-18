@@ -89,6 +89,7 @@ export async function createMarginRule(
     if (data.rule_type === 'customer' && !data.customer_id) {
       return { success: false, error: 'Kunde er påkrævet for kunde-regler' }
     }
+    { const bad = marginRangeError(data.margin_percentage, data.min_margin_percentage, data.max_margin_percentage); if (bad) return { success: false, error: bad } }
 
     const { data: result, error } = await supabase
       .from('supplier_margin_rules')
@@ -151,6 +152,7 @@ export async function updateMarginRule(
     validateUUID(id, 'regel ID')
 
     const updateData: Record<string, unknown> = {}
+    { const bad = marginRangeError(data.margin_percentage, data.min_margin_percentage, data.max_margin_percentage); if (bad) return { success: false, error: bad } }
 
     if (data.margin_percentage !== undefined) updateData.margin_percentage = data.margin_percentage
     if (data.min_margin_percentage !== undefined) updateData.min_margin_percentage = data.min_margin_percentage
@@ -506,3 +508,17 @@ export async function getMarginRuleSummary(
 
 // UI Helper Constants moved to client components (margin-rules-manager.tsx)
 // 'use server' files can only export async functions
+
+/**
+ * CA-10 (kalkule-review 2026-10-18): avance-intervallet valideres — negativ avance blev accepteret, og min > max gav en
+ * regel der aldrig kunne overholdes. (Håndhævelse af min/max i prisberegningen kræver at get_effective_margin returnerer
+ * grænserne — migration.)
+ */
+function marginRangeError(margin: number | null | undefined, min: number | null | undefined, max: number | null | undefined): string | null {
+  const ok = (v: number | null | undefined) => v === null || v === undefined || (Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1000)
+  if (!ok(margin) || !ok(min) || !ok(max)) return 'Avance skal være mellem 0 og 1.000 %'
+  if (min != null && max != null && Number(min) > Number(max)) return 'Minimum-avance kan ikke være større end maksimum'
+  if (margin != null && min != null && Number(margin) < Number(min)) return 'Avancen er under reglens minimum'
+  if (margin != null && max != null && Number(margin) > Number(max)) return 'Avancen er over reglens maksimum'
+  return null
+}
