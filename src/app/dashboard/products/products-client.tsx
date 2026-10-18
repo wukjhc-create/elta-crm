@@ -152,7 +152,7 @@ export default function ProductsClient({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Produktkatalog</h1>
+          <h1 className="text-2xl font-bold break-words min-w-0" data-testid="product-catalog-title">Produktkatalog</h1>
           <p className="text-gray-500 break-words min-w-0" data-testid="product-count">
             {loadError
               ? 'Antallet kunne ikke hentes. Det tælles ikke som 0 produkter.'
