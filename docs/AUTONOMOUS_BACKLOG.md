@@ -817,7 +817,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-64 | 5 Plan | DONE "Klik på en dag" ombrydes. | Den tomme dags sætning er uændret. |
 | G18-69 | 5 Plan | DONE "Ingen kommende besigtigelser" ombrydes. | Booking-sætningen er uændret. |
 | G18-72 | 5 Plan | DONE "Viser … af …" under kommende besigtigelser ombrydes. | Tællingen og månedskalenderen er uændret. |
-| G18-103 | 5 Plan | ÅBEN. Den ansvarliges navn på den valgte dag ombrydes. | "Navn kunne ikke hentes" er uændret. |
+| G18-103 | 5 Plan | DONE den ansvarliges navn på den valgte dag ombrydes. | "Navn kunne ikke hentes" er uændret. |
 | G18-34 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk kost. | Kosttallet uændret. |
 | G18-39 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk antal. | `qty()` uændret. |
 | G18-53 | 1 Profit | DONE skrivebordslinjens antalceller ombrydes. | `qty()` er uændret. |
@@ -839,6 +839,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-100 | 5 Plan | DONE klokken på den valgte dag ombrydes. | Adressen og statusmærket er uændret. |
 | G18-102 | 5 Plan | DONE "Åbn rutevejledning" på den valgte dag ombrydes. | Adressen og linket er uændret. |
 | G18-105 | 5 Plan | ÅBEN. "kommende / overskredet" i kalenderens overskrift ombrydes. | Tællingen er uændret. |
+| G18-106 | 5 Plan | ÅBEN. Overskriften "Kalender — Besigtigelser" ombrydes. | Ordene er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
 | G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |

@@ -350,9 +350,9 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                       )}
 
                       {task.assigned_profile ? (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600 min-w-0">
                           <User className="w-3.5 h-3.5" />
-                          {task.assigned_profile.full_name || task.assigned_profile.email}
+                          <span className="break-words min-w-0" data-testid="calendar-day-assignee">{task.assigned_profile.full_name || task.assigned_profile.email}</span>
                         </div>
                       ) : namesFailed && task.assigned_to ? (
                         <div className="flex items-center gap-1.5 text-xs text-red-700">
