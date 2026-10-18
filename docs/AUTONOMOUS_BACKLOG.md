@@ -853,8 +853,9 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-114 | 2 Faktura | DONE forventet pris og afvigelse på fakturakontrollens skrivebord ombrydes. | `kr()` og `not_controllable` er uændret. |
 | G18-115 | 2 Faktura | DONE forventet pris og afvigelse på fakturakontrollens mobilkort ombrydes. | Beløbene er uændret. |
 | G18-116 | 2 Faktura | DONE kolonneoverskrifterne Forventet og Afvigelse ombrydes. | Ordene er uændret. |
-| G18-117 | 2 Faktura | ÅBEN. Kolonneoverskriften Match ombrydes. | Ordet er uændret. |
+| G18-117 | 2 Faktura | DONE kolonneoverskriften Match ombrydes. | Ordet er uændret. |
 | G18-118 | 2 Faktura | ÅBEN. Beskrivelsen på fakturakontrollens skrivebord kan krympe. | Teksten er uændret. |
+| G18-119 | 2 Faktura | ÅBEN. Linjenummeret på fakturakontrollens skrivebord ombrydes. | Nummeret er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
