@@ -447,9 +447,21 @@ Svar KUN med rå JSON.`,
 
   try {
     const parsed = JSON.parse(ai)
-    const name = typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name.trim() : null
-    const phone = typeof parsed.phone === 'string' && parsed.phone.trim() ? normalizePhone(parsed.phone) : null
-    const address = typeof parsed.address === 'string' && parsed.address.trim() ? parsed.address.trim() : null
+    // AI-3 (AI-review 2026-10-18): promptens regler håndhæves også i koden — mailteksten kan få modellen til at returnere
+    // hvad som helst (fx et firmanavn med telefonnummer/URL eller ordrenumre som "telefon")
+    const clean = (v: unknown, max: number) => {
+      if (typeof v !== 'string') return null
+      const t = v.trim()
+      if (!t || t.length > max || /[\r\n]|@|https?:\/\/|www\./i.test(t)) return null
+      return t
+    }
+    const name = clean(parsed.name, 120)
+    const rawPhone = clean(parsed.phone, 30)
+    // dansk nummer: 8 cifre (evt. med 45/+45 foran) — ordre-/EAN-numre er længere
+    const phoneDigits = (rawPhone ?? '').replace(/\D/g, '')
+    const phone = rawPhone && (phoneDigits.length === 8 || (phoneDigits.length === 10 && phoneDigits.startsWith('45'))) ? normalizePhone(rawPhone) : null
+    const rawAddress = clean(parsed.address, 200)
+    const address = rawAddress && /\b\d{4}\b/.test(rawAddress) ? rawAddress : null // skal have et postnummer
     const confidence = (phone ? 0.5 : 0) + (address ? 0.3 : 0) + (name ? 0.2 : 0)
     const result = { name, phone, address, confidence }
     console.log('EXTRACTED:', { name: !!name, phone: !!phone, address: !!address }) // automatik-review: ingen personværdier i logs

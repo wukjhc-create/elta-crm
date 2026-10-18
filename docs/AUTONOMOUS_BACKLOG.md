@@ -216,23 +216,23 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | AI-1 | Mail fra ukendt afsender auto-kobles til kunde via telefon/navn i brødteksten (uden godkendelse) → kundens data i AI-svarudkast (S2) | BESLUTNING — kun auto-kobling på afsender-/kontaktmail; telefon/navn → mail.link_customer-forslag? |
 | AI-2 | Auto-kalibrering dividerer to gange og ignorerer antal → forkerte basistider skrives i kataloget; montør kan forgifte feedback (S2) | DELVIS (kode) — Σfaktisk/Σantal pr. enhed, antal ≤ 0 ignoreres, højst ±25 %; feedback kræver projects.edit + plausible timer + eksisterende kalkulation (calibration-test). RLS på calculation_feedback = BLOCKED_APPROVAL [MIGRATION] |
-| AI-3 | AI-udtræk valideres ikke før kundeoprettelse (navn/telefon/adresse fra prompt-injektion) (S3) | TODO |
+| AI-3 | AI-udtræk valideres ikke før kundeoprettelse (navn/telefon/adresse fra prompt-injektion) (S3) | DONE (kode) — navn ≤ 120, adresse ≤ 200 med postnummer, telefon = 8 cifre (evt. 45), ingen @/URL/linjeskift |
 | AI-4 | Hele mailtekster inkl. CPR/bankoplysninger sendes til OpenAI uden maskering (S3) | TODO (maskering); DPA/zero-retention = BESLUTNING |
 | AI-5 | Auto-tilbud: mailtekst styrer avance (isLargeProject) og kundevendt beskrivelse (S3, bag flag) | TODO |
 | AI-6 | canSpendAi fejler åbent; budget ikke atomisk; ingen max_tokens (S4) | TODO |
 | AI-7 | LLM-udkast kan blive "gennemset" sendeforslag uden indholdstjek (S4) | TODO |
 | AI-8 | Noter fra tale ligner skrevne (source telegram) (S4) | TODO |
-| AS-1 | logOfferActivity: kalderen vælger performedBy/type uden gate → forfalsket tilbudshistorik (S3) | TODO |
+| AS-1 | logOfferActivity: kalderen vælger performedBy/type uden gate → forfalsket tilbudshistorik (S3) | DONE (kode) — logOfferActivity flyttet til lib/offers/offer-activity-log.ts (ikke server action); ugatet, ubrugt logOfferActivities fjernet |
 | AS-2 | Kontaktformular: global timegrænse kan misbruges (blokerer rigtige kunder); lead kobles til kunde via ubekræftet e-mail (S3) | BESLUTNING (+ evt. migration til grænse pr. IP) |
 | AS-3 | Deaktivering afslutter ikke sessioner; requireAuth/getAuthenticatedClient tjekker ikke is_active (S3/S4) | TODO (requireAuth); sessionstilbagekaldelse = BLOCKED_APPROVAL [MIGRATION] |
 | AS-4 | /reset-password skifter adgangskode med enhver session (ingen re-autentificering) (S4) | BESLUTNING (Supabase "Secure password change") |
 | AS-5 | requestPasswordReset: timing-enumerering, ingen grænse, spærrede får mail (S4) | TODO |
 | AS-6 | Dokumentbekræftelser: markConfirmationMailFailed uden gate; øvrige uden sags-scope (S4) | TODO |
-| AS-7 | /api/weather beder CDN cache et login-svar (public, s-maxage) (S4) | TODO |
-| AS-8 | Kontaktformular tillader localhost-origins i prod og returnerer nyt lead-id (S4) | TODO |
-| AS-9 | Portal/partner uden noindex/no-referrer (S4) | TODO |
+| AS-7 | /api/weather beder CDN cache et login-svar (public, s-maxage) (S4) | DONE — Cache-Control private, max-age=900 |
+| AS-8 | Kontaktformular tillader localhost-origins i prod og returnerer nyt lead-id (S4) | DONE — localhost kun uden for prod; intet lead-id i svaret (public-contact-limit-check) |
+| AS-9 | Portal/partner uden noindex/no-referrer (S4) | DONE — noindex + no-referrer i portal- og partner-layout |
 | AS-10 | Hemmeligheds-sammenligning på flere måder (lækker længde) (S4) | TODO |
-| AS-11 | Ubrugt getSession()-eksport stoler på cookie (S4) | TODO |
+| AS-11 | Ubrugt getSession()-eksport stoler på cookie (S4) | DONE — getSession() fjernet |
 
 ## NEXT-44 (review-bølge 2026-10-18 formiddag — timer/løn, leads, rapporter/eksport/team)
 | # | Fund | Status |
