@@ -750,7 +750,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-11 | 2 Faktura | DÆKKET AF `356a74e7`: tællingen ligger over mobil-listen og ombrydes. | Samme tal som desktop. |
 | G18-12 | 4 Pris | ÅBEN. Materialets prishistorik siger datoen på den senest lagrede række, kun når listen har rækker. | Tom liste siger stadig ingen prisændringer. Ingen nutidspris opfindes. |
 | G18-13 | 6 Salg | ÅBEN. Tilbud ude: filter- eller tælle-mærke på en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
-| G18-14 | 5 Plan | ÅBEN. `calendar-client.tsx` dagsoverskrift viser `selectedTasks.length`. Tom dag siger stadig ingen besigtigelser. | Ikke calendar-workforce. Ingen ny query. |
+| G18-14 | 5 Plan | DONE dagsoverskriften viser antal hentede opgaver. Tom dag siger stadig ingen besigtigelser. | Ingen ny query. Påmindelser tælles ikke her. |
+| G18-37 | 4 Pris | ÅBEN. Null listepris i `supplier-products-table` siger "Ingen lagret pris". | Kost er G18-19. 0 kr forbliver 0 kr. Ingen opfundet pris. |
 | G18-15 | 8 Pilot | ÅBEN. Desktop-celler i `pricing-client.tsx` for gammel/ny pris, tilbudsbeløb, difference og trendpris mangler `break-words`. Mobil ombryder allerede. | Ingen truncate. Ingen nye priser. |
 | G18-16 | 2 Faktura | DONE fragt og gebyr vises hver for sig. Beløb og motor uændret. | Ingen e-conomic. |
 | G18-17 | 1 Profit | DONE dansk faktureringsstatus på efterkalk-rækken fra `invoiced_state`. | Statusberegningen uændret. |
