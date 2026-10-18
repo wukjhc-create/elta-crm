@@ -13,6 +13,7 @@ import { hasPermission } from '@/lib/auth/permissions'
 import type { UserRole } from '@/types/auth.types'
 import { parseAssistantCommand, type ParsedCommand } from './command-parser'
 import { resolveTarget } from './resolve-target'
+import { lookupReply } from './lookup-reply'
 import { getCaseScope } from '@/lib/auth/case-scope'
 import { copenhagenParts, copenhagenLocalToIso, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { escapeLike } from '@/lib/validations/postgrest-filter'
@@ -140,12 +141,12 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
     return new Set(scope.type === 'all' ? ids : ids.filter((id) => scope.caseIds.includes(id)))
   }
   const res = await resolveTarget(admin, cmd.target, caseFilter)
-  if (res.status === 'none') return { ok: false, text: `Jeg fandt ingen kunde eller sag for "${cmd.target}".` }
+  if (res.status === 'none') return { ok: false, text: lookupReply(cmd.target, 'none', []) }
   if (res.status === 'ambiguous') {
     await audit(admin, actor, 'ambiguous', null, cmd.target, { intent: cmd.intent, candidates: res.candidates.map((c) => c.id) })
     // Ingen skjult samtale-tilstand uden for CRM: kandidaterne vises med kundenr./sagsnr., og brugeren gentager
     // kommandoen med det entydige nummer (som resolveTarget matcher præcist)
-    return { ok: false, text: `"${cmd.target}" passer på flere — skriv kommandoen igen med kundenummer/sagsnummer:\n${res.candidates.map((c) => `• ${c.label}`).join('\n')}` }
+    return { ok: false, text: lookupReply(cmd.target, 'ambiguous', res.candidates.map((c) => c.label)) }
   }
   const target = res.target
   // kunde kræves for opgaver/aftaler/opslag (nedenfor bruges target.customerId! i de grene); noter på en sag uden kunde er tilladt
