@@ -787,7 +787,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-38 | 1 Profit | DONE sagspanelets skrivebords-resumé ombrydes. | Tallene uændret. |
 | G18-52 | 1 Profit | ÅBEN. Skrivebordslinjens kostceller ombrydes. | `kr()` og `qty()` er uændret. |
 | G18-34 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk kost. | Kosttallet uændret. |
-| G18-39 | 1 Profit | ÅBEN. Sagspanelets mobil-linje ombryder tilbudt og faktisk antal. | `qty()` uændret. |
+| G18-39 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk antal. | `qty()` uændret. |
+| G18-53 | 1 Profit | ÅBEN. Skrivebordslinjens antalceller ombrydes. | `qty()` er uændret. |
 | G18-35 | 1 Profit | ÅBEN. Sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
