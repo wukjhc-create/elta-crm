@@ -98,8 +98,8 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
                 )}
               </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${status.bgColor} ${status.color}`}>{status.label}</span>
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${prio.bgColor} ${prio.color}`}>{prio.label}</span>
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium break-words min-w-0 ${status.bgColor} ${status.color}`} data-testid="case-task-status-badge">{status.label}</span>
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium break-words min-w-0 ${prio.bgColor} ${prio.color}`} data-testid="case-task-priority-badge">{prio.label}</span>
                 {t.assigned_profile?.full_name && <span className="text-xs text-gray-500 break-words">· {t.assigned_profile.full_name}</span>}
               </div>
             </div>
