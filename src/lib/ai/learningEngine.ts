@@ -248,69 +248,28 @@ export async function analyzeComponentCalibration(): Promise<ComponentCalibratio
     return []
   }
 
-  // Aggregate by component code
-  const componentData: Record<
-    string,
-    {
-      total_estimated: number
-      total_actual: number
-      count: number
-      current_time: number
-    }
-  > = {}
-
+  // AI-2 (AI-review 2026-10-18): samples pr. komponent; selve beregningen er ren (calibrationFromSamples, unit-testet)
+  const samples: Record<string, CalibrationSample[]> = {}
   for (const calc of calculations) {
     const feedback = calc.calculation_feedback as { actual_hours: number }[] | null
     if (!feedback || !feedback[0]?.actual_hours) continue
-
-    const actualHours = feedback[0].actual_hours
-    const estimatedHours = calc.total_hours
-    if (!estimatedHours || estimatedHours === 0) continue
+    const actualHours = Number(feedback[0].actual_hours)
+    const estimatedHours = Number(calc.total_hours)
+    if (!estimatedHours || !Number.isFinite(actualHours) || actualHours <= 0) continue
     const ratio = actualHours / estimatedHours
-
-    // Distribute actual time proportionally to components
     const components = calc.components as { code: string; time_minutes?: number; quantity: number }[] | null
     for (const comp of components || []) {
-      const code = comp.code
+      const quantity = Number(comp.quantity)
+      if (!(quantity > 0)) continue // antal 0/negativt gav Infinity
       const estimatedMinutes = comp.time_minutes || 30
-      const actualMinutes = estimatedMinutes * ratio
-
-      if (!componentData[code]) {
-        componentData[code] = {
-          total_estimated: 0,
-          total_actual: 0,
-          count: 0,
-          current_time: estimatedMinutes / comp.quantity,
-        }
-      }
-
-      componentData[code].total_estimated += estimatedMinutes
-      componentData[code].total_actual += actualMinutes
-      componentData[code].count++
+      ;(samples[comp.code] ??= []).push({ estimatedMinutes, actualMinutes: estimatedMinutes * ratio, quantity })
     }
   }
 
-  // Generate calibration suggestions
   const calibrations: ComponentCalibration[] = []
-
-  for (const [code, data] of Object.entries(componentData)) {
-    if (data.count < 3) continue // Need minimum sample size
-
-    const avgEstimated = data.total_estimated / data.count
-    const avgActual = data.total_actual / data.count
-    const variance = ((avgActual - avgEstimated) / avgEstimated) * 100
-
-    // Only suggest if variance is significant (>10%)
-    if (Math.abs(variance) > 10) {
-      calibrations.push({
-        code,
-        suggested_time_minutes: Math.round(avgActual / data.count),
-        current_time_minutes: Math.round(data.current_time),
-        variance_percentage: Math.round(variance * 10) / 10,
-        sample_size: data.count,
-        confidence: Math.min(data.count / 10, 1), // Full confidence at 10 samples
-      })
-    }
+  for (const [code, list] of Object.entries(samples)) {
+    const c = calibrationFromSamples(code, list)
+    if (c) calibrations.push(c)
   }
 
   return calibrations.sort((a, b) => Math.abs(b.variance_percentage) - Math.abs(a.variance_percentage))
@@ -509,4 +468,36 @@ export async function collectFeedbackFromProjects(): Promise<number> {
   }
 
   return created
+}
+
+export interface CalibrationSample { estimatedMinutes: number; actualMinutes: number; quantity: number }
+
+/** AI-2: højst ±25 % ændring af basistiden pr. kalibrering (resten tages ved næste runde) */
+export const MAX_CALIBRATION_CHANGE = 0.25
+
+/**
+ * AI-2 (AI-review 2026-10-18): forslag pr. ENHED — Σfaktisk / Σantal (før gennemsnit pr. linje divideret med antal
+ * linjer én gang til, så 20 % overskridelse blev til −40 % basistid). Kræver ≥ 3 samples og > 10 % afvigelse; ændringen
+ * begrænses til ±25 % af den nuværende enhedstid. Ren funktion (ingen I/O).
+ */
+export function calibrationFromSamples(code: string, list: CalibrationSample[]): ComponentCalibration | null {
+  const valid = list.filter((x) => x.quantity > 0 && Number.isFinite(x.estimatedMinutes) && Number.isFinite(x.actualMinutes))
+  if (valid.length < 3) return null
+  const qty = valid.reduce((a, x) => a + x.quantity, 0)
+  const est = valid.reduce((a, x) => a + x.estimatedMinutes, 0)
+  const act = valid.reduce((a, x) => a + x.actualMinutes, 0)
+  if (!(qty > 0) || !(est > 0)) return null
+  const currentPerUnit = est / qty
+  const actualPerUnit = act / qty
+  const variance = ((actualPerUnit - currentPerUnit) / currentPerUnit) * 100
+  if (!(Math.abs(variance) > 10)) return null
+  const capped = Math.min(currentPerUnit * (1 + MAX_CALIBRATION_CHANGE), Math.max(currentPerUnit * (1 - MAX_CALIBRATION_CHANGE), actualPerUnit))
+  return {
+    code,
+    suggested_time_minutes: Math.max(1, Math.round(capped)),
+    current_time_minutes: Math.round(currentPerUnit),
+    variance_percentage: Math.round(variance * 10) / 10,
+    sample_size: valid.length,
+    confidence: Math.min(valid.length / 10, 1),
+  }
 }

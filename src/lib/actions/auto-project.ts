@@ -509,7 +509,17 @@ export async function recordCalculationFeedback(
   feedback: Partial<CalculationFeedback>
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { supabase } = await requireGate('projects.view')
+    // AI-2 (AI-review 2026-10-18): feedback styrer kalibrering af basistider og risikobuffer — kun projects.edit
+    // (admin/serviceleder; før projects.view inkl. montør) og kun plausible værdier
+    const { supabase } = await requireGate('projects.edit')
+    const num = (v: unknown) => (v === undefined || v === null ? null : Number(v))
+    for (const [label, v, max] of [['faktiske timer', num(feedback.actual_hours), 10_000], ['estimerede timer', num(feedback.estimated_hours), 10_000]] as const) {
+      if (v !== null && (!Number.isFinite(v) || v < 0 || v > max)) return { success: false, error: `Ugyldige ${label}` }
+    }
+    if (calculationId) {
+      const { data: calc } = await supabase.from('auto_calculations').select('id').eq('id', calculationId).maybeSingle()
+      if (!calc) return { success: false, error: 'Kalkulationen findes ikke' }
+    }
 
     const { data, error } = await supabase
       .from('calculation_feedback')
