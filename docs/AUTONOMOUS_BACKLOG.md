@@ -214,7 +214,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 ## NEXT-43 (review-bølge 2026-10-18 morgen — dashboard-tal + leverandørfakturaer)
 | # | Fund | Status |
 |---|---|---|
-| DB-1 | Salg ser hele firmaets sagstal (kortet), listen viser kun egne (S2) | TODO |
+| DB-1 | Salg ser hele firmaets sagstal (kortet), listen viser kun egne (S2) | DONE (kode) — kortet og cockpittets sagstal tælles i eget sags-scope for roller uden cases.view.all (U70/U13/U178) |
 | DB-2 | Månedligt tilbudsdiagram: forkert kohorte (created_at) og oppustet hitrate (S2) | TODO |
 | DB-3 | Tilbudsopfølgning måles fra created_at; link med andet filter (S3) | TODO |
 | DB-4 | Fakturaøkonomi: sagslink med sagsnummer i stedet for id (404) (S3) | DONE (kode) |

@@ -281,16 +281,34 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // Service-cases counts
     (async () => {
       try {
-        const [newRes, progressRes, pendingRes, totalRes] = await Promise.all([
-          supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'new').eq('is_proposal', false),
-          supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'in_progress').eq('is_proposal', false),
-          supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('is_proposal', false),
-          supabase.from('service_cases').select('id', { count: 'exact', head: true }).not('status', 'in', '("closed","converted")').eq('is_proposal', false),
+        // DB-1 (dashboard-review 2026-10-18): roller uden cases.view.all (salg) tæller kun sager i eget scope — før hele
+        // firmaets tal, mens listen de klikkede til kun viste deres egne (fx 120 mod 8)
+        let scopeIds: string[] | null = null
+        if (!roleCtx.hasPermission('cases.view.all')) {
+          const { getCaseScope } = await import('@/lib/auth/case-scope')
+          const scope = await getCaseScope({ role: roleCtx.role, userId: roleCtx.userId, supabase })
+          scopeIds = scope.type === 'all' ? null : scope.caseIds
+        }
+        const countCases = async (apply: (q: ReturnType<typeof supabase.from>) => unknown): Promise<number> => {
+          const base = () => supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false)
+          if (scopeIds === null) return ((await (apply(base() as never) as PromiseLike<{ count: number | null }>)).count) ?? 0
+          let sum = 0
+          for (let k = 0; k < scopeIds.length; k += 200) {
+            const q = (base() as unknown as { in: (c: string, v: string[]) => unknown }).in('id', scopeIds.slice(k, k + 200))
+            sum += ((await (apply(q as never) as PromiseLike<{ count: number | null }>)).count) ?? 0
+          }
+          return sum
+        }
+        const [newCount, progressCount, pendingCount, totalCount] = await Promise.all([
+          countCases((q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq('status', 'new')),
+          countCases((q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq('status', 'in_progress')),
+          countCases((q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq('status', 'pending')),
+          countCases((q) => (q as unknown as { not: (c: string, o: string, v: string) => unknown }).not('status', 'in', '("closed","converted")')),
         ])
-        overview.cases.new = newRes.count || 0
-        overview.cases.in_progress = progressRes.count || 0
-        overview.cases.pending = pendingRes.count || 0
-        overview.cases.total = totalRes.count || 0
+        overview.cases.new = newCount
+        overview.cases.in_progress = progressCount
+        overview.cases.pending = pendingCount
+        overview.cases.total = totalCount
         // N27: klar til lukning — kandidater (≥1 job udført, ingen åbne job) i én forespørgsel, fuld vurdering
         // (inkl. ufaktureret/kørende timer) kun for kandidaterne. Kræver cases.close (ellers null → 0).
         // M-12/B-10 (pilot-review 2026-10-15): før .limit(200) uden rækkefølge → med >200 åbne sager forsvandt vilkårlige

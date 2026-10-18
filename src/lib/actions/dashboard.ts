@@ -68,7 +68,8 @@ function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] 
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const { supabase, userId } = await getAuthenticatedClient()
+  const roleCtx = await getAuthenticatedClientWithRole()
+  const { supabase, userId } = roleCtx
   // En fejlende forespørgsel giver tomme tal frem for at vælte dashboardet — men markeres (B-10), så siden kan sige det
   let incomplete = false
   const allRows = <T,>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> =>
@@ -106,7 +107,22 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).in('status', ['sent', 'viewed', 'accepted']).order('id').range(f, t)),
     // N36: sager (ikke gamle projekter)
     // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
-    supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")'),
+    // DB-1 (dashboard-review 2026-10-18): roller uden cases.view.all (salg) tæller kun egne sager (som listen de klikker til)
+    (async () => {
+      if (roleCtx.hasPermission('cases.view.all')) {
+        return supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")')
+      }
+      const { getCaseScope } = await import('@/lib/auth/case-scope')
+      const scope = await getCaseScope({ role: roleCtx.role, userId: roleCtx.userId, supabase })
+      if (scope.type === 'all') return supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")')
+      let count = 0
+      for (let k = 0; k < scope.caseIds.length; k += 200) {
+        const r = await supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false)
+          .not('status', 'in', '("closed","converted")').in('id', scope.caseIds.slice(k, k + 200))
+        count += r.count ?? 0
+      }
+      return { count, error: null }
+    })(),
     // N36: afsluttede timeregistreringer (time_logs — ikke gamle time_entries)
     allRows<{ hours: number | string | null; billable: boolean | null }>((f, t) => supabase.from('time_logs').select('id, hours, billable').not('end_time', 'is', null).neq('approval_status', 'rejected').order('id').range(f, t)),
     // Unread messages for current user
