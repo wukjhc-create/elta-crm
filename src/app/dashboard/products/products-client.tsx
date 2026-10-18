@@ -251,7 +251,7 @@ export default function ProductsClient({
                   </Badge>
                 </div>
                 <p className="text-xs text-gray-500 break-all">SKU {product.sku || '-'}</p>
-                {product.category && <Badge variant="outline">{product.category.name}</Badge>}
+                {product.category && <Badge variant="outline" className="break-words min-w-0" data-testid="product-category-mobile">{product.category.name}</Badge>}
                 <dl className="grid grid-cols-2 gap-2 text-sm">
                   {canSeeCost && (
                     <div>
@@ -305,7 +305,7 @@ export default function ProductsClient({
                   </TableCell>
                   <TableCell>
                     {product.category ? (
-                      <Badge variant="outline">{product.category.name}</Badge>
+                      <Badge variant="outline" className="break-words min-w-0" data-testid="product-category">{product.category.name}</Badge>
                     ) : (
                       <span className="text-gray-400">-</span>
                     )}
