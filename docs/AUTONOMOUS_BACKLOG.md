@@ -876,12 +876,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-137 | 5 Plan | DONE "Henter opgaver…" på sagen ombrydes. | Sætningen er uændret. |
 | G18-138 | 8 Pilot | DONE overskriften "Opgaver" og knappen "Ny opgave" på kundekortet ombrydes. | Ordene er uændret. |
 | G18-139 | 5 Plan | DONE overskriften "Kommende besigtigelser" ombrydes. | Ordene er uændret. |
-| G18-140 | 5 Plan | ÅBEN. Måneden på kommende besigtigelser ombrydes. | Dato-udtrykket er uændret. |
+| G18-140 | 5 Plan | DONE måneden på kommende besigtigelser ombrydes. | Dato-udtrykket er uændret. |
 | G18-141 | 5 Plan | ÅBEN. Status- og prioritetmærket på sagens opgaver ombrydes. | Etiketterne er uændret. |
 | G18-142 | 5 Plan | ÅBEN. Mærket "opstart" på sagens opgaver ombrydes. | Ordet er uændret. |
 | G18-143 | 8 Pilot | ÅBEN. Etiketten "Titel *" på kundens opgaveformular ombrydes. | Ordene er uændret. |
 | G18-144 | 8 Pilot | ÅBEN. Etiketterne Beskrivelse, Prioritet, Status, Ansvarlig, Forfaldsdato og Påmindelse på kundens opgaveformular ombrydes. | Ordene er uændret. |
 | G18-145 | 8 Pilot | ÅBEN. Knapperne Annuller og Opret på kundens opgaveformular ombrydes. | Ordene er uændret. |
+| G18-146 | 5 Plan | ÅBEN. Dagsnummeret på kommende besigtigelser ombrydes. | Udtrykket med getDate er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

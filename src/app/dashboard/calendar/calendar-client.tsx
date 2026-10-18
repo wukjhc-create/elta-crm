@@ -398,7 +398,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                         <div className="text-lg font-bold text-gray-900 leading-none">
                           {task.due_date ? new Date(task.due_date).getDate() : '?'}
                         </div>
-                        <div className="text-[10px] text-gray-500 uppercase">
+                        <div className="text-[10px] text-gray-500 uppercase break-words min-w-0" data-testid="calendar-upcoming-month">
                           {task.due_date
                             ? new Date(task.due_date).toLocaleDateString('da-DK', { month: 'short' })
                             : ''}
