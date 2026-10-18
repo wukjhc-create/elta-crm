@@ -43,6 +43,13 @@ export interface AftercalcOverviewRow {
   invoiced_state: 'not_invoiced' | 'partially_invoiced' | 'fully_invoiced'
 }
 
+/** Dansk tekst for den status efterkalkulationen allerede har sat. Ændrer ikke beregningen. */
+export function invoicedStateLabel(state: AftercalcOverviewRow['invoiced_state']): string {
+  if (state === 'not_invoiced') return 'Ikke faktureret'
+  if (state === 'partially_invoiced') return 'Delvist faktureret'
+  return 'Faktureret'
+}
+
 export interface AftercalcOverviewItem {
   row: AftercalcOverviewRow
   /** Faktisk DB i kroner. Bruges kun til sortering. */
