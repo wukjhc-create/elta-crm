@@ -164,7 +164,7 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
       ) : (
         <div className="space-y-2">
           {activeTasks.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-2">Ingen åbne opgaver. Udførte ligger nedenfor.</p>
+            <p className="text-sm text-gray-500 text-center py-2 break-words min-w-0" data-testid="customer-tasks-no-open">Ingen åbne opgaver. Udførte ligger nedenfor.</p>
           )}
           {activeTasks.map((task) => (
             <TaskRow
