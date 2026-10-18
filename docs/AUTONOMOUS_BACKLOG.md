@@ -737,21 +737,31 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 | # | Prio | Opgave | Graense |
 |---|---|---|---|
-| G18-1 | 1 Profit | Efterkalk-oversigten taeller manglende kost og ukendt DB paa det filtrerede saet foer paginering (`summarizeAftercalcQuality`). | Ikke penge, sortering, filtre eller `varianceText`. |
-| G18-2 | 2 Faktura | Fakturakontrol taeller overpris, underpris og fragt/gebyr ud fra eksisterende linje-verdicts og `chargeLabel`. | Ikke `engine.ts`, action, beloeb eller saetningen ved 0 kontrollerede linjer. Ingen e-conomic. |
-| G18-3 | 1 Profit | Sagens efterkalkulationspanel viser antal `missing_cost_lines`. | Ikke advarselstekst eller totaler. |
-| G18-4 | 1 Profit | Mobilkortet viser DB-afvigelse med den eksisterende `varianceText`. | `kr` / `pct` / `varianceText` bliver. |
-| G18-5 | 4 Pris | Manglende lagret pris vises som "Ingen lagret pris". | Ingen opfundet pris. Ikke `supplier-best-price.ts` eller prisparseren. |
-| G18-6 | 5 Plan | Ren hjaelper skelner "ingen arbejdsordrer" fra "hentning fejlede". | En fejl maa ikke ligne en tom liste. Ikke kalenderfilerne paa leave-listen. |
-| G18-7 | 6 Salg | Salgstragten viser konvertering fra de tal den allerede har. | Ikke `reports.ts`. |
-| G18-8 | 7 Assistent | Dansk tekst for ingen traef og flere traef i opslag. Kun staging/kode. | Ingen webhook, hemmelighed eller prod-flag. Ikke `handle-update.ts`. |
-| G18-9 | 8 Pilot | Et skaermbillede uden for leave-listen hvor en fejlet hentning kan ligne tom succes. Kun teksten. | Fejl forbliver fejl. Tom succes forbliver tom. |
-| G18-10 | 3 Ledelse | Efterkalk-oversigten siger ogsaa hvor mange sager i filtret har datakvalitet advarsel. Samme quality-tal. | Ingen ny forespoergsel. |
-| G18-11 | 2 Faktura | Samme linjetaelling paa mobil med ombrydning. | Samme tal som desktop. |
-| G18-12 | 4 Pris | Prishistorik viser den senest lagrede pris med dato. Ingen raekke siges hoejt. | Ingen nutidspris opfindes. |
-| G18-13 | 6 Salg | Tilbud ude: filter- eller taelle-maerke paa en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
-| G18-14 | 5 Plan | Dagsbelastning som antal opgaver paa en komponent der ikke er calendar-workforce eller employee-day-load-hint. | Ikke nye queries mod kalenderens leave-filer. |
-| G18-15 | 8 Pilot | Prissidens beloeb ombrydes paa smal skaerm. | `pricing-client.tsx` forbliver uden truncate. Ingen nye priser. |
+| G18-1 | 1 Profit | DONE `ef833b0a` efterkalk-oversigten taeller manglende kost og ukendt DB foer paginering. | Penge, sortering, filtre og `varianceText` uændret. |
+| G18-2 | 2 Faktura | DONE `356a74e7` tæller overpris, underpris og fragt/gebyr. | Motor, beløb og 0-linje-sætningen uændret. Ingen e-conomic. |
+| G18-3 | 1 Profit | DONE `3199b17e` sagen viser antal `missing_cost_lines`. | Advarselstekst og totaler uændret. |
+| G18-4 | 1 Profit | ALLEREDE I PRODUKT: mobilkortet bruger `varianceText`. Ingen ny commit. | `kr` / `pct` / `varianceText` bliver. |
+| G18-5 | 4 Pris | DONE `8055c9c5` manglende kostpris er "Ingen lagret pris"; lagret 0 bliver 0 kr. | `canSeeCost`, listepris og avanceformel uændret. |
+| G18-6 | 5 Plan | ALLEREDE I PRODUKT: `planningLoadView` skelner fejl fra tom liste. Ingen ny commit. | Kontrakten i `planning-load-view-test` bliver. |
+| G18-7 | 6 Salg | DONE `eb73e7b7` månedens sendt- og vinderrate. | `reports.ts` og accepteret værdi uændret. |
+| G18-8 | 7 Assistent | DONE `a61d701a` opslag siger ingen træf eller antal kandidater. | Ingen webhook. `handle-update.ts` uændret. |
+| G18-9 | 8 Pilot | ÅBEN. Fejlet hentning må ikke ligne tom succes. Kun tekst, fil uden for leave-listen. | Fejl forbliver fejl. |
+| G18-10 | 3 Ledelse | DONE `05f1d751` oversigten tæller advarsler i filtret. | Samme quality-tal. Ingen ny forespørgsel. |
+| G18-11 | 2 Faktura | DÆKKET AF `356a74e7`: tællingen ligger over mobil-listen og ombrydes. | Samme tal som desktop. |
+| G18-12 | 4 Pris | ÅBEN. Prishistorik: senest lagrede pris med dato. Ingen række siges højt. | Ingen nutidspris opfindes. |
+| G18-13 | 6 Salg | ÅBEN. Tilbud ude: filter- eller tælle-mærke på en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
+| G18-14 | 5 Plan | ÅBEN. Dagsbelastning som antal opgaver. Ikke calendar-workforce eller employee-day-load-hint. | Ingen ny kalender-query. |
+| G18-15 | 8 Pilot | ÅBEN. Prissidens beløb ombrydes, hvis de ikke allerede gør det. | `pricing-client.tsx` uden truncate. Ingen nye priser. |
+| G18-16 | 2 Faktura | ÅBEN. Vis fragt og gebyr hver for sig i tællingen, ikke kun summen. | Beløb og motor uændret. |
+| G18-17 | 1 Profit | ÅBEN. Dansk faktureringsstatus på efterkalk-rækken fra `invoiced_state`. | Statusberegningen uændret. |
+| G18-18 | 8 Pilot | ÅBEN. Produktlistens fejltekst må ikke sige at kataloget er tomt, hvis hentningen fejlede. | Tom succes forbliver tom. |
+| G18-19 | 4 Pris | ÅBEN. Et nullable pris felt uden for leave-listen bruger samme "Ingen lagret pris". | Ingen opfundet pris. |
+| G18-20 | 6 Salg | ÅBEN. Ren konverteringstekst på en fil der ikke er leads-page-client eller lead-detail. | Ikke `follow-up.ts`. |
+| G18-21 | 7 Assistent | ÅBEN. Note- eller callback-svar forbliver staging og siger hvad der blev gemt. | Ingen live afsendelse. |
+| G18-22 | 3 Ledelse | ÅBEN. Oversigten siger hvilket afvigelsesfilter der er aktivt. | Filterlogikken uændret. |
+| G18-23 | 8 Pilot | ÅBEN. Hvis `pricing-client.tsx` allerede ombryder beløb, erstattes G18-15 af næste friktion der. | Ingen truncate. |
+| G18-24 | 1 Profit | ÅBEN. "Vis dem" på kvalitetslinjen slår det eksisterende filter "Kun manglende kostdata" til. | `missingCostOnly` regnes som i dag. |
+| G18-25 | 2 Faktura | ÅBEN. Vis et dublet-mærke kun hvis panelet allerede har dublet-data. | Ingen ny matching og ingen e-conomic. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
