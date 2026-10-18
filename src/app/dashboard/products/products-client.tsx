@@ -295,7 +295,7 @@ export default function ProductsClient({
                       {product.name}
                     </Link>
                     {product.description && (
-                      <p className="text-sm text-gray-500 line-clamp-1">
+                      <p className="text-sm text-gray-500 break-words min-w-0" data-testid="product-description">
                         {product.description}
                       </p>
                     )}
