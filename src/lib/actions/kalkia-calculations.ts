@@ -491,7 +491,10 @@ export async function savePackageBuilderCalculation(
 
       if (rowsError) {
         logger.error('Database error creating calculation rows', { error: rowsError })
-        // Don't fail the whole operation, just log
+        // CA-14 (kalkule-review 2026-10-18): en kalkulation uden rækker er værdiløs og vildledende (totaler uden indhold)
+        // — hovedet fjernes igen og brugeren får fejlen (før: logget og meldt som gemt)
+        await supabase.from('kalkia_calculations').delete().eq('id', (calculation as { id: string }).id)
+        return { success: false, error: 'Kalkulationens linjer kunne ikke gemmes — prøv igen' }
       }
     }
 

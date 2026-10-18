@@ -232,16 +232,16 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | CA-2 | PackageBuilder: tilsidesat salgspris fordelt efter arbejdstid (S1/S2) | TODO |
 | CA-3 | get_customer_product_price: RECORD IS NOT NULL springer aftaler over (S2) | BLOCKED_APPROVAL [MIGRATION 00251] — forslag docs/runbooks/pricing-functions-proposal.md (prod bekræftet read-only) |
 | CA-4 | AI-analyse → tilbud ignorerer beregnet pris/arbejde/kost (S2) | TODO |
-| CA-5 | refreshLineItemPrice overskriver linjens egen avance/manuelle pris (S2) | TODO |
+| CA-5 | refreshLineItemPrice overskriver linjens egen avance/manuelle pris (S2) | DONE (kode) — linjens supplier_margin_applied bevares ved genberegning |
 | CA-6 | Avance-præcedens forkert og forskellig pr. prissti (S2) | BESLUTNING + [MIGRATION] — én præcedens (kunde > produkt > …) |
 | CA-7 | Solar-kostpriser læsbare for alle via REST (S2) | BLOCKED_APPROVAL [MIGRATION] — jf. 00243-forslaget |
-| CA-8 | Pakkesti indsætter 0-kr-linjer (S3) | TODO |
+| CA-8 | Pakkesti indsætter 0-kr-linjer (S3) | DONE (kode) — linjer uden kost > 0 springes over i begge pakkestier; package-pricing-check grøn |
 | CA-9 | round_to: ceil i TS, round i SQL (S3) | TODO (+migration) |
 | CA-10 | min/max-avance håndhæves aldrig (S3) | TODO |
 | CA-11 | createLineItemFromSupplierProduct accepterer negativt antal/rabat >100 % (S3) | DONE (kode) |
 | CA-12 | Salgspakke: customerId fra klienten; forkert kategori; mangler rå kost (S3) | DELVIS (kode) — kunden fra tilbuddet; kategori/rå kost = TODO |
 | CA-13 | AI-tid: adgangsfaktorer talt dobbelt; 0 % = standard (S3) | DONE (kode) |
-| CA-14 | savePackageBuilderCalculation: halv gemning + forkerte procenter (S3) | TODO |
+| CA-14 | savePackageBuilderCalculation: halv gemning + forkerte procenter (S3) | DELVIS (kode) — rækkefejl ruller hovedet tilbage og meldes; procent-felter/overstyringer i rækker = TODO |
 | CA-15 | convertCalculationToOffer: katalogpriser, dropper linjer (S3, latent) | TODO |
 
 ## NEXT-41 (review-bølge 2026-10-17 nat — montør-flow + udgående mail)

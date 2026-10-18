@@ -2305,12 +2305,17 @@ export async function refreshLineItemPrice(
     // Kalkulations-review 2026-10-09 (#2): samme prisberegning som ved oprettelse (avanceregler med fast tillæg/
     // afrunding, kunderabat, 0 % respekteres) — før gav en opdatering med uændret kost en anden pris
     const offerInfo = Array.isArray(lineItem.offers) ? lineItem.offers[0] : lineItem.offers
+    // CA-5 (kalkule-review 2026-10-18): linjens egen avance (sat ved oprettelse/tilpasning) bevares — før blev en linje
+    // oprettet med 40 % genberegnet til reglens 20 %. Læses med admin-klienten (00192: kolonnen er skjult).
+    const { data: applied } = await createAdminClient().from('offer_line_items').select('supplier_margin_applied').eq('id', lineItemId).maybeSingle()
+    const appliedMargin = (applied as { supplier_margin_applied?: number | null } | null)?.supplier_margin_applied
     const pricing = await supplierLinePricing({
       supplierId: supplierProduct.supplier_id,
       supplierProductId: lineItem.supplier_product_id,
       customerId: offerInfo?.customer_id || null,
       costPrice: supplierProduct.cost_price,
       productMargin: (supplierProduct as { margin_percentage?: number | null }).margin_percentage ?? null,
+      ...(appliedMargin !== null && appliedMargin !== undefined ? { customMargin: Number(appliedMargin) } : {}),
     })
     const effectiveCostPrice = pricing.effectiveCost
     const marginPercentage = pricing.marginPercentage

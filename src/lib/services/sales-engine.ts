@@ -228,6 +228,8 @@ export async function applyPackageWithOptionsToOffer(
       const s = resolved.supplier
       const quantity = Number(it.material.default_quantity ?? 0) * it.quantity_multiplier
       if (!(quantity > 0)) { result.materialLinesSkipped++; continue }
+      // CA-8 (kalkule-review 2026-10-18): ingen 0-kr-linjer — kost > 0 kræves (som startpakkerne)
+      if (!(Number(s.cost_price ?? 0) > 0)) { result.materialLinesSkipped++; continue }
       lines.push({
         material_id: it.material.id,
         supplier_id: s.supplier_id ?? null,

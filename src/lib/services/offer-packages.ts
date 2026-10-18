@@ -159,6 +159,11 @@ export async function applyPackageToOffer(
       skipped++
       continue
     }
+    // CA-8 (kalkule-review 2026-10-18): uden kostpris blev linjen til 0 kr (calculate_sale_price(0)) — springes over
+    if (!(Number(s.cost_price ?? 0) > 0)) {
+      skipped++
+      continue
+    }
     lines.push({
       material_id: material.id,
       supplier_id: s.supplier_id ?? null,
