@@ -229,8 +229,8 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DL-4 | deleteServiceCaseAttachment omgår afleveringsfotoets værn (S3) | DONE — ubrugt deleteServiceCaseAttachment fjernet |
 | DL-5 | Fakturanumre bruges af kladder → huller i nummerserien; tilbagerulninger uden audit (S3) | BESLUTNING (nummer ved afsendelse?) + audit = TODO |
 | DL-6 | Ingen GDPR-sletning/anonymisering af kunde med historik (S3) | BESLUTNING |
-| DL-7 | deleteInvoiceDraft kan efterlade en låst kladde (claim frigives ikke) (S4) | TODO |
-| DL-8 | deleteCustomer frigiver mails før sletningen lykkes (S4) | TODO |
+| DL-7 | deleteInvoiceDraft kan efterlade en låst kladde (claim frigives ikke) (S4) | DONE (kode) — claim frigives også ved 0 slettede rækker |
+| DL-8 | deleteCustomer frigiver mails før sletningen lykkes (S4) | DONE (kode) — mails frigives efter lykket sletning (id'er samlet før; 0 rækker = fejl) (U135/U188) |
 | DL-9 | Sletninger uden audit (projekt, kontakt, certifikat) (S4) | TODO |
 | DL-10 | deleteTestIncomingInvoiceAction ignorerer fakturalås (S4, kun TEST_) | TODO |
 

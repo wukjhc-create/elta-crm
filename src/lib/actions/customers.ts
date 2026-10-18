@@ -862,10 +862,12 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
 
     // CU-3: kundens mails mister customer_id (SET NULL) men beholdt link_status 'linked' → de forsvandt fra både
     // kundevisningen og "Uidentificeret". Frigives eksplicit, så de kan kobles igen (typisk auto-oprettede mailkunder).
-    const { error: mailErr } = await admin.from('incoming_emails').update({ link_status: 'unidentified', customer_id: null }).eq('customer_id', id)
-    if (mailErr) throw new Error('Kunne ikke frigive kundens mails — prøv igen')
+    // DL-8 (slette-review 2026-10-18): mailene frigives først EFTER en lykket sletning (før blev de frigivet, og en fejlet
+    // sletning efterlod en eksisterende kunde uden sine mails). Id'erne samles før, da customer_id bliver NULL ved sletning.
+    const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+    const mailIds = (await fetchAllRows<{ id: string }>((f, t) => admin.from('incoming_emails').select('id').eq('customer_id', id).order('id').range(f, t))).map((m) => m.id)
 
-    const { error } = await supabase.from('customers').delete().eq('id', id)
+    const { data: deletedRows, error } = await supabase.from('customers').delete().eq('id', id).select('id')
 
     if (error) {
       if (error.code === '23503') {
@@ -873,6 +875,13 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
       }
       logger.error('Database error deleting customer', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+    if (!deletedRows || deletedRows.length === 0) return { success: false, error: 'Kunden blev ikke slettet (findes ikke eller manglende ret)' }
+
+    if (mailIds.length) {
+      const { selectInChunks } = await import('@/lib/supabase/in-chunks')
+      await selectInChunks(mailIds, (chunk) => admin.from('incoming_emails').update({ link_status: 'unidentified', customer_id: null }).in('id', chunk).select('id'))
+        .catch((e) => logger.error('deleteCustomer: mails kunne ikke frigives efter sletning', { error: e, entityId: id }))
     }
 
     // Audit log

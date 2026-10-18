@@ -497,6 +497,9 @@ export async function deleteInvoiceDraft(
     throw new Error(`deleteInvoiceDraft: header delete failed: ${hdrDelErr.message}`)
   }
   if ((count ?? 0) === 0) {
+    // DL-7 (slette-review 2026-10-18): claimet frigives også her — ellers stod kladden låst (sent_at = claim-markør) og
+    // kunne hverken sendes eller slettes
+    await releaseDeleteClaim()
     throw new Error(
       `deleteInvoiceDraft: invoice ${invoiceId} no longer in draft state (race) — source locks have been released but header was not deleted`
     )
