@@ -143,7 +143,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
           </div>
           <p className="text-xs text-gray-400 mt-2 break-words min-w-0" data-testid="invoice-control-tolerance">Sammenlignet med kostpris i leverandørkataloget (tolerance 2 % / 0,50 kr pr. enhed).</p>
           {res.control.lines.some((l) => chargeLabel(l.description)) && (
-            <p className="text-xs text-gray-500 mt-1" data-testid="invoice-control-charges">Fragt og gebyr er markeret i teksten. Overprisen er uændret.</p>
+            <p className="text-xs text-gray-500 mt-1 break-words min-w-0" data-testid="invoice-control-charges">Fragt og gebyr er markeret i teksten. Overprisen er uændret.</p>
           )}
         </>
       )}
