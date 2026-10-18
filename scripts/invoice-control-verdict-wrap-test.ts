@@ -34,6 +34,18 @@ ok(desk.includes("bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-
 ok(view.includes('Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr.'), 'nul-linjen er uændret')
 ok(!mobile.includes(' truncate') && !mobile.includes('truncate '), 'mobilkortet klippes ikke')
 
+const badgeAt = view.indexOf('data-testid="invoice-control-verdict"')
+const badge = badgeAt >= 0 ? view.slice(badgeAt - 160, badgeAt + 90) : ''
+ok(badge.includes('break-words min-w-0'), 'hovedmærket ombrydes')
+ok(badge.includes('{v.label}'), 'hovedmærket kommer fra de fire tekster')
+ok(!badge.includes('shrink-0'), 'hovedmærket kan blive smallere')
+ok(!badge.includes('truncate'), 'hovedmærket klippes ikke')
+ok(view.includes("ok: { label: 'Priser stemmer'"), 'stemmer er uændret')
+ok(view.includes("deviation: { label: 'Prisafvigelse'"), 'afvigelse er uændret')
+ok(view.includes("partially_controlled: { label: 'Delvist kontrolleret'"), 'delvist er uændret')
+ok(view.includes("not_controllable: { label: 'Kan ikke kontrolleres'"), 'ukontrolleret er uændret')
+ok(view.includes('data-testid="invoice-control-load-error"'), 'fejlen er uændret')
+
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
   process.exit(1)
