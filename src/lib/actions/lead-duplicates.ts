@@ -13,7 +13,6 @@ import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/actio
 import { phoneDigits } from '@/lib/customers/csv-import'
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { validateUUID } from '@/lib/validations/common'
-import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 
 export interface LeadCustomerCandidate { id: string; name: string; customer_number: string | null; email: string | null; reason: 'phone' | 'name' }
@@ -80,14 +79,14 @@ export async function linkLeadToCustomerAction(leadId: string, customerId: strin
     const cf = (lead.custom_fields ?? {}) as Record<string, unknown>
     const { error } = await supabase.from('leads').update({ custom_fields: { ...cf, customer_id: customerId } }).eq('id', leadId)
     if (error) return { success: false, error: 'Kunne ikke koble leadet' }
-    if (typeof cf.source_email_id === 'string' && hasPermission('inbox.view')) {
-      const { error: linkErr } = await supabase.from('incoming_emails')
-        .update({ customer_id: customerId, link_status: 'linked', linked_by: 'lead-link', linked_at: new Date().toISOString() })
-        .eq('id', cf.source_email_id).is('customer_id', null)
-      if (linkErr) logger.warn('linkLeadToCustomer: kildemail ikke koblet', { error: linkErr, entityId: leadId })
-    }
+    // LD-3 (leads-review 2026-10-18): kildemail OG leadets tilbud uden kunde følger med (før kun mailen → tilbuddet stod
+    // uden kunde for altid, da "Opret som kunde" forsvinder når leadet er koblet)
+    const { linkLeadArtifactsToCustomer } = await import('@/lib/leads/link-to-customer')
+    const linkRes = await linkLeadArtifactsToCustomer(supabase, { leadId, customerId, sourceEmailId: cf.source_email_id,
+      canEditOffers: hasPermission('offers.edit'), canLinkInbox: hasPermission('inbox.view'), linkedBy: 'lead-link' })
+    if (linkRes.offersLinked) revalidatePath('/dashboard/offers')
     await supabase.from('lead_activities').insert({ lead_id: leadId, activity_type: 'note', performed_by: userId,
-      description: `Lead koblet til eksisterende kunde: ${(cust as { company_name: string }).company_name}` })
+      description: `Lead koblet til eksisterende kunde: ${(cust as { company_name: string }).company_name}${linkRes.offersLinked ? ` — ${linkRes.offersLinked} tilbud koblet til kunden` : ''}` })
     revalidatePath(`/dashboard/leads/${leadId}`)
     return { success: true, data: { customer_id: customerId } }
   } catch (err) {

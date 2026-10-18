@@ -922,6 +922,10 @@ export async function createCustomerFromEmail(
     const prior = priorLead as { id: string; custom_fields: Record<string, unknown> | null }
     await supabase.from('leads').update({ custom_fields: { ...(prior.custom_fields ?? {}), customer_id: newCustomer.id } })
       .eq('id', prior.id)
+    // LD-3 (leads-review 2026-10-18): tilbud oprettet på leadet før kunden fandtes, får kunden (mailen kobles nedenfor)
+    const { linkLeadArtifactsToCustomer } = await import('@/lib/leads/link-to-customer')
+    await linkLeadArtifactsToCustomer(supabase, { leadId: prior.id, customerId: newCustomer.id as string,
+      canEditOffers: !(await gateDenied('offers.edit')), canLinkInbox: false, linkedBy: 'customer-from-email' })
   }
   const { data: newLead, error: leadError } = priorLead ? { data: null, error: null } : await supabase.from('leads').insert({
     company_name: senderName,

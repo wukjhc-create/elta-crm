@@ -6311,7 +6311,10 @@ ${m.text()}`) })
           phone: tel, status: 'new', source: 'website', created_by: adminUser.id }]).select('id')
         const leadId = (ld.data?.[0] as { id?: string } | undefined)?.id ?? null
         if (leadId) u128LeadIds.push(leadId)
-        r.seed = !!custId && !!leadId
+        // LD-3: tilbud på leadet uden kunde → får kunden ved "Kobl til denne kunde"
+        const u131Off = leadId ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-LD3-${stamp}`, title: '[HARNESS] LD-3 tilbud', created_by: adminUser.id, lead_id: leadId }]).select('id') : null
+        const u131OfferId = (u131Off?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!custId && !!leadId && !!u131OfferId
         await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 120_000 })
         const box = a.page.getByTestId('lead-customer-candidates')
         await box.waitFor({ timeout: 60_000 }).catch(() => {})
@@ -6326,6 +6329,11 @@ ${m.text()}`) })
         r.lead_koblet = linked === custId
         await a.page.getByTestId('lead-go-customer').waitFor({ timeout: 30_000 }).catch(() => {})
         r.gaa_til_kunde = (await a.page.getByTestId('lead-go-customer').count()) === 1
+        if (u131OfferId) {
+          const off = (await c.admin.from('offers').select('customer_id, payer_customer_id').eq('id', u131OfferId).maybeSingle()).data as { customer_id?: string | null; payer_customer_id?: string | null } | null
+          r.tilbud_fik_kunden = off?.customer_id === custId && off?.payer_customer_id === custId
+          await c.admin.from('offers').delete().eq('id', u131OfferId)
+        }
         out.push({ id: 'U131 N87 lead → eksisterende kunde (samme telefon)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 

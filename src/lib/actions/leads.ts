@@ -683,7 +683,14 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
     // Allerede koblet → samme kunde (hvis den stadig findes)
     if (typeof cf.customer_id === 'string') {
       const { data: existing } = await supabase.from('customers').select('id').eq('id', cf.customer_id).maybeSingle()
-      if (existing) return { success: true, data: { customer_id: existing.id as string, created: false } }
+      if (existing) {
+        // LD-3: også ved en tidligere kobling (fx "Kobl til eksisterende kunde") følger tilbud/kildemail med
+        const { linkLeadArtifactsToCustomer } = await import('@/lib/leads/link-to-customer')
+        const r = await linkLeadArtifactsToCustomer(supabase, { leadId, customerId: existing.id as string, sourceEmailId: cf.source_email_id,
+          canEditOffers: hasPermission('offers.edit'), canLinkInbox: hasPermission('inbox.view'), linkedBy: 'lead-convert' })
+        if (r.offersLinked) revalidatePath('/dashboard/offers')
+        return { success: true, data: { customer_id: existing.id as string, created: false } }
+      }
     }
 
     const email = String(lead.email ?? '').trim().toLowerCase()
@@ -732,26 +739,13 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
       logger.error('convertLeadToCustomer: lead ikke koblet til kunden', { error: linkLeadErr, entityId: leadId, metadata: { customerId } })
       return { success: false, error: 'Kunden er oprettet, men leadet kunne ikke kobles — prøv igen (kunden genbruges via e-mail)' }
     }
-    // N77: kildemailen (fx webhenvendelsen) kobles til kunden, så den står i kundens mailhistorik og ikke længere tæller
-    // som "uden kunde". Kun en ukoblet mail, kun med indbakke-adgang; best-effort (konverteringen lykkes uanset).
-    if (typeof cf.source_email_id === 'string' && hasPermission('inbox.view')) {
-      const { error: linkErr } = await supabase.from('incoming_emails')
-        .update({ customer_id: customerId, link_status: 'linked', linked_by: 'lead-convert', linked_at: new Date().toISOString() })
-        .eq('id', cf.source_email_id).is('customer_id', null)
-      if (linkErr) logger.warn('convertLeadToCustomer: kildemail ikke koblet', { error: linkErr, entityId: leadId })
-      else revalidatePath('/dashboard/mail')
-    }
-    // W-2 (pilot-review 2026-10-15): leadets tilbud uden kunde får kunden (og parti-roller) — før stod de uden Send-knap
-    // og kunne ikke blive sag. Kun tilbud UDEN kunde; best-effort (konverteringen lykkes uanset).
-    let offersLinked = 0
-    if (hasPermission('offers.edit')) {
-      const { data: linked, error: offerErr } = await supabase.from('offers')
-        .update({ customer_id: customerId, orderer_customer_id: customerId, end_customer_id: customerId, payer_customer_id: customerId })
-        .eq('lead_id', leadId).is('customer_id', null).select('id')
-      if (offerErr) logger.warn('convertLeadToCustomer: tilbud ikke koblet', { error: offerErr, entityId: leadId })
-      offersLinked = (linked ?? []).length
-      if (offersLinked) revalidatePath('/dashboard/offers')
-    }
+    // N77 + W-2 (nu fælles med de øvrige koblingsveje, LD-3): kildemail og leadets tilbud uden kunde følger med
+    const { linkLeadArtifactsToCustomer } = await import('@/lib/leads/link-to-customer')
+    const linkRes = await linkLeadArtifactsToCustomer(supabase, { leadId, customerId, sourceEmailId: cf.source_email_id,
+      canEditOffers: hasPermission('offers.edit'), canLinkInbox: hasPermission('inbox.view'), linkedBy: 'lead-convert' })
+    const offersLinked = linkRes.offersLinked
+    if (linkRes.emailLinked) revalidatePath('/dashboard/mail')
+    if (offersLinked) revalidatePath('/dashboard/offers')
     await supabase.from('lead_activities').insert({
       lead_id: leadId, activity_type: 'note', performed_by: userId,
       description: `${created ? 'Kunde oprettet fra lead' : 'Lead koblet til eksisterende kunde (samme e-mail)'}${offersLinked ? ` — ${offersLinked} tilbud koblet til kunden` : ''}`,
