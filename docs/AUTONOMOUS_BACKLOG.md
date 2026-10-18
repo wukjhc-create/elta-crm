@@ -1075,6 +1075,30 @@ Når `grok-next` må ses: kost-gates og falsk-tom leverandørliste først. Deref
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-107, G18-108, G18-60, G18-110, G18-111.
 
+## Checkpoint 2026-10-18 fjerde (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `58e87d32`. Det omskriver ikke listerne ovenfor. Produktspids: `a808cab6`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `58e87d32..a808cab6`
+
+```
+a808cab6 feat(plan): maanedens navn ombrydes
+bb2e5a31 feat(plan): maanedsknapper er hoeje nok
+d1c90b60 feat(plan): I dag-knappen er hoej nok
+```
+
+Listen er alle commits efter `58e87d32` til og med `a808cab6`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+`58e87d32` lister `dfd78f86..9ecacb50`. Sammen dækker de to sektioner alle shift-commits fra `80ab0dab` frem til `a808cab6`, bortset fra docs-committerne selv.
+
+### Features
+
+"I dag" er mindst 44 px. Forrige og næste måned er mindst 44 px i begge retninger. Månedens navn ombrydes. Aria-tekst, `goToToday`, `MONTH_NAMES` og året er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-108, G18-60, G18-110, G18-111, G18-114.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
