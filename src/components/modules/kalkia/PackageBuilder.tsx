@@ -222,13 +222,22 @@ export function PackageBuilder({
       const marginAmount = salesBasis * (marginPercentage / 100)
       const calculatedSalePrice = salesBasis + marginAmount
       // If items have sale price overrides, blend override totals with calculated price for non-overridden items
+      // CA-2 (kalkule-review 2026-10-18): ikke-tilsidesatte varer prissættes ud fra DERES EGEN kost (materialer inkl. spild
+      // + egen arbejdstid) med samme tillæg som helheden — før fik de en andel af den samlede pris efter arbejdsminutter
+      // (en materialetung vare med kort tid kom under kost; 0 minutter = 0 kr). Formlen er lineær: uden tilsidesættelser
+      // summer varerne præcis til calculatedSalePrice.
+      const itemSalePrice = (item: (typeof items)[number]) => {
+        const matBase = item.overrides?.costPrice !== undefined
+          ? item.overrides.costPrice * item.quantity
+          : (item.materials?.reduce((mSum, m) => mSum + (m.costPrice * m.quantity * item.quantity), 0) || 0)
+        const mat = matBase * materialWasteFactor
+        const directSec = (item.overrides?.timeMinutes ?? item.calculatedTimeMinutes) * item.quantity * 60 * timeMultiplier
+        const laborHours = (directSec * (1 + indirectTimeFactor + personalTimeFactor)) / 3600
+        const cost = mat + laborHours * effectiveHourlyRate
+        return cost * (1 + overheadFactor + CALC_DEFAULTS.FACTORS.RISK) * (1 + marginPercentage / 100)
+      }
       const salePriceExclVat = hasAnySalePriceOverride
-        ? salePriceOverrideTotal + items.reduce((sum, item) => {
-            if (item.overrides?.salePrice !== undefined) return sum
-            // Proportional allocation of calculated sale price for non-overridden items
-            const itemTimeShare = ((item.overrides?.timeMinutes ?? item.calculatedTimeMinutes) * item.quantity) / (totalDirectTimeMinutes || 1)
-            return sum + calculatedSalePrice * itemTimeShare
-          }, 0)
+        ? salePriceOverrideTotal + items.reduce((sum, item) => (item.overrides?.salePrice !== undefined ? sum : sum + itemSalePrice(item)), 0)
         : calculatedSalePrice
       const discountAmount = salePriceExclVat * (discountPercentage / 100)
       const netPrice = salePriceExclVat - discountAmount

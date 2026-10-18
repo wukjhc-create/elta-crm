@@ -229,7 +229,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PT-13 | Flytteønske for afsluttet/annulleret booking og tom besked (S4) | DONE (kode) |
 | PT-14 | Bekræftelseslinks overlever kundedeaktivering (S4, plausibel) | DONE (kode) — deaktiveret kunde → linket tilbagekaldt (visning + bekræftelse); confirmation-expiry-check +1 |
 | CA-1 | Salgspakke: basispris + stykliste fakturerede dobbelt (S1, latent — pakkevælgeren er ikke monteret) | DONE (værn, kode) — kombinationen afvises indtil styklisten kan indsættes som ren kost |
-| CA-2 | PackageBuilder: tilsidesat salgspris fordelt efter arbejdstid (S1/S2) | TODO |
+| CA-2 | PackageBuilder: tilsidesat salgspris fordelt efter arbejdstid (S1/S2) | DONE (kode, ikke UI-testet) — ikke-tilsidesatte varer prissættes fra egen kost (materialer inkl. spild + egen tid) med samme tillæg; lineært = uændret pris uden tilsidesættelser |
 | CA-3 | get_customer_product_price: RECORD IS NOT NULL springer aftaler over (S2) | BLOCKED_APPROVAL [MIGRATION 00251] — forslag docs/runbooks/pricing-functions-proposal.md (prod bekræftet read-only) |
 | CA-4 | AI-analyse → tilbud ignorerer beregnet pris/arbejde/kost (S2) | DELVIS (kode, ikke UI-testet — kræver AI-analyse) — reguleringslinje op til analysens pris ekskl. moms; kost pr. linje = TODO (afhænger af arbejdskost-modellen, PE) |
 | CA-5 | refreshLineItemPrice overskriver linjens egen avance/manuelle pris (S2) | DONE (kode) — linjens supplier_margin_applied bevares ved genberegning |
