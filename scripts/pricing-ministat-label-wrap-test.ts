@@ -21,10 +21,8 @@ const at = view.indexOf('data-testid="pricing-ministat-label"')
 const row = at >= 0 ? view.slice(at - 120, at + 50) : ''
 ok(row.includes('break-words min-w-0'), 'etiketten ombrydes')
 ok(row.includes('>{label}<'), 'etiketten kommer stadig fra label')
-ok(
-  view.includes("className={`text-lg font-bold ${warn ? 'text-amber-600' : 'text-gray-900'}`}>{value}</div>"),
-  'tallet er uændret',
-)
+ok(view.includes("${warn ? 'text-amber-600' : 'text-gray-900'}"), 'advarselsfarven er uændret')
+ok(view.includes('data-testid="pricing-ministat-value">{value}</div>'), 'tallet er uændret')
 ok(view.includes('label="Produkter" value={stat.total_products}'), 'Produkter bliver')
 ok(view.includes('label="Prisændringer" value={stat.products_with_price_changes}'), 'Prisændringer bliver')
 ok(view.includes('label="Forældede" value={stat.stale_products}'), 'Forældede bliver')

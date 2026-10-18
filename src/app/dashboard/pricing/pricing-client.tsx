@@ -687,7 +687,7 @@ function StatusBadge({ status }: { status: string }) {
 function MiniStat({ label, value, warn }: { label: string; value: number | string; warn?: boolean }) {
   return (
     <div className="text-center">
-      <div className={`text-lg font-bold ${warn ? 'text-amber-600' : 'text-gray-900'}`}>{value}</div>
+      <div className={`text-lg font-bold break-words min-w-0 ${warn ? 'text-amber-600' : 'text-gray-900'}`} data-testid="pricing-ministat-value">{value}</div>
       <div className="text-xs text-gray-500 break-words min-w-0" data-testid="pricing-ministat-label">{label}</div>
     </div>
   )
