@@ -1525,6 +1525,68 @@ Synk-datoen ombrydes. Kaldet er stadig `formatDateUtil(stat.last_sync_at)`. Etik
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-160, G18-161, G18-162, G18-163, G18-164, G18-165.
 
+## Checkpoint 2026-10-18 toogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `7790a262`. Det omskriver ikke listerne ovenfor. Produktspids: `925f0e18`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `925f0e18` blev afvist før git kørte og er ikke prøvet igen. De lokale tip er ikke pushet.
+
+### Alle commits `7790a262..925f0e18`
+
+```
+925f0e18 feat(pris): kolonneoverskrifter ombrydes
+b737ab48 feat(pris): statusmaerke ombrydes
+55e9e20d feat(pris): tom overskrift ombrydes
+8bfcca6d feat(pris): tom katalogtekst ombrydes
+65c999c5 feat(pris): kategorimaerke ombrydes
+096ef11c feat(pris): listepris ombrydes
+fb6b1c33 feat(pris): mobilbeskrivelse ombrydes
+c3d38a79 feat(pris): produktbeskrivelse ombrydes
+3de5273d feat(pris): fejlknapper ombrydes
+133894f2 feat(pris): fejlkode ombrydes
+d70d349a feat(pris): fejltekst ombrydes
+76ebac7d feat(pris): fejloverskrift ombrydes
+02f04601 feat(pris): sideindledning ombrydes
+9360b884 feat(pris): sideoverskrift ombrydes
+716a580f feat(pris): fanetaeller ombrydes
+0f960431 feat(pris): leverandoeretiket ombrydes
+```
+
+Listen er alle commits efter `7790a262` til og med `925f0e18`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commits der ikke stod i et hegn
+
+De gamle lister er uændrede. Disse docs-commits stod kun i prosa. De står her, så `80ab0dab..HEAD` er dækket uden at omskrive de tidligere hegn.
+
+```
+7790a262 docs: checkpoint efter 277b56fd
+277b56fd docs: checkpoint efter 0f8b263d
+0f8b263d docs: checkpoint efter 02778774
+02778774 docs: checkpoint efter 4a77eb75
+4a77eb75 docs: checkpoint efter 8f8322fb
+8f8322fb docs: checkpoint efter 6ec2c234
+6ec2c234 docs: checkpoint efter da6b7d99
+da6b7d99 docs: checkpoint efter 496594f0
+496594f0 docs: checkpoint efter 9f4eb434
+9f4eb434 docs: checkpoint efter 53906875
+53906875 docs: checkpoint efter fc1047a0
+fc1047a0 docs: checkpoint efter d8d63c83
+d8d63c83 docs: checkpoint efter 1d0db479
+1d0db479 docs: checkpoint efter 9c093aba
+9c093aba docs: checkpoint efter e584cfad
+e584cfad docs: checkpoint efter 227e1344
+227e1344 docs: checkpoint efter dc4a2a51
+dc4a2a51 docs: checkpoint efter 58e87d32
+58e87d32 docs: checkpoint efter dfd78f86
+dfd78f86 docs: checkpoint for grok-shift 2026-10-18 fortsat
+```
+
+### Features
+
+Leverandøretiketten ombrydes. `value` og `onChange` er uændret. Fanetælleren ombrydes. `{tab.count}` er uændret. Sideoverskriften Prisovervågning og sideindledningen ombrydes. Fejloverskriften, fejlteksten og fejlkoden ombrydes. Sætningerne er uændret. `onClick={reset}` bliver. Knapperne Prøv igen og Dashboard ombrydes. Produktbeskrivelsen og mobilbeskrivelsen ombrydes. `line-clamp` er væk fra kataloget. Listeprisen ombrydes. Udtrykket er stadig `formatCurrency(product.list_price)`. Kategorimærket ombrydes. Navnet er uændret. Den tomme katalogtekst og den tomme overskrift ombrydes. Sætningerne er uændret. Statusmærket Aktiv og Inaktiv ombrydes. Kolonneoverskrifterne Produkt, SKU, Kategori, Kostpris, Listepris og Status ombrydes. Kostkolonnen kræver stadig `canSeeCost`. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-199, G18-200, G18-201, G18-202, G18-203, G18-204.
+
 ## Checkpoint 2026-10-18 enogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `277b56fd`. Det omskriver ikke listerne ovenfor. Produktspids: `65c9590d`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
