@@ -762,12 +762,16 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-31 | 5 Plan | ÅBEN. Dagsoverskriften i `calendar-client.tsx` formaterer datoen med `timeZone: Europe/Copenhagen`. | Opgavelisten og datostrengen er uændret. |
 | G18-23 | 7 Assistent | ÅBEN. Callback-svaret siger at kunden ikke er kontaktet. | Insert og afsendelse uændret. Ingen webhook. |
 | G18-24 | 1 Profit | DONE "Vis dem" slår det eksisterende filter kun manglende kost til. | Filterreglen uændret. |
-| G18-25 | 2 Faktura | ÅBEN. Giv panelet `duplicate_of_id` fra detaljen, som allerede har feltet, og vis linket kun da. | Ingen ny matching og ingen e-conomic. |
-| G18-26 | 1 Profit | ÅBEN. Sagspanelet bruger `invoicedStateLabel` i stedet for det lokale kort. | Samme tre ord. Beregningen uændret. |
-| G18-27 | 2 Faktura | ÅBEN. Kontrollinjen viser `quantity` som allerede ligger på linjen. Null er ikke 0. | Motoren uændret. |
+| G18-25 | 2 Faktura | SPRUNGET. `duplicate_of_id` ligger på leave-listet `detail-client.tsx`. Panelet har ikke feltet. | Ingen ny matching. Ikke BLOCKED_APPROVAL. |
+| G18-26 | 1 Profit | DONE sagspanelet bruger `invoicedStateLabel`. | Samme tre ord. Beregningen uændret. |
+| G18-27 | 2 Faktura | SPRUNGET. `LineControl` har ikke `quantity`. Loader er leave-listet og motoren ændres ikke. | Ikke BLOCKED_APPROVAL. |
 | G18-28 | 5 Plan | ÅBEN. "Mine påmindelser" på den valgte dag viser antallet fra `remindersByDate`. | Blokken er skjult ved 0. Ingen ny query. |
 | G18-29 | 1 Profit | ÅBEN. Forrige/Næste på efterkalk-oversigten får min-h 44 px. | Sidetal og side-størrelse uændret. |
-| G18-30 | 2 Faktura | ÅBEN. Kontrollinjen viser den fakturerede enhedspris som allerede ligger på linjen. Null er ikke 0 kr. | Afvigelsesbeløbet uændret. |
+| G18-30 | 2 Faktura | SPRUNGET. `LineControl` har ikke `unitPrice`. Samme lås som G18-27. | Afvigelsesbeløbet uændret. Ikke BLOCKED_APPROVAL. |
+| G18-32 | 1 Profit | ÅBEN. Beløb i sagspanelets highlight-liste ombrydes. `shrink-0` på beløbet fjernes. | `kr()` uændret. |
+| G18-33 | 1 Profit | ÅBEN. Sagspanelets mobil-resumé (tilbudt, faktisk, afvigelse) ombrydes. | Tallene uændret. |
+| G18-34 | 1 Profit | ÅBEN. Sagspanelets linje "Tilbudt kost / faktisk kost" ombrydes på mobil. | Kosttallet uændret. |
+| G18-35 | 1 Profit | ÅBEN. Sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

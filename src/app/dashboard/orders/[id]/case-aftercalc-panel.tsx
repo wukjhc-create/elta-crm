@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, Scale } from 'lucide-react'
 import { getCaseAftercalc } from '@/lib/actions/case-aftercalc'
 import { DATA_QUALITY_LABELS, type AftercalcLineStatus, type CaseAftercalcView, type VarianceAmount } from '@/lib/cases/aftercalc'
+import { invoicedStateLabel } from '@/lib/cases/aftercalc-overview'
 import { useCostReveal } from '@/components/shared/sensitive-amounts'
 import { formatCurrency } from '@/lib/utils/format'
 
@@ -20,12 +21,6 @@ const STATUS: Record<AftercalcLineStatus, { label: string; cls: string }> = {
   not_offered: { label: 'Ekstra / ikke tilbudt', cls: 'bg-amber-100 text-amber-800' },
   missing_cost: { label: 'Mangler kostdata', cls: 'bg-orange-100 text-orange-900' },
   unmatched: { label: 'Ikke matchet', cls: 'bg-slate-100 text-slate-700' },
-}
-
-const INVOICED: Record<CaseAftercalcView['invoiced_state'], string> = {
-  not_invoiced: 'Ikke faktureret',
-  partially_invoiced: 'Delvist faktureret',
-  fully_invoiced: 'Faktureret',
 }
 
 const kr = (n: number | null) => (n == null ? '—' : formatCurrency(n, 'DKK', 0))
@@ -126,7 +121,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                 {data.offer
                   ? `Tilbud ${data.offer.offer_number ?? ''} mod sagens registrerede forbrug og udstedte fakturaer. Beløb er ekskl. moms.`
                   : 'Sagen har intet tilbud. Faktisk forbrug og fakturering vises alligevel.'}
-                {' '}{INVOICED[data.invoiced_state]}.
+                {' '}<span data-testid="case-invoiced-state">{invoicedStateLabel(data.invoiced_state)}</span>.
                 {data.data_quality === 'warning' ? ' DB vises kun, hvor kostgrundlaget er komplet.' : ''}
               </p>
 
