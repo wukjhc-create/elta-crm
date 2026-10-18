@@ -29,7 +29,7 @@ const desk = src.slice(end)
 eq('desktop-navn ombrydes', desk.includes('hover:text-blue-600 break-words'), true)
 eq('desktop-sku ombrydes', desk.includes('text-gray-500 break-all'), true)
 eq('listepris bliver', desk.includes('formatCurrency(product.list_price)'), true)
-eq('kost-kolonne kraever canSeeCost', desk.includes('{canSeeCost && <TableHead className="text-right">Kostpris</TableHead>}'), true)
+eq('kost-kolonne kraever canSeeCost', desk.includes('{canSeeCost && <TableHead className="text-right break-words min-w-0" data-testid="product-col-cost">Kostpris</TableHead>}'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nproducts-mobile-test OK')
 process.exitCode = fail ? 1 : 0

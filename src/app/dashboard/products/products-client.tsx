@@ -275,12 +275,12 @@ export default function ProductsClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Produkt</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Kategori</TableHead>
-                {canSeeCost && <TableHead className="text-right">Kostpris</TableHead>}
-                <TableHead className="text-right">Listepris</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead className="break-words min-w-0" data-testid="product-col-name">Produkt</TableHead>
+                <TableHead className="break-words min-w-0" data-testid="product-col-sku">SKU</TableHead>
+                <TableHead className="break-words min-w-0" data-testid="product-col-category">Kategori</TableHead>
+                {canSeeCost && <TableHead className="text-right break-words min-w-0" data-testid="product-col-cost">Kostpris</TableHead>}
+                <TableHead className="text-right break-words min-w-0" data-testid="product-col-list">Listepris</TableHead>
+                <TableHead className="break-words min-w-0" data-testid="product-col-status">Status</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>

@@ -934,12 +934,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-195 | 4 Pris | DONE. Den tomme katalogtekst ombrydes. | De to sætninger er uændret. |
 | G18-196 | 4 Pris | DONE. Overskriften på det tomme katalog ombrydes. | De to sætninger er uændret. |
 | G18-197 | 4 Pris | DONE. Statusmærket Aktiv og Inaktiv i kataloget ombrydes. | Ordene er uændret. |
-| G18-198 | 4 Pris | ÅBEN. Kolonneoverskrifterne i produktkataloget ombrydes. | Ordene er uændret. |
+| G18-198 | 4 Pris | DONE. Kolonneoverskrifterne i produktkataloget ombrydes. | Ordene er uændret. |
 | G18-199 | 4 Pris | ÅBEN. Etiketterne Kostpris og Listepris på katalogets mobilkort ombrydes. | Ordene er uændret. |
 | G18-200 | 4 Pris | ÅBEN. Knappen Nyt produkt ombrydes. | setShowCreateDialog er uændret. |
 | G18-201 | 4 Pris | ÅBEN. Antallet over produktkataloget ombrydes. | Sætningen og total er uændret. |
 | G18-202 | 4 Pris | ÅBEN. Overskriften Produktkatalog ombrydes. | Ordet er uændret. |
 | G18-203 | 4 Pris | ÅBEN. Fejlteksten når kataloget ikke kan hentes ombrydes. | Sætningen er uændret. |
+| G18-204 | 4 Pris | ÅBEN. Fejlteksten når kategorierne ikke kan hentes ombrydes. | Sætningen er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
