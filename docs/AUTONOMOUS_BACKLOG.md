@@ -785,7 +785,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-74 | 2 Faktura | DONE toleranceteksten under fakturakontrollen ombrydes. | Tolerancen og overprisen er uændret. |
 | G18-75 | 2 Faktura | DONE fakturakontrollens statuslinje ombrydes. | Statusteksten er uændret. |
 | G18-76 | 2 Faktura | DONE fejlen "Det tælles ikke som at priserne stemmer" ombrydes. | Sætningen er uændret. |
-| G18-77 | 2 Faktura | ÅBEN. Dom-mærket ombrydes. | De fire domme er uændret. |
+| G18-77 | 2 Faktura | DONE dom-mærket ombrydes. | De fire domme er uændret. |
+| G18-78 | 2 Faktura | ÅBEN. "Kontrollerer priser…" ombrydes. | Teksten er uændret. |
 | G18-30 | 2 Faktura | SPRUNGET. `LineControl` har ikke `unitPrice`. Samme lås som G18-27. | Afvigelsesbeløbet uændret. Ikke BLOCKED_APPROVAL. |
 | G18-32 | 1 Profit | DONE beløb i sagspanelets highlight-liste ombrydes. | `kr()` uændret. |
 | G18-36 | 1 Profit | DONE sagspanelets indledning ombrydes. | Faktureringsstatus og beløb uændret. |
