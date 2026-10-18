@@ -220,7 +220,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | AI-4 | Hele mailtekster inkl. CPR/bankoplysninger sendes til OpenAI uden maskering (S3) | DELVIS (kode) — redactForAi maskerer CPR, reg./kontonr., kort og IBAN i alle 7 prompts (redact-for-ai-test). DPA/zero-retention hos OpenAI = BESLUTNING |
 | AI-5 | Auto-tilbud: mailtekst styrer avance (isLargeProject) og kundevendt beskrivelse (S3, bag flag) | DONE (kode) — kundevendt beskrivelse deterministisk (AI-tekst kun i interne noter); stor-projekt-rabat kun fra whitelistet jobtype. Ingen test (bag AUTO_CREATE_CASES_ENABLED) |
 | AI-6 | canSpendAi fejler åbent; budget ikke atomisk; ingen max_tokens (S4) | DONE (kode) — læsefejl opdages; mail-agenten fail-closed; max_tokens 400/600 (agent-gating/agent-actions). Atomisk reservation = TODO (lav) |
-| AI-7 | LLM-udkast kan blive "gennemset" sendeforslag uden indholdstjek (S4) | TODO |
+| AI-7 | LLM-udkast kan blive "gennemset" sendeforslag uden indholdstjek (S4) | DONE (kode) — links/telefonnumre/beløb i udkastet, der ikke står i kundens mail, markeres i forslaget (lav tillid + content_warnings) (draft-content-check-test, send-producer) |
 | AI-8 | Noter fra tale ligner skrevne (source telegram) (S4) | TODO — kræver kildeværdi (evt. CHECK på source) eller kommando-flag; lav prioritet |
 | AS-1 | logOfferActivity: kalderen vælger performedBy/type uden gate → forfalsket tilbudshistorik (S3) | DONE (kode) — logOfferActivity flyttet til lib/offers/offer-activity-log.ts (ikke server action); ugatet, ubrugt logOfferActivities fjernet |
 | AS-2 | Kontaktformular: global timegrænse kan misbruges (blokerer rigtige kunder); lead kobles til kunde via ubekræftet e-mail (S3) | BESLUTNING (+ evt. migration til grænse pr. IP) |

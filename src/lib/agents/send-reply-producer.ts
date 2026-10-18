@@ -16,6 +16,7 @@
 import { prepareSendReply } from '@/lib/agents/send-reply'
 import { isWebsiteInquiry } from '@/lib/mail/website-inquiry'
 import { extractFormSubmitFields } from '@/lib/utils/email-parser'
+import { unverifiedDraftClaims, hasDraftWarnings, describeDraftWarnings } from '@/lib/agents/draft-content-check'
 
 export const SEND_CAPABILITY = 'mail.send_reply'
 export const TEMPLATE_PLACEHOLDER = '[BRUGER UDFYLDER'
@@ -81,14 +82,22 @@ export async function produceSendReplyProposal(
   if (rows.some((r) => !INACTIVE.includes(r.status))) return { ok: false, error: 'der findes allerede et afsendelsesforslag for denne mail' }
   const generation = rows.filter((r) => INACTIVE.includes(r.status)).length
 
+  // AI-7: links/telefonnumre/beløb i udkastet, som ikke står i kundens mail → markeres i forslaget (lav tillid)
+  const warnings = unverifiedDraftClaims(body, `${mail.subject ?? ''}
+${mail.body_text ?? ''}
+${mail.body_html ?? ''}`)
+  const warned = hasDraftWarnings(warnings)
+
   const { data: act, error } = await admin.from('agent_actions').insert({
     task_id: draft.task_id, run_id: draft.run_id, action_type: 'send_reply', capability: SEND_CAPABILITY,
     side_effect_class: 'send_external', requires_approval: true, min_approvals: 1,
     idempotency_key: `mail-send:${emailId}:${generation}`, status: 'awaiting_approval',
     payload: {
       email_id: emailId, to: prepared.prepared.to, subject: prepared.prepared.subject, body: prepared.prepared.body,
-      source_draft_action_id: draft.id, confidence_level: 'medium', confidence_score: 0.6,
-      rationale: 'Gennemset svarudkast klar til afsendelse. Kræver godkendelse; live afsendelse er desuden slået fra, indtil det besluttes.',
+      source_draft_action_id: draft.id,
+      confidence_level: warned ? 'low' : 'medium', confidence_score: warned ? 0.3 : 0.6,
+      ...(warned ? { content_warnings: warnings } : {}),
+      rationale: `${warned ? `${describeDraftWarnings(warnings)} ` : ''}Gennemset svarudkast klar til afsendelse. Kræver godkendelse; live afsendelse er desuden slået fra, indtil det besluttes.`,
     },
   }).select('id').single()
   if (error || !act) {
