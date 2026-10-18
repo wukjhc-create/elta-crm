@@ -580,12 +580,12 @@ function TrendsTab({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50">
-                  <th className="text-left px-4 py-2.5 font-medium">Produkt</th>
-                  <th className="text-right px-4 py-2.5 font-medium">Nuv. pris</th>
-                  <th className="text-right px-4 py-2.5 font-medium">30 dage</th>
-                  <th className="text-right px-4 py-2.5 font-medium">90 dage</th>
-                  <th className="text-center px-4 py-2.5 font-medium">Volatilitet</th>
-                  <th className="text-center px-4 py-2.5 font-medium">Ændringer</th>
+                  <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-trend-col-product">Produkt</th>
+                  <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-trend-col-current">Nuv. pris</th>
+                  <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-trend-col-d30">30 dage</th>
+                  <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-trend-col-d90">90 dage</th>
+                  <th className="text-center px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-trend-col-volatility">Volatilitet</th>
+                  <th className="text-center px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-trend-col-changes">Ændringer</th>
                 </tr>
               </thead>
               <tbody>

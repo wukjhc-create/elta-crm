@@ -33,7 +33,7 @@ for (const [id, word] of words) {
 ok(view.includes('formatCurrency(alert.old_price)'), 'gammel pris bliver')
 ok(view.includes('formatCurrency(alert.new_price)'), 'ny pris bliver')
 ok(view.includes('alert.change_percentage.toFixed(1)'), 'aendringen bliver')
-ok(view.includes('font-medium">Nuv. pris</th>'), 'tendensoverskriften venter')
+ok(view.includes('>Nuv. pris<'), 'tendensordet bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
 if (bad > 0) {
