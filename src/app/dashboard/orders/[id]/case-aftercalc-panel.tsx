@@ -177,7 +177,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
               {data.warnings.length > 0 && (
                 <ul className="space-y-1">
                   {data.warnings.map((w) => (
-                    <li key={`${w.code}-${w.message}`} className={`text-xs rounded px-2 py-1 ${w.severity === 'warning' ? 'bg-amber-50 text-amber-900' : 'bg-gray-50 text-gray-600'}`}>
+                    <li key={`${w.code}-${w.message}`} className={`text-xs rounded px-2 py-1 break-words min-w-0 ${w.severity === 'warning' ? 'bg-amber-50 text-amber-900' : 'bg-gray-50 text-gray-600'}`}>
                       <span className="font-medium">{DATA_QUALITY_LABELS[w.code]}.</span> {w.message}
                     </li>
                   ))}
