@@ -778,7 +778,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-27 | 2 Faktura | SPRUNGET. `LineControl` har ikke `quantity`. Loader er leave-listet og motoren ændres ikke. | Ikke BLOCKED_APPROVAL. |
 | G18-28 | 5 Plan | ÅBEN. "Mine påmindelser" på den valgte dag viser antallet fra `remindersByDate`. | Blokken er skjult ved 0. Ingen ny query. |
 | G18-29 | 1 Profit | DONE Forrige/Næste har min-h 44 px. | Sidetal og side-størrelse uændret. |
-| G18-49 | 1 Profit | ÅBEN. Efterkalk-oversigtens "sager i visningen" ombrydes. | Sidetal og knapper er uændret. |
+| G18-49 | 1 Profit | DONE "sager i visningen" ombrydes. | Sidetal og knapper er uændret. |
+| G18-67 | 1 Profit | ÅBEN. Efterkalk-oversigtens indledning ombrydes. | Beløbsteksten er uændret. |
 | G18-30 | 2 Faktura | SPRUNGET. `LineControl` har ikke `unitPrice`. Samme lås som G18-27. | Afvigelsesbeløbet uændret. Ikke BLOCKED_APPROVAL. |
 | G18-32 | 1 Profit | DONE beløb i sagspanelets highlight-liste ombrydes. | `kr()` uændret. |
 | G18-36 | 1 Profit | DONE sagspanelets indledning ombrydes. | Faktureringsstatus og beløb uændret. |
