@@ -286,13 +286,13 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-gray-50">
-              <th className="text-left px-4 py-2.5 font-medium">Produkt</th>
-              <th className="text-left px-4 py-2.5 font-medium">Leverandør</th>
-              <th className="text-right px-4 py-2.5 font-medium">Gammel pris</th>
-              <th className="text-right px-4 py-2.5 font-medium">Ny pris</th>
-              <th className="text-right px-4 py-2.5 font-medium">Ændring</th>
-              <th className="text-center px-4 py-2.5 font-medium">Påvirker</th>
-              <th className="text-right px-4 py-2.5 font-medium">Dato</th>
+              <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-product">Produkt</th>
+              <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-supplier">Leverandør</th>
+              <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-old">Gammel pris</th>
+              <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-new">Ny pris</th>
+              <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-change">Ændring</th>
+              <th className="text-center px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-affects">Påvirker</th>
+              <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-date">Dato</th>
             </tr>
           </thead>
           <tbody>
