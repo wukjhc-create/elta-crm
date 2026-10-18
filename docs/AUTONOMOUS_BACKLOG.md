@@ -1305,6 +1305,27 @@ Kundens hentefejl ombrydes. `{loadError}` og sætningen "Kunne ikke hente opgave
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-108, G18-60, G18-111, G18-137, G18-138, G18-139, G18-140.
 
+## Checkpoint 2026-10-18 trettende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `9f4eb434`. Det omskriver ikke listerne ovenfor. Produktspids: `4f4e11a1`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `9f4eb434..4f4e11a1`
+
+```
+4f4e11a1 feat(plan): flere opgaver ombrydes
+bbc64cf0 feat(plan): henter opgaver ombrydes
+```
+
+Listen er alle commits efter `9f4eb434` til og med `4f4e11a1`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+"Henter opgaver…" ombrydes. "+N mere" på månedsdagen ombrydes. Tællingen `{dayTasks.length - 3}` er uændret. Dagbrikkerne afkortes stadig. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-111, G18-138, G18-139, G18-140, G18-141, G18-142.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
