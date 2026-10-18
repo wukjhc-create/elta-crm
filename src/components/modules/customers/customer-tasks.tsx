@@ -279,7 +279,7 @@ function TaskRow({
               {new Date(task.due_date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           ) : (
-            <span className="text-xs text-gray-400">Ingen forfaldsdato</span>
+            <span className="text-xs text-gray-400 break-words min-w-0" data-testid="customer-task-no-due">Ingen forfaldsdato</span>
           )}
         </div>
       </div>
