@@ -258,7 +258,7 @@ function Highlight({ title, rows, empty, tone }: { title: string; rows: { key: s
     <div>
       <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">{title}</h4>
       {rows.length === 0 ? (
-        <p className="text-xs text-gray-500">{empty}</p>
+        <p className="text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-highlight-empty">{empty}</p>
       ) : (
         <ul className="space-y-0.5">
           {rows.map((r) => (
