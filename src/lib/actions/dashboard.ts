@@ -224,22 +224,25 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_ACTIVITY): Promise<RecentActivity[]> {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  // LD-14 (leads-review 2026-10-18): hver sektion kun med læseretten til modulet — før fik fx bogholderi leadets
+  // kontaktnavne uden leads.view (kun RLS stod imellem)
+  const none = Promise.resolve({ data: null as null })
 
   // Fetch recent items from each table in parallel
   const [leadsResult, customersResult, offersResult, projectsResult] =
     await Promise.all([
-      supabase
+      !hasPermission('leads.view') ? none : supabase
         .from('leads')
         .select('id, contact_person, company_name, status, created_at')
         .order('created_at', { ascending: false })
         .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
-      supabase
+      !hasPermission('customers.view') ? none : supabase
         .from('customers')
         .select('id, company_name, customer_number, created_at')
         .order('created_at', { ascending: false })
         .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
-      supabase
+      !hasPermission('offers.view') ? none : supabase
         .from('offers')
         .select('id, offer_number, title, status, created_at')
         .eq('is_proposal', false)

@@ -609,13 +609,19 @@ export async function addLeadActivity(
       return { success: false, error: 'Manglende tilladelse: leads.edit' }
     }
     validateUUID(leadId, 'lead ID')
+    // LD-10 (leads-review 2026-10-18): kun manuelle typer — system-typer (status_change, assigned …) kunne ellers
+    // forfalskes med vilkårlig tekst i leadets historik; og en grænse på længden
+    if (!['note', 'call', 'email', 'meeting'].includes(activityType)) return { success: false, error: 'Ugyldig aktivitetstype' }
+    const text = String(description ?? '').trim()
+    if (!text) return { success: false, error: 'Skriv en tekst' }
+    if (text.length > 5000) return { success: false, error: 'Teksten er for lang (højst 5.000 tegn)' }
 
     const { data, error } = await supabase
       .from('lead_activities')
       .insert({
         lead_id: leadId,
         activity_type: activityType,
-        description,
+        description: text,
         performed_by: userId,
       })
       .select()
@@ -715,7 +721,9 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
     if (!claimed) return { success: false, error: 'Leadet er netop ændret eller konverteres allerede — genindlæs siden' }
 
     // Dublet-værn: eksisterende kunde med samme mail
-    const { data: same } = await supabase.from('customers').select('id').ilike('email', escapeLike(email)).limit(1).maybeSingle()
+    // LD-13: aktiv kunde foretrækkes, når flere har samme mail (før tilfældig rækkefølge)
+    const { data: same } = await supabase.from('customers').select('id').ilike('email', escapeLike(email))
+      .order('is_active', { ascending: false }).order('created_at', { ascending: true }).limit(1).maybeSingle()
     let customerId = (same?.id as string | undefined) ?? null
     let created = false
     if (!customerId) {
@@ -740,6 +748,9 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
       }
       customerId = inserted.id
       created = true
+      // LD-10: kundeoprettelsen auditeres som i kundemodulet
+      const { logCreate } = await import('@/lib/audit/audit-log-writer')
+      await logCreate('customer', customerId, company, { source: 'lead', lead_id: leadId })
     }
 
     // Leads-review 2026-10-08 (#7): fejlen blev ignoreret → leadet stod ukoblet, og næste klik oprettede en dublet-kunde

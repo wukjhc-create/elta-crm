@@ -234,11 +234,11 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LD-7 | Dobbelt-indsendt webformular giver dubletleads (S3) | TODO |
 | LD-8 | Offentligt kontakt-endpoint opretter kunde men kobler ikke leadet (S3) | TODO (kobling); kunde ved hver indsendelse = BESLUTNING |
 | LD-9 | Ny webhenvendelse fra eksisterende kunde bliver aldrig lead i bulk (S3) | BESLUTNING |
-| LD-10 | Audit-huller og frit activityType (S3) | TODO |
+| LD-10 | Audit-huller og frit activityType (S3) | DELVIS (kode) — activityType-whitelist (note/call/email/meeting) + længdegrænse; logCreate ved kunde fra lead. Audit i linkLead/createLeadFromEmail = TODO |
 | LD-11 | FormSubmit-normalisering: beskedlinjer der starter med feltnavn kaprer felter (S4) | TODO |
 | LD-12 | Lead kan oprettes direkte som vundet/tabt (S4) | BESLUTNING |
-| LD-13 | Konverteringens e-maildedupe kan vælge inaktiv kunde (S4) | TODO |
-| LD-14 | Dashboardets seneste aktivitet uden leads.view-gate (S4) | TODO |
+| LD-13 | Konverteringens e-maildedupe kan vælge inaktiv kunde (S4) | DONE — aktiv kunde foretrækkes (order is_active desc) |
+| LD-14 | Dashboardets seneste aktivitet uden leads.view-gate (S4) | DONE — leads/kunder/tilbud-sektioner kun med modulets view-ret (U70) |
 | RX-1 | Deaktiveret bruger beholder RLS-rettigheder til token udløber (user_role() tjekker ikke is_active) (S2) | BLOCKED_APPROVAL [MIGRATION] |
 | RX-2 | reports.export håndhæves aldrig; masseeksport uden audit (S3) | BESLUTNING (= NEXT-26 RP-6); audit pr. eksport = TODO |
 | RX-3 | Modtagere af betalingsrapport auditeres kun som antal (S3) | TODO |
