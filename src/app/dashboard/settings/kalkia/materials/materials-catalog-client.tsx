@@ -613,28 +613,29 @@ export function MaterialsCatalogClient({ initialMaterials, loadError = null }: M
                           return (
                             <div
                               key={history.id}
-                              className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
+                              className="flex flex-wrap items-start justify-between gap-2 p-2 bg-gray-50 rounded text-sm min-w-0"
+                              data-testid="materials-history-row"
                             >
-                              <div className="flex items-center gap-4">
-                                <span className="text-gray-500 break-words" data-testid="materials-history-date">{storedHistoryDate(history.effective_from) ?? 'Dato mangler'}</span>
-                                <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
+                                <span className="text-gray-500 break-words min-w-0" data-testid="materials-history-date">{storedHistoryDate(history.effective_from) ?? 'Dato mangler'}</span>
+                                <div className="flex flex-wrap items-center gap-2 min-w-0">
                                   <span>Kost:</span>
-                                  <span className={costChange > 0 ? 'text-red-600' : costChange < 0 ? 'text-green-600' : ''}>
+                                  <span className={`break-words min-w-0 ${costChange > 0 ? 'text-red-600' : costChange < 0 ? 'text-green-600' : ''}`}>
                                     {formatCurrency(history.cost_price, 'DKK', 2)}
                                     {costChange !== 0 && (
                                       costChange > 0 ? <TrendingUp className="w-3 h-3 inline ml-1" /> : <TrendingDown className="w-3 h-3 inline ml-1" />
                                     )}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2 min-w-0">
                                   <span>Salg:</span>
-                                  <span className={saleChange > 0 ? 'text-green-600' : saleChange < 0 ? 'text-red-600' : ''}>
+                                  <span className={`break-words min-w-0 ${saleChange > 0 ? 'text-green-600' : saleChange < 0 ? 'text-red-600' : ''}`}>
                                     {formatCurrency(history.sale_price, 'DKK', 2)}
                                   </span>
                                 </div>
                               </div>
                               {history.change_reason && (
-                                <span className="text-gray-500 italic">{history.change_reason}</span>
+                                <span className="text-gray-500 italic break-words min-w-0">{history.change_reason}</span>
                               )}
                             </div>
                           )
