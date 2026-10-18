@@ -172,7 +172,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
 
               {data.missing_cost_lines.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-orange-800 mb-1">Mangler kostdata</h4>
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-orange-800 mb-1 break-words" data-testid="aftercalc-missing-cost-count">Mangler kostdata ({data.missing_cost_lines.length})</h4>
                   <ul className="text-sm text-gray-700 space-y-0.5">
                     {data.missing_cost_lines.map((r) => <li key={r.key} className="break-words">{r.description}</li>)}
                   </ul>
