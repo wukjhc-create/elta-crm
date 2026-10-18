@@ -543,6 +543,16 @@ export async function deleteTestIncomingInvoiceAction(
     .select('id, converted_case_material_id, converted_case_other_cost_id')
     .eq('incoming_invoice_id', invoiceId)
 
+  // DL-10 (slette-review 2026-10-18): er en konverteret post allerede faktureret til kunden, slettes intet (fakturalinjen
+  // ville miste sin kilderække) — samme fakturalås som de almindelige sletninger
+  {
+    const matIds = (lines ?? []).map((l) => l.converted_case_material_id).filter(Boolean) as string[]
+    const ocIds = (lines ?? []).map((l) => l.converted_case_other_cost_id).filter(Boolean) as string[]
+    const { count: billedMat } = matIds.length ? await supabase.from('case_materials').select('id', { count: 'exact', head: true }).in('id', matIds).not('invoice_line_id', 'is', null) : { count: 0 }
+    const { count: billedOc } = ocIds.length ? await supabase.from('case_other_costs').select('id', { count: 'exact', head: true }).in('id', ocIds).not('invoice_line_id', 'is', null) : { count: 0 }
+    if ((billedMat ?? 0) + (billedOc ?? 0) > 0) return { ok: false, message: 'Test-fakturaens poster er allerede faktureret til kunden og kan ikke slettes' }
+  }
+
   let removedMaterials = 0
   let removedOther = 0
   for (const ln of lines ?? []) {
@@ -551,6 +561,7 @@ export async function deleteTestIncomingInvoiceAction(
         .from('case_materials')
         .delete({ count: 'exact' })
         .eq('id', ln.converted_case_material_id)
+        .is('invoice_line_id', null)
       removedMaterials += count ?? 0
     }
     if (ln.converted_case_other_cost_id) {
@@ -558,6 +569,7 @@ export async function deleteTestIncomingInvoiceAction(
         .from('case_other_costs')
         .delete({ count: 'exact' })
         .eq('id', ln.converted_case_other_cost_id)
+        .is('invoice_line_id', null)
       removedOther += count ?? 0
     }
   }
