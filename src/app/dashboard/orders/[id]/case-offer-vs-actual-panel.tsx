@@ -70,7 +70,7 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
         <div className="mt-3">
           {error && (
             <div className="text-sm text-red-700">
-              <p>{error}. Det tælles ikke som 0 kr.</p>
+              <p className="break-words min-w-0" data-testid="offer-vs-actual-error">{error}. Det tælles ikke som 0 kr.</p>
               <button type="button" onClick={() => setTryKey((n) => n + 1)} className="mt-2 min-h-[44px] px-3 text-sm font-medium border rounded-lg">
                 Prøv igen
               </button>
