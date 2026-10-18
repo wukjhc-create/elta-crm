@@ -293,7 +293,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                 Klik på en dag for at se besigtigelser og opkald
               </p>
             ) : selectedTasks.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-8">
+              <p className="text-sm text-gray-500 text-center py-8 break-words min-w-0" data-testid="calendar-empty-day">
                 Ingen besigtigelser eller opkald denne dag
               </p>
             ) : (
