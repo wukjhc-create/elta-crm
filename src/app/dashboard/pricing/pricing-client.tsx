@@ -367,6 +367,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
           <a
             href={`/dashboard/offers/${offer.offer_id}`}
             className="font-medium text-blue-600 hover:underline break-all"
+            data-testid="pricing-offer-number-mobile"
           >
             {offer.offer_number}
           </a>
@@ -402,7 +403,8 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
                 <td className="px-4 py-2.5">
                   <a
                     href={`/dashboard/offers/${offer.offer_id}`}
-                    className="font-medium text-blue-600 hover:underline"
+                    className="font-medium text-blue-600 hover:underline break-words min-w-0"
+                    data-testid="pricing-offer-number"
                   >
                     {offer.offer_number}
                   </a>
