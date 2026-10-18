@@ -147,7 +147,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
             <CalendarCheck className="w-7 h-7 text-blue-600" />
             Kalender — Besigtigelser
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 mt-1 break-words min-w-0" data-testid="calendar-header-count">
             {upcomingCount} kommende{overdueCount > 0 ? ` · ${overdueCount} overskredet` : ''}
           </p>
         </div>

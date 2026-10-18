@@ -838,9 +838,10 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-98 | 1 Profit | DONE skrivebordets sagsstatus i efterkalk-oversigten ombrydes. | Statusordene er uændret. |
 | G18-100 | 5 Plan | DONE klokken på den valgte dag ombrydes. | Adressen og statusmærket er uændret. |
 | G18-102 | 5 Plan | DONE "Åbn rutevejledning" på den valgte dag ombrydes. | Adressen og linket er uændret. |
-| G18-105 | 5 Plan | ÅBEN. "kommende / overskredet" i kalenderens overskrift ombrydes. | Tællingen er uændret. |
+| G18-105 | 5 Plan | DONE "kommende / overskredet" i kalenderens overskrift ombrydes. | Tællingen er uændret. |
 | G18-106 | 5 Plan | ÅBEN. Overskriften "Kalender — Besigtigelser" ombrydes. | Ordene er uændret. |
 | G18-107 | 5 Plan | ÅBEN. Knappen "I dag" er mindst 44 px høj. | Teksten og goToToday er uændret. |
+| G18-108 | 5 Plan | ÅBEN. "+N mere" på månedsdagen ombrydes. | Tællingen er uændret. Dagbrikkerne afkortes stadig. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
 | G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |
