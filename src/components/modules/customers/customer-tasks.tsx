@@ -182,7 +182,8 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
             <div className="pt-2">
               <button
                 onClick={() => setShowDone(!showDone)}
-                className="text-xs text-gray-400 hover:text-gray-600"
+                className="text-xs text-gray-400 hover:text-gray-600 break-words min-w-0"
+                data-testid="customer-tasks-toggle-done"
               >
                 {showDone ? 'Skjul' : 'Vis'} udførte ({doneTasks.length})
               </button>

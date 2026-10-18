@@ -885,12 +885,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-146 | 5 Plan | DONE dagsnummeret på kommende besigtigelser ombrydes. | Udtrykket med getDate er uændret. |
 | G18-147 | 8 Pilot | DONE status- og prioritetmærket på kundens opgaver ombrydes. | Etiketterne er uændret. |
 | G18-148 | 8 Pilot | DONE forfaldsdatoen på kundens opgave ombrydes. | Dato-udtrykket med Europe/Copenhagen er uændret. |
-| G18-149 | 8 Pilot | ÅBEN. Knappen Vis/Skjul udførte på kundens opgaver ombrydes. | Ordene og tællingen er uændret. |
+| G18-149 | 8 Pilot | DONE knappen Vis/Skjul udførte på kundens opgaver ombrydes. | Ordene og tællingen er uændret. |
 | G18-150 | 8 Pilot | ÅBEN. Teksten "Ingen forfaldsdato" på kundens opgave ombrydes. | Ordene er uændret. |
 | G18-151 | 8 Pilot | ÅBEN. Knapperne Rediger og Slet på kundens opgave kan rammes med 44 px. | aria-label er uændret. |
 | G18-152 | 5 Plan | ÅBEN. Knappen "I dag" på kalenderen ombrydes. | Ordene og min-h-[44px] er uændret. |
 | G18-153 | 8 Pilot | ÅBEN. Den ansvarliges navn eller e-mail på kundens opgave kan krympe. | Udtrykket er uændret. |
 | G18-154 | 4 Pris | ÅBEN. Leverandørnavnet på prisstatistikken ombrydes. | Navnet kommer stadig fra stat.supplier_name. |
+| G18-155 | 4 Pris | ÅBEN. Synk-datoen på prisstatistikken ombrydes. | formatDateUtil er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
