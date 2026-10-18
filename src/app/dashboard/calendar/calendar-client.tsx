@@ -1,7 +1,7 @@
 'use client'
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
-import { dayTaskCountText } from '@/lib/planning/day-task-count'
+import { dayReminderCountText, dayTaskCountText } from '@/lib/planning/day-task-count'
 import { calendarDayHeading } from '@/lib/planning/calendar-day-heading'
 import { upcomingInspections } from '@/lib/calendar/agenda'
 import { ASSISTANT_RULE } from '@/lib/assistant/rules'
@@ -277,6 +277,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
           {selectedDate && (remindersByDate[selectedDate]?.length ?? 0) > 0 && (
             <div className="px-4 pt-4" data-testid="calendar-day-reminders">
               <h4 className="text-sm font-semibold text-gray-700 mb-2">Mine påmindelser</h4>
+              <p className="text-xs text-gray-600 break-words min-w-0 mb-2" data-testid="calendar-day-reminder-count">{dayReminderCountText(remindersByDate[selectedDate]!.length)}</p>
               <ul className="space-y-1 mb-2">
                 {remindersByDate[selectedDate]!.map((r) => (
                   <li key={r.id} className={`text-sm ${r.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
