@@ -177,8 +177,9 @@ export function PricingDashboardClient() {
         </div>
         <button
           onClick={loadData}
-          className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+          className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 break-words min-w-0"
           disabled={isLoading}
+          data-testid="pricing-refresh"
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           Opdater
