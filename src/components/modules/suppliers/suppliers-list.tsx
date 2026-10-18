@@ -18,13 +18,14 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { getSuppliers, deleteSupplier } from '@/lib/actions/suppliers'
+import { supplierListView } from '@/lib/suppliers/supplier-list-view'
 import type { Supplier } from '@/types/suppliers.types'
 import { SupplierForm } from './supplier-form'
 
 export function SuppliersList() {
   const toast = useToast()
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [loading, setLoading] = useState(true)
+  const [suppliers, setSuppliers] = useState<Supplier[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
@@ -33,12 +34,18 @@ export function SuppliersList() {
   }, [])
 
   const loadSuppliers = async () => {
-    setLoading(true)
-    const result = await getSuppliers({ is_active: true })
+    let result: { success: boolean; data?: Supplier[]; error?: string }
+    try {
+      result = await getSuppliers({ is_active: true })
+    } catch {
+      result = { success: false, error: 'Kunne ikke hente leverandører' }
+    }
     if (result.success && result.data) {
       setSuppliers(result.data)
+      setLoadError(null)
+      return
     }
-    setLoading(false)
+    setLoadError(result.error || 'Kunne ikke hente leverandører')
   }
 
   const handleDelete = async (id: string, name: string) => {
@@ -60,7 +67,9 @@ export function SuppliersList() {
   }
 
   // Filter suppliers
-  const filteredSuppliers = suppliers.filter((s) => {
+  const rows = suppliers ?? []
+  const view = supplierListView(suppliers !== null, loadError, rows.length)
+  const filteredSuppliers = rows.filter((s) => {
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -69,7 +78,7 @@ export function SuppliersList() {
     )
   })
 
-  if (loading) {
+  if (view === 'loading') {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
@@ -105,8 +114,14 @@ export function SuppliersList() {
         />
       </div>
 
+      {loadError && (
+        <p className="text-sm text-red-800 bg-red-50 rounded-md px-3 py-2 break-words" data-testid="suppliers-load-error">
+          {loadError}. Det tælles ikke som ingen leverandører.
+        </p>
+      )}
+
       {/* Suppliers Grid */}
-      {filteredSuppliers.length === 0 ? (
+      {view === 'failed' ? null : filteredSuppliers.length === 0 ? (
         <div className="bg-white rounded-lg border p-12 text-center" data-testid="suppliers-empty">
           <Building2 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500 mb-4">

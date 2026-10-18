@@ -745,7 +745,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-6 | 5 Plan | ALLEREDE I PRODUKT: `planningLoadView` skelner fejl fra tom liste. Ingen ny commit. | Kontrakten i `planning-load-view-test` bliver. |
 | G18-7 | 6 Salg | DONE `eb73e7b7` månedens sendt- og vinderrate. | `reports.ts` og accepteret værdi uændret. |
 | G18-8 | 7 Assistent | DONE `a61d701a` opslag siger ingen træf eller antal kandidater. | Ingen webhook. `handle-update.ts` uændret. |
-| G18-9 | 8 Pilot | ÅBEN. Fejlet hentning må ikke ligne tom succes. Kun tekst, fil uden for leave-listen. | Fejl forbliver fejl. |
+| G18-9 | 8 Pilot | DONE leverandørlisten: fejlet hentning siger det og beholder sidste liste. Tom succes siger stadig opret. | Fejl forbliver fejl. |
 | G18-10 | 3 Ledelse | DONE `05f1d751` oversigten tæller advarsler i filtret. | Samme quality-tal. Ingen ny forespørgsel. |
 | G18-11 | 2 Faktura | DÆKKET AF `356a74e7`: tællingen ligger over mobil-listen og ombrydes. | Samme tal som desktop. |
 | G18-12 | 4 Pris | ÅBEN. Prishistorik: senest lagrede pris med dato. Ingen række siges højt. | Ingen nutidspris opfindes. |
