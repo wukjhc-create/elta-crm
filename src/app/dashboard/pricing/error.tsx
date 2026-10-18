@@ -27,7 +27,7 @@ export default function PricingError({ error, reset }: ErrorProps) {
           Der opstod en fejl. Prøv at genindlæse siden.
         </p>
         {error.digest && (
-          <p className="text-xs text-gray-400 mb-6 font-mono bg-gray-100 px-3 py-2 rounded-md">
+          <p className="text-xs text-gray-400 mb-6 font-mono bg-gray-100 px-3 py-2 rounded-md break-words min-w-0" data-testid="pricing-error-digest">
             Fejlkode: {error.digest}
           </p>
         )}
