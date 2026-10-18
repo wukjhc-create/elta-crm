@@ -264,7 +264,7 @@ function Highlight({ title, rows, empty, tone }: { title: string; rows: { key: s
           {rows.map((r) => (
             <li key={r.key} className="flex items-start justify-between gap-3">
               <span className="text-gray-800 break-words min-w-0">{r.description}</span>
-              <span className={`tabular-nums shrink-0 ${tone}`}>{kr(r.amount)}</span>
+              <span className={`tabular-nums break-words min-w-0 text-right ${tone}`} data-testid="aftercalc-highlight-amount">{kr(r.amount)}</span>
             </li>
           ))}
         </ul>
