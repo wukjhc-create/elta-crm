@@ -1274,7 +1274,8 @@ async function main() {
       check('honeypot udfyldt → 200 men intet gemt', hp.status === 200 && (await leadCount('hp')) === 0, `status=${hp.status}`)
       const a1 = await call(form('a'))
       const a2 = await call(form('a'))
-      check('første henvendelse opretter lead', a1.status === 200 && !!a1.json.leadId, JSON.stringify(a1))
+      // AS-8: svaret bærer ikke længere lead-id'et — leadet tjekkes i databasen
+      check('første henvendelse opretter lead (uden lead-id i svaret)', a1.status === 200 && a1.json.success === true && a1.json.leadId === undefined && (await leadCount('a')) === 1, JSON.stringify(a1))
       // LD-8: leadet kobles til kunden der blev oprettet/genbrugt
       const la = (await admin.from('leads').select('custom_fields').eq('email', mail('a')).maybeSingle()).data as { custom_fields?: { customer_id?: string } | null } | null
       const ca = (await admin.from('customers').select('id').eq('email', mail('a')).maybeSingle()).data as { id?: string } | null

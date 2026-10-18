@@ -1,5 +1,9 @@
 import { BRAND_EMAIL } from '@/lib/brand' // PM-5: rigtig kontaktadresse (kontakt@ synkes)
 import { Zap } from 'lucide-react'
+import type { Metadata } from 'next'
+
+// AS-9 (sikkerheds-review 2026-10-18): token-sider må ikke indekseres, og tokenet må ikke sendes videre som referrer
+export const metadata: Metadata = { robots: { index: false, follow: false }, referrer: 'no-referrer' }
 
 export default function PartnerLayout({
   children,

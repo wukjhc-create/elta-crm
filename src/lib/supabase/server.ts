@@ -45,14 +45,6 @@ export function createAnonClient() {
   )
 }
 
-export async function getSession() {
-  const supabase = await createClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session
-}
-
 /**
  * Perf-review 2026-10-08 (#2): én Auth-opslag pr. request — getUser kaldes af hver gate/permission-tjek (fx 10× i
  * træk på ordresiden). React cache() er request-scoped (Next-dokumentationens DAL-mønster).

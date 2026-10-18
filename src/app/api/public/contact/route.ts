@@ -76,12 +76,12 @@ function validateApiKey(request: NextRequest): boolean {
 // CORS headers for eltasolar.dk
 // =====================================================
 
+// AS-8 (sikkerheds-review 2026-10-18): lokale udviklings-origins kun uden for produktion
 const ALLOWED_ORIGINS = [
   'https://eltasolar.dk',
   'https://www.eltasolar.dk',
   'https://elta-crm.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:5500',
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3000', 'http://localhost:5500']),
 ]
 
 function getCorsHeaders(request: NextRequest) {
@@ -368,7 +368,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        leadId: lead.id,
+        // AS-8: intet lead-id til den offentlige afsender (som dubletsvaret, SEC2-6)
         message: 'Tak for din henvendelse! Vi kontakter dig hurtigst muligt.',
       },
       { status: 200, headers: cors }

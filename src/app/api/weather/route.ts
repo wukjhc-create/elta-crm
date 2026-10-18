@@ -71,7 +71,9 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(result, {
-      headers: { 'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800' },
+      // AS-7 (sikkerheds-review 2026-10-18): kræver login → kun browserens egen cache (før public/s-maxage → CDN kunne
+      // give svaret til ikke-indloggede)
+      headers: { 'Cache-Control': 'private, max-age=900' },
     })
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch weather' }, { status: 500 })
