@@ -111,10 +111,11 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
   return (
     <div className="bg-white rounded-lg border p-6">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h2 className="text-lg font-semibold">Opgaver</h2>
+        <h2 className="text-lg font-semibold break-words min-w-0" data-testid="customer-tasks-heading">Opgaver</h2>
         <button
           onClick={() => { setEditingTask(null); setShowForm(true) }}
-          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-primary hover:underline break-words min-w-0"
+          data-testid="customer-tasks-new"
         >
           <Plus className="w-4 h-4" />
           Ny opgave
@@ -155,7 +156,8 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
           <button
             type="button"
             onClick={() => { setEditingTask(null); setShowForm(true) }}
-            className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline break-words min-w-0"
+            data-testid="customer-tasks-empty-new"
           >
             <Plus className="w-4 h-4" />
             Ny opgave
