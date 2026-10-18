@@ -1283,6 +1283,26 @@ Sagens hentefejl ombrydes. Sætningen "Kunne ikke hente opgaver. Det tælles ikk
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-108, G18-60, G18-111, G18-136, G18-137, G18-138, G18-139.
 
+## Checkpoint 2026-10-18 tolvte (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `53906875`. Det omskriver ikke listerne ovenfor. Produktspids: `d9c88673`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `53906875..d9c88673`
+
+```
+d9c88673 feat(pilot): kundens hentefejl ombrydes
+```
+
+Listen er alle commits efter `53906875` til og med `d9c88673`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Kundens hentefejl ombrydes. `{loadError}` og sætningen "Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver." er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-108, G18-60, G18-111, G18-137, G18-138, G18-139, G18-140.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
