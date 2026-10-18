@@ -187,7 +187,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -2051,13 +2051,14 @@ ${m.text()}`) })
           r.link_med_kundens_token = srcdoc.includes(`/portal/${tok}/offers/${offerId}`)
           r.ingen_view_offer = !srcdoc.includes('/view-offer/')
           const exp = ((await c.admin.from('portal_access_tokens').select('expires_at').eq('token', tok).maybeSingle()).data as { expires_at?: string } | null)?.expires_at
-          r.token_forlaenget = !!exp && Date.parse(exp) > Date.now() + 300 * 86400_000
+          // PT-2 (2026-10-17): forhåndsvisningen forlænger IKKE linket (kun en faktisk afsendelse gør — testes ikke: ville sende mail)
+          r.forhaandsvisning_forlaenger_ikke = !!exp && Date.parse(exp) < Date.now() + 30 * 86400_000
           await a.page.keyboard.press('Escape').catch(() => {})
         } finally {
           if (offerId) await c.admin.from('offers').delete().eq('id', offerId)
           if (custId) { await c.admin.from('portal_access_tokens').delete().eq('customer_id', custId); await c.admin.from('customers').delete().eq('id', custId) }
         }
-        out.push({ id: 'U187 tilbudsmail: gyldigt portal-link genbruges og forlænges', ok: !!custId && !!offerId && Object.values(r).every(Boolean), note: `${cust.error?.message ?? ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+        out.push({ id: 'U187 tilbudsmail: gyldigt portal-link genbruges (forhåndsvisning forlænger ikke)', ok: !!custId && !!offerId && Object.values(r).every(Boolean), note: `${cust.error?.message ?? ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
       // U186 OF-1 (2026-10-17): inline-redigering af en linje med linjerabat bevarer rabatten (før nulstillet → total steg)
@@ -3696,6 +3697,34 @@ ${m.text()}`) })
           if (caseId) await c.admin.from('customer_documents').delete().eq('service_case_id', caseId)
         }
         out.push({ id: 'U174 slet dokument på sag (rolle, beskyttelse, storage, audit)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U190 PT-1 (portal-review 2026-10-17): admin opretter partner-adgang fra kundekortet (før rullede indsættelsen altid
+      // tilbage: select() bad om den skjulte token-kolonne, 00175). Ingen mail.
+      if (want('U190')) {
+        const r: Record<string, boolean> = {}
+        const pc = await c.admin.from('customers').insert([{ customer_number: `U190-${stamp}`, company_name: `[HARNESS] U190 partner ${stamp}`,
+          contact_person: 'Partner', email: `u190-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        const pCust = (pc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        try {
+          if (pCust) {
+            await gotoSafe(a.page, `${base}/dashboard/customers/${pCust}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            // partner-sektionens knap (kundeportalen har sin egen "Opret"-knap — tag den sidste "Opret adgang")
+            const btns = a.page.getByRole('button', { name: 'Opret adgang' })
+            await btns.first().waitFor({ timeout: 60_000 }).catch(() => {})
+            await btns.last().click({ timeout: 30_000 }).catch(() => {})
+            let n = 0
+            for (let i = 0; i < 20 && n === 0; i++) {
+              n = (await c.admin.from('partner_access_tokens').select('id', { count: 'exact', head: true }).eq('partner_customer_id', pCust).eq('is_active', true)).count ?? 0
+              if (!n) await new Promise((res) => setTimeout(res, 1000))
+            }
+            r.partner_adgang_oprettet = n === 1
+            r.ingen_fejltoast = (await a.page.getByText('Kunne ikke oprette partner-adgang').count()) === 0
+          }
+        } finally {
+          if (pCust) { await c.admin.from('partner_access_tokens').delete().eq('partner_customer_id', pCust); await c.admin.from('customers').delete().eq('id', pCust) }
+        }
+        out.push({ id: 'U190 partner-adgang kan oprettes (PT-1)', ok: !!pCust && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U189 FW-6 (montør-review 2026-10-17): besigtigelse gemt, men svaret mistes (netværk) → nyt "Gem" opdaterer SAMME

@@ -300,6 +300,8 @@ export interface EmailPreview {
 export interface GenerateEmailPreviewInput {
   offer_id: string
   template_code?: string
+  /** PT-2: kun ved faktisk afsendelse forlænges et snart-udløbende portal-link (aldrig ved forhåndsvisning) */
+  forSend?: boolean
 }
 
 // =====================================================

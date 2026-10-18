@@ -76,6 +76,8 @@ function calculateComplexityMultiplier(factors: ComplexityFactor[]): number {
 
   for (const factor of factors) {
     const cat = factor.category || 'other'
+    // CA-13 (kalkule-review 2026-10-17): 'access' tælles i calculateAccessibilityMultiplier — før også her (dobbelt, ×~1,5)
+    if (cat === 'access') continue
     if (!byCategory[cat]) {
       byCategory[cat] = []
     }
@@ -194,8 +196,9 @@ export function calculatePrice(
   }
 ): PriceCalculation {
   const hourly_rate = options?.hourly_rate || FALLBACK_SALE_RATE
-  const margin_percentage = options?.margin_percentage || DEFAULT_MARGIN_PERCENTAGE
-  const risk_buffer_percentage = options?.risk_buffer_percentage || DEFAULT_RISK_BUFFER_PERCENTAGE
+  // CA-13: en eksplicit 0 % avance/risiko er gyldig (før blev den til standard 25 %/5 %)
+  const margin_percentage = options?.margin_percentage ?? DEFAULT_MARGIN_PERCENTAGE
+  const risk_buffer_percentage = options?.risk_buffer_percentage ?? DEFAULT_RISK_BUFFER_PERCENTAGE
 
   // Calculate material cost (use cost price)
   const material_cost = materials.reduce((sum, m) => sum + m.total_cost, 0)

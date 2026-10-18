@@ -156,6 +156,14 @@ export async function applyPackageWithOptionsToOffer(
     .maybeSingle()
   let position = (lastLine?.position ?? 0) + 1
 
+  // CA-1 (kalkule-review 2026-10-17): basispris (salg) + stykliste via apply_package_to_offer (som OGSÅ prissætter med
+  // salgspris) fakturerede kunden to gange (fx 60.000 + 37.500). Indtil styklisten kan indsættes som ren kost, afvises
+  // kombinationen i stedet for at dobbeltfakturere. (Pakkevælgeren er i dag ikke monteret i UI'et.)
+  if (Number(pkg.base_price) > 0) {
+    const { count: bomCount } = await supabase.from('offer_package_items').select('id', { count: 'exact', head: true }).eq('package_id', pkg.id)
+    if ((bomCount ?? 0) > 0) throw new Error('Pakker med både basispris og stykliste understøttes ikke endnu (ville fakturere styklisten to gange)')
+  }
+
   // ---- 1. base price line (sale-side, no cost — that's the BOM below) ----
   if (Number(pkg.base_price) > 0) {
     const { data: ins, error } = await supabase

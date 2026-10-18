@@ -1521,6 +1521,12 @@ export async function createLineItemFromSupplierProduct(
     }
     validateUUID(offerId, 'tilbud ID')
     validateUUID(supplierProductId, 'leverandør produkt ID')
+    // CA-11 (kalkule-review 2026-10-17): samme grænser som createLineItemSchema — negativt antal/rabat over 100 % gav en
+    // negativ linje, der trak tilbuddet ned
+    if (!Number.isFinite(Number(quantity)) || Number(quantity) < 0.01) return { success: false, error: 'Antal skal være mindst 0,01' }
+    if (options?.customDiscount !== undefined && !(Number(options.customDiscount) >= 0 && Number(options.customDiscount) <= 100)) {
+      return { success: false, error: 'Rabat skal være mellem 0 og 100 %' }
+    }
 
     // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
     { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }

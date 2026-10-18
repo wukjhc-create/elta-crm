@@ -590,7 +590,9 @@ export async function generateEmailPreview(
     if (existingToken) {
       portalToken = existingToken.token
       const exp = (existingToken as { expires_at?: string | null }).expires_at
-      if (exp && Date.parse(exp) < Date.now() + 30 * 86_400_000) {
+      // PT-2 (portal-review 2026-10-17): kun ved afsendelse — forhåndsvisningen forlængede linket hver gang, så en aktiv
+      // kundes link reelt aldrig udløb
+      if (input.forSend && exp && Date.parse(exp) < Date.now() + 30 * 86_400_000) {
         const { error: extErr } = await supabase.from('portal_access_tokens')
           .update({ expires_at: new Date(Date.now() + 365 * 86_400_000).toISOString() })
           .eq('id', (existingToken as { id: string }).id)
@@ -759,6 +761,7 @@ export async function sendOfferEmail(
     const previewResult = await generateEmailPreview({
       offer_id: input.offer_id,
       template_code: input.template_code,
+      forSend: true, // PT-2
     })
 
     if (!previewResult.success || !previewResult.data) {

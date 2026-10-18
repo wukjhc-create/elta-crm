@@ -42,14 +42,25 @@ export async function createPartnerToken(
 ): Promise<ActionResult<PartnerAccessToken>> {
   try {
     const { supabase, userId } = await requireGate('settings.manage')
+    const { PARTNER_TOKEN_PUBLIC_COLUMNS } = await import('@/lib/portal/token-reader')
 
     // Idempotens: bloker en ny adgang hvis partner-kunden allerede har en
     // aktiv. Forhindrer dublet-tokens ved gentagne klik ("Opret adgang").
+    // PT-7 (portal-review 2026-10-17): udløbne-men-aktive adgange tæller ikke — de deaktiveres, så adgangen kan fornyes
+    // (som kundeportalen, G3). Før: "findes allerede en aktiv" efter 365 dage.
+    const nowIso = new Date().toISOString()
+    await supabase
+      .from('partner_access_tokens')
+      .update({ is_active: false })
+      .eq('partner_customer_id', data.partner_customer_id)
+      .eq('is_active', true)
+      .lte('expires_at', nowIso)
     const { data: existing } = await supabase
       .from('partner_access_tokens')
       .select('id')
       .eq('partner_customer_id', data.partner_customer_id)
       .eq('is_active', true)
+      .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
       .limit(1)
       .maybeSingle()
     if (existing) {
@@ -70,10 +81,12 @@ export async function createPartnerToken(
         email: data.email,
         token,
         // Partner-review 2026-10-08 (#6): en partner ser mange sager — adgang uden udløb levede for evigt
-        expires_at: data.expires_at || new Date(Date.now() + PARTNER_TOKEN_DEFAULT_DAYS * 86_400_000).toISOString(),
+        expires_at: clampTokenExpiry(data.expires_at) || new Date(Date.now() + PARTNER_TOKEN_DEFAULT_DAYS * 86_400_000).toISOString(), // PT-2: højst 365 dage frem, aldrig i fortiden
         created_by: userId,
       })
-      .select()
+      // PT-1 (portal-review 2026-10-17): token-kolonnen er skjult for bruger-sessionen (00175) — select() bad om alle
+      // kolonner → 42501 og insert rullet tilbage ("Kunne ikke oprette partner-adgang" hver gang). Som kundeportalen.
+      .select(PARTNER_TOKEN_PUBLIC_COLUMNS)
       .single()
 
     if (error) {
@@ -82,7 +95,7 @@ export async function createPartnerToken(
     }
 
     revalidatePath('/dashboard/customers')
-    return { success: true, data: tokenData as PartnerAccessToken }
+    return { success: true, data: { ...(tokenData as object), token } as PartnerAccessToken }
   } catch (error) {
     logger.error('Error in createPartnerToken', { error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -316,17 +329,25 @@ export async function getPartnerDocuments(
       return { success: true, data: [] }
     }
 
-    // 2) Kunde-vendte dokumenter koblet til de sager
-    const { data, error } = await admin
-      .from('customer_documents')
-      .select('id, title, description, document_type, file_name, mime_type, service_case_id, created_at')
-      .in('service_case_id', caseIds)
-      .in('document_type', PARTNER_DOCUMENT_TYPES as unknown as string[])
-      // ST-6 (storage-review 2026-10-16): kun delte dokumenter, aldrig interne mail-vedhæftninger (som kundeportalen)
-      .eq('visible_in_portal', true)
-      .is('source_email_id', null)
-      .or('document_type.is.null,document_type.neq.internal') // DB-4: interne dokumenter aldrig
-      .order('created_at', { ascending: false })
+    // 2) Kunde-vendte dokumenter koblet til de sager — PT-5 (portal-review 2026-10-17): i bidder á 200 (før ét .in() med
+    // alle sags-id'er → fejlede over ~350 og partneren så en tom liste)
+    type PartnerDocRow = { id: string; title: string; description: string | null; document_type: string; file_name: string; mime_type: string; service_case_id: string | null; created_at: string }
+    let data: PartnerDocRow[] = []
+    let error: { message?: string } | null = null
+    for (let k = 0; k < caseIds.length && !error; k += 200) {
+      const res = await admin
+        .from('customer_documents')
+        .select('id, title, description, document_type, file_name, mime_type, service_case_id, created_at')
+        .in('service_case_id', caseIds.slice(k, k + 200))
+        .in('document_type', PARTNER_DOCUMENT_TYPES as unknown as string[])
+        // ST-6 (storage-review 2026-10-16): kun delte dokumenter, aldrig interne mail-vedhæftninger (som kundeportalen)
+        .eq('visible_in_portal', true)
+        .is('source_email_id', null)
+        .or('document_type.is.null,document_type.neq.internal') // DB-4: interne dokumenter aldrig
+      if (res.error) error = res.error
+      else data = data.concat((res.data ?? []) as PartnerDocRow[])
+    }
+    data.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
 
     if (error) {
       logger.error('Error fetching partner documents', { error })
@@ -351,4 +372,12 @@ export async function getPartnerDocuments(
     logger.error('Error in getPartnerDocuments', { error })
     return { success: false, error: 'Der opstod en fejl' }
   }
+}
+
+/** PT-2 (portal-review 2026-10-17): klientens udløb begrænses til (nu, nu + 365 dage]; ugyldigt → standard-udløb */
+function clampTokenExpiry(value: string | null | undefined): string | null {
+  if (!value) return null
+  const t = Date.parse(value)
+  if (!Number.isFinite(t) || t <= Date.now()) return null
+  return new Date(Math.min(t, Date.now() + 365 * 86_400_000)).toISOString()
 }

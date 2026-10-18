@@ -98,7 +98,7 @@ export async function createPortalToken(
         email: data.email,
         token,
         // Kunde-review 2026-10-08 (#1): standard-udløb (før uendeligt) — som partneradgang
-        expires_at: data.expires_at || new Date(Date.now() + 365 * 86_400_000).toISOString(),
+        expires_at: clampTokenExpiry(data.expires_at) || new Date(Date.now() + 365 * 86_400_000).toISOString(), // PT-2: højst 365 dage frem, aldrig i fortiden
         created_by: userId,
       })
       .select(PORTAL_TOKEN_PUBLIC_COLUMNS) // token-kolonnen er skjult for bruger-sessionen (00175)
@@ -317,7 +317,8 @@ export async function getPortalOffers(
         .order('position'),
       supabase
         .from('offer_signatures')
-        .select('*')
+        // PT-12 (portal-review 2026-10-17): ingen signer_ip til browseren (kun den interne PDF/dashboard viser IP, ES-3)
+        .select('id, offer_id, signer_name, signer_email, signed_at, signature_data')
         .in('offer_id', offerIds),
     ])
 
@@ -325,7 +326,7 @@ export async function getPortalOffers(
     type LineItem = NonNullable<typeof lineItemsResult.data>[number]
     type Signature = NonNullable<typeof signaturesResult.data>[number]
     const lineItemsByOffer = new Map<string, LineItem[]>()
-    const signaturesByOffer = new Map<string, Signature | null>()
+    const signaturesByOffer = new Map<string, OfferSignature | null>() // PT-12: signer_ip altid null
 
     lineItemsResult.data?.forEach((item) => {
       const existing = lineItemsByOffer.get(item.offer_id) || []
@@ -334,7 +335,7 @@ export async function getPortalOffers(
     })
 
     signaturesResult.data?.forEach((sig) => {
-      signaturesByOffer.set(sig.offer_id, sig)
+      signaturesByOffer.set(sig.offer_id, { ...(sig as Signature), signer_ip: null } as unknown as OfferSignature) // PT-12: IP sendes aldrig
     })
 
     // Build result without additional queries
@@ -470,7 +471,7 @@ ${link}`,
     // Get signature if exists
     const { data: signature } = await admin
       .from('offer_signatures')
-      .select('*')
+      .select('id, offer_id, signer_name, signer_email, signed_at, signature_data') // PT-12: ingen signer_ip
       .eq('offer_id', offerId)
       .maybeSingle()
 
@@ -495,7 +496,7 @@ ${link}`,
       rejected_at: offer.rejected_at,
       created_at: offer.created_at,
       line_items: lineItems || [],
-      signature: signature || null,
+      signature: signature ? ({ ...signature, signer_ip: null } as unknown as OfferSignature) : null, // PT-12
       // N8: tilbuddets ansvarlige sælger (kun navn + arbejdskontakt; offer er allerede kunde-scopet ovenfor)
       sales_person: await portalSalesPerson(admin, offer.created_by as string | null),
     }
@@ -1108,6 +1109,10 @@ export async function sendPortalMessage(
     // Portal-grænser: længde, antal vedhæftninger og beskeder pr. time pr. kunde
     if (typeof data.message !== 'string' || data.message.length > PORTAL_MESSAGE_MAX_CHARS) {
       return { success: false, error: `Beskeden er for lang (højst ${PORTAL_MESSAGE_MAX_CHARS.toLocaleString('da-DK')} tegn)` }
+    }
+    // PT-9 (portal-review 2026-10-17): tom besked uden vedhæftning gemmes ikke (og udløser ingen medarbejder-mail)
+    if (!data.message.trim() && (data.attachments ?? []).length === 0) {
+      return { success: false, error: 'Skriv en besked eller vedhæft en fil' }
     }
     if ((data.attachments ?? []).length > PORTAL_MESSAGE_MAX_ATTACHMENTS) {
       return { success: false, error: `Højst ${PORTAL_MESSAGE_MAX_ATTACHMENTS} vedhæftninger pr. besked` }
@@ -2453,6 +2458,8 @@ export async function portalRequestReschedule(
     if (typeof message !== 'string' || message.length > 2000) {
       return { success: false, error: 'Beskeden er for lang (højst 2.000 tegn)' }
     }
+    // PT-13 (portal-review 2026-10-17): tomt ønske afvises
+    if (!message.trim()) return { success: false, error: 'Skriv hvornår det passer dig bedre' }
 
     // Use admin client — token already validated
     const { createAdminClient } = await import('@/lib/supabase/admin')
@@ -2461,13 +2468,17 @@ export async function portalRequestReschedule(
     // Verify task belongs to this customer
     const { data: task, error: fetchErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, due_date, title, description, assigned_to')
+      .select('id, customer_id, due_date, title, description, assigned_to, status')
       .eq('id', taskId)
       .eq('customer_id', session.customer_id)
       .single()
 
     if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; auto_rule?: string | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
+    }
+    // PT-13: en udført/annulleret besigtigelse kan ikke flyttes
+    if (['done', 'cancelled'].includes(String((task as { status?: string | null }).status ?? ''))) {
+      return { success: false, error: 'Besigtigelsen er allerede afsluttet — skriv til os i beskederne' }
     }
 
     // Q10: højst PORTAL_RESCHEDULE_MAX_PER_DAY åbne anmodninger pr. kunde pr. døgn (før: ubegrænset → opgave-spam)
@@ -2528,4 +2539,12 @@ async function portalSalesPerson(admin: ReturnType<typeof createAdminClient>, pr
   const { data } = await admin.from('profiles').select('full_name, email, phone, is_active').eq('id', profileId).maybeSingle()
   if (!data || data.is_active === false) return { full_name: null, email: '', phone: null }
   return { full_name: (data.full_name as string | null) ?? null, email: (data.email as string | null) ?? '', phone: (data.phone as string | null) ?? null }
+}
+
+/** PT-2 (portal-review 2026-10-17): klientens udløb begrænses til (nu, nu + 365 dage]; ugyldigt → standard-udløb */
+function clampTokenExpiry(value: string | null | undefined): string | null {
+  if (!value) return null
+  const t = Date.parse(value)
+  if (!Number.isFinite(t) || t <= Date.now()) return null
+  return new Date(Math.min(t, Date.now() + 365 * 86_400_000)).toISOString()
 }

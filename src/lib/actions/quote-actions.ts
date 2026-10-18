@@ -201,6 +201,8 @@ export async function shareQuoteToPortal(
       .maybeSingle()
 
     if (existing) {
+      // PT-4 (portal-review 2026-10-17): en tidligere (skjult) deling gøres synlig — før meldtes succes uden at kunden så noget
+      await supabase.from('customer_documents').update({ visible_in_portal: true }).eq('id', existing.id)
       return { success: true, data: { documentId: existing.id } }
     }
 
@@ -223,6 +225,7 @@ export async function shareQuoteToPortal(
         mime_type: 'application/pdf',
         sent_quote_id: sentQuoteId,
         shared_by: userId,
+        visible_in_portal: true, // PT-4: eksplicit deling (standard siden 00218 er skjult)
       })
       .select('id')
       .single()

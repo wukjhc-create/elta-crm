@@ -77,7 +77,8 @@ export async function sendTestReminder(): Promise<{ success: boolean; error?: st
     }
 
     // Log the portal URL for debugging
-    logger.info('Test reminder portalUrl', { metadata: { portalUrl, offerId, customerId: realOffer?.customer_id } })
+    // PT-10 (portal-review 2026-10-17): portal-URL'en indeholder kundens fulde adgangstoken — logges ikke
+    logger.info('Test reminder prepared', { metadata: { hasPortalUrl: !!portalUrl, offerId, customerId: realOffer?.customer_id } })
 
     const html = generateReminderEmailHtml(emailParams)
     const text = generateReminderEmailText(emailParams)

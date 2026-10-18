@@ -104,10 +104,13 @@ export async function applyPackageToDraftOfferAction(input: {
     const lock = await offerEditLockReason(supabase, input.offerId)
     if (lock) return { ok: false, message: lock }
 
+    // CA-12 (kalkule-review 2026-10-17): kunden (aftalepriser/avanceregler) tages fra TILBUDDET — klientens customerId
+    // kunne lægge en anden kundes priser på tilbuddet
+    const { data: offerRow } = await supabase.from('offers').select('customer_id').eq('id', input.offerId).maybeSingle()
     const result = await applyPackageWithOptionsToOffer({
       offerId: input.offerId,
       packageId: input.packageId,
-      customerId: input.customerId,
+      customerId: (offerRow as { customer_id?: string | null } | null)?.customer_id ?? null,
       optionIds: input.optionIds,
     })
 

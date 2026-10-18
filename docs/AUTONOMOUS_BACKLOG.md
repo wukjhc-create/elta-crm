@@ -211,6 +211,39 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-42 (review-bølge 2026-10-18 nat — partner/portal + kalkulation)
+| # | Fund | Status |
+|---|---|---|
+| PT-1 | Partner-adgang kunne aldrig oprettes (select() på skjult token-kolonne, 00175) (S2) | DONE (kode) — offentlige kolonner + token fra lokal variabel; U190 |
+| PT-2 | Portal-/partner-tokens kan leve evigt (NULL-udløb, klientstyret udløb, forhåndsvisning forlænger) (S3) | DELVIS (kode) — server-loft 365 dage (aldrig i fortiden) på portal-/partner-udløb; forhåndsvisning forlænger ikke (kun afsendelse, U187). NULL-backfill = BLOCKED_APPROVAL [MIGRATION] |
+| PT-3 | Sagsbeskrivelse (evt. intern mailtekst) vises i begge portaler (S3, plausibel) | TODO |
+| PT-4 | "Del til portal" for sendte tilbud viste aldrig tilbuddet (visible_in_portal) (S3) | DONE (kode) |
+| PT-5 | Partner med >~350 sager så ingen dokumenter (.in()-grænse) (S3) | DONE (kode) — bidder á 200 |
+| PT-6 | Deling med slutkunde deler også med partneren (S3, design) | BESLUTNING |
+| PT-7 | Udløbet partner-adgang kunne ikke fornyes (S4) | DONE (kode) — som G3 |
+| PT-8 | Portal-uploadkvote tæller medarbejderfiler; grænser ikke atomiske (S4) | TODO |
+| PT-9 | Tomme chatbeskeder (S4) | DONE (kode) |
+| PT-10 | Live portal-URL med token i logs (testrykker) (S4) | DONE (kode) |
+| PT-11 | Tokens i GET-querystrings (S4, plausibel) | TODO (lav prioritet) |
+| PT-12 | signer_ip sendt til portal-browseren (S4) | DONE (kode) |
+| PT-13 | Flytteønske for afsluttet/annulleret booking og tom besked (S4) | DONE (kode) |
+| PT-14 | Bekræftelseslinks overlever kundedeaktivering (S4, plausibel) | TODO |
+| CA-1 | Salgspakke: basispris + stykliste fakturerede dobbelt (S1, latent — pakkevælgeren er ikke monteret) | DONE (værn, kode) — kombinationen afvises indtil styklisten kan indsættes som ren kost |
+| CA-2 | PackageBuilder: tilsidesat salgspris fordelt efter arbejdstid (S1/S2) | TODO |
+| CA-3 | get_customer_product_price: RECORD IS NOT NULL springer aftaler over (S2) | BLOCKED_APPROVAL [MIGRATION] — IF FOUND |
+| CA-4 | AI-analyse → tilbud ignorerer beregnet pris/arbejde/kost (S2) | TODO |
+| CA-5 | refreshLineItemPrice overskriver linjens egen avance/manuelle pris (S2) | TODO |
+| CA-6 | Avance-præcedens forkert og forskellig pr. prissti (S2) | BESLUTNING + [MIGRATION] — én præcedens (kunde > produkt > …) |
+| CA-7 | Solar-kostpriser læsbare for alle via REST (S2) | BLOCKED_APPROVAL [MIGRATION] — jf. 00243-forslaget |
+| CA-8 | Pakkesti indsætter 0-kr-linjer (S3) | TODO |
+| CA-9 | round_to: ceil i TS, round i SQL (S3) | TODO (+migration) |
+| CA-10 | min/max-avance håndhæves aldrig (S3) | TODO |
+| CA-11 | createLineItemFromSupplierProduct accepterer negativt antal/rabat >100 % (S3) | DONE (kode) |
+| CA-12 | Salgspakke: customerId fra klienten; forkert kategori; mangler rå kost (S3) | DELVIS (kode) — kunden fra tilbuddet; kategori/rå kost = TODO |
+| CA-13 | AI-tid: adgangsfaktorer talt dobbelt; 0 % = standard (S3) | DONE (kode) |
+| CA-14 | savePackageBuilderCalculation: halv gemning + forkerte procenter (S3) | TODO |
+| CA-15 | convertCalculationToOffer: katalogpriser, dropper linjer (S3, latent) | TODO |
+
 ## NEXT-41 (review-bølge 2026-10-17 nat — montør-flow + udgående mail)
 | # | Fund | Status |
 |---|---|---|
