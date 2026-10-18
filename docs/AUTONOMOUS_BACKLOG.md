@@ -225,7 +225,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV2-9 | updateCustomerTask validerer ikke assigned_to/felter (S4) | TODO |
 | TZ-1 | Leverandørfaktura-hoved: "12.500" læses som 12,50 kr (S2) | DONE (kode) — fælles parseDanishDecimal (DKK/kr/typografisk minus, tvetydigt → null); header-edit, zod-skemaer for sag/medarbejder (ugyldigt = fejl, ikke null/0), estimerede timer, projektindtag (danish-decimal-test 51, U149/U145/U43/U185/U162) |
 | TZ-2 | "Antal ved tilføj": "1.000" → antal 1 (S3) | DONE (kode) — "Antal ved tilføj" og ny fakturalinje via fælles parser; toNumberDa: tomt → NaN (ikke 0); alle 20 kaldere gennemgået (U51/U15/U34/U40/U33) |
-| TZ-3 | Bookede besigtigelser gemmes som UTC-midnat (forsvinder/forsinket på dagen) (S3) | TODO |
+| TZ-3 | Bookede besigtigelser gemmes som UTC-midnat (forsvinder/forsinket på dagen) (S3) | DONE (kode) — intern booking og portalbooking gemmer det bookede klokkeslæt i dansk tid (dublet-tjek med samme værdi); mail-datoen med timeZone (U69 + tidspunkt 10:00, U70/U99). Intern booking ikke UI-testet |
 | TZ-4 | "Kommende opgaver" regner i UTC på serveren (S3) | TODO |
 | TZ-5 | Årsserier (faktura/tilbud/sag) skifter ved UTC-midnat (S4) | TODO (TS); allocate_invoice_number = BLOCKED_APPROVAL [MIGRATION] |
 | TZ-6 | Tilbuds-/quote-gyldighed én dag for kort omkring midnat/DST (S4) | TODO |

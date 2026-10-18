@@ -788,8 +788,12 @@ export async function bookBesigtigelse(
     // Mail-review 2026-10-08 (#7): opgaven oprettes FØR mailen og er kravet. Før: mail først → fejlede opgaven (eller
     // fik mailen timeout), bookede brugeren igen → kunden fik to bekræftelser med to kalenderinvitationer.
     const title = `Besigtigelse hos ${customerName}`
+    // TZ-3 (format-review 2026-10-18): due_date er timestamptz — kun datoen gav UTC-midnat (02:00 dansk), så besigtigelsen
+    // forsvandt fra "Kommende" og talte som forsinket fra 02:00 på selve dagen. Nu det bookede klokkeslæt i dansk tid.
+    const { copenhagenLocalToIso } = await import('@/lib/utils/copenhagen-time')
+    const dueIso = /^\d{2}:\d{2}$/.test(time) ? copenhagenLocalToIso(date, time) : copenhagenLocalToIso(date, '08:00')
     const { data: dup } = await supabase.from('customer_tasks').select('id')
-      .eq('customer_id', customerId).eq('title', title).eq('due_date', date)
+      .eq('customer_id', customerId).eq('title', title).eq('due_date', dueIso)
       .gte('created_at', new Date(Date.now() - 2 * 60_000).toISOString()).limit(1)
     if ((dup ?? []).length > 0) {
       return { success: true } // dobbeltklik: allerede booket og mailet
@@ -806,7 +810,7 @@ export async function bookBesigtigelse(
       title,
       description: `${baseDescription}\nBekræftelses-email sendes til ${route.toEmail}`,
       priority: 'high',
-      due_date: date,
+      due_date: dueIso,
       assigned_to: user.id,
       created_by: user.id,
     }).select('id').single()
@@ -821,7 +825,7 @@ export async function bookBesigtigelse(
     // sin egen og sender intet.
     {
       const { data: same } = await supabase.from('customer_tasks').select('id, created_at')
-        .eq('customer_id', customerId).eq('title', title).eq('due_date', date)
+        .eq('customer_id', customerId).eq('title', title).eq('due_date', dueIso)
         .gte('created_at', new Date(Date.now() - 2 * 60_000).toISOString())
         .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(5)
       const first = ((same ?? []) as Array<{ id: string }>)[0]

@@ -3309,6 +3309,8 @@ ${m.text()}`) })
         }
         if (task) u69TaskIds.push(task.id)
         r.crm_opgave_oprettet = !!task && task.created_by === null && (task.due_date ?? '').startsWith(dateKey) && (task.description ?? '').includes('10:00–12:00')
+        // TZ-3: opgavens tidspunkt er tidsrummets start i dansk tid (før UTC-midnat = 02:00)
+        { const { copenhagenParts } = await import('../../src/lib/utils/copenhagen-time'); r.tidspunkt_10_dansk = !!task?.due_date && copenhagenParts(task.due_date).clock === '10:00' }
         // D40: den interne opgave må hverken vises eller ligge i sidens data
         await gotoSafe(kp, `${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 120_000 })
         const html = await kp.content().catch(() => '')

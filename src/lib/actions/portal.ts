@@ -2102,7 +2102,8 @@ export async function portalBookBesigtigelse(
         description,
         status: 'pending',
         priority: 'high',
-        due_date: date,
+        // TZ-3: tidsrummets starttid i dansk tid (før UTC-midnat)
+        due_date: (await import('@/lib/utils/copenhagen-time')).copenhagenLocalToIso(date, (await import('@/lib/utils/ics')).extractStartTimeFromSlot(timeSlot)),
         // N31: created_by refererer auth.users — kunden er ikke en bruger (før: customer_id → FK-fejl, booking fejlede altid)
         created_by: null,
       })
@@ -2337,6 +2338,7 @@ export async function portalConfirmBesigtigelse(
     // Format date for email
     const formattedDate = task.due_date
       ? new Date(task.due_date).toLocaleDateString('da-DK', {
+          timeZone: 'Europe/Copenhagen', // TZ-3: due_date er nu det bookede tidspunkt
           weekday: 'long',
           day: 'numeric',
           month: 'long',
