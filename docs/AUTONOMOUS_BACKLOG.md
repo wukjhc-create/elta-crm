@@ -863,8 +863,9 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-124 | 2 Faktura | DONE fragt- og gebyrmærket på linjen ombrydes. | Ordene Fragt og Gebyr er uændret. |
 | G18-125 | 5 Plan | DONE ugedagsnavnene i kalenderen ombrydes. | Navnene er uændret. |
 | G18-126 | 2 Faktura | DONE linjenummeret på fakturakontrollens mobilkort kan krympe. | Nummeret og punktummet er uændret. |
-| G18-127 | 5 Plan | ÅBEN. Overskriften "Mine påmindelser" ombrydes. | Ordene er uændret. |
+| G18-127 | 5 Plan | DONE overskriften "Mine påmindelser" ombrydes. | Ordene er uændret. |
 | G18-128 | 2 Faktura | ÅBEN. Etiketterne Kontrollerede linjer, Overpris i alt og Leverandør ombrydes. | Ordene og beløbene er uændret. |
+| G18-129 | 5 Plan | ÅBEN. Dagsoverskriften på den valgte dag ombrydes. | `calendarDayHeading` er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
