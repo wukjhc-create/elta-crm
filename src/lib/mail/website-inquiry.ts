@@ -40,6 +40,15 @@ export function normalizeFormSubmitTable(text: string): string {
     // Tabelhovedet "Name | Value" er ikke et felt
     if (lines[i].toLowerCase() === 'name' && next?.toLowerCase() === 'value') { i++; continue }
     if (/^name\s+value$/i.test(lines[i])) continue
+    // LD-11 (leads-review 2026-10-18): inde i beskeden er en linje kun et nyt felt, hvis feltnavnet står præcis som
+    // formularen sender det (små bogstaver, fx "adresse"). En sætning som "Adresse er den samme som sidst" bliver i
+    // beskeden — før kaprede den adressefeltet, og den rigtige adresse bagefter blev ignoreret (første fund vinder).
+    const inMessage = out.length > 0 && out[out.length - 1].startsWith('Besked: ')
+    const firstWord = lines[i].split(/\s+/)[0]
+    if (inMessage && firstWord !== firstWord.toLowerCase() && !FORM_FOOTER.test(lines[i])) {
+      out[out.length - 1] += ` ${lines[i]}`
+      continue
+    }
     if (key && next !== undefined && !FORM_KEYS[next.toLowerCase()]) {
       out.push(`${key}: ${next}`)
       i++

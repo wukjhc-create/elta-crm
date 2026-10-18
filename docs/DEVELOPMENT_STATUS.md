@@ -1,6 +1,34 @@
 # Development status — checkpoint til næste session
 
-**Opdateret:** 2026-10-17 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
+**Opdateret:** 2026-10-18 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
+
+## Long-run 2026-10-18 — NEXT-42/43/44 (kun kode, ingen migrationer, intet live)
+| Commit | Indhold |
+|---|---|
+| 2e7eb2f1 · 34cadbe4 · 6458da4f · 3a8150e6 · 3e011598 · 72610030 · 7afa2df8 | Dashboard DB-1/2/3(delvis)/4/5/6/7/8/9/10/11(delvis)/13/14 |
+| 90ab91f4 · 76728ab8 · c47c91b0 | IV-1/2/9/12 parser, IV-4 (delvis) priskontrol, IV-10 konverterede sager, IV-14 |
+| 772ee278 · 023d7fd2 · 87be508e · 1eebf009 · 02a321f0 · 24f816f6 | IV-13 backfill, IV-11 PDF-opgradering, IV-2 rest, IV-3 filløse rækker, IV-8 brødtekst-gate, IV-15 |
+| 005b00d9 · 05bcf2e8 · c3c3d4e0 | IV-6 AO-kreditnotaer, IV-5 afrunding, IV-7 samlet linje til fordeling (U191) |
+| 00472349 · ca861575 · e167e3eb · 4c3bfe31 · 3164a3b9 | TT-1 (S1: rettet starttid genberegner beløb), TT-4/7 fakturabinding, TT-6 (delvis), TT-8/11 godkendelse, TT-10 |
+| 7cd34bb3 · 7c3eff56 · 4a0a7ae2 · cfb6961e · 41e24643 · fed5b060 · fa8682ab · 44aba485 | LD-1 (S2: signeret URL til vilkårlig fil), LD-3/5/4(delvis)/10(delvis)/13/14/8(delvis)/6(delvis)/7 (U192 ny) |
+| a75369b3 · 182a0061 · fd190f11 | RX-6 sidste admin/egen konto, RX-3/8/9(delvis)/10, RX-4 valuta i rapporter |
+| 52da08be | Migrationsforslag 00252–00256 (docs/runbooks/next44-migrations-proposal.md) — BLOCKED_APPROVAL |
+
+**Til Henrik (beslutninger/godkendelser):**
+- Migrationer 00237–00256: hver kræver sin egen godkendelse.
+  - Nye i dag: 00252 `user_role` uden deaktiverede, 00253 overlap + trigger, 00254 lead-politikker, 00255 salgskolonner
+    (kode først), 00256 betalingsview.
+- Beslutninger:
+  - IV-4 (ukendt enhed = ikke kontrollerbar?)
+  - DB-11 (modregne kreditnotaer i likviditet?)
+  - TT-2 (slå automatik "faktura fra arbejdsordre" fra?)
+  - TT-3, TT-9
+  - LD-2/4/8/9/12
+  - RX-2 (= RP-6)
+  - samt de ældre fra 2026-10-17
+
+**Proces:** Windows-build-flaken (UNKNOWN open/lstat i `.next`) kom oftere i dag. Den gik altid over ved genkørsel uden
+kodeændring. Sletning af `.next` blev afvist af tilladelsesværnet og er ikke forsøgt igen.
 
 ## Long-run 2026-10-17 — NEXT-27/28/29 (kun kode, ingen migrationer, intet live)
 | Commit | Indhold |

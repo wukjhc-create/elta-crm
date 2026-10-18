@@ -211,6 +211,29 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-45 (review-bølge 2026-10-18 middag — AI/LLM og auth)
+| # | Fund | Status |
+|---|---|---|
+| AI-1 | Mail fra ukendt afsender auto-kobles til kunde via telefon/navn i brødteksten (uden godkendelse) → kundens data i AI-svarudkast (S2) | BESLUTNING — kun auto-kobling på afsender-/kontaktmail; telefon/navn → mail.link_customer-forslag? |
+| AI-2 | Auto-kalibrering dividerer to gange og ignorerer antal → forkerte basistider skrives i kataloget; montør kan forgifte feedback (S2) | DELVIS (kode) — Σfaktisk/Σantal pr. enhed, antal ≤ 0 ignoreres, højst ±25 %; feedback kræver projects.edit + plausible timer + eksisterende kalkulation (calibration-test). RLS på calculation_feedback = BLOCKED_APPROVAL [MIGRATION] |
+| AI-3 | AI-udtræk valideres ikke før kundeoprettelse (navn/telefon/adresse fra prompt-injektion) (S3) | TODO |
+| AI-4 | Hele mailtekster inkl. CPR/bankoplysninger sendes til OpenAI uden maskering (S3) | TODO (maskering); DPA/zero-retention = BESLUTNING |
+| AI-5 | Auto-tilbud: mailtekst styrer avance (isLargeProject) og kundevendt beskrivelse (S3, bag flag) | TODO |
+| AI-6 | canSpendAi fejler åbent; budget ikke atomisk; ingen max_tokens (S4) | TODO |
+| AI-7 | LLM-udkast kan blive "gennemset" sendeforslag uden indholdstjek (S4) | TODO |
+| AI-8 | Noter fra tale ligner skrevne (source telegram) (S4) | TODO |
+| AS-1 | logOfferActivity: kalderen vælger performedBy/type uden gate → forfalsket tilbudshistorik (S3) | TODO |
+| AS-2 | Kontaktformular: global timegrænse kan misbruges (blokerer rigtige kunder); lead kobles til kunde via ubekræftet e-mail (S3) | BESLUTNING (+ evt. migration til grænse pr. IP) |
+| AS-3 | Deaktivering afslutter ikke sessioner; requireAuth/getAuthenticatedClient tjekker ikke is_active (S3/S4) | TODO (requireAuth); sessionstilbagekaldelse = BLOCKED_APPROVAL [MIGRATION] |
+| AS-4 | /reset-password skifter adgangskode med enhver session (ingen re-autentificering) (S4) | BESLUTNING (Supabase "Secure password change") |
+| AS-5 | requestPasswordReset: timing-enumerering, ingen grænse, spærrede får mail (S4) | TODO |
+| AS-6 | Dokumentbekræftelser: markConfirmationMailFailed uden gate; øvrige uden sags-scope (S4) | TODO |
+| AS-7 | /api/weather beder CDN cache et login-svar (public, s-maxage) (S4) | TODO |
+| AS-8 | Kontaktformular tillader localhost-origins i prod og returnerer nyt lead-id (S4) | TODO |
+| AS-9 | Portal/partner uden noindex/no-referrer (S4) | TODO |
+| AS-10 | Hemmeligheds-sammenligning på flere måder (lækker længde) (S4) | TODO |
+| AS-11 | Ubrugt getSession()-eksport stoler på cookie (S4) | TODO |
+
 ## NEXT-44 (review-bølge 2026-10-18 formiddag — timer/løn, leads, rapporter/eksport/team)
 | # | Fund | Status |
 |---|---|---|
@@ -235,7 +258,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LD-8 | Offentligt kontakt-endpoint opretter kunde men kobler ikke leadet (S3) | DELVIS (kode) — leadet kobles til kunden (custom_fields.customer_id; cli public-contact-limit-check). Kunde ved hver indsendelse = BESLUTNING |
 | LD-9 | Ny webhenvendelse fra eksisterende kunde bliver aldrig lead i bulk (S3) | BESLUTNING |
 | LD-10 | Audit-huller og frit activityType (S3) | DELVIS (kode) — activityType-whitelist (note/call/email/meeting) + længdegrænse; logCreate ved kunde fra lead. Audit i linkLead/createLeadFromEmail = TODO |
-| LD-11 | FormSubmit-normalisering: beskedlinjer der starter med feltnavn kaprer felter (S4) | TODO |
+| LD-11 | FormSubmit-normalisering: beskedlinjer der starter med feltnavn kaprer felter (S4) | DONE (kode) — i beskeden er en linje kun et felt med feltnavnet i små bogstaver; type/besked i LABEL_LINE_RE (website-inquiry-test +2) |
 | LD-12 | Lead kan oprettes direkte som vundet/tabt (S4) | BESLUTNING |
 | LD-13 | Konverteringens e-maildedupe kan vælge inaktiv kunde (S4) | DONE — aktiv kunde foretrækkes (order is_active desc) |
 | LD-14 | Dashboardets seneste aktivitet uden leads.view-gate (S4) | DONE — leads/kunder/tilbud-sektioner kun med modulets view-ret (U70) |
@@ -245,7 +268,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | RX-4 | Rapporttotaler blander valutaer (S3) | DONE (kode) — kronebeløb kun DKK i oversigt, periode, kunde, tabt omsætning og salgstragt (antal uændret); sales-funnel-test +2, U88/U91/U100 |
 | RX-5 | Betalingsoversigt/-CSV blander valutaer under "(DKK)" (S3) | BLOCKED_APPROVAL [MIGRATION] — forslag 00256 (eller beslutning: kun DKK) |
 | RX-6 | Deaktivering via medarbejderkortet: ingen selv-blok og ingen sidste-admin-genoptælling (S3) | DONE (kode) — setLoginWithEmployee: eget login kan ikke deaktiveres; sidste aktive admin genoptælles efter skrivning og rulles tilbage (U145 regression; selv-/race-scenariet ikke UI-testet) |
-| RX-7 | Gen-invitation af afventende bruger skifter rolle uden værn/audit (S4) | TODO |
+| RX-7 | Gen-invitation af afventende bruger skifter rolle uden værn/audit (S4) | DONE (kode) — opslag i Auth før invitation; eksisterende bruger henvises til Gensend/rolleskift (ikke UI-testet) |
 | RX-8 | "Aktive projekter" tæller den gamle projects-tabel (S4) | DONE — tæller aktive service_cases (ikke lukket/konverteret/forslag); feltet vises p.t. ikke i UI |
 | RX-9 | Eksport: AI-forslag/konverterede sager med, inkl. moms under "(DKK)", tavs afkortning ved 10.000 (S4) | DELVIS — AI-forslag og konverterede sager udeladt; valuta/ekskl. moms-kolonner + afkortningsadvarsel = TODO |
 | RX-10 | Bogholderi ser eksportknapper der altid fejler (S4) | DONE — kun eksportknapper med ret (U88/U91/U100) |

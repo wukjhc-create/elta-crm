@@ -150,7 +150,7 @@ interface LabeledResult {
 }
 
 // Regex that matches the start of ANY known label line — used to detect where a block ends
-const LABEL_LINE_RE = /^(?:navn|kundenavn|kunde|kontaktperson|kontakt|bestiller|rekvirent|att\.?|attention|name|customer|beboer|ejer|lejer|e-?mail|email|mail|e-post|tlf\.?|tel\.?|telefon|phone|mobil|mob\.?|mobilnr\.?|telefonnr\.?|nr\.?|ring|adresse|adr\.?|installationsadresse|leveringsadresse|arbejdssted|projektadresse|address|by|city|postnr\.?(?:\s*(?:\/|og|&)\s*by)?|post|postnummer|oplysninger)\s*[:=]/i
+const LABEL_LINE_RE = /^(?:navn|kundenavn|kunde|kontaktperson|kontakt|bestiller|rekvirent|att\.?|attention|name|customer|beboer|ejer|lejer|e-?mail|email|mail|e-post|tlf\.?|tel\.?|telefon|phone|mobil|mob\.?|mobilnr\.?|telefonnr\.?|nr\.?|ring|adresse|adr\.?|installationsadresse|leveringsadresse|arbejdssted|projektadresse|address|by|city|postnr\.?(?:\s*(?:\/|og|&)\s*by)?|post|postnummer|oplysninger|type|besked)\s*[:=]/i
 
 // Section headers that contain customer data — parser will prioritize lines AFTER these
 const SECTION_HEADER_RE = /^(?:oplysninger\s+p[åa]\s+kunden|kundeoplysninger|kunde\s*data|kundeinfo|customer\s*info)\s*:?\s*$/i

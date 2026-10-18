@@ -48,6 +48,12 @@ const multi = ["<p>Here's what they had to say</p>", '<table>', '<tr><th>Name</t
 const fm = extractFormSubmitFields(null, multi)
 ok(fm.Besked === 'Hej Vi vil gerne have solceller Mvh Ole', 'flerlinjet besked bevares uden sidefod', JSON.stringify(fm.Besked))
 
+// LD-11 (2026-10-18): en beskedlinje der begynder med et feltnavn ("Adresse er den samme …") kaprer ikke feltet; den
+// rigtige adresse (feltnavnet med små bogstaver, som formularen sender det) læses stadig
+const hij = normalizeFormSubmitTable(["Here's what they had to say:", 'name Hans Hansen', 'message Ring gerne i morgen', 'Adresse er den samme som sidst', 'adresse Solvej 12'].join('\n'))
+ok(hij.includes('Adresse: Solvej 12') && !hij.includes('Adresse: er den samme'), 'beskedlinje med feltnavn kaprer ikke adressen', JSON.stringify(hij))
+ok(/Besked: Ring gerne i morgen Adresse er den samme som sidst/.test(hij), 'linjen bliver i beskeden', JSON.stringify(hij))
+
 // Regressionsværn: andre FormSubmit-/noreply-mails scores fortsat ned (støjfiltret er uændret for dem)
 ok(scoreEmail({ subject: 'Action Required: Activate FormSubmit', senderEmail: 'noreply@formsubmit.co', senderName: null, bodyText: 'activate', bodyHtml: null, bodyPreview: null } as never) < 2, 'systemmail fortsat lav score')
 
