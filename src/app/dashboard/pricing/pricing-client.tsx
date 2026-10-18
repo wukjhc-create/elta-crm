@@ -680,7 +680,7 @@ function StatusBadge({ status }: { status: string }) {
     expired: 'Udløbet',
   }
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full break-words min-w-0 ${styles[status] || 'bg-gray-100 text-gray-700'}`} data-testid="pricing-offer-status">
       {labels[status] || status}
     </span>
   )
