@@ -219,7 +219,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | TT-3 | Standard-overtidssatser seedes som faste beløb på andet kostgrundlag (S2) | BESLUTNING — seed kun multiplikator (NULL-satser)? migrér eksisterende? |
 | TT-4 | Binding af timer til faktura tjekker kun invoice_line_id (ikke godkendt/tider) (S3) | DONE (kode) — binding kræver approved + uændret start/slut; ellers fjernes linjen (concurrency C7/C8, vat-guard) |
 | TT-5 | Samtidige overlappende registreringer (ingen exclusion constraint) (S3) | BLOCKED_APPROVAL [MIGRATION] — EXCLUDE USING gist |
-| TT-6 | Salgsbeløb når montører (create/update-svar; kollegaers sale_rate_snapshot via REST) (S3) | TODO (kode: stripTimeLogPrices på svar); kolonne-REVOKE = BLOCKED_APPROVAL [MIGRATION] |
+| TT-6 | Salgsbeløb når montører (create/update-svar; kollegaers sale_rate_snapshot via REST) (S3) | DELVIS (kode) — opret/ret-svar uden kost og uden salg for roller uden salgsret (U11/U30/U34/U40); kolonne-REVOKE af sale_* for authenticated = BLOCKED_APPROVAL [MIGRATION] |
 | TT-7 | Slutfaktura kan få en afvist time med (bind uden status-/tidstjek) (S3) | DONE (kode) — slutfakturaens binding kræver approved + uændrede tider; ellers rulles hele slutfakturaen tilbage (billing-model-check, concurrency C8) |
 | TT-8 | Godkendelsens "set"-tjek ignorerer billable/arbejdsordre (S4) | TODO |
 | TT-9 | Gem af ventende/afvist række genprisser til dagens sats (S4) | BESLUTNING — må ventende rækker genprisses? |

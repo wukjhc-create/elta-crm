@@ -388,7 +388,7 @@ export async function createTimeLog(
       const { autoStartCaseOnWork } = await import('@/lib/cases/case-auto-start')
       await autoStartCaseOnWork(wo.case_id as string, 'time_logged', userId)
     }
-    return { success: true, data: { ...(data as unknown as TimeLogRow), cost_amount: null, cost_rate_snapshot: null } as TimeLogRow }
+    return { success: true, data: stripOneTimeLogPrice(data as unknown as TimeLogRow, hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -566,7 +566,7 @@ export async function updateTimeLog(
       normalizeApprovedTimeLogPatch(patch, cur as ApprovedTimeLogCurrent)
       if (Object.keys(patch).length === 0) {
         const { data: unchanged } = await supabase.from('time_logs').select(TIME_LOG_PUBLIC_COLUMNS).eq('id', timeLogId).maybeSingle()
-        if (unchanged) return { success: true, data: unchanged as unknown as TimeLogRow }
+        if (unchanged) return { success: true, data: stripOneTimeLogPrice(unchanged as unknown as TimeLogRow, hasPermission) }
       }
     }
 
@@ -624,7 +624,7 @@ export async function updateTimeLog(
       revalidatePath(`/dashboard/orders/${wo.case_id}`)
     }
 
-    return { success: true, data: { ...(data as unknown as TimeLogRow), cost_amount: null, cost_rate_snapshot: null } as TimeLogRow }
+    return { success: true, data: stripOneTimeLogPrice(data as unknown as TimeLogRow, hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -754,6 +754,15 @@ async function markEditableByMe(
   const scope = await getWorkOrderEmployeeScope({ role: ctx.role, userId: ctx.userId, supabase: ctx.supabase })
   const myEmp = scope.type === 'employee' ? scope.employeeId : null
   return rows.map((r) => ({ ...r, editable_by_me: !!myEmp && (r as { employee_id?: string | null }).employee_id === myEmp }))
+}
+
+/**
+ * TT-6 (timer-review 2026-10-18): svaret fra opret/ret bar salgsbeløb og -sats til montøren (kun kosten blev nulstillet).
+ * Samme regel som listerne: kost aldrig i svaret; salg kun med invoices.view.own_cases eller kostpris-ret.
+ */
+function stripOneTimeLogPrice(row: TimeLogRow, hasPermission: (p: Permission) => boolean): TimeLogRow {
+  const sale = hasPermission('economy.cost_prices') || hasPermission('invoices.view.own_cases')
+  return { ...row, cost_amount: null, cost_rate_snapshot: null, ...(sale ? {} : { sale_amount: null, sale_rate_snapshot: null }) } as TimeLogRow
 }
 
 function stripTimeLogPrices(rows: TimeLogWithEmployee[], hasPermission: (p: Permission) => boolean): TimeLogWithEmployee[] {
