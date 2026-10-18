@@ -112,7 +112,7 @@ export async function generateReplyDraft(email: IncomingEmailLite): Promise<{ dr
 
   let allowed = false
   try {
-    allowed = await canSpendAi()
+    allowed = await canSpendAi({ failClosed: true }) // AI-6: kommentaren lovede fail-closed, men canSpendAi kastede aldrig
   } catch {
     allowed = false // fail-closed paa spend
   }

@@ -339,6 +339,7 @@ export async function generateOfferAiSummary(
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0,
+        max_tokens: 600, // AI-6 (AI-review 2026-10-18): loft over output
         response_format: { type: 'json_object' },
         messages: [
           {

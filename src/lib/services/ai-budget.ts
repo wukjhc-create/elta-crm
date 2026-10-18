@@ -30,14 +30,16 @@ function todayUtc(): string {
  * Returns true if there is budget remaining for at least one more call.
  * Does NOT increment — call recordAiCall() after the call completes.
  */
-export async function canSpendAi(): Promise<boolean> {
+export async function canSpendAi(opts: { failClosed?: boolean } = {}): Promise<boolean> {
   try {
     const supabase = createAdminClient()
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('ai_usage_daily')
       .select('call_count')
       .eq('day', todayUtc())
       .maybeSingle()
+    // AI-6 (AI-review 2026-10-18): en læsefejl blev før ignoreret (data = null → 0 brugt → altid tilladt)
+    if (error) throw new Error(error.message)
     const used = data?.call_count ?? 0
     const cap = getCap()
     if (used >= cap) {
@@ -46,9 +48,10 @@ export async function canSpendAi(): Promise<boolean> {
     }
     return true
   } catch (err) {
-    // On read failure, fail OPEN (better to allow than to block all email processing).
-    console.warn('canSpendAi check failed; allowing call', err instanceof Error ? err.message : err)
-    return true
+    // On read failure, fail OPEN (better to allow than to block all email processing) — undtagen når kalderen beder om
+    // fail-closed (mail-agenten: et svarudkast kan altid laves med skabelonen)
+    console.warn(`canSpendAi check failed; ${opts.failClosed ? 'blocking' : 'allowing'} call`, err instanceof Error ? err.message : err)
+    return !opts.failClosed
   }
 }
 

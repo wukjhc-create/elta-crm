@@ -1134,6 +1134,7 @@ async function callOpenAI(
       body: JSON.stringify({
         model: OPENAI_MODEL,
         temperature: 0,
+        max_tokens: 400, // AI-6 (AI-review 2026-10-18): JSON-svar er korte — loft over output
         response_format: responseFormat,
         messages: [
           { role: 'system', content: 'Du er en præcis dansk klassifikations- og udtrækningsmotor. Svar altid med ren JSON uden markdown.' },
