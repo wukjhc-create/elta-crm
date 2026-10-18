@@ -117,7 +117,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
           )}
           {data && (
             <>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 break-words min-w-0" data-testid="case-aftercalc-intro">
                 {data.offer
                   ? `Tilbud ${data.offer.offer_number ?? ''} mod sagens registrerede forbrug og udstedte fakturaer. Beløb er ekskl. moms.`
                   : 'Sagen har intet tilbud. Faktisk forbrug og fakturering vises alligevel.'}
