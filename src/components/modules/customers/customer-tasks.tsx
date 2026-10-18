@@ -150,8 +150,8 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
         <p className="text-sm text-red-700 py-6 text-center" data-testid="customer-tasks-load-error">{loadError}</p>
       ) : activeTasks.length === 0 && doneTasks.length === 0 ? (
         <div className="text-center py-6" data-testid="customer-tasks-empty">
-          <p className="text-gray-700 font-medium">Ingen opgaver endnu</p>
-          <p className="text-sm text-gray-500 mt-1">Opret en opgave, hvis der skal følges op på kunden.</p>
+          <p className="text-gray-700 font-medium break-words min-w-0" data-testid="customer-tasks-empty-title">Ingen opgaver endnu</p>
+          <p className="text-sm text-gray-500 mt-1 break-words min-w-0" data-testid="customer-tasks-empty-hint">Opret en opgave, hvis der skal følges op på kunden.</p>
           <button
             type="button"
             onClick={() => { setEditingTask(null); setShowForm(true) }}
