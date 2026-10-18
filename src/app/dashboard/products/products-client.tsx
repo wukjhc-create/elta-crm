@@ -207,7 +207,7 @@ export default function ProductsClient({
 
       {/* Products Table */}
       {loadError ? (
-        <p className="text-sm text-red-700 py-8 text-center" data-testid="products-load-error">
+        <p className="text-sm text-red-700 py-8 text-center break-words min-w-0" data-testid="products-load-error">
           {loadError}. Det tælles ikke som ingen produkter.
         </p>
       ) : products.length === 0 ? (
