@@ -28,9 +28,11 @@ type Client = { from: (t: string) => any }
 export async function loadInvoiceControl(client: Client, invoiceId: string, catalogClient: Client = client): Promise<InvoiceControlResult | null> {
   const { data: inv } = await client.from('incoming_invoices').select('id, supplier_id, invoice_date').eq('id', invoiceId).maybeSingle()
   if (!inv) return null
-  const { data: rows } = await client.from('incoming_invoice_lines')
-    .select('line_number, description, quantity, unit, unit_price, supplier_product_id, raw_line').eq('incoming_invoice_id', invoiceId).order('line_number')
-  const lines = (rows ?? []) as Array<{ line_number: number; description: string | null; quantity: number | null; unit?: string | null; unit_price: number | null; supplier_product_id: string | null; raw_line: string | null }>
+  // IV-14: side for side (store AO-fakturaer har > 1.000 linjer)
+  const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+  const rows = await fetchAllRows((f, t) => client.from('incoming_invoice_lines')
+    .select('id, line_number, description, quantity, unit, unit_price, total_price, supplier_product_id, raw_line').eq('incoming_invoice_id', invoiceId).order('line_number').order('id').range(f, t))
+  const lines = (rows ?? []) as Array<{ line_number: number; description: string | null; quantity: number | null; unit?: string | null; unit_price: number | null; total_price?: number | null; supplier_product_id: string | null; raw_line: string | null }>
 
   const toMatch = lines.map((l) => ({ lineNumber: l.line_number, description: l.description, supplierProductCode: codeFromRawLine(l.raw_line) }))
   let products: ProductRef[] = []
@@ -46,7 +48,11 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     }
   }
   const storedIds = [...new Set(lines.map((l) => l.supplier_product_id).filter(Boolean) as string[])]
-  const stored = storedIds.length ? (((await catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price, unit').in('id', storedIds)).data ?? []) as ProductRef[]) : []
+  // IV-14 (leverandørfaktura-review 2026-10-18): i bidder á 200 (.in() med >~350 id'er fejlede stille)
+  const stored: ProductRef[] = []
+  for (let k = 0; k < storedIds.length; k += 200) {
+    stored.push(...((((await catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price, unit').in('id', storedIds.slice(k, k + 200))).data) ?? []) as ProductRef[]))
+  }
   const storedById = new Map(stored.map((p) => [p.id, p]))
   products = [...new Map(products.map((p) => [p.id, p])).values()]
 
@@ -84,7 +90,13 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     const sku = st?.supplier_sku ?? (m.supplierProductId ? products.find((p) => p.id === m.supplierProductId)?.supplier_sku ?? null : null)
     matches.push({ lineNumber: l.line_number, method: st ? 'stored' : m.method, productSku: sku, expectedUnitPrice: expected })
     const prodUnit = (st as { unit?: string | null } | undefined)?.unit ?? (m.supplierProductId ? (products.find((p) => p.id === m.supplierProductId) as { unit?: string | null } | undefined)?.unit ?? null : null)
-    return { lineNumber: l.line_number, description: l.description ?? '', quantity: l.quantity, unitPrice: l.unit_price, expectedUnitPrice: expected,
+    // IV-4 (leverandørfaktura-review 2026-10-18): den FAKTISK fakturerede pris (linjetotal / antal, efter rabat) — ikke
+    // listeprisen (som fordelingen allerede bruger, LF-3). Før: 100 m à 4,00 med total 445 = "ok"; liste 100 −30 % = falsk +43 %
+    const qty = Number(l.quantity)
+    const billedUnit = l.total_price != null && Number.isFinite(Number(l.total_price)) && qty !== 0 && Number.isFinite(qty)
+      ? Math.abs(Number(l.total_price) / qty)
+      : l.unit_price
+    return { lineNumber: l.line_number, description: l.description ?? '', quantity: l.quantity, unitPrice: billedUnit, expectedUnitPrice: expected,
       unit: l.unit ?? null, expectedUnit: prodUnit,
       expectedMissingReason: st || m.supplierProductId ? 'produkt uden kostpris' : inv.supplier_id ? 'intet produktmatch' : 'leverandør ukendt' }
   }))

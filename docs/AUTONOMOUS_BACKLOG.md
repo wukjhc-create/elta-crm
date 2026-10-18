@@ -232,7 +232,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | DONE (kode) — fakturanummer kræver et ciffer; invoice-parser-test +4 |
 | IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | DELVIS (kode) — kun gyldige kalenderdatoer (ugyldig → null); manuel-kontrol-flag ved fejlet opdatering = TODO |
 | IV-3 | Mail-fakturaer fra før vedhæftnings-hentning kan dubleres (S2, plausibel) | TODO |
-| IV-4 | Priskontrol sammenligner listepris i stedet for faktureret pris (S2) | TODO |
+| IV-4 | Priskontrol sammenligner listepris i stedet for faktureret pris (S2) | DELVIS (kode) — kontrollen bruger faktisk faktureret pris (total/antal); "ukendt enhed = ikke kontrollerbar" = TODO (ville slå kontrol fra for mange linjer) |
 | IV-5 | Afrunding af enhedskost giver anden sagskost end fakturaen (S3) | TODO |
 | IV-6 | AO-kreditnotaer med positive beløb (S3, plausibel) | TODO |
 | IV-7 | Mail-/uploadfakturaer (inkl. kreditnotaer) kan aldrig fordeles til sag (S3) | TODO |
@@ -242,7 +242,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV-11 | Automatisk match fra mailtekst bevares efter PDF-opgradering (S3) | TODO |
 | IV-12 | Efterstillet minus fra næste linje → faktura bliver kreditnota (S3) | DONE (kode) — efterstillet minus kun på samme linje |
 | IV-13 | Backfill stopper ved 1.000 rækker (S3) | TODO |
-| IV-14 | Priskontrol-loader: rækkeloft og .in() (S4) | TODO |
+| IV-14 | Priskontrol-loader: rækkeloft og .in() (S4) | DONE (kode) — linjer side for side, produkt-id i bidder |
 | IV-15 | Mindre parse-/valideringshuller (S4) | TODO |
 | HT-7 | U158 forældet seed (produkt uden enhed → 'ikke kontrollerbar' efter F-9) | DONE — seed med enhed 'm'; cli deviation-probe til diagnose |
 
