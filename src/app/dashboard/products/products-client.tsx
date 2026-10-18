@@ -226,7 +226,7 @@ export default function ProductsClient({
               Ryd søgning
             </Button>
           ) : (
-            <Button onClick={() => setShowCreateDialog(true)}>
+            <Button onClick={() => setShowCreateDialog(true)} className="break-words min-w-0" data-testid="product-create-empty">
               <Plus className="w-4 h-4 mr-2" />
               Opret produkt
             </Button>
