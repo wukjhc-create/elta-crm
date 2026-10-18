@@ -275,7 +275,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
             <p className="mt-1 text-xs text-gray-600 break-words">{alert.supplier_name}</p>
             <p className="mt-1 text-xs tabular-nums text-gray-500 break-words">Gammel {formatCurrency(alert.old_price)}</p>
             <p className="text-xs tabular-nums font-medium text-gray-900 break-words">Ny {formatCurrency(alert.new_price)}</p>
-            <p className="mt-1 text-xs text-gray-600">
+            <p className="mt-1 text-xs text-gray-600 break-words min-w-0" data-testid="pricing-alert-affects-mobile">
               Tilbud {alert.affects_offers} · kalkulationer {alert.affects_calculations}
             </p>
             <p className="text-xs text-gray-500 break-words min-w-0" data-testid="pricing-alert-date-mobile">{formatDateUtil(alert.changed_at)}</p>
@@ -325,13 +325,13 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
                   <td className="px-4 py-2.5 text-center">
                     <div className="flex items-center justify-center gap-2 text-xs">
                       {alert.affects_offers > 0 && (
-                        <span className="flex items-center gap-0.5 text-amber-600">
+                        <span className="flex items-center gap-0.5 text-amber-600 break-words min-w-0" data-testid="pricing-alert-affects-offers">
                           <FileText className="h-3 w-3" />
                           {alert.affects_offers}
                         </span>
                       )}
                       {alert.affects_calculations > 0 && (
-                        <span className="flex items-center gap-0.5 text-blue-600">
+                        <span className="flex items-center gap-0.5 text-blue-600 break-words min-w-0" data-testid="pricing-alert-affects-calc">
                           <Package className="h-3 w-3" />
                           {alert.affects_calculations}
                         </span>
