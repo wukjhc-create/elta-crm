@@ -280,7 +280,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
               <p className="text-xs text-gray-600 break-words min-w-0 mb-2" data-testid="calendar-day-reminder-count">{dayReminderCountText(remindersByDate[selectedDate]!.length)}</p>
               <ul className="space-y-1 mb-2">
                 {remindersByDate[selectedDate]!.map((r) => (
-                  <li key={r.id} className={`text-sm ${r.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                  <li key={r.id} className={`text-sm break-words min-w-0 ${r.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
                     ⏰ {copenhagenParts(r.due_at).clock} {r.title}
                   </li>
                 ))}
