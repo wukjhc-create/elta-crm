@@ -1328,6 +1328,27 @@ Listen er alle commits efter `9f4eb434` til og med `4f4e11a1`. Docs-committen me
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-111, G18-138, G18-139, G18-140, G18-141, G18-142.
 
+## Checkpoint 2026-10-18 fjortende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `496594f0`. Det omskriver ikke listerne ovenfor. Produktspids: `623c151d`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `496594f0..623c151d`
+
+```
+623c151d feat(pilot): opgaveoverskrift ombrydes
+da791158 feat(plan): flere paamindelser ombrydes
+```
+
+Listen er alle commits efter `496594f0` til og med `623c151d`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+"+N påmindelser" på månedsdagen ombrydes. Tællingen er uændret, og dagbrikkerne afkortes stadig. Overskriften "Opgaver" og knapperne "Ny opgave" ombrydes. Dialogen "Rediger opgave" / "Ny opgave" er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-139, G18-140, G18-141, G18-142, G18-143, G18-144.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
