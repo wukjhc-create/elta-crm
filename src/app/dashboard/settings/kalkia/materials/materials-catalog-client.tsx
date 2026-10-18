@@ -512,14 +512,14 @@ export function MaterialsCatalogClient({ initialMaterials, loadError = null }: M
             <Card key={material.id} className={`transition-shadow ${!material.is_active ? 'opacity-60' : 'hover:shadow-md'}`}>
               <CardContent className="py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3 min-w-0">
-                  <div className="flex items-center gap-4 flex-1">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
                       <Package className="w-5 h-5 text-orange-600" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900">{material.name}</h3>
-                        <Badge variant="outline" className="text-xs">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 min-w-0" data-testid="materials-card-name">
+                        <h3 className="font-semibold text-gray-900 break-words min-w-0">{material.name}</h3>
+                        <Badge variant="outline" className="text-xs max-w-full whitespace-normal break-words">
                           {material.sku || material.id.slice(0, 8)}
                         </Badge>
                         {!material.is_active && (
