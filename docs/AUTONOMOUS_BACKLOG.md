@@ -215,10 +215,10 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | # | Fund | Status |
 |---|---|---|
 | TT-1 | Approver retter kun starttid på godkendt registrering → sale/cost-beløb bliver på de gamle timer (trigger kører ikke på start_time) (S1) | DONE (kode) — ændret starttid tager end_time med i SET-listen, så triggeren genberegner (som ved ændret sluttid: dagens sats); approved-time-patch-test + rate-engine R6. Migration (start_time i triggerlisten) = BLOCKED_APPROVAL, ikke nødvendig for rettelsen |
-| TT-2 | SQL-funktionen der fakturerer en arbejdsordre bruger live-sats + skjult fallback, ignorerer frosne beløb/overtid; pending-timer i race (S2) | BLOCKED_APPROVAL [MIGRATION] — eller slå automatik-handlingen fra |
+| TT-2 | SQL-funktionen der fakturerer en arbejdsordre bruger live-sats + skjult fallback, ignorerer frosne beløb/overtid; pending-timer i race (S2) | BESLUTNING — slå automatik-handlingen fra (anbefalet) eller ny SQL-funktion; se docs/runbooks/next44-migrations-proposal.md |
 | TT-3 | Standard-overtidssatser seedes som faste beløb på andet kostgrundlag (S2) | BESLUTNING — seed kun multiplikator (NULL-satser)? migrér eksisterende? |
 | TT-4 | Binding af timer til faktura tjekker kun invoice_line_id (ikke godkendt/tider) (S3) | DONE (kode) — binding kræver approved + uændret start/slut; ellers fjernes linjen (concurrency C7/C8, vat-guard) |
-| TT-5 | Samtidige overlappende registreringer (ingen exclusion constraint) (S3) | BLOCKED_APPROVAL [MIGRATION] — EXCLUDE USING gist |
+| TT-5 | Samtidige overlappende registreringer (ingen exclusion constraint) (S3) | BLOCKED_APPROVAL [MIGRATION] — forslag 00253 (EXCLUDE USING gist + start_time i triggeren) |
 | TT-6 | Salgsbeløb når montører (create/update-svar; kollegaers sale_rate_snapshot via REST) (S3) | DELVIS (kode) — opret/ret-svar uden kost og uden salg for roller uden salgsret (U11/U30/U34/U40); kolonne-REVOKE af sale_* for authenticated = BLOCKED_APPROVAL [MIGRATION] |
 | TT-7 | Slutfaktura kan få en afvist time med (bind uden status-/tidstjek) (S3) | DONE (kode) — slutfakturaens binding kræver approved + uændrede tider; ellers rulles hele slutfakturaen tilbage (billing-model-check, concurrency C8) |
 | TT-8 | Godkendelsens "set"-tjek ignorerer billable/arbejdsordre (S4) | DONE (kode) — set-tjek + compare-and-set også på billable og work_order_id (U62/U72/U117/U119) |
@@ -226,7 +226,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | TT-10 | "Klar til fakturering" tæller timer der afventer godkendelse (S4) | DONE (kode) — cockpit + sagens økonomipanel tæller kun godkendte timer som klar til fakturering; lukke-værnet tæller fortsat afventende (U99/U162/U15) |
 | TT-11 | Godkend/afvis tjekker ikke lukket sag (S4) | DONE (kode) — rækker på lukket sag springes over med egen årsag "på lukket sag" |
 | LD-1 | Signeret URL til vilkårlig fil i attachments via leads.custom_fields.attachments (montør/salg kan PATCHe lead) (S2) | DONE (kode) — egen kopi kun under lead-attachments/<leadId>/, kildesti kun hvis den står på leadets egen kildemail (lead-attachment-access-test); RLS-del = LD-2 |
-| LD-2 | Lead-skrivepolitikker bredere end appen (montør INSERT/UPDATE; lead_activities uden performed_by = auth.uid()) (S2) | BLOCKED_APPROVAL [MIGRATION] + BESLUTNING (må salg opdatere alle leads?) |
+| LD-2 | Lead-skrivepolitikker bredere end appen (montør INSERT/UPDATE; lead_activities uden performed_by = auth.uid()) (S2) | BLOCKED_APPROVAL [MIGRATION] — forslag 00254 + BESLUTNING (må salg opdatere alle leads?) |
 | LD-3 | Kobling af lead til eksisterende kunde efterlader leadets tilbud uden kunde (S2) | DONE (kode) — fælles linkLeadArtifactsToCustomer (tilbud uden kunde + kildemail) i konvertering (også allerede-koblet), "Kobl til denne kunde" og "Opret kunde fra mail" (U131 udvidet, U27) |
 | LD-4 | Tildeling vises ingen steder (profiler fyldes aldrig); ikke-admin kan ikke tildele (S2) | DELVIS (kode) — navne på ansvarlig/oprettet af/aktiviteter slås op (RLS); tildelingslisten åben for leads.edit/create, kun aktive (U192). Standardtildeling/"Kun mine" = BESLUTNING |
 | LD-5 | Lead-redigering overskriver samtidige ændringer og kan genåbne vundet lead (S3) | DONE (kode) — updateLead compare-and-set på status + updated_at fra formularen; "ændret imens" (U192 ny) |
@@ -239,11 +239,11 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LD-12 | Lead kan oprettes direkte som vundet/tabt (S4) | BESLUTNING |
 | LD-13 | Konverteringens e-maildedupe kan vælge inaktiv kunde (S4) | DONE — aktiv kunde foretrækkes (order is_active desc) |
 | LD-14 | Dashboardets seneste aktivitet uden leads.view-gate (S4) | DONE — leads/kunder/tilbud-sektioner kun med modulets view-ret (U70) |
-| RX-1 | Deaktiveret bruger beholder RLS-rettigheder til token udløber (user_role() tjekker ikke is_active) (S2) | BLOCKED_APPROVAL [MIGRATION] |
+| RX-1 | Deaktiveret bruger beholder RLS-rettigheder til token udløber (user_role() tjekker ikke is_active) (S2) | BLOCKED_APPROVAL [MIGRATION] — forslag 00252 |
 | RX-2 | reports.export håndhæves aldrig; masseeksport uden audit (S3) | BESLUTNING (= NEXT-26 RP-6); audit pr. eksport = TODO |
 | RX-3 | Modtagere af betalingsrapport auditeres kun som antal (S3) | DONE — audit med tilføjede/fjernede adresser (betalingsrapport + eksportfejl-notifikation) |
 | RX-4 | Rapporttotaler blander valutaer (S3) | DONE (kode) — kronebeløb kun DKK i oversigt, periode, kunde, tabt omsætning og salgstragt (antal uændret); sales-funnel-test +2, U88/U91/U100 |
-| RX-5 | Betalingsoversigt/-CSV blander valutaer under "(DKK)" (S3) | BLOCKED_APPROVAL [MIGRATION] (view) |
+| RX-5 | Betalingsoversigt/-CSV blander valutaer under "(DKK)" (S3) | BLOCKED_APPROVAL [MIGRATION] — forslag 00256 (eller beslutning: kun DKK) |
 | RX-6 | Deaktivering via medarbejderkortet: ingen selv-blok og ingen sidste-admin-genoptælling (S3) | DONE (kode) — setLoginWithEmployee: eget login kan ikke deaktiveres; sidste aktive admin genoptælles efter skrivning og rulles tilbage (U145 regression; selv-/race-scenariet ikke UI-testet) |
 | RX-7 | Gen-invitation af afventende bruger skifter rolle uden værn/audit (S4) | TODO |
 | RX-8 | "Aktive projekter" tæller den gamle projects-tabel (S4) | DONE — tæller aktive service_cases (ikke lukket/konverteret/forslag); feltet vises p.t. ikke i UI |
