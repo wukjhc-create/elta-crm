@@ -931,12 +931,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-192 | 4 Pris | DONE. Produktbeskrivelsen på katalogets mobilkort ombrydes i stedet for line-clamp-2. | Navn, kost og listepris er uændret. |
 | G18-193 | 4 Pris | DONE. Listeprisen i produktkataloget ombrydes. | formatCurrency(product.list_price) er uændret. |
 | G18-194 | 4 Pris | DONE. Kategorimærket i produktkataloget ombrydes. | Navnet er uændret. |
-| G18-195 | 4 Pris | ÅBEN. Den tomme katalogtekst ombrydes. | De to sætninger er uændret. |
+| G18-195 | 4 Pris | DONE. Den tomme katalogtekst ombrydes. | De to sætninger er uændret. |
 | G18-196 | 4 Pris | ÅBEN. Overskriften på det tomme katalog ombrydes. | De to sætninger er uændret. |
 | G18-197 | 4 Pris | ÅBEN. Statusmærket Aktiv og Inaktiv i kataloget ombrydes. | Ordene er uændret. |
 | G18-198 | 4 Pris | ÅBEN. Kolonneoverskrifterne i produktkataloget ombrydes. | Ordene er uændret. |
 | G18-199 | 4 Pris | ÅBEN. Etiketterne Kostpris og Listepris på katalogets mobilkort ombrydes. | Ordene er uændret. |
 | G18-200 | 4 Pris | ÅBEN. Knappen Nyt produkt ombrydes. | setShowCreateDialog er uændret. |
+| G18-201 | 4 Pris | ÅBEN. Antallet over produktkataloget ombrydes. | Sætningen og total er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

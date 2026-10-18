@@ -216,7 +216,7 @@ export default function ProductsClient({
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             {hasFilter ? 'Ingen produkter matcher søgningen' : 'Ingen produkter fundet'}
           </h3>
-          <p className="text-gray-500 mb-4">
+          <p className="text-gray-500 mb-4 break-words min-w-0" data-testid="products-empty-text">
             {hasFilter
               ? 'Prøv et andet navn, varenummer eller en anden kategori.'
               : 'Kom i gang ved at oprette dit første produkt'}
