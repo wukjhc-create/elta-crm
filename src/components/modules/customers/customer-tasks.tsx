@@ -272,7 +272,7 @@ function TaskRow({
             </span>
           )}
           {task.due_date ? (
-            <span className={`inline-flex items-center gap-1 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+            <span className={`inline-flex items-center gap-1 text-xs break-words min-w-0 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`} data-testid="customer-task-due">
               {isOverdue && <AlertTriangle className="w-3 h-3" />}
               <Clock className="w-3 h-3" />
               {new Date(task.due_date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short', year: 'numeric' })}
