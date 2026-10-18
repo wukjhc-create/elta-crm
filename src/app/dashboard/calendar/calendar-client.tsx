@@ -285,7 +285,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                   </li>
                 ))}
               </ul>
-              <Link href="/dashboard/tasks" className="text-xs text-blue-600 hover:underline">Ret under Opgaver → Mine påmindelser</Link>
+              <Link href="/dashboard/tasks" className="text-xs text-blue-600 hover:underline break-words min-w-0" data-testid="calendar-day-reminder-link">Ret under Opgaver → Mine påmindelser</Link>
             </div>
           )}
           <div className="p-4">

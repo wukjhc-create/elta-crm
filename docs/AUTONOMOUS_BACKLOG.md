@@ -754,7 +754,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-43 | 8 Pilot | DONE materialekortets kost og salg ombrydes. | `formatCurrency` og avanceformlen er uændret. |
 | G18-44 | 8 Pilot | DONE materialenavn og varenummer ombrydes på kortet. | Priser og avance er uændret. |
 | G18-45 | 8 Pilot | DONE mærke og enhed på materialekortet ombrydes. | Navn, varenummer, priser og avance er uændret. |
-| G18-50 | 5 Plan | ÅBEN. Linket under dagens påmindelser ombrydes. | Påmindelseslisten og overskriften er uændret. |
+| G18-50 | 5 Plan | DONE linket under dagens påmindelser ombrydes. | Påmindelseslisten og overskriften er uændret. |
+| G18-90 | 5 Plan | ÅBEN. Titlerne i dagens påmindelsesliste ombrydes. | Overskriften og linket er uændret. |
 | G18-13 | 6 Salg | ÅBEN. Tilbud ude: filter- eller tælle-mærke på en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
 | G18-14 | 5 Plan | DONE dagsoverskriften viser antal hentede opgaver. Tom dag siger stadig ingen besigtigelser. | Ingen ny query. Påmindelser tælles ikke her. |
 | G18-37 | 4 Pris | DONE null listepris siger "Ingen lagret pris". | Kost er G18-19. 0 kr forbliver 0 kr. Ingen opfundet pris. |
