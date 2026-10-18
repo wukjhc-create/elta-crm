@@ -114,10 +114,11 @@ export async function getLeads(filters?: {
     const total = countResult.count || 0
     const totalPages = Math.ceil(total / pageSize)
 
+    const leadRows = await withLeadProfiles(supabase, (dataResult.data ?? []) as LeadWithRelations[])
     return {
       success: true,
       data: {
-        data: dataResult.data as LeadWithRelations[],
+        data: leadRows,
         total,
         page,
         pageSize,
@@ -153,7 +154,8 @@ export async function getLead(id: string): Promise<ActionResult<LeadWithRelation
       return { success: false, error: 'Lead blev ikke fundet' }
     }
 
-    return { success: true, data: data as LeadWithRelations }
+    const [withProfiles] = await withLeadProfiles(supabase, [data as LeadWithRelations])
+    return { success: true, data: withProfiles }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente lead') }
   }
@@ -586,7 +588,10 @@ export async function getLeadActivities(
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: (data || []) as LeadActivity[] }
+    // LD-4: hvem der udførte aktiviteten (før "Ukendt" på alle)
+    const acts = (data || []) as LeadActivity[]
+    const byId = await profilesById(supabase, acts.map((a) => a.performed_by))
+    return { success: true, data: acts.map((a) => ({ ...a, performed_by_profile: byId.get(a.performed_by) ?? null })) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente aktiviteter') }
   }
@@ -640,13 +645,16 @@ export async function getTeamMembers(): Promise<
 > {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('users.view')) {
-      return { success: false, error: 'Manglende tilladelse: users.view' }
+    // LD-4 (leads-review 2026-10-18): listen bruges af lead-formularens "Tildelt til" — før kun users.view (admin), så
+    // serviceleder/salg kunne hverken tildele eller omfordele. Kun aktive brugere (en deaktiveret kan ikke følge op).
+    if (!hasPermission('users.view') && !hasPermission('leads.edit') && !hasPermission('leads.create')) {
+      return { success: false, error: 'Manglende tilladelse: leads.edit' }
     }
 
     const { data, error } = await supabase
       .from('profiles')
       .select('id, full_name, email')
+      .eq('is_active', true)
       .order('full_name')
 
     if (error) {
@@ -787,6 +795,37 @@ export async function getLeadAttachmentUrlAction(leadId: string, storagePath: st
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente filen') }
   }
+}
+
+type LeadProfile = { id: string; full_name: string | null; email: string }
+
+/**
+ * LD-4 (leads-review 2026-10-18): der er ingen FK leads→profiles, så *_profile blev aldrig udfyldt — detaljesiden viste
+ * altid "Ikke tildelt"/"Ukendt". Navne slås op separat (bruger-klienten, så RLS gælder) i bidder á 200.
+ */
+async function profilesById(
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
+  ids: Array<string | null | undefined>,
+): Promise<Map<string, LeadProfile>> {
+  const uniq = Array.from(new Set(ids.filter((v): v is string => typeof v === 'string' && v.length > 0)))
+  const out = new Map<string, LeadProfile>()
+  for (let i = 0; i < uniq.length; i += 200) {
+    const { data } = await supabase.from('profiles').select('id, full_name, email').in('id', uniq.slice(i, i + 200))
+    for (const p of (data ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>) out.set(p.id, { id: p.id, full_name: p.full_name, email: p.email ?? '' })
+  }
+  return out
+}
+
+async function withLeadProfiles(
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
+  rows: LeadWithRelations[],
+): Promise<LeadWithRelations[]> {
+  const byId = await profilesById(supabase, rows.flatMap((r) => [r.assigned_to, r.created_by]))
+  return rows.map((r) => ({
+    ...r,
+    assigned_to_profile: r.assigned_to ? byId.get(r.assigned_to) ?? null : null,
+    created_by_profile: r.created_by ? byId.get(r.created_by) ?? null : null,
+  }))
 }
 
 async function notifyLeadAssigned(assigneeId: string, leadId: string, companyName: string): Promise<void> {

@@ -2660,6 +2660,22 @@ ${m.text()}`) })
           let row = await readLead()
           for (let i = 0; i < 15 && row?.phone !== '11223344'; i++) { await new Promise((res) => setTimeout(res, 1000)); row = await readLead() }
           r.redigering_gemt = row?.phone === '11223344' && row?.status === 'negotiation'
+          // LD-4: "Oprettet af" viser navnet (før altid "Ukendt" — profilerne blev aldrig slået op)
+          const adminName = ((await c.admin.from('profiles').select('full_name').eq('id', adminUser.id).maybeSingle()).data as { full_name?: string | null } | null)?.full_name ?? ''
+          await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const bodyTxt = (await a.page.locator('body').textContent().catch(() => '')) ?? ''
+          r.oprettet_af_navn = !!adminName && bodyTxt.includes(adminName)
+          // LD-4: salg kan vælge en ansvarlig (før kun "Ikke tildelt" — listen krævede users.view)
+          const sx = await login(await mkUser('salg'))
+          try {
+            await gotoSafe(sx.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await sx.page.getByRole('button', { name: /^Rediger$/ }).first().click({ timeout: 60_000 }).catch(() => {})
+            const sel = sx.page.locator('#assigned_to')
+            await sel.waitFor({ timeout: 30_000 }).catch(() => {})
+            let n = 0
+            for (let i = 0; i < 10 && n <= 1; i++) { n = await sel.locator('option').count().catch(() => 0); if (n <= 1) await sx.page.waitForTimeout(500) }
+            r.salg_kan_tildele = n > 1
+          } finally { await sx.ctx.close().catch(() => {}) }
           // 2) forældet formular: åbn, leadet vindes imens, gem
           await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByRole('button', { name: /^Rediger$/ }).first().click({ timeout: 60_000 }).catch(() => {})

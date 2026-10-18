@@ -228,7 +228,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LD-1 | Signeret URL til vilkårlig fil i attachments via leads.custom_fields.attachments (montør/salg kan PATCHe lead) (S2) | DONE (kode) — egen kopi kun under lead-attachments/<leadId>/, kildesti kun hvis den står på leadets egen kildemail (lead-attachment-access-test); RLS-del = LD-2 |
 | LD-2 | Lead-skrivepolitikker bredere end appen (montør INSERT/UPDATE; lead_activities uden performed_by = auth.uid()) (S2) | BLOCKED_APPROVAL [MIGRATION] + BESLUTNING (må salg opdatere alle leads?) |
 | LD-3 | Kobling af lead til eksisterende kunde efterlader leadets tilbud uden kunde (S2) | DONE (kode) — fælles linkLeadArtifactsToCustomer (tilbud uden kunde + kildemail) i konvertering (også allerede-koblet), "Kobl til denne kunde" og "Opret kunde fra mail" (U131 udvidet, U27) |
-| LD-4 | Tildeling vises ingen steder (profiler fyldes aldrig); ikke-admin kan ikke tildele (S2) | TODO (visning + tildelingsliste); standardtildeling/"Kun mine" = BESLUTNING |
+| LD-4 | Tildeling vises ingen steder (profiler fyldes aldrig); ikke-admin kan ikke tildele (S2) | DELVIS (kode) — navne på ansvarlig/oprettet af/aktiviteter slås op (RLS); tildelingslisten åben for leads.edit/create, kun aktive (U192). Standardtildeling/"Kun mine" = BESLUTNING |
 | LD-5 | Lead-redigering overskriver samtidige ændringer og kan genåbne vundet lead (S3) | DONE (kode) — updateLead compare-and-set på status + updated_at fra formularen; "ændret imens" (U192 ny) |
 | LD-6 | Webhenvendelse: by tabes, postnr+by havner i gaden (S3) | TODO |
 | LD-7 | Dobbelt-indsendt webformular giver dubletleads (S3) | TODO |
