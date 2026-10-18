@@ -41,6 +41,8 @@
 | 3ba44c50 · 464914f6 | ES-3 PDF-blok "Accepteret og underskrevet"; migrationsforslag 00248–00250 (bevisintegritet) |
 | 69767864 · 48132a2c · 014b11d0 | FW-1 (montør ser ikke kontraktbeløb), FW-2/3/4/7/11/12/13/14/15; ML-1 (S1: portal-link kun til betalende kunde), ML-2/3/4/6/7/10/11/12 |
 | aa8e02fd · d83399dd · c05883a7 · 774e54be · 2c7a1f2f · d30b7264 | ML-9 (delvis), ML-5, FW-6 (idempotent besigtigelse, U189), FW-5, FW-8 (delvis), ML-8 |
+| 0a492ca3 · 51f369ac · b0f90031 | PT-1 (partner-adgang kunne ikke oprettes, U190), PT-2 (kode)/3/4/5/7/9/10/12/13/14; CA-1 (værn)/5/8/11/12 (delvis)/13/14 (delvis) |
+| 83d1f1b7 · c9df6220 · 6d7c92d8 · 6fbded7c | CA-4 (delvis), CA-15 (fjernet), CA-2, CA-10 (validering); migrationsforslag 00251 (CA-3). UI-full 162/163 (+U188 grøn separat) |
 
 Ikke lavet (tilladelse): DF-1-værnet i create-invoice-from-offer.ts blev afvist af auto-mode-værnet to gange. Patchen står i
 docs/runbooks/auto-invoice-offer-guard-proposal.md. Reglen er dry_run i prod.
