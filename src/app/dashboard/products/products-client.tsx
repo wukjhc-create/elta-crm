@@ -222,7 +222,7 @@ export default function ProductsClient({
               : 'Kom i gang ved at oprette dit første produkt'}
           </p>
           {hasFilter ? (
-            <Button type="button" variant="outline" onClick={clearFilters} data-testid="products-clear-filters">
+            <Button type="button" variant="outline" onClick={clearFilters} className="break-words min-w-0" data-testid="products-clear-filters">
               Ryd søgning
             </Button>
           ) : (
