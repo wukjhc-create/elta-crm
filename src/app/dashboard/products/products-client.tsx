@@ -255,12 +255,12 @@ export default function ProductsClient({
                 <dl className="grid grid-cols-2 gap-2 text-sm">
                   {canSeeCost && (
                     <div>
-                      <dt className="text-xs text-gray-500">Kostpris</dt>
+                      <dt className="text-xs text-gray-500 break-words min-w-0" data-testid="product-cost-label-mobile">Kostpris</dt>
                       <dd className="break-words" data-testid="product-cost-price">{storedCostText(product.cost_price)}</dd>
                     </div>
                   )}
                   <div>
-                    <dt className="text-xs text-gray-500">Listepris</dt>
+                    <dt className="text-xs text-gray-500 break-words min-w-0" data-testid="product-list-label-mobile">Listepris</dt>
                     <dd className="font-medium break-words min-w-0" data-testid="product-list-price-mobile">{formatCurrency(product.list_price)}</dd>
                   </div>
                 </dl>
