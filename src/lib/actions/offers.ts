@@ -2686,7 +2686,7 @@ export async function getOfferConversionSummaryAction(): Promise<OfferConversion
   try {
     const { data } = await supabase
       .from('offers')
-      .select('id, offer_number, final_amount, created_at, customer:customers!offers_customer_id_fkey(company_name, contact_person)')
+      .select('id, offer_number, final_amount, tax_amount, created_at, customer:customers!offers_customer_id_fkey(company_name, contact_person)')
       .eq('is_proposal', false)
       .is('converted_case_id', null)
       .in('status', CONVERSION_READY_STATUSES)
@@ -2700,7 +2700,8 @@ export async function getOfferConversionSummaryAction(): Promise<OfferConversion
         id: data.id as string,
         offer_number: (data.offer_number as string | null) ?? null,
         customer_name: (c?.company_name as string | null) || (c?.contact_person as string | null) || null,
-        amount: (data.final_amount as number | null) ?? null,
+        // DB-14: ekskl. moms som de øvrige kort (før inkl. moms)
+        amount: data.final_amount == null ? null : Number(data.final_amount) - Number((data as { tax_amount?: number | null }).tax_amount ?? 0),
         created_at: (data.created_at as string | null) ?? null,
       }
     }

@@ -809,7 +809,7 @@ export async function getRecentRejections(
 
     const { data: offers, error } = await supabase
       .from('offers')
-      .select('id, offer_number, title, customer_id, rejection_reason, rejected_at, final_amount, currency')
+      .select('id, offer_number, title, customer_id, rejection_reason, rejected_at, final_amount, tax_amount, currency')
       .eq('status', 'rejected')
       .eq('is_proposal', false)
       .not('rejected_at', 'is', null)
@@ -851,7 +851,8 @@ export async function getRecentRejections(
         reason_code: code,
         reason_label: label,
         rejected_at: o.rejected_at!,
-        final_amount: o.final_amount || 0,
+        // DB-14 (dashboard-review 2026-10-18): ekskl. moms som "Tabt omsætning" ved siden af (før inkl. moms)
+        final_amount: Number(o.final_amount || 0) - Number((o as { tax_amount?: number | null }).tax_amount || 0),
         currency: o.currency || 'DKK',
       }
     })

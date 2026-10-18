@@ -21,12 +21,14 @@ export function OverBudgetCasesWidget({ initial }: { initial?: Awaited<ReturnTyp
   const initRows = initial?.success && initial.data ? initial.data.rows.filter(overBudget) : null
   const [rows, setRows] = useState<ProjectProfitability[] | null>(initRows)
   const [error, setError] = useState<string | null>(initial && !initRows ? (humanizeErrorText(initial.error) || 'Kunne ikke hente sager') : null)
+  // DB-7 (dashboard-review 2026-10-18): rapporten ser kun de nyeste 200 åbne sager — sig det i stedet for "ingen over estimat"
+  const [truncated, setTruncated] = useState<boolean>(!!(initial?.success && (initial.data as { truncated?: boolean } | undefined)?.truncated))
 
   useEffect(() => {
     if (initial) return
     let alive = true
     getProjectProfitabilityReport({ status: 'open', limit: 200 })
-      .then((r) => { if (!alive) return; if (r.success && r.data) setRows(r.data.rows.filter(overBudget)); else setError(humanizeErrorText(r.error) || 'Kunne ikke hente sager') })
+      .then((r) => { if (!alive) return; if (r.success && r.data) { setRows(r.data.rows.filter(overBudget)); setTruncated(!!(r.data as { truncated?: boolean }).truncated) } else setError(humanizeErrorText(r.error) || 'Kunne ikke hente sager') })
       .catch(() => { if (alive) setError('Kunne ikke hente sager') })
     return () => { alive = false }
   }, [initial])
@@ -49,7 +51,7 @@ export function OverBudgetCasesWidget({ initial }: { initial?: Awaited<ReturnTyp
       ) : rows && rows.length === 0 ? (
         <div className="rounded-lg ring-1 ring-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-          <span>Ingen åbne sager over estimat.</span>
+          <span>{truncated ? 'Ingen over estimat blandt de 200 nyeste åbne sager — se efterkalkulationen for resten.' : 'Ingen åbne sager over estimat.'}</span>
         </div>
       ) : (
         <ul className="divide-y text-sm">
@@ -65,6 +67,7 @@ export function OverBudgetCasesWidget({ initial }: { initial?: Awaited<ReturnTyp
             </li>
           ))}
           {(rows?.length ?? 0) > 6 && <li className="pt-2 text-xs text-gray-500">+ {(rows?.length ?? 0) - 6} flere i efterkalkulationen</li>}
+          {truncated && <li className="pt-1 text-xs text-gray-500">Kun de 200 nyeste åbne sager er vurderet her.</li>}
         </ul>
       )}
     </div>
