@@ -873,42 +873,8 @@ export async function uploadServiceCaseAttachment(
   }
 }
 
-export async function deleteServiceCaseAttachment(
-  attachmentId: string,
-  serviceCaseId: string
-): Promise<ActionResult> {
-  try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('cases.edit')) {
-      return { success: false, error: 'Manglende tilladelse: cases.edit' }
-    }
-
-    validateUUID(attachmentId, 'vedhæftnings-ID')
-    validateUUID(serviceCaseId, 'sags-ID')
-    // ST-5 (storage-review 2026-10-16): bundet til sagen + rækken slettes FØRST — før blev filen fjernet (service-klient)
-    // selv om rækken ikke kunne slettes (RLS/anden sag), så vedhæftningen stod tilbage uden fil
-    const { data: deleted, error } = await supabase
-      .from('service_case_attachments')
-      .delete()
-      .eq('id', attachmentId)
-      .eq('service_case_id', serviceCaseId)
-      .select('storage_path')
-
-    if (error) return { success: false, error: 'Kunne ikke slette vedhæftning' }
-    if (!deleted || deleted.length === 0) return { success: false, error: 'Vedhæftningen findes ikke på sagen eller må ikke slettes' }
-
-    const path = (deleted[0] as { storage_path?: string | null }).storage_path
-    if (path) {
-      const { error: rmErr } = await storageClient().storage.from('service-case-files').remove([path])
-      if (rmErr) logger.warn('deleteServiceCaseAttachment: fil kunne ikke fjernes (rækken er slettet)', { error: rmErr, entityId: attachmentId })
-    }
-
-    revalidatePath(`/dashboard/service-cases/${serviceCaseId}`)
-    return { success: true }
-  } catch (error) {
-    return { success: false, error: formatError(error, 'Uventet fejl') }
-  }
-}
+// DL-4 (slette-review 2026-10-18): ubrugt deleteServiceCaseAttachment fjernet — den omgik afleveringsfotoets værn
+// (lukket sag, audit, tjekliste). Sletning af afleveringsfotos går via deleteHandoverPhotoAction (case-handover.ts).
 
 // =====================================================
 // Sprint 8D-1: Mails og dokumenter pr. sag

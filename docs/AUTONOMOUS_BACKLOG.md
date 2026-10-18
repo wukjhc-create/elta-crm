@@ -226,7 +226,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DL-1 | Sletning af gammel besigtigelse ("other") sletter kundens underskrevne bekræftelser (CASCADE) (S2) | DELVIS (kode) — besigtigelse gemt som "other" er beskyttet; dokument med bekræftelser kan ikke slettes (document-deletable-test). FK RESTRICT = BLOCKED_APPROVAL [MIGRATION] |
 | DL-2 | deleteOffer sletter sendte tilbuds mail- og aktivitetshistorik (afvist/trukket tilbage til kladde) (S2) | DONE (kode) — kun aldrig-sendte tilbud uden mailtråd kan slettes (sent_at IS NULL i compare-and-set) (U14/U42/U57/U60) |
 | DL-3 | Sletning af leverandør/produkt kaskaderer pris-/aftalehistorik og afkobler bogførte leverandørfakturaer (S3) | TODO (kode: bloker ved referencer + audit); FK = BLOCKED_APPROVAL [MIGRATION] |
-| DL-4 | deleteServiceCaseAttachment omgår afleveringsfotoets værn (S3) | TODO (ubrugt → fjern) |
+| DL-4 | deleteServiceCaseAttachment omgår afleveringsfotoets værn (S3) | DONE — ubrugt deleteServiceCaseAttachment fjernet |
 | DL-5 | Fakturanumre bruges af kladder → huller i nummerserien; tilbagerulninger uden audit (S3) | BESLUTNING (nummer ved afsendelse?) + audit = TODO |
 | DL-6 | Ingen GDPR-sletning/anonymisering af kunde med historik (S3) | BESLUTNING |
 | DL-7 | deleteInvoiceDraft kan efterlade en låst kladde (claim frigives ikke) (S4) | TODO |
