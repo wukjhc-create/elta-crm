@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
-  economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
@@ -1501,6 +1501,59 @@ ${m.text()}`) })
         r.ingen_bogfoering = !ext?.external_invoice_id && !ext?.posted_at
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u28-godkend-faktura.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U28 leverandørfaktura → sag', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
+      // U191 IV-7 (leverandørfaktura-review 2026-10-18): godkendt kreditnota UDEN linjer (mail/upload) → serviceleder opretter
+      // én samlet linje (−400 ekskl. moms) og fordeler den → sagens kost falder med 400. Før kunne den aldrig fordeles.
+      if (want('U191') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        let caseId: string | undefined
+        let invId: string | undefined
+        try {
+          const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U191 kredit ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+            priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+          caseId = (sc.data?.[0] as { id?: string } | undefined)?.id
+          const inv = caseId ? await c.admin.from('incoming_invoices').insert([{ source: 'manual', invoice_number: `UI-E2E-U191-${stamp}`, parse_status: 'parsed',
+            status: 'approved', currency: 'DKK', amount_excl_vat: -400, vat_amount: -100, amount_incl_vat: -500, matched_case_id: caseId }]).select('id') : null
+          invId = (inv?.data?.[0] as { id?: string } | undefined)?.id
+          r.seed = !!invId
+          const sl = await login(await mkUser('serviceleder'))
+          try {
+            await gotoSafe(sl.page, `${base}/dashboard/incoming-invoices/${invId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const btn = sl.page.getByTestId('invoice-total-line')
+            await btn.waitFor({ timeout: 60_000 }).catch(() => {})
+            r.knap_vises = (await btn.count()) === 1
+            await btn.click({ timeout: 30_000 }).catch(() => {})
+            let n = 0
+            for (let i = 0; i < 20 && n === 0; i++) {
+              n = ((await c.admin.from('incoming_invoice_lines').select('id').eq('incoming_invoice_id', invId)).data ?? []).length
+              if (n === 0) await new Promise((res) => setTimeout(res, 1000))
+            }
+            r.en_linje = n === 1
+            await sl.page.getByTestId('invoice-allocate').click({ timeout: 60_000 }).catch(() => {})
+            await sl.page.getByRole('button', { name: /^Konvertér linjer$/ }).last().click({ timeout: 60_000 }).catch(() => {})
+            const costSum = async () => {
+              const m = ((await c.admin.from('case_materials').select('quantity, unit_cost').eq('case_id', caseId)).data ?? []) as Array<{ quantity: number; unit_cost: number }>
+              const o = ((await c.admin.from('case_other_costs').select('quantity, unit_cost').eq('case_id', caseId)).data ?? []) as Array<{ quantity: number; unit_cost: number }>
+              return [...m, ...o].reduce((s, x) => s + Number(x.quantity) * Number(x.unit_cost), 0)
+            }
+            let sum = 0
+            for (let i = 0; i < 20 && sum === 0; i++) { sum = await costSum(); if (sum === 0) await new Promise((res) => setTimeout(res, 1000)) }
+            r.sagskost_minus_400 = Math.abs(sum + 400) < 0.01
+          } finally { await sl.ctx.close().catch(() => {}) }
+          // kun én samlet linje (ingen dublet efter klik + fordeling)
+          const again = await c.admin.from('incoming_invoice_lines').select('id').eq('incoming_invoice_id', invId)
+          r.ingen_dublet = (again.data ?? []).length === 1
+          out.push({ id: 'U191 kreditnota uden linjer → samlet linje fordelt', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+        } finally {
+          if (invId) {
+            await c.admin.from('incoming_invoice_lines').update({ converted_case_material_id: null, converted_case_other_cost_id: null }).eq('incoming_invoice_id', invId)
+            if (caseId) { await c.admin.from('case_materials').delete().eq('case_id', caseId); await c.admin.from('case_other_costs').delete().eq('case_id', caseId) }
+            for (const t of ['incoming_invoice_lines', 'incoming_invoice_audit_log']) await c.admin.from(t).delete().eq('incoming_invoice_id', invId)
+            await c.admin.from('incoming_invoices').delete().eq('id', invId)
+          }
+          if (caseId) listCaseIds.push(caseId)
+        }
       }
 
       // U162 PR-6 (Henrik 2026-10-15): fastprissag — slutfakturaen viser og opretter RESTBELØBET af kontraktsummen

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   approveIncomingInvoiceAction,
   convertIncomingInvoiceLinesAction,
+  createIncomingInvoiceTotalLineAction,
   deleteTestIncomingInvoiceAction,
   getIncomingInvoiceDetailAction,
   reparseIncomingInvoiceAction,
@@ -176,6 +177,13 @@ export function IncomingInvoiceDetailClient({
     flash(true, r.message)
     await refresh()
   }
+
+  // IV-7: faktura uden linjer (mail/upload) → én samlet linje ekskl. moms, som derefter fordeles
+  const createTotalLine = () => startTransition(async () => {
+    const r = await createIncomingInvoiceTotalLineAction(inv.id)
+    flash(r.ok, r.message)
+    if (r.ok) await refresh()
+  })
 
   const reject = () => startTransition(async () => {
     const r = await rejectIncomingInvoiceAction(inv.id, rejectReason)
@@ -565,6 +573,18 @@ export function IncomingInvoiceDetailClient({
               Faktura er {inv.status === 'approved' ? 'godkendt' : inv.status === 'posted' ? 'bogført' : inv.status === 'rejected' ? 'afvist' : 'annulleret'}.
             </p>
             {/* PR-1 (Henrik 2026-10-15): fordeling til sag er en separat handling efter godkendelse */}
+            {(inv.status === 'approved' || inv.status === 'posted') && canAllocate && detail.lines.length === 0 && !!detail.case
+              && inv.amount_excl_vat != null && Number(inv.amount_excl_vat) !== 0 && (
+              <div className="space-y-1">
+                <Button data-testid="invoice-total-line" variant="outline" onClick={createTotalLine} disabled={busy}>
+                  Opret samlet linje til fordeling
+                </Button>
+                <p className="text-[11px] text-gray-500">
+                  Fakturaen har ingen linjer. Der oprettes én linje på {fmtAmount(inv.amount_excl_vat, inv.currency)} ekskl. moms
+                  {Number(inv.amount_excl_vat) < 0 ? ' (kreditnota — trækkes fra sagens kost)' : ''}, som du derefter fordeler til sagen.
+                </p>
+              </div>
+            )}
             {(inv.status === 'approved' || inv.status === 'posted') && canAllocate && detail.lines.length > 0 && (
               detail.case ? (
                 <Button

@@ -587,6 +587,58 @@ export async function deleteTestIncomingInvoiceAction(
  * the inline action in /dashboard/purchase-operations. Creates case_materials/case_other_costs rows without
  * flipping status (PR-1: approval and allocation are separate flows).
  */
+/**
+ * IV-7 (leverandørfaktura-review 2026-10-18): mail-/uploadfakturaer har ingen linjer og kunne derfor aldrig fordeles —
+ * heller ikke en kreditnota for returvarer. Her oprettes ÉN samlet linje med det fortegnsbærende beløb ekskl. moms, som
+ * derefter fordeles via den almindelige fordeling. Kun en godkendt/bogført DKK-faktura uden linjer. Samme ret som
+ * fordelingen (incoming_invoices.view + materials.add_to_case).
+ */
+export async function createIncomingInvoiceTotalLineAction(invoiceId: string): Promise<ActionOutcome> {
+  const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.view') || !hasPermission('materials.add_to_case')) {
+    return { ok: false, message: 'Manglende tilladelse til at fordele leverandørfakturaer' }
+  }
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
+  const { data: inv } = await admin.from('incoming_invoices')
+    .select('id, status, invoice_number, currency, amount_excl_vat').eq('id', invoiceId).maybeSingle()
+  if (!inv) return { ok: false, message: 'Fakturaen blev ikke fundet' }
+  const row = inv as { status: string; invoice_number: string | null; currency: string | null; amount_excl_vat: number | string | null }
+  if (row.status !== 'approved' && row.status !== 'posted') return { ok: false, message: 'Fakturaen skal være godkendt før fordeling' }
+  if ((row.currency ?? 'DKK').toUpperCase() !== 'DKK') return { ok: false, message: 'Kun fakturaer i DKK kan fordeles' }
+  const excl = row.amount_excl_vat == null ? NaN : Number(row.amount_excl_vat)
+  if (!Number.isFinite(excl) || excl === 0) return { ok: false, message: 'Fakturaen har intet beløb ekskl. moms — ret fakturahovedet først' }
+
+  const { count } = await admin.from('incoming_invoice_lines').select('id', { count: 'exact', head: true }).eq('incoming_invoice_id', invoiceId)
+  if ((count ?? 0) > 0) return { ok: false, message: 'Fakturaen har allerede linjer' }
+
+  const amount = Math.round(excl * 100) / 100
+  const { data: ins, error } = await admin.from('incoming_invoice_lines').insert({
+    incoming_invoice_id: invoiceId, line_number: 1, quantity: 1, unit: 'stk', unit_price: amount, total_price: amount,
+    description: `Samlet faktura ${row.invoice_number ?? ''}`.trim() + (amount < 0 ? ' (kreditnota)' : ''),
+    raw_line: JSON.stringify({ source: 'header_total', created_by: userId }),
+  }).select('id').single()
+  if (error || !ins) {
+    logger.error('createIncomingInvoiceTotalLineAction: insert failed', { error, entityId: invoiceId })
+    return { ok: false, message: 'Linjen kunne ikke oprettes — prøv igen' }
+  }
+  // samtidigt dobbeltklik: kun én samlet linje må overleve
+  const { data: all } = await admin.from('incoming_invoice_lines').select('id').eq('incoming_invoice_id', invoiceId).order('created_at').order('id')
+  const ids = ((all ?? []) as Array<{ id: string }>).map((l) => l.id)
+  if (ids.length > 1 && ids[0] !== (ins as { id: string }).id) {
+    await admin.from('incoming_invoice_lines').delete().eq('id', (ins as { id: string }).id)
+    return { ok: false, message: 'Fakturaen har allerede linjer' }
+  }
+  try {
+    await admin.from('incoming_invoice_audit_log').insert({
+      incoming_invoice_id: invoiceId, action: 'total_line_created', actor_id: userId, ok: true,
+      new_value: { amount_excl_vat: amount }, message: `samlet linje oprettet (${amount} kr ekskl. moms)`,
+    })
+  } catch { /* best-effort */ }
+  revalidatePath(`/dashboard/incoming-invoices/${invoiceId}`)
+  return { ok: true, message: 'Samlet linje oprettet — fordel den til sagen' }
+}
+
 export async function convertIncomingInvoiceLinesAction(
   invoiceId: string,
   plan: LinePlanInput[]
@@ -1293,7 +1345,7 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     requires_review: !!inv.requires_manual_review,
     status: (inv.status as string) ?? 'unknown',
     has_lines: hasLines,
-    total_only: !hasLines && inv.amount_incl_vat != null && Number(inv.amount_incl_vat) > 0,
+    total_only: !hasLines && inv.amount_incl_vat != null && Number(inv.amount_incl_vat) !== 0, // IV-7: også kreditnotaer
     convertible_count: lines.length - alreadyCount,
     already_converted_count: alreadyCount,
     lines,

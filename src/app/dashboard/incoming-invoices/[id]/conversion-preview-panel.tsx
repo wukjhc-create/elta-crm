@@ -68,7 +68,7 @@ export function ConversionPreviewPanel({ invoiceId }: { invoiceId: string }) {
             <div className="rounded-md ring-1 ring-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 flex items-start gap-1.5">
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400" />
               {data.total_only
-                ? 'Ingen fakturalinjer — kun et totalbeløb. Der oprettes ikke automatisk en materialepost; opret den manuelt på sagen, hvis ønsket.'
+                ? 'Ingen fakturalinjer — kun et totalbeløb. Efter godkendelse kan beløbet ekskl. moms oprettes som én samlet linje og fordeles til sagen.'
                 : 'Ingen linjer at konvertere.'}
             </div>
           ) : (
