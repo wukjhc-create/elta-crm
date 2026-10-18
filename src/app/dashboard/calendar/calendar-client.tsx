@@ -265,7 +265,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
         {/* Side Panel — Selected Day Details */}
         <div className="bg-white rounded-xl border shadow-sm">
           <div className="p-4 border-b">
-            <h3 className="font-semibold text-gray-900" data-testid="calendar-day-heading">
+            <h3 className="font-semibold text-gray-900 break-words min-w-0" data-testid="calendar-day-heading">
               {calendarDayHeading(selectedDate)}
             </h3>
             {dayTaskCount && (
