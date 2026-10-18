@@ -1104,6 +1104,30 @@ Listen er alle commits efter `58e87d32` til og med `a808cab6`. Docs-committen me
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-108, G18-60, G18-110, G18-111, G18-114.
 
+## Checkpoint 2026-10-18 femte (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `dc4a2a51`. Det omskriver ikke listerne ovenfor. Produktspids: `297b396b`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `dc4a2a51..297b396b`
+
+```
+297b396b feat(faktura): Match-overskriften ombrydes
+a16bcf40 feat(faktura): match-teksten ombrydes
+4f37b072 feat(faktura): kolonneoverskrifter ombrydes
+152b0027 feat(faktura): mobilens forventet pris og afvigelse ombrydes
+1e7dfbff feat(faktura): forventet pris og afvigelse ombrydes
+```
+
+Listen er alle commits efter `dc4a2a51` til og med `297b396b`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Fakturakontrollens skrivebord ombryder forventet pris, afvigelse, match-tekst og kolonneoverskrifterne Forventet, Afvigelse og Match. Mobilkortet ombryder forventet pris og afvigelse. `kr()`, `not_controllable` og match-ordene er uændret. Sætningen "Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr." er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-108, G18-60, G18-111, G18-118, G18-119.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
