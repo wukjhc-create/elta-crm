@@ -727,9 +727,26 @@ export async function markInvoicePaid(
   const outstanding = round2((await outstandingByInvoice(supabase0, [cur0 as InvoiceRow])).get(invoiceId) ?? 0)
   let recordedAmount = 0
   if ((cur0 as InvoiceRow).status === 'sent' && outstanding > 0.005) {
-    const ref = paymentReference != null && paymentReference.trim() !== '' ? paymentReference.trim() : 'Manuelt markeret betalt'
-    await registerPayment(invoiceId, outstanding, ref, { syncEconomic: false })
-    recordedAmount = outstanding
+    // RC-2 (samtidigheds-review 2026-10-18): to faneblade/brugere læste samme restbeløb og registrerede det begge →
+    // dobbelt betaling. Claim: kun den anmodning, der ændrer fakturaen med den LÆSTE updated_at (trigger sætter ny
+    // værdi ved hver ændring), registrerer restbeløbet; den anden registrerer intet og læser status igen.
+    const cur = cur0 as InvoiceRow & { updated_at?: string; payment_status?: string | null }
+    const { data: claimed } = await supabase0.from('invoices')
+      .update({ payment_status: cur.payment_status ?? 'pending' })
+      .eq('id', invoiceId).eq('status', 'sent').eq('updated_at', cur.updated_at as string)
+      .select('id')
+    if ((claimed ?? []).length === 1) {
+      const ref = paymentReference != null && paymentReference.trim() !== '' ? paymentReference.trim() : 'Manuelt markeret betalt'
+      await registerPayment(invoiceId, outstanding, ref, { syncEconomic: false })
+      recordedAmount = outstanding
+    } else {
+      // tabt claim: er fakturaen stadig sendt med restbeløb (ændret af andet, fx rykker), markeres den ikke betalt uden
+      // betalingsrække — brugeren prøver igen
+      const { data: again } = await supabase0.from('invoices').select('status').eq('id', invoiceId).maybeSingle()
+      if ((again as { status?: string } | null)?.status !== 'paid') {
+        throw new Error('Fakturaen blev ændret imens — genindlæs og prøv igen')
+      }
+    }
   }
   const { data: after } = await supabase0.from('invoices').select('status').eq('id', invoiceId).maybeSingle()
   const row = (after as { status?: string } | null)?.status === 'paid'

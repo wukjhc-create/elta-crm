@@ -215,7 +215,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | # | Fund | Status |
 |---|---|---|
 | RC-1 | Forskud/rate eller kreditnota oprettet samtidig med slutfakturaen fratrækkes ikke → kunden betaler/krediteres to gange (S2) | DONE (kode) — rate/forskud og kreditnota tjekker for slutfaktura efter indsættelse; slutfaktura (linjer + fastpris) genlæser forgængere/krediteringer efter header → tilbagerulning (concurrency, billing-model, contract-final, invoice-pipeline, U162/U29/U33). Interleaving ikke deterministisk testet |
-| RC-2 | "Markér betalt" kan registrere samme betaling to gange (to faneblade/bankmatch) (S3) | TODO |
+| RC-2 | "Markér betalt" kan registrere samme betaling to gange (to faneblade/bankmatch) (S3) | DONE (kode) — claim på updated_at før restbeløbet registreres; tabt claim → ingen betaling, fejl hvis stadig ubetalt (U29/U33, invoice-pipeline). Bankmatch samtidig med manuel er kun delvist dækket |
 | RC-3 | Luk sag er ikke atomisk mod start/oprettelse af arbejdsordre og timer (S3) | TODO (kode); trigger = BLOCKED_APPROVAL [MIGRATION] |
 | RC-4 | Første udsendelse af et tilbud kan maile kunden to gange (to tråde) (S3) | TODO |
 | RC-5 | Overlap-tjek på timer er læs-så-skriv (S4) | = TT-5 (forslag 00253) |
