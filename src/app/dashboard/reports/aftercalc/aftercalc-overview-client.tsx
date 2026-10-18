@@ -161,7 +161,7 @@ export function AftercalcOverviewClient() {
                   </p>
                 )}
                 <p className="text-sm text-gray-800 break-words min-w-0" data-testid="aftercalc-quality-summary">
-                  {data.quality.missingCost} af {data.quality.cases} sager i filtret mangler kost. DB kan ikke beregnes for {data.quality.dbUnknown}.
+                  {data.quality.missingCost} af {data.quality.cases} sager i filtret mangler kost. DB kan ikke beregnes for {data.quality.dbUnknown}. {data.quality.warning} har datakvalitet advarsel.
                 </p>
                 {data.rows.length === 0 ? (
                   <div className="text-sm text-gray-500" data-testid="aftercalc-empty">
