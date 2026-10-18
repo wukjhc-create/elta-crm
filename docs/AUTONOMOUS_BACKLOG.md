@@ -1353,6 +1353,29 @@ Listen er alle commits efter `496594f0` til og med `623c151d`. Docs-committen me
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-139, G18-140, G18-141, G18-142, G18-143, G18-144.
 
+## Checkpoint 2026-10-18 femtende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `da6b7d99`. Det omskriver ikke listerne ovenfor. Produktspids: `f9e89917`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `da6b7d99..f9e89917`
+
+```
+f9e89917 feat(plan): opstartsmaerke ombrydes
+8653e9e4 feat(plan): sagens statusmaerker ombrydes
+75ddb805 feat(plan): kommende maaned ombrydes
+da98d6e8 feat(plan): kommende besigtigelser ombrydes
+```
+
+Listen er alle commits efter `da6b7d99` til og med `f9e89917`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Overskriften "Kommende besigtigelser" ombrydes. Ordene er uændret. Måneden på kortet ombrydes. Dato-udtrykket er uændret og fik ikke `timeZone`. Status- og prioritetmærket på sagens opgaver ombrydes. Etiketterne kommer stadig fra `TASK_STATUS_CONFIG` og `TASK_PRIORITY_CONFIG`. Mærket "opstart" ombrydes. Ordet er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-143, G18-144, G18-145, G18-146, G18-147, G18-148.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
