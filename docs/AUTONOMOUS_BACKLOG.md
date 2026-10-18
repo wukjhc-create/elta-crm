@@ -841,7 +841,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-105 | 5 Plan | DONE "kommende / overskredet" i kalenderens overskrift ombrydes. | Tællingen er uændret. |
 | G18-106 | 5 Plan | DONE overskriften "Kalender — Besigtigelser" ombrydes. | Ordene er uændret. |
 | G18-107 | 5 Plan | DONE knappen "I dag" er mindst 44 px høj. | Teksten og goToToday er uændret. |
-| G18-108 | 5 Plan | ÅBEN. "+N mere" på månedsdagen ombrydes. | Tællingen er uændret. Dagbrikkerne afkortes stadig. |
+| G18-108 | 5 Plan | DONE "+N mere" på månedsdagen ombrydes. | Tællingen er uændret. Dagbrikkerne afkortes stadig. |
 | G18-109 | 2 Faktura | DONE linjedommen på fakturakontrollen ombrydes. | Domsteksten er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
@@ -878,6 +878,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-139 | 5 Plan | ÅBEN. Overskriften "Kommende besigtigelser" ombrydes. | Ordene er uændret. |
 | G18-140 | 5 Plan | ÅBEN. Måneden på kommende besigtigelser ombrydes. | Dato-udtrykket er uændret. |
 | G18-141 | 5 Plan | ÅBEN. Status- og prioritetmærket på sagens opgaver ombrydes. | Etiketterne er uændret. |
+| G18-142 | 5 Plan | ÅBEN. Mærket "opstart" på sagens opgaver ombrydes. | Ordet er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
