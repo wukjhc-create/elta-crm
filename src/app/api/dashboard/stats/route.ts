@@ -103,7 +103,7 @@ export async function GET() {
       openCases,
       offersDraft,
       invoicesSent,
-      invoicesOverdue,
+      invoicesOverdueHead,
       paymentsToday,
       systemErrors,
     ] = await Promise.all([
@@ -136,6 +136,7 @@ export async function GET() {
     ])
 
     // List views — independently safe.
+    const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
     const [latestEmailsRes, latestInvoicesRes, overdueRes] = await Promise.all([
       supabase
         .from('incoming_emails')
@@ -147,7 +148,9 @@ export async function GET() {
         .select('id, invoice_number, final_amount, currency, status, payment_status, created_at')
         .order('created_at', { ascending: false })
         .limit(8),
-      supabase
+      // DB-6 (dashboard-review 2026-10-18): alle forfaldne (side for side) — tallet talte før også fuldt krediterede
+      // fakturaer med, og listen blev filtreret efter .limit(10), så den kunne vise færre end der var
+      fetchAllRows<{ id: string; invoice_number: string; final_amount: number; amount_paid: number; currency: string | null; due_date: string | null; customer_id: string | null }>((from, to) => supabase
         .from('invoices')
         .select('id, invoice_number, final_amount, amount_paid, currency, due_date, customer_id')
         .eq('status', 'sent')
@@ -155,15 +158,19 @@ export async function GET() {
         .neq('invoice_type', 'credit')
         .is('voided_at', null)
         .lt('due_date', todayDateIso)
-        .order('due_date', { ascending: true })
-        .limit(10),
+        .order('due_date', { ascending: true }).order('id')
+        .range(from, to)).then((data) => ({ data, ok: true }), () => ({ data: [] as never[], ok: false })),
     ])
 
     // Rapport-review 2026-10-09 (#1): vist beløb = åbent beløb (− betalt − kreditnotaer); fuldt dækkede udelades
     const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
     const overdueRows = overdueRes.data ?? []
     const credited = await creditedByOriginal(supabase, overdueRows.map((r) => r.id as string)).catch(() => new Map<string, number>())
-    const overdue_invoices = overdueRows.filter((r) => openAmount(r as { id: string; final_amount: number; amount_paid: number }, credited) > 0).map((r) => {
+    // DB-6: samme regler som cockpittet/Fakturaøkonomi — kun DKK, åbent beløb ≥ 0,50 (FIN-11)
+    const overdueOpen = overdueRows.filter((r) => String(r.currency ?? 'DKK').toUpperCase() === 'DKK'
+      && openAmount(r as { id: string; final_amount: number; amount_paid: number }, credited) >= 0.5)
+    const invoicesOverdue = overdueRes.ok ? overdueOpen.length : invoicesOverdueHead
+    const overdue_invoices = overdueOpen.slice(0, 10).map((r) => {
       const daysOverdue = r.due_date ? Math.max(0, calendarDaysSince(String(r.due_date), now)) : 0
       return {
         id: r.id,
