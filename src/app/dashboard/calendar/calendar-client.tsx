@@ -343,9 +343,9 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                       )}
 
                       {task.status === 'in_progress' && task.description?.includes('BEKRÆFTET') && (
-                        <div className="flex items-center gap-1.5 text-xs text-green-700 font-medium">
+                        <div className="flex items-center gap-1.5 text-xs text-green-700 font-medium min-w-0">
                           <CheckCircle className="w-3.5 h-3.5" />
-                          Bekræftet af kunden
+                          <span className="break-words min-w-0" data-testid="calendar-day-confirmed">Bekræftet af kunden</span>
                         </div>
                       )}
 

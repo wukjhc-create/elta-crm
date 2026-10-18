@@ -758,7 +758,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-90 | 5 Plan | DONE titlerne i dagens påmindelsesliste ombrydes. | Overskriften og linket er uændret. |
 | G18-99 | 5 Plan | DONE klokken under kommende besigtigelser ombrydes. | Kundens navn og booking-sætningen er uændret. |
 | G18-101 | 5 Plan | DONE linket "Gå til kundekort" på den valgte dag ombrydes. | Adressen er uændret. |
-| G18-104 | 5 Plan | ÅBEN. "Bekræftet af kunden" på den valgte dag ombrydes. | Bekræftelsesbetingelsen er uændret. |
+| G18-104 | 5 Plan | DONE "Bekræftet af kunden" på den valgte dag ombrydes. | Bekræftelsesbetingelsen er uændret. |
 | G18-13 | 6 Salg | ÅBEN. Tilbud ude: filter- eller tælle-mærke på en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
 | G18-14 | 5 Plan | DONE dagsoverskriften viser antal hentede opgaver. Tom dag siger stadig ingen besigtigelser. | Ingen ny query. Påmindelser tælles ikke her. |
 | G18-37 | 4 Pris | DONE null listepris siger "Ingen lagret pris". | Kost er G18-19. 0 kr forbliver 0 kr. Ingen opfundet pris. |
@@ -840,6 +840,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-102 | 5 Plan | DONE "Åbn rutevejledning" på den valgte dag ombrydes. | Adressen og linket er uændret. |
 | G18-105 | 5 Plan | ÅBEN. "kommende / overskredet" i kalenderens overskrift ombrydes. | Tællingen er uændret. |
 | G18-106 | 5 Plan | ÅBEN. Overskriften "Kalender — Besigtigelser" ombrydes. | Ordene er uændret. |
+| G18-107 | 5 Plan | ÅBEN. Knappen "I dag" er mindst 44 px høj. | Teksten og goToToday er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
 | G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |
