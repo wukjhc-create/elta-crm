@@ -261,7 +261,7 @@ export async function getPartnerServiceCases(
     const { data, error } = await supabase
       .from('service_cases')
       .select(
-        'id, case_number, title, description, status, address, postal_code, city, start_date, end_date, project_name, type, reference, created_at, end_customer:customers!service_cases_end_customer_id_fkey(company_name)'
+        'id, case_number, title, description, source, status, address, postal_code, city, start_date, end_date, project_name, type, reference, created_at, end_customer:customers!service_cases_end_customer_id_fkey(company_name)'
       )
       .eq('payer_customer_id', partnerCustomerId)
       .in('status', ['new', 'in_progress', 'pending'])
@@ -273,11 +273,13 @@ export async function getPartnerServiceCases(
     }
 
     const cases: PartnerServiceCase[] = (data || []).map((row) => {
-      const { end_customer, ...rest } = row as Record<string, unknown> & {
+      const { end_customer, source, ...rest } = row as Record<string, unknown> & {
         end_customer?: { company_name?: string | null } | null
       }
       return {
         ...(rest as Omit<PartnerServiceCase, 'end_customer_name'>),
+        // PT-3: mailtekst fra en mail-oprettet sag vises ikke for partneren
+        description: source === 'email' ? null : (rest as { description?: string | null }).description ?? null,
         end_customer_name: end_customer?.company_name ?? null,
       }
     })

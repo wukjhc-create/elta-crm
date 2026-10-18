@@ -1264,6 +1264,11 @@ async function main() {
       const o = old.data
       check('bekræftet + udløbet → kun kvittering', old.success && o?.state === 'already_confirmed' && !!o.confirmedAt)
       check('udløbet: ingen PDF/navn/e-mail/sag/bemærkning/titel', !!o && o.pdfUrl === null && !o.confirmedByName && !o.confirmedByEmail && !o.confirmationNote && !o.recipientEmail && !o.recipientName && o.serviceCase === null && !o.documentTitle, JSON.stringify(o))
+      // PT-14 (2026-10-17): deaktiveret kunde → linket er tilbagekaldt (ingen titel/PDF/navn)
+      const liveTok = await mk(new Date(Date.now() + 86_400_000).toISOString())
+      await admin.from('customers').update({ is_active: false }).eq('id', cust)
+      const inactive = await getConfirmationContext(liveTok)
+      check('PT-14: deaktiveret kunde → tilbagekaldt, intet indhold', inactive.success && inactive.data?.state === 'revoked' && !inactive.data?.documentTitle && !inactive.data?.pdfUrl, JSON.stringify(inactive.data))
     } finally {
       await admin.from('customer_documents').delete().eq('customer_id', cust)
       await admin.from('customers').delete().eq('id', cust)

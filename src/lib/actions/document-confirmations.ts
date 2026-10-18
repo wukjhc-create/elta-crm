@@ -349,6 +349,11 @@ export async function getConfirmationContext(
     if (state !== 'awaiting' && state !== 'already_confirmed') {
       return { success: true, data: buildMinimalView(state, row.expires_at) }
     }
+    // PT-14 (portal-review 2026-10-17): deaktiveret kunde → linket behandles som tilbagekaldt (som portalen) — før
+    // udleverede det rapporten i op til 30 dage efter deaktivering
+    if (await confirmationCustomerInactive(admin, row.customer_document_id as string)) {
+      return { success: true, data: buildMinimalView('revoked', row.expires_at) }
+    }
     // Partner-review 2026-10-08 (#5): et bekræftet link virkede for evigt (PDF-link, navn/e-mail, sag, bemærkning).
     // Efter udløb vises kun kvitteringen (tidspunkt) — ingen dokument- eller persondata.
     if (state === 'already_confirmed' && new Date(row.expires_at).getTime() < Date.now()) {
@@ -477,6 +482,12 @@ export async function submitConfirmation(
     const { ip, userAgent } = await getClientMeta()
     const admin = createAdminClient()
     const now = new Date().toISOString()
+    // PT-14: ingen bekræftelse for en deaktiveret kunde
+    {
+      const { data: link } = await admin.from('document_confirmations').select('customer_document_id').eq('token', input.token).maybeSingle()
+      const docId = (link as { customer_document_id?: string | null } | null)?.customer_document_id
+      if (docId && (await confirmationCustomerInactive(admin, docId))) return { success: false, error: 'Linket er ikke længere gyldigt' }
+    }
 
     // ATOMISK: kun pending→confirmed transition for stale 'sent'/'opened' + non-expired
     const { data: updated, error: updateErr } = await admin
@@ -810,4 +821,14 @@ async function confirmationGateDenied(permission: 'service.view' | 'service.edit
   } catch {
     return 'Ikke logget ind'
   }
+}
+
+/** PT-14: dokumentets kunde er deaktiveret (eller findes ikke) → linket må ikke bruges */
+async function confirmationCustomerInactive(admin: ReturnType<typeof createAdminClient>, customerDocumentId: string | null): Promise<boolean> {
+  if (!customerDocumentId) return false
+  const { data: doc } = await admin.from('customer_documents').select('customer_id').eq('id', customerDocumentId).maybeSingle()
+  const custId = (doc as { customer_id?: string | null } | null)?.customer_id
+  if (!custId) return false
+  const { data: cust } = await admin.from('customers').select('is_active').eq('id', custId).maybeSingle()
+  return !cust || (cust as { is_active?: boolean | null }).is_active === false
 }

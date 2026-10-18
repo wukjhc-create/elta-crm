@@ -507,7 +507,7 @@ export async function getPortalServiceCases(
 
     const { data, error } = await supabase
       .from('service_cases')
-      .select('id, case_number, title, description, status, priority, address, postal_code, city, floor_door, start_date, end_date, project_name, type, reference, created_at') // ikke status_note: "Bemærkninger (interne)"
+      .select('id, case_number, title, description, source, status, priority, address, postal_code, city, floor_door, start_date, end_date, project_name, type, reference, created_at') // ikke status_note: "Bemærkninger (interne)"
       .eq('customer_id', customerId)
       .in('status', ['new', 'in_progress', 'pending'])
       .order('created_at', { ascending: false })
@@ -517,7 +517,10 @@ export async function getPortalServiceCases(
       return { success: false, error: 'Kunne ikke hente serviceopgaver' }
     }
 
-    return { success: true, data: (data || []) as PortalServiceCase[] }
+    // PT-3 (portal-review 2026-10-17): en sag oprettet fra en mail har mailens tekst som beskrivelse (kan være en
+    // leverandør-/intern mail) — den vises ikke i portalen
+    const rows = ((data || []) as Array<Record<string, unknown>>).map(({ source, ...r }) => ({ ...r, description: source === 'email' ? null : r.description }))
+    return { success: true, data: rows as unknown as PortalServiceCase[] }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

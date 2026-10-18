@@ -216,7 +216,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | PT-1 | Partner-adgang kunne aldrig oprettes (select() på skjult token-kolonne, 00175) (S2) | DONE (kode) — offentlige kolonner + token fra lokal variabel; U190 |
 | PT-2 | Portal-/partner-tokens kan leve evigt (NULL-udløb, klientstyret udløb, forhåndsvisning forlænger) (S3) | DELVIS (kode) — server-loft 365 dage (aldrig i fortiden) på portal-/partner-udløb; forhåndsvisning forlænger ikke (kun afsendelse, U187). NULL-backfill = BLOCKED_APPROVAL [MIGRATION] |
-| PT-3 | Sagsbeskrivelse (evt. intern mailtekst) vises i begge portaler (S3, plausibel) | TODO |
+| PT-3 | Sagsbeskrivelse (evt. intern mailtekst) vises i begge portaler (S3, plausibel) | DONE (kode) — beskrivelse skjules i begge portaler for sager oprettet fra mail (source=email) |
 | PT-4 | "Del til portal" for sendte tilbud viste aldrig tilbuddet (visible_in_portal) (S3) | DONE (kode) |
 | PT-5 | Partner med >~350 sager så ingen dokumenter (.in()-grænse) (S3) | DONE (kode) — bidder á 200 |
 | PT-6 | Deling med slutkunde deler også med partneren (S3, design) | BESLUTNING |
@@ -227,7 +227,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PT-11 | Tokens i GET-querystrings (S4, plausibel) | TODO (lav prioritet) |
 | PT-12 | signer_ip sendt til portal-browseren (S4) | DONE (kode) |
 | PT-13 | Flytteønske for afsluttet/annulleret booking og tom besked (S4) | DONE (kode) |
-| PT-14 | Bekræftelseslinks overlever kundedeaktivering (S4, plausibel) | TODO |
+| PT-14 | Bekræftelseslinks overlever kundedeaktivering (S4, plausibel) | DONE (kode) — deaktiveret kunde → linket tilbagekaldt (visning + bekræftelse); confirmation-expiry-check +1 |
 | CA-1 | Salgspakke: basispris + stykliste fakturerede dobbelt (S1, latent — pakkevælgeren er ikke monteret) | DONE (værn, kode) — kombinationen afvises indtil styklisten kan indsættes som ren kost |
 | CA-2 | PackageBuilder: tilsidesat salgspris fordelt efter arbejdstid (S1/S2) | TODO |
 | CA-3 | get_customer_product_price: RECORD IS NOT NULL springer aftaler over (S2) | BLOCKED_APPROVAL [MIGRATION 00251] — forslag docs/runbooks/pricing-functions-proposal.md (prod bekræftet read-only) |
