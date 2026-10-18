@@ -1237,6 +1237,26 @@ Den tomme kundeliste ombryder "Ingen opgaver endnu" og "Opret en opgave, hvis de
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-87, G18-108, G18-60, G18-111, G18-133, G18-134, G18-135.
 
+## Checkpoint 2026-10-18 tiende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `d8d63c83`. Det omskriver ikke listerne ovenfor. Produktspids: `70bd3243`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `d8d63c83..70bd3243`
+
+```
+70bd3243 feat(pilot): kundens ansvarlige-fejl ombrydes
+```
+
+Listen er alle commits efter `d8d63c83` til og med `70bd3243`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Kundens opgavefejl "Ansvarlige kunne ikke hentes. Det tælles ikke som ikke tildelt." ombrydes. Sætningen og opgavelisten er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-108, G18-60, G18-111, G18-133, G18-134, G18-135, G18-136.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
