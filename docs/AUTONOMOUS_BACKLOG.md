@@ -225,7 +225,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | TT-9 | Gem af ventende/afvist række genprisser til dagens sats (S4) | BESLUTNING — må ventende rækker genprisses? |
 | TT-10 | "Klar til fakturering" tæller timer der afventer godkendelse (S4) | TODO |
 | TT-11 | Godkend/afvis tjekker ikke lukket sag (S4) | TODO |
-| LD-1 | Signeret URL til vilkårlig fil i attachments via leads.custom_fields.attachments (montør/salg kan PATCHe lead) (S2) | TODO (kode: sti-validering); RLS-del = LD-2 |
+| LD-1 | Signeret URL til vilkårlig fil i attachments via leads.custom_fields.attachments (montør/salg kan PATCHe lead) (S2) | DONE (kode) — egen kopi kun under lead-attachments/<leadId>/, kildesti kun hvis den står på leadets egen kildemail (lead-attachment-access-test); RLS-del = LD-2 |
 | LD-2 | Lead-skrivepolitikker bredere end appen (montør INSERT/UPDATE; lead_activities uden performed_by = auth.uid()) (S2) | BLOCKED_APPROVAL [MIGRATION] + BESLUTNING (må salg opdatere alle leads?) |
 | LD-3 | Kobling af lead til eksisterende kunde efterlader leadets tilbud uden kunde (S2) | TODO |
 | LD-4 | Tildeling vises ingen steder (profiler fyldes aldrig); ikke-admin kan ikke tildele (S2) | TODO (visning + tildelingsliste); standardtildeling/"Kun mine" = BESLUTNING |

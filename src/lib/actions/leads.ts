@@ -774,9 +774,18 @@ export async function getLeadAttachmentUrlAction(leadId: string, storagePath: st
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('leads.view')) return { success: false, error: 'Manglende tilladelse: leads.view' }
     const { data: lead } = await supabase.from('leads').select('custom_fields').eq('id', leadId).maybeSingle()
-    const atts = (((lead as { custom_fields?: Record<string, unknown> } | null)?.custom_fields?.attachments ?? []) as Array<{ leadStoragePath?: string; sourcePath?: string }>)
-    const allowed = atts.some((a) => a.leadStoragePath === storagePath || a.sourcePath === storagePath)
-    if (!allowed || !storagePath || storagePath.includes('..')) return { success: false, error: 'Filen hører ikke til leadet' }
+    const cf = ((lead as { custom_fields?: Record<string, unknown> } | null)?.custom_fields ?? {}) as Record<string, unknown>
+    const atts = ((cf.attachments ?? []) as Array<{ leadStoragePath?: string; sourcePath?: string }>)
+    // LD-1 (leads-review 2026-10-18): listen i custom_fields er ingen adgangsnøgle — se lib/leads/attachment-access.ts
+    const { isSafeStoragePath, leadCopyAllowed, sourcePathAllowed } = await import('@/lib/leads/attachment-access')
+    if (!isSafeStoragePath(storagePath)) return { success: false, error: 'Filen hører ikke til leadet' }
+    let allowed = leadCopyAllowed(leadId, storagePath, atts)
+    if (!allowed && atts.some((a) => a.sourcePath === storagePath) && typeof cf.source_email_id === 'string') {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const { data: mail } = await createAdminClient().from('incoming_emails').select('attachment_urls').eq('id', cf.source_email_id).maybeSingle()
+      allowed = sourcePathAllowed(storagePath, atts, (mail as { attachment_urls?: unknown } | null)?.attachment_urls)
+    }
+    if (!allowed) return { success: false, error: 'Filen hører ikke til leadet' }
     const { getStorageSignedUrlOrNull, SIGNED_URL_TTL } = await import('@/lib/storage/signed-url')
     const url = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.SHORT)
     return url ? { success: true, data: { url } } : { success: false, error: 'Filen findes ikke længere' }
