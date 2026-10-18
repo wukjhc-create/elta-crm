@@ -2,6 +2,7 @@
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { dayTaskCountText } from '@/lib/planning/day-task-count'
+import { calendarDayHeading } from '@/lib/planning/calendar-day-heading'
 import { upcomingInspections } from '@/lib/calendar/agenda'
 import { ASSISTANT_RULE } from '@/lib/assistant/rules'
 import { useState, useMemo } from 'react'
@@ -265,14 +266,8 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
         {/* Side Panel — Selected Day Details */}
         <div className="bg-white rounded-xl border shadow-sm">
           <div className="p-4 border-b">
-            <h3 className="font-semibold text-gray-900">
-              {selectedDate
-                ? new Date(selectedDate + 'T12:00:00').toLocaleDateString('da-DK', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                  })
-                : 'Vælg en dag'}
+            <h3 className="font-semibold text-gray-900" data-testid="calendar-day-heading">
+              {calendarDayHeading(selectedDate)}
             </h3>
             {dayTaskCount && (
               <p className="mt-1 text-xs text-gray-600 break-words" data-testid="calendar-day-task-count">{dayTaskCount}</p>
