@@ -74,6 +74,20 @@ export async function runRateEngineCheck(c: { admin: SupabaseClient; url: string
       out.push({ id: 'R4 frosset snapshot uændret ved godkendelse', ok: JSON.stringify(before) === JSON.stringify(after), note: `${JSON.stringify(before)} → ${JSON.stringify(after)}` })
     }
 
+    // R6 (TT-1): triggeren genberegner ikke ved kun start_time — med end_time i SET-listen passer beløbet til timerne igen
+    if (made.logs[0]) {
+      const read = async () => (await c.admin.from('time_logs').select('start_time, end_time, hours, sale_amount, sale_rate_snapshot').eq('id', made.logs[0]).single()).data as { start_time: string; end_time: string; hours: number; sale_amount: number; sale_rate_snapshot: number }
+      const b = await read()
+      const later = new Date(new Date(b.start_time).getTime() + 3_600_000).toISOString()
+      await c.admin.from('time_logs').update({ start_time: later }).eq('id', made.logs[0])
+      const onlyStart = await read()
+      await c.admin.from('time_logs').update({ start_time: later, end_time: b.end_time }).eq('id', made.logs[0])
+      const withEnd = await read()
+      const fits = (x: { hours: number; sale_amount: number; sale_rate_snapshot: number }) => Math.abs(Number(x.hours) * Number(x.sale_rate_snapshot) - Number(x.sale_amount)) < 0.01
+      out.push({ id: 'R6 kun start_time genberegner ikke; start+end gør (TT-1-præmis)', ok: !fits(onlyStart) && fits(withEnd),
+        note: `kun start: ${onlyStart.hours} t / ${onlyStart.sale_amount} kr · med end: ${withEnd.hours} t / ${withEnd.sale_amount} kr (sats ${withEnd.sale_rate_snapshot})` })
+    }
+
     // R5: ACL
     const acl = await c.sql(`SELECT has_function_privilege('anon', 'public.compute_time_log_rates(uuid,text,uuid)', 'EXECUTE') a, has_function_privilege('authenticated', 'public.compute_time_log_rates(uuid,text,uuid)', 'EXECUTE') u`)
     out.push({ id: 'R5 compute_time_log_rates ikke kaldbar af anon/authenticated', ok: acl[0]?.a === false && acl[0]?.u === false, note: JSON.stringify(acl[0]) })

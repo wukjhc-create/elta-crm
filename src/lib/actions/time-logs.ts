@@ -21,6 +21,7 @@
  *    authenticated users to INSERT/SELECT.
  */
 
+import { normalizeApprovedTimeLogPatch, type ApprovedTimeLogCurrent } from '@/lib/time-logs/approved-patch'
 import type { Permission } from '@/lib/auth/permissions'
 import { endDateForClocks, findOverlappingTimeLog, missingSaleRateError, rateBelongsToEmployee, rateEngineErrorText, timeLogSpanError } from '@/lib/time-logs/guards'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
@@ -560,14 +561,9 @@ export async function updateTimeLog(
       }
     }
 
-    // EM-2 (review 2026-10-17): sats-triggeren kører, når end_time/pay_rate_type m.fl. står i SET-listen — også med samme
-    // værdi — og omprisede en GODKENDT registrering til dagens sats ved "Gem" uden ændring. Uændrede felter udelades.
+    // EM-2 + TT-1: uændrede sats-felter udelades; ændret starttid tager end_time med (se lib/time-logs/approved-patch.ts)
     if ((cur as { approval_status?: string }).approval_status === 'approved') {
-      const same = (a: unknown, b: unknown) => (a == null && b == null) || (a != null && b != null && new Date(String(a)).getTime() === new Date(String(b)).getTime())
-      if ('start_time' in patch && same(patch.start_time, (cur as { start_time?: string }).start_time)) delete patch.start_time
-      if ('end_time' in patch && same(patch.end_time, (cur as { end_time?: string | null }).end_time)) delete patch.end_time
-      if ('pay_rate_type' in patch && patch.pay_rate_type === ((cur as { pay_rate_type?: string | null }).pay_rate_type ?? 'normal')) delete patch.pay_rate_type
-      if ('employee_rate_id' in patch && (patch.employee_rate_id ?? null) === ((cur as { employee_rate_id?: string | null }).employee_rate_id ?? null)) delete patch.employee_rate_id
+      normalizeApprovedTimeLogPatch(patch, cur as ApprovedTimeLogCurrent)
       if (Object.keys(patch).length === 0) {
         const { data: unchanged } = await supabase.from('time_logs').select(TIME_LOG_PUBLIC_COLUMNS).eq('id', timeLogId).maybeSingle()
         if (unchanged) return { success: true, data: unchanged as unknown as TimeLogRow }
