@@ -1163,6 +1163,31 @@ Beskrivelsen på fakturakontrollens skrivebord kan krympe. Linjenummeret ombryde
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-108, G18-60, G18-111, G18-123, G18-124.
 
+## Checkpoint 2026-10-18 syvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `e584cfad`. Det omskriver ikke listerne ovenfor. Produktspids: `a9833b0e`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `e584cfad..a9833b0e`
+
+```
+a9833b0e feat(faktura): kontrolettiketter ombrydes
+cc1a4391 feat(plan): Mine paamindelser ombrydes
+91cecb64 feat(faktura): mobilens linjenummer kan krympe
+d64a588c feat(plan): ugedagsnavne ombrydes
+3459aa2a feat(faktura): fragtmaerket ombrydes
+495bcce4 feat(faktura): kolonnen # kan krympe
+```
+
+Listen er alle commits efter `e584cfad` til og med `a9833b0e`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Kolonneoverskriften # kan krympe. Fragt- og gebyrmærket ombrydes. Ugedagsnavnene ombrydes. Mobilens linjenummer kan krympe. Overskriften "Mine påmindelser" ombrydes. Etiketterne Kontrollerede linjer, Overpris i alt og Leverandør ombrydes. Tegn, ordene Fragt og Gebyr, ugedagsnavne, nummer og punktum, påmindelsesordene og beløbene er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-108, G18-60, G18-111, G18-129, G18-130.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
