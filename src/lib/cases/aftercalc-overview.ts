@@ -84,11 +84,36 @@ export interface AftercalcOverviewFilters {
   page?: number | null
 }
 
+export interface AftercalcQualitySummary {
+  /** Sager i det filtrerede sæt, før siden skæres. */
+  cases: number
+  /** Mindst én manglende-kost-kode. Tælles ikke som 0 kr. */
+  missingCost: number
+  /** db_variance er null. DB kan ikke beregnes. */
+  dbUnknown: number
+  /** data_quality er warning. */
+  warning: number
+}
+
+export function summarizeAftercalcQuality(rows: readonly AftercalcOverviewRow[]): AftercalcQualitySummary {
+  let missingCost = 0
+  let dbUnknown = 0
+  let warning = 0
+  for (const row of rows) {
+    if (row.warning_codes.some((code) => MISSING_COST.has(code))) missingCost += 1
+    if (row.db_variance == null) dbUnknown += 1
+    if (row.data_quality === 'warning') warning += 1
+  }
+  return { cases: rows.length, missingCost, dbUnknown, warning }
+}
+
 export interface AftercalcOverviewResult {
   rows: AftercalcOverviewRow[]
   total: number
   page: number
   pageSize: number
+  /** Hele det filtrerede sæt, ikke kun den viste side. */
+  quality: AftercalcQualitySummary
   /** Flere sager end vinduet på 200. Ældre sager er ikke beregnet. */
   truncated: boolean
   cases_considered: number
@@ -101,7 +126,7 @@ export interface AftercalcOverviewResult {
 export function selectOverviewPage(
   items: readonly AftercalcOverviewItem[],
   query: AftercalcOverviewQuery,
-): { rows: AftercalcOverviewRow[]; total: number; page: number; pageSize: number } {
+): { rows: AftercalcOverviewRow[]; total: number; page: number; pageSize: number; quality: AftercalcQualitySummary } {
   let list = items.slice()
   const variance = query.variance ?? 'all'
   if (variance === 'negative') list = list.filter((i) => i.row.db_variance != null && i.row.db_variance < 0)
@@ -126,6 +151,7 @@ export function selectOverviewPage(
   })
 
   const total = list.length
+  const quality = summarizeAftercalcQuality(list.map((item) => item.row))
   const pages = Math.max(1, Math.ceil(total / AFTERCALC_PAGE_SIZE))
   const page = Math.min(Math.max(query.page ?? 1, 1), pages)
   const start = (page - 1) * AFTERCALC_PAGE_SIZE
@@ -134,5 +160,6 @@ export function selectOverviewPage(
     total,
     page,
     pageSize: AFTERCALC_PAGE_SIZE,
+    quality,
   }
 }

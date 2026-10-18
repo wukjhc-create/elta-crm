@@ -160,6 +160,9 @@ export function AftercalcOverviewClient() {
                     Viser de {data.cases_considered} nyeste sager i filtret. Ældre sager er ikke beregnet.
                   </p>
                 )}
+                <p className="text-sm text-gray-800 break-words min-w-0" data-testid="aftercalc-quality-summary">
+                  {data.quality.missingCost} af {data.quality.cases} sager i filtret mangler kost. DB kan ikke beregnes for {data.quality.dbUnknown}.
+                </p>
                 {data.rows.length === 0 ? (
                   <div className="text-sm text-gray-500" data-testid="aftercalc-empty">
                     <p>{filtersActive ? 'Ingen sager matcher filtrene.' : 'Ingen sager i oversigten. Opret en sag fra kunden, så den kan efterkalkuleres her.'}</p>

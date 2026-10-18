@@ -18,6 +18,7 @@ import { copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { buildCaseAftercalc, type AftercalcInput, type CaseAftercalcView } from '@/lib/cases/aftercalc'
 import {
   selectOverviewPage,
+  summarizeAftercalcQuality,
   takeCaseWindow,
   AFTERCALC_CASE_WINDOW,
   AFTERCALC_PAGE_SIZE,
@@ -399,6 +400,7 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
           total: 0,
           page: 1,
           pageSize: AFTERCALC_PAGE_SIZE,
+          quality: summarizeAftercalcQuality([]),
           truncated: false,
           cases_considered: 0,
           query_ms: Math.round(performance.now() - started),
