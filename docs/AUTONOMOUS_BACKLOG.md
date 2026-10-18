@@ -840,7 +840,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-102 | 5 Plan | DONE "Åbn rutevejledning" på den valgte dag ombrydes. | Adressen og linket er uændret. |
 | G18-105 | 5 Plan | DONE "kommende / overskredet" i kalenderens overskrift ombrydes. | Tællingen er uændret. |
 | G18-106 | 5 Plan | DONE overskriften "Kalender — Besigtigelser" ombrydes. | Ordene er uændret. |
-| G18-107 | 5 Plan | ÅBEN. Knappen "I dag" er mindst 44 px høj. | Teksten og goToToday er uændret. |
+| G18-107 | 5 Plan | DONE knappen "I dag" er mindst 44 px høj. | Teksten og goToToday er uændret. |
 | G18-108 | 5 Plan | ÅBEN. "+N mere" på månedsdagen ombrydes. | Tællingen er uændret. Dagbrikkerne afkortes stadig. |
 | G18-109 | 2 Faktura | DONE linjedommen på fakturakontrollen ombrydes. | Domsteksten er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
@@ -848,6 +848,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |
 | G18-110 | 2 Faktura | ÅBEN. Match-teksten på fakturakontrollens skrivebord ombrydes. | Match-ordene er uændret. |
 | G18-111 | 5 Plan | ÅBEN. "+N påmindelser" på månedsdagen ombrydes. | Tællingen er uændret. Dagbrikkerne afkortes stadig. |
+| G18-112 | 5 Plan | ÅBEN. Forrige og næste måned er mindst 44 px. | Aria-teksten er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
