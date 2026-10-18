@@ -49,8 +49,8 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
     return (
       <div className="text-center py-12">
         <ListChecks className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-        <h3 className="text-base font-medium text-gray-700">Ingen opgaver endnu</h3>
-        <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+        <h3 className="text-base font-medium text-gray-700 break-words min-w-0" data-testid="case-tasks-empty-title">Ingen opgaver endnu</h3>
+        <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto break-words min-w-0" data-testid="case-tasks-empty-hint">
           Når en sag oprettes fra et tilbud, får den automatisk en opstartstjekliste her.
         </p>
       </div>
