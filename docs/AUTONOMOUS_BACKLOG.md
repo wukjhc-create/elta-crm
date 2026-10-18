@@ -784,7 +784,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-36 | 1 Profit | DONE sagspanelets indledning ombrydes. | Faktureringsstatus og beløb uændret. |
 | G18-51 | 1 Profit | ÅBEN. Linje-forklaringen under efterkalk ombrydes. | Koblingsreglen og beløb er uændret. |
 | G18-33 | 1 Profit | DONE sagspanelets mobil-resumé ombryder tilbudt, faktisk og afvigelse. | Tallene uændret. |
-| G18-38 | 1 Profit | ÅBEN. Sagspanelets skrivebords-resumé (tilbudt, faktisk, afvigelse) ombrydes. | Tallene uændret. |
+| G18-38 | 1 Profit | DONE sagspanelets skrivebords-resumé ombrydes. | Tallene uændret. |
+| G18-52 | 1 Profit | ÅBEN. Skrivebordslinjens kostceller ombrydes. | `kr()` og `qty()` er uændret. |
 | G18-34 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk kost. | Kosttallet uændret. |
 | G18-39 | 1 Profit | ÅBEN. Sagspanelets mobil-linje ombryder tilbudt og faktisk antal. | `qty()` uændret. |
 | G18-35 | 1 Profit | ÅBEN. Sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |

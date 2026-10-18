@@ -149,9 +149,9 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                     {rows.map((r) => (
                       <tr key={r.label} data-testid="aftercalc-row">
                         <td className="px-2 py-1.5 text-gray-700">{r.label}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{r.quoted}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{r.actual}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums"><DevCell value={r.variance} kind={r.kind} /></td>
+                        <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{r.quoted}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{r.actual}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0"><DevCell value={r.variance} kind={r.kind} /></td>
                       </tr>
                     ))}
                   </tbody>
