@@ -554,21 +554,23 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         overview.overdueInvoices.allowed = true
         const { calendarDaysSince, copenhagenCalendarDaysBetween } = await import('@/lib/utils/copenhagen-time')
         const { nextReminder } = await import('@/lib/invoices/reminder-plan')
-        const { data, error } = await supabase.from('invoices')
-          .select('id, invoice_number, invoice_type, final_amount, amount_paid, due_date, reminder_count, last_reminder_at, customer_id')
+        // DB-5 (dashboard-review 2026-10-18): samme regler som Fakturaøkonomi og fakturalisten — side for side (før
+        // .limit(500)), kun DKK (før alle valutaer som "kr"), åbent beløb ≥ 0,50 (FIN-11; før enhver øre-rest)
+        const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+        const data = await fetchAllRows((f, t) => supabase.from('invoices')
+          .select('id, invoice_number, invoice_type, final_amount, amount_paid, due_date, reminder_count, last_reminder_at, customer_id, currency')
           .eq('status', 'sent').is('voided_at', null).not('due_date', 'is', null)
-          .order('due_date', { ascending: true }).limit(500)
-        if (error) throw new Error(error.message)
+          .order('due_date', { ascending: true }).order('id').range(f, t))
         const nowMs = Date.now()
         const overdue = ((data ?? []) as Array<{ id: string; invoice_number: string | null; invoice_type: string | null; final_amount: number | string | null; amount_paid: number | string | null; due_date: string; reminder_count: number | null; last_reminder_at: string | null; customer_id: string | null }>)
-          .filter((r) => r.invoice_type !== 'credit')
+          .filter((r) => r.invoice_type !== 'credit' && String((r as { currency?: string | null }).currency ?? 'DKK').toUpperCase() === 'DKK')
           .map((r) => ({ ...r, days: calendarDaysSince(r.due_date, nowMs) }))
           .filter((r) => r.days > 0)
         // Rapport-review 2026-10-09 (#1): åbent beløb (− betalt − kreditnotaer) som fakturaoversigten; fuldt betalte/
         // krediterede fakturaer tælles ikke som forfaldne
         const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
         const credited = await creditedByOriginal(supabase, overdue.map((r) => r.id))
-        const rows = overdue.map((r) => ({ ...r, open: openAmount(r, credited) })).filter((r) => r.open > 0)
+        const rows = overdue.map((r) => ({ ...r, open: openAmount(r, credited) })).filter((r) => r.open >= 0.5) // DB-5: FIN-11-tærskel
         if (!rows.length) return
         const custIds = Array.from(new Set(rows.slice(0, TOP_N).map((r) => r.customer_id).filter((x): x is string => !!x)))
         const names = new Map<string, string>()
