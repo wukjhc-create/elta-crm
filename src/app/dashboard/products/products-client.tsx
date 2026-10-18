@@ -261,7 +261,7 @@ export default function ProductsClient({
                   )}
                   <div>
                     <dt className="text-xs text-gray-500">Listepris</dt>
-                    <dd className="font-medium">{formatCurrency(product.list_price)}</dd>
+                    <dd className="font-medium break-words min-w-0" data-testid="product-list-price-mobile">{formatCurrency(product.list_price)}</dd>
                   </div>
                 </dl>
                 <div className="flex flex-wrap gap-3 text-sm">
@@ -315,7 +315,7 @@ export default function ProductsClient({
                     <span className="break-words" data-testid="product-cost-price">{storedCostText(product.cost_price)}</span>
                   </TableCell>
                   )}
-                  <TableCell className="text-right font-medium">
+                  <TableCell className="text-right font-medium break-words min-w-0" data-testid="product-list-price">
                     {formatCurrency(product.list_price)}
                   </TableCell>
                   <TableCell>
