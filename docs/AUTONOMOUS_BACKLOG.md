@@ -218,7 +218,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | AI-2 | Auto-kalibrering dividerer to gange og ignorerer antal → forkerte basistider skrives i kataloget; montør kan forgifte feedback (S2) | DELVIS (kode) — Σfaktisk/Σantal pr. enhed, antal ≤ 0 ignoreres, højst ±25 %; feedback kræver projects.edit + plausible timer + eksisterende kalkulation (calibration-test). RLS på calculation_feedback = BLOCKED_APPROVAL [MIGRATION] |
 | AI-3 | AI-udtræk valideres ikke før kundeoprettelse (navn/telefon/adresse fra prompt-injektion) (S3) | DONE (kode) — navn ≤ 120, adresse ≤ 200 med postnummer, telefon = 8 cifre (evt. 45), ingen @/URL/linjeskift |
 | AI-4 | Hele mailtekster inkl. CPR/bankoplysninger sendes til OpenAI uden maskering (S3) | TODO (maskering); DPA/zero-retention = BESLUTNING |
-| AI-5 | Auto-tilbud: mailtekst styrer avance (isLargeProject) og kundevendt beskrivelse (S3, bag flag) | TODO |
+| AI-5 | Auto-tilbud: mailtekst styrer avance (isLargeProject) og kundevendt beskrivelse (S3, bag flag) | DONE (kode) — kundevendt beskrivelse deterministisk (AI-tekst kun i interne noter); stor-projekt-rabat kun fra whitelistet jobtype. Ingen test (bag AUTO_CREATE_CASES_ENABLED) |
 | AI-6 | canSpendAi fejler åbent; budget ikke atomisk; ingen max_tokens (S4) | DONE (kode) — læsefejl opdages; mail-agenten fail-closed; max_tokens 400/600 (agent-gating/agent-actions). Atomisk reservation = TODO (lav) |
 | AI-7 | LLM-udkast kan blive "gennemset" sendeforslag uden indholdstjek (S4) | TODO |
 | AI-8 | Noter fra tale ligner skrevne (source telegram) (S4) | TODO — kræver kildeværdi (evt. CHECK på source) eller kommando-flag; lav prioritet |

@@ -92,10 +92,9 @@ export async function createOfferDraftFromCase(input: AutoOfferInput): Promise<s
   const aiSummary = await generateOfferAiSummary(input.subject, input.body, input.intent)
   const notes = formatOfferNotes(aiSummary, input.caseId)
 
-  // description = short customer-facing summary (uses AI "wants" if available)
-  const description = aiSummary?.wants
-    ? aiSummary.wants
-    : buildFallbackDescription(input)
+  // AI-5 (AI-review 2026-10-18): den kundevendte beskrivelse er deterministisk — modellens "wants" (styres af mailteksten)
+  // står kun i de interne noter (formatOfferNotes), ikke i tekst kunden ser
+  const description = buildFallbackDescription(input)
 
   // Race-safe offer_number (retry kun ved nummer-kollision); 23505 paa source_email_id returneres straks.
   const result = await insertOfferWithNumber(supabase, {
@@ -207,10 +206,9 @@ async function deriveMarginContext(args: {
   const scope = (args.scopeText || '').toLowerCase()
   const ctx: MarginContext = {
     isUrgent: args.priority === 'urgent' || args.priority === 'high',
-    isLargeProject:
-      jt === 'project' ||
-      scope.length > 300 ||
-      /(renovering|erhverv|nybyg|kommerciel|entreprise)/.test(scope),
+    // AI-5: ingen avancerabat ud fra fri tekst (scope kommer fra modellen og kan styres af afsenderen — "erhvervsrenovering"
+    // eller en lang beskrivelse gav −5 % avance); kun den whitelistede jobtype
+    isLargeProject: jt === 'project',
     isSmallJob: jt === 'service' && scope.length > 0 && scope.length < 120,
     isRepeatCustomer: false,
   }
