@@ -62,7 +62,7 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
   return (
     <div className="space-y-2">
       {namesFailed && (
-        <p className="text-sm text-red-700" data-testid="case-task-assignee-names-error">
+        <p className="text-sm text-red-700 break-words min-w-0" data-testid="case-task-assignee-names-error">
           Ansvarlige kunne ikke hentes. Det tælles ikke som ikke tildelt.
         </p>
       )}
