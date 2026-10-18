@@ -40,14 +40,17 @@ export function classifyBackfill(r: { ingested: number; upgraded?: number; dupli
 /** Broedtekst-fakturaer (ulaaste) hvis mail har vedhaeftninger og som ikke er faerdigbehandlet af backfill. */
 export async function findBackfillCandidates(limit: number, onlyEmailIds?: string[]): Promise<{ total: number; batch: Candidate[] }> {
   const supabase = createAdminClient()
-  const { data: invs } = await supabase
+  // IV-13 (leverandørfaktura-review 2026-10-18): side for side og låste statusser filtreres i databasen — før stoppede
+  // forespørgslen ved PostgREST's 1.000 rækker, så nyere brødtekst-fakturaer aldrig blev kandidater
+  const invs = await fetchAllRows<{ id: string; source_email_id: string | null; status: string | null; file_name: string | null; created_at: string }>((from, to) => supabase
     .from('incoming_invoices')
     .select('id, source_email_id, status, file_name, created_at')
     .eq('source', 'email')
     .like('file_name', 'email-%.txt')
     .not('source_email_id', 'is', null)
-    .order('created_at', { ascending: true })
-  const open = (invs ?? []).filter((i) => (!onlyEmailIds || onlyEmailIds.includes(i.source_email_id as string)) && !LOCKED.includes(i.status as string) && i.file_name === `email-${i.source_email_id}.txt`)
+    .not('status', 'in', `(${LOCKED.join(',')})`)
+    .order('created_at', { ascending: true }).order('id').range(from, to))
+  const open = invs.filter((i) => (!onlyEmailIds || onlyEmailIds.includes(i.source_email_id as string)) && !LOCKED.includes(i.status as string) && i.file_name === `email-${i.source_email_id}.txt`)
   if (open.length === 0) return { total: 0, batch: [] }
 
   const emailIds = [...new Set(open.map((i) => i.source_email_id as string))]

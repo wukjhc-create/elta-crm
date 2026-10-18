@@ -775,6 +775,41 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'invoice-backfill-candidates-check') {
+    // IV-13: findBackfillCandidates læser side for side og filtrerer låste statusser i databasen. Midlertidig mail +
+    // to brødtekst-fakturaer (én åben, én godkendt) ryddes op.
+    const { findBackfillCandidates } = await import('../../src/lib/invoice-control/attachment-backfill')
+    const stamp = Date.now()
+    const { data: em, error: emErr } = await admin.from('incoming_emails').insert({
+      graph_message_id: `harness-bf-${stamp}`, subject: '[HARNESS] backfill', sender_email: `bf-${stamp}@harness.test`,
+      to_email: 'kontakt@harness.test', received_at: new Date().toISOString(), link_status: 'ignored', has_attachments: true,
+    }).select('id').single()
+    if (emErr || !em) { log(`❌ kunne ikke oprette mail: ${emErr?.message}`); process.exitCode = 1; return }
+    const emailId = (em as { id: string }).id
+    const ids: string[] = []
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    try {
+      for (const status of ['received', 'approved']) {
+        const { data, error } = await admin.from('incoming_invoices').insert({ source: 'email', status, source_email_id: emailId, file_name: `email-${emailId}.txt`, invoice_number: `H-BF-${status}-${stamp}`, currency: 'DKK' }).select('id').single()
+        if (error || !data) throw new Error(`faktura (${status}): ${error?.message}`)
+        ids.push((data as { id: string }).id)
+      }
+      const r = await findBackfillCandidates(50, [emailId])
+      check('åben brødtekst-faktura er kandidat', r.batch.some((c) => c.invoiceId === ids[0]), `total=${r.total}`)
+      check('godkendt faktura er ikke kandidat', !r.batch.some((c) => c.invoiceId === ids[1]))
+      const all = await findBackfillCandidates(0)
+      check('fuld kandidatsøgning kører uden fejl', all.batch.length === 0, `total=${all.total}`)
+    } catch (e) {
+      fails++; log(`❌ ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      if (ids.length) await admin.from('incoming_invoices').delete().in('id', ids)
+      await admin.from('incoming_emails').delete().eq('id', emailId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ backfill-kandidater ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'mail-backfill-probe') {
     // Mail-review 2026-10-09 (#1): orchestratorens backfill-forespørgsel (kolonner/filtre) virker mod det rigtige skema
     const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
