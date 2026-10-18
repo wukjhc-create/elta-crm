@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { getInvoiceControl } from '@/lib/actions/invoice-control'
 import { chargeLabel, chargeLabelText } from '@/lib/invoice-control/charge-label'
 import { headerLineSummary } from '@/lib/invoice-control/header-totals'
+import { countInvoiceReviewLines } from '@/lib/invoice-control/review-counts'
 import type { InvoiceControlResult } from '@/lib/invoice-control/invoice-control-loader'
 
 const kr = (n: number) => `${n.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`
@@ -53,6 +54,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
   if (lineCount === 0) return null
   const v = res ? VERDICT[res.control.verdict] : null
   const header = res ? headerLineSummary(res.header) : null
+  const review = res ? countInvoiceReviewLines(res.control.lines) : null
   const headerCls = header?.tone === 'bad' ? 'text-red-700' : header?.tone === 'warn' ? 'text-amber-800' : 'text-gray-600'
 
   return (
@@ -92,6 +94,15 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
               <div className="font-medium break-words">{res.hasSupplier ? 'Kendt' : 'Ukendt — kan ikke matche katalog'}</div>
             </div>
           </div>
+          {review && (
+            <p className="text-xs break-words min-w-0 mb-3" data-testid="invoice-control-review-counts">
+              <span className={review.overcharge > 0 ? 'text-red-700 font-medium' : ''}>{review.overcharge} overpris</span>
+              {', '}
+              <span className={review.undercharge > 0 ? 'text-amber-800 font-medium' : ''}>{review.undercharge} underpris</span>
+              {', '}
+              <span>{review.freight + review.fee} fragt/gebyr.</span>
+            </p>
+          )}
           <div className="md:hidden divide-y rounded ring-1 ring-gray-200" data-testid="invoice-control-lines-mobile">
             {res.control.lines.map((l) => {
               const m = res.matches.find((x) => x.lineNumber === l.lineNumber)
