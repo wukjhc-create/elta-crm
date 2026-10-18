@@ -201,7 +201,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                             <p className="text-gray-900 break-words">{r.description}</p>
                             {r.unit && <p className="text-[11px] text-gray-500 break-words min-w-0">{r.unit}</p>}
                           </div>
-                          <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide break-words min-w-0 ${STATUS[r.status].cls}`} data-testid="aftercalc-mobile-line-status">{STATUS[r.status].label}</span>
                         </div>
                         <p className="mt-2 text-xs text-gray-600 break-words min-w-0">Tilbudt antal {qty(r.offered_qty)} · faktisk antal {qty(r.actual_qty)}</p>
                         <p className="text-xs text-gray-700 break-words min-w-0">Tilbudt kost {kr(r.offered_cost)} · faktisk kost {kr(r.actual_cost)}</p>
@@ -234,8 +234,8 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{kr(r.offered_cost)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{kr(r.actual_cost)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{r.cost_deviation == null ? 'Kan ikke beregnes' : moneyDev(r.cost_deviation, false)}</td>
-                            <td className="px-2 py-1.5 text-center">
-                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
+                            <td className="px-2 py-1.5 text-center break-words min-w-0">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide break-words min-w-0 ${STATUS[r.status].cls}`} data-testid="aftercalc-desktop-line-status">{STATUS[r.status].label}</span>
                             </td>
                           </tr>
                         ))}

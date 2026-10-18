@@ -807,7 +807,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-51 | 1 Profit | DONE linje-forklaringen under efterkalk ombrydes. | Koblingsreglen og beløb er uændret. |
 | G18-55 | 1 Profit | DONE tom linjeliste på sagspanelet ombrydes. | Teksten er uændret. |
 | G18-61 | 1 Profit | DONE tomme højdepunkter på sagspanelet ombrydes. | Teksterne er uændret. |
-| G18-62 | 1 Profit | ÅBEN. Linjestatus på sagspanelet ombrydes. | Statusordene er uændret. |
+| G18-62 | 1 Profit | DONE linjestatus på sagspanelet ombrydes. | Statusordene er uændret. |
 | G18-33 | 1 Profit | DONE sagspanelets mobil-resumé ombryder tilbudt, faktisk og afvigelse. | Tallene uændret. |
 | G18-38 | 1 Profit | DONE sagspanelets skrivebords-resumé ombrydes. | Tallene uændret. |
 | G18-52 | 1 Profit | DONE skrivebordslinjens kostceller ombrydes. | `kr()` og `qty()` er uændret. |
@@ -842,6 +842,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-106 | 5 Plan | ÅBEN. Overskriften "Kalender — Besigtigelser" ombrydes. | Ordene er uændret. |
 | G18-107 | 5 Plan | ÅBEN. Knappen "I dag" er mindst 44 px høj. | Teksten og goToToday er uændret. |
 | G18-108 | 5 Plan | ÅBEN. "+N mere" på månedsdagen ombrydes. | Tællingen er uændret. Dagbrikkerne afkortes stadig. |
+| G18-109 | 2 Faktura | ÅBEN. Linjedommen på fakturakontrollen ombrydes. | Domsteksten er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
 | G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |
