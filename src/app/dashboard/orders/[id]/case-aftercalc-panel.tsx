@@ -186,7 +186,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
 
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Linjer</h4>
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="text-xs text-gray-500 mb-2 break-words min-w-0" data-testid="aftercalc-line-rule">
                   En linje kobles kun, når materialet peger på tilbudslinjen eller på samme leverandørvare. Ens tekst alene står som ikke matchet. Linjelisten slår ikke antal eller kost sammen, heller ikke når teksten er ens.
                 </p>
                 {data.lines.length === 0 ? (

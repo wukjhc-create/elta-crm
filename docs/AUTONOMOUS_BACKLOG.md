@@ -782,7 +782,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-30 | 2 Faktura | SPRUNGET. `LineControl` har ikke `unitPrice`. Samme lås som G18-27. | Afvigelsesbeløbet uændret. Ikke BLOCKED_APPROVAL. |
 | G18-32 | 1 Profit | DONE beløb i sagspanelets highlight-liste ombrydes. | `kr()` uændret. |
 | G18-36 | 1 Profit | DONE sagspanelets indledning ombrydes. | Faktureringsstatus og beløb uændret. |
-| G18-51 | 1 Profit | ÅBEN. Linje-forklaringen under efterkalk ombrydes. | Koblingsreglen og beløb er uændret. |
+| G18-51 | 1 Profit | DONE linje-forklaringen under efterkalk ombrydes. | Koblingsreglen og beløb er uændret. |
+| G18-55 | 1 Profit | ÅBEN. Tom linjeliste på sagspanelet ombrydes. | Teksten er uændret. |
 | G18-33 | 1 Profit | DONE sagspanelets mobil-resumé ombryder tilbudt, faktisk og afvigelse. | Tallene uændret. |
 | G18-38 | 1 Profit | DONE sagspanelets skrivebords-resumé ombrydes. | Tallene uændret. |
 | G18-52 | 1 Profit | ÅBEN. Skrivebordslinjens kostceller ombrydes. | `kr()` og `qty()` er uændret. |
