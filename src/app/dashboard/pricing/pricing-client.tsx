@@ -445,7 +445,7 @@ function SuppliersTab({ stats, error }: { stats: SupplierPriceStats[]; error: st
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg break-words min-w-0" data-testid="pricing-supplier-name">{stat.supplier_name}</h3>
             {stat.last_sync_at && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-400 break-words min-w-0" data-testid="pricing-sync-date">
                 Synk: {formatDateUtil(stat.last_sync_at)}
               </span>
             )}
