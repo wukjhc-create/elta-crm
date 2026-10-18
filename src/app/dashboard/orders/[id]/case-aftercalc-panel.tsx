@@ -99,7 +99,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
         {open ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
       </button>
       {!open && (
-        <p className="mt-1 text-xs text-gray-500">Tilbudt mod faktisk. Kost og DB er skjult, indtil du åbner.</p>
+        <p className="mt-1 text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-closed-hint">Tilbudt mod faktisk. Kost og DB er skjult, indtil du åbner.</p>
       )}
 
       {open && (
