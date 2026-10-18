@@ -653,7 +653,7 @@ function SummaryCard({
         {icon}
         <span className="text-xs text-gray-600 break-words min-w-0" data-testid="pricing-summary-label">{label}</span>
       </div>
-      <div className={`text-2xl font-bold ${valueColor}`}>
+      <div className={`text-2xl font-bold break-words min-w-0 ${valueColor}`} data-testid="pricing-summary-value">
         {isText ? value : value}
       </div>
     </div>
