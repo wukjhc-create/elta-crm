@@ -1020,6 +1020,58 @@ Når `grok-next` må ses: kost-gates og falsk-tom leverandørliste først. Deref
 
 G18-99, G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-62, G18-72, G18-98, G18-60.
 
+## Checkpoint 2026-10-18 tredje (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `dfd78f86`. Det omskriver ikke listen i checkpointet ovenfor. Produktspids: `9ecacb50`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Hvert push af `grok-next` blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `dfd78f86..9ecacb50`
+
+```
+9ecacb50 feat(plan): kalenderoverskrift ombrydes
+3fefb3d0 test(faktura): behold hovedmaerkets daekning
+d4102cee feat(faktura): linjedommen ombrydes
+6fb22aa9 feat(efterkalk): linjestatus ombrydes
+642d7801 feat(plan): kalenderens taelling ombrydes
+a3f028cc feat(plan): bekraeftelse ombrydes
+72dc1331 feat(plan): ansvarliges navn ombrydes
+d2b8a770 feat(plan): rutevejledning ombrydes
+f20e64a7 feat(plan): kundekortlinket ombrydes
+78c3b012 feat(plan): kommende tælling ombrydes
+2027a0b6 feat(plan): dagens klokkeslet ombrydes
+8553f6ca feat(plan): kommende klokkeslet ombrydes
+7392bcaf feat(efterkalk): skrivebordsstatus ombrydes
+```
+
+Listen er alle commits efter `dfd78f86` til og med `9ecacb50`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features siden `dfd78f86`
+
+Efterkalk-oversigtens skrivebordsstatus og sagspanelets linjestatus ombrydes. Statusordene er uændret. Kalenderen ombryder kommende klokkeslæt, dagens klokkeslæt, kommende tælling, kundekortlinket, rutevejledningen, den ansvarliges navn, "Bekræftet af kunden", overskriftstællingen og titlen "Kalender — Besigtigelser". Fejlteksten "Navn kunne ikke hentes", adressen og bekræftelsesbetingelsen er uændret. Fakturakontrollens linjedom ombrydes. Hovedmærkets fire tekster og "Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr." er uændret. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil. `3fefb3d0` genindfører tjekket af hovedmærket i samme test. De kørte med `npx tsx` og exiterede 0. Når `src/` ændredes, kørte `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` og exiterede 0 før commit. Resultaterne er tilføjet i tests.log, ikke skrevet om. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv. G18-25, G18-27 og G18-30 er stadig sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og falsk-tom leverandørliste først. Derefter ombrydningerne efter `dfd78f86`: skrivebordsstatus, linjestatus, kalenderens klokkeslæt, tælling, kundekort, rute, ansvarlig, bekræftelse, overskrift og fakturaens linjedom. Ingen af dem poster, sender eller ændrer en lagret pris.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og falsk-tom først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-107, G18-108, G18-60, G18-110, G18-111.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
