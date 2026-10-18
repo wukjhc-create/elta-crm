@@ -113,7 +113,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
             </div>
           )}
           {!error && !data && (
-            <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Henter…</p>
+            <p className="text-sm text-gray-500 flex items-center gap-2 break-words min-w-0" data-testid="case-aftercalc-loading"><Loader2 className="w-4 h-4 animate-spin" /> Henter…</p>
           )}
           {data && (
             <>
