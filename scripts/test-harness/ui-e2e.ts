@@ -3244,6 +3244,8 @@ ${m.text()}`) })
         r.kundens_mail_ikke_formsubmit = lead?.email === leadMail
         r.navn_og_telefon = !!lead?.company_name.includes('Web Testesen') && (lead?.phone ?? '').replace(/\D/g, '').endsWith('22334455')
         r.kilde_website = lead?.source === 'website'
+        // knappen skifter først efter refresh — vent på den (flaky ved øjeblikkelig optælling)
+        await a.page.getByTestId('mail-lead-open').first().waitFor({ timeout: 30_000 }).catch(() => {})
         r.knap_bliver_aabn_lead = (await a.page.getByTestId('mail-lead-open').count()) === 1
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         // LD-7: samme person indsender igen → ingen dublet-lead; mailen kobles på det åbne lead
