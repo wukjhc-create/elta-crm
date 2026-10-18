@@ -890,12 +890,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-151 | 8 Pilot | DONE knapperne Rediger og Slet på kundens opgave kan rammes med 44 px. | aria-label er uændret. |
 | G18-152 | 5 Plan | DONE knappen "I dag" på kalenderen ombrydes. | Ordene og min-h-[44px] er uændret. |
 | G18-153 | 8 Pilot | DONE den ansvarliges navn eller e-mail på kundens opgave kan krympe. | Udtrykket er uændret. |
-| G18-154 | 4 Pris | ÅBEN. Leverandørnavnet på prisstatistikken ombrydes. | Navnet kommer stadig fra stat.supplier_name. |
+| G18-154 | 4 Pris | DONE leverandørnavnet på prisstatistikken ombrydes. | Navnet kommer stadig fra stat.supplier_name. |
 | G18-155 | 4 Pris | ÅBEN. Synk-datoen på prisstatistikken ombrydes. | formatDateUtil er uændret. |
 | G18-156 | 4 Pris | ÅBEN. Etiketten "Prisbevægelse" på prisstatistikken ombrydes. | Procenterne er uændret. |
 | G18-157 | 4 Pris | ÅBEN. Etiketterne på prisstatistikkens tal ombrydes. | Tallene er uændret. |
 | G18-158 | 4 Pris | ÅBEN. Teksten "Indlæser data..." på prissiden ombrydes. | Sætningen er uændret. |
 | G18-159 | 4 Pris | ÅBEN. Den tomme tekst på prissiden ombrydes. | Sætningerne i EmptyState-kaldene er uændret. |
+| G18-160 | 4 Pris | ÅBEN. Fejlteksten på prissiden ombrydes. | Sætningen "Det tælles ikke som ingen prisændringer." er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

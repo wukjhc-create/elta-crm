@@ -443,7 +443,7 @@ function SuppliersTab({ stats, error }: { stats: SupplierPriceStats[]; error: st
       {stats.map((stat) => (
         <div key={stat.supplier_id} className="bg-white rounded-lg border p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">{stat.supplier_name}</h3>
+            <h3 className="font-semibold text-lg break-words min-w-0" data-testid="pricing-supplier-name">{stat.supplier_name}</h3>
             {stat.last_sync_at && (
               <span className="text-xs text-gray-400">
                 Synk: {formatDateUtil(stat.last_sync_at)}
