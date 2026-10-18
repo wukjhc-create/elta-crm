@@ -557,7 +557,7 @@ function TrendsTab({
                     {trend.trend_30_days > 0 ? '+' : ''}{trend.trend_30_days}%
                   </span>
                 ) : (
-                  <span className="text-gray-400">-</span>
+                  <span className="text-gray-400 break-words min-w-0" data-testid="pricing-trend-30-missing-mobile">-</span>
                 )}
               </p>
               <p className="text-xs break-words min-w-0" data-testid="pricing-trend-label-90-mobile">
@@ -567,7 +567,7 @@ function TrendsTab({
                     {trend.trend_90_days > 0 ? '+' : ''}{trend.trend_90_days}%
                   </span>
                 ) : (
-                  <span className="text-gray-400">-</span>
+                  <span className="text-gray-400 break-words min-w-0" data-testid="pricing-trend-90-missing-mobile">-</span>
                 )}
               </p>
               <p className="mt-1 text-xs">
@@ -606,7 +606,7 @@ function TrendsTab({
                           {trend.trend_30_days > 0 ? '+' : ''}{trend.trend_30_days}%
                         </span>
                       ) : (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-400 break-words min-w-0" data-testid="pricing-trend-30-missing">-</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right">
@@ -616,7 +616,7 @@ function TrendsTab({
                           {trend.trend_90_days > 0 ? '+' : ''}{trend.trend_90_days}%
                         </span>
                       ) : (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-400 break-words min-w-0" data-testid="pricing-trend-90-missing">-</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-center">
