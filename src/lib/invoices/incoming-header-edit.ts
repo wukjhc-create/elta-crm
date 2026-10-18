@@ -81,6 +81,12 @@ export function validateInvoiceHeaderEdit(current: InvoiceHeaderValues, input: I
     if (Math.abs(excl + vat - incl) > 0.05) {
       return { ok: false, message: `Beløbene stemmer ikke: ekskl. ${excl.toFixed(2)} + moms ${vat.toFixed(2)} ≠ inkl. ${incl.toFixed(2)}` }
     }
+    // IV-15 (leverandørfaktura-review 2026-10-18): samme fortegn på alle tre (faktura positiv, kreditnota negativ) — før
+    // blev fx ekskl. −1000 / moms +250 / inkl. −750 accepteret
+    const signs = [excl, vat, incl].filter((x) => x !== 0).map(Math.sign)
+    if (new Set(signs).size > 1) {
+      return { ok: false, message: 'Beløbene skal have samme fortegn (negative på en kreditnota)' }
+    }
     if (Math.abs(vat) > Math.abs(excl) * 0.25 + 1) {
       return { ok: false, message: 'Momsen er over 25 % af beløbet ekskl. moms' }
     }

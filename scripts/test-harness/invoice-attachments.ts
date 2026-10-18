@@ -126,7 +126,7 @@ export async function runInvoiceAttachments(c: { admin: SupabaseClient; ownerUid
         const r = await ingestFromEmail(em); track(r.invoiceIds)
         const inv = (await invoicesFor(em))[0]
         await c.admin.from('incoming_invoices').update({ matched_case_id: caseId }).eq('id', inv.id)
-        if (manual) await c.admin.from('incoming_invoice_audit_log').insert({ incoming_invoice_id: inv.id, action: 'matched', actor_id: c.ownerUid, ok: true, message: 'harness manual case match' })
+        if (manual) await c.admin.from('incoming_invoice_audit_log').insert({ incoming_invoice_id: inv.id, action: 'matched', actor_id: c.ownerUid, ok: true, new_value: { matched_case_id: caseId, matched_work_order_id: null }, message: 'harness manual case match' })
         await c.admin.from('incoming_emails').update({ attachment_urls: [await storePdf(em, `faktura_${tag}.pdf`, pdfLines(tag))] }).eq('id', em)
         flag(true)
         const ru = await ingestFromEmail(em); track(ru.invoiceIds)

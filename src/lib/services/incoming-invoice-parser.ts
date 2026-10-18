@@ -123,8 +123,12 @@ export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
   if (iban) out.iban = iban[1].replace(/[\s-]/g, '').toUpperCase()
 
   // ---- Currency ----
-  if (/\bEUR\b/.test(text)) out.currency = 'EUR'
-  else if (/\bUSD\b/.test(text)) out.currency = 'USD'
+  // IV-15 (leverandørfaktura-review 2026-10-18): kun valutakoden ved et beløb eller efter "Valuta" — før gjorde fx
+  // "EUR-konto" i en bankfod en DKK-faktura til EUR (og dermed blokeret for fordeling)
+  const currencyNear = (code: string) =>
+    new RegExp(`(?:valuta|currency)[\\s.:]*${code}\\b|\\b${code}[ \\t]*[0-9]|[0-9][ \\t]*${code}\\b`, 'i').test(text)
+  if (currencyNear('EUR')) out.currency = 'EUR'
+  else if (currencyNear('USD')) out.currency = 'USD'
   else out.currency = 'DKK'
 
   // ---- Work order / case hints (Elta-side refs: "Sag:", "Vores ref") ----

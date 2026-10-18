@@ -243,7 +243,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV-12 | Efterstillet minus fra næste linje → faktura bliver kreditnota (S3) | DONE (kode) — efterstillet minus kun på samme linje |
 | IV-13 | Backfill stopper ved 1.000 rækker (S3) | DONE — fetchAllRows + låste statusser filtreret i DB (cli invoice-backfill-candidates-check) |
 | IV-14 | Priskontrol-loader: rækkeloft og .in() (S4) | DONE (kode) — linjer side for side, produkt-id i bidder |
-| IV-15 | Mindre parse-/valideringshuller (S4) | TODO |
+| IV-15 | Mindre parse-/valideringshuller (S4) | DONE — valuta kun ved beløb/"Valuta"; samme fortegn i fakturahoved-rettelse; linkSupplier med statusbetingelse (parser-/header-edit-test, U9/U12/U28/U38) |
 | HT-7 | U158 forældet seed (produkt uden enhed → 'ikke kontrollerbar' efter F-9) | DONE — seed med enhed 'm'; cli deviation-probe til diagnose |
 
 ## NEXT-42 (review-bølge 2026-10-18 nat — partner/portal + kalkulation)

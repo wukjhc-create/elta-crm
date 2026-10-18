@@ -310,9 +310,12 @@ async function upgradeBodyInvoice(
   // genparsen matcher på PDF'ens tekst — før blev det gamle (måske forkerte) match bevaret af pick(). Et manuelt valg
   // (audit 'matched' med en bruger) bevares.
   // Valutaen nulstilles til kolonnens "ukendt" (DKK), så et falsk "EUR" fra mailteksten ikke blokerer for altid.
-  const { data: manual } = await supabase.from('incoming_invoice_audit_log').select('action')
+  const { data: manual } = await supabase.from('incoming_invoice_audit_log').select('action, new_value')
     .eq('incoming_invoice_id', inv.id).in('action', ['matched', 'header_edited']).not('actor_id', 'is', null)
-  const manualActions = new Set(((manual ?? []) as Array<{ action: string }>).map((m) => m.action))
+  // 'matched' skrives også ved manuel leverandørkobling — kun en sagskobling (new_value.matched_case_id) er et manuelt match
+  const manualActions = new Set(((manual ?? []) as Array<{ action: string; new_value: Record<string, unknown> | null }>)
+    .filter((m) => m.action !== 'matched' || (m.new_value != null && 'matched_case_id' in m.new_value))
+    .map((m) => m.action))
   const upgradeExtra: Record<string, string | null> = {}
   if (!manualActions.has('matched')) {
     upgradeExtra.matched_case_id = null

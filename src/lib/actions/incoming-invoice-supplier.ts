@@ -72,16 +72,19 @@ async function sameDomainOpenInvoices(ctx: Ctx, domain: string | null, excludeId
 }
 
 async function linkSupplier(ctx: Ctx, invoiceId: string, previous: string | null, supplierId: string | null, label: string | null, onlyIfUnset = false) {
+  // IV-15 (leverandørfaktura-review 2026-10-18): aldrig på en afsluttet faktura — før kunne en samtidig godkendelse få
+  // leverandøren skiftet bagefter (status blev kun tjekket før opdateringen)
   let q = ctx.supabase.from('incoming_invoices').update({ supplier_id: supplierId }).eq('id', invoiceId)
+    .not('status', 'in', '(approved,posted,rejected,cancelled)')
   // samme-domæne-kobling: kun fakturaer der STADIG er uden leverandør og ikke er afsluttet (kode-review: ellers kunne en
   // samtidig ændring/godkendelse overskrives, og audit'ens "previous: null" ville være forkert)
-  if (onlyIfUnset) q = q.is('supplier_id', null).not('status', 'in', '(approved,posted,rejected,cancelled)')
+  if (onlyIfUnset) q = q.is('supplier_id', null)
   const { data: upd, error } = await q.select('id')
   if (error) {
     logger.error('incoming-invoice-supplier: update failed', { error })
     return 'Kunne ikke gemme leverandøren'
   }
-  if (onlyIfUnset && !(upd ?? []).length) return 'ændret imens'
+  if (!(upd ?? []).length) return onlyIfUnset ? 'ændret imens' : 'Fakturaen blev ændret imens — genindlæs siden'
   try {
     await ctx.supabase.from('incoming_invoice_audit_log').insert({
       incoming_invoice_id: invoiceId, action: 'matched', actor_id: ctx.userId, ok: true,

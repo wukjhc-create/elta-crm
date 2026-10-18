@@ -45,6 +45,11 @@ ok(parseSupplierInvoiceText('Firma ApS\nSag: S-1042\nI alt 100,00').workOrderHin
 const bullet = parseSupplierInvoiceText('Firma ApS\nI alt 1.250,00\n- Varerne forbliver vores ejendom')
 ok(!bullet.isCreditNote && (bullet.amountInclVat ?? 0) > 0, 'punktopstilling efter beløbet er ikke fortegn', amounts('Firma ApS\nI alt 1.250,00\n- Varerne forbliver vores ejendom'))
 ok(parseSupplierInvoiceText('Firma ApS\nKreditnota\nI alt 1.250,00-').isCreditNote, 'efterstillet minus på samme linje virker stadig')
+// IV-15: valuta kun ved beløb eller efter "Valuta"
+ok(parseSupplierInvoiceText('Firma ApS\nI alt 1.250,00\nBank: EUR-konto DK12 3456').currency === 'DKK', '"EUR-konto" i bankfod gør ikke fakturaen til EUR')
+ok(parseSupplierInvoiceText('Firma ApS\nTotal EUR 1.250,00').currency === 'EUR', 'EUR foran beløb læses')
+ok(parseSupplierInvoiceText('Firma ApS\nTotal 1.250,00 EUR').currency === 'EUR', 'EUR efter beløb læses')
+ok(parseSupplierInvoiceText('Firma ApS\nValuta: USD\nTotal 99,00').currency === 'USD', '"Valuta: USD" læses')
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ fakturaparser ok')
 process.exitCode = bad ? 1 : 0

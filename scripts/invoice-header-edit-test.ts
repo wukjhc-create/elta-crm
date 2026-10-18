@@ -52,5 +52,10 @@ ok(!v({ amount_excl_vat: NaN }).ok, 'ugyldigt beløb (NaN) afvises')
   ok(r.ok && Object.keys(r.patch).length === 0, 'uændrede værdier giver tomt patch')
 }
 
+// IV-15: blandede fortegn afvises; en hel kreditnota (alle negative) er ok
+ok(!v({ amount_excl_vat: -1000, vat_amount: 250, amount_incl_vat: -750 }).ok, 'blandede fortegn afvises')
+ok(v({ amount_excl_vat: -1000, vat_amount: -250, amount_incl_vat: -1250 }).ok, 'kreditnota med negative beløb accepteres')
+ok(v({ amount_excl_vat: 1000, vat_amount: 0, amount_incl_vat: 1000 }).ok, 'momsfri faktura (moms 0) accepteres')
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ fakturahoved-rettelse ok')
 process.exitCode = bad ? 1 : 0
