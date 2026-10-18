@@ -244,7 +244,7 @@ export function SupplierProductsTable({
                   </div>
                   <div>
                     <dt className="text-gray-500">Listepris</dt>
-                    <dd className="font-mono break-words">{product.list_price !== null ? formatCurrency(product.list_price) : '-'}</dd>
+                    <dd className="font-mono break-words">{storedCostText(product.list_price)}</dd>
                   </div>
                   <div>
                     <dt className="text-gray-500">Salgspris</dt>
@@ -322,7 +322,7 @@ export function SupplierProductsTable({
                       {storedCostText(product.cost_price)}
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">
-                      {product.list_price !== null ? formatCurrency(product.list_price) : '-'}
+                      {storedCostText(product.list_price)}
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm text-blue-600">
                       {product.effective_sale_price !== null ? formatCurrency(product.effective_sale_price) : '-'}

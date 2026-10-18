@@ -756,7 +756,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-45 | 8 Pilot | ÅBEN. Mærke og enhed på materialekortet ombrydes. | Navn, varenummer, priser og avance er uændret. |
 | G18-13 | 6 Salg | ÅBEN. Tilbud ude: filter- eller tælle-mærke på en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
 | G18-14 | 5 Plan | DONE dagsoverskriften viser antal hentede opgaver. Tom dag siger stadig ingen besigtigelser. | Ingen ny query. Påmindelser tælles ikke her. |
-| G18-37 | 4 Pris | ÅBEN. Null listepris i `supplier-products-table` siger "Ingen lagret pris". | Kost er G18-19. 0 kr forbliver 0 kr. Ingen opfundet pris. |
+| G18-37 | 4 Pris | DONE null listepris siger "Ingen lagret pris". | Kost er G18-19. 0 kr forbliver 0 kr. Ingen opfundet pris. |
+| G18-46 | 8 Pilot | ÅBEN. Leverandørvarens navn på skrivebordet ombrydes i stedet for `line-clamp-1`. | Priser og status er uændret. |
 | G18-15 | 8 Pilot | ÅBEN. Desktop-celler i `pricing-client.tsx` for gammel/ny pris, tilbudsbeløb, difference og trendpris mangler `break-words`. Mobil ombryder allerede. | Ingen truncate. Ingen nye priser. |
 | G18-16 | 2 Faktura | DONE fragt og gebyr vises hver for sig. Beløb og motor uændret. | Ingen e-conomic. |
 | G18-17 | 1 Profit | DONE dansk faktureringsstatus på efterkalk-rækken fra `invoiced_state`. | Statusberegningen uændret. |

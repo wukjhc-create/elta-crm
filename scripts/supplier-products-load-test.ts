@@ -19,7 +19,7 @@ eq('aegte tom liste bliver', src.includes('Ingen produkter fundet'), true)
 eq('fejl er en alert', src.includes('role="alert"') && src.includes('{loadError}'), true)
 eq('kostpris bruger lagret tekst', src.includes('storedCostText(product.cost_price)'), true)
 eq('kostpris opfinder ikke 0', src.includes('formatCurrency(product.cost_price)'), false)
-eq('listepris bliver', src.includes('formatCurrency(product.list_price)'), true)
+eq('listepris siger at den mangler', src.includes('storedCostText(product.list_price)'), true)
 eq('salgspris bliver', src.includes('formatCurrency(product.effective_sale_price)'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nsupplier-products-load-test OK')

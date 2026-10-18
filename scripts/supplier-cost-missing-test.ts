@@ -19,7 +19,7 @@ ok(storedCostText(0) !== 'Ingen lagret pris' && storedCostText(0).includes('0'),
 
 const table = readFileSync(join('src', 'components', 'modules', 'suppliers', 'supplier-products-table.tsx'), 'utf8')
 ok((table.match(/storedCostText\(product\.cost_price\)/g) ?? []).length === 2, 'mobil og tabel bruger teksten')
-ok(table.includes('formatCurrency(product.list_price)'), 'listeprisen er uændret')
+ok((table.match(/storedCostText\(product\.list_price\)/g) ?? []).length === 2, 'listepris bruger samme lagrede tekst')
 ok(table.includes('formatCurrency(product.effective_sale_price)'), 'salgsprisen er uændret')
 
 if (bad > 0) {
