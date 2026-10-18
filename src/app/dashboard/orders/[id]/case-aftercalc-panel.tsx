@@ -199,7 +199,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="text-gray-900 break-words">{r.description}</p>
-                            {r.unit && <p className="text-[11px] text-gray-500">{r.unit}</p>}
+                            {r.unit && <p className="text-[11px] text-gray-500 break-words min-w-0">{r.unit}</p>}
                           </div>
                           <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
                         </div>

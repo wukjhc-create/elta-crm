@@ -23,7 +23,7 @@ ok(!row.includes('truncate'), 'enheden klippes ikke')
 const mobileStart = panel.indexOf('data-testid="aftercalc-lines-mobile"')
 const mobileEnd = panel.indexOf('hidden md:block', mobileStart)
 const mobile = mobileStart >= 0 && mobileEnd > mobileStart ? panel.slice(mobileStart, mobileEnd) : ''
-ok(mobile.includes('text-[11px] text-gray-500">{r.unit}'), 'mobil-enheden er uændret')
+ok(mobile.includes('text-[11px] text-gray-500 break-words min-w-0">{r.unit}'), 'mobil-enheden ombrydes')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
