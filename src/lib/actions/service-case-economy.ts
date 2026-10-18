@@ -208,7 +208,7 @@ export async function getServiceCaseEconomy(
           // 00192: kostkolonnen læses med admin-klienten bag economy.cost_prices-gaten ovenfor
           fetchAllRows((f, t) => createAdminClient()
             .from('time_logs')
-            .select('id, hours, end_time, cost_amount, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)')
+            .select('id, hours, end_time, cost_amount, sale_amount, sale_rate_snapshot, billable, invoice_line_id, approval_status, employee:employees(hourly_rate)')
             .in('work_order_id', woIds)
             .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
             .order('id')
@@ -298,7 +298,8 @@ export async function getServiceCaseEconomy(
       if (tl.billable !== false) total_labor_sale += lineSale
       // Klar-til-fakturering: fakturalåst vs. fakturerbar & ikke-faktureret.
       if (tl.invoice_line_id) billed_line_count += 1
-      else if (tl.billable !== false) { unbilled_time_logs += 1; unbilled_time_sale += lineSale }
+      // TT-10 (timer-review 2026-10-18): kun GODKENDTE timer er klar til fakturering (fakturaen springer afventende over)
+      else if (tl.billable !== false && (tl as { approval_status?: string | null }).approval_status === 'approved') { unbilled_time_logs += 1; unbilled_time_sale += lineSale }
     }
 
     // ---- Materials rollup ----

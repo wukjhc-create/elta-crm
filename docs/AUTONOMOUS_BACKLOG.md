@@ -223,7 +223,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | TT-7 | Slutfaktura kan få en afvist time med (bind uden status-/tidstjek) (S3) | DONE (kode) — slutfakturaens binding kræver approved + uændrede tider; ellers rulles hele slutfakturaen tilbage (billing-model-check, concurrency C8) |
 | TT-8 | Godkendelsens "set"-tjek ignorerer billable/arbejdsordre (S4) | DONE (kode) — set-tjek + compare-and-set også på billable og work_order_id (U62/U72/U117/U119) |
 | TT-9 | Gem af ventende/afvist række genprisser til dagens sats (S4) | BESLUTNING — må ventende rækker genprisses? |
-| TT-10 | "Klar til fakturering" tæller timer der afventer godkendelse (S4) | TODO |
+| TT-10 | "Klar til fakturering" tæller timer der afventer godkendelse (S4) | DONE (kode) — cockpit + sagens økonomipanel tæller kun godkendte timer som klar til fakturering; lukke-værnet tæller fortsat afventende (U99/U162/U15) |
 | TT-11 | Godkend/afvis tjekker ikke lukket sag (S4) | DONE (kode) — rækker på lukket sag springes over med egen årsag "på lukket sag" |
 | LD-1 | Signeret URL til vilkårlig fil i attachments via leads.custom_fields.attachments (montør/salg kan PATCHe lead) (S2) | DONE (kode) — egen kopi kun under lead-attachments/<leadId>/, kildesti kun hvis den står på leadets egen kildemail (lead-attachment-access-test); RLS-del = LD-2 |
 | LD-2 | Lead-skrivepolitikker bredere end appen (montør INSERT/UPDATE; lead_activities uden performed_by = auth.uid()) (S2) | BLOCKED_APPROVAL [MIGRATION] + BESLUTNING (må salg opdatere alle leads?) |
