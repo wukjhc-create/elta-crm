@@ -526,14 +526,14 @@ export function MaterialsCatalogClient({ initialMaterials, loadError = null }: M
                           <Badge variant="secondary" className="text-xs">Inaktiv</Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-500 min-w-0" data-testid="materials-card-meta">
                         {material.brand && (
-                          <span className="flex items-center gap-1">
-                            <Building2 className="w-3 h-3" />
-                            {material.brand}
+                          <span className="flex items-center gap-1 min-w-0">
+                            <Building2 className="w-3 h-3 shrink-0" />
+                            <span className="break-words">{material.brand}</span>
                           </span>
                         )}
-                        <span>Enhed: {material.unit}</span>
+                        <span className="break-words">Enhed: {material.unit}</span>
                       </div>
                     </div>
                   </div>
