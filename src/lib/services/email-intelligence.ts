@@ -11,6 +11,7 @@
  * Used by email-sync-orchestrator after each email is inserted.
  */
 
+import { redactForAi } from '@/lib/ai/redact-for-ai' // AI-4
 import { redactSubject, redactEmail } from '@/lib/utils/log-redact'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -377,7 +378,7 @@ VIGTIGE REGLER (i prioritet):
 Emne: ${email.subject || '(intet)'}
 Afsender: ${email.senderName || ''} <${email.senderEmail}>
 Body (foerste 1500 tegn):
-${(email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || '').substring(0, 1500)}
+${redactForAi((email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || '').substring(0, 1500))}
 
 Svar KUN med raa JSON: {"type":"customer"} eller {"type":"supplier"} eller {"type":"newsletter"}.`,
     { type: 'json_object' }
@@ -432,7 +433,7 @@ REGLER (overhold strikt):
 - Returnér null for navn hvis det kun er et fornavn uden kontekst, eller en fælles e-mail-alias.
 
 Body (oprenset, første 4000 tegn):
-${cleaned}
+${redactForAi(cleaned)}
 
 Svar KUN med rå JSON.`,
     { type: 'json_object' }

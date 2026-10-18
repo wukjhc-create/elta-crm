@@ -20,6 +20,7 @@
  * supplier_margin_applied on each line provides per-line margin support.
  */
 
+import { redactForAi } from '@/lib/ai/redact-for-ai' // AI-4
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { insertOfferWithNumber } from '@/lib/services/offer-number'
@@ -362,7 +363,7 @@ Regler:
 Intent-hint fra heuristik: ${intentHint || 'ukendt'}
 Emne: ${subject || '(intet)'}
 Body (første 2500 tegn):
-${(body || '').substring(0, 2500)}`,
+${redactForAi((body || '').substring(0, 2500))}`,
           },
         ],
       }),

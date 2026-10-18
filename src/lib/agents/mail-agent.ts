@@ -13,6 +13,7 @@
  *  - Idempotent pr. mail via idempotency_key.
  */
 
+import { redactForAi } from '@/lib/ai/redact-for-ai' // AI-4
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { logger } from '@/lib/utils/logger'
@@ -126,7 +127,7 @@ export async function generateReplyDraft(email: IncomingEmailLite): Promise<{ dr
       `Afsender: ${email.sender_name ?? email.sender_email}`,
       '',
       // HTML-only mails (det meste Outlook-post) har ingen body_text — før fik modellen kun 200 tegns preview
-      (email.body_text || htmlToText(email.body_html ?? '') || email.body_preview || '').slice(0, 4000),
+      redactForAi((email.body_text || htmlToText(email.body_html ?? '') || email.body_preview || '').slice(0, 4000)),
     ].join('\n')
     const res = await fetch(OPENAI_URL, {
       method: 'POST',

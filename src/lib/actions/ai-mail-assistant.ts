@@ -1,4 +1,5 @@
 'use server'
+import { redactForAi } from '@/lib/ai/redact-for-ai' // AI-4
 import { permissionDenied } from '@/lib/actions/action-helpers'
 
 /**
@@ -196,7 +197,7 @@ export async function suggestReplyToEmail(emailId: string): Promise<AiTextResult
     }
   }
 
-  const bodyForAI = truncate(email.body_text || stripHtml(email.body_html || '') || email.body_preview || '')
+  const bodyForAI = redactForAi(truncate(email.body_text || stripHtml(email.body_html || '') || email.body_preview || ''))
 
   const customerLine = customer
     ? `KUNDE: ${customer.company_name}${customer.contact_person ? ` (kontakt: ${customer.contact_person})` : ''}${customer.customer_number ? ` — kundenr. ${customer.customer_number}` : ''}`
@@ -352,7 +353,7 @@ export async function generateDraftFromInstruction(
     }
   }
 
-  const bodyForAI = truncate(email.body_text || stripHtml(email.body_html || '') || email.body_preview || '')
+  const bodyForAI = redactForAi(truncate(email.body_text || stripHtml(email.body_html || '') || email.body_preview || ''))
 
   const customerLine = customer
     ? `KUNDE: ${customer.company_name}${customer.contact_person ? ` (kontakt: ${customer.contact_person})` : ''}${customer.customer_number ? ` — kundenr. ${customer.customer_number}` : ''}`

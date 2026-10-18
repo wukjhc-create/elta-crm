@@ -14,6 +14,7 @@
  * - case_notes:       free-form notes; kind ∈ {'note','ai_summary','system'}.
  */
 
+import { redactForAi } from '@/lib/ai/redact-for-ai' // AI-4
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
@@ -309,7 +310,7 @@ Default = "medium".
 
 Emne: ${subject}
 Body (første 2500 tegn):
-${(body || '').substring(0, 2500)}`,
+${redactForAi((body || '').substring(0, 2500))}`,
           },
         ],
       }),
