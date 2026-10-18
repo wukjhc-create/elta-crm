@@ -1380,6 +1380,29 @@ Overskriften "Kommende besigtigelser" ombrydes. Ordene er uændret. Måneden på
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-143, G18-144, G18-145, G18-146, G18-147, G18-148.
 
+## Checkpoint 2026-10-18 sekstende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `6ec2c234`. Det omskriver ikke listerne ovenfor. Produktspids: `995b0928`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `6ec2c234..995b0928`
+
+```
+995b0928 feat(plan): kommende dagsnummer ombrydes
+9c1ca47d feat(pilot): opgaveformularens knapper ombrydes
+d205ee76 feat(pilot): opgavefeltets etiketter ombrydes
+c66bc0ac feat(pilot): titelfeltets etiket ombrydes
+```
+
+Listen er alle commits efter `6ec2c234` til og med `995b0928`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Etiketten "Titel *" ombrydes. Ordene er uændret. Etiketterne Beskrivelse, Prioritet, Status, Ansvarlig, Forfaldsdato og Påmindelse ombrydes. Knapperne Annuller og Opret ombrydes. Teksten er stadig `Gemmer...`, `Opdater` og `Opret`. Forfaldsdatoen sender stadig ISO. Dagsnummeret på kommende besigtigelser ombrydes. `getDate` er uændret og fik ikke `timeZone`. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-147, G18-148, G18-149, G18-150, G18-151, G18-152.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
