@@ -34,14 +34,16 @@ export default function PricingError({ error, reset }: ErrorProps) {
         <div className="flex items-center justify-center gap-3">
           <button
             onClick={reset}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium break-words min-w-0"
+            data-testid="pricing-error-retry"
           >
             <RefreshCw className="w-4 h-4" />
             Prøv igen
           </button>
           <Link
             href="/dashboard"
-            className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50 font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50 font-medium break-words min-w-0"
+            data-testid="pricing-error-home"
           >
             <Home className="w-4 h-4" />
             Dashboard
