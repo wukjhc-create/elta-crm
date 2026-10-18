@@ -27,6 +27,11 @@ export async function requireAuth(): Promise<string> {
   if (!user) {
     throw new Error('AUTH_REQUIRED')
   }
+  // AS-3 (sikkerheds-review 2026-10-18): en netop deaktiveret bruger har et gyldigt token til det udløber (~1 t) —
+  // actions bag kun getAuthenticatedClient virkede stadig. Samme request-cachede profillæsning som rollegaterne.
+  if ((await readRoleCached(user.id)) === NO_ACCESS_ROLE) {
+    throw new Error('AUTH_REQUIRED')
+  }
   return user.id
 }
 

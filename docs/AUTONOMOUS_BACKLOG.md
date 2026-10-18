@@ -224,7 +224,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | AI-8 | Noter fra tale ligner skrevne (source telegram) (S4) | TODO — kræver kildeværdi (evt. CHECK på source) eller kommando-flag; lav prioritet |
 | AS-1 | logOfferActivity: kalderen vælger performedBy/type uden gate → forfalsket tilbudshistorik (S3) | DONE (kode) — logOfferActivity flyttet til lib/offers/offer-activity-log.ts (ikke server action); ugatet, ubrugt logOfferActivities fjernet |
 | AS-2 | Kontaktformular: global timegrænse kan misbruges (blokerer rigtige kunder); lead kobles til kunde via ubekræftet e-mail (S3) | BESLUTNING (+ evt. migration til grænse pr. IP) |
-| AS-3 | Deaktivering afslutter ikke sessioner; requireAuth/getAuthenticatedClient tjekker ikke is_active (S3/S4) | TODO (requireAuth); sessionstilbagekaldelse = BLOCKED_APPROVAL [MIGRATION] |
+| AS-3 | Deaktivering afslutter ikke sessioner; requireAuth/getAuthenticatedClient tjekker ikke is_active (S3/S4) | DELVIS (kode) — requireAuth afviser deaktiveret/manglende profil (samme cachede læsning som rollegaterne; UI-stikprøve 10/10). Sessionstilbagekaldelse = BLOCKED_APPROVAL [MIGRATION] |
 | AS-4 | /reset-password skifter adgangskode med enhver session (ingen re-autentificering) (S4) | BESLUTNING (Supabase "Secure password change") |
 | AS-5 | requestPasswordReset: timing-enumerering, ingen grænse, spærrede får mail (S4) | TODO |
 | AS-6 | Dokumentbekræftelser: markConfirmationMailFailed uden gate; øvrige uden sags-scope (S4) | DONE (kode) — sagen slås op fra bekræftelsen/dokumentet og gives til gaten; markConfirmationMailFailed kræver service.edit (U189/U11, confirmation-expiry-check) |
