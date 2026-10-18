@@ -408,7 +408,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                           {task.customer?.company_name || task.title}
                         </p>
                         {info.time && (
-                          <p className="text-xs text-gray-500">{info.time}</p>
+                          <p className="text-xs text-gray-500 break-words min-w-0" data-testid="calendar-upcoming-time">{info.time}</p>
                         )}
                       </div>
                     </div>
