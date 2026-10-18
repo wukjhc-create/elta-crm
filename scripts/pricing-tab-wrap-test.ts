@@ -16,7 +16,7 @@ ok(formatDate('2026-06-02').includes('2026'), 'datoformatering bliver')
 
 const view = readFileSync(join('src', 'app', 'dashboard', 'pricing', 'pricing-client.tsx'), 'utf8')
 const at = view.indexOf('data-testid="pricing-tab"')
-const row = at >= 0 ? view.slice(at - 400, at + 280) : ''
+const row = at >= 0 ? view.slice(at - 400, at + 420) : ''
 ok(row.includes('break-words min-w-0'), 'fanen ombrydes')
 ok(row.includes('{tab.label}'), 'ordet kommer stadig fra tab.label')
 ok(row.includes('{tab.count}'), 'taellingen kommer stadig fra tab.count')

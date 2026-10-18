@@ -207,7 +207,7 @@ export function PricingDashboardClient() {
             >
               {tab.label}
               {tab.count > 0 && (
-                <span className="ml-1.5 bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded-full">
+                <span className="ml-1.5 bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded-full break-words min-w-0" data-testid="pricing-tab-count">
                   {tab.count}
                 </span>
               )}
