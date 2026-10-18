@@ -290,7 +290,7 @@ export async function updateEmployeeAction(
     updatePayload.termination_date = copenhagenParts(new Date()).date
   }
   if (deactivatingLogin) {
-    const res = await setLoginWithEmployee(prevRow!.profile_id as string, false)
+    const res = await setLoginWithEmployee(prevRow!.profile_id as string, false, ctx.userId)
     if (!res.ok) return { ok: false, message: res.message ?? 'Kunne ikke deaktivere login' }
   }
   const { data: upd, error } = await ctx.supabase
@@ -326,10 +326,24 @@ export async function updateEmployeeAction(
 }
 
 /** Login følger medarbejderens status (Henrik 2026-10-07). Kaldes FØR medarbejder-opdateringen; ok=false afbryder. */
-async function setLoginWithEmployee(profileId: string, active: boolean): Promise<{ ok: boolean; message?: string }> {
+async function setLoginWithEmployee(profileId: string, active: boolean, actorId?: string): Promise<{ ok: boolean; message?: string }> {
+  // RX-6 (team-review 2026-10-18): samme værn som Team-siden (TM-2/TM-7) og login-panelet (EM-3) — før kunne en admin
+  // deaktivere sit eget login via medarbejderkortet, og to admins der deaktiverede hinanden samtidig gav 0 aktive admins
+  if (!active && actorId && profileId === actorId) return { ok: false, message: 'Du kan ikke deaktivere dit eget login' }
   const { setProfileLoginActive } = await import('@/lib/auth/login-access')
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
+  const { data: prevProf } = active ? { data: null } : await admin.from('profiles').select('role').eq('id', profileId).maybeSingle()
   const res = await setProfileLoginActive(profileId, active)
-  return res.ok ? { ok: true } : { ok: false, message: res.error ?? 'Kunne ikke ændre login-adgang' }
+  if (!res.ok) return { ok: false, message: res.error ?? 'Kunne ikke ændre login-adgang' }
+  if (!active && (prevProf as { role?: string } | null)?.role === 'admin') {
+    const { activeAdminCount } = await import('@/lib/auth/role-guard')
+    if ((await activeAdminCount(admin)) === 0) {
+      await setProfileLoginActive(profileId, true)
+      return { ok: false, message: 'Den sidste aktive administrator kan ikke deaktiveres' }
+    }
+  }
+  return { ok: true }
 }
 
 /** Audit af login-ændringen: medarbejder-hændelse + audit_logs (bruger). */
@@ -365,7 +379,7 @@ export async function setEmployeeActiveAction(
 
   // Login først: afvises det (fx sidste administrator), ændres medarbejderen heller ikke
   if (touchLogin) {
-    const res = await setLoginWithEmployee(profileId as string, active)
+    const res = await setLoginWithEmployee(profileId as string, active, ctx.userId)
     if (!res.ok) return { ok: false, message: res.message ?? 'Kunne ikke ændre login-adgang' }
   }
 

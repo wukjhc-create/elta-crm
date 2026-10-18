@@ -244,7 +244,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | RX-3 | Modtagere af betalingsrapport auditeres kun som antal (S3) | TODO |
 | RX-4 | Rapporttotaler blander valutaer (S3) | TODO |
 | RX-5 | Betalingsoversigt/-CSV blander valutaer under "(DKK)" (S3) | BLOCKED_APPROVAL [MIGRATION] (view) |
-| RX-6 | Deaktivering via medarbejderkortet: ingen selv-blok og ingen sidste-admin-genoptælling (S3) | TODO |
+| RX-6 | Deaktivering via medarbejderkortet: ingen selv-blok og ingen sidste-admin-genoptælling (S3) | DONE (kode) — setLoginWithEmployee: eget login kan ikke deaktiveres; sidste aktive admin genoptælles efter skrivning og rulles tilbage (U145 regression; selv-/race-scenariet ikke UI-testet) |
 | RX-7 | Gen-invitation af afventende bruger skifter rolle uden værn/audit (S4) | TODO |
 | RX-8 | "Aktive projekter" tæller den gamle projects-tabel (S4) | TODO |
 | RX-9 | Eksport: AI-forslag/konverterede sager med, inkl. moms under "(DKK)", tavs afkortning ved 10.000 (S4) | TODO |
