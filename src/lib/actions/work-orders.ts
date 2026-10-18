@@ -407,7 +407,7 @@ export async function changeWorkOrderStatus(
     // Read current
     const { data: cur, error: readErr } = await supabase
       .from('work_orders')
-      .select('id, status, case_id')
+      .select('id, status, case_id, completed_at')
       .eq('id', workOrderId)
       .maybeSingle()
     if (readErr || !cur) {
@@ -475,6 +475,15 @@ export async function changeWorkOrderStatus(
     if (error || !data) {
       logger.error('changeWorkOrderStatus failed', { error })
       return { success: false, error: 'Kunne ikke ændre status' }
+    }
+    // RC-3 (samtidigheds-review 2026-10-18): sagen kan være lukket mellem tjekket ovenfor og opdateringen — så rulles
+    // statusskiftet tilbage (sagens lukning gør det modsatte tjek efter sin opdatering)
+    if (cur.case_id && next === 'in_progress') {
+      const { data: csNow } = await supabase.from('service_cases').select('status').eq('id', cur.case_id as string).maybeSingle()
+      if ((csNow as { status?: string } | null)?.status === 'closed') {
+        await supabase.from('work_orders').update({ status: cur.status, completed_at: (cur as { completed_at?: string | null }).completed_at ?? null }).eq('id', workOrderId).eq('status', next)
+        return { success: false, error: 'Sagen er netop lukket — genåbn den først' }
+      }
     }
     if (reopening) {
       try {

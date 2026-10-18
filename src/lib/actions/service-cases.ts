@@ -1709,16 +1709,24 @@ export async function setServiceCaseStatus(
       update.closed_at = null // genåbnet (sags-review 2026-10-09 #10)
     }
 
-    const { data, error } = await supabase
-      .from('service_cases')
-      .update(update)
-      .eq('id', id)
-      .select('*')
-      .single()
+    // RC-3 (samtidigheds-review 2026-10-18): compare-and-set på den læste status (samtidig lukning/statusskift)
+    let upd = supabase.from('service_cases').update(update).eq('id', id)
+    if (prior?.status) upd = upd.eq('status', prior.status as string)
+    const { data, error } = await upd.select('*').maybeSingle()
 
-    if (error) {
+    if (!error && !data) return { success: false, error: 'Sagens status er netop ændret af en anden — genindlæs og prøv igen' }
+    if (error || !data) {
       logger.error('Error setting service case status', { error })
       return { success: false, error: 'Kunne ikke ændre status' }
+    }
+    // RC-3: en arbejdsordre startet mellem tælling og lukning → lukningen rulles tilbage (ellers lukket sag med job i gang)
+    if (status === 'closed' && !prior?.status?.toString()?.includes('closed')) {
+      const { count: runningNow } = await supabase.from('work_orders').select('id', { count: 'exact', head: true })
+        .eq('case_id', id).eq('status', 'in_progress')
+      if ((runningNow ?? 0) > 0) {
+        await supabase.from('service_cases').update({ status: prior?.status ?? 'in_progress', closed_at: null }).eq('id', id).eq('status', 'closed')
+        return { success: false, error: 'En arbejdsordre blev netop startet — sagen er ikke lukket. Afslut den først' }
+      }
     }
     // SC-2: planlagte (ikke påbegyndte) arbejdsordrer annulleres ved lukning, så de ikke hænger i kalender/"Mine job"
     let cancelledPlanned = 0
