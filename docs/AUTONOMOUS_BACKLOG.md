@@ -1509,6 +1509,36 @@ Synk-datoen ombrydes. Kaldet er stadig `formatDateUtil(stat.last_sync_at)`. Etik
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-160, G18-161, G18-162, G18-163, G18-164, G18-165.
 
+## Checkpoint 2026-10-18 enogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `277b56fd`. Det omskriver ikke listerne ovenfor. Produktspids: `65c9590d`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `277b56fd..65c9590d`
+
+```
+65c9590d feat(pris): manglende tendens ombrydes
+da1765b5 feat(pris): trendetiket ombrydes
+31c71fe3 feat(pris): tilbudsnummer ombrydes
+878e8df9 feat(pris): aendringstal ombrydes
+565e7037 feat(pris): linjetal ombrydes
+2403d625 feat(pris): volatilitet ombrydes
+25b44749 feat(pris): trendprocent ombrydes
+470b88be feat(pris): statusmaerke ombrydes
+cf6077ce feat(pris): paavirkningsantal ombrydes
+f9add430 feat(pris): procentmaerke ombrydes
+7292f51d feat(pris): tilbudsdato ombrydes
+```
+
+Listen er alle commits efter `277b56fd` til og med `65c9590d`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Tilbudsdatoen ombrydes. Kaldet er stadig `formatDateUtil(offer.created_at)`. Procentmærket ombrydes. `toFixed(1)` er uændret. Påvirkningsantallet ombrydes. Statusmærket ombrydes. Ordene Kladde, Sendt, Set, Accepteret, Afvist og Udløbet er uændret. Trendprocenterne for 30 og 90 dage ombrydes. Udtrykkene er uændret. Volatilitetsmærket ombrydes. Stabil, Moderat og Høj er uændret. Antallet af berørte linjer ombrydes. Ændringstallet ombrydes. Tilbudsnummeret ombrydes. Linket er uændret. Etiketterne 30 dage og 90 dage på mobilkortet ombrydes. Bindestregen når en tendens mangler ombrydes. Påvirkningsstregen er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-183, G18-184, G18-185, G18-186, G18-187, G18-188.
+
 ## Checkpoint 2026-10-18 tyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `0f8b263d`. Det omskriver ikke listerne ovenfor. Produktspids: `ed04ddfe`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
