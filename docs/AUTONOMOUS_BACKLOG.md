@@ -1434,6 +1434,29 @@ Status- og prioritetmærket på kundens opgaver ombrydes. Etiketterne kommer sta
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-151, G18-152, G18-153, G18-154, G18-155, G18-156.
 
+## Checkpoint 2026-10-18 attende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `4a77eb75`. Det omskriver ikke listerne ovenfor. Produktspids: `50d81f5d`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `4a77eb75..50d81f5d`
+
+```
+50d81f5d feat(pris): leverandoernavn ombrydes
+79cf1c85 feat(pilot): ansvarlig kan krympe
+7452d3bc feat(plan): i dag-knappen ombrydes
+558d5ea0 feat(pilot): rediger og slet kan rammes
+```
+
+Listen er alle commits efter `4a77eb75` til og med `50d81f5d`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Rediger og Slet på kundens opgave kan rammes med 44 px. aria-label er uændret. Knappen "I dag" ombrydes. `min-h-[44px]` og `goToToday` er uændret. Den ansvarliges navn eller e-mail kan krympe. Udtrykket er uændret. Leverandørnavnet på prisstatistikken ombrydes. Det kommer stadig fra `stat.supplier_name`. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-155, G18-156, G18-157, G18-158, G18-159, G18-160.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
