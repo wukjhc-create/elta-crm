@@ -378,7 +378,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
           <p className={`text-xs tabular-nums font-medium break-words ${offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'}`}>
             {offer.potential_loss > 0 ? '-' : '+'}{formatCurrency(Math.abs(offer.potential_loss))}
           </p>
-          <p className="text-xs text-gray-500">{formatDateUtil(offer.created_at)}</p>
+          <p className="text-xs text-gray-500 break-words min-w-0" data-testid="pricing-offer-date-mobile">{formatDateUtil(offer.created_at)}</p>
         </li>
       ))}
     </ul>
@@ -423,7 +423,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
                     {offer.potential_loss > 0 ? '-' : '+'}{formatCurrency(Math.abs(offer.potential_loss))}
                   </span>
                 </td>
-                <td className="px-4 py-2.5 text-right text-xs text-gray-500">
+                <td className="px-4 py-2.5 text-right text-xs text-gray-500 break-words min-w-0" data-testid="pricing-offer-date">
                   {formatDateUtil(offer.created_at)}
                 </td>
               </tr>

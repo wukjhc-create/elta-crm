@@ -908,12 +908,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-169 | 4 Pris | DONE fanerne Prisadvarsler, Påvirkede tilbud, Leverandørstatistik og Pristendenser ombrydes. | Ordene og tællingerne er uændret. |
 | G18-170 | 4 Pris | DONE knappen Opdater på prissiden ombrydes. | Ordet og loadData er uændret. |
 | G18-171 | 4 Pris | DONE datoen på prisadvarslerne ombrydes. | formatDateUtil(alert.changed_at) er uændret. |
-| G18-172 | 4 Pris | ÅBEN. Datoen på påvirkede tilbud ombrydes. | formatDateUtil(offer.created_at) er uændret. |
+| G18-172 | 4 Pris | DONE datoen på påvirkede tilbud ombrydes. | formatDateUtil(offer.created_at) er uændret. |
 | G18-173 | 4 Pris | ÅBEN. Procentmærket på prisadvarslerne ombrydes. | toFixed-udtrykket er uændret. |
 | G18-174 | 4 Pris | ÅBEN. Antallet ved påvirkede tilbud og kalkulationer på prisadvarslerne ombrydes. | Tallene er uændret. |
 | G18-175 | 4 Pris | ÅBEN. Statusmærket på påvirkede tilbud ombrydes. | Etiketterne Kladde, Sendt, Set, Accepteret, Afvist og Udløbet er uændret. |
 | G18-176 | 4 Pris | ÅBEN. Procenterne for 30 og 90 dage på pristendenser ombrydes. | Udtrykkene med trend_30_days og trend_90_days er uændret. |
 | G18-177 | 4 Pris | ÅBEN. Volatilitetsmærket Stabil, Moderat og Høj ombrydes. | Ordene er uændret. |
+| G18-178 | 4 Pris | ÅBEN. Antallet af berørte linjer på påvirkede tilbud ombrydes. | {offer.affected_items} er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
