@@ -378,7 +378,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
 
           {/* Upcoming list below */}
           <div className="border-t p-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">Kommende besigtigelser</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-3 break-words min-w-0" data-testid="calendar-upcoming-heading">Kommende besigtigelser</h4>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {shownUpcoming.map((task) => {
                   const info = extractInfo(task.description)
