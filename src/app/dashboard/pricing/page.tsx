@@ -16,7 +16,7 @@ export default async function PricingDashboardPage() {
   return (
     <div className="container mx-auto py-6 px-4 max-w-7xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Prisovervågning</h1>
+        <h1 className="text-2xl font-bold break-words min-w-0" data-testid="pricing-page-title">Prisovervågning</h1>
         <p className="text-muted-foreground">
           Spor prisændringer, identificer påvirkede tilbud og overvåg leverandørtendenser
         </p>
