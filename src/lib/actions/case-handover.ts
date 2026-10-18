@@ -105,11 +105,18 @@ export async function startCaseHandoverAction(caseId: string): Promise<ActionRes
     const { canEdit } = await handoverAccess(ctx, caseId)
     if (!canEdit) return { success: false, error: 'Manglende tilladelse til at redigere sagen' }
     const db = await admin()
-    const { data: sc } = await db.from('service_cases').select('checklist').eq('id', caseId).maybeSingle()
+    const { data: sc } = await db.from('service_cases').select('checklist, updated_at').eq('id', caseId).maybeSingle()
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
     if (Array.isArray(sc.checklist) && sc.checklist.length) return { success: true, data: sc.checklist as ChecklistItem[] }
-    const { error } = await db.from('service_cases').update({ checklist: DEFAULT_CHECKLIST }).eq('id', caseId)
+    // RC-8 (samtidigheds-review 2026-10-18): compare-and-set som setItem — en samtidig start overskrev et netop afkrydset punkt
+    const prevUpdated = (sc as { updated_at?: string | null }).updated_at ?? null
+    const q = db.from('service_cases').update({ checklist: DEFAULT_CHECKLIST, updated_at: new Date().toISOString() }).eq('id', caseId)
+    const { data: started, error } = await (prevUpdated ? q.eq('updated_at', prevUpdated) : q.is('updated_at', null)).select('id')
     if (error) return { success: false, error: 'Kunne ikke oprette tjekliste' }
+    if ((started ?? []).length === 0) {
+      const { data: now } = await db.from('service_cases').select('checklist').eq('id', caseId).maybeSingle()
+      return { success: true, data: (Array.isArray(now?.checklist) ? now!.checklist : DEFAULT_CHECKLIST) as ChecklistItem[] }
+    }
     revalidateCase(caseId)
     return { success: true, data: DEFAULT_CHECKLIST }
   } catch (err) {

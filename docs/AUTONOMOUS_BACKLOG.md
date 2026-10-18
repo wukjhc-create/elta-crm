@@ -219,10 +219,10 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | RC-3 | Luk sag er ikke atomisk mod start/oprettelse af arbejdsordre og timer (S3) | DELVIS (kode) — sagens statusskift med compare-and-set; lukning genoptæller igangværende job og rulles tilbage; jobstart genlæser sagen og rulles tilbage ved lukket sag (U11/U63/U30/U183/U66). Oprettelse af job/timer under lukning + trigger = TODO/BLOCKED_APPROVAL [MIGRATION] |
 | RC-4 | Første udsendelse af et tilbud kan maile kunden to gange (to tråde) (S3) | TODO |
 | RC-5 | Overlap-tjek på timer er læs-så-skriv (S4) | = TT-5 (forslag 00253) |
-| RC-6 | Tilbage til kladde kan race med konvertering til sag (S4) | TODO |
+| RC-6 | Tilbage til kladde kan race med konvertering til sag (S4) | DONE (kode) — tilbage til kladde kræver converted_case_id IS NULL i compare-and-set |
 | RC-7 | Kunde fra mail kan oprettes dobbelt (S4) | TODO |
-| RC-8 | Start af aflevering kan nulstille et netop afkrydset punkt (S4) | TODO |
-| RC-9 | Redigering af agentudkast under udførelse sender den gamle tekst (S4) | TODO |
+| RC-8 | Start af aflevering kan nulstille et netop afkrydset punkt (S4) | DONE (kode) — start med compare-and-set på updated_at |
+| RC-9 | Redigering af agentudkast under udførelse sender den gamle tekst (S4) | DONE (kode) — saveDraftAction kun i ikke-udførte statusser (CAS); executor genlæser payload efter claim (agent-actions/gating/send-producer) |
 | DL-1 | Sletning af gammel besigtigelse ("other") sletter kundens underskrevne bekræftelser (CASCADE) (S2) | DELVIS (kode) — besigtigelse gemt som "other" er beskyttet; dokument med bekræftelser kan ikke slettes (document-deletable-test). FK RESTRICT = BLOCKED_APPROVAL [MIGRATION] |
 | DL-2 | deleteOffer sletter sendte tilbuds mail- og aktivitetshistorik (afvist/trukket tilbage til kladde) (S2) | DONE (kode) — kun aldrig-sendte tilbud uden mailtråd kan slettes (sent_at IS NULL i compare-and-set) (U14/U42/U57/U60) |
 | DL-3 | Sletning af leverandør/produkt kaskaderer pris-/aftalehistorik og afkobler bogførte leverandørfakturaer (S3) | TODO (kode: bloker ved referencer + audit); FK = BLOCKED_APPROVAL [MIGRATION] |

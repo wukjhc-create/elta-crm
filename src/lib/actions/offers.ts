@@ -830,15 +830,16 @@ export async function updateOfferStatus(
         break
     }
 
-    const { data, error } = await supabase
+    let statusUpd = supabase
       .from('offers')
       .update(updateData)
       .eq('id', id)
       // tilbuds-review 2026-10-07: kun hvis status er uændret siden læsningen — to samtidige klik (eller en portal-accept
       // imens) gav dobbelt lead-vundet/webhook/sag-oprettelse eller overskrev kundens svar
       .eq('status', current.status)
-      .select()
-      .single()
+    // RC-6 (samtidigheds-review 2026-10-18): tilbage til kladde kun hvis tilbuddet stadig ikke er blevet til en sag
+    if (status === 'draft') statusUpd = statusUpd.is('converted_case_id', null)
+    const { data, error } = await statusUpd.select().single()
 
     if (error) {
       if (error.code === 'PGRST116') {

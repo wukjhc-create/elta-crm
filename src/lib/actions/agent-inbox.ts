@@ -368,11 +368,17 @@ export async function saveDraftAction(actionId: string, draft: string): Promise<
       return { success: false, error: `Action er afsluttet (${action.status})` }
     }
     const payload = (action.payload ?? {}) as Record<string, unknown>
-    const { error } = await admin
+    // RC-9 (samtidigheds-review 2026-10-18): kun hvis status er den læste og endnu ikke under udførelse — ellers brugte en
+    // samtidig udførelse det gamle udkast, og redigeringen blev gemt på en allerede udført action
+    const { data: saved, error } = await admin
       .from('agent_actions')
       .update({ payload: { ...payload, draft, draft_edited: true }, updated_at: new Date().toISOString() })
       .eq('id', actionId)
+      .eq('status', action.status)
+      .in('status', ['planned', 'awaiting_approval', 'approved'])
+      .select('id')
     if (error) return { success: false, error: formatError(error, 'Kunne ikke gemme udkast') }
+    if ((saved ?? []).length === 0) return { success: false, error: 'Udkastet er netop ved at blive udført eller er ændret — genindlæs' }
     revalidatePath('/dashboard/agents')
     return { success: true, data: undefined }
   } catch (err) {

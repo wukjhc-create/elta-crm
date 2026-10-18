@@ -176,9 +176,14 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
     return refuse(admin, theRun, act, 'approval ikke laengere gyldig ved udfoerelse (afvist undervejs)')
   }
 
+  // 8c. RC-9 (samtidigheds-review 2026-10-18): payload genlæses EFTER claim — et udkast gemt lige før claim blev ellers
+  //     udført med den gamle tekst (saveDraftAction kan ikke længere ændre en action under udførelse)
+  const { data: fresh } = await admin.from('agent_actions').select('payload').eq('id', act.id).maybeSingle()
+  const actNow = fresh ? { ...act, payload: (fresh as { payload: typeof act.payload }).payload } : act
+
   // 9. Udfoer handler
   try {
-    const result = await cap.handler({ action: act, run: theRun, admin })
+    const result = await cap.handler({ action: actNow, run: theRun, admin })
     if (result.ok) {
       await admin
         .from('agent_actions')
