@@ -1275,6 +1275,10 @@ async function main() {
       const a1 = await call(form('a'))
       const a2 = await call(form('a'))
       check('første henvendelse opretter lead', a1.status === 200 && !!a1.json.leadId, JSON.stringify(a1))
+      // LD-8: leadet kobles til kunden der blev oprettet/genbrugt
+      const la = (await admin.from('leads').select('custom_fields').eq('email', mail('a')).maybeSingle()).data as { custom_fields?: { customer_id?: string } | null } | null
+      const ca = (await admin.from('customers').select('id').eq('email', mail('a')).maybeSingle()).data as { id?: string } | null
+      check('leadet er koblet til kunden (custom_fields.customer_id)', !!ca?.id && la?.custom_fields?.customer_id === ca.id, `lead=${la?.custom_fields?.customer_id ?? '-'} kunde=${ca?.id ?? '-'}`)
       // SEC2-6 (2026-10-17): dubletsvaret udleverer ikke længere lead-id'et
       check('samme e-mail inden for 10 min → succes uden lead-id, ingen ny række', a2.status === 200 && a2.json.success === true && a2.json.leadId === undefined && (await leadCount('a')) === 1)
       const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id

@@ -326,6 +326,9 @@ export async function POST(request: NextRequest) {
           address,
           inquiry_type,
           submitted_at: new Date().toISOString(),
+          // LD-8 (leads-review 2026-10-18): kunden der netop er oprettet/genbrugt — før stod leadet ukoblet ("Opret som
+          // kunde" trods eksisterende kunde), og lead-won-fallbacken via customer_id fandt det ikke
+          ...(customerId ? { customer_id: customerId } : {}),
         },
         created_by: createdBy,
       })

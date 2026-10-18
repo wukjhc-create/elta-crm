@@ -232,7 +232,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LD-5 | Lead-redigering overskriver samtidige ændringer og kan genåbne vundet lead (S3) | DONE (kode) — updateLead compare-and-set på status + updated_at fra formularen; "ændret imens" (U192 ny) |
 | LD-6 | Webhenvendelse: by tabes, postnr+by havner i gaden (S3) | TODO |
 | LD-7 | Dobbelt-indsendt webformular giver dubletleads (S3) | TODO |
-| LD-8 | Offentligt kontakt-endpoint opretter kunde men kobler ikke leadet (S3) | TODO (kobling); kunde ved hver indsendelse = BESLUTNING |
+| LD-8 | Offentligt kontakt-endpoint opretter kunde men kobler ikke leadet (S3) | DELVIS (kode) — leadet kobles til kunden (custom_fields.customer_id; cli public-contact-limit-check). Kunde ved hver indsendelse = BESLUTNING |
 | LD-9 | Ny webhenvendelse fra eksisterende kunde bliver aldrig lead i bulk (S3) | BESLUTNING |
 | LD-10 | Audit-huller og frit activityType (S3) | DELVIS (kode) — activityType-whitelist (note/call/email/meeting) + længdegrænse; logCreate ved kunde fra lead. Audit i linkLead/createLeadFromEmail = TODO |
 | LD-11 | FormSubmit-normalisering: beskedlinjer der starter med feltnavn kaprer felter (S4) | TODO |
