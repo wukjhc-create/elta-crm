@@ -211,6 +211,29 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-46 (review-bølge 2026-10-18 eftermiddag — samtidighed + sletning/integritet)
+| # | Fund | Status |
+|---|---|---|
+| RC-1 | Forskud/rate eller kreditnota oprettet samtidig med slutfakturaen fratrækkes ikke → kunden betaler/krediteres to gange (S2) | DONE (kode) — rate/forskud og kreditnota tjekker for slutfaktura efter indsættelse; slutfaktura (linjer + fastpris) genlæser forgængere/krediteringer efter header → tilbagerulning (concurrency, billing-model, contract-final, invoice-pipeline, U162/U29/U33). Interleaving ikke deterministisk testet |
+| RC-2 | "Markér betalt" kan registrere samme betaling to gange (to faneblade/bankmatch) (S3) | TODO |
+| RC-3 | Luk sag er ikke atomisk mod start/oprettelse af arbejdsordre og timer (S3) | TODO (kode); trigger = BLOCKED_APPROVAL [MIGRATION] |
+| RC-4 | Første udsendelse af et tilbud kan maile kunden to gange (to tråde) (S3) | TODO |
+| RC-5 | Overlap-tjek på timer er læs-så-skriv (S4) | = TT-5 (forslag 00253) |
+| RC-6 | Tilbage til kladde kan race med konvertering til sag (S4) | TODO |
+| RC-7 | Kunde fra mail kan oprettes dobbelt (S4) | TODO |
+| RC-8 | Start af aflevering kan nulstille et netop afkrydset punkt (S4) | TODO |
+| RC-9 | Redigering af agentudkast under udførelse sender den gamle tekst (S4) | TODO |
+| DL-1 | Sletning af gammel besigtigelse ("other") sletter kundens underskrevne bekræftelser (CASCADE) (S2) | TODO (kode: bloker); FK RESTRICT = BLOCKED_APPROVAL [MIGRATION] |
+| DL-2 | deleteOffer sletter sendte tilbuds mail- og aktivitetshistorik (afvist/trukket tilbage til kladde) (S2) | TODO (kode: kræv sent_at IS NULL) |
+| DL-3 | Sletning af leverandør/produkt kaskaderer pris-/aftalehistorik og afkobler bogførte leverandørfakturaer (S3) | TODO (kode: bloker ved referencer + audit); FK = BLOCKED_APPROVAL [MIGRATION] |
+| DL-4 | deleteServiceCaseAttachment omgår afleveringsfotoets værn (S3) | TODO (ubrugt → fjern) |
+| DL-5 | Fakturanumre bruges af kladder → huller i nummerserien; tilbagerulninger uden audit (S3) | BESLUTNING (nummer ved afsendelse?) + audit = TODO |
+| DL-6 | Ingen GDPR-sletning/anonymisering af kunde med historik (S3) | BESLUTNING |
+| DL-7 | deleteInvoiceDraft kan efterlade en låst kladde (claim frigives ikke) (S4) | TODO |
+| DL-8 | deleteCustomer frigiver mails før sletningen lykkes (S4) | TODO |
+| DL-9 | Sletninger uden audit (projekt, kontakt, certifikat) (S4) | TODO |
+| DL-10 | deleteTestIncomingInvoiceAction ignorerer fakturalås (S4, kun TEST_) | TODO |
+
 ## NEXT-45 (review-bølge 2026-10-18 middag — AI/LLM og auth)
 | # | Fund | Status |
 |---|---|---|

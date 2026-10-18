@@ -612,6 +612,21 @@ export async function createCreditNoteForInvoice(
     }
   }
 
+  // RC-1 (samtidigheds-review 2026-10-18): en slutfaktura oprettet samtidig fratrækker hele originalen — kreditnotaen ville
+  // give kunden beløbet tilbage en gang til. Samme tjek som før indsættelsen, nu efter.
+  if ((original.invoice_type === 'deposit' || original.invoice_type === 'progress' || isStandardOnCase) && original.case_id) {
+    let finalsNow = supabase.from('invoices').select('id', { count: 'exact', head: true })
+      .eq('case_id', original.case_id).neq('id', original.id)
+      .or('invoice_type.eq.final,is_final_invoice.eq.true').is('voided_at', null)
+    if (isStandardOnCase) finalsNow = finalsNow.in('amount_basis', ['contract_sum', 'revised_sum'])
+    const { count: finCount } = await finalsNow
+    if ((finCount ?? 0) > 0) {
+      await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
+      await supabase.from('invoices').delete().eq('id', header.id)
+      return { ...empty, message: 'Der blev netop oprettet en slutfaktura, der fratrækker fakturaen — kreditér slutfakturaen i stedet' }
+    }
+  }
+
   // ---- Audit-trail i invoice_predecessors junction (genbrug fra mig 00106) ----
   // Best-effort. Schema fra 00106:
   //   invoice_id              = kreditnota

@@ -284,6 +284,19 @@ export async function createStageInvoiceForCase(
     }
   }
 
+  // RC-1 (samtidigheds-review 2026-10-18): en slutfaktura oprettet samtidig læste sine forgængere FØR denne rate fandtes
+  // og fratrækker den derfor ikke (kunden ville betale raten oveni). Efter indsættelse: findes der nu en (ikke annulleret)
+  // slutfaktura, fjernes raten igen. Slutfakturaen gør det modsatte tjek efter sin indsættelse — én af dem ser altid den anden.
+  {
+    const { count: finalNow } = await supabase.from('invoices').select('id', { count: 'exact', head: true })
+      .eq('case_id', input.case_id).eq('is_final_invoice', true).is('voided_at', null)
+    if ((finalNow ?? 0) > 0) {
+      await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
+      await supabase.from('invoices').delete().eq('id', header.id)
+      return { ...empty, message: 'Der blev netop oprettet en slutfaktura på sagen — en ny rate er ikke tilladt. Genindlæs siden.' }
+    }
+  }
+
   // Sprint Ø3.2 — persistent audit
   try {
     await supabase.from('audit_logs').insert({
@@ -751,6 +764,25 @@ export async function createFinalInvoiceForCase(
     return { ...empty, message: `Kunne ikke oprette slutfaktura-header: ${hdrErr?.message ?? 'ukendt'}` }
   }
 
+  // RC-1 (samtidigheds-review 2026-10-18): en rate/forskud eller kreditnota oprettet samtidig er ikke med i fradragene,
+  // som blev beregnet før indsættelsen → genlæs nu; har forgængerne eller deres krediteringer ændret sig, rulles
+  // slutfakturaen tilbage (raten gør det modsatte tjek efter sin indsættelse)
+  {
+    const { data: predNow } = await supabase.from('invoices').select('id')
+      .eq('case_id', input.case_id).in('invoice_type', ['deposit', 'progress'])
+    const nowIds = ((predNow ?? []) as Array<{ id: string }>).map((p) => p.id).sort()
+    const wasIds = predRows.map((p) => p.id).sort()
+    const creditedNow = await creditedByInvoice(supabase, nowIds)
+    const sameCredits = wasIds.every((id) => r2(creditedNow.get(id) ?? 0) === r2(creditedPred.get(id) ?? 0))
+    const { count: draftCreditsNow } = nowIds.length
+      ? await supabase.from('invoices').select('id', { count: 'exact', head: true }).in('credit_of_invoice_id', nowIds).eq('invoice_type', 'credit').eq('status', 'draft')
+      : { count: 0 }
+    if (nowIds.join(',') !== wasIds.join(',') || !sameCredits || (draftCreditsNow ?? 0) > 0) {
+      await supabase.from('invoices').delete().eq('id', header.id)
+      return { ...empty, message: 'En rate, et forskud eller en kreditnota blev netop oprettet på sagen — genindlæs og opret slutfakturaen igen' }
+    }
+  }
+
   // 9. INSERT linjer (positive + negative fradrag) i én batch
   const lineRows = lines.map((l, i) => ({
     invoice_id: header.id,
@@ -1005,6 +1037,14 @@ async function createContractFinalInvoice(
   if (hdrErr || !header) {
     if ((hdrErr as { code?: string } | null)?.code === '23505') return { ...empty, message: 'Slutfaktura findes allerede på sagen (race detected)' }
     return { ...empty, message: `Kunne ikke oprette slutfaktura-header: ${hdrErr?.message ?? 'ukendt'}` }
+  }
+  // RC-1: restbeløbet genberegnes efter indsættelsen — en samtidig rate/kreditnota ændrer fradragene → tilbagerulning
+  {
+    const planNow = await loadContractRemainderPlan(supabase, sag.id, basis)
+    if (!planNow.ok || r2(planNow.remainder) !== r2(plan.remainder)) {
+      await supabase.from('invoices').delete().eq('id', header.id)
+      return { ...empty, message: 'En rate eller kreditnota blev netop oprettet på sagen — genindlæs og opret slutfakturaen igen' }
+    }
   }
 
   const lineRows = [
