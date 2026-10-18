@@ -153,7 +153,7 @@ export default function ProductsClient({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Produktkatalog</h1>
-          <p className="text-gray-500">
+          <p className="text-gray-500 break-words min-w-0" data-testid="product-count">
             {loadError
               ? 'Antallet kunne ikke hentes. Det tælles ikke som 0 produkter.'
               : `${total} ${total === 1 ? 'produkt' : 'produkter'}`}
