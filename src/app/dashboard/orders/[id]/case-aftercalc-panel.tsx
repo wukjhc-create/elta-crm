@@ -227,7 +227,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                           <tr key={r.key} data-testid="aftercalc-line" data-status={r.status}>
                             <td className="px-2 py-1.5">
                               <div className="text-gray-900 break-words">{r.description}</div>
-                              {r.unit && <div className="text-[11px] text-gray-500">{r.unit}</div>}
+                              {r.unit && <div className="text-[11px] text-gray-500 break-words min-w-0">{r.unit}</div>}
                             </td>
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{qty(r.offered_qty)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{qty(r.actual_qty)}</td>
