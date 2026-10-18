@@ -150,7 +150,7 @@ export function PricingDashboardClient() {
       {/* Filters */}
       <div className="bg-white rounded-lg border p-4 flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-500">Tærskel:</label>
+          <label className="text-sm text-gray-500 break-words min-w-0" data-testid="pricing-threshold-label">Tærskel:</label>
           <select
             className="border rounded px-2 py-1 text-sm"
             value={threshold}
@@ -163,7 +163,7 @@ export function PricingDashboardClient() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-500">Periode:</label>
+          <label className="text-sm text-gray-500 break-words min-w-0" data-testid="pricing-period-label">Periode:</label>
           <select
             className="border rounded px-2 py-1 text-sm"
             value={daysBack}
