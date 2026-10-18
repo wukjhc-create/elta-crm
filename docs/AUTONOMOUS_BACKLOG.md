@@ -783,7 +783,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-67 | 1 Profit | DONE efterkalk-oversigtens indledning ombrydes. | Beløbsteksten er uændret. |
 | G18-68 | 1 Profit | DONE linket "Tilbage til rapporter" ombrydes. | Adressen er uændret. |
 | G18-74 | 2 Faktura | DONE toleranceteksten under fakturakontrollen ombrydes. | Tolerancen og overprisen er uændret. |
-| G18-75 | 2 Faktura | ÅBEN. Fakturakontrollens statuslinje ombrydes. | Statusteksten er uændret. |
+| G18-75 | 2 Faktura | DONE fakturakontrollens statuslinje ombrydes. | Statusteksten er uændret. |
+| G18-76 | 2 Faktura | ÅBEN. Fejlen "Det tælles ikke som at priserne stemmer" ombrydes. | Sætningen er uændret. |
 | G18-30 | 2 Faktura | SPRUNGET. `LineControl` har ikke `unitPrice`. Samme lås som G18-27. | Afvigelsesbeløbet uændret. Ikke BLOCKED_APPROVAL. |
 | G18-32 | 1 Profit | DONE beløb i sagspanelets highlight-liste ombrydes. | `kr()` uændret. |
 | G18-36 | 1 Profit | DONE sagspanelets indledning ombrydes. | Faktureringsstatus og beløb uændret. |
