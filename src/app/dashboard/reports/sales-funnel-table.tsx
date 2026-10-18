@@ -4,7 +4,7 @@
  * N53: salgstragt pr. måned — nye kunder → tilbud → sendt → accepteret → faktureret (salgsværdier, ingen kost).
  */
 import { TrendingUp } from 'lucide-react'
-import type { SalesFunnel } from '@/lib/reports/sales-funnel'
+import { funnelMonthRates, type SalesFunnel } from '@/lib/reports/sales-funnel'
 
 const kr = (n: number) => new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 0 }).format(n)
 const monthLabel = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString('da-DK', { month: 'short', year: '2-digit', timeZone: 'UTC' })
@@ -29,6 +29,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
         {data.months.map((m) => (
           <article key={m.month} className="rounded ring-1 ring-gray-200 p-3 text-sm">
             <p className="font-medium text-gray-900">{monthLabel(m.month)}</p>
+            <p className="text-xs text-gray-600 break-words" data-testid="funnel-month-rates">Sendt {pct(funnelMonthRates(m).sent_rate)} · vundet {pct(funnelMonthRates(m).win_rate)}</p>
             <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0">
               <div className="min-w-0"><dt className="text-gray-500">Nye kunder</dt><dd className="tabular-nums break-words">{m.new_customers}</dd></div>
               <div className="min-w-0"><dt className="text-gray-500">Tilbud oprettet</dt><dd className="tabular-nums break-words">{m.offers_created}</dd></div>
@@ -61,7 +62,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
           <tbody>
             {data.months.map((m) => (
               <tr key={m.month} className="border-b last:border-b-0" data-testid="funnel-row" data-month={m.month}>
-                <td className="py-2 text-gray-900">{monthLabel(m.month)}</td>
+                <td className="py-2 text-gray-900">{monthLabel(m.month)}<div className="text-[11px] font-normal text-gray-600 break-words" data-testid="funnel-month-rates">Sendt {pct(funnelMonthRates(m).sent_rate)} · vundet {pct(funnelMonthRates(m).win_rate)}</div></td>
                 <td className="py-2 text-right tabular-nums">{m.new_customers}</td>
                 <td className="py-2 text-right tabular-nums">{m.offers_created}</td>
                 <td className="py-2 text-right tabular-nums">{m.offers_sent}</td>
