@@ -257,7 +257,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LD-7 | Dobbelt-indsendt webformular giver dubletleads (S3) | DONE (kode) — webhenvendelse med samme e-mail som et åbent lead (30 dage) kobles på leadet (aktivitet + extra_source_email_ids; tæller som behandlet) (U68 udvidet) |
 | LD-8 | Offentligt kontakt-endpoint opretter kunde men kobler ikke leadet (S3) | DELVIS (kode) — leadet kobles til kunden (custom_fields.customer_id; cli public-contact-limit-check). Kunde ved hver indsendelse = BESLUTNING |
 | LD-9 | Ny webhenvendelse fra eksisterende kunde bliver aldrig lead i bulk (S3) | BESLUTNING |
-| LD-10 | Audit-huller og frit activityType (S3) | DELVIS (kode) — activityType-whitelist (note/call/email/meeting) + længdegrænse; logCreate ved kunde fra lead. Audit i linkLead/createLeadFromEmail = TODO |
+| LD-10 | Audit-huller og frit activityType (S3) | DONE (kode) — activityType-whitelist + længdegrænse; audit ved kunde fra lead, kobling til kunde og lead fra mail (+ "oprettet"-aktivitet) (U68/U131) |
 | LD-11 | FormSubmit-normalisering: beskedlinjer der starter med feltnavn kaprer felter (S4) | DONE (kode) — i beskeden er en linje kun et felt med feltnavnet i små bogstaver; type/besked i LABEL_LINE_RE (website-inquiry-test +2) |
 | LD-12 | Lead kan oprettes direkte som vundet/tabt (S4) | BESLUTNING |
 | LD-13 | Konverteringens e-maildedupe kan vælge inaktiv kunde (S4) | DONE — aktiv kunde foretrækkes (order is_active desc) |

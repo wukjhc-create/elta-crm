@@ -85,6 +85,10 @@ export async function linkLeadToCustomerAction(leadId: string, customerId: strin
     const linkRes = await linkLeadArtifactsToCustomer(supabase, { leadId, customerId, sourceEmailId: cf.source_email_id,
       canEditOffers: hasPermission('offers.edit'), canLinkInbox: hasPermission('inbox.view'), linkedBy: 'lead-link' })
     if (linkRes.offersLinked) revalidatePath('/dashboard/offers')
+    // LD-10: koblingen auditeres (før kun en lead-aktivitet)
+    const { logUpdate } = await import('@/lib/audit/audit-log-writer')
+    await logUpdate('lead', leadId, (cust as { company_name: string }).company_name,
+      { customer_id: { old: (cf.customer_id as string | undefined) ?? null, new: customerId } }, { offers_linked: linkRes.offersLinked })
     await supabase.from('lead_activities').insert({ lead_id: leadId, activity_type: 'note', performed_by: userId,
       description: `Lead koblet til eksisterende kunde: ${(cust as { company_name: string }).company_name}${linkRes.offersLinked ? ` — ${linkRes.offersLinked} tilbud koblet til kunden` : ''}` })
     revalidatePath(`/dashboard/leads/${leadId}`)

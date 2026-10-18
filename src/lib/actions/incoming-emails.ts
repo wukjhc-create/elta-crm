@@ -2154,6 +2154,11 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
       await createAdminClient().from('leads').delete().eq('id', newId).eq('created_by', userId)
       return { success: true, data: { leadId: winner, existed: true } }
     }
+    // LD-10 (leads-review 2026-10-18): leadets historik og audit starter ved oprettelsen (før tomt)
+    await supabase.from('lead_activities').insert({ lead_id: newId, activity_type: 'created', performed_by: userId,
+      description: web ? 'Lead oprettet fra webhenvendelse' : 'Lead oprettet fra mail' })
+    const { logCreate } = await import('@/lib/audit/audit-log-writer')
+    await logCreate('lead', newId, name, { source: web ? 'website' : 'email', source_email_id: e.id })
     revalidatePath('/dashboard/leads')
     revalidatePath('/dashboard/mail')
     return { success: true, data: { leadId: (lead as { id: string }).id, existed: false } }
