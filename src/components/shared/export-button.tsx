@@ -24,6 +24,9 @@ import {
 // Column Definitions
 // =====================================================
 
+/** Skal matche MAX_EXPORT_ROWS i lib/actions/export.ts ('use server'-fil kan ikke eksportere konstanter) */
+const EXPORT_ROW_CAP = 10_000
+
 const CUSTOMER_COLUMNS = [
   { header: 'Kundenr.', accessor: (r: ExportCustomer) => r.customer_number || '' },
   { header: 'Firma', accessor: (r: ExportCustomer) => r.company_name },
@@ -128,35 +131,41 @@ export function ExportButton({ type, filters, className }: ExportButtonProps) {
       const filename = `${config.filename}_${timestamp}.csv`
 
       let csv: string | null = null
+      let rows = 0
 
       switch (type) {
         case 'customers': {
           const result = await exportCustomers(filters as Parameters<typeof exportCustomers>[0])
           if (!result.success || !result.data) throw new Error(result.error)
+          rows = result.data.length
           csv = generateCsv(result.data, CUSTOMER_COLUMNS)
           break
         }
         case 'leads': {
           const result = await exportLeads(filters as Parameters<typeof exportLeads>[0])
           if (!result.success || !result.data) throw new Error(result.error)
+          rows = result.data.length
           csv = generateCsv(result.data, LEAD_COLUMNS)
           break
         }
         case 'offers': {
           const result = await exportOffers(filters as Parameters<typeof exportOffers>[0])
           if (!result.success || !result.data) throw new Error(result.error)
+          rows = result.data.length
           csv = generateCsv(result.data, OFFER_COLUMNS)
           break
         }
         case 'projects': {
           const result = await exportProjects(filters as Parameters<typeof exportProjects>[0])
           if (!result.success || !result.data) throw new Error(result.error)
+          rows = result.data.length
           csv = generateCsv(result.data, PROJECT_COLUMNS)
           break
         }
         case 'calculations': {
           const result = await exportCalculations(filters as Parameters<typeof exportCalculations>[0])
           if (!result.success || !result.data) throw new Error(result.error)
+          rows = result.data.length
           csv = generateCsv(result.data, CALCULATION_COLUMNS)
           break
         }
@@ -164,6 +173,8 @@ export function ExportButton({ type, filters, className }: ExportButtonProps) {
 
       if (csv) {
         downloadCsv(csv, filename)
+        // RX-9 (rapport-review 2026-10-18): serveren stopper ved 10.000 rækker (MAX_EXPORT_ROWS) — før uden besked
+        if (rows >= EXPORT_ROW_CAP) toast.warning('Eksporten er afkortet', `Kun de første ${EXPORT_ROW_CAP.toLocaleString('da-DK')} rækker kom med — filtrér for at få resten.`)
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Eksport fejlede. Prøv igen.')
