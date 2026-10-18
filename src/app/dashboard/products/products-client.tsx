@@ -159,7 +159,7 @@ export default function ProductsClient({
               : `${total} ${total === 1 ? 'produkt' : 'produkter'}`}
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
+        <Button onClick={() => setShowCreateDialog(true)} className="break-words min-w-0" data-testid="product-create">
           <Plus className="w-4 h-4 mr-2" />
           Nyt produkt
         </Button>
