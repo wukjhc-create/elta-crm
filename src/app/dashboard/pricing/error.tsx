@@ -23,7 +23,7 @@ export default function PricingError({ error, reset }: ErrorProps) {
         <h1 className="text-2xl font-bold text-gray-900 mb-2 break-words min-w-0" data-testid="pricing-error-title">
           Kunne ikke indlæse prissætning
         </h1>
-        <p className="text-gray-600 mb-6">
+        <p className="text-gray-600 mb-6 break-words min-w-0" data-testid="pricing-error-body">
           Der opstod en fejl. Prøv at genindlæse siden.
         </p>
         {error.digest && (
