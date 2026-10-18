@@ -793,7 +793,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-82 | 1 Profit | DONE tilbud-mod-faktisk "Henter…" ombrydes. | Sætningen er uændret. |
 | G18-83 | 1 Profit | DONE tilbud-mod-faktisk fejltekst ombrydes. | "Det tælles ikke som 0 kr." er uændret. |
 | G18-84 | 1 Profit | DONE "Kost pr. linje er skjult" ombrydes. | Sætningen er uændret. |
-| G18-85 | 1 Profit | ÅBEN. Efterkalk-oversigtens medarbejderfejl ombrydes. | Fejludtrykket er uændret. |
+| G18-85 | 1 Profit | DONE efterkalk-oversigtens medarbejderfejl ombrydes. | Fejludtrykket er uændret. |
+| G18-86 | 5 Plan | ÅBEN. Kalenderens "Ansvarlige kunne ikke hentes" ombrydes. | Sætningen er uændret. |
 | G18-30 | 2 Faktura | SPRUNGET. `LineControl` har ikke `unitPrice`. Samme lås som G18-27. | Afvigelsesbeløbet uændret. Ikke BLOCKED_APPROVAL. |
 | G18-32 | 1 Profit | DONE beløb i sagspanelets highlight-liste ombrydes. | `kr()` uændret. |
 | G18-36 | 1 Profit | DONE sagspanelets indledning ombrydes. | Faktureringsstatus og beløb uændret. |
