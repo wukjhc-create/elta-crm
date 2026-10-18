@@ -254,7 +254,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                     </div>
                   ))}
                   {(remindersByDate[dateKey]?.length ?? 0) > 2 && (
-                    <div className="text-[10px] text-amber-700">+{(remindersByDate[dateKey]?.length ?? 0) - 2} påmindelser</div>
+                    <div className="text-[10px] text-amber-700 break-words min-w-0" data-testid="calendar-day-more-reminders">+{(remindersByDate[dateKey]?.length ?? 0) - 2} påmindelser</div>
                   )}
                 </div>
               )
