@@ -915,12 +915,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-176 | 4 Pris | DONE procenterne for 30 og 90 dage på pristendenser ombrydes. | Udtrykkene med trend_30_days og trend_90_days er uændret. |
 | G18-177 | 4 Pris | DONE. Volatilitetsmærket Stabil, Moderat og Høj ombrydes. | Ordene er uændret. |
 | G18-178 | 4 Pris | DONE. Antallet af berørte linjer på påvirkede tilbud ombrydes. | {offer.affected_items} er uændret. |
-| G18-179 | 4 Pris | ÅBEN. Ændringstallet på pristendenser ombrydes. | {trend.change_count_30_days} er uændret. |
+| G18-179 | 4 Pris | DONE. Ændringstallet på pristendenser ombrydes. | {trend.change_count_30_days} er uændret. |
 | G18-180 | 4 Pris | ÅBEN. Tilbudsnummeret på påvirkede tilbud ombrydes. | {offer.offer_number} og linket er uændret. |
 | G18-181 | 4 Pris | ÅBEN. Etiketterne 30 dage og 90 dage på pristendensernes mobilkort ombrydes. | Procentudtrykkene er uændret. |
 | G18-182 | 4 Pris | ÅBEN. Bindestregen når en pristendens mangler ombrydes. | Tegnet er uændret. |
 | G18-183 | 4 Pris | ÅBEN. Etiketten Leverandør på pristendenser ombrydes. | Valget og onSupplierChange er uændret. |
 | G18-184 | 4 Pris | ÅBEN. Tælleren på prisfanerne ombrydes. | {tab.count} og setActiveTab er uændret. |
+| G18-185 | 4 Pris | ÅBEN. Overskriften Prisovervågning ombrydes. | Titlen og adgangstjekket er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
