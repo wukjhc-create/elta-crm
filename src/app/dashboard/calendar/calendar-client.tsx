@@ -363,7 +363,8 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                       {task.customer && (
                         <Link
                           href={`/dashboard/customers/${task.customer.id}`}
-                          className="block text-xs text-blue-600 hover:underline mt-1"
+                          className="block text-xs text-blue-600 hover:underline mt-1 break-words min-w-0"
+                          data-testid="calendar-day-customer-link"
                         >
                           Gå til kundekort →
                         </Link>
