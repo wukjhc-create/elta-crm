@@ -216,6 +216,8 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
         .from('service_cases')
         .select('id')
         .eq('case_number', hint)
+        // IV-10: kun aktive sager (ikke konverterede eller forslag)
+        .neq('status', 'converted').eq('is_proposal', false)
         .maybeSingle()
       if (caseRow) {
         caseId = caseRow.id as string
@@ -269,6 +271,7 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
         .select('id, address, postal_code')
         .eq('postal_code', zip)
         .ilike('address', `%${escapeIlike(streetToken)}%`)
+        .neq('status', 'converted').eq('is_proposal', false) // IV-10 (lukkede matches fortsat — sen faktura er relevant)
         .limit(3)
       // LF-7: adresse-fallbacken må ikke parre en arbejdsordre fra en ANDEN sag end den allerede fundne
       if (cases && cases.length === 1 && (!caseId || cases[0].id === caseId)) {

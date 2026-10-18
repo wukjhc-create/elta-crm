@@ -416,9 +416,15 @@ export async function convertApprovedInvoiceLines(
   }
   // LF-6: ingen fordeling til en lukket sag (samme regel som "Tilføj materiale")
   {
-    const { data: sag } = await supabase.from('service_cases').select('status').eq('id', caseId).maybeSingle()
-    if ((sag as { status?: string } | null)?.status === 'closed') {
+    const { data: sag } = await supabase.from('service_cases').select('status, is_proposal').eq('id', caseId).maybeSingle()
+    const sg = sag as { status?: string; is_proposal?: boolean | null } | null
+    if (sg?.status === 'closed') {
       return { ok: false, message: 'Sagen er lukket — genåbn den først', invoiceStatusFlipped: false, perLine: [], caseId }
+    }
+    // IV-10 (leverandørfaktura-review 2026-10-18): en konverteret sag eller et sagsforslag indgår ikke i sagsøkonomi/rapporter
+    // → kosten forsvandt
+    if (sg?.status === 'converted' || sg?.is_proposal) {
+      return { ok: false, message: sg?.is_proposal ? 'Sagen er et forslag — godkend den først' : 'Sagen er konverteret — vælg den aktive sag', invoiceStatusFlipped: false, perLine: [], caseId }
     }
   }
 

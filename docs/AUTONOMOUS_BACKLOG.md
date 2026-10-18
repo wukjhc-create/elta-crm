@@ -238,7 +238,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV-7 | Mail-/uploadfakturaer (inkl. kreditnotaer) kan aldrig fordeles til sag (S3) | TODO |
 | IV-8 | Enhver mail med vedhæftning indlæses som mulig faktura (S3) | TODO |
 | IV-9 | "Vores ref: Henrik" bruges som arbejdsordre-hint (S3) | DONE (kode) — hints kræver et ciffer |
-| IV-10 | Match/fordeling til inaktive sager (konverteret/forslag) (S3) | TODO |
+| IV-10 | Match/fordeling til inaktive sager (konverteret/forslag) (S3) | DONE (kode) — fordeling og manuel sagskobling afviser konverterede sager/forslag; matcheren springer dem over (U28/U12/U149) |
 | IV-11 | Automatisk match fra mailtekst bevares efter PDF-opgradering (S3) | TODO |
 | IV-12 | Efterstillet minus fra næste linje → faktura bliver kreditnota (S3) | DONE (kode) — efterstillet minus kun på samme linje |
 | IV-13 | Backfill stopper ved 1.000 rækker (S3) | TODO |

@@ -687,11 +687,15 @@ export async function setIncomingInvoiceCaseAction(
   if (caseId) {
     const { data: caseRow, error: caseErr } = await supabase
       .from('service_cases')
-      .select('id, case_number')
+      .select('id, case_number, status, is_proposal')
       .eq('id', caseId)
       .maybeSingle()
     if (caseErr || !caseRow) {
       return { ok: false, message: 'Sag ikke fundet' }
+    }
+    // IV-10: ikke en konverteret sag eller et forslag (kosten ville forsvinde fra sagsøkonomien)
+    if ((caseRow as { status?: string }).status === 'converted' || (caseRow as { is_proposal?: boolean | null }).is_proposal) {
+      return { ok: false, message: 'Vælg en aktiv sag (konverterede sager og forslag kan ikke bruges)' }
     }
     caseLabel = (caseRow.case_number as string) ?? caseRow.id
   }
