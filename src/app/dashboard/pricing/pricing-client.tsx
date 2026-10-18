@@ -697,7 +697,7 @@ function LoadingState() {
   return (
     <div className="bg-white rounded-lg border p-8 text-center">
       <RefreshCw className="h-6 w-6 animate-spin mx-auto text-gray-400" />
-      <p className="text-sm text-gray-500 mt-2">Indlæser data...</p>
+      <p className="text-sm text-gray-500 mt-2 break-words min-w-0" data-testid="pricing-loading-text">Indlæser data...</p>
     </div>
   )
 }
