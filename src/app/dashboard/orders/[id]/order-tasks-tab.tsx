@@ -67,7 +67,7 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
         </p>
       )}
       {error && <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{error}</div>}
-      <div className="text-xs text-gray-500 mb-1">{openCount} af {tasks.length} udestår</div>
+      <div className="text-xs text-gray-500 mb-1 break-words min-w-0" data-testid="case-tasks-open-count">{openCount} af {tasks.length} udestår</div>
       {tasks.map((t) => {
         const status = TASK_STATUS_CONFIG[t.status] ?? TASK_STATUS_CONFIG.pending
         const prio = TASK_PRIORITY_CONFIG[t.priority] ?? TASK_PRIORITY_CONFIG.normal
