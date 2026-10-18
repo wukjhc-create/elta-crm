@@ -551,7 +551,7 @@ function TrendsTab({
               <p className="mt-1 text-xs">
                 30 dage{' '}
                 {trend.trend_30_days !== null ? (
-                  <span className={trend.trend_30_days > 0 ? 'text-red-600' : trend.trend_30_days < 0 ? 'text-green-600' : 'text-gray-500'}>
+                  <span className={`break-words min-w-0 ${trend.trend_30_days > 0 ? 'text-red-600' : trend.trend_30_days < 0 ? 'text-green-600' : 'text-gray-500'}`} data-testid="pricing-trend-30-mobile">
                     {trend.trend_30_days > 0 ? '+' : ''}{trend.trend_30_days}%
                   </span>
                 ) : (
@@ -561,7 +561,7 @@ function TrendsTab({
               <p className="text-xs">
                 90 dage{' '}
                 {trend.trend_90_days !== null ? (
-                  <span className={trend.trend_90_days > 0 ? 'text-red-600' : trend.trend_90_days < 0 ? 'text-green-600' : 'text-gray-500'}>
+                  <span className={`break-words min-w-0 ${trend.trend_90_days > 0 ? 'text-red-600' : trend.trend_90_days < 0 ? 'text-green-600' : 'text-gray-500'}`} data-testid="pricing-trend-90-mobile">
                     {trend.trend_90_days > 0 ? '+' : ''}{trend.trend_90_days}%
                   </span>
                 ) : (
@@ -599,7 +599,7 @@ function TrendsTab({
                     <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(trend.current_price)}</td>
                     <td className="px-4 py-2.5 text-right">
                       {trend.trend_30_days !== null ? (
-                        <span className={`inline-flex items-center gap-1 ${trend.trend_30_days > 0 ? 'text-red-600' : trend.trend_30_days < 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                        <span className={`break-words min-w-0 inline-flex items-center gap-1 ${trend.trend_30_days > 0 ? 'text-red-600' : trend.trend_30_days < 0 ? 'text-green-600' : 'text-gray-500'}`} data-testid="pricing-trend-30">
                           {trend.trend_30_days > 0 ? <TrendingUp className="h-3 w-3" /> : trend.trend_30_days < 0 ? <TrendingDown className="h-3 w-3" /> : null}
                           {trend.trend_30_days > 0 ? '+' : ''}{trend.trend_30_days}%
                         </span>
@@ -609,7 +609,7 @@ function TrendsTab({
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       {trend.trend_90_days !== null ? (
-                        <span className={`inline-flex items-center gap-1 ${trend.trend_90_days > 0 ? 'text-red-600' : trend.trend_90_days < 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                        <span className={`break-words min-w-0 inline-flex items-center gap-1 ${trend.trend_90_days > 0 ? 'text-red-600' : trend.trend_90_days < 0 ? 'text-green-600' : 'text-gray-500'}`} data-testid="pricing-trend-90">
                           {trend.trend_90_days > 0 ? <TrendingUp className="h-3 w-3" /> : trend.trend_90_days < 0 ? <TrendingDown className="h-3 w-3" /> : null}
                           {trend.trend_90_days > 0 ? '+' : ''}{trend.trend_90_days}%
                         </span>
