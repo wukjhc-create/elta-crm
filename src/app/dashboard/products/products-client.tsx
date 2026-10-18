@@ -246,7 +246,7 @@ export default function ProductsClient({
                       <p className="text-sm text-gray-500 break-words min-w-0" data-testid="product-description-mobile">{product.description}</p>
                     )}
                   </div>
-                  <Badge variant={product.is_active ? 'default' : 'secondary'}>
+                  <Badge variant={product.is_active ? 'default' : 'secondary'} className="break-words min-w-0" data-testid="product-status-mobile">
                     {product.is_active ? 'Aktiv' : 'Inaktiv'}
                   </Badge>
                 </div>
@@ -319,7 +319,7 @@ export default function ProductsClient({
                     {formatCurrency(product.list_price)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={product.is_active ? 'default' : 'secondary'}>
+                    <Badge variant={product.is_active ? 'default' : 'secondary'} className="break-words min-w-0" data-testid="product-status">
                       {product.is_active ? 'Aktiv' : 'Inaktiv'}
                     </Badge>
                   </TableCell>
