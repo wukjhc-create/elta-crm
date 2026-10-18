@@ -122,7 +122,7 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
       </div>
 
       {profilesError && (
-        <p className="text-sm text-red-700 mb-3" data-testid="customer-task-profiles-error">{profilesError}</p>
+        <p className="text-sm text-red-700 mb-3 break-words min-w-0" data-testid="customer-task-profiles-error">{profilesError}</p>
       )}
       {namesFailed && !loadError && (
         <p className="text-sm text-red-700 mb-3 break-words min-w-0" data-testid="customer-task-assignee-names-error">
