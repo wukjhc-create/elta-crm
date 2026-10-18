@@ -421,29 +421,33 @@ export async function getMonthlyOfferStats(): Promise<{
   acceptedValue: number
   sentCount: number
   acceptedCount: number
+  /** DB-2: afviste i måneden (rejected_at) — nævner i hitraten */
+  rejectedCount: number
 }> {
   const { supabase } = await getAuthenticatedClient()
 
   // Rapport-review 2026-10-09 (#9): dansk månedsstart (før serverens UTC → 00–02 den 1. tabt), alle rækker, ekskl. moms
   const firstDayOfMonth = copenhagenLocalToIso(`${copenhagenParts(new Date()).date.slice(0, 7)}-01`, '00:00')
 
-  const offers = await allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase
+  // DB-2 (dashboard-review 2026-10-18): kohorter efter HÆNDELSESDATO — sendt (sent_at), accepteret (accepted_at),
+  // afvist (rejected_at) i måneden. Før efter created_at og kun status sendt/set/accepteret: et tilbud oprettet 28/9 og
+  // accepteret 2/10 talte aldrig; sendt-og-accepteret talte ikke som sendt; afviste forsvandt (hitrate 40 % mod reelt 29 %)
+  type Row = { status: string; final_amount: number | null; tax_amount: number | null }
+  const byDate = (col: 'sent_at' | 'accepted_at' | 'rejected_at') => allRows<Row>((f, t) => supabase
     .from('offers')
     .select('id, status, final_amount, tax_amount')
     .eq('is_proposal', false)
-    .gte('created_at', firstDayOfMonth)
-    .in('status', ['sent', 'viewed', 'accepted'])
+    .gte(col, firstDayOfMonth)
     .order('id')
     .range(f, t))
-
-  const sentOffers = offers.filter((o) => o.status === 'sent' || o.status === 'viewed')
-  const acceptedOffers = offers.filter((o) => o.status === 'accepted')
+  const [sentOffers, acceptedOffers, rejectedOffers] = await Promise.all([byDate('sent_at'), byDate('accepted_at'), byDate('rejected_at')])
 
   return {
     sentValue: sentOffers.reduce((sum, o) => sum + offerExVat(o), 0),
     acceptedValue: acceptedOffers.reduce((sum, o) => sum + offerExVat(o), 0),
     sentCount: sentOffers.length,
     acceptedCount: acceptedOffers.length,
+    rejectedCount: rejectedOffers.length,
   }
 }
 

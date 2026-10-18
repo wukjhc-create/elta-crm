@@ -14,6 +14,7 @@ export function MonthlyOfferChart() {
     acceptedValue: number
     sentCount: number
     acceptedCount: number
+    rejectedCount?: number // DB-2
   } | null>(null)
 
   const loadStats = useCallback(async () => {
@@ -79,9 +80,10 @@ export function MonthlyOfferChart() {
       </div>
 
       {/* Conversion rate */}
-      {stats.sentCount + stats.acceptedCount > 0 && (
+      {/* DB-2: hitrate = accepteret / (accepteret + afvist) blandt tilbud afgjort i måneden */}
+      {stats.acceptedCount + (stats.rejectedCount ?? 0) > 0 && (
         <div className="text-xs text-gray-500 pt-1 border-t">
-          Hitrate: {stats.sentCount + stats.acceptedCount > 0 ? Math.round((stats.acceptedCount / (stats.sentCount + stats.acceptedCount)) * 100) : 0}% accepteret denne måned
+          Hitrate: {Math.round((stats.acceptedCount / (stats.acceptedCount + (stats.rejectedCount ?? 0))) * 100)}% af tilbud afgjort denne måned
         </div>
       )}
     </div>

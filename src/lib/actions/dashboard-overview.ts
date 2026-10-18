@@ -363,7 +363,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             .select('id', { count: 'exact', head: true })
             .in('status', ['sent', 'viewed'])
             .eq('is_proposal', false)
-            .lt('created_at', cutoff),
+            // DB-3 (dashboard-review 2026-10-18): alder regnes fra AFSENDELSEN (sent_at) — en kladde oprettet for 20 dage
+            // siden og sendt i går er ikke 20 dage gammel. Uden sent_at (ældre rækker) bruges oprettelsen.
+            .or(`sent_at.lt.${cutoff},and(sent_at.is.null,created_at.lt.${cutoff})`),
           supabase
             .from('offers')
             .select(`
@@ -372,8 +374,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             `)
             .in('status', ['sent', 'viewed'])
             .eq('is_proposal', false)
-            .lt('created_at', cutoff)
-            .order('created_at', { ascending: true })
+            .or(`sent_at.lt.${cutoff},and(sent_at.is.null,created_at.lt.${cutoff})`)
+            .order('sent_at', { ascending: true, nullsFirst: true })
             .limit(TOP_N),
         ])
         overview.offers.followupCount = countRes.count || 0

@@ -215,8 +215,8 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | # | Fund | Status |
 |---|---|---|
 | DB-1 | Salg ser hele firmaets sagstal (kortet), listen viser kun egne (S2) | DONE (kode) — kortet og cockpittets sagstal tælles i eget sags-scope for roller uden cases.view.all (U70/U13/U178) |
-| DB-2 | Månedligt tilbudsdiagram: forkert kohorte (created_at) og oppustet hitrate (S2) | TODO |
-| DB-3 | Tilbudsopfølgning måles fra created_at; link med andet filter (S3) | TODO |
+| DB-2 | Månedligt tilbudsdiagram: forkert kohorte (created_at) og oppustet hitrate (S2) | DONE (kode) — kohorter efter sent_at/accepted_at/rejected_at; hitrate = accepteret/(accepteret+afvist) |
+| DB-3 | Tilbudsopfølgning måles fra created_at; link med andet filter (S3) | DELVIS (kode) — alder fra sent_at (fallback created_at); linkets filter (kun status=sendt) = TODO |
 | DB-4 | Fakturaøkonomi: sagslink med sagsnummer i stedet for id (404) (S3) | DONE (kode) |
 | DB-5 | Cockpittets forfaldne fakturaer: andre regler end Fakturaøkonomi (0,5-tærskel, valuta, limit 500) (S3) | TODO |
 | DB-6 | /api/dashboard/stats: "completed" findes ikke — konverterede sager talte med; forfaldne m.m. (S3) | DELVIS (kode) — sagsstatus rettet; forfalden-tælling = TODO |
