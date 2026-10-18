@@ -147,7 +147,7 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
           ))}
         </div>
       ) : loadError && tasks.length === 0 ? (
-        <p className="text-sm text-red-700 py-6 text-center" data-testid="customer-tasks-load-error">{loadError}</p>
+        <p className="text-sm text-red-700 py-6 text-center break-words min-w-0" data-testid="customer-tasks-load-error">{loadError}</p>
       ) : activeTasks.length === 0 && doneTasks.length === 0 ? (
         <div className="text-center py-6" data-testid="customer-tasks-empty">
           <p className="text-gray-700 font-medium break-words min-w-0" data-testid="customer-tasks-empty-title">Ingen opgaver endnu</p>
