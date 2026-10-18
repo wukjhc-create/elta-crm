@@ -1216,6 +1216,26 @@ Dagsoverskriften ombrydes. Den tomme sagsliste "Ingen opgaver endnu" ombrydes. "
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-87, G18-108, G18-60, G18-111, G18-132, G18-133, G18-134.
 
+## Checkpoint 2026-10-18 niende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `1d0db479`. Det omskriver ikke listerne ovenfor. Produktspids: `d125ebe7`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `1d0db479..d125ebe7`
+
+```
+d125ebe7 feat(pilot): tom kundeliste ombrydes
+```
+
+Listen er alle commits efter `1d0db479` til og med `d125ebe7`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Den tomme kundeliste ombryder "Ingen opgaver endnu" og "Opret en opgave, hvis der skal følges op på kunden." Knapteksten og den tomme sagsliste er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-87, G18-108, G18-60, G18-111, G18-133, G18-134, G18-135.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
