@@ -1462,6 +1462,30 @@ Rediger og Slet på kundens opgave kan rammes med 44 px. aria-label er uændret.
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-155, G18-156, G18-157, G18-158, G18-159, G18-160.
 
+## Checkpoint 2026-10-18 nittende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `02778774`. Det omskriver ikke listerne ovenfor. Produktspids: `2c7c1deb`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `02778774..2c7c1deb`
+
+```
+2c7c1deb feat(pris): tom tekst ombrydes
+a5b2c693 feat(pris): indlaesertekst ombrydes
+302d2e41 feat(pris): statistiketiketter ombrydes
+608321fd feat(pris): prisbevaegelse ombrydes
+f414c152 feat(pris): synk-dato ombrydes
+```
+
+Listen er alle commits efter `02778774` til og med `2c7c1deb`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Synk-datoen ombrydes. Kaldet er stadig `formatDateUtil(stat.last_sync_at)`. Etiketten "Prisbevægelse" ombrydes. Procenterne er uændret. Etiketterne på prisstatistikkens tal ombrydes. Tallene er uændret. Teksten "Indlæser data..." ombrydes. Sætningen er uændret. Den tomme tekst ombrydes. Sætningerne i EmptyState-kaldene er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-160, G18-161, G18-162, G18-163, G18-164, G18-165.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
