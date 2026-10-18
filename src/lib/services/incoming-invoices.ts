@@ -143,9 +143,12 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
 
   // IC11: findes der allerede en (ulaast) broedtekst-faktura for mailen, OPGRADERES den med vedhaeftningens tekst i
   // stedet for at oprette en ny raekke — ellers dubletfakturaer ved backfill/genkoersel.
-  const { data: existingRows } = await supabase.from('incoming_invoices').select('id, status, file_name').eq('source_email_id', emailId)
-  const existing = (existingRows ?? []) as Array<{ id: string; status: string; file_name: string | null }>
-  let bodyInvoice = existing.find((r) => r.file_name === bodyInvoiceName(emailId) && !LOCKED_INVOICE_STATUSES.includes(r.status)) ?? null
+  const { data: existingRows } = await supabase.from('incoming_invoices').select('id, status, file_name, file_url').eq('source_email_id', emailId)
+  const existing = (existingRows ?? []) as Array<{ id: string; status: string; file_name: string | null; file_url: string | null }>
+  // IV-3 (leverandørfaktura-review 2026-10-18): også en række uden fil (brødtekst gemt under vedhæftningens navn, fordi
+  // hentningen var slået fra) opgraderes — før blev PDF'en en ny, aktiv dubletfaktura ved siden af den
+  const unlocked = existing.filter((r) => !LOCKED_INVOICE_STATUSES.includes(r.status))
+  let bodyInvoice = unlocked.find((r) => r.file_name === bodyInvoiceName(emailId)) ?? unlocked.find((r) => !r.file_url) ?? null
   let mailHasInvoice = existing.length > 0
 
   // PF2-2 (performance-review 2026-10-17): allerede indlæst (mindst én faktura pr. vedhæftning, ingen brødtekst-faktura
@@ -282,21 +285,26 @@ async function upgradeBodyInvoice(
   supabase: AdminClient, emailId: string, inv: { id: string; status: string }, att: EmailAttachment, text: string, fileHash: string,
 ): Promise<'upgraded' | 'duplicate' | 'conflict'> {
   const { data: prev } = await supabase.from('incoming_invoices')
-    .select(`status, parse_status, file_name, matched_case_id, matched_work_order_id, ${BODY_DERIVED_FIELDS.join(', ')}`).eq('id', inv.id).maybeSingle()
-  const reset: Record<string, null> = Object.fromEntries(BODY_DERIVED_FIELDS.map((f) => [f, null]))
+    .select(`status, parse_status, file_name, matched_case_id, matched_work_order_id, currency, ${BODY_DERIVED_FIELDS.join(', ')}`).eq('id', inv.id).maybeSingle()
+  const reset = Object.fromEntries(BODY_DERIVED_FIELDS.map((f) => [f, null]))
   // IV-11 (leverandørfaktura-review 2026-10-18): et automatisk sags-/arbejdsordre-match fra mailteksten nulstilles, så
   // genparsen matcher på PDF'ens tekst — før blev det gamle (måske forkerte) match bevaret af pick(). Et manuelt valg
   // (audit 'matched' med en bruger) bevares.
-  const { data: manual } = await supabase.from('incoming_invoice_audit_log').select('id')
-    .eq('incoming_invoice_id', inv.id).eq('action', 'matched').not('actor_id', 'is', null).limit(1)
-  if (!manual || manual.length === 0) {
-    reset.matched_case_id = null
-    reset.matched_work_order_id = null
+  // Valutaen nulstilles til kolonnens "ukendt" (DKK), så et falsk "EUR" fra mailteksten ikke blokerer for altid.
+  const { data: manual } = await supabase.from('incoming_invoice_audit_log').select('action')
+    .eq('incoming_invoice_id', inv.id).in('action', ['matched', 'header_edited']).not('actor_id', 'is', null)
+  const manualActions = new Set(((manual ?? []) as Array<{ action: string }>).map((m) => m.action))
+  const upgradeExtra: Record<string, string | null> = {}
+  if (!manualActions.has('matched')) {
+    upgradeExtra.matched_case_id = null
+    upgradeExtra.matched_work_order_id = null
   }
+  if (!manualActions.has('header_edited')) upgradeExtra.currency = 'DKK'
   const { data: rows, error } = await supabase
     .from('incoming_invoices')
     .update({
       ...reset,
+      ...upgradeExtra,
       raw_text: text,
       file_hash: fileHash,
       file_url: attachmentFileRef(att),
@@ -309,7 +317,7 @@ async function upgradeBodyInvoice(
     })
     .eq('id', inv.id)
     .eq('status', inv.status)
-    .eq('file_name', bodyInvoiceName(emailId))
+    .is('file_url', null) // IV-3: stadig rækken uden fil (brødtekst) — en samtidig opgradering har sat file_url
     .select('id')
   if (error) {
     if ((error as { code?: string }).code === '23505') return 'duplicate'

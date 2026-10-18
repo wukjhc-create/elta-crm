@@ -141,6 +141,18 @@ export async function runInvoiceAttachments(c: { admin: SupabaseClient; ownerUid
       out.push({ id: 'A8 PDF-opgradering: auto-match nulstilles, manuelt bevares', ok: false, note: 'ingen sag på staging' })
     }
 
+    // A9 — IV-3: række gemt under vedhæftningens navn uden fil (hentning slået fra) opgraderes — ingen dublet
+    flag(false)
+    const old = await mail('OLD', { attachment_urls: [{ filename: 'faktura_old.pdf', contentType: 'application/pdf', size: 1000 }] })
+    const ro = await ingestFromEmail(old); track(ro.invoiceIds)
+    const oBefore = await invoicesFor(old)
+    await c.admin.from('incoming_emails').update({ attachment_urls: [await storePdf(old, 'faktura_old.pdf', pdfLines('O'))] }).eq('id', old)
+    flag(true)
+    const ro2 = await ingestFromEmail(old); track(ro2.invoiceIds)
+    const oAfter = await invoicesFor(old)
+    out.push({ id: 'A9 filløs række (vedhæftningsnavn) opgraderes', ok: oBefore.length === 1 && oBefore[0].file_name === 'faktura_old.pdf' && ro2.upgraded === 1 && oAfter.length === 1 && oAfter[0].id === oBefore[0].id && oAfter[0].invoice_number === pdfNo('O'),
+      note: `før=${oBefore.length} (${oBefore[0]?.file_name}) · opgraderet=${ro2.upgraded} · efter=${oAfter.length} · nr=${oAfter[0]?.invoice_number === pdfNo('O') ? 'fra PDF' : oAfter[0]?.invoice_number}` })
+
     // A7 — flag OFF: backfill no-op
     flag(false)
     const s3 = await backfillInvoiceAttachments({ limit: 10, onlyEmailIds: [b] })

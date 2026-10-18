@@ -46,11 +46,11 @@ export async function findBackfillCandidates(limit: number, onlyEmailIds?: strin
     .from('incoming_invoices')
     .select('id, source_email_id, status, file_name, created_at')
     .eq('source', 'email')
-    .like('file_name', 'email-%.txt')
+    .is('file_url', null) // IV-3: brødtekst-fakturaer — også dem gemt under vedhæftningens navn
     .not('source_email_id', 'is', null)
     .not('status', 'in', `(${LOCKED.join(',')})`)
     .order('created_at', { ascending: true }).order('id').range(from, to))
-  const open = invs.filter((i) => (!onlyEmailIds || onlyEmailIds.includes(i.source_email_id as string)) && !LOCKED.includes(i.status as string) && i.file_name === `email-${i.source_email_id}.txt`)
+  const open = invs.filter((i) => (!onlyEmailIds || onlyEmailIds.includes(i.source_email_id as string)) && !LOCKED.includes(i.status as string))
   if (open.length === 0) return { total: 0, batch: [] }
 
   const emailIds = [...new Set(open.map((i) => i.source_email_id as string))]

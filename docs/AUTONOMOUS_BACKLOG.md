@@ -231,7 +231,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-15 | Små lofter/filter-mismatch (S4) | TODO |
 | IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | DONE (kode) — fakturanummer kræver et ciffer; invoice-parser-test +4 |
 | IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | DONE — kun gyldige kalenderdatoer (ugyldig → null); fejlet parse-opdatering → parse_status=failed + manuel gennemgang (cli invoice-parse-failure-check) |
-| IV-3 | Mail-fakturaer fra før vedhæftnings-hentning kan dubleres (S2, plausibel) | TODO |
+| IV-3 | Mail-fakturaer fra før vedhæftnings-hentning kan dubleres (S2, plausibel) | DONE — enhver ulåst filløs række fra mailen opgraderes (også i backfill); invoice-attachments A9 |
 | IV-4 | Priskontrol sammenligner listepris i stedet for faktureret pris (S2) | DELVIS (kode) — kontrollen bruger faktisk faktureret pris (total/antal); "ukendt enhed = ikke kontrollerbar" = TODO (ville slå kontrol fra for mange linjer) |
 | IV-5 | Afrunding af enhedskost giver anden sagskost end fakturaen (S3) | TODO |
 | IV-6 | AO-kreditnotaer med positive beløb (S3, plausibel) | TODO |
@@ -239,7 +239,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV-8 | Enhver mail med vedhæftning indlæses som mulig faktura (S3) | TODO |
 | IV-9 | "Vores ref: Henrik" bruges som arbejdsordre-hint (S3) | DONE (kode) — hints kræver et ciffer |
 | IV-10 | Match/fordeling til inaktive sager (konverteret/forslag) (S3) | DONE (kode) — fordeling og manuel sagskobling afviser konverterede sager/forslag; matcheren springer dem over (U28/U12/U149) |
-| IV-11 | Automatisk match fra mailtekst bevares efter PDF-opgradering (S3) | DONE — auto-match nulstilles ved opgradering, manuelt valg (audit matched + bruger) bevares (invoice-attachments A8) |
+| IV-11 | Automatisk match fra mailtekst bevares efter PDF-opgradering (S3) | DONE — auto-match nulstilles ved opgradering + valuta nulstilles (DKK = ukendt) medmindre header_edited; manuelt match bevares (invoice-attachments A8) |
 | IV-12 | Efterstillet minus fra næste linje → faktura bliver kreditnota (S3) | DONE (kode) — efterstillet minus kun på samme linje |
 | IV-13 | Backfill stopper ved 1.000 rækker (S3) | DONE — fetchAllRows + låste statusser filtreret i DB (cli invoice-backfill-candidates-check) |
 | IV-14 | Priskontrol-loader: rækkeloft og .in() (S4) | DONE (kode) — linjer side for side, produkt-id i bidder |
