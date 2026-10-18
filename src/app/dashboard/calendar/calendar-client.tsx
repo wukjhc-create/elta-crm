@@ -88,7 +88,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
       {tasksError}. Det tælles ikke som ingen aftaler.
     </p>
   ) : namesFailed ? (
-    <p className="mb-3 text-sm text-red-700" data-testid="calendar-assignee-names-error">
+    <p className="mb-3 text-sm text-red-700 break-words min-w-0" data-testid="calendar-assignee-names-error">
       Ansvarlige kunne ikke hentes. Det tælles ikke som ikke tildelt.
     </p>
   ) : null
