@@ -94,7 +94,8 @@ export async function computeAccountingHealthSummary(
       .in('status', ['sent', 'paid'])
       .is('voided_at', null)
       .neq('invoice_type', 'credit')
-      .is('external_invoice_id', null)
+      // DB-10 (dashboard-review 2026-10-18): en kladde i e-conomic ("draft-N") er IKKE eksporteret (A-5) — tæller med
+      .or('external_invoice_id.is.null,external_invoice_id.like.draft-%')
     notExported = count ?? 0
   } catch (e) {
     logger.error('computeAccountingHealthSummary: not_exported count failed', { error: e })
@@ -138,7 +139,8 @@ export async function computeAccountingHealthSummary(
         .in('id', failedInvoiceIds)
       for (const i of invs ?? []) {
         numberById.set(i.id as string, (i.invoice_number as string | null) ?? null)
-        const exported = !!i.external_invoice_id && i.external_provider === PROVIDER
+        // DB-10: "draft-N" = ikke bogført (A-5) → stadig åben fejl
+        const exported = !!i.external_invoice_id && !String(i.external_invoice_id).startsWith('draft-') && i.external_provider === PROVIDER
         if (!exported && !i.voided_at) stillOpen.add(i.id as string)
       }
     }

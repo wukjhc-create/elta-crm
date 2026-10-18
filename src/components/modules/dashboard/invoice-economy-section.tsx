@@ -184,10 +184,11 @@ export function InvoiceEconomySection({ initial }: { initial?: Awaited<ReturnTyp
                         </Link>
                         <div className="text-[11px] text-gray-500 truncate">
                           {r.customer_name ?? '—'}
-                          {r.case_number && (
+                          {r.case_number && r.case_id && (
                             <>
                               {' · '}
-                              <Link href={`/dashboard/orders/${r.case_number}`} className="hover:underline">
+                              {/* DB-4 (dashboard-review 2026-10-18): ruten tager sagens id, ikke sagsnummeret (før 404) */}
+                              <Link href={`/dashboard/orders/${r.case_id}`} className="hover:underline">
                                 {r.case_number}
                               </Link>
                             </>

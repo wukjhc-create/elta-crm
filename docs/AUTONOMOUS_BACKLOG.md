@@ -211,6 +211,40 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-43 (review-bølge 2026-10-18 morgen — dashboard-tal + leverandørfakturaer)
+| # | Fund | Status |
+|---|---|---|
+| DB-1 | Salg ser hele firmaets sagstal (kortet), listen viser kun egne (S2) | TODO |
+| DB-2 | Månedligt tilbudsdiagram: forkert kohorte (created_at) og oppustet hitrate (S2) | TODO |
+| DB-3 | Tilbudsopfølgning måles fra created_at; link med andet filter (S3) | TODO |
+| DB-4 | Fakturaøkonomi: sagslink med sagsnummer i stedet for id (404) (S3) | DONE (kode) |
+| DB-5 | Cockpittets forfaldne fakturaer: andre regler end Fakturaøkonomi (0,5-tærskel, valuta, limit 500) (S3) | TODO |
+| DB-6 | /api/dashboard/stats: "completed" findes ikke — konverterede sager talte med; forfaldne m.m. (S3) | DELVIS (kode) — sagsstatus rettet; forfalden-tælling = TODO |
+| DB-7 | Over-budget-widget ignorerer truncated (kun 200 nyeste) (S3) | TODO |
+| DB-8 | Cockpitkort viser falsk "0/alt i orden" for roller uden data (S3) | DONE (kode) — allowed-flag |
+| DB-9 | E-mail-intelligens "i dag" i UTC (S3) | DONE (kode) |
+| DB-10 | Regnskabssundhed tæller "draft-N" som eksporteret (S3) | DONE (kode) |
+| DB-11 | Likviditet: kreditnotaer modregnes ikke; valuta blandet (S3) | TODO |
+| DB-12 | Hver visning pager hele time_logs (S3) | UDSAT (jf. PF2-7; aggregat-RPC = migration) |
+| DB-13 | Porteføljens netto faktureret inkl. moms uden at sige det (S4) | TODO |
+| DB-14 | Momsgrundlag blandet på samme side (S4) | TODO |
+| DB-15 | Små lofter/filter-mismatch (S4) | TODO |
+| IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | TODO |
+| IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | TODO |
+| IV-3 | Mail-fakturaer fra før vedhæftnings-hentning kan dubleres (S2, plausibel) | TODO |
+| IV-4 | Priskontrol sammenligner listepris i stedet for faktureret pris (S2) | TODO |
+| IV-5 | Afrunding af enhedskost giver anden sagskost end fakturaen (S3) | TODO |
+| IV-6 | AO-kreditnotaer med positive beløb (S3, plausibel) | TODO |
+| IV-7 | Mail-/uploadfakturaer (inkl. kreditnotaer) kan aldrig fordeles til sag (S3) | TODO |
+| IV-8 | Enhver mail med vedhæftning indlæses som mulig faktura (S3) | TODO |
+| IV-9 | "Vores ref: Henrik" bruges som arbejdsordre-hint (S3) | TODO |
+| IV-10 | Match/fordeling til inaktive sager (konverteret/forslag) (S3) | TODO |
+| IV-11 | Automatisk match fra mailtekst bevares efter PDF-opgradering (S3) | TODO |
+| IV-12 | Efterstillet minus fra næste linje → faktura bliver kreditnota (S3) | TODO |
+| IV-13 | Backfill stopper ved 1.000 rækker (S3) | TODO |
+| IV-14 | Priskontrol-loader: rækkeloft og .in() (S4) | TODO |
+| IV-15 | Mindre parse-/valideringshuller (S4) | TODO |
+
 ## NEXT-42 (review-bølge 2026-10-18 nat — partner/portal + kalkulation)
 | # | Fund | Status |
 |---|---|---|

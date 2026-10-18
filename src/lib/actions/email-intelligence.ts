@@ -4,6 +4,7 @@
  * Email intelligence dashboard server actions.
  */
 
+import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 
@@ -16,9 +17,8 @@ export interface TodaysIntelligenceCounts {
 
 export async function getTodaysIntelligenceCounts(): Promise<TodaysIntelligenceCounts> {
   const supabase = await createClient()
-  const startOfDay = new Date()
-  startOfDay.setHours(0, 0, 0, 0)
-  const since = startOfDay.toISOString()
+  // DB-9 (dashboard-review 2026-10-18): dansk døgnstart — serveren kører i UTC (før startede "i dag" kl. 01/02)
+  const since = copenhagenLocalToIso(copenhagenParts(new Date()).date, '00:00')
 
   try {
     const [created, matched, skipped, newsletters] = await Promise.all([

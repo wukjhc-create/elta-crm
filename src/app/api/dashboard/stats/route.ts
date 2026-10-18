@@ -111,9 +111,9 @@ export async function GET() {
         .gte('received_at', since24h)),
       safe(supabase.from('customers').select('id', { count: 'exact', head: true })
         .gte('created_at', since24h)),
+      // DB-6 (dashboard-review 2026-10-18): 'completed' findes ikke — konverterede sager talte med (cockpittet udelader dem)
       safe(supabase.from('service_cases').select('id', { count: 'exact', head: true })
-        .neq('status', 'closed')
-        .neq('status', 'completed')
+        .not('status', 'in', '("closed","converted")')
         .eq('is_proposal', false)),
       safe(supabase.from('offers').select('id', { count: 'exact', head: true })
         .eq('status', 'draft')

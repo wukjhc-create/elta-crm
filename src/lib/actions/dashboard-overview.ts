@@ -89,6 +89,8 @@ export interface DashboardOverview {
   }
   /** N51: sager med fakturerbart arbejde der ikke er faktureret (timer/materialer/øvrige; kun invoices.create). */
   unbilled: {
+    /** DB-8 (dashboard-review 2026-10-18): false = rollen har ikke data → kortet skjules (ikke "alt faktureret") */
+    allowed?: boolean
     caseCount: number
     saleTotal: number
     cases: Array<{ id: string; case_number: string | null; title: string; customer_name: string | null; lines: number; sale: number }>
@@ -117,11 +119,13 @@ export interface DashboardOverview {
   }
   /** N50: ulæste kundebeskeder fra kundeportalen pr. kunde (kun customers.edit). */
   portal: {
+    allowed?: boolean // DB-8
     unreadCount: number
     customers: Array<{ id: string; name: string; unread: number; oldestDays: number }>
   }
   /** N44: nye kunder (30 d) uden tilbud og uden sag — henvendelser der ikke er fulgt op (kun offers.create). */
   newCustomers: {
+    allowed?: boolean // DB-8
     count: number
     items: Array<{ id: string; name: string; created_at: string; ageDays: number }>
   }
@@ -153,9 +157,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     tasks: { openCount: 0, autoCount: 0, overdueCount: 0, overdue: [] },
     cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0, timesPendingApproval: 0 },
     offers: { followupCount: 0, oldest: [], staleDraftCount: 0 },
-    newCustomers: { count: 0, items: [] },
-    portal: { unreadCount: 0, customers: [] },
-    unbilled: { caseCount: 0, saleTotal: 0, cases: [] },
+    newCustomers: { allowed: false, count: 0, items: [] },
+    portal: { allowed: false, unreadCount: 0, customers: [] },
+    unbilled: { allowed: false, caseCount: 0, saleTotal: 0, cases: [] },
     overdueInvoices: { allowed: false, count: 0, total: 0, items: [] },
     webInquiries: { allowed: false, count: 0, items: [] },
     staleLeads: { allowed: false, count: 0, items: [] },
@@ -392,6 +396,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       try {
         const ctx = roleCtx
         if (!ctx.hasPermission('invoices.create')) return
+        overview.unbilled.allowed = true // DB-8
         // pagineret (PostgREST afkortede .limit(2000) til 1000 → for lav salgsværdi/antal sager ved mange linjer)
         const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
         const [tlRows, matRows, othRows] = await Promise.all([
@@ -574,6 +579,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       try {
         const ctx = roleCtx
         if (!ctx.hasPermission('customers.edit')) return
+        overview.portal.allowed = true // DB-8
         const { data } = await supabase.from('portal_messages').select('customer_id, created_at, customer:customers(company_name)')
           .eq('sender_type', 'customer').is('read_at', null).order('created_at', { ascending: true }).limit(500)
         const rows = (data ?? []) as Array<{ customer_id: string; created_at: string; customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>
@@ -596,6 +602,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       try {
         const ctx = roleCtx
         if (!ctx.hasPermission('offers.create')) return
+        overview.newCustomers.allowed = true // DB-8
         const since = new Date(now - NEW_CUSTOMER_DAYS * 86_400_000).toISOString()
         const { data: custs } = await supabase.from('customers').select('id, company_name, created_at, email')
           .gte('created_at', since).eq('is_active', true).order('created_at', { ascending: false }).limit(200)
