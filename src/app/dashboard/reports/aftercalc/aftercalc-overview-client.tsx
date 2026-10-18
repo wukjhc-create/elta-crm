@@ -286,7 +286,7 @@ export function AftercalcOverviewClient() {
                   <span>{data.total} sager i visningen. Beregnet på {data.query_ms} ms.</span>
                   <div className="flex items-center gap-2" data-testid="aftercalc-pager">
                     <button type="button" disabled={(data.page ?? 1) <= 1} onClick={() => setFilter({ page: (data.page ?? 1) - 1 }, true)} className="min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Forrige</button>
-                    <span>Side {data.page} af {pages}</span>
+                    <span className="break-words min-w-0" data-testid="aftercalc-page-label">Side {data.page} af {pages}</span>
                     <button type="button" disabled={(data.page ?? 1) >= pages} onClick={() => setFilter({ page: (data.page ?? 1) + 1 }, true)} className="min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Næste</button>
                   </div>
                 </div>
