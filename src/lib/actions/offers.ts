@@ -693,10 +693,20 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
     // Get offer before deleting for audit log
     const { data: offer } = await supabase
       .from('offers')
-      .select('title, offer_number, status')
+      .select('title, offer_number, status, sent_at')
       .eq('id', id)
       .maybeSingle()
     if (!offer) return { success: false, error: 'Tilbuddet blev ikke fundet' }
+    // DL-2 (slette-review 2026-10-18): et tilbud der HAR været sendt (afvist, eller trukket tilbage til kladde) har
+    // mailtråd, kundens svar og aktivitetshistorik (bl.a. portalens IP/UA ved visning/afvisning), som slettes kaskade.
+    // Det bevares — sendte tilbud arkiveres som afviste i stedet for at blive slettet.
+    if ((offer as { sent_at?: string | null }).sent_at) {
+      return { success: false, error: 'Tilbuddet har været sendt til kunden og kan ikke slettes (mail- og aktivitetshistorikken bevares) — markér det som afvist i stedet' }
+    }
+    {
+      const { count: threads } = await supabase.from('email_threads').select('id', { count: 'exact', head: true }).eq('offer_id', id)
+      if ((threads ?? 0) > 0) return { success: false, error: 'Tilbuddet har en mailtråd med kunden og kan ikke slettes — markér det som afvist i stedet' }
+    }
 
     // Tilbuds-review 2026-10-09 (#5): kun kladder og afviste tilbud kan slettes — et sendt/accepteret tilbud har
     // kundens underskrift (offer_signatures slettes kaskade) og sporbarhed fra sag/faktura (source_offer_id/offer_id)
@@ -706,7 +716,7 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
 
     // compare-and-set: status kan være ændret (fx sendt) siden læsningen
     const { data: deleted, error } = await supabase.from('offers').delete().eq('id', id)
-      .in('status', DELETABLE_OFFER_STATUSES).select('id')
+      .in('status', DELETABLE_OFFER_STATUSES).is('sent_at', null).select('id')
     if (!error && (!deleted || deleted.length === 0)) {
       return { success: false, error: 'Tilbuddet er ændret i mellemtiden — opdatér siden' }
     }

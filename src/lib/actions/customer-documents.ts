@@ -550,6 +550,11 @@ export async function deleteCustomerDocumentAction(documentId: string): Promise<
     const d = doc as { id: string; title: string | null; description: string | null; document_type: string; storage_path: string | null; customer_id: string; service_case_id: string | null; offer_id: string | null; sent_quote_id: string | null; source_email_id: string | null }
     const blocked = documentDeleteBlockReason(d)
     if (blocked) return { success: false, error: blocked }
+    // DL-1: et dokument med bekræftelser (hvem bekræftede hvad og hvornår) slettes aldrig — rækkerne ville forsvinde kaskade
+    {
+      const { count: confirmations } = await admin.from('document_confirmations').select('id', { count: 'exact', head: true }).eq('customer_document_id', d.id)
+      if ((confirmations ?? 0) > 0) return { success: false, error: 'Dokumentet har bekræftelser fra modtagere og kan ikke slettes' }
+    }
 
     const { error: delErr } = await admin.from('customer_documents').delete().eq('id', d.id)
     if (delErr) {

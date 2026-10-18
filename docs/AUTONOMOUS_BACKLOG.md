@@ -223,8 +223,8 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | RC-7 | Kunde fra mail kan oprettes dobbelt (S4) | TODO |
 | RC-8 | Start af aflevering kan nulstille et netop afkrydset punkt (S4) | TODO |
 | RC-9 | Redigering af agentudkast under udførelse sender den gamle tekst (S4) | TODO |
-| DL-1 | Sletning af gammel besigtigelse ("other") sletter kundens underskrevne bekræftelser (CASCADE) (S2) | TODO (kode: bloker); FK RESTRICT = BLOCKED_APPROVAL [MIGRATION] |
-| DL-2 | deleteOffer sletter sendte tilbuds mail- og aktivitetshistorik (afvist/trukket tilbage til kladde) (S2) | TODO (kode: kræv sent_at IS NULL) |
+| DL-1 | Sletning af gammel besigtigelse ("other") sletter kundens underskrevne bekræftelser (CASCADE) (S2) | DELVIS (kode) — besigtigelse gemt som "other" er beskyttet; dokument med bekræftelser kan ikke slettes (document-deletable-test). FK RESTRICT = BLOCKED_APPROVAL [MIGRATION] |
+| DL-2 | deleteOffer sletter sendte tilbuds mail- og aktivitetshistorik (afvist/trukket tilbage til kladde) (S2) | DONE (kode) — kun aldrig-sendte tilbud uden mailtråd kan slettes (sent_at IS NULL i compare-and-set) (U14/U42/U57/U60) |
 | DL-3 | Sletning af leverandør/produkt kaskaderer pris-/aftalehistorik og afkobler bogførte leverandørfakturaer (S3) | TODO (kode: bloker ved referencer + audit); FK = BLOCKED_APPROVAL [MIGRATION] |
 | DL-4 | deleteServiceCaseAttachment omgår afleveringsfotoets værn (S3) | TODO (ubrugt → fjern) |
 | DL-5 | Fakturanumre bruges af kladder → huller i nummerserien; tilbagerulninger uden audit (S3) | BESLUTNING (nummer ved afsendelse?) + audit = TODO |

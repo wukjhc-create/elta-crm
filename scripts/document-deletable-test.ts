@@ -16,6 +16,9 @@ ok(documentDeleteBlockReason({ document_type: 'other', source_email_id: 'x' }) !
 ok(documentDeleteBlockReason({ document_type: 'other', description: JSON.stringify({ type: 'outbound_attachment' }) }) !== null, 'udgående mail-vedhæftning er beskyttet')
 ok(documentDeleteBlockReason({ document_type: 'other', description: 'ikke json' }) === null, 'ugyldig beskrivelse blokerer ikke')
 ok(documentDeleteBlockReason({ document_type: null }) !== null, 'ukendt type er beskyttet')
+// DL-1 (2026-10-18): ældre besigtigelse gemt som 'other'
+ok(documentDeleteBlockReason({ document_type: 'other', title: 'Besigtigelse Solvej 12' }) !== null, "'other' med besigtigelse i titlen er beskyttet")
+ok(documentDeleteBlockReason({ document_type: 'other', title: 'Foto af tavle' }) === null, 'almindeligt andet-dokument kan stadig slettes')
 
 console.log(bad ? `\n${bad} FAIL` : '\nALL PASS')
 process.exit(bad ? 1 : 0)
