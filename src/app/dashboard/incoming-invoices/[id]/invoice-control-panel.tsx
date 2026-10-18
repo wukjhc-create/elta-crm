@@ -71,7 +71,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
           </button>
         </div>
       )}
-      {!res && !error && <p className="text-xs text-gray-400">Kontrollerer priser…</p>}
+      {!res && !error && <p className="text-xs text-gray-400 break-words min-w-0" data-testid="invoice-control-loading">Kontrollerer priser…</p>}
       {res && (
         <>
           {header && <p className={`text-xs mb-3 break-words min-w-0 ${headerCls}`} data-testid="invoice-control-header">{header.text}</p>}
