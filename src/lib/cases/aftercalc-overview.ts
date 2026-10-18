@@ -55,6 +55,13 @@ export function offerMissingCostFilter(missingCost: number, missingCostOnly: boo
   return missingCost > 0 && missingCostOnly !== true
 }
 
+/** Dansk navn på det afvigelsesfilter oversigten allerede bruger. */
+export function varianceFilterLabel(variance: AftercalcVarianceFilter | null | undefined): string {
+  if (variance === 'negative') return 'Negativ DB'
+  if (variance === 'positive') return 'Positiv DB'
+  return 'Alle'
+}
+
 export interface AftercalcOverviewItem {
   row: AftercalcOverviewRow
   /** Faktisk DB i kroner. Bruges kun til sortering. */

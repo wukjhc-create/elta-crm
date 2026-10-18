@@ -758,7 +758,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-19 | 4 Pris | ÅBEN. `supplier-products-table` viser "-" ved null kost. Brug `storedCostText`. 0 kr forbliver 0 kr. | Listen viser allerede kost. Ingen opfundet pris. |
 | G18-20 | 6 Salg | ÅBEN. Ren konverteringstekst på en fil der ikke er leads-page-client eller lead-detail. | Ikke `follow-up.ts`. |
 | G18-21 | 7 Assistent | ÅBEN. Note-svaret citerer de første 120 tegn af den gemte tekst. | Insert og afsendelse uændret. |
-| G18-22 | 3 Ledelse | ÅBEN. Oversigten siger Negativ DB, Positiv DB eller Alle med en ren tekst. | `selectOverviewPage` uændret. |
+| G18-22 | 3 Ledelse | DONE oversigten siger Negativ DB, Positiv DB eller Alle. | `selectOverviewPage` uændret. |
+| G18-31 | 5 Plan | ÅBEN. Dagsoverskriften i `calendar-client.tsx` formaterer datoen med `timeZone: Europe/Copenhagen`. | Opgavelisten og datostrengen er uændret. |
 | G18-23 | 7 Assistent | ÅBEN. Callback-svaret siger at kunden ikke er kontaktet. | Insert og afsendelse uændret. Ingen webhook. |
 | G18-24 | 1 Profit | DONE "Vis dem" slår det eksisterende filter kun manglende kost til. | Filterreglen uændret. |
 | G18-25 | 2 Faktura | ÅBEN. Giv panelet `duplicate_of_id` fra detaljen, som allerede har feltet, og vis linket kun da. | Ingen ny matching og ingen e-conomic. |

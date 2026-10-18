@@ -13,6 +13,7 @@ import { DATA_QUALITY_LABELS, type DataQualityCode } from '@/lib/cases/aftercalc
 import {
   invoicedStateLabel,
   offerMissingCostFilter,
+  varianceFilterLabel,
   type AftercalcOverviewFilters,
   type AftercalcOverviewResult,
   type AftercalcSort,
@@ -170,6 +171,7 @@ export function AftercalcOverviewClient() {
                     </button>
                   )}
                 </div>
+                <p className="text-xs text-gray-600 break-words" data-testid="aftercalc-variance-filter">Afvigelsesfilter: {varianceFilterLabel(filters.variance)}</p>
                 {data.rows.length === 0 ? (
                   <div className="text-sm text-gray-500" data-testid="aftercalc-empty">
                     <p>{filtersActive ? 'Ingen sager matcher filtrene.' : 'Ingen sager i oversigten. Opret en sag fra kunden, så den kan efterkalkuleres her.'}</p>
