@@ -477,14 +477,16 @@ function TaskForm({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm border rounded-md hover:bg-gray-50"
+              className="px-4 py-2 text-sm border rounded-md hover:bg-gray-50 break-words min-w-0"
+              data-testid="customer-task-cancel"
             >
               Annuller
             </button>
             <button
               type="submit"
               disabled={isSaving || !title.trim()}
-              className="px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
+              className="px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50 break-words min-w-0"
+              data-testid="customer-task-save"
             >
               {isSaving ? 'Gemmer...' : task ? 'Opdater' : 'Opret'}
             </button>

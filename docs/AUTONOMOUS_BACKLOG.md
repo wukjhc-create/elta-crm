@@ -881,12 +881,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-142 | 5 Plan | DONE mærket "opstart" på sagens opgaver ombrydes. | Ordet er uændret. |
 | G18-143 | 8 Pilot | DONE etiketten "Titel *" på kundens opgaveformular ombrydes. | Ordene er uændret. |
 | G18-144 | 8 Pilot | DONE etiketterne Beskrivelse, Prioritet, Status, Ansvarlig, Forfaldsdato og Påmindelse på kundens opgaveformular ombrydes. | Ordene er uændret. |
-| G18-145 | 8 Pilot | ÅBEN. Knapperne Annuller og Opret på kundens opgaveformular ombrydes. | Ordene er uændret. |
+| G18-145 | 8 Pilot | DONE knapperne Annuller og Opret på kundens opgaveformular ombrydes. | Ordene er uændret. |
 | G18-146 | 5 Plan | ÅBEN. Dagsnummeret på kommende besigtigelser ombrydes. | Udtrykket med getDate er uændret. |
 | G18-147 | 8 Pilot | ÅBEN. Status- og prioritetmærket på kundens opgaver ombrydes. | Etiketterne er uændret. |
 | G18-148 | 8 Pilot | ÅBEN. Forfaldsdatoen på kundens opgave ombrydes. | Dato-udtrykket med Europe/Copenhagen er uændret. |
 | G18-149 | 8 Pilot | ÅBEN. Knappen Vis/Skjul udførte på kundens opgaver ombrydes. | Ordene og tællingen er uændret. |
 | G18-150 | 8 Pilot | ÅBEN. Teksten "Ingen forfaldsdato" på kundens opgave ombrydes. | Ordene er uændret. |
+| G18-151 | 8 Pilot | ÅBEN. Knapperne Rediger og Slet på kundens opgave kan rammes med 44 px. | aria-label er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
