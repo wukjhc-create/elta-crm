@@ -825,7 +825,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-71 | 1 Profit | DONE "Viser de nyeste sager" ombrydes. | Sætningen og sagstallet er uændret. |
 | G18-89 | 1 Profit | DONE den tomme efterkalk-oversigt ombrydes. | Begge tomme sætninger er uændret. |
 | G18-91 | 1 Profit | DONE "Nulstil filtre" i den tomme efterkalk-oversigt ombrydes. | Knapteksten og begge tomme sætninger er uændret. |
-| G18-92 | 1 Profit | ÅBEN. "Vis dem" i efterkalk-oversigten ombrydes. | Filterreglen og knapteksten er uændret. |
+| G18-92 | 1 Profit | DONE "Vis dem" i efterkalk-oversigten ombrydes. | Filterreglen og knapteksten er uændret. |
+| G18-93 | 1 Profit | ÅBEN. "Kost og DB er skjult" på den lukkede efterkalk-oversigt ombrydes. | Sætningen er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
 | G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |

@@ -166,7 +166,7 @@ export function AftercalcOverviewClient() {
                 <div className="text-sm text-gray-800 break-words min-w-0" data-testid="aftercalc-quality-summary">
                   {data.quality.missingCost} af {data.quality.cases} sager i filtret mangler kost. DB kan ikke beregnes for {data.quality.dbUnknown}. {data.quality.warning} har datakvalitet advarsel.
                   {offerMissingCostFilter(data.quality.missingCost, filters.missingCostOnly) && (
-                    <button type="button" className="ml-1 text-blue-700 hover:underline" data-testid="aftercalc-show-missing-cost" onClick={() => setFilter({ missingCostOnly: true })}>
+                    <button type="button" className="ml-1 text-blue-700 hover:underline break-words min-w-0" data-testid="aftercalc-show-missing-cost" onClick={() => setFilter({ missingCostOnly: true })}>
                       Vis dem
                     </button>
                   )}
