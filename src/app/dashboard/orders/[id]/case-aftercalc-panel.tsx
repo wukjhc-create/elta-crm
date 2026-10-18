@@ -129,9 +129,9 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                 {rows.map((r) => (
                   <div key={r.label} className="rounded ring-1 ring-gray-200 p-3">
                     <p className="text-sm font-medium text-gray-900">{r.label}</p>
-                    <p className="mt-1 text-xs text-gray-600">Tilbudt {r.quoted}</p>
-                    <p className="text-xs text-gray-700">Faktisk {r.actual}</p>
-                    <p className="text-xs text-gray-800">Afvigelse <DevCell value={r.variance} kind={r.kind} /></p>
+                    <p className="mt-1 text-xs text-gray-600 break-words min-w-0">Tilbudt {r.quoted}</p>
+                    <p className="text-xs text-gray-700 break-words min-w-0">Faktisk {r.actual}</p>
+                    <p className="text-xs text-gray-800 break-words min-w-0">Afvigelse <DevCell value={r.variance} kind={r.kind} /></p>
                   </div>
                 ))}
               </div>
