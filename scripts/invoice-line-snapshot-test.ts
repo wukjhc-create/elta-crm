@@ -31,5 +31,15 @@ ok(r.quantity === 10 && r.unit_cost === 10, 'rabat på flere stk: 10 × liste 12
 r = lineSnapshot(L(-2, 100, -140))
 ok(r.quantity === 2 && r.unit_cost === -70, 'retur med rabat: −2 × 100, total −140 → 2 × −70', r)
 
+// IV-5 (2026-10-18): afrunding af stk-kost må ikke ændre totalen
+r = lineSnapshot(L(1000, 0.037, 37))
+ok(r.quantity === 1 && r.unit_cost === 37 && r.unit === 'parti' && r.description.includes('1000 m'), '1000 × 0,037 = 37 kr → 1 parti à 37 (før 1000 × 0,04 = 40)', r)
+r = lineSnapshot(L(3, null, 100))
+ok(r.quantity * r.unit_cost === 100, '3 stk for 100 kr → total 100 (før 99,99)', r)
+r = lineSnapshot(L(-3000, null, -45))
+ok(r.quantity === 1 && r.unit_cost === -45, 'retur 3000 for −45 → 1 parti à −45', r)
+r = lineSnapshot(L(10, 12.5, 125))
+ok(r.quantity === 10 && r.unit === 'm', 'går totalen op, beholdes antal og enhed', r)
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle fakturalinje-tests bestået')
 process.exitCode = bad ? 1 : 0

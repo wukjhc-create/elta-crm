@@ -233,7 +233,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | DONE — kun gyldige kalenderdatoer (ugyldig → null); fejlet parse-opdatering → parse_status=failed + manuel gennemgang (cli invoice-parse-failure-check) |
 | IV-3 | Mail-fakturaer fra før vedhæftnings-hentning kan dubleres (S2, plausibel) | DONE — enhver ulåst filløs række fra mailen opgraderes (også i backfill); invoice-attachments A9 |
 | IV-4 | Priskontrol sammenligner listepris i stedet for faktureret pris (S2) | DELVIS (kode) — kontrollen bruger faktisk faktureret pris (total/antal); "ukendt enhed = ikke kontrollerbar" = TODO (ville slå kontrol fra for mange linjer) |
-| IV-5 | Afrunding af enhedskost giver anden sagskost end fakturaen (S3) | TODO |
+| IV-5 | Afrunding af enhedskost giver anden sagskost end fakturaen (S3) | DONE — går afrundet stk-kost × antal ikke op i totalen, bogføres 1 parti til totalen (antal i beskrivelsen); invoice-line-snapshot-test, U28/U38 |
 | IV-6 | AO-kreditnotaer med positive beløb (S3, plausibel) | DONE (kode) — AO-adapteren negerer header + linjer ved kreditnota-type/-flag (ao-invoice-normalise-test); tekst-detekteret kreditnota kræver fortsat manuel kontrol (ingen auto-negering) |
 | IV-7 | Mail-/uploadfakturaer (inkl. kreditnotaer) kan aldrig fordeles til sag (S3) | TODO |
 | IV-8 | Enhver mail med vedhæftning indlæses som mulig faktura (S3) | DONE — brødtekst-faktura kræver faktura-emne eller leverandørdomæne (suppliersForDomain); dødt delstrengs-filter fjernet (invoice-attachments A10) |

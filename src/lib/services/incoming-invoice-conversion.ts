@@ -88,6 +88,13 @@ export function lineSnapshot(line: {
   let unitAbs = Number.isFinite(tpRaw) && tpRaw !== 0
     ? Math.round((Math.abs(tpRaw) / quantity) * 100) / 100
     : (Number.isFinite(upRaw) ? Math.abs(upRaw) : 0)
+  // IV-5 (leverandørfaktura-review 2026-10-18): stk-kosten gemmes med 2 decimaler (NUMERIC(12,2)) — 1000 clips for 37 kr
+  // blev 1000 × 0,04 = 40 kr. Giver afrundingen en anden total end fakturaen, bogføres linjen som 1 parti til totalen
+  // (det rigtige antal står i beskrivelsen), så sagens kost altid er lig det fakturerede.
+  if (Number.isFinite(tpRaw) && tpRaw !== 0 && Math.abs(unitAbs * quantity - Math.abs(tpRaw)) > 0.005) {
+    const totalAbs = Math.round(Math.abs(tpRaw) * 100) / 100
+    return { description: `${description} (${quantity} ${unit})`, quantity: 1, unit: 'parti', unit_cost: negative ? -totalAbs : totalAbs }
+  }
   const unit_cost = negative ? -unitAbs : unitAbs
   return { description, quantity, unit, unit_cost }
 }
