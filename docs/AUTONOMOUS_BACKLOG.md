@@ -789,7 +789,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-78 | 2 Faktura | DONE "Kontrollerer priser…" ombrydes. | Teksten er uændret. |
 | G18-79 | 1 Profit | DONE efterkalk-oversigtens "Henter…" ombrydes. | Teksten er uændret. |
 | G18-80 | 1 Profit | DONE sagspanelets "Henter…" ombrydes. | Sætningen er uændret. |
-| G18-81 | 1 Profit | ÅBEN. Sagspanelets fejltekst ombrydes. | "Det tælles ikke som 0 kr." er uændret. |
+| G18-81 | 1 Profit | DONE sagspanelets fejltekst ombrydes. | "Det tælles ikke som 0 kr." er uændret. |
+| G18-82 | 1 Profit | ÅBEN. Tilbud-mod-faktisk "Henter…" ombrydes. | Sætningen er uændret. |
 | G18-30 | 2 Faktura | SPRUNGET. `LineControl` har ikke `unitPrice`. Samme lås som G18-27. | Afvigelsesbeløbet uændret. Ikke BLOCKED_APPROVAL. |
 | G18-32 | 1 Profit | DONE beløb i sagspanelets highlight-liste ombrydes. | `kr()` uændret. |
 | G18-36 | 1 Profit | DONE sagspanelets indledning ombrydes. | Faktureringsstatus og beløb uændret. |
