@@ -114,8 +114,8 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
                     <span className={`shrink-0 max-w-[45%] break-words min-w-0 ${bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : 'text-gray-600'}`} data-testid="invoice-control-mobile-verdict">{LINE[l.verdict] ?? l.verdict}</span>
                   </div>
                   <p className="mt-1 text-gray-600 break-all">{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : (l.reason ?? 'ingen')}</p>
-                  <p>Forventet {m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</p>
-                  <p>Afvigelse {l.varianceAmount != null && l.verdict !== 'not_controllable' ? `${kr(l.varianceAmount)}${l.variancePct != null ? ` (${l.variancePct} %)` : ''}` : '—'}</p>
+                  <p className="break-words min-w-0" data-testid="invoice-control-mobile-expected">Forventet {m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</p>
+                  <p className="break-words min-w-0" data-testid="invoice-control-mobile-deviation">Afvigelse {l.varianceAmount != null && l.verdict !== 'not_controllable' ? `${kr(l.varianceAmount)}${l.variancePct != null ? ` (${l.variancePct} %)` : ''}` : '—'}</p>
                 </div>
               )
             })}
