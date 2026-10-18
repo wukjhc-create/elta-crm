@@ -199,7 +199,7 @@ export default function ProductsClient({
           </SelectContent>
         </Select>
         {categoriesError && (
-          <p className="text-sm text-red-700 sm:self-center" data-testid="product-categories-load-error">
+          <p className="text-sm text-red-700 sm:self-center break-words min-w-0" data-testid="product-categories-load-error">
             {categoriesError}. Det tælles ikke som ingen kategorier.
           </p>
         )}
