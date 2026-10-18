@@ -226,7 +226,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | AS-2 | Kontaktformular: global timegrænse kan misbruges (blokerer rigtige kunder); lead kobles til kunde via ubekræftet e-mail (S3) | BESLUTNING (+ evt. migration til grænse pr. IP) |
 | AS-3 | Deaktivering afslutter ikke sessioner; requireAuth/getAuthenticatedClient tjekker ikke is_active (S3/S4) | DELVIS (kode) — requireAuth afviser deaktiveret/manglende profil (samme cachede læsning som rollegaterne; UI-stikprøve 10/10). Sessionstilbagekaldelse = BLOCKED_APPROVAL [MIGRATION] |
 | AS-4 | /reset-password skifter adgangskode med enhver session (ingen re-autentificering) (S4) | BESLUTNING (Supabase "Secure password change") |
-| AS-5 | requestPasswordReset: timing-enumerering, ingen grænse, spærrede får mail (S4) | TODO |
+| AS-5 | requestPasswordReset: timing-enumerering, ingen grænse, spærrede får mail (S4) | DELVIS (kode) — arbejdet i after() (ens svartid), spærrede brugere springes over, listUsers side for side. Ikke e2e-testet (ville sende mail). Grænse pr. IP = TODO |
 | AS-6 | Dokumentbekræftelser: markConfirmationMailFailed uden gate; øvrige uden sags-scope (S4) | DONE (kode) — sagen slås op fra bekræftelsen/dokumentet og gives til gaten; markConfirmationMailFailed kræver service.edit (U189/U11, confirmation-expiry-check) |
 | AS-7 | /api/weather beder CDN cache et login-svar (public, s-maxage) (S4) | DONE — Cache-Control private, max-age=900 |
 | AS-8 | Kontaktformular tillader localhost-origins i prod og returnerer nyt lead-id (S4) | DONE — localhost kun uden for prod; intet lead-id i svaret (public-contact-limit-check) |

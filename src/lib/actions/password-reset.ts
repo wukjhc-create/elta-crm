@@ -16,6 +16,7 @@
  *    rigtige indbakker mod spam fra vores domæne fra dag ét.
  */
 
+import { after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildSetPasswordLink } from '@/lib/auth/set-password-link'
 import { sendEmailViaGraph, isGraphConfigured } from '@/lib/services/microsoft-graph'
@@ -26,22 +27,35 @@ const RECOVERY_COOLDOWN_MS = 60_000
 export async function requestPasswordReset(email: string): Promise<{ success: true }> {
   // Fast generisk svar — afslører ALDRIG om kontoen findes / mail-status.
   const generic = { success: true } as const
+  const target = (email || '').trim().toLowerCase()
+  if (!target || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) return generic
+  // AS-5 (sikkerheds-review 2026-10-18): arbejdet sker EFTER svaret — før afslørede svartiden om kontoen fandtes
+  // (ukendt mail svarede straks; kendt mail ventede på link + Graph-afsendelse)
+  after(() => processPasswordReset(target).catch((e) => logger.error('requestPasswordReset: uventet fejl', { error: e })))
+  return generic
+}
 
+async function processPasswordReset(target: string): Promise<void> {
+  const generic = undefined
   try {
-    const target = (email || '').trim().toLowerCase()
-    if (!target || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) return generic
-
     const admin = createAdminClient()
 
-    // auth-admin har ingen getUserByEmail → listUsers + find. Lille team-ERP:
-    // acceptabelt. (Skalering + evt. per-IP rate-limit: se opfølgning.)
-    const { data: list, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 })
-    if (listErr) {
-      logger.error('requestPasswordReset: listUsers fejlede', { error: listErr })
-      return generic
+    // auth-admin har ingen getUserByEmail → listUsers + find, side for side (AS-5: før kun de første 1.000)
+    let user: Awaited<ReturnType<typeof admin.auth.admin.listUsers>>['data']['users'][number] | undefined
+    for (let page = 1; page <= 20 && !user; page++) {
+      const { data: list, error: listErr } = await admin.auth.admin.listUsers({ page, perPage: 200 })
+      if (listErr) {
+        logger.error('requestPasswordReset: listUsers fejlede', { error: listErr })
+        return generic
+      }
+      const users = list?.users || []
+      user = users.find((u) => (u.email || '').toLowerCase() === target)
+      if (users.length < 200) break
     }
-    const user = (list?.users || []).find((u) => (u.email || '').toLowerCase() === target)
-    if (!user) return generic // ingen konto → intet sendt, stadig generisk success
+    if (!user) return generic // ingen konto → intet sendt
+    // AS-5: spærret (deaktiveret) bruger får ikke et nulstil-link
+    const bannedUntil = (user as { banned_until?: string | null }).banned_until
+    if (bannedUntil && Date.parse(bannedUntil) > Date.now()) return generic
 
     // Cooldown (migration-fri): autoritativ = app_metadata.last_recovery_email_at
     // (sat af os efter vellykket send); recovery_sent_at som sekundært signal.
