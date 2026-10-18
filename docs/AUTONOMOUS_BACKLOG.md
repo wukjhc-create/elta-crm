@@ -1192,6 +1192,29 @@ Kolonneoverskriften # kan krympe. Fragt- og gebyrmærket ombrydes. Ugedagsnavnen
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-108, G18-60, G18-111, G18-129, G18-130.
 
+## Checkpoint 2026-10-18 ottende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `9c093aba`. Det omskriver ikke listerne ovenfor. Produktspids: `5226e820`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `9c093aba..5226e820`
+
+```
+5226e820 feat(plan): sagens ansvarlige-fejl ombrydes
+b1bdda6d feat(plan): udestaaende opgaver ombrydes
+31101a40 feat(plan): tom sagsliste ombrydes
+638d9b5e feat(plan): dagsoverskrift ombrydes
+```
+
+Listen er alle commits efter `9c093aba` til og med `5226e820`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Dagsoverskriften ombrydes. Den tomme sagsliste "Ingen opgaver endnu" ombrydes. "X af Y udestår" ombrydes. Sagens fejl "Ansvarlige kunne ikke hentes. Det tælles ikke som ikke tildelt." ombrydes. `calendarDayHeading`, sætningerne og tællingen er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-87, G18-108, G18-60, G18-111, G18-132, G18-133, G18-134.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
