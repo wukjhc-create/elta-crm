@@ -221,7 +221,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PT-5 | Partner med >~350 sager så ingen dokumenter (.in()-grænse) (S3) | DONE (kode) — bidder á 200 |
 | PT-6 | Deling med slutkunde deler også med partneren (S3, design) | BESLUTNING |
 | PT-7 | Udløbet partner-adgang kunne ikke fornyes (S4) | DONE (kode) — som G3 |
-| PT-8 | Portal-uploadkvote tæller medarbejderfiler; grænser ikke atomiske (S4) | TODO |
+| PT-8 | Portal-uploadkvote tæller medarbejderfiler; grænser ikke atomiske (S4) | DELVIS (kode) — kun kundens egne filer tæller i uploadkvoten (U23/U25/U98); atomisk grænse = TODO (RPC/migration) |
 | PT-9 | Tomme chatbeskeder (S4) | DONE (kode) |
 | PT-10 | Live portal-URL med token i logs (testrykker) (S4) | DONE (kode) |
 | PT-11 | Tokens i GET-querystrings (S4, plausibel) | TODO (lav prioritet) |

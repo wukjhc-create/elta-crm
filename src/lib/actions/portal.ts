@@ -1674,10 +1674,12 @@ export async function uploadPortalAttachment(
     const supabase = createAdminClient()
 
     // Portal-grænse: højst PORTAL_UPLOADS_PER_DAY uploads pr. kunde pr. døgn (filerne ligger i <kunde>/<tidsstempel>-…)
+    // PT-8 (portal-review 2026-10-17): kun KUNDENS filer tæller (navn "<tidsstempel>-…"); medarbejderfiler i samme mappe
+    // ("<bruger-id>-<tidsstempel>-…") blokerede før kunden, når kontoret havde uploadet 20 filer
     const { data: recent } = await supabase.storage.from('portal-attachments')
-      .list(customerId, { limit: PORTAL_UPLOADS_PER_DAY + 1, sortBy: { column: 'created_at', order: 'desc' } })
+      .list(customerId, { limit: 200, sortBy: { column: 'created_at', order: 'desc' } })
     const dayAgo = Date.now() - 86_400_000
-    const uploadsToday = (recent ?? []).filter((f) => f.created_at && new Date(f.created_at).getTime() >= dayAgo).length
+    const uploadsToday = (recent ?? []).filter((f) => /^\d{10,}-/.test(f.name) && f.created_at && new Date(f.created_at).getTime() >= dayAgo).length
     if (uploadsToday >= PORTAL_UPLOADS_PER_DAY) {
       return { success: false, error: 'Du har uploadet mange filer i dag — prøv igen i morgen, eller send dem på mail' }
     }
