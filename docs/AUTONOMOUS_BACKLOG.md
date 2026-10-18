@@ -748,7 +748,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-9 | 8 Pilot | DONE leverandørlisten: fejlet hentning siger det og beholder sidste liste. Tom succes siger stadig opret. | Fejl forbliver fejl. |
 | G18-10 | 3 Ledelse | DONE `05f1d751` oversigten tæller advarsler i filtret. | Samme quality-tal. Ingen ny forespørgsel. |
 | G18-11 | 2 Faktura | DÆKKET AF `356a74e7`: tællingen ligger over mobil-listen og ombrydes. | Samme tal som desktop. |
-| G18-12 | 4 Pris | ÅBEN. Materialets prishistorik siger datoen på den senest lagrede række, kun når listen har rækker. | Tom liste siger stadig ingen prisændringer. Ingen nutidspris opfindes. |
+| G18-12 | 4 Pris | DONE prishistorik siger datoen på den senest lagrede række, kun når listen har rækker. | Tom liste siger stadig ingen prisændringer. Ingen nutidspris. |
+| G18-41 | 4 Pris | ÅBEN. Hver prishistorik-række formaterer `effective_from` med Europe/Copenhagen. | Beløbene er uændret. |
 | G18-13 | 6 Salg | ÅBEN. Tilbud ude: filter- eller tælle-mærke på en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
 | G18-14 | 5 Plan | DONE dagsoverskriften viser antal hentede opgaver. Tom dag siger stadig ingen besigtigelser. | Ingen ny query. Påmindelser tælles ikke her. |
 | G18-37 | 4 Pris | ÅBEN. Null listepris i `supplier-products-table` siger "Ingen lagret pris". | Kost er G18-19. 0 kr forbliver 0 kr. Ingen opfundet pris. |
