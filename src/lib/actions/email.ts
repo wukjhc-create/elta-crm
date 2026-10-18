@@ -937,8 +937,12 @@ export async function sendOfferEmail(
 
     // Mail-review 2026-10-08 (#2): dobbeltklik/to faner sendte tilbuddet to gange. Af trådens udgående beskeder fra det
     // sidste minut (i kø/sendes/sendt) vinder den ældste — alle samtidige kald ser samme rækkefølge, så kun én sender.
+    // RC-4 (samtidigheds-review 2026-10-18): to samtidige første-udsendelser oprettede hver sin tråd og var begge "ældst" i
+    // egen tråd → kunden fik tilbuddet to gange. Værnet ser nu på ALLE tilbuddets tråde (genlæst efter vores indsættelse).
+    const { data: offerThreads } = await supabase.from('email_threads').select('id').eq('offer_id', input.offer_id)
+    const threadIds = [...new Set([thread.id, ...((offerThreads ?? []) as Array<{ id: string }>).map((t) => t.id)])]
     const { data: recentOut } = await supabase.from('email_messages').select('id')
-      .eq('thread_id', thread.id).eq('direction', 'outbound').in('status', ['queued', 'sending', 'sent'])
+      .in('thread_id', threadIds).eq('direction', 'outbound').in('status', ['queued', 'sending', 'sent'])
       .gte('created_at', new Date(Date.now() - 60_000).toISOString())
       .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(1)
     const firstOut = ((recentOut ?? []) as Array<{ id: string }>)[0]?.id
