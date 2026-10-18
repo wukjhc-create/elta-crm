@@ -63,7 +63,7 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
         {open ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
       </button>
       {!open && (
-        <p className="mt-1 text-xs text-gray-500">Kost pr. linje er skjult, indtil du åbner.</p>
+        <p className="mt-1 text-xs text-gray-500 break-words min-w-0" data-testid="offer-vs-actual-closed-hint">Kost pr. linje er skjult, indtil du åbner.</p>
       )}
 
       {open && (
