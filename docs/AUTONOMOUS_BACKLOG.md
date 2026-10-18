@@ -849,7 +849,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-110 | 2 Faktura | ÅBEN. Match-teksten på fakturakontrollens skrivebord ombrydes. | Match-ordene er uændret. |
 | G18-111 | 5 Plan | ÅBEN. "+N påmindelser" på månedsdagen ombrydes. | Tællingen er uændret. Dagbrikkerne afkortes stadig. |
 | G18-112 | 5 Plan | DONE Forrige og næste måned er mindst 44 px. | Aria-teksten er uændret. |
-| G18-113 | 5 Plan | ÅBEN. Månedens navn i kalenderen ombrydes. | MONTH_NAMES og året er uændret. |
+| G18-113 | 5 Plan | DONE månedens navn i kalenderen ombrydes. | MONTH_NAMES og året er uændret. |
+| G18-114 | 2 Faktura | ÅBEN. Forventet pris og afvigelse på fakturakontrollens skrivebord ombrydes. | `kr()` og `not_controllable` er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

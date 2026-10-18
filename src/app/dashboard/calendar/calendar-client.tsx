@@ -168,9 +168,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
             <button type="button" onClick={prevMonth} aria-label="Forrige måned" className="min-h-[44px] min-w-[44px] p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-lg font-semibold">
-              {MONTH_NAMES[month]} {year}
-            </h2>
+            <h2 className="text-lg font-semibold break-words min-w-0 text-center" data-testid="calendar-month-heading">{MONTH_NAMES[month]} {year}</h2>
             <button type="button" onClick={nextMonth} aria-label="Næste måned" className="min-h-[44px] min-w-[44px] p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <ChevronRight className="w-5 h-5" />
             </button>
