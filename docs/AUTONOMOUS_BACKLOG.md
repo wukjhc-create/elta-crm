@@ -1260,6 +1260,28 @@ Kundens opgavefejl "Ansvarlige kunne ikke hentes. Det tælles ikke som ikke tild
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-108, G18-60, G18-111, G18-133, G18-134, G18-135, G18-136.
 
+## Checkpoint 2026-10-18 ellevte (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `fc1047a0`. Det omskriver ikke listerne ovenfor. Produktspids: `c66870f5`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `fc1047a0..c66870f5`
+
+```
+c66870f5 feat(pilot): ingen aabne opgaver ombrydes
+416cddc4 feat(pilot): kundens medarbejderfejl ombrydes
+95a82c0e feat(plan): sagens hentefejl ombrydes
+```
+
+Listen er alle commits efter `fc1047a0` til og med `c66870f5`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Sagens hentefejl ombrydes. Sætningen "Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver." er uændret. Kundens "Medarbejdere kunne ikke hentes. Det tælles ikke som ingen." ombrydes. "Ingen åbne opgaver. Udførte ligger nedenfor." ombrydes. Fejlen over opgavelisten er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-108, G18-60, G18-111, G18-136, G18-137, G18-138, G18-139.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
