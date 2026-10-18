@@ -257,10 +257,10 @@ export function AftercalcOverviewClient() {
                             </td>
                             <td className="px-2 py-1.5 text-gray-800 break-words">{r.customer_name || '—'}</td>
                             <td className="px-2 py-1.5 text-gray-800 break-words">{r.assignee_name || '—'}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.quoted_revenue)}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.actual_revenue)}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums">{pct(r.quoted_db_pct)}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums">{pct(r.actual_db_pct)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{kr(r.quoted_revenue)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{kr(r.actual_revenue)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{pct(r.quoted_db_pct)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{pct(r.actual_db_pct)}</td>
                             <td className={`px-2 py-1.5 text-right tabular-nums ${r.db_variance == null ? 'text-gray-400' : r.db_variance < 0 ? 'text-red-700' : r.db_variance > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
                               {varianceText(r.db_variance, r.db_variance_pct_points)}
                             </td>
