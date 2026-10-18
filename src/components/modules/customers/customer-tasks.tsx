@@ -258,11 +258,11 @@ function TaskRow({
           {task.title}
         </p>
         <div className="flex flex-wrap items-center gap-2 mt-1">
-          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${statusCfg.bgColor} ${statusCfg.color}`}>
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium break-words min-w-0 ${statusCfg.bgColor} ${statusCfg.color}`} data-testid="customer-task-status-badge">
             {statusCfg.label}
           </span>
           {task.priority !== 'normal' && (
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${priorityCfg.bgColor} ${priorityCfg.color}`}>
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium break-words min-w-0 ${priorityCfg.bgColor} ${priorityCfg.color}`} data-testid="customer-task-priority-badge">
               {priorityCfg.label}
             </span>
           )}
