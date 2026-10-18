@@ -155,6 +155,9 @@ BLOCKED_APPROVAL (hver kræver egen godkendelse):
   - **CU-8 hvem må oprette kundeopgaver** — i dag alle med customers.view (også montør/bogholderi). Kræv customers.edit/tasks.create?
   - **EC-2 e-conomic-eksport som sideeffekt** — afsendelse af faktura, godkendelse af leverandørfaktura og auto-faktura eksporterer i dag automatisk (når ECONOMIC_PUSH_ENABLED er sat), også for serviceleder uden settings.economic. Kun via eksplicit "Eksportér"?
   - **ES-1/ES-4/ES-10 bevisintegritet** [MIGRATION] — accepteret tilbud låst i DB + beløb/hash på underskrift; fuldmagt-CPR kun via admin-klient; bekræftelser bundet til filhash
+  - **00251 kundeaftaler i prisfunktionen (CA-3)** [MIGRATION] — leverandøraftaler uden egen avance ignoreres i dag (prod bekræftet); docs/runbooks/pricing-functions-proposal.md
+  - **CA-6 avance-præcedens + CA-9 afrunding** — én regel i TS og SQL (beslutning + migration)
+  - **PT-6 partner ser dokumenter delt med slutkunden** — separat partner-deling?
   - **API-4/SEC2-6 per-IP-loft på den offentlige kontaktformular** [MIGRATION/KV]
   - **API-1 opfølgning (drift)**: `/api/admin/test-lemu` udleverede indtil 56a44e1a LEMU-SFTP-adgangskoden til enhver med CRON_SECRET. Har nogen kaldt ruten, bør LEMU-adgangskoden roteres
 - **PM-7 fuldmagtsrykker til den tiltænkte underskriver** (ændrer modtager af en live-rykker) + link til portalen
