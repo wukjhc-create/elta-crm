@@ -168,13 +168,13 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       topCustomerResult,
     ] = await Promise.all([
       // Økonomi-review 2026-10-08: summer side for side (PostgREST giver højst 1.000 rækker)
-      fetchAllRows<{ final_amount: number | null; tax_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount, tax_amount').eq('status', 'accepted').eq('is_proposal', false).order('id').range(from, to))
+      fetchAllRows<{ final_amount: number | null; tax_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount, tax_amount, currency').eq('status', 'accepted').eq('is_proposal', false).order('id').range(from, to))
         .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
-      fetchAllRows<{ final_amount: number | null; tax_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount, tax_amount').in('status', ['sent', 'viewed']).eq('is_proposal', false).order('id').range(from, to))
+      fetchAllRows<{ final_amount: number | null; tax_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount, tax_amount, currency').in('status', ['sent', 'viewed']).eq('is_proposal', false).order('id').range(from, to))
         .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'accepted').eq('is_proposal', false),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'rejected').eq('is_proposal', false),
-      fetchAllRows<{ final_amount: number | null; tax_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount, tax_amount').not('status', 'eq', 'draft').eq('is_proposal', false).order('id').range(from, to))
+      fetchAllRows<{ final_amount: number | null; tax_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount, tax_amount, currency').not('status', 'eq', 'draft').eq('is_proposal', false).order('id').range(from, to))
         .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
       // RX-8 (rapport-review 2026-10-18): aktive SAGER — den gamle projects-tabel bruges ikke længere (≈ 0)
       supabase.from('service_cases').select('id', { count: 'exact', head: true })
@@ -183,7 +183,7 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       fetchAllRows<{ hours: number | string | null; billable: boolean | null }>((from, to) => supabase.from('time_logs')
         .select('id, hours, billable').not('end_time', 'is', null).neq('approval_status', 'rejected').gte('start_time', monthStartIso).order('id').range(from, to))
         .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
-      fetchAllRows<{ customer_id: string | null; final_amount: number | null; tax_amount: number | null; customer: unknown }>((from, to) => supabase.from('offers').select('id, customer_id, final_amount, tax_amount, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted').eq('is_proposal', false).order('id').range(from, to))
+      fetchAllRows<{ customer_id: string | null; final_amount: number | null; tax_amount: number | null; customer: unknown }>((from, to) => supabase.from('offers').select('id, customer_id, final_amount, tax_amount, currency, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted').eq('is_proposal', false).order('id').range(from, to))
         .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
     ])
 
@@ -198,7 +198,8 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
     const acceptance_rate = decided > 0 ? ((acceptedCountResult.count || 0) / decided) * 100 : 0
 
     // Average offer value
-    const allOffers = allOffersResult.data || []
+    // RX-4: gennemsnit af DKK-tilbud (fremmed valuta tæller hverken i beløb eller antal)
+    const allOffers = (allOffersResult.data || []).filter((o) => isDkk((o as { currency?: string | null }).currency))
     const avg_offer_value = allOffers.length > 0
       ? allOffers.reduce((sum, o) => sum + exVat(o), 0) / allOffers.length
       : 0
@@ -276,7 +277,7 @@ export async function getRevenueByPeriod(
     const [acceptedResult, sentResult, invoiceRows] = await Promise.all([
       fetchAllRows<{ final_amount: number | null; tax_amount: number | null; accepted_at: string | null }>((f, t) => supabase
         .from('offers')
-        .select('id, final_amount, tax_amount, accepted_at')
+        .select('id, final_amount, tax_amount, currency, accepted_at')
         .eq('status', 'accepted')
         .eq('is_proposal', false)
         .gte('accepted_at', rangeStartIso)
@@ -285,7 +286,7 @@ export async function getRevenueByPeriod(
       // tilbud der STADIG var sendt/set (bucket på created_at), så et tilbud sendt og accepteret samme måned forsvandt
       fetchAllRows<{ final_amount: number | null; tax_amount: number | null; sent_at: string | null }>((f, t) => supabase
         .from('offers')
-        .select('id, final_amount, tax_amount, sent_at')
+        .select('id, final_amount, tax_amount, currency, sent_at')
         .not('sent_at', 'is', null)
         .neq('status', 'draft')
         .eq('is_proposal', false)
@@ -377,7 +378,7 @@ export async function getRevenueByCustomer(
     const offers = await fetchAllRows<{ customer_id: string | null; status: string; final_amount: number | null; tax_amount: number | null; customer: unknown }>((f, t) =>
       supabase
         .from('offers')
-        .select('id, customer_id, status, final_amount, tax_amount, customer:customers!offers_customer_id_fkey(company_name)')
+        .select('id, customer_id, status, final_amount, tax_amount, currency, customer:customers!offers_customer_id_fkey(company_name)')
         .eq('is_proposal', false)
         .neq('status', 'draft')
         .not('customer_id', 'is', null)
@@ -712,7 +713,7 @@ export async function getRejectionStats(): Promise<ActionResult<RejectionStats>>
     const [rejectedRows, acceptedCountResult] = await Promise.all([
       fetchAllRows<RejRow>((from, to) => supabase
         .from('offers')
-        .select('id, rejection_reason, rejected_at, final_amount, tax_amount')
+        .select('id, rejection_reason, rejected_at, final_amount, tax_amount, currency')
         .eq('status', 'rejected')
         .eq('is_proposal', false)
         .gte('rejected_at', scopeStart.toISOString())
@@ -886,9 +887,9 @@ export async function getSalesFunnel(months: number = 6): Promise<ActionResult<i
     try {
       const [c, o, i] = await Promise.all([
         fetchAllRows((f, t) => supabase.from('customers').select('id, created_at').gte('created_at', iso).order('id').range(f, t)),
-        fetchAllRows((f, t) => supabase.from('offers').select('id, created_at, sent_at, accepted_at, final_amount, tax_amount, is_proposal')
+        fetchAllRows((f, t) => supabase.from('offers').select('id, created_at, sent_at, accepted_at, final_amount, tax_amount, is_proposal, currency')
           .or(`created_at.gte.${iso},sent_at.gte.${iso},accepted_at.gte.${iso}`).order('id').range(f, t)),
-        fetchAllRows((f, t) => supabase.from('invoices').select('id, created_at, sent_at, status, invoice_type, voided_at, total_amount')
+        fetchAllRows((f, t) => supabase.from('invoices').select('id, created_at, sent_at, status, invoice_type, voided_at, total_amount, currency')
           .or(`created_at.gte.${iso},sent_at.gte.${iso}`).order('id').range(f, t)),
       ])
       cust = { data: c }; off = { data: o }; inv = { data: i }
@@ -909,7 +910,15 @@ export async function getSalesFunnel(months: number = 6): Promise<ActionResult<i
   }
 }
 
-/** Tilbudsbeløb ekskl. moms (final_amount − tax_amount) — samme grundlag som salgstragten og contract_sum. */
-function exVat(o: { final_amount?: number | string | null; tax_amount?: number | string | null }): number {
+/**
+ * Beløb ekskl. moms. RX-4 (rapport-review 2026-10-18): kun DKK — tilbud i anden valuta blev før lagt sammen som kroner
+ * (en EUR-tilbud på 10.000 talte som 10.000 kr). Antal påvirkes ikke; beløbet for fremmed valuta er 0 i kronetotaler.
+ */
+function exVat(o: { final_amount?: number | string | null; tax_amount?: number | string | null; currency?: string | null }): number {
+  if (!isDkk(o.currency)) return 0
   return Number(o.final_amount ?? 0) - Number(o.tax_amount ?? 0)
+}
+
+function isDkk(currency: string | null | undefined): boolean {
+  return !currency || currency.toUpperCase() === 'DKK'
 }

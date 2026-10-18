@@ -47,5 +47,20 @@ const vat = computeSalesFunnel({
 ok(vat.months[1].accepted_value === 10000, 'accepteret værdi ekskl. moms', String(vat.months[1].accepted_value))
 ok(vat.months[0].invoiced_ex_vat === 0 && vat.months[1].invoiced_ex_vat === 10000, 'faktura tæller i udstedelsesmåneden', JSON.stringify(vat.months.map((m) => m.invoiced_ex_vat)))
 
+// RX-4 (2026-10-18): EUR-tilbud/-faktura tæller i antal, men ikke i kronebeløb
+const eur = computeSalesFunnel({
+  months: ['2026-10'], customers: [],
+  offers: [
+    { created_at: '2026-10-02T10:00:00Z', sent_at: '2026-10-02T10:00:00Z', accepted_at: '2026-10-03T10:00:00Z', final_amount: 12500, tax_amount: 2500, currency: 'EUR' },
+    { created_at: '2026-10-02T10:00:00Z', sent_at: '2026-10-02T10:00:00Z', accepted_at: '2026-10-03T10:00:00Z', final_amount: 1250, tax_amount: 250, currency: 'DKK' },
+  ],
+  invoices: [
+    { created_at: '2026-10-01T10:00:00Z', sent_at: '2026-10-01T10:00:00Z', status: 'sent', invoice_type: 'standard', voided_at: null, total_amount: 5000, currency: 'EUR' },
+    { created_at: '2026-10-01T10:00:00Z', sent_at: '2026-10-01T10:00:00Z', status: 'sent', invoice_type: 'standard', voided_at: null, total_amount: 800, currency: 'DKK' },
+  ],
+})
+ok(eur.months[0].offers_accepted === 2 && eur.months[0].accepted_value === 1000, 'EUR-tilbud tæller i antal, ikke i kroner', JSON.stringify(eur.months[0]))
+ok(eur.months[0].invoiced_ex_vat === 800, 'EUR-faktura tæller ikke i faktureret (som B-9)', String(eur.months[0].invoiced_ex_vat))
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle salgstragt-tests bestået')
 process.exitCode = bad ? 1 : 0

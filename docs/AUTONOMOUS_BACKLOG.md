@@ -242,7 +242,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | RX-1 | Deaktiveret bruger beholder RLS-rettigheder til token udløber (user_role() tjekker ikke is_active) (S2) | BLOCKED_APPROVAL [MIGRATION] |
 | RX-2 | reports.export håndhæves aldrig; masseeksport uden audit (S3) | BESLUTNING (= NEXT-26 RP-6); audit pr. eksport = TODO |
 | RX-3 | Modtagere af betalingsrapport auditeres kun som antal (S3) | DONE — audit med tilføjede/fjernede adresser (betalingsrapport + eksportfejl-notifikation) |
-| RX-4 | Rapporttotaler blander valutaer (S3) | TODO |
+| RX-4 | Rapporttotaler blander valutaer (S3) | DONE (kode) — kronebeløb kun DKK i oversigt, periode, kunde, tabt omsætning og salgstragt (antal uændret); sales-funnel-test +2, U88/U91/U100 |
 | RX-5 | Betalingsoversigt/-CSV blander valutaer under "(DKK)" (S3) | BLOCKED_APPROVAL [MIGRATION] (view) |
 | RX-6 | Deaktivering via medarbejderkortet: ingen selv-blok og ingen sidste-admin-genoptælling (S3) | DONE (kode) — setLoginWithEmployee: eget login kan ikke deaktiveres; sidste aktive admin genoptælles efter skrivning og rulles tilbage (U145 regression; selv-/race-scenariet ikke UI-testet) |
 | RX-7 | Gen-invitation af afventende bruger skifter rolle uden værn/audit (S4) | TODO |

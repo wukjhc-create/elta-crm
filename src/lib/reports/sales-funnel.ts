@@ -7,8 +7,11 @@
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { ISSUED_INVOICE_STATUSES } from '@/lib/invoices/net-invoiced'
 
-export interface FunnelOffer { created_at: string; sent_at: string | null; accepted_at: string | null; final_amount: number | string | null; tax_amount?: number | string | null; is_proposal?: boolean | null }
-export interface FunnelInvoice { created_at: string; sent_at?: string | null; status: string | null; invoice_type: string | null; voided_at: string | null; total_amount: number | string | null }
+export interface FunnelOffer { created_at: string; sent_at: string | null; accepted_at: string | null; final_amount: number | string | null; tax_amount?: number | string | null; is_proposal?: boolean | null; currency?: string | null }
+export interface FunnelInvoice { created_at: string; sent_at?: string | null; status: string | null; invoice_type: string | null; voided_at: string | null; total_amount: number | string | null; currency?: string | null }
+
+/** RX-4 (rapport-review 2026-10-18): kronebeløb kun for DKK (antal tæller uanset valuta) — som "faktureret" (B-9). */
+const isDkk = (c: string | null | undefined) => !c || c.toUpperCase() === 'DKK'
 
 export interface FunnelMonth {
   month: string // YYYY-MM
@@ -61,7 +64,7 @@ export function computeSalesFunnel(input: {
     bump(o.created_at, (x) => { x.offers_created += 1 })
     bump(o.sent_at, (x) => { x.offers_sent += 1 })
     // ekskl. moms (final_amount er inkl. moms efter rabat) — sammenlignes med "faktureret ekskl. moms" (kode-review)
-    const exVat = (Number(o.final_amount ?? 0) || 0) - (Number(o.tax_amount ?? 0) || 0)
+    const exVat = isDkk(o.currency) ? (Number(o.final_amount ?? 0) || 0) - (Number(o.tax_amount ?? 0) || 0) : 0
     bump(o.accepted_at, (x) => { x.offers_accepted += 1; x.accepted_value += exVat })
   }
   for (const i of input.invoices) {
@@ -69,6 +72,7 @@ export function computeSalesFunnel(input: {
     // annulleret original (dens kreditnota udligner den; før blev originalen sprunget over OG kreditnotaen trukket fra
     // = dobbelt fradrag). Kreditnota trækkes fra uanset fortegn; en negativ slutfaktura beholder sit fortegn.
     if (!ISSUED_INVOICE_STATUSES.has(i.status ?? '')) continue
+    if (!isDkk(i.currency)) continue // RX-4
     const raw = Number(i.total_amount ?? 0) || 0
     // udstedelsesmåned (sent_at) — en kladde fra september udstedt i oktober hører til oktober (kode-review)
     bump(i.sent_at || i.created_at, (x) => { x.invoiced_ex_vat += i.invoice_type === 'credit' ? -Math.abs(raw) : raw })
