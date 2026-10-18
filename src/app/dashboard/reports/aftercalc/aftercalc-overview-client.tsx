@@ -261,7 +261,7 @@ export function AftercalcOverviewClient() {
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{kr(r.actual_revenue)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{pct(r.quoted_db_pct)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{pct(r.actual_db_pct)}</td>
-                            <td className={`px-2 py-1.5 text-right tabular-nums ${r.db_variance == null ? 'text-gray-400' : r.db_variance < 0 ? 'text-red-700' : r.db_variance > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
+                            <td className={`px-2 py-1.5 text-right tabular-nums break-words min-w-0 ${r.db_variance == null ? 'text-gray-400' : r.db_variance < 0 ? 'text-red-700' : r.db_variance > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
                               {varianceText(r.db_variance, r.db_variance_pct_points)}
                             </td>
                             <td className="px-2 py-1.5 text-gray-700">{SERVICE_CASE_STATUS_LABELS[r.status as ServiceCaseStatus] ?? r.status}<div className="text-[11px] text-gray-500 break-words" data-testid="aftercalc-invoiced-state">{invoicedStateLabel(r.invoiced_state)}</div></td>

@@ -829,7 +829,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-93 | 1 Profit | DONE "Kost og DB er skjult" på den lukkede efterkalk-oversigt ombrydes. | Sætningen er uændret. |
 | G18-94 | 1 Profit | DONE "Kun manglende kostdata" ombrydes. | Afkrydsningen og teksten er uændret. |
 | G18-95 | 1 Profit | DONE skrivebordets tilbudt og faktisk beløb i efterkalk-oversigten ombrydes. | `kr()` og `pct()` er uændret. |
-| G18-96 | 1 Profit | ÅBEN. Skrivebordets DB-afvigelse i efterkalk-oversigten ombrydes. | `varianceText` er uændret. |
+| G18-96 | 1 Profit | DONE skrivebordets DB-afvigelse i efterkalk-oversigten ombrydes. | `varianceText` er uændret. |
+| G18-97 | 1 Profit | ÅBEN. Mobilstatus på efterkalk-kortet ombrydes. | Statusordene er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
 | G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |
