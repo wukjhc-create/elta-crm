@@ -103,7 +103,7 @@ export function AftercalcOverviewClient() {
           </h2>
           {open ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
         </button>
-        {!open && <p className="mt-1 text-xs text-gray-500">Kost og DB er skjult, indtil du åbner oversigten.</p>}
+        {!open && <p className="mt-1 text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-overview-closed-hint">Kost og DB er skjult, indtil du åbner oversigten.</p>}
 
         {open && (
           <div className="mt-3 space-y-3">
