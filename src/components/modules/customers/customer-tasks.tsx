@@ -396,7 +396,7 @@ function TaskForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Beskrivelse</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 break-words min-w-0" data-testid="customer-task-label-description">Beskrivelse</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -408,7 +408,7 @@ function TaskForm({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Prioritet</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 break-words min-w-0" data-testid="customer-task-label-priority">Prioritet</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
@@ -422,7 +422,7 @@ function TaskForm({
 
             {task && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 break-words min-w-0" data-testid="customer-task-label-status">Status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
@@ -436,7 +436,7 @@ function TaskForm({
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ansvarlig</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 break-words min-w-0" data-testid="customer-task-label-assignee">Ansvarlig</label>
               <select
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
@@ -454,7 +454,7 @@ function TaskForm({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Forfaldsdato</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 break-words min-w-0" data-testid="customer-task-label-due">Forfaldsdato</label>
               <input
                 type="datetime-local"
                 value={dueDate}
@@ -463,7 +463,7 @@ function TaskForm({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Påmindelse</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 break-words min-w-0" data-testid="customer-task-label-reminder">Påmindelse</label>
               <input
                 type="datetime-local"
                 value={reminderAt}
