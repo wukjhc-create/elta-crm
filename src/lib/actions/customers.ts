@@ -1132,15 +1132,20 @@ export async function deleteCustomerContact(
     validateUUID(id, 'kontakt ID')
     validateUUID(customerId, 'kunde ID')
 
-    const { error } = await supabase
+    // DL-9 (slette-review 2026-10-18): kun en kontakt på DENNE kunde, 0 rækker = fejl, og sletningen auditeres
+    const { data: deletedContact, error } = await supabase
       .from('customer_contacts')
       .delete()
       .eq('id', id)
+      .eq('customer_id', customerId)
+      .select('id, name')
 
     if (error) {
       logger.error('Database error deleting customer contact', { error: error })
       throw new Error('DATABASE_ERROR')
     }
+    if (!deletedContact || deletedContact.length === 0) return { success: false, error: 'Kontakten findes ikke på kunden' }
+    await logDelete('customer', customerId, `Kontakt: ${(deletedContact[0] as { name?: string | null }).name ?? id}`, { contact_id: id })
 
     revalidatePath(`/dashboard/customers/${customerId}`)
     return { success: true }

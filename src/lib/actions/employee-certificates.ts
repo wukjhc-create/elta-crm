@@ -5,6 +5,7 @@
  * Read: employees.view. Write: employees.edit. Logger events.
  */
 
+import { validateUUID } from '@/lib/validations/common'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
@@ -93,10 +94,15 @@ export async function deleteCertificate(id: string): Promise<ActionResult<void>>
   try {
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission('employees.edit')) return { success: false, error: 'Manglende tilladelse: employees.edit' }
+    validateUUID(id, 'certifikat-ID') // DL-9
     const admin = createAdminClient()
-    const { data, error } = await admin.from('employee_certificates').delete().eq('id', id).select('employee_id').maybeSingle()
+    const { data, error } = await admin.from('employee_certificates').delete().eq('id', id).select('employee_id, name').maybeSingle()
     if (error) return { success: false, error: 'Kunne ikke slette certifikat' }
-    if (data) revalidatePath(`/dashboard/employees/${data.employee_id}`)
+    if (!data) return { success: false, error: 'Certifikatet findes ikke' }
+    // DL-9: sletningen auditeres (før ingen spor)
+    const { logDelete } = await import('@/lib/audit/audit-log-writer')
+    await logDelete('user', data.employee_id as string, `Certifikat: ${(data as { name?: string | null }).name ?? id}`, { certificate_id: id, kind: 'employee_certificate' })
+    revalidatePath(`/dashboard/employees/${data.employee_id}`)
     return { success: true }
   } catch (e) {
     return { success: false, error: formatError(e, 'Kunne ikke slette certifikat') }

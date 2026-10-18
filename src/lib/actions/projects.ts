@@ -354,12 +354,16 @@ export async function deleteProject(id: string): Promise<ActionResult> {
     const { supabase } = await requireGate('projects.delete')
     validateUUID(id, 'projekt ID')
 
-    const { error } = await supabase.from('projects').delete().eq('id', id)
+    const { data: deletedProject, error } = await supabase.from('projects').delete().eq('id', id).select('id, name')
 
     if (error) {
       logger.error('Error deleting project', { error: error })
       return { success: false, error: 'Kunne ikke slette projekt' }
     }
+    // DL-9 (slette-review 2026-10-18): 0 rækker = fejl; sletningen (inkl. kaskade af opgaver/tidsposter) auditeres
+    if (!deletedProject || deletedProject.length === 0) return { success: false, error: 'Projektet blev ikke slettet (findes ikke eller manglende ret)' }
+    const { logDelete } = await import('@/lib/audit/audit-log-writer')
+    await logDelete('project', id, (deletedProject[0] as { name?: string | null }).name ?? 'Projekt', {})
 
     revalidatePath('/dashboard/projects')
     return { success: true }

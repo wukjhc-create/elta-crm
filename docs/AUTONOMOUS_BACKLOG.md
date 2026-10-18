@@ -231,7 +231,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DL-6 | Ingen GDPR-sletning/anonymisering af kunde med historik (S3) | BESLUTNING |
 | DL-7 | deleteInvoiceDraft kan efterlade en låst kladde (claim frigives ikke) (S4) | DONE (kode) — claim frigives også ved 0 slettede rækker |
 | DL-8 | deleteCustomer frigiver mails før sletningen lykkes (S4) | DONE (kode) — mails frigives efter lykket sletning (id'er samlet før; 0 rækker = fejl) (U135/U188) |
-| DL-9 | Sletninger uden audit (projekt, kontakt, certifikat) (S4) | TODO |
+| DL-9 | Sletninger uden audit (projekt, kontakt, certifikat) (S4) | DONE (kode) — projekt, kontakt (nu bundet til kunden) og certifikat: 0-rækker-tjek + audit (U188/U145) |
 | DL-10 | deleteTestIncomingInvoiceAction ignorerer fakturalås (S4, kun TEST_) | TODO |
 
 ## NEXT-45 (review-bølge 2026-10-18 middag — AI/LLM og auth)
