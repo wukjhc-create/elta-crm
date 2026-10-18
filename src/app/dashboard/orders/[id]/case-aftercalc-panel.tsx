@@ -190,7 +190,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                   En linje kobles kun, når materialet peger på tilbudslinjen eller på samme leverandørvare. Ens tekst alene står som ikke matchet. Linjelisten slår ikke antal eller kost sammen, heller ikke når teksten er ens.
                 </p>
                 {data.lines.length === 0 ? (
-                  <p className="text-sm text-gray-500">Ingen linjer eller forbrug endnu. Linjer kommer fra tilbuddet. Forbrug kommer fra timer, materialer og andre omkostninger.</p>
+                  <p className="text-sm text-gray-500 break-words min-w-0" data-testid="aftercalc-lines-empty">Ingen linjer eller forbrug endnu. Linjer kommer fra tilbuddet. Forbrug kommer fra timer, materialer og andre omkostninger.</p>
                 ) : (
                   <>
                   <div className="md:hidden divide-y rounded ring-1 ring-gray-200" data-testid="aftercalc-lines-mobile">
