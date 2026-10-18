@@ -205,7 +205,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                         </div>
                         <p className="mt-2 text-xs text-gray-600 break-words min-w-0">Tilbudt antal {qty(r.offered_qty)} · faktisk antal {qty(r.actual_qty)}</p>
                         <p className="text-xs text-gray-700 break-words min-w-0">Tilbudt kost {kr(r.offered_cost)} · faktisk kost {kr(r.actual_cost)}</p>
-                        <p className="text-xs">Afvigelse {r.cost_deviation == null ? 'Kan ikke beregnes' : moneyDev(r.cost_deviation, false)}</p>
+                        <p className="text-xs break-words min-w-0">Afvigelse {r.cost_deviation == null ? 'Kan ikke beregnes' : moneyDev(r.cost_deviation, false)}</p>
                       </div>
                     ))}
                   </div>

@@ -20,7 +20,7 @@ ok(row.includes('break-words min-w-0">{kr(r.offered_cost)}'), 'kostcellen er uæ
 ok(row.includes('break-words min-w-0">{qty(r.offered_qty)}'), 'antalcellen er uændret')
 ok(!row.includes('truncate'), 'afvigelsen klippes ikke')
 ok(panel.includes('if (amount == null) return <span className="text-gray-400">Kan ikke beregnes</span>'), 'moneyDev er uændret')
-ok(panel.includes('className="text-xs">Afvigelse {r.cost_deviation == null ? \'Kan ikke beregnes\' : moneyDev(r.cost_deviation, false)}'), 'mobil-afvigelsen er uændret')
+ok(panel.includes('className="text-xs break-words min-w-0">Afvigelse {r.cost_deviation == null ? \'Kan ikke beregnes\' : moneyDev(r.cost_deviation, false)}'), 'mobil-afvigelsen ombrydes')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
