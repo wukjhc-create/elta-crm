@@ -119,7 +119,7 @@ export class AOInvoiceAdapter implements SupplierInvoiceAdapter {
 // Normalisation
 // =====================================================
 
-function normaliseAoInvoice(raw: unknown): NormalisedInvoice | null {
+export function normaliseAoInvoice(raw: unknown): NormalisedInvoice | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
   const invoiceNumber = String(r.invoiceNumber ?? r.invoice_number ?? r.number ?? '').trim()
@@ -152,14 +152,26 @@ function normaliseAoInvoice(raw: unknown): NormalisedInvoice | null {
 
   const rawText = JSON.stringify(raw)
 
+  // IV-6 (leverandørfaktura-review 2026-10-18): en kreditnota med positive beløb lagde kost TIL sagen og gav e-conomic
+  // en positiv faktura. Er dokumentet markeret som kreditnota, bærer header og linjer et negativt fortegn.
+  const credit = isAoCreditNote(r)
+  const neg = (v: number | null) => (credit && v !== null && v > 0 ? -v : v)
+  if (credit) {
+    for (const l of lines) {
+      l.totalPrice = neg(l.totalPrice)
+      // uden total bærer stk-prisen fortegnet (lineSnapshot: antal × pris med modsat fortegn = retur)
+      if (l.totalPrice === null && (l.quantity ?? 1) > 0) l.unitPrice = neg(l.unitPrice)
+    }
+  }
+
   return {
     invoiceNumber,
     invoiceDate: isoDate(r.invoiceDate ?? r.invoice_date ?? r.date),
     dueDate: isoDate(r.dueDate ?? r.due_date),
     currency: String(r.currency ?? 'DKK').toUpperCase(),
-    amountExclVat: numberOrNull(r.amountExclVat ?? r.amount_excl_vat ?? r.netAmount),
-    vatAmount: numberOrNull(r.vatAmount ?? r.vat_amount ?? r.vat),
-    amountInclVat: numberOrNull(r.amountInclVat ?? r.amount_incl_vat ?? r.totalAmount ?? r.amount),
+    amountExclVat: neg(numberOrNull(r.amountExclVat ?? r.amount_excl_vat ?? r.netAmount)),
+    vatAmount: neg(numberOrNull(r.vatAmount ?? r.vat_amount ?? r.vat)),
+    amountInclVat: neg(numberOrNull(r.amountInclVat ?? r.amount_incl_vat ?? r.totalAmount ?? r.amount)),
     paymentReference: stringOrNull(r.paymentReference ?? r.payment_reference ?? r.fik ?? r.ean),
     iban: stringOrNull(r.iban),
     rawText,
@@ -170,6 +182,13 @@ function normaliseAoInvoice(raw: unknown): NormalisedInvoice | null {
     workOrderHints: Array.from(new Set(workOrderHints)),
     lines,
   }
+}
+
+/** IV-6: dokumenttypen (forskellige feltnavne) eller et eksplicit flag siger kreditnota. */
+function isAoCreditNote(r: Record<string, unknown>): boolean {
+  if (r.isCreditNote === true || r.is_credit_note === true || r.creditNote === true) return true
+  const type = [r.documentType, r.document_type, r.invoiceType, r.invoice_type, r.type].map((v) => String(v ?? '')).join(' ')
+  return /credit|kredit/i.test(type)
 }
 
 function stringOrNull(v: unknown): string | null {
