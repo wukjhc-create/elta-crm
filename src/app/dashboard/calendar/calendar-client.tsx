@@ -289,7 +289,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
           )}
           <div className="p-4">
             {!selectedDate ? (
-              <p className="text-sm text-gray-500 text-center py-8">
+              <p className="text-sm text-gray-500 text-center py-8 break-words min-w-0" data-testid="calendar-pick-day">
                 Klik på en dag for at se besigtigelser og opkald
               </p>
             ) : selectedTasks.length === 0 ? (
