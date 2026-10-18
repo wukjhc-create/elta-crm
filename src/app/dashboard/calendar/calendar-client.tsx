@@ -177,7 +177,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
           {/* Weekday headers */}
           <div className="grid grid-cols-7 border-b">
             {WEEKDAY_NAMES.map((name) => (
-              <div key={name} className="py-2 text-center text-xs font-medium text-gray-500 uppercase">
+              <div key={name} className="py-2 text-center text-xs font-medium text-gray-500 uppercase break-words min-w-0" data-testid="calendar-weekday-name">
                 {name}
               </div>
             ))}
