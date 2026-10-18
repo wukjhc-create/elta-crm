@@ -651,7 +651,7 @@ function SummaryCard({
     <div className={`rounded-lg border p-4 ${bgColor}`}>
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <span className="text-xs text-gray-600">{label}</span>
+        <span className="text-xs text-gray-600 break-words min-w-0" data-testid="pricing-summary-label">{label}</span>
       </div>
       <div className={`text-2xl font-bold ${valueColor}`}>
         {isText ? value : value}
