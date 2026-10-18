@@ -86,6 +86,14 @@ export async function runVatGuardCheck(c: { admin: SupabaseClient }): Promise<Vg
     // ugyldig kombination afvises af DB
     const bad = d2.invoice_id ? await admin.from('invoices').update({ vat_mode: 'reverse_charge' }).eq('id', d2.invoice_id).select('id') : { error: null }
     out.push({ id: 'V11 DB afviser reverse_charge med 25 %-sats', ok: !!bad.error, note: (bad.error as { code?: string } | null)?.code ?? 'tilladt!' })
+    // IV2-1: tilbud med 0 % men mode standard_25 (arvet standard) → blokeret (før faktureret med 25 % oveni)
+    await admin.from('customers').update({ vat_mode: 'standard_25' }).eq('id', made.cust)
+    const mm = await mkCase(0)
+    const mmOffer = ((await admin.from('service_cases').select('source_offer_id').eq('id', mm.cs).single()).data as { source_offer_id: string }).source_offer_id
+    await admin.from('offers').update({ vat_mode: 'standard_25' }).eq('id', mmOffer)
+    const d5 = await createInvoiceDraftFromCase(mm.cs, owner, { case_material_ids: [mm.mat] })
+    if (d5.invoice_id) made.invoices.push(d5.invoice_id)
+    out.push({ id: 'V12 tilbud 0 % med mode standard_25 → blokeret', ok: !d5.ok && !d5.invoice_id && /0 % moms/.test(d5.message), note: d5.message.slice(0, 90) })
   } finally {
     if (made.invoices.length) {
       const lineIds = (((await admin.from('invoice_lines').select('id').in('invoice_id', made.invoices)).data ?? []) as Array<{ id: string }>).map((l) => l.id)

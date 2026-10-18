@@ -45,7 +45,12 @@ export async function caseVatBlock(supabase: SupabaseClient, caseId: string): Pr
   if (row.source_offer_id) {
     const { data: offer } = await supabase.from('offers').select('tax_percentage, vat_mode').eq('id', row.source_offer_id).maybeSingle()
     const o = (offer ?? {}) as { tax_percentage?: number | string | null; vat_mode?: string | null }
-    if (o.vat_mode) return vatModeBlockMessage(o.vat_mode)
+    if (o.vat_mode) {
+      const m = vatModeBlockMessage(o.vat_mode)
+      if (m) return m
+    }
+    // IV2-1 (validerings-review 2026-10-18): også med mode standard_25 skal tilbuddets SATS være 25 % — et tilbud med
+    // 0 % (kunden underskrev uden moms), men mode standard_25 (arvet standard), blev ellers faktureret med 25 % oveni
     const legacy = vatBlockMessage(o.tax_percentage)
     if (legacy) return legacy
   }

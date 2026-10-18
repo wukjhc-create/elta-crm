@@ -1590,7 +1590,13 @@ ${m.text()}`) })
           }
           if (fin?.id) invIds.push(fin.id)
           r.oprettet_7000 = Number(fin?.total_amount) === 7000
-          const mat = ((await c.admin.from('case_materials').select('invoice_line_id').eq('case_id', caseId ?? '')).data ?? []) as Array<{ invoice_line_id: string | null }>
+          // headeren er synlig før linjer/binding er færdige (RC-1-genlæsningen ligger imellem) — vent på bindingen
+          let mat: Array<{ invoice_line_id: string | null }> = []
+          for (let i = 0; i < 20; i++) {
+            mat = ((await c.admin.from('case_materials').select('invoice_line_id').eq('case_id', caseId ?? '')).data ?? []) as Array<{ invoice_line_id: string | null }>
+            if (mat.length === 1 && mat[0].invoice_line_id) break
+            await new Promise((res) => setTimeout(res, 1000))
+          }
           r.materiale_daekket = mat.length === 1 && !!mat[0].invoice_line_id
         } finally {
           if (invIds.length) {

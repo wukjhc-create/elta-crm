@@ -14,10 +14,21 @@
 | a75369b3 · 182a0061 · fd190f11 | RX-6 sidste admin/egen konto, RX-3/8/9(delvis)/10, RX-4 valuta i rapporter |
 | 52da08be | Migrationsforslag 00252–00256 (docs/runbooks/next44-migrations-proposal.md) — BLOCKED_APPROVAL |
 
+| 7f46a08d · 64f2d034 · 6081d568 | AI-2 kalibrering pr. enhed (før −40 % ved +20 % overskridelse), RX-7 invitation, LD-11 webformular |
+| df7ed10a · 8e252d3a · e268b4d4 · fbfbf9e0 · 48d99617 · 2bbd5046 · 35556e34 · 5ecf3889 | AS-1 forfalsket tilbudshistorik, AS-7/8/9/11, AI-3 validering af AI-udtræk, AS-6 bekræftelsers scope, AI-6 budget, AS-3 deaktiverede i requireAuth, AS-5 nulstilling uden timing-læk, AS-10 safeEqual |
+| d2c4e18c · cc6012b6 · e458dd52 · 1e0ba627 · 3d3cb4d2 | AI-5 auto-tilbud, AI-4 CPR/konto/kort/IBAN maskeres før OpenAI, AI-7 advarsler i AI-udkast, RX-9 afkortningsadvarsel, LD-10 audit |
+| fdb96357 · bd43b46d · bd7a7809 · 03ba332e · 8fcc93bd | RC-1 (S2: rate/kreditnota samtidig med slutfaktura), RC-2 dobbelt betaling, RC-3 lukning vs. jobstart, RC-6/8/9, RC-4 dobbelt tilbudsmail |
+| b4133231 · a73fdddd · 67f70a4d · 4fbb9a13 · 06a1ed24 · 18a704bc | DL-2 sendte tilbud slettes ikke, DL-1 bekræftelser, DL-4, DL-7/8, DL-3 leverandørsletning, DL-9 audit, DL-10 |
+| 52da08be · f0e6de1a | Migrationsforslag 00252–00256 og 00257–00262 — BLOCKED_APPROVAL |
+
+UI-full i dag: 70 + 32 + 73 = alle grønne. Første kørsel blev ødelagt af en efterladt `next start` på port 3217, som
+blev stoppet.
+
 **Til Henrik (beslutninger/godkendelser):**
 - Migrationer 00237–00256: hver kræver sin egen godkendelse.
   - Nye i dag: 00252 `user_role` uden deaktiverede, 00253 overlap + trigger, 00254 lead-politikker, 00255 salgskolonner
-    (kode først), 00256 betalingsview.
+    (kode først), 00256 betalingsview, 00257 feedback-RLS, 00258 sessionstilbagekaldelse, 00259/00260 FK RESTRICT,
+    00261 lukket-sag-trigger, 00262 unik tilbudstråd.
 - Beslutninger:
   - IV-4 (ukendt enhed = ikke kontrollerbar?)
   - DB-11 (modregne kreditnotaer i likviditet?)
@@ -25,6 +36,9 @@
   - TT-3, TT-9
   - LD-2/4/8/9/12
   - RX-2 (= RP-6)
+  - AI-1 (auto-kobling via telefon/navn i mailtekst), AI-4 (DPA/zero-retention hos OpenAI)
+  - AS-2 (kontaktformular: grænse pr. IP/Turnstile), AS-4 ("Secure password change")
+  - DL-5 (fakturanummer ved kladde → huller), DL-6 (GDPR-anonymisering)
   - samt de ældre fra 2026-10-17
 
 **Proces:** Windows-build-flaken (UNKNOWN open/lstat i `.next`) kom oftere i dag. Den gik altid over ved genkørsel uden

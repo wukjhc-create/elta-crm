@@ -211,6 +211,28 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-47 (review-bølge 2026-10-18 aften — inputvalidering, PDF, tidszoner)
+| # | Fund | Status |
+|---|---|---|
+| IV2-1 | Tilbud med moms 0 % men momsmode standard_25 → faktura lægger 25 % på, som kunden ikke har underskrevet (S2) | DONE (kode) — tilbuddets sats skal være 25 % også ved mode standard_25 (vat-guard V12; billing-model, contract-final, invoice-pipeline, U15/U29/U162). Fri % på tilbud = BESLUTNING |
+| IV2-2 | sendQuoteAction uden validering; samtidige afsendelser kan overskrive en anden kundes PDF (samme ref + upsert) (S2) | TODO |
+| IV2-3 | Tilbudslinjens image_url hentes af PDF-renderen (SSRF/lokal fil/hængning) (S3) | TODO |
+| IV2-4 | Sag opret/ret uden server-skema; vilkårlige kolonner (source_offer_id, status=closed, contract_sum for salg) (S3) | TODO |
+| IV2-5 | Standardfaktura kan sendes med total ≤ 0 (S3) | TODO |
+| IV2-6 | createOfferFromCalculation stoler på klientens tal (S3) | TODO |
+| IV2-7 | Tilbudslinjers tal tillader Infinity/ingen øvre grænse (S4) | TODO |
+| IV2-8 | updateOfferField uden længdegrænse (S4) | TODO |
+| IV2-9 | updateCustomerTask validerer ikke assigned_to/felter (S4) | TODO |
+| TZ-1 | Leverandørfaktura-hoved: "12.500" læses som 12,50 kr (S2) | TODO |
+| TZ-2 | "Antal ved tilføj": "1.000" → antal 1 (S3) | TODO |
+| TZ-3 | Bookede besigtigelser gemmes som UTC-midnat (forsvinder/forsinket på dagen) (S3) | TODO |
+| TZ-4 | "Kommende opgaver" regner i UTC på serveren (S3) | TODO |
+| TZ-5 | Årsserier (faktura/tilbud/sag) skifter ved UTC-midnat (S4) | TODO (TS); allocate_invoice_number = BLOCKED_APPROVAL [MIGRATION] |
+| TZ-6 | Tilbuds-/quote-gyldighed én dag for kort omkring midnat/DST (S4) | TODO |
+| TZ-7 | Leverandørsynk "næste kørsel" vises 1–2 t forkert (S4) | TODO |
+| TZ-8 | Opfølgningsudkast kan vise forkert afsendelsesdato (S4) | TODO |
+| TZ-9 | Tilbudsopgave-formular uden datetime-local-helper (S4) | TODO |
+
 ## NEXT-46 (review-bølge 2026-10-18 eftermiddag — samtidighed + sletning/integritet)
 | # | Fund | Status |
 |---|---|---|
