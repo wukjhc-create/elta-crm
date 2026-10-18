@@ -1239,6 +1239,19 @@ function isBanned(u: AuthInviteUser): boolean {
   return !!u.banned_until && Date.parse(u.banned_until) > Date.now()
 }
 
+/** RX-7: findes en auth-bruger med e-mailen (inviteret eller aktiv)? Sammenligning uden store/små bogstaver. */
+async function authUserExistsByEmail(admin: ReturnType<typeof createAdminClient>, email: string): Promise<boolean> {
+  const target = email.trim().toLowerCase()
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
+    if (error) throw error
+    const users = (data?.users ?? []) as Array<{ email?: string | null }>
+    if (users.some((u) => (u.email ?? '').toLowerCase() === target)) return true
+    if (users.length < 200) return false
+  }
+  return false
+}
+
 async function listPendingInviteUsers(admin: ReturnType<typeof createAdminClient>): Promise<AuthInviteUser[]> {
   const out: AuthInviteUser[] = []
   for (let page = 1; page <= 20; page++) {
@@ -1271,6 +1284,12 @@ export async function inviteTeamMember(
 
     if (existing) {
       return { success: false, error: 'Denne email er allerede registreret eller inviteret' }
+    }
+    // RX-7 (team-review 2026-10-18): handle_new_user udfylder ikke profiles.email, så tjekket ovenfor fandt ikke en
+    // afventende invitation — en ny invitation genbrugte auth-brugeren og skiftede rollen uden sidste-admin-værn/audit.
+    // Opslag i Auth før nogen sideeffekt; eksisterende bruger → "Gensend" eller rolleskift på brugerlisten.
+    if (await authUserExistsByEmail(createAdminClient(), email)) {
+      return { success: false, error: 'Denne email er allerede registreret eller inviteret — brug "Gensend" eller ret rollen på brugerlisten' }
     }
 
     // Henrik 2026-10-15: Supabase genererer linket, Graph sender mailen (ingen afhængighed af Supabase-SMTP).
