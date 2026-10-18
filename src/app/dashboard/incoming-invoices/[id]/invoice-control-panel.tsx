@@ -25,7 +25,7 @@ const METHOD: Record<string, string> = { stored: 'linket vare', sku: 'varenr.', 
 function ChargeMark({ description }: { description: string }) {
   const text = chargeLabelText(chargeLabel(description))
   if (!text) return null
-  return <span className="ml-1 inline-block text-[10px] uppercase tracking-wide bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{text}</span>
+  return <span className="ml-1 inline-block text-[10px] uppercase tracking-wide bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded break-words min-w-0" data-testid="invoice-control-charge-mark">{text}</span>
 }
 
 export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: string; lineCount: number }) {
