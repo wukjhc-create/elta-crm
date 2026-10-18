@@ -84,7 +84,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
   const today = copenhagenParts(new Date()).date
 
   const loadNote = tasksError ? (
-    <p className="mb-3 text-sm text-red-700" data-testid="calendar-tasks-load-error">
+    <p className="mb-3 text-sm text-red-700 break-words min-w-0" data-testid="calendar-tasks-load-error">
       {tasksError}. Det tælles ikke som ingen aftaler.
     </p>
   ) : namesFailed ? (
