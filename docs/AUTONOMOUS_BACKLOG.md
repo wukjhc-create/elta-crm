@@ -1133,6 +1133,30 @@ Fakturakontrollens skrivebord ombryder forventet pris, afvigelse, match-tekst og
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-108, G18-60, G18-111, G18-118, G18-119.
 
+## Checkpoint 2026-10-18 sjette (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `227e1344`. Det omskriver ikke listerne ovenfor. Produktspids: `eac7f0af`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `227e1344..eac7f0af`
+
+```
+eac7f0af feat(faktura): fragtnoten ombrydes
+fff1ec31 feat(faktura): Beskrivelse-overskriften ombrydes
+82ef0334 feat(faktura): Status-overskriften ombrydes
+f5854dac feat(faktura): linjenummeret ombrydes
+f91f706c feat(faktura): beskrivelsen kan krympe
+```
+
+Listen er alle commits efter `227e1344` til og med `eac7f0af`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Beskrivelsen på fakturakontrollens skrivebord kan krympe. Linjenummeret ombrydes. Kolonneoverskrifterne Status og Beskrivelse ombrydes. Sætningen "Fragt og gebyr er markeret i teksten. Overprisen er uændret." ombrydes. Tekst, nummer, fragtmærke og nul-linjen er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-108, G18-60, G18-111, G18-123, G18-124.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
