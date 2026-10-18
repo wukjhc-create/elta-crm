@@ -164,6 +164,18 @@ const ALLOWED_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
 /** sent_at-markør mens en kladde slettes (blokerer samtidig afsendelse, som kræver sent_at IS NULL) */
 const DRAFT_DELETE_CLAIM = '1970-01-01T00:00:00.000Z'
 
+/** LG-2: kreditnota-følgefejl logges som fejl + helbredslog + systemadvarsel (før kun warn — ingen så det) */
+async function voidStatusAlarm(invoiceId: string, title: string, err: unknown): Promise<void> {
+  logger.error(`recomputeOriginalVoidStatus: ${title}`, { entityId: invoiceId, error: err instanceof Error ? err : new Error(String((err as { message?: string } | null)?.message ?? err)) })
+  try {
+    const { logHealth } = await import('@/lib/services/system-health')
+    await logHealth('invoice', 'error', `credit follow-up failed: ${title}`, { invoiceId })
+    const { createSystemAlertAdmin } = await import('@/lib/actions/system-alerts-admin')
+    await createSystemAlertAdmin({ alert_type: 'anomaly_detected', severity: 'critical', entity_type: 'invoice', entity_id: invoiceId,
+      title, message: 'Kontrollér fakturaens status og kreditnotaen manuelt — se fakturaens tidslinje.' })
+  } catch { /* never crash */ }
+}
+
 async function recomputeOriginalVoidStatus(
   originalInvoiceId: string,
   approverId: string | null
@@ -207,10 +219,8 @@ async function recomputeOriginalVoidStatus(
       .eq('id', originalInvoiceId)
       .is('voided_at', null)
     if (error) {
-      logger.warn('recomputeOriginalVoidStatus: void-set failed', {
-        entityId: originalInvoiceId,
-        error,
-      })
+      // LG-2 (log-review 2026-10-18): før kun warn — originalen stod som 'sendt' (rykkere, bankmatch, udestående)
+      await voidStatusAlarm(originalInvoiceId, 'Kreditnotaen dækker fakturaen, men den kunne ikke annulleres', error)
     } else {
       // DF-5 (dataflow-review 2026-10-17): en fuldt krediteret faktura holdt sine timer/materialer/øvrige omkostninger
       // bundet (invoice_line_id) → arbejdet kunne aldrig faktureres igen på en rettet faktura. Ved fuld annullering
@@ -222,13 +232,14 @@ async function recomputeOriginalVoidStatus(
         for (let i = 0; i < lineIds.length; i += 200) {
           const chunk = lineIds.slice(i, i + 200)
           for (const table of ['time_logs', 'case_materials', 'case_other_costs'] as const) {
-            const { data: rel } = await supabase.from(table).update({ invoice_line_id: null }).in('invoice_line_id', chunk).select('id')
+            const { data: rel, error: relErr } = await supabase.from(table).update({ invoice_line_id: null }).in('invoice_line_id', chunk).select('id')
+            if (relErr) throw relErr // LG-2: før ignoreret — arbejdet kunne så ikke faktureres igen
             released += (rel ?? []).length
           }
         }
         if (released > 0) logger.info('Fuldt krediteret faktura: kilderækker frigivet til ny fakturering', { entityId: originalInvoiceId, metadata: { released } })
       } catch (relErr) {
-        logger.warn('recomputeOriginalVoidStatus: release of source rows failed', { entityId: originalInvoiceId, error: relErr })
+        await voidStatusAlarm(originalInvoiceId, 'Fakturaen er annulleret, men timer/materialer kunne ikke frigives til ny fakturering', relErr)
       }
     }
   } else if (!shouldBeVoided && !currentlyVoided) {
@@ -245,7 +256,7 @@ async function recomputeOriginalVoidStatus(
         .eq('status', 'sent')
         .select('id')
       if (error) {
-        logger.warn('recomputeOriginalVoidStatus: settle failed', { entityId: originalInvoiceId, error })
+        await voidStatusAlarm(originalInvoiceId, 'Indbetaling + kreditnota dækker fakturaen, men den kunne ikke markeres betalt', error)
       } else if (settled?.length) {
         logger.info('Faktura udlignet: indbetaling + kreditnota dækker beløbet', { entityId: originalInvoiceId, metadata: { paid, credited: creditedAbsIncl } })
       }
@@ -734,10 +745,15 @@ export async function markInvoicePaid(
     // dobbelt betaling. Claim: kun den anmodning, der ændrer fakturaen med den LÆSTE updated_at (trigger sætter ny
     // værdi ved hver ændring), registrerer restbeløbet; den anden registrerer intet og læser status igen.
     const cur = cur0 as InvoiceRow & { updated_at?: string; payment_status?: string | null }
-    const { data: claimed } = await supabase0.from('invoices')
+    const { data: claimed, error: claimErr } = await supabase0.from('invoices')
       .update({ payment_status: cur.payment_status ?? 'pending' })
       .eq('id', invoiceId).eq('status', 'sent').eq('updated_at', cur.updated_at as string)
       .select('id')
+    // LG-14 (log-review 2026-10-18): en DB-fejl blev før vist som "ændret imens"
+    if (claimErr) {
+      logger.error('markInvoicePaid: claim fejlede', { entityId: invoiceId, error: claimErr })
+      throw new Error('Betalingen kunne ikke registreres (databasefejl) — prøv igen')
+    }
     if ((claimed ?? []).length === 1) {
       const ref = paymentReference != null && paymentReference.trim() !== '' ? paymentReference.trim() : 'Manuelt markeret betalt'
       await registerPayment(invoiceId, outstanding, ref, { syncEconomic: false })
@@ -1184,6 +1200,11 @@ export interface SendInvoiceEmailResult {
   /** false = mailen gik ud UDEN faktura-PDF (render fejlede) — vises for brugeren */
   pdfAttached?: boolean
   /**
+   * LG-1 (log-review 2026-10-18): mailen ER sendt, men CRM-statussen kunne ikke gemmes (står stadig som kladde).
+   * Ingen e-conomic-push i det tilfælde; en systemadvarsel er oprettet.
+   */
+  statusSaveFailed?: boolean
+  /**
    * A-1 (review 2026-10-16): ukendt udfald (Graph-tidsudløb) — mailen kan være sendt. Kravet (sent_at) beholdes, så
    * et nyt klik ikke sender en dublet; brugeren tjekker Sendt-mappen og markerer sendt eller frigiver afsendelsen.
    */
@@ -1450,7 +1471,10 @@ async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
 
   // Flip status draft → sent and persist payment_reference if we
   // generated one.
-  const { error: updErr } = await supabase
+  // LG-1 (log-review 2026-10-18): før blev en fejlet/0-rækkers opdatering kun logget som warn — funktionen svarede
+  // 'sent' og pushede til e-conomic, mens CRM viste kladde (redigerbar, uden for rykkere/bankmatch). Nu: rækken skal
+  // rammes (ét genforsøg); ellers alarm, ingen e-conomic-push og besked til brugeren.
+  const flip = () => supabase
     .from('invoices')
     .update({
       status: 'sent',
@@ -1460,11 +1484,24 @@ async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     })
     .eq('id', invoiceId)
     .eq('status', 'draft') // guard against concurrent send
-  if (updErr) {
-    logger.warn('sendInvoiceEmail: status update failed (already moved?)', {
-      entityId: invoiceId,
-      error: updErr,
-    })
+    .select('id')
+  let { data: flipped, error: updErr } = await flip()
+  if (updErr || !flipped || flipped.length === 0) ({ data: flipped, error: updErr } = await flip())
+  if (updErr || !flipped || flipped.length === 0) {
+    const { data: nowRow } = await supabase.from('invoices').select('status').eq('id', invoiceId).maybeSingle()
+    const alreadySent = (nowRow as { status?: string } | null)?.status === 'sent'
+    if (!alreadySent) {
+      logger.error('sendInvoiceEmail: mailen er sendt, men status kunne ikke gemmes', { entityId: invoiceId, error: updErr ?? new Error('0 rækker opdateret') })
+      try {
+        const { logHealth } = await import('@/lib/services/system-health')
+        await logHealth('invoice', 'error', `invoice mailed but status not saved: ${invoice.invoice_number}`, { invoiceId })
+        const { createSystemAlertAdmin } = await import('@/lib/actions/system-alerts-admin')
+        await createSystemAlertAdmin({ alert_type: 'anomaly_detected', severity: 'critical', entity_type: 'invoice', entity_id: invoiceId,
+          title: `Faktura ${invoice.invoice_number ?? ''} er sendt, men står som kladde`,
+          message: 'Mailen til kunden er sendt, men CRM kunne ikke gemme status "sendt". Markér fakturaen som sendt manuelt (den er ikke sendt til e-conomic).' })
+      } catch { /* never crash */ }
+      return { invoiceId, status: 'sent', recipient, pdfAttached: !!pdfAttachment, statusSaveFailed: true }
+    }
   }
   // Økonomi-review 2026-10-08 (#1): en kreditnota sendt pr. mail annullerede aldrig originalen (kun setInvoiceStatus
   // gjorde) → fuldt krediteret original stod som udestående/forfalden, i bankmatch og kunne eksporteres

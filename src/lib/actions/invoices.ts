@@ -638,6 +638,10 @@ export async function sendInvoiceEmailAction(
       suffix: r.recipient ? `til ${r.recipient}` : null,
       changes: { recipient: r.recipient ?? null },
     })
+    // LG-1: mailen er sendt, men status kunne ikke gemmes
+    if (r.statusSaveFailed) {
+      return { ok: false, message: `Fakturaen er sendt til ${r.recipient}, men status "sendt" kunne ikke gemmes i CRM — markér den som sendt manuelt (ikke sendt til e-conomic). Der er oprettet en advarsel.` }
+    }
     return {
       ok: true,
       message: r.pdfAttached === false

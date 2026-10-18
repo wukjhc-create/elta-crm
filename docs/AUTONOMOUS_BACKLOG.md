@@ -211,6 +211,24 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-48 (review-bølge 2026-10-18 aften — logs/PII/fejlhåndtering; fund fra CRM-sessionen)
+| # | Fund | Status |
+|---|---|---|
+| LG-1 | Faktura sendt, men status-opdateringen fejler/rammer 0 rækker → returnerer 'sent' og pusher til e-conomic, mens CRM viser kladde (S2) | DONE (kode) — opdateringen skal ramme rækken (ét genforsøg); ellers fejl-log + helbredslog + systemadvarsel, ingen e-conomic-push og besked "markér sendt manuelt" (invoice-send-claim-check, U29/U31/U32/U33/U15). Fejlvejen ikke deterministisk testet |
+| LG-2 | Kreditnota annullerer ikke originalen ved fejl (kun warn); frigivelse af kilderækker uden fejltjek (S2) | DONE (kode) — annullering, frigivelse og udligning: fejl → logger.error + helbredslog + systemadvarsel; frigivelsens fejl tjekkes (U33, contract-final, concurrency) |
+| LG-3 | logger.warn/info smider context.error væk (S3) | TODO |
+| LG-4 | Rå PostgrestError med details (persondata) i logs (S3) | TODO |
+| LG-5 | incoming-emails: afsender, telefon og emne i klar tekst i logs (S3) | TODO |
+| LG-6 | Uredigerede adresser/IP i logs (portal, invoices, document-confirmations) (S3) | TODO |
+| LG-7 | email-intelligence logger navn/telefon og DUPLICATE_EMAIL med fuld mail (S3) | TODO |
+| LG-8 | logMailRoute genindsætter modtagere via meta (S3) | TODO |
+| LG-9 | Timegodkendelse: delvis commit uden audit/revalidate ved fejl midt i (S3) | TODO |
+| LG-10 | updateCustomer kopierer personfelter til audit_logs som falsk diff (S3) | TODO |
+| LG-11 | email-autolink: mailemne som entity_name i audit (S4) | TODO |
+| LG-12 | Integrations-webhook gemmer hele payloaden (op til 1 MB) pr. kald (S4) | TODO |
+| LG-13 | Rå DB-/engelske fejltekster til UI (flere actions) (S4) | TODO |
+| LG-14 | markInvoicePaid: claim-fejl tjekkes ikke (DB-fejl vises som "ændret imens") (S4) | DONE (kode) — claim-fejl logges og gives som "databasefejl — prøv igen" (U29) |
+
 ## NEXT-47 (review-bølge 2026-10-18 aften — inputvalidering, PDF, tidszoner)
 | # | Fund | Status |
 |---|---|---|
