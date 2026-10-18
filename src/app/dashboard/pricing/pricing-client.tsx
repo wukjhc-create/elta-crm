@@ -569,7 +569,7 @@ function TrendsTab({
                 )}
               </p>
               <p className="mt-1 text-xs">
-                <span className={`font-medium px-2 py-0.5 rounded-full ${volatilityStyles[trend.volatility]}`}>
+                <span className={`break-words min-w-0 font-medium px-2 py-0.5 rounded-full ${volatilityStyles[trend.volatility]}`} data-testid="pricing-volatility-mobile">
                   {volatilityLabels[trend.volatility]}
                 </span>
                 {' '}· {trend.change_count_30_days} ændringer
@@ -618,7 +618,7 @@ function TrendsTab({
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-center">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${volatilityStyles[trend.volatility]}`}>
+                      <span className={`break-words min-w-0 text-xs font-medium px-2 py-0.5 rounded-full ${volatilityStyles[trend.volatility]}`} data-testid="pricing-volatility">
                         {volatilityLabels[trend.volatility]}
                       </span>
                     </td>
