@@ -369,7 +369,7 @@ export default function ProductsClient({
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Opret nyt produkt</DialogTitle>
+            <DialogTitle className="break-words min-w-0">Opret nyt produkt</DialogTitle>
           </DialogHeader>
           <ProductForm
             categories={categories}
