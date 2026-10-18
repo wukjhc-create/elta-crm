@@ -229,21 +229,22 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-13 | Porteføljens netto faktureret inkl. moms uden at sige det (S4) | TODO |
 | DB-14 | Momsgrundlag blandet på samme side (S4) | TODO |
 | DB-15 | Små lofter/filter-mismatch (S4) | TODO |
-| IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | TODO |
-| IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | TODO |
+| IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | DONE (kode) — fakturanummer kræver et ciffer; invoice-parser-test +4 |
+| IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | DELVIS (kode) — kun gyldige kalenderdatoer (ugyldig → null); manuel-kontrol-flag ved fejlet opdatering = TODO |
 | IV-3 | Mail-fakturaer fra før vedhæftnings-hentning kan dubleres (S2, plausibel) | TODO |
 | IV-4 | Priskontrol sammenligner listepris i stedet for faktureret pris (S2) | TODO |
 | IV-5 | Afrunding af enhedskost giver anden sagskost end fakturaen (S3) | TODO |
 | IV-6 | AO-kreditnotaer med positive beløb (S3, plausibel) | TODO |
 | IV-7 | Mail-/uploadfakturaer (inkl. kreditnotaer) kan aldrig fordeles til sag (S3) | TODO |
 | IV-8 | Enhver mail med vedhæftning indlæses som mulig faktura (S3) | TODO |
-| IV-9 | "Vores ref: Henrik" bruges som arbejdsordre-hint (S3) | TODO |
+| IV-9 | "Vores ref: Henrik" bruges som arbejdsordre-hint (S3) | DONE (kode) — hints kræver et ciffer |
 | IV-10 | Match/fordeling til inaktive sager (konverteret/forslag) (S3) | TODO |
 | IV-11 | Automatisk match fra mailtekst bevares efter PDF-opgradering (S3) | TODO |
-| IV-12 | Efterstillet minus fra næste linje → faktura bliver kreditnota (S3) | TODO |
+| IV-12 | Efterstillet minus fra næste linje → faktura bliver kreditnota (S3) | DONE (kode) — efterstillet minus kun på samme linje |
 | IV-13 | Backfill stopper ved 1.000 rækker (S3) | TODO |
 | IV-14 | Priskontrol-loader: rækkeloft og .in() (S4) | TODO |
 | IV-15 | Mindre parse-/valideringshuller (S4) | TODO |
+| HT-7 | U158 forældet seed (produkt uden enhed → 'ikke kontrollerbar' efter F-9) | DONE — seed med enhed 'm'; cli deviation-probe til diagnose |
 
 ## NEXT-42 (review-bølge 2026-10-18 nat — partner/portal + kalkulation)
 | # | Fund | Status |

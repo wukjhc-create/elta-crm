@@ -27,5 +27,24 @@ const h = parseSupplierInvoiceText('Firma ApS\nTotal inkl. moms 1.250,00\nHeraf 
 ok(h.amountInclVat === 1250 && h.vatAmount === 250 && h.amountExclVat === 1000, '"inkl. moms" er ikke momsbeløbet; ekskl. udledes', `inkl=${h.amountInclVat} moms=${h.vatAmount} ekskl=${h.amountExclVat}`)
 ok(!parseSupplierInvoiceText('Firma ApS\nI alt 1.250,00').isCreditNote, 'almindelig faktura er ikke kredit')
 
+// IV-1 (2026-10-18): label-ord bliver ikke fakturanummer
+const lbl = parseSupplierInvoiceText('Firma ApS\nFakturanr.  Fakturadato  Forfald\n123456 05.10.2026 19.10.2026\nI alt 1.250,00')
+ok(lbl.invoiceNumber !== 'Fakturadato', 'etiketrække: "Fakturadato" er ikke et fakturanummer', String(lbl.invoiceNumber))
+const kn = parseSupplierInvoiceText('Firma ApS\nFakturanummer:\nKundenummer: 4711\nI alt 1.250,00')
+ok(kn.invoiceNumber !== 'Kundenummer', '"Kundenummer" er ikke et fakturanummer', String(kn.invoiceNumber))
+ok(parseSupplierInvoiceText('Firma ApS\nFaktura nr 123456\nI alt 100,00').invoiceNumber === '123456', 'normalt fakturanummer læses stadig')
+ok(parseSupplierInvoiceText('Firma ApS\nInvoice no: INV-2026-001\nTotal 100,00').invoiceNumber === 'INV-2026-001', 'bogstav+tal-nummer læses stadig')
+// IV-2: ugyldig kalenderdato → null (ellers fejlede hele parse-opdateringen)
+ok(parseSupplierInvoiceText('Firma ApS\nFakturadato 10/31/2026\nI alt 100,00').invoiceDate === null, 'mm/dd-dato (31. måned) afvises')
+ok(parseSupplierInvoiceText('Firma ApS\nFakturadato 31.02.2026\nI alt 100,00').invoiceDate === null, '31. februar afvises')
+ok(parseSupplierInvoiceText('Firma ApS\nFakturadato 05.10.2026\nI alt 100,00').invoiceDate === '2026-10-05', 'gyldig dato læses stadig')
+// IV-9: navne er ikke arbejdsordre-hints
+ok(!parseSupplierInvoiceText('Firma ApS\nVores ref: Henrik\nI alt 100,00').workOrderHints.includes('Henrik'), '"Vores ref: Henrik" er ikke et hint')
+ok(parseSupplierInvoiceText('Firma ApS\nSag: S-1042\nI alt 100,00').workOrderHints.includes('S-1042'), 'sagsnummer er stadig et hint')
+// IV-12: minus på næste linje gør ikke fakturaen til kreditnota
+const bullet = parseSupplierInvoiceText('Firma ApS\nI alt 1.250,00\n- Varerne forbliver vores ejendom')
+ok(!bullet.isCreditNote && (bullet.amountInclVat ?? 0) > 0, 'punktopstilling efter beløbet er ikke fortegn', amounts('Firma ApS\nI alt 1.250,00\n- Varerne forbliver vores ejendom'))
+ok(parseSupplierInvoiceText('Firma ApS\nKreditnota\nI alt 1.250,00-').isCreditNote, 'efterstillet minus på samme linje virker stadig')
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ fakturaparser ok')
 process.exitCode = bad ? 1 : 0

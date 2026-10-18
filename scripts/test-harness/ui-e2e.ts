@@ -685,7 +685,7 @@ ${m.text()}`) })
       const supName = `HARNESS U158 ${stamp}`
       const sup = await c.admin.from('suppliers').insert([{ name: supName, code: `HU158${stamp}` }]).select('id')
       const supId = (sup.data?.[0] as { id?: string } | undefined)?.id ?? null
-      const sp = supId ? await c.admin.from('supplier_products').insert([{ supplier_id: supId, supplier_sku: `HU158-${stamp}`, supplier_name: 'Kabel', cost_price: 4 }]).select('id') : null
+      const sp = supId ? await c.admin.from('supplier_products').insert([{ supplier_id: supId, supplier_sku: `HU158-${stamp}`, supplier_name: 'Kabel', cost_price: 4, unit: 'm' }]).select('id') : null
       const spId = (sp?.data?.[0] as { id?: string } | undefined)?.id ?? null
       const inv = supId ? await c.admin.from('incoming_invoices').insert([{ source: 'manual', supplier_id: supId, invoice_number: `UI-E2E-DEV-${stamp}`,
         invoice_date: new Date().toISOString().slice(0, 10), parse_status: 'parsed', status: 'awaiting_approval', amount_excl_vat: 2225 }]).select('id') : null

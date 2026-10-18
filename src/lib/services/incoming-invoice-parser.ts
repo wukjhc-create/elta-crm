@@ -48,8 +48,10 @@ export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
 
   // ---- Invoice number ----
   const invMatch =
-    text.match(/Faktura(?:nr|nummer|\s*nr|\s*nummer)[\s.:#-]*([A-Z0-9-]{3,20})/i) ||
-    text.match(/Invoice\s*(?:no|number|#)[\s.:#-]*([A-Z0-9-]{3,20})/i)
+    // IV-1 (leverandørfaktura-review 2026-10-18): kræv mindst ét ciffer i nummeret — før blev label-ord fra en etiketrække
+    // ("Fakturanr.  Fakturadato …" → "Fakturadato") gemt som nummer, og næste faktura blev annulleret som "dublet"
+    text.match(/Faktura(?:nr|nummer|\s*nr|\s*nummer)[\s.:#-]*((?=[A-Z0-9-]*\d)[A-Z0-9-]{3,20})/i) ||
+    text.match(/Invoice\s*(?:no|number|#)[\s.:#-]*((?=[A-Z0-9-]*\d)[A-Z0-9-]{3,20})/i)
   if (invMatch) out.invoiceNumber = invMatch[1].trim()
 
   // ---- Invoice date ----
@@ -126,7 +128,8 @@ export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
   else out.currency = 'DKK'
 
   // ---- Work order / case hints (Elta-side refs: "Sag:", "Vores ref") ----
-  const hintRe = /(?:Sag(?:s?nr)?|Reference|Vores\s*ref|Jeres\s*ref)[\s.:#-]*([A-Z0-9][A-Z0-9\-_/]{2,20})/gi
+  // IV-9 (leverandørfaktura-review 2026-10-18): kun referencer med et ciffer — navne ("Vores ref: Henrik") gav falske sagsmatch
+  const hintRe = /(?:Sag(?:s?nr)?|Reference|Vores\s*ref|Jeres\s*ref)[\s.:#-]*((?=[A-Z0-9\-_/]*\d)[A-Z0-9][A-Z0-9\-_/]{2,20})/gi
   const hints = new Set<string>()
   let m: RegExpExecArray | null
   while ((m = hintRe.exec(text))) hints.add(m[1].trim())
@@ -236,18 +239,20 @@ function findDateNear(text: string, labelRe: RegExp): string | null {
 
 function normalizeDate(raw: string): string | null {
   const t = raw.trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return isCalendarDate(t) ? t : null // IV-2
   const m = t.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/)
   if (m) {
     const [, d, mo, y] = m
     const yy = y.length === 2 ? `20${y}` : y
-    return `${yy}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`
+    const iso = `${yy}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`
+    return isCalendarDate(iso) ? iso : null // IV-2
   }
   return null
 }
 
 // Beløb efter etiket (højst 60 tegn imellem), med fortegn foran ("-1.250,00") eller bagved ("1.250,00-").
-const AMOUNT_AFTER_LABEL = '[^\\d-]{0,60}?(-\\s*)?([0-9](?:[0-9.\\s]*)[,.]\\d{2})(\\s*-(?!\\d))?'
+// IV-12 (leverandørfaktura-review 2026-10-18): efterstillet minus kun på samme linje — før blev "1.250,00\n- Varerne …" til −1.250
+const AMOUNT_AFTER_LABEL = '[^\\d-]{0,60}?(-\\s*)?([0-9](?:[0-9.\\s]*)[,.]\\d{2})([ \\t]*-(?![\\w\\d]))?'
 
 function allAmounts(text: string, labelRe: RegExp): number[] {
   const re = new RegExp(labelRe.source + AMOUNT_AFTER_LABEL, 'gi')
@@ -286,3 +291,12 @@ function parseDanishNumber(s: string): number | null {
 
 function round2(n: number): number { return Math.round(n * 100) / 100 }
 function round3(n: number): number { return Math.round(n * 1000) / 1000 }
+
+/** IV-2: ÅÅÅÅ-MM-DD er en rigtig kalenderdato (måned 1–12, dag inden for måneden) */
+function isCalendarDate(iso: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!m) return false
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3])
+  if (mo < 1 || mo > 12 || d < 1) return false
+  return d <= new Date(Date.UTC(y, mo, 0)).getUTCDate()
+}

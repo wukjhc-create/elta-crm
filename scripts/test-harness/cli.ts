@@ -4451,6 +4451,25 @@ Total inkl. moms 11.718,75
     }
     return
   }
+  if (SUB === 'deviation-probe') {
+    // Staging: U158-seed → loadInvoiceControl → verdikt (diagnose). Rydder op.
+    const { loadInvoiceControl } = await import('../../src/lib/invoice-control/invoice-control-loader')
+    const stamp = Date.now()
+    const sup = (await admin.from('suppliers').insert([{ name: `[HARNESS] DP ${stamp}`, code: `HDP${stamp}` }]).select('id')).data?.[0] as { id: string }
+    const sp = (await admin.from('supplier_products').insert([{ supplier_id: sup.id, supplier_sku: `HDP-${stamp}`, supplier_name: 'Kabel', cost_price: 4 }]).select('id, unit')).data?.[0] as { id: string; unit: string | null }
+    const inv = (await admin.from('incoming_invoices').insert([{ source: 'manual', supplier_id: sup.id, invoice_number: `DP-${stamp}`, invoice_date: new Date().toISOString().slice(0, 10), parse_status: 'parsed', status: 'awaiting_approval', amount_excl_vat: 2225 }]).select('id')).data?.[0] as { id: string }
+    await admin.from('incoming_invoice_lines').insert([{ incoming_invoice_id: inv.id, line_number: 1, description: 'Kabel', quantity: 500, unit: 'm', unit_price: 4.45, total_price: 2225, supplier_product_id: sp.id }])
+    try {
+      const r = await loadInvoiceControl(admin, inv.id, admin)
+      log(JSON.stringify({ productUnit: sp.unit, lines: r?.control?.lines?.map((l: Record<string, unknown>) => ({ verdict: l.verdict, reason: l.reason, variance: l.varianceAmount })) ?? null }))
+    } finally {
+      await admin.from('incoming_invoice_lines').delete().eq('incoming_invoice_id', inv.id)
+      await admin.from('incoming_invoices').delete().eq('id', inv.id)
+      await admin.from('supplier_products').delete().eq('id', sp.id)
+      await admin.from('suppliers').delete().eq('id', sup.id)
+    }
+    return
+  }
   if (SUB === 'export-probe') {
     // Staging (read-only): virker lead-eksportens select (alias description:notes + profil-join)?
     const { data, error } = await admin.from('leads')
