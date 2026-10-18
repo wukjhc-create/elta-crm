@@ -511,7 +511,7 @@ export function MaterialsCatalogClient({ initialMaterials, loadError = null }: M
           return (
             <Card key={material.id} className={`transition-shadow ${!material.is_active ? 'opacity-60' : 'hover:shadow-md'}`}>
               <CardContent className="py-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-start justify-between gap-3 min-w-0">
                   <div className="flex items-center gap-4 flex-1">
                     <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
                       <Package className="w-5 h-5 text-orange-600" />
@@ -538,14 +538,14 @@ export function MaterialsCatalogClient({ initialMaterials, loadError = null }: M
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
+                  <div className="flex flex-wrap items-start gap-x-6 gap-y-2 min-w-0" data-testid="materials-card-prices">
+                    <div className="text-right min-w-0">
                       <div className="text-sm text-gray-500">Kostpris</div>
-                      <div className="font-medium">{formatCurrency(material.cost_price, 'DKK', 2)}</div>
+                      <div className="font-medium break-words">{formatCurrency(material.cost_price, 'DKK', 2)}</div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right min-w-0">
                       <div className="text-sm text-gray-500">Salgspris</div>
-                      <div className="font-medium">{formatCurrency(material.sale_price, 'DKK', 2)}</div>
+                      <div className="font-medium break-words">{formatCurrency(material.sale_price, 'DKK', 2)}</div>
                     </div>
                     <div className="text-right min-w-[60px]">
                       <div className="text-sm text-gray-500">Avance</div>
