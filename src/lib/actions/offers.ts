@@ -10,7 +10,7 @@ import {
   updateLineItemSchema,
 } from '@/lib/validations/offers'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
-import { logOfferActivity } from '@/lib/actions/offer-activities'
+import { logOfferActivity } from '@/lib/offers/offer-activity-log'
 import { CALC_DEFAULTS } from '@/lib/constants'
 import { calculateSalePrice, calculateLineTotal, calculateMarginFromPrices, resolveMargin } from '@/lib/logic/pricing'
 import { getOfferLowDbStatus } from '@/lib/offers/low-db-status'

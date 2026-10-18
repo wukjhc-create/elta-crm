@@ -18,7 +18,6 @@ async function requireGate(permission: Permission) {
   ctx.requirePermission(permission)
   return ctx
 }
-import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { convertOfferToCase } from '@/lib/services/offer-to-case'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { sendEmail } from '@/lib/email/email-service'

@@ -1,9 +1,7 @@
 'use server'
 
-import { createClient, getUser } from '@/lib/supabase/server'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
-// Note: getUser is intentionally kept here for optional auth in logOfferActivity/logOfferActivities
-// These functions are called from both authenticated and unauthenticated (portal) contexts
+// AS-1: skrivning af aktiviteter ligger i lib/offers/offer-activity-log.ts (ikke en server action)
 import type {
   OfferActivity,
   OfferActivityWithPerformer,
@@ -12,50 +10,6 @@ import type {
 import type { ActionResult } from '@/types/common.types'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
-
-// Log an activity for an offer
-// Uses optional auth because this is called from both
-// authenticated dashboard context and unauthenticated portal context
-export async function logOfferActivity(
-  offerId: string,
-  activityType: OfferActivityType,
-  description: string,
-  performedBy?: string | null,
-  metadata?: Record<string, unknown>
-): Promise<ActionResult<OfferActivity>> {
-  try {
-    const supabase = await createClient()
-
-    // If performedBy is not provided, try to get current user
-    let userId = performedBy
-    if (!userId) {
-      const user = await getUser()
-      userId = user?.id || null
-    }
-
-    const { data, error } = await supabase
-      .from('offer_activities')
-      .insert({
-        offer_id: offerId,
-        activity_type: activityType,
-        description,
-        performed_by: userId,
-        metadata: metadata || {},
-      })
-      .select()
-      .single()
-
-    if (error) {
-      logger.error('Error logging offer activity', { error: error })
-      return { success: false, error: 'Kunne ikke logge aktivitet' }
-    }
-
-    revalidatePath('/dashboard/offers')
-    return { success: true, data: data as OfferActivity }
-  } catch (error) {
-    return { success: false, error: formatError(error, 'Kunne ikke logge aktivitet') }
-  }
-}
 
 // Get all activities for an offer (dashboard only, requires auth)
 export async function getOfferActivities(
@@ -92,41 +46,3 @@ export async function getOfferActivities(
   }
 }
 
-// Log multiple activities at once
-// Uses optional auth because this follows the same pattern as logOfferActivity
-export async function logOfferActivities(
-  activities: {
-    offerId: string
-    activityType: OfferActivityType
-    description: string
-    metadata?: Record<string, unknown>
-  }[]
-): Promise<ActionResult> {
-  try {
-    const supabase = await createClient()
-    const user = await getUser()
-    const userId = user?.id || null
-
-    const activityRecords = activities.map((activity) => ({
-      offer_id: activity.offerId,
-      activity_type: activity.activityType,
-      description: activity.description,
-      performed_by: userId,
-      metadata: activity.metadata || {},
-    }))
-
-    const { error } = await supabase
-      .from('offer_activities')
-      .insert(activityRecords)
-
-    if (error) {
-      logger.error('Error logging offer activities', { error: error })
-      return { success: false, error: 'Kunne ikke logge aktiviteter' }
-    }
-
-    revalidatePath('/dashboard/offers')
-    return { success: true }
-  } catch (error) {
-    return { success: false, error: formatError(error, 'Kunne ikke logge aktiviteter') }
-  }
-}

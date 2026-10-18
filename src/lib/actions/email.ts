@@ -31,7 +31,7 @@ import { revalidatePath } from 'next/cache'
 import { isGraphConfigured, sendEmailViaGraph, getMailbox } from '@/lib/services/microsoft-graph'
 import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
 import type { CompanySettings } from '@/types/company-settings.types'
-import { logOfferActivity } from '@/lib/actions/offer-activities'
+import { logOfferActivity } from '@/lib/offers/offer-activity-log'
 import { getOfferLowDbStatus } from '@/lib/offers/low-db-status'
 import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
 

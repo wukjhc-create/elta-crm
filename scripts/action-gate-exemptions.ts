@@ -34,8 +34,6 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'email.ts:logIncomingEmail': S('logning fra mail-synk'),
   'learning.ts:recordProjectFeedback': S('intern læringshjælper'),
   'learning.ts:collectProjectFeedback': S('intern læringshjælper'),
-  'offer-activities.ts:logOfferActivity': S('aktivitetslog fra gatede tilbuds-actions'),
-  'offer-activities.ts:logOfferActivities': S('aktivitetslog fra gatede tilbuds-actions'),
   'partner-portal.ts:validatePartnerToken': S('token-validering brugt server-side af partnerportalen'),
   'portal.ts:validatePortalToken': S('token-validering brugt server-side af portalen'),
   'portal.ts:getPortalOffer': S('læses server-side af portalsiden efter token-validering'),
