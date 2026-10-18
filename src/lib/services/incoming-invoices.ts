@@ -282,8 +282,17 @@ async function upgradeBodyInvoice(
   supabase: AdminClient, emailId: string, inv: { id: string; status: string }, att: EmailAttachment, text: string, fileHash: string,
 ): Promise<'upgraded' | 'duplicate' | 'conflict'> {
   const { data: prev } = await supabase.from('incoming_invoices')
-    .select(`status, parse_status, file_name, ${BODY_DERIVED_FIELDS.join(', ')}`).eq('id', inv.id).maybeSingle()
-  const reset = Object.fromEntries(BODY_DERIVED_FIELDS.map((f) => [f, null]))
+    .select(`status, parse_status, file_name, matched_case_id, matched_work_order_id, ${BODY_DERIVED_FIELDS.join(', ')}`).eq('id', inv.id).maybeSingle()
+  const reset: Record<string, null> = Object.fromEntries(BODY_DERIVED_FIELDS.map((f) => [f, null]))
+  // IV-11 (leverandørfaktura-review 2026-10-18): et automatisk sags-/arbejdsordre-match fra mailteksten nulstilles, så
+  // genparsen matcher på PDF'ens tekst — før blev det gamle (måske forkerte) match bevaret af pick(). Et manuelt valg
+  // (audit 'matched' med en bruger) bevares.
+  const { data: manual } = await supabase.from('incoming_invoice_audit_log').select('id')
+    .eq('incoming_invoice_id', inv.id).eq('action', 'matched').not('actor_id', 'is', null).limit(1)
+  if (!manual || manual.length === 0) {
+    reset.matched_case_id = null
+    reset.matched_work_order_id = null
+  }
   const { data: rows, error } = await supabase
     .from('incoming_invoices')
     .update({

@@ -239,7 +239,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV-8 | Enhver mail med vedhæftning indlæses som mulig faktura (S3) | TODO |
 | IV-9 | "Vores ref: Henrik" bruges som arbejdsordre-hint (S3) | DONE (kode) — hints kræver et ciffer |
 | IV-10 | Match/fordeling til inaktive sager (konverteret/forslag) (S3) | DONE (kode) — fordeling og manuel sagskobling afviser konverterede sager/forslag; matcheren springer dem over (U28/U12/U149) |
-| IV-11 | Automatisk match fra mailtekst bevares efter PDF-opgradering (S3) | TODO |
+| IV-11 | Automatisk match fra mailtekst bevares efter PDF-opgradering (S3) | DONE — auto-match nulstilles ved opgradering, manuelt valg (audit matched + bruger) bevares (invoice-attachments A8) |
 | IV-12 | Efterstillet minus fra næste linje → faktura bliver kreditnota (S3) | DONE (kode) — efterstillet minus kun på samme linje |
 | IV-13 | Backfill stopper ved 1.000 rækker (S3) | DONE — fetchAllRows + låste statusser filtreret i DB (cli invoice-backfill-candidates-check) |
 | IV-14 | Priskontrol-loader: rækkeloft og .in() (S4) | DONE (kode) — linjer side for side, produkt-id i bidder |

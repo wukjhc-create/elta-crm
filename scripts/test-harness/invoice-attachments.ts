@@ -116,6 +116,31 @@ export async function runInvoiceAttachments(c: { admin: SupabaseClient; ownerUid
     out.push({ id: 'A6 betingelses-PDF ≠ faktura', ok: r6.ingested === 1 && xInv.length === 1 && xInv[0].invoice_number === pdfNo('T') && !!r6.skipped?.includes('non_invoice_attachment'),
       note: `fakturaer=${xInv.length} · skipped=${(r6.skipped ?? []).join(',') || '-'}` })
 
+    // A8 — IV-11: automatisk match fra mailteksten nulstilles ved opgradering; et manuelt valg bevares
+    const { data: anyCase } = await c.admin.from('service_cases').select('id').neq('status', 'converted').order('created_at', { ascending: false }).limit(1)
+    const caseId = (anyCase?.[0] as { id?: string } | undefined)?.id
+    if (caseId) {
+      const caseAfterUpgrade = async (tag: string, manual: boolean) => {
+        flag(false)
+        const em = await mail(tag)
+        const r = await ingestFromEmail(em); track(r.invoiceIds)
+        const inv = (await invoicesFor(em))[0]
+        await c.admin.from('incoming_invoices').update({ matched_case_id: caseId }).eq('id', inv.id)
+        if (manual) await c.admin.from('incoming_invoice_audit_log').insert({ incoming_invoice_id: inv.id, action: 'matched', actor_id: c.ownerUid, ok: true, message: 'harness manual case match' })
+        await c.admin.from('incoming_emails').update({ attachment_urls: [await storePdf(em, `faktura_${tag}.pdf`, pdfLines(tag))] }).eq('id', em)
+        flag(true)
+        const ru = await ingestFromEmail(em); track(ru.invoiceIds)
+        const { data: row } = await c.admin.from('incoming_invoices').select('matched_case_id').eq('id', inv.id).maybeSingle()
+        return { upgraded: ru.upgraded ?? 0, caseId: (row as { matched_case_id?: string | null } | null)?.matched_case_id ?? null }
+      }
+      const auto = await caseAfterUpgrade('MA', false)
+      const man = await caseAfterUpgrade('MM', true)
+      out.push({ id: 'A8 PDF-opgradering: auto-match nulstilles, manuelt bevares', ok: auto.upgraded === 1 && auto.caseId !== caseId && man.upgraded === 1 && man.caseId === caseId,
+        note: `auto: opgraderet=${auto.upgraded} sag=${auto.caseId === caseId ? 'bevaret' : 'nulstillet'} · manuel: opgraderet=${man.upgraded} sag=${man.caseId === caseId ? 'bevaret' : 'tabt'}` })
+    } else {
+      out.push({ id: 'A8 PDF-opgradering: auto-match nulstilles, manuelt bevares', ok: false, note: 'ingen sag på staging' })
+    }
+
     // A7 — flag OFF: backfill no-op
     flag(false)
     const s3 = await backfillInvoiceAttachments({ limit: 10, onlyEmailIds: [b] })
