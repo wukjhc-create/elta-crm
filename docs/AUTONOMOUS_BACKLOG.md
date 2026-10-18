@@ -795,7 +795,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-58 | 1 Profit | DONE mobil-linjens afvigelse ombrydes. | "Kan ikke beregnes" og `moneyDev` er uændret. |
 | G18-59 | 1 Profit | DONE mobil-linjens enhed ombrydes. | Beskrivelse og antal er uændret. |
 | G18-64 | 5 Plan | DONE "Klik på en dag" ombrydes. | Den tomme dags sætning er uændret. |
-| G18-69 | 5 Plan | ÅBEN. "Ingen kommende besigtigelser" ombrydes. | Booking-sætningen er uændret. |
+| G18-69 | 5 Plan | DONE "Ingen kommende besigtigelser" ombrydes. | Booking-sætningen er uændret. |
+| G18-72 | 5 Plan | ÅBEN. "Viser … af …" under kommende besigtigelser ombrydes. | Tællingen og månedskalenderen er uændret. |
 | G18-34 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk kost. | Kosttallet uændret. |
 | G18-39 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk antal. | `qty()` uændret. |
 | G18-53 | 1 Profit | DONE skrivebordslinjens antalceller ombrydes. | `qty()` er uændret. |
