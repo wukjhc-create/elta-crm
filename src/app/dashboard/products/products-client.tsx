@@ -49,6 +49,7 @@ import type { ProductWithCategory, ProductCategory } from '@/types/products.type
 import type { PaginatedResponse } from '@/types/common.types'
 import ProductForm from '@/components/modules/products/product-form'
 import { formatCurrency } from '@/lib/utils/format'
+import { storedCostText } from '@/lib/products/stored-cost-text'
 
 interface ProductsClientProps {
   initialProducts: PaginatedResponse<ProductWithCategory> | null
@@ -255,7 +256,7 @@ export default function ProductsClient({
                   {canSeeCost && (
                     <div>
                       <dt className="text-xs text-gray-500">Kostpris</dt>
-                      <dd>{product.cost_price ? formatCurrency(product.cost_price) : '-'}</dd>
+                      <dd className="break-words" data-testid="product-cost-price">{storedCostText(product.cost_price)}</dd>
                     </div>
                   )}
                   <div>
@@ -311,7 +312,7 @@ export default function ProductsClient({
                   </TableCell>
                   {canSeeCost && (
                   <TableCell className="text-right">
-                    {product.cost_price ? formatCurrency(product.cost_price) : '-'}
+                    <span className="break-words" data-testid="product-cost-price">{storedCostText(product.cost_price)}</span>
                   </TableCell>
                   )}
                   <TableCell className="text-right font-medium">
