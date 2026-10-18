@@ -715,7 +715,7 @@ function LoadFailed({ message }: { message: string }) {
   return (
     <div className="bg-white rounded-lg border p-8 text-center" data-testid="pricing-load-error">
       <AlertTriangle className="h-8 w-8 mx-auto text-red-400 mb-2" />
-      <p className="text-sm text-red-700">{message}. Det tælles ikke som ingen prisændringer.</p>
+      <p className="text-sm text-red-700 break-words min-w-0" data-testid="pricing-load-failed-text">{message}. Det tælles ikke som ingen prisændringer.</p>
     </div>
   )
 }

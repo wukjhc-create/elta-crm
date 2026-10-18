@@ -896,12 +896,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-157 | 4 Pris | DONE etiketterne på prisstatistikkens tal ombrydes. | Tallene er uændret. |
 | G18-158 | 4 Pris | DONE teksten "Indlæser data..." på prissiden ombrydes. | Sætningen er uændret. |
 | G18-159 | 4 Pris | DONE den tomme tekst på prissiden ombrydes. | Sætningerne i EmptyState-kaldene er uændret. |
-| G18-160 | 4 Pris | ÅBEN. Fejlteksten på prissiden ombrydes. | Sætningen "Det tælles ikke som ingen prisændringer." er uændret. |
+| G18-160 | 4 Pris | DONE fejlteksten på prissiden ombrydes. | Sætningen "Det tælles ikke som ingen prisændringer." er uændret. |
 | G18-161 | 4 Pris | ÅBEN. Tallene på prisstatistikken ombrydes. | Værdierne er uændret. |
 | G18-162 | 4 Pris | ÅBEN. Procenterne ved "Prisbevægelse" ombrydes. | toFixed-udtrykkene er uændret. |
 | G18-163 | 4 Pris | ÅBEN. Kolonneoverskrifterne Produkt, Leverandør, Gammel pris, Ny pris, Ændring, Påvirker og Dato på prisadvarslerne ombrydes. | Ordene er uændret. |
 | G18-164 | 4 Pris | ÅBEN. Kolonneoverskrifterne Tilbud, Kunde, Status, Beløb, Ber. linjer, Potentielt tab og Oprettet på påvirkede tilbud ombrydes. | Ordene er uændret. |
 | G18-165 | 4 Pris | ÅBEN. Kolonneoverskrifterne Produkt, Nuv. pris, 30 dage, 90 dage, Volatilitet og Ændringer på pristendenser ombrydes. | Ordene er uændret. |
+| G18-166 | 4 Pris | ÅBEN. Etiketterne Kritiske advarsler, Prisændringer total, Prisstigninger og Påvirkede tilbud ombrydes. | Tallene er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
