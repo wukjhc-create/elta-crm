@@ -223,6 +223,7 @@ export async function createInvoiceDraftFromCase(
       work_order_id: string | null
       employee_id: string | null
       hours: number | string | null
+      start_time: string
       end_time: string | null
       billable: boolean
       invoice_line_id: string | null
@@ -242,7 +243,7 @@ export async function createInvoiceDraftFromCase(
     const timeRowsRaw = await selectInChunks<unknown>(timeLogIds, (chunk) => supabase
       .from('time_logs')
       .select(
-        'id, work_order_id, employee_id, hours, end_time, billable, invoice_line_id, ' +
+        'id, work_order_id, employee_id, hours, start_time, end_time, billable, invoice_line_id, ' +
           'sale_amount, sale_rate_snapshot, approval_status, ' +
           'work_order:work_orders(case_id), employee:employees(name, hourly_rate)'
       )
@@ -345,12 +346,17 @@ export async function createInvoiceDraftFromCase(
       // Bind forward-link race-safely
       // 0 rækker = en samtidig faktura nåede at låse rækken først → fjern
       // linjen, ellers faktureres den to gange.
-      const { data: bound, error: bindErr } = await supabase
+      // TT-4 (timer-review 2026-10-18): kun hvis rækken STADIG er godkendt med de læste tider — før kunne en samtidig
+      // rettelse (8 → 6 t, tilbage til afventer) eller afvisning bindes med det gamle beløb, og rækken var derefter låst
+      let bindQ = supabase
         .from('time_logs')
         .update({ invoice_line_id: line.id })
         .eq('id', id)
         .is('invoice_line_id', null)
-        .select('id')
+        .eq('approval_status', 'approved')
+        .eq('start_time', tl.start_time)
+      bindQ = tl.end_time ? bindQ.eq('end_time', tl.end_time) : bindQ.is('end_time', null)
+      const { data: bound, error: bindErr } = await bindQ.select('id')
       if (bindErr || !bound || bound.length !== 1) {
         await supabase.from('invoice_lines').delete().eq('id', line.id)
         position -= 1
@@ -358,7 +364,7 @@ export async function createInvoiceDraftFromCase(
           kind: 'time_log',
           source_id: id,
           reason: bindErr ? 'insert_failed' : 'already_billed',
-          detail: bindErr ? `bind failed: ${bindErr.message}` : 'faktureret samtidig på en anden faktura',
+          detail: bindErr ? `bind failed: ${bindErr.message}` : 'faktureret, rettet eller afvist samtidig — genindlæs og prøv igen',
         })
         continue
       }

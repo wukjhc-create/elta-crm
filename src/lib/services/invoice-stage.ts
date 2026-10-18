@@ -466,6 +466,8 @@ export async function createFinalInvoiceForCase(
     source_case_other_cost_id?: string | null
   }
   const lines: LinePlan[] = []
+  // TT-7: de læste tider pr. registrering — bindingen kræver at rækken stadig er godkendt med samme tider
+  const tlTimes = new Map<string, { start: string; end: string | null }>()
 
   if (includeLines) {
     // Reuse the same gating as Sprint 6B's listUnbilled — pulled inline
@@ -479,6 +481,7 @@ export async function createFinalInvoiceForCase(
     type TimeLogJoin = {
       id: string
       hours: number | string | null
+      start_time: string
       end_time: string | null
       billable: boolean
       invoice_line_id: string | null
@@ -537,6 +540,7 @@ export async function createFinalInvoiceForCase(
     }
 
     const timeRows = (tlRes.data ?? []) as unknown as TimeLogJoin[]
+    for (const t of timeRows) tlTimes.set(t.id, { start: t.start_time, end: t.end_time ?? null })
     let missingRateHours = 0
     // F-2 (review 2026-10-16): fakturerbare materialer/øvrige uden salgspris (fx konverteret fra leverandørfaktura med
     // 0 kr) blev faktureret til 0 kr og låst på den eneste slutfaktura → blokér med besked
@@ -798,12 +802,20 @@ export async function createFinalInvoiceForCase(
     map: Map<string, string>
   ) => {
     for (const [srcId, lineId] of map) {
-      const { data: bound, error } = await supabase
+      let q = supabase
         .from(table)
         .update({ invoice_line_id: lineId })
         .eq('id', srcId)
         .is('invoice_line_id', null)
-        .select('id')
+      // TT-7 (timer-review 2026-10-18): en time der er rettet eller afvist efter læsningen må ikke låses på den eneste
+      // slutfaktura → binding fejler → hele slutfakturaen rulles tilbage (som ved samtidig fakturering)
+      const tt = table === 'time_logs' ? tlTimes.get(srcId) : undefined
+      if (table === 'time_logs') {
+        q = q.eq('approval_status', 'approved')
+        if (tt) q = q.eq('start_time', tt.start)
+        if (tt?.end) q = q.eq('end_time', tt.end)
+      }
+      const { data: bound, error } = await q.select('id')
       if (error || !bound || bound.length !== 1) lostBinds += 1
     }
   }

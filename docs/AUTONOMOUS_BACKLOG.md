@@ -217,10 +217,10 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | TT-1 | Approver retter kun starttid på godkendt registrering → sale/cost-beløb bliver på de gamle timer (trigger kører ikke på start_time) (S1) | DONE (kode) — ændret starttid tager end_time med i SET-listen, så triggeren genberegner (som ved ændret sluttid: dagens sats); approved-time-patch-test + rate-engine R6. Migration (start_time i triggerlisten) = BLOCKED_APPROVAL, ikke nødvendig for rettelsen |
 | TT-2 | SQL-funktionen der fakturerer en arbejdsordre bruger live-sats + skjult fallback, ignorerer frosne beløb/overtid; pending-timer i race (S2) | BLOCKED_APPROVAL [MIGRATION] — eller slå automatik-handlingen fra |
 | TT-3 | Standard-overtidssatser seedes som faste beløb på andet kostgrundlag (S2) | BESLUTNING — seed kun multiplikator (NULL-satser)? migrér eksisterende? |
-| TT-4 | Binding af timer til faktura tjekker kun invoice_line_id (ikke godkendt/tider) (S3) | TODO |
+| TT-4 | Binding af timer til faktura tjekker kun invoice_line_id (ikke godkendt/tider) (S3) | DONE (kode) — binding kræver approved + uændret start/slut; ellers fjernes linjen (concurrency C7/C8, vat-guard) |
 | TT-5 | Samtidige overlappende registreringer (ingen exclusion constraint) (S3) | BLOCKED_APPROVAL [MIGRATION] — EXCLUDE USING gist |
 | TT-6 | Salgsbeløb når montører (create/update-svar; kollegaers sale_rate_snapshot via REST) (S3) | TODO (kode: stripTimeLogPrices på svar); kolonne-REVOKE = BLOCKED_APPROVAL [MIGRATION] |
-| TT-7 | Slutfaktura kan få en afvist time med (bind uden status-/tidstjek) (S3) | TODO |
+| TT-7 | Slutfaktura kan få en afvist time med (bind uden status-/tidstjek) (S3) | DONE (kode) — slutfakturaens binding kræver approved + uændrede tider; ellers rulles hele slutfakturaen tilbage (billing-model-check, concurrency C8) |
 | TT-8 | Godkendelsens "set"-tjek ignorerer billable/arbejdsordre (S4) | TODO |
 | TT-9 | Gem af ventende/afvist række genprisser til dagens sats (S4) | BESLUTNING — må ventende rækker genprisses? |
 | TT-10 | "Klar til fakturering" tæller timer der afventer godkendelse (S4) | TODO |
