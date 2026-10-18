@@ -153,7 +153,7 @@ export function AftercalcOverviewClient() {
               Kun manglende kostdata
             </label>
 
-            {error && <p className="text-sm text-red-700">{error}</p>}
+            {error && <p className="text-sm text-red-700 break-words min-w-0" data-testid="aftercalc-overview-error">{error}</p>}
             {loading && !data && <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Henter…</p>}
 
             {data && (

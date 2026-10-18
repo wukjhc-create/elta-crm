@@ -803,7 +803,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-63 | 1 Profit | DONE højdepunktets overskrift ombrydes. | Titlerne er uændret. |
 | G18-65 | 1 Profit | DONE sidetallet ved Forrige/Næste ombrydes. | Sidetallet er uændret. |
 | G18-66 | 5 Plan | DONE den tomme dags sætning ombrydes. | "Klik på en dag" er uændret. |
-| G18-70 | 1 Profit | ÅBEN. Efterkalk-oversigtens fejltekst ombrydes. | Fejlteksten er uændret. |
+| G18-70 | 1 Profit | DONE efterkalk-oversigtens fejltekst ombrydes. | Fejludtrykket er uændret. |
+| G18-71 | 1 Profit | ÅBEN. "Viser de nyeste sager" ombrydes. | Sætningen og sagstallet er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
 | G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |
