@@ -797,7 +797,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-39 | 1 Profit | DONE sagspanelets mobil-linje ombryder tilbudt og faktisk antal. | `qty()` uændret. |
 | G18-53 | 1 Profit | DONE skrivebordslinjens antalceller ombrydes. | `qty()` er uændret. |
 | G18-57 | 1 Profit | DONE skrivebordslinjens enhed ombrydes. | Beskrivelse og kost er uændret. |
-| G18-63 | 1 Profit | ÅBEN. Højdepunktets overskrift ombrydes. | Titlerne er uændret. |
+| G18-63 | 1 Profit | DONE højdepunktets overskrift ombrydes. | Titlerne er uændret. |
+| G18-65 | 1 Profit | ÅBEN. Sidetallet ved Forrige/Næste ombrydes. | Sidetallet er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
 | G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |

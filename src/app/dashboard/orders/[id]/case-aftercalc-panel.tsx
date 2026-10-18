@@ -256,7 +256,7 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
 function Highlight({ title, rows, empty, tone }: { title: string; rows: { key: string; description: string; amount: number }[]; empty: string; tone: string }) {
   return (
     <div>
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">{title}</h4>
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1 break-words min-w-0" data-testid="aftercalc-highlight-title">{title}</h4>
       {rows.length === 0 ? (
         <p className="text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-highlight-empty">{empty}</p>
       ) : (
