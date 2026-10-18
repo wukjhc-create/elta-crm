@@ -829,6 +829,56 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 (Grok-shift, grok-next)
+
+Produktspids før dette checkpoint: `d29f508d`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Hvert `git push origin grok-next` blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Commits
+
+Docs: `47241aeb` kø med 15 opgaver. `065ea641` kø efter syv leverancer.
+
+Profit / efterkalk: `ef833b0a` filtreret datakvalitet. `3199b17e` manglende kostlinjer på sagen. `05f1d751` advarsler i filtret. `e4cce248` dansk faktureringsstatus. `705908c1` Vis dem. `d0d8c7da` aktivt afvigelsesfilter. `aa700e15` fælles faktureringsstatus på sagspanelet. `8de7b141` højdepunktets beløb. `f625a8cc` mobil-resumé. `b09a8a09` mobil-linjens kost. `bddfbcc1` sagspanelets indledning. `a5430a40` skrivebords-resumé. `baeed2b6` mobil-antal. `b11b53db` advarsler. `69eef75f` linje-forklaring. `5847da04` skrivebordskost. `027cc5da` skrivebordsantal. `508bfa89` skrivebordsafvigelse. `104d95f7` mobilafvigelse. `583f67b9` lukket linje. `511ddb11` tom linjeliste. `d10fd0db` tomme højdepunkter. `7f9a23de` skrivebordsenhed. `bdd14049` mobilenhed. `0e18439e` højdepunktets overskrift. `6e161063` Forrige/Næste 44 px. `35fb02cd` sidetal. `9daadfc0` sager i visningen. `4232b0cf` oversigtsindledning. `cfb40753` tilbage til rapporter. `9aa7888f` oversigtsfejl. `4b936072` oversigtens Henter. `5666897f` sagspanelets Henter. `efc6353d` sagspanelets fejl. `972ad2c7` tilbud-mod-faktisk Henter. `dadd1649` tilbud-mod-faktisk fejl. `a06e6a06` skjult kostlinje. `9faab0d5` medarbejderfejl. `d29f508d` afkortningsnotice.
+
+Faktura: `356a74e7` overpris, underpris, fragt/gebyr. `d3e70bd1` fragt og gebyr hver for sig. `0c7de99e` tolerance. `55aa8bdc` statuslinje. `afa96728` kontrolfejl. `47b6a1de` dom. `efbd62e1` kontrollerer priser. Ingen e-conomic.
+
+Pris: `8055c9c5` manglende kost. `0bed1770` manglende leverandørkost. `4cc21d28` seneste lagrede dato. `4905d6a0` række-dato i dansk tid. `25fcbc76` manglende listepris. `33261682` manglende salgspris. `84007beb` historik-række. `81906982` kortets kost og salg. `ba59b060` navn og varenummer. `d20ddc9e` mærke og enhed. Ingen opfundne priser.
+
+Plan: `b8c5f088` dagens opgavetal. `8e8c2f8e` dagsoverskrift i Europe/Copenhagen. `cfff4bc6` klik på en dag. `f322fa93` tom dag. `732a6851` ingen kommende besigtigelser. `8ea3a09d` påmindelsestal fra den hentede liste. `96e170ca` navnefejl. `4c9521c2` aftalefejl.
+
+Salg: `eb73e7b7` månedens sendt- og vinderrate. `reports.ts` er uændret.
+
+Assistent: `a61d701a` opslag siger ingen træf eller antal. Ingen webhook. `handle-update.ts` er uændret.
+
+Pilot: `9837a396` fejlet leverandørhentning er ikke et tomt katalog.
+
+### Features
+
+Tilbudt mod faktisk og realiseret DB er uændret i regnemaskinen. Oversigten tæller manglende kost og ukendt DB i filtret, siger det aktive afvigelsesfilter, og kan slå filteret "kun manglende kost" til. Sagspanelet bruger den fælles faktureringsstatus. Manglende kost bliver ikke vist som 0 kr. Fakturakontrollen tæller overpris, underpris, fragt og gebyr hver for sig og poster ikke. Manglende lagret kost, listepris og salgspris siger at prisen ikke er lagret. Lagret 0 bliver 0 kr. Kalenderens dag er dansk tid, og dagens påmindelser tælles fra den liste der allerede er hentet. Lange beløb og fejltekster ombrydes på mobil. Fejlet hentning ligner ikke en tom liste.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil eller kalder den shippede funktion. De kørte med `npx tsx` og exiterede 0. Når `src/` ændredes, kørte `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` og exiterede 0 før commit. Én tidlig `tsc` døde med 134 (hukommelse) og blev kørt om med større heap før kost-committen. Resultaterne er tilføjet i `{SCRATCH}/tests.log`, ikke skrevet om. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok i dette skift. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret: dublet-id og antal/enhedspris ligger på leave-listede filer eller findes ikke på `LineControl`.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og falsk-tom leverandørliste først. Derefter efterkalk-tællinger, faktureringsstatus, Vis dem, afvigelsesfilter, fakturalinjernes fragt/gebyr-split, lagret-pris-tekst, kalenderens danske dag og påmindelsestal, og ombrydningerne. Ingen af dem poster, sender eller ændrer en lagret pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og falsk-tom først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-50, G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-88, G18-87, G18-62, G18-72, G18-89, G18-60.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
