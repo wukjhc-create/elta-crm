@@ -350,11 +350,13 @@ function extractLabeledFields(text: string, senderEmail: string | null): Labeled
   }
 
   // If address was found but no postal/city, scan address text for embedded postal code
-  if (result.address && !result.postalCode) {
+  // LD-6 (leads-review 2026-10-18): også når postnr. allerede er læst ("Postnummer: 4000" før "Adresse: Solvej 12, 4000
+  // Roskilde") men byen mangler — før stod postnr.+by i gadefeltet, og kunden fik ingen by. Kun ved samme postnr.
+  if (result.address && (!result.postalCode || !result.city)) {
     const embedded = result.address.match(/(\d{4})\s+([A-ZÆØÅa-zæøå].+?)$/)
-    if (embedded) {
+    if (embedded && (!result.postalCode || result.postalCode === embedded[1])) {
       result.postalCode = embedded[1]
-      result.city = embedded[2].trim()
+      if (!result.city) result.city = embedded[2].trim()
       // Remove postal+city from address string
       result.address = result.address.slice(0, result.address.indexOf(embedded[1])).replace(/[,\s]+$/, '').trim()
     }

@@ -21,6 +21,14 @@ eq('samlet "postnr/by"', [c.postalCode, c.city], ['4000', 'Roskilde'])
 const d = p(['Navn: Hans Hansen', 'Postnr/by: 4000 Roskilde', 'By: Køge'])
 eq('første fund vinder (by overskrives ikke)', [d.postalCode, d.city], ['4000', 'Roskilde'])
 
+// LD-6 (2026-10-18): FormSubmit-rækkefølge — postnr. før adresse med postnr.+by → byen udtrækkes, gaden renses
+const e = p(['Navn: Hans Hansen', 'Postnummer: 4000', 'Adresse: Solvej 12, 4000 Roskilde'])
+eq('postnr. før "adresse, postnr by"', [e.address, e.postalCode, e.city], ['Solvej 12', '4000', 'Roskilde'])
+const f = p(['Navn: Hans Hansen', 'Postnummer: 4000', 'Adresse: Solvej 12, 2100 København Ø'])
+eq('andet postnr. i adressen røres ikke', [f.postalCode, f.address], ['4000', 'Solvej 12, 2100 København Ø'])
+const g = p(['Navn: Hans Hansen', 'Adresse: Solvej 12', 'Postnummer: 4000', 'By: Roskilde'])
+eq('ren adresse uændret', [g.address, g.city], ['Solvej 12', 'Roskilde'])
+
 // LC-11 (2026-10-17): HTML-entiteter — store bogstaver bevares, hex afkodes, &amp; sidst, <style> fjernes
 const h = parseCustomerFromEmail(null, '<style>p{color:red}</style><p>Navn: S&oslash;ren &Oslash;stergaard</p><p>Adresse: &Aring;boulevarden 1</p><p>Postnr/by: 8000 &#xC5;rhus C</p>', null)
 eq('HTML: Ø/Å bevares som store bogstaver', [h.name, h.address], ['Søren Østergaard', 'Åboulevarden 1'])
