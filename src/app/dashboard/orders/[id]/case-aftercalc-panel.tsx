@@ -231,8 +231,8 @@ export function CaseAftercalcPanel({ caseId }: { caseId: string }) {
                             </td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{qty(r.offered_qty)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{qty(r.actual_qty)}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.offered_cost)}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.actual_cost)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{kr(r.offered_cost)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{kr(r.actual_cost)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{r.cost_deviation == null ? 'Kan ikke beregnes' : moneyDev(r.cost_deviation, false)}</td>
                             <td className="px-2 py-1.5 text-center">
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
