@@ -264,7 +264,7 @@ export function AftercalcOverviewClient() {
                             <td className={`px-2 py-1.5 text-right tabular-nums break-words min-w-0 ${r.db_variance == null ? 'text-gray-400' : r.db_variance < 0 ? 'text-red-700' : r.db_variance > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
                               {varianceText(r.db_variance, r.db_variance_pct_points)}
                             </td>
-                            <td className="px-2 py-1.5 text-gray-700">{SERVICE_CASE_STATUS_LABELS[r.status as ServiceCaseStatus] ?? r.status}<div className="text-[11px] text-gray-500 break-words" data-testid="aftercalc-invoiced-state">{invoicedStateLabel(r.invoiced_state)}</div></td>
+                            <td className="px-2 py-1.5 text-gray-700 break-words min-w-0">{SERVICE_CASE_STATUS_LABELS[r.status as ServiceCaseStatus] ?? r.status}<div className="text-[11px] text-gray-500 break-words" data-testid="aftercalc-invoiced-state">{invoicedStateLabel(r.invoiced_state)}</div></td>
                             <td className="px-2 py-1.5" title={r.warning_codes.map((c: DataQualityCode) => DATA_QUALITY_LABELS[c]).join(', ')}>
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${r.data_quality === 'warning' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
                                 {r.data_quality === 'warning' ? 'Advarsel' : 'OK'}
