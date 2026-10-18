@@ -1407,6 +1407,29 @@ Etiketten "Titel *" ombrydes. Ordene er uændret. Etiketterne Beskrivelse, Prior
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-147, G18-148, G18-149, G18-150, G18-151, G18-152.
 
+## Checkpoint 2026-10-18 syttende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `8f8322fb`. Det omskriver ikke listerne ovenfor. Produktspids: `1d1f4aeb`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `8f8322fb..1d1f4aeb`
+
+```
+1d1f4aeb feat(pilot): ingen forfaldsdato ombrydes
+6ccd5dcf feat(pilot): vis udfoerte ombrydes
+bc288dae feat(pilot): kundens forfaldsdato ombrydes
+3eada6f6 feat(pilot): kundens statusmaerker ombrydes
+```
+
+Listen er alle commits efter `8f8322fb` til og med `1d1f4aeb`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Status- og prioritetmærket på kundens opgaver ombrydes. Etiketterne kommer stadig fra `TASK_STATUS_CONFIG` og `TASK_PRIORITY_CONFIG`. Normal prioritet skjules stadig. Forfaldsdatoen ombrydes. Udtrykket med `Europe/Copenhagen` er uændret. Knappen Vis/Skjul udførte ombrydes. Tællingen er `doneTasks.length`. Teksten "Ingen forfaldsdato" ombrydes. Ordene er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-151, G18-152, G18-153, G18-154, G18-155, G18-156.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
