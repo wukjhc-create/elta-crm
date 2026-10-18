@@ -92,7 +92,7 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
               <div className={`text-sm font-medium break-words ${done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                 {t.title}
                 {t.auto_generated && (
-                  <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] text-blue-600 align-middle">
+                  <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] text-blue-600 align-middle break-words min-w-0" data-testid="case-task-startup-mark">
                     <Sparkles className="w-3 h-3" /> opstart
                   </span>
                 )}
