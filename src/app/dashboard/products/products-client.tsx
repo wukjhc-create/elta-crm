@@ -387,7 +387,7 @@ export default function ProductsClient({
       <Dialog open={!!editingProduct} onOpenChange={() => setEditingProduct(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Rediger produkt</DialogTitle>
+            <DialogTitle className="break-words min-w-0">Rediger produkt</DialogTitle>
           </DialogHeader>
           {editingProduct && (
             <ProductForm

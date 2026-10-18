@@ -18,7 +18,7 @@ const view = readFileSync(join('src', 'app', 'dashboard', 'products', 'products-
 const line = '<DialogTitle className="break-words min-w-0">Opret nyt produkt</DialogTitle>'
 ok(view.includes(line), 'dialogen ombrydes')
 ok(view.includes('setShowCreateDialog'), 'dialogen bliver')
-ok(view.includes('<DialogTitle>Rediger produkt</DialogTitle>'), 'rediger-dialogen venter')
+ok(view.includes('<DialogTitle className="break-words min-w-0">Rediger produkt</DialogTitle>'), 'rediger-dialogen ombrydes')
 ok(view.includes('data-testid="product-create-empty"'), 'opret-knappen bliver')
 ok(view.includes('formatCurrency(product.list_price)'), 'listeprisen bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
