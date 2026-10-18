@@ -11,7 +11,7 @@
  *
  * Wrapperen aendrer ikke cron'ens adfaerd: samme Response returneres, og logning kan aldrig kaste (logHealth).
  */
-import { timingSafeEqual } from 'crypto'
+import { safeEqual } from '@/lib/security/safe-equal' // AS-10
 import { logHealth } from '@/lib/services/system-health'
 
 type RouteHandler = (request: Request) => Promise<Response>
@@ -119,7 +119,5 @@ function hasCronSecret(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   const header = request.headers.get('authorization')
   if (!secret || !header) return false
-  const expected = Buffer.from(`Bearer ${secret}`)
-  const given = Buffer.from(header)
-  return given.length === expected.length && timingSafeEqual(given, expected)
+  return safeEqual(header, `Bearer ${secret}`) // AS-10: ingen længdelæk
 }

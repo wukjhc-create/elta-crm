@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { safeEqual } from '@/lib/security/safe-equal' // AS-10
 import { createClient } from '@supabase/supabase-js'
-import { timingSafeEqual } from 'crypto'
 import { maybeDecryptSecret } from '@/lib/services/integration-secrets'
 import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
@@ -108,10 +108,7 @@ export async function POST(
         logger.warn('integration webhook: unauthorized', { entityId: integrationId, metadata: { reason: 'API key not decryptable' } })
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
-      const expected = Buffer.from(storedKey)
-      const provided = Buffer.from(providedKey)
-      const keysMatch = expected.length === provided.length &&
-        timingSafeEqual(expected, provided)
+      const keysMatch = safeEqual(providedKey, storedKey) // AS-10: ingen længdelæk
       if (!keysMatch) {
         // Partner-review 2026-10-08: fejlet godkendelse logges ikke i DB (spam-vektor); kun applikationslog
       logger.warn('integration webhook: unauthorized', { entityId: integrationId, metadata: { reason: 'Invalid API key' } })

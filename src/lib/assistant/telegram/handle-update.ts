@@ -3,8 +3,8 @@
  * hemmeligheds-tjek. CRM er source of truth: alle handlinger læser/skriver CRM-tabellerne; rolle og aktiv-status
  * læses ved HVER update; alle kommandoer og handlinger audit-logges (T9).
  */
+import { safeEqual } from '@/lib/security/safe-equal' // AS-10
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { timingSafeEqual } from 'crypto'
 import { hasPermission } from '@/lib/auth/permissions'
 import { runAssistantCommand, type AssistantActor, type AssistantButton } from '@/lib/assistant/run-command'
 import { ASSISTANT_RULES } from '@/lib/assistant/rules'
@@ -15,9 +15,7 @@ import { transcribeTelegramVoice, voiceEnabled, voiceWithinLimits } from '@/lib/
 /** Telegrams X-Telegram-Bot-Api-Secret-Token mod env TELEGRAM_WEBHOOK_SECRET — timing-safe, fail-closed (min. 16 tegn) */
 export function telegramSecretOk(header: string | null, secret: string | undefined = process.env.TELEGRAM_WEBHOOK_SECRET): boolean {
   if (!secret || secret.length < 16 || !header) return false
-  const a = Buffer.from(header)
-  const b = Buffer.from(secret)
-  return a.length === b.length && timingSafeEqual(a, b)
+  return safeEqual(header, secret) // AS-10: ingen længdelæk
 }
 
 

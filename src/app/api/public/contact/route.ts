@@ -1,8 +1,8 @@
 import { escapeLike } from '@/lib/validations/postgrest-filter'
+import { safeEqual } from '@/lib/security/safe-equal' // AS-10
 import { redactEmail } from '@/lib/utils/log-redact'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { timingSafeEqual } from 'crypto'
 import { contactFormSchema } from '@/lib/validations/contact-form'
 import { logger } from '@/lib/utils/logger'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
@@ -59,14 +59,7 @@ function validateApiKey(request: NextRequest): boolean {
 
   if (!provided) return false
 
-  try {
-    const a = Buffer.from(apiKey, 'utf-8')
-    const b = Buffer.from(provided, 'utf-8')
-    if (a.length !== b.length) return false
-    return timingSafeEqual(a, b)
-  } catch {
-    return false
-  }
+  return safeEqual(provided, apiKey) // AS-10: ingen længdelæk
 }
 
 // Sprint 9E Phase 5d: lokal generateCustomerNumber fjernet.

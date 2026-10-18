@@ -231,7 +231,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | AS-7 | /api/weather beder CDN cache et login-svar (public, s-maxage) (S4) | DONE — Cache-Control private, max-age=900 |
 | AS-8 | Kontaktformular tillader localhost-origins i prod og returnerer nyt lead-id (S4) | DONE — localhost kun uden for prod; intet lead-id i svaret (public-contact-limit-check) |
 | AS-9 | Portal/partner uden noindex/no-referrer (S4) | DONE — noindex + no-referrer i portal- og partner-layout |
-| AS-10 | Hemmeligheds-sammenligning på flere måder (lækker længde) (S4) | TODO |
+| AS-10 | Hemmeligheds-sammenligning på flere måder (lækker længde) (S4) | DONE — cron-run, Telegram, integrations-webhook og kontaktformular bruger safeEqual (webhook-/telegram-/cron-log-/kontakt-checks grønne) |
 | AS-11 | Ubrugt getSession()-eksport stoler på cookie (S4) | DONE — getSession() fjernet |
 
 ## NEXT-44 (review-bølge 2026-10-18 formiddag — timer/løn, leads, rapporter/eksport/team)
