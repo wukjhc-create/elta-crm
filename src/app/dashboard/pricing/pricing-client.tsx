@@ -550,7 +550,7 @@ function TrendsTab({
             <li key={trend.supplier_product_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
               <p className="font-medium text-gray-900 break-words">{trend.product_name}</p>
               <p className="mt-1 tabular-nums font-medium break-words">{formatCurrency(trend.current_price)}</p>
-              <p className="mt-1 text-xs">
+              <p className="mt-1 text-xs break-words min-w-0" data-testid="pricing-trend-label-30-mobile">
                 30 dage{' '}
                 {trend.trend_30_days !== null ? (
                   <span className={`break-words min-w-0 ${trend.trend_30_days > 0 ? 'text-red-600' : trend.trend_30_days < 0 ? 'text-green-600' : 'text-gray-500'}`} data-testid="pricing-trend-30-mobile">
@@ -560,7 +560,7 @@ function TrendsTab({
                   <span className="text-gray-400">-</span>
                 )}
               </p>
-              <p className="text-xs">
+              <p className="text-xs break-words min-w-0" data-testid="pricing-trend-label-90-mobile">
                 90 dage{' '}
                 {trend.trend_90_days !== null ? (
                   <span className={`break-words min-w-0 ${trend.trend_90_days > 0 ? 'text-red-600' : trend.trend_90_days < 0 ? 'text-green-600' : 'text-gray-500'}`} data-testid="pricing-trend-90-mobile">
