@@ -395,7 +395,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                       className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                     >
                       <div className="w-10 text-center shrink-0">
-                        <div className="text-lg font-bold text-gray-900 leading-none">
+                        <div className="text-lg font-bold text-gray-900 leading-none break-words min-w-0" data-testid="calendar-upcoming-day">
                           {task.due_date ? new Date(task.due_date).getDate() : '?'}
                         </div>
                         <div className="text-[10px] text-gray-500 uppercase break-words min-w-0" data-testid="calendar-upcoming-month">
