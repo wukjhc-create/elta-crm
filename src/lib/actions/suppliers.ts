@@ -228,16 +228,26 @@ export async function deleteSupplier(id: string): Promise<ActionResult> {
   try {
     const { supabase } = await requireSupplierWrite()
     validateUUID(id, 'leverandør ID')
+    // DL-3: ingen sletning med historik (kaskade/SET NULL på fakturaer og priser) — deaktivér i stedet
+    const { supplierDeleteBlockReason } = await import('@/lib/suppliers/delete-guard')
+    const blocked = await supplierDeleteBlockReason(id)
+    if (blocked) return { success: false, error: blocked }
+    const { data: sup } = await supabase.from('suppliers').select('name').eq('id', id).maybeSingle()
 
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from('suppliers')
       .delete()
       .eq('id', id)
+      .select('id')
 
     if (error) {
+      if (error.code === '23503') return { success: false, error: 'Leverandøren har tilknyttede data og kan ikke slettes — deaktivér den i stedet' }
       logger.error('Database error deleting supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
+    if (!deleted || deleted.length === 0) return { success: false, error: 'Leverandøren blev ikke slettet (findes ikke eller manglende ret)' }
+    const { logDelete } = await import('@/lib/audit/audit-log-writer')
+    await logDelete('product', id, (sup as { name?: string } | null)?.name ?? 'Leverandør', { kind: 'supplier' })
 
     revalidatePath('/dashboard/settings/suppliers')
     return { success: true }

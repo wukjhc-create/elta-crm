@@ -810,6 +810,33 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'supplier-delete-guard-check') {
+    // DL-3: leverandør med produkter/fakturaer og produkt brugt i en sag kan ikke slettes; tom leverandør kan
+    const { supplierDeleteBlockReason, supplierProductDeleteBlockReason } = await import('../../src/lib/suppliers/delete-guard')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const ids: { sup: string[]; sp: string[] } = { sup: [], sp: [] }
+    try {
+      const s1 = (await admin.from('suppliers').insert({ name: `[HARNESS] DL3 tom ${stamp}`, code: `DL3A${stamp}` }).select('id').single()).data as { id: string }
+      const s2 = (await admin.from('suppliers').insert({ name: `[HARNESS] DL3 prod ${stamp}`, code: `DL3B${stamp}` }).select('id').single()).data as { id: string }
+      ids.sup.push(s1.id, s2.id)
+      const sp = (await admin.from('supplier_products').insert({ supplier_id: s2.id, supplier_sku: `DL3-${stamp}`, supplier_name: '[HARNESS] DL3 kabel', cost_price: 10 }).select('id').single()).data as { id: string } | null
+      if (sp) ids.sp.push(sp.id)
+      check('tom leverandør må slettes', (await supplierDeleteBlockReason(s1.id)) === null)
+      const r2 = await supplierDeleteBlockReason(s2.id)
+      check('leverandør med produkt afvises', !!r2 && /produkt/.test(r2), r2 ?? '')
+      check('ubrugt produkt må slettes', !!sp && (await supplierProductDeleteBlockReason(sp.id)) === null)
+    } catch (e) {
+      fails++; log(`❌ ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      if (ids.sp.length) await admin.from('supplier_products').delete().in('id', ids.sp)
+      if (ids.sup.length) await admin.from('suppliers').delete().in('id', ids.sup)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ leverandør-sletteværn ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'invoice-parse-failure-check') {
     // IV-2: fejler parse-opdateringen (her et beløb ud over NUMERIC(12,2)), markeres fakturaen til manuel gennemgang
     const { parseAndMatch } = await import('../../src/lib/services/incoming-invoices')

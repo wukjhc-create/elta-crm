@@ -753,16 +753,24 @@ export async function deleteSupplier(id: string): Promise<ActionResult> {
   try {
     const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'leverandør ID')
+    // DL-3: samme værn som lib/actions/suppliers.ts (produkter kaskaderes — 23503 kom aldrig)
+    const { supplierDeleteBlockReason } = await import('@/lib/suppliers/delete-guard')
+    const blocked = await supplierDeleteBlockReason(id)
+    if (blocked) return { success: false, error: blocked }
+    const { data: sup } = await supabase.from('suppliers').select('name').eq('id', id).maybeSingle()
 
-    const { error } = await supabase.from('suppliers').delete().eq('id', id)
+    const { data: deleted, error } = await supabase.from('suppliers').delete().eq('id', id).select('id')
 
     if (error) {
       if (error.code === '23503') {
-        return { success: false, error: 'Leverandøren kan ikke slettes da den har tilknyttede produkter' }
+        return { success: false, error: 'Leverandøren har tilknyttede data og kan ikke slettes — deaktivér den i stedet' }
       }
       logger.error('Database error deleting supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
+    if (!deleted || deleted.length === 0) return { success: false, error: 'Leverandøren blev ikke slettet (findes ikke eller manglende ret)' }
+    const { logDelete } = await import('@/lib/audit/audit-log-writer')
+    await logDelete('product', id, (sup as { name?: string } | null)?.name ?? 'Leverandør', { kind: 'supplier' })
 
     revalidatePath('/dashboard/products')
     return { success: true }
@@ -1033,6 +1041,10 @@ export async function deleteSupplierProduct(id: string): Promise<ActionResult> {
   try {
     const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'leverandørprodukt ID')
+    // DL-3: produkt brugt i sager/fakturaer/tilbud/kundepriser slettes ikke (kostspor og prishistorik)
+    const { supplierProductDeleteBlockReason } = await import('@/lib/suppliers/delete-guard')
+    const blocked = await supplierProductDeleteBlockReason(id)
+    if (blocked) return { success: false, error: blocked }
 
     const { error } = await supabase.from('supplier_products').delete().eq('id', id)
 

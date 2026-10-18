@@ -225,7 +225,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | RC-9 | Redigering af agentudkast under udførelse sender den gamle tekst (S4) | DONE (kode) — saveDraftAction kun i ikke-udførte statusser (CAS); executor genlæser payload efter claim (agent-actions/gating/send-producer) |
 | DL-1 | Sletning af gammel besigtigelse ("other") sletter kundens underskrevne bekræftelser (CASCADE) (S2) | DELVIS (kode) — besigtigelse gemt som "other" er beskyttet; dokument med bekræftelser kan ikke slettes (document-deletable-test). FK RESTRICT = BLOCKED_APPROVAL [MIGRATION] |
 | DL-2 | deleteOffer sletter sendte tilbuds mail- og aktivitetshistorik (afvist/trukket tilbage til kladde) (S2) | DONE (kode) — kun aldrig-sendte tilbud uden mailtråd kan slettes (sent_at IS NULL i compare-and-set) (U14/U42/U57/U60) |
-| DL-3 | Sletning af leverandør/produkt kaskaderer pris-/aftalehistorik og afkobler bogførte leverandørfakturaer (S3) | TODO (kode: bloker ved referencer + audit); FK = BLOCKED_APPROVAL [MIGRATION] |
+| DL-3 | Sletning af leverandør/produkt kaskaderer pris-/aftalehistorik og afkobler bogførte leverandørfakturaer (S3) | DELVIS (kode) — sletning afvises ved fakturaer/produkter/kundeaftaler (leverandør) og ved brug i sager/fakturalinjer/tilbud/kundepriser (produkt); 0-rækker-tjek + audit (cli supplier-delete-guard-check). FK = BLOCKED_APPROVAL [MIGRATION] |
 | DL-4 | deleteServiceCaseAttachment omgår afleveringsfotoets værn (S3) | DONE — ubrugt deleteServiceCaseAttachment fjernet |
 | DL-5 | Fakturanumre bruges af kladder → huller i nummerserien; tilbagerulninger uden audit (S3) | BESLUTNING (nummer ved afsendelse?) + audit = TODO |
 | DL-6 | Ingen GDPR-sletning/anonymisering af kunde med historik (S3) | BESLUTNING |
