@@ -97,7 +97,7 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
 
   const { data: email, error: readErr } = await supabase
     .from('incoming_emails')
-    .select('id, sender_email, sender_name, subject, body_text, body_preview, attachment_urls, has_attachments, graph_message_id, to_email, customer_id')
+    .select('id, sender_email, original_sender_email, sender_name, subject, body_text, body_preview, attachment_urls, has_attachments, graph_message_id, to_email, customer_id')
     .eq('id', emailId)
     .maybeSingle()
   if (readErr || !email) {
@@ -137,6 +137,12 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
   // suppliers email plain-text invoices). Skip if body is tiny.
   if (candidates.length === 0) {
     if (bodyText.trim().length < 200) return result
+    // IV-8 (leverandørfaktura-review 2026-10-18): brødtekst alene er kun en faktura, når emnet siger det eller afsenderen
+    // er en kendt leverandørs domæne — før blev fx et nyt leads mail med billeder til en "faktura" i godkendelseskøen
+    if (!(await looksLikeSupplierInvoiceMail(supabase, email))) {
+      result.skipped!.push('not_invoice_mail')
+      return result
+    }
     await insertEmailInvoice(supabase, emailId, email.sender_name, { name: bodyInvoiceName(emailId), mime: 'text/plain' }, bodyText, result)
     return logIngest(emailId, result)
   }
@@ -192,6 +198,19 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
     }
   }
   return logIngest(emailId, result)
+}
+
+/** IV-8: emnet nævner faktura/kreditnota, eller afsenderen (inkl. oprindelig afsender ved videresendelse) er en leverandørs domæne. */
+async function looksLikeSupplierInvoiceMail(
+  supabase: AdminClient, email: { subject?: string | null; sender_email?: string | null; original_sender_email?: string | null },
+): Promise<boolean> {
+  if (/faktura|invoice|kreditnota|credit\s*note/i.test(email.subject || '')) return true
+  const { senderDomain, suppliersForDomain } = await import('@/lib/invoice-control/sender-domain')
+  const domains = [email.original_sender_email, email.sender_email].map((e) => senderDomain(e)).filter((d): d is string => !!d)
+  if (domains.length === 0) return false
+  const { data: suppliers } = await supabase.from('suppliers').select('website, contact_email')
+  const list = (suppliers ?? []) as Array<{ website: string | null; contact_email: string | null }>
+  return domains.some((d) => suppliersForDomain(d, list).length > 0)
 }
 
 function bodyInvoiceName(emailId: string): string {

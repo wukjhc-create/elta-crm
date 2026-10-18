@@ -153,6 +153,13 @@ export async function runInvoiceAttachments(c: { admin: SupabaseClient; ownerUid
     out.push({ id: 'A9 filløs række (vedhæftningsnavn) opgraderes', ok: oBefore.length === 1 && oBefore[0].file_name === 'faktura_old.pdf' && ro2.upgraded === 1 && oAfter.length === 1 && oAfter[0].id === oBefore[0].id && oAfter[0].invoice_number === pdfNo('O'),
       note: `før=${oBefore.length} (${oBefore[0]?.file_name}) · opgraderet=${ro2.upgraded} · efter=${oAfter.length} · nr=${oAfter[0]?.invoice_number === pdfNo('O') ? 'fra PDF' : oAfter[0]?.invoice_number}` })
 
+    // A10 — IV-8: lead-mail (intet faktura-emne, ukendt domæne, kun brødtekst) bliver ikke en faktura
+    flag(false)
+    const lead = await mail('LEAD', { subject: '[HARNESS] Spørgsmål om solceller', sender_email: `lead-${stamp}@lead-${stamp}.example` })
+    const rl = await ingestFromEmail(lead); track(rl.invoiceIds)
+    out.push({ id: 'A10 lead-mail uden faktura-emne indlæses ikke', ok: rl.ingested === 0 && !!rl.skipped?.includes('not_invoice_mail') && (await invoicesFor(lead)).length === 0,
+      note: `indlæst=${rl.ingested} · skipped=${(rl.skipped ?? []).join(',') || '-'}` })
+
     // A7 — flag OFF: backfill no-op
     flag(false)
     const s3 = await backfillInvoiceAttachments({ limit: 10, onlyEmailIds: [b] })

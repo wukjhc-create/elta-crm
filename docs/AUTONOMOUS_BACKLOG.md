@@ -236,7 +236,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | IV-5 | Afrunding af enhedskost giver anden sagskost end fakturaen (S3) | TODO |
 | IV-6 | AO-kreditnotaer med positive beløb (S3, plausibel) | TODO |
 | IV-7 | Mail-/uploadfakturaer (inkl. kreditnotaer) kan aldrig fordeles til sag (S3) | TODO |
-| IV-8 | Enhver mail med vedhæftning indlæses som mulig faktura (S3) | TODO |
+| IV-8 | Enhver mail med vedhæftning indlæses som mulig faktura (S3) | DONE — brødtekst-faktura kræver faktura-emne eller leverandørdomæne (suppliersForDomain); dødt delstrengs-filter fjernet (invoice-attachments A10) |
 | IV-9 | "Vores ref: Henrik" bruges som arbejdsordre-hint (S3) | DONE (kode) — hints kræver et ciffer |
 | IV-10 | Match/fordeling til inaktive sager (konverteret/forslag) (S3) | DONE (kode) — fordeling og manuel sagskobling afviser konverterede sager/forslag; matcheren springer dem over (U28/U12/U149) |
 | IV-11 | Automatisk match fra mailtekst bevares efter PDF-opgradering (S3) | DONE — auto-match nulstilles ved opgradering + valuta nulstilles (DKK = ukendt) medmindre header_edited; manuelt match bevares (invoice-attachments A8) |

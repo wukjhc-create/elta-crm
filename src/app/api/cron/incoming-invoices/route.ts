@@ -35,16 +35,6 @@ async function handleCron(request: Request): Promise<Response> {
     const { ingestFromEmail } = await import('@/lib/services/incoming-invoices')
     const supabase = createAdminClient()
 
-    // Pull supplier email-domains so sender-based filtering works.
-    const { data: suppliers } = await supabase
-      .from('suppliers')
-      .select('code, name')
-    const supplierTokens = new Set<string>()
-    for (const s of suppliers ?? []) {
-      if (s.code) supplierTokens.add(String(s.code).toLowerCase())
-      if (s.name) supplierTokens.add(String(s.name).toLowerCase().split(/\s+/)[0])
-    }
-
     // Cron-review 2026-10-09 (#5): 72 t i stedet for 24 t — mail synkes kun 05:00 (eller når nogen har mailsiden
     // åben), så fakturaer modtaget efter synk faldt uden for næste vindue. Ingest er idempotent (duplicates).
     const since = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
@@ -61,11 +51,10 @@ async function handleCron(request: Request): Promise<Response> {
     const startedAt = Date.now()
     for (const e of emails ?? []) {
       if (Date.now() - startedAt > 45_000) { summary.deferred++; continue }
-      const sender = (e.sender_email || '').toLowerCase()
-      const senderDomain = sender.split('@')[1] || ''
+      // IV-8: før et (dødt) afsender-filter på delstrenge ('ao' ramte @aol.com); leverandørdomænet afgøres nu i
+      // ingestFromEmail, når der kun er brødtekst
       const subjectHit = /faktura|invoice|kreditnota|credit\s*note/i.test(e.subject || '')
-      const senderHit = Array.from(supplierTokens).some((tok) => tok && (sender.includes(tok) || senderDomain.includes(tok)))
-      if (!e.has_attachments && !subjectHit && !senderHit) continue
+      if (!e.has_attachments && !subjectHit) continue
 
       summary.scanned++
       try {
