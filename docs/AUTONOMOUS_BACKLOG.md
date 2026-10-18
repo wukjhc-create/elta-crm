@@ -224,9 +224,9 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-8 | Cockpitkort viser falsk "0/alt i orden" for roller uden data (S3) | DONE (kode) — allowed-flag |
 | DB-9 | E-mail-intelligens "i dag" i UTC (S3) | DONE (kode) |
 | DB-10 | Regnskabssundhed tæller "draft-N" som eksporteret (S3) | DONE (kode) |
-| DB-11 | Likviditet: kreditnotaer modregnes ikke; valuta blandet (S3) | TODO |
+| DB-11 | Likviditet: kreditnotaer modregnes ikke; valuta blandet (S3) | DELVIS (kode) — kun DKK; modregning af kreditnotaer er en dokumenteret CTO-definition ("ingen modregning") → beslutning for Henrik |
 | DB-12 | Hver visning pager hele time_logs (S3) | UDSAT (jf. PF2-7; aggregat-RPC = migration) |
-| DB-13 | Porteføljens netto faktureret inkl. moms uden at sige det (S4) | TODO |
+| DB-13 | Porteføljens netto faktureret inkl. moms uden at sige det (S4) | DONE — "inkl. moms" på udestående, netto faktureret og fodnote |
 | DB-14 | Momsgrundlag blandet på samme side (S4) | DONE (kode) — afviste tilbud og seneste klar-til-sag ekskl. moms |
 | DB-15 | Små lofter/filter-mismatch (S4) | TODO |
 | IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | DONE (kode) — fakturanummer kræver et ciffer; invoice-parser-test +4 |

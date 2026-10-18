@@ -1913,6 +1913,7 @@ export async function getInvoiceDashboardAction(
 //    (vises separat — tæller IKKE som faktureret).
 //  - Kreditnotaer + annullerede tæller hverken som faktureret eller
 //    betalt (ingen modregning — vi pynter ikke tallene).
+//  - Kun DKK-fakturaer (DB-11); fremmed valuta indgår ikke.
 // KUN salgs/faktura-beløb — ingen kost/margin/DB. Gated invoices.view.all.
 // =====================================================
 
@@ -1962,7 +1963,7 @@ export async function getInvoiceLiquidityChartAction(
   // side for side (PostgREST max_rows 1000 — .limit(5000) gav for lave månedstal ved mange fakturaer)
   const { data, error } = await fetchAllRows((from, to) => supabase
     .from('invoices')
-    .select('id, status, invoice_type, final_amount, amount_paid, voided_at, sent_at, paid_at, created_at')
+    .select('id, status, invoice_type, final_amount, amount_paid, voided_at, sent_at, paid_at, created_at, currency')
     // X1: en faktura oprettet FØR vinduet kan være sendt/betalt i det (før kun created_at → betalinger manglede)
     .or(`created_at.gte.${sinceIso},sent_at.gte.${sinceIso},paid_at.gte.${sinceIso}`)
     .order('id')
@@ -1977,6 +1978,8 @@ export async function getInvoiceLiquidityChartAction(
   let hasData = false
 
   for (const r of data ?? []) {
+    // DB-11 (dashboard-review 2026-10-18): grafen viser DKK — fakturaer i anden valuta blev før lagt sammen som kroner
+    if (String((r as { currency?: string | null }).currency ?? 'DKK').toUpperCase() !== 'DKK') continue
     const isCredit = r.invoice_type === 'credit'
     const active = !r.voided_at && !isCredit
     const amount = Number(r.final_amount ?? 0)

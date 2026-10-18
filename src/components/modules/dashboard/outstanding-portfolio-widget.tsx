@@ -56,17 +56,17 @@ export function OutstandingPortfolioWidget({ initial }: { initial?: Awaited<Retu
       ) : data.cases_with_outstanding === 0 ? (
         <div className="rounded-lg ring-1 ring-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-          <span>Ingen udestående på aktive sager.{data.total_net_invoiced > 0 && ` ${kr(data.total_net_invoiced)} faktureret.`}</span>
+          <span>Ingen udestående på aktive sager.{data.total_net_invoiced > 0 && ` ${kr(data.total_net_invoiced)} faktureret inkl. moms.`}</span>
         </div>
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg ring-1 ring-amber-200 bg-amber-50 px-3 py-2.5">
-              <div className="text-xs text-gray-500">Samlet udestående</div>
+              <div className="text-xs text-gray-500">Samlet udestående inkl. moms</div>
               <div className="text-2xl font-bold mt-0.5 text-amber-700">{kr(data.total_outstanding)}</div>
             </div>
             <div className="rounded-lg ring-1 ring-gray-200 bg-gray-50 px-3 py-2.5">
-              <div className="text-xs text-gray-500 inline-flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> Netto faktureret</div>
+              <div className="text-xs text-gray-500 inline-flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> Netto faktureret inkl. moms</div>
               <div className="text-2xl font-bold mt-0.5 text-gray-800">{kr(data.total_net_invoiced)}</div>
             </div>
           </div>
@@ -92,7 +92,8 @@ export function OutstandingPortfolioWidget({ initial }: { initial?: Awaited<Retu
       )}
 
       <p className="text-[11px] text-gray-400 mt-3">
-        Kun salgs-/fakturatal — ingen intern kost, margin eller dækningsbidrag.
+        {/* DB-13 (dashboard-review 2026-10-18): beløbene er inkl. moms (som fakturaerne) — før stod det ingen steder */}
+        Beløb inkl. moms. Kun salgs-/fakturatal — ingen intern kost, margin eller dækningsbidrag.
       </p>
     </div>
   )
