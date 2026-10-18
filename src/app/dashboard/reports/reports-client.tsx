@@ -578,7 +578,9 @@ function RejectionAnalyticsSection({ stats }: { stats: RejectionStats | null }) 
 // Main
 // =====================================================
 
-export default function ReportsClient() {
+type ExportKind = 'customers' | 'leads' | 'offers' | 'projects' | 'calculations'
+
+export default function ReportsClient({ exports: allowedExports }: { exports?: Partial<Record<ExportKind, boolean>> } = {}) {
   const [summary, setSummary] = useState<ReportsSummary | null>(null)
   const [revenue, setRevenue] = useState<RevenueByPeriod[]>([])
   const [customers, setCustomers] = useState<RevenueByCustomer[]>([])
@@ -708,11 +710,9 @@ export default function ReportsClient() {
         </h3>
         <p className="text-sm text-gray-500 mb-4">Download data som CSV-filer til brug i Excel, regnskab eller analyse.</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-          <ExportButton type="customers" className="justify-center" />
-          <ExportButton type="leads" className="justify-center" />
-          <ExportButton type="offers" className="justify-center" />
-          <ExportButton type="projects" className="justify-center" />
-          <ExportButton type="calculations" className="justify-center" />
+          {(['customers', 'leads', 'offers', 'projects', 'calculations'] as const)
+            .filter((k) => !allowedExports || allowedExports[k])
+            .map((k) => <ExportButton key={k} type={k} className="justify-center" />)}
         </div>
       </div>
     </div>

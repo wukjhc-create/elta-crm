@@ -176,7 +176,9 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'rejected').eq('is_proposal', false),
       fetchAllRows<{ final_amount: number | null; tax_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount, tax_amount').not('status', 'eq', 'draft').eq('is_proposal', false).order('id').range(from, to))
         .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
-      supabase.from('projects').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      // RX-8 (rapport-review 2026-10-18): aktive SAGER — den gamle projects-tabel bruges ikke længere (≈ 0)
+      supabase.from('service_cases').select('id', { count: 'exact', head: true })
+        .not('status', 'in', '("closed","converted")').eq('is_proposal', false),
       // rapport-review: time_entries er den gamle model (≈ 0 i prod) — timer registreres i time_logs
       fetchAllRows<{ hours: number | string | null; billable: boolean | null }>((from, to) => supabase.from('time_logs')
         .select('id, hours, billable').not('end_time', 'is', null).neq('approval_status', 'rejected').gte('start_time', monthStartIso).order('id').range(from, to))

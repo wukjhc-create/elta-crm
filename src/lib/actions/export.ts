@@ -216,6 +216,7 @@ export async function exportOffers(filters?: {
     let query = supabase
       .from('offers')
       .select('offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, final_amount, valid_until, notes, created_at')
+      .eq('is_proposal', false) // RX-9: AI-forslag er ikke tilbud
       .order('created_at', { ascending: false })
       .order('id')
 
@@ -284,6 +285,7 @@ export async function exportProjects(filters?: {
       .from('service_cases')
       .select('id, case_number, title, customer:customers!service_cases_customer_id_fkey(company_name, customer_number), status, priority, start_date, end_date, planned_hours, budget, description, created_at')
       .eq('is_proposal', false)
+      .neq('status', 'converted') // RX-9: konverterede sager er erstattet af en anden sag (talte dobbelt)
       .order('created_at', { ascending: false })
       .order('id')
 

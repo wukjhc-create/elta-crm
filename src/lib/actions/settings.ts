@@ -461,11 +461,12 @@ export async function updatePaymentReportConfig(
     if (!hasPermission('settings.manage')) {
       return { success: false, error: 'Manglende tilladelse: settings.manage' }
     }
-    const { data: existing } = await supabase.from('company_settings').select('id').maybeSingle()
+    const { data: existing } = await supabase.from('company_settings').select('id, payment_report_config').maybeSingle()
     if (!existing) {
       return { success: false, error: 'Kunne ikke finde virksomhedsindstillinger' }
     }
     const clean = parsePaymentReportConfig(input)
+    const prevRecipients = parsePaymentReportConfig((existing as { payment_report_config?: unknown }).payment_report_config as PaymentReportConfig).recipients
     const { error } = await supabase
       .from('company_settings')
       .update({ payment_report_config: clean })
@@ -486,6 +487,9 @@ export async function updatePaymentReportConfig(
           enabled: clean.enabled,
           filter: clean.filter,
           recipient_count: clean.recipients.length,
+          // RX-3 (rapport-review 2026-10-18): hvilke adresser — rapporten indeholder kunders udestående og kontaktdata
+          recipients_added: recipientDiff(clean.recipients, prevRecipients),
+          recipients_removed: recipientDiff(prevRecipients, clean.recipients),
           skip_if_empty: clean.skip_if_empty,
         },
         metadata: { note: 'Cost-free — kun modtagere + filtervalg.' },
@@ -1583,7 +1587,8 @@ export async function updateExportErrorNotificationConfig(input: {
         entity_name: 'Eksportfejl-notifikation',
         action: 'export_error_notification_config_updated',
         action_description: `Eksportfejl-notifikation ${merged.enabled ? 'slået til' : 'slået fra'} — ${recipients.length} modtager(e)`,
-        changes: { enabled: merged.enabled, recipient_count: recipients.length, min_hours_between },
+        changes: { enabled: merged.enabled, recipient_count: recipients.length, min_hours_between,
+          recipients_added: recipientDiff(recipients, prev.recipients ?? []), recipients_removed: recipientDiff(prev.recipients ?? [], recipients) },
         metadata: { provider: 'economic' },
       })
     } catch (e) {
@@ -1620,4 +1625,10 @@ export async function sendExportErrorNotificationTestAction(): Promise<
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke sende testnotifikation') }
   }
+}
+
+/** RX-3: adresser i a, der ikke er i b (sammenligning uden store/små bogstaver). */
+function recipientDiff(a: string[], b: string[]): string[] {
+  const set = new Set(b.map((x) => x.trim().toLowerCase()))
+  return a.filter((x) => !set.has(x.trim().toLowerCase()))
 }
