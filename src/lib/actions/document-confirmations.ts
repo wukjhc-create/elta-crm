@@ -565,7 +565,8 @@ export async function listConfirmationsForDocument(
 ): Promise<ActionResult<ConfirmationListItem[]>> {
   try {
     validateUUID(documentId, 'documentId')
-    { const denied = await confirmationGateDenied('service.view', null); if (denied) return { success: false, error: denied } }
+    // AS-6 (sikkerheds-review 2026-10-18): sagens scope tjekkes (før null → enhver med service.view så modtagere/noter)
+    { const denied = await confirmationGateDenied('service.view', await caseOfDocument(documentId)); if (denied) return { success: false, error: denied } }
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -644,7 +645,7 @@ export async function markConfirmationMailSent(
 ): Promise<ActionResult<void>> {
   try {
     validateUUID(confirmationId, 'confirmationId')
-    { const denied = await confirmationGateDenied('service.edit', null); if (denied) return { success: false, error: denied } }
+    { const denied = await confirmationGateDenied('service.edit', await caseOfConfirmation(confirmationId)); if (denied) return { success: false, error: denied } }
     const { supabase } = await getAuthenticatedClient()
     const { error } = await supabase
       .from('document_confirmations')
@@ -667,6 +668,8 @@ export async function markConfirmationMailFailed(
 ): Promise<ActionResult<void>> {
   try {
     validateUUID(confirmationId, 'confirmationId')
+    // AS-6: før kun login (salg/bogholderi kunne markere ventende bekræftelser som fejlet)
+    { const denied = await confirmationGateDenied('service.edit', await caseOfConfirmation(confirmationId)); if (denied) return { success: false, error: denied } }
     const { supabase } = await getAuthenticatedClient()
     const { error } = await supabase
       .from('document_confirmations')
@@ -700,7 +703,7 @@ export async function revokeConfirmation(input: {
 }): Promise<ActionResult<void>> {
   try {
     validateUUID(input.confirmationId, 'confirmationId')
-    { const denied = await confirmationGateDenied('service.edit', null); if (denied) return { success: false, error: denied } }
+    { const denied = await confirmationGateDenied('service.edit', await caseOfConfirmation(input.confirmationId)); if (denied) return { success: false, error: denied } }
     const { supabase, userId } = await getAuthenticatedClient()
     const now = new Date().toISOString()
 
@@ -821,6 +824,19 @@ async function confirmationGateDenied(permission: 'service.view' | 'service.edit
   } catch {
     return 'Ikke logget ind'
   }
+}
+
+/** AS-6: sagen bag en bekræftelse/et dokument (admin-opslag; scope afgøres af confirmationGateDenied) */
+async function caseOfConfirmation(confirmationId: string): Promise<string | null> {
+  const { data } = await createAdminClient().from('document_confirmations').select('service_case_id, customer_document_id').eq('id', confirmationId).maybeSingle()
+  const row = data as { service_case_id?: string | null; customer_document_id?: string | null } | null
+  if (row?.service_case_id) return row.service_case_id
+  return row?.customer_document_id ? caseOfDocument(row.customer_document_id) : null
+}
+
+async function caseOfDocument(documentId: string): Promise<string | null> {
+  const { data } = await createAdminClient().from('customer_documents').select('service_case_id').eq('id', documentId).maybeSingle()
+  return (data as { service_case_id?: string | null } | null)?.service_case_id ?? null
 }
 
 /** PT-14: dokumentets kunde er deaktiveret (eller findes ikke) → linket må ikke bruges */
