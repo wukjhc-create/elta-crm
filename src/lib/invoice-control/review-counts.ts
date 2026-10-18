@@ -30,5 +30,5 @@ export function countInvoiceReviewLines(
 }
 
 export function reviewCountText(counts: InvoiceReviewCounts): string {
-  return `${counts.overcharge} overpris, ${counts.undercharge} underpris, ${counts.freight + counts.fee} fragt/gebyr.`
+  return `${counts.overcharge} overpris, ${counts.undercharge} underpris, ${counts.freight} fragt, ${counts.fee} gebyr.`
 }

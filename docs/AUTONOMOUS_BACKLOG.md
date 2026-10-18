@@ -752,7 +752,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-13 | 6 Salg | ÅBEN. Tilbud ude: filter- eller tælle-mærke på en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
 | G18-14 | 5 Plan | ÅBEN. Dagsbelastning som antal opgaver. Ikke calendar-workforce eller employee-day-load-hint. | Ingen ny kalender-query. |
 | G18-15 | 8 Pilot | ÅBEN. Prissidens beløb ombrydes, hvis de ikke allerede gør det. | `pricing-client.tsx` uden truncate. Ingen nye priser. |
-| G18-16 | 2 Faktura | ÅBEN. Vis fragt og gebyr hver for sig i tællingen, ikke kun summen. | Beløb og motor uændret. |
+| G18-16 | 2 Faktura | DONE fragt og gebyr vises hver for sig. Beløb og motor uændret. | Ingen e-conomic. |
 | G18-17 | 1 Profit | ÅBEN. Dansk faktureringsstatus på efterkalk-rækken fra `invoiced_state`. | Statusberegningen uændret. |
 | G18-18 | 8 Pilot | ÅBEN. Produktlistens fejltekst må ikke sige at kataloget er tomt, hvis hentningen fejlede. | Tom succes forbliver tom. |
 | G18-19 | 4 Pris | ÅBEN. Et nullable pris felt uden for leave-listen bruger samme "Ingen lagret pris". | Ingen opfundet pris. |

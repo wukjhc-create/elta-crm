@@ -100,7 +100,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
               {', '}
               <span className={review.undercharge > 0 ? 'text-amber-800 font-medium' : ''}>{review.undercharge} underpris</span>
               {', '}
-              <span>{review.freight + review.fee} fragt/gebyr.</span>
+              <span>{review.freight} fragt, {review.fee} gebyr.</span>
             </p>
           )}
           <div className="md:hidden divide-y rounded ring-1 ring-gray-200" data-testid="invoice-control-lines-mobile">

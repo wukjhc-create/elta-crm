@@ -14,7 +14,7 @@ const ok = (c: boolean, label: string, extra = '') => {
 
 const empty = countInvoiceReviewLines([])
 ok(empty.lines === 0 && empty.overcharge === 0 && empty.undercharge === 0 && empty.freight === 0 && empty.fee === 0, 'ingen linjer er 0')
-ok(reviewCountText(empty) === '0 overpris, 0 underpris, 0 fragt/gebyr.', 'tom tekst er 0, ikke et grønt stemmer')
+ok(reviewCountText(empty) === '0 overpris, 0 underpris, 0 fragt, 0 gebyr.', 'tom tekst er 0, ikke et grønt stemmer')
 
 const lines = countInvoiceReviewLines([
   { verdict: 'overcharge', description: 'Fragt til byggeplads' },
@@ -24,7 +24,7 @@ const lines = countInvoiceReviewLines([
   { verdict: 'ok', description: 'Afbryder' },
 ])
 ok(lines.lines === 5 && lines.overcharge === 1 && lines.undercharge === 1 && lines.freight === 2 && lines.fee === 1, 'overpris, underpris, fragt og gebyr tælles hver for sig', JSON.stringify(lines))
-ok(reviewCountText(lines) === '1 overpris, 1 underpris, 3 fragt/gebyr.', 'teksten lægger fragt og gebyr sammen')
+ok(reviewCountText(lines) === '1 overpris, 1 underpris, 2 fragt, 1 gebyr.', 'teksten holder fragt og gebyr hver for sig')
 
 const both = countInvoiceReviewLines([{ verdict: 'overcharge', description: 'Transportgebyr' }])
 ok(both.overcharge === 1 && both.fee === 1 && both.freight === 0, 'samme linje kan være både overpris og gebyr')
