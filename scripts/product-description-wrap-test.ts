@@ -20,7 +20,7 @@ const row = at >= 0 ? view.slice(at - 80, at + 140) : ''
 ok(row.includes('break-words min-w-0'), 'beskrivelsen ombrydes')
 ok(row.includes('{product.description}'), 'teksten er uændret')
 ok(!row.includes('line-clamp-1'), 'den klippes ikke til en linje')
-ok(view.includes('line-clamp-2">{product.description}'), 'mobilkortet venter')
+ok(view.includes('data-testid="product-description-mobile"'), 'mobilkortet ombrydes')
 ok(view.split('hover:text-blue-600 break-words').length - 1 === 2, 'navnelinket bliver')
 ok(view.split('formatCurrency(product.list_price)').length - 1 === 2, 'listeprisen bliver')
 ok(view.includes('storedCostText(product.cost_price)'), 'kostprisen bliver')

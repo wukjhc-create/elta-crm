@@ -243,7 +243,7 @@ export default function ProductsClient({
                       {product.name}
                     </Link>
                     {product.description && (
-                      <p className="text-sm text-gray-500 line-clamp-2">{product.description}</p>
+                      <p className="text-sm text-gray-500 break-words min-w-0" data-testid="product-description-mobile">{product.description}</p>
                     )}
                   </div>
                   <Badge variant={product.is_active ? 'default' : 'secondary'}>

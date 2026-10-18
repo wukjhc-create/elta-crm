@@ -928,12 +928,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-189 | 4 Pris | DONE. Fejlkoden på prissætning ombrydes. | {error.digest} er uændret. |
 | G18-190 | 4 Pris | DONE. Knapperne Prøv igen og Dashboard på prisfejlen ombrydes. | reset og linket /dashboard er uændret. |
 | G18-191 | 4 Pris | DONE. Produktbeskrivelsen i kataloget ombrydes i stedet for line-clamp-1. | Navn, kost og listepris er uændret. |
-| G18-192 | 4 Pris | ÅBEN. Produktbeskrivelsen på katalogets mobilkort ombrydes i stedet for line-clamp-2. | Navn, kost og listepris er uændret. |
+| G18-192 | 4 Pris | DONE. Produktbeskrivelsen på katalogets mobilkort ombrydes i stedet for line-clamp-2. | Navn, kost og listepris er uændret. |
 | G18-193 | 4 Pris | ÅBEN. Listeprisen i produktkataloget ombrydes. | formatCurrency(product.list_price) er uændret. |
 | G18-194 | 4 Pris | ÅBEN. Kategorimærket i produktkataloget ombrydes. | Navnet er uændret. |
 | G18-195 | 4 Pris | ÅBEN. Den tomme katalogtekst ombrydes. | De to sætninger er uændret. |
 | G18-196 | 4 Pris | ÅBEN. Overskriften på det tomme katalog ombrydes. | De to sætninger er uændret. |
 | G18-197 | 4 Pris | ÅBEN. Statusmærket Aktiv og Inaktiv i kataloget ombrydes. | Ordene er uændret. |
+| G18-198 | 4 Pris | ÅBEN. Kolonneoverskrifterne i produktkataloget ombrydes. | Ordene er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
