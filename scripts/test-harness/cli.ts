@@ -810,6 +810,28 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'invoice-parse-failure-check') {
+    // IV-2: fejler parse-opdateringen (her et beløb ud over NUMERIC(12,2)), markeres fakturaen til manuel gennemgang
+    const { parseAndMatch } = await import('../../src/lib/services/incoming-invoices')
+    const stamp = Date.now()
+    const { data, error } = await admin.from('incoming_invoices').insert({ source: 'manual', status: 'received', invoice_number: `H-PF-${stamp}`, currency: 'DKK', raw_text: 'HARNESS Firma ApS\nFaktura nr 7788\nI alt 99.999.999.999,00' }).select('id').single()
+    if (error || !data) { log(`❌ seed: ${error?.message}`); process.exitCode = 1; return }
+    const id = (data as { id: string }).id
+    let fails = 0
+    try {
+      const r = await parseAndMatch(id)
+      const { data: row } = await admin.from('incoming_invoices').select('parse_status, requires_manual_review, status').eq('id', id).maybeSingle()
+      const x = row as { parse_status?: string; requires_manual_review?: boolean; status?: string } | null
+      const ok = !r.parsed && x?.parse_status === 'failed' && x?.requires_manual_review === true
+      if (!ok) fails++
+      log(`  ${ok ? '✓' : '❌'} fejlet opdatering → manuel gennemgang — parsed=${r.parsed} parse_status=${x?.parse_status} review=${x?.requires_manual_review} status=${x?.status}`)
+    } finally {
+      await admin.from('incoming_invoices').delete().eq('id', id)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ parse-fejl markeres')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'mail-backfill-probe') {
     // Mail-review 2026-10-09 (#1): orchestratorens backfill-forespørgsel (kolonner/filtre) virker mod det rigtige skema
     const since = new Date(Date.now() - 14 * 86_400_000).toISOString()

@@ -230,7 +230,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-14 | Momsgrundlag blandet på samme side (S4) | DONE (kode) — afviste tilbud og seneste klar-til-sag ekskl. moms |
 | DB-15 | Små lofter/filter-mismatch (S4) | TODO |
 | IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | DONE (kode) — fakturanummer kræver et ciffer; invoice-parser-test +4 |
-| IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | DELVIS (kode) — kun gyldige kalenderdatoer (ugyldig → null); manuel-kontrol-flag ved fejlet opdatering = TODO |
+| IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | DONE — kun gyldige kalenderdatoer (ugyldig → null); fejlet parse-opdatering → parse_status=failed + manuel gennemgang (cli invoice-parse-failure-check) |
 | IV-3 | Mail-fakturaer fra før vedhæftnings-hentning kan dubleres (S2, plausibel) | TODO |
 | IV-4 | Priskontrol sammenligner listepris i stedet for faktureret pris (S2) | DELVIS (kode) — kontrollen bruger faktisk faktureret pris (total/antal); "ukendt enhed = ikke kontrollerbar" = TODO (ville slå kontrol fra for mange linjer) |
 | IV-5 | Afrunding af enhedskost giver anden sagskost end fakturaen (S3) | TODO |

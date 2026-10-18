@@ -660,6 +660,12 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
       })
       return { parsed: true, matched: false, duplicate: true, message: 'duplicate (DB)' }
     }
+    // IV-2 (leverandørfaktura-review 2026-10-18): en fejlet parse-opdatering (fx en ugyldig værdi) efterlod fakturaen
+    // uden kontrol-flag — nu markeres den til manuel gennemgang (låste fakturaer røres ikke)
+    await supabase.from('incoming_invoices')
+      .update({ parse_status: 'failed', requires_manual_review: true })
+      .eq('id', invoiceId)
+      .not('status', 'in', '(approved,posted,rejected,cancelled)')
     await auditLog({ incomingInvoiceId: invoiceId, action: 'error', ok: false, message: updErr.message })
     return { parsed: false, matched: false, duplicate: false, message: updErr.message }
   }
