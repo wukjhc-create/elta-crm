@@ -383,7 +383,7 @@ function TaskForm({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Titel *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 break-words min-w-0" data-testid="customer-task-label-title">Titel *</label>
             <input
               type="text"
               value={title}
