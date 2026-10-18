@@ -70,11 +70,11 @@ export function TimeApprovalClient() {
   const approve = async (ids: string[], key: string) => {
     setBusy(key); setMsg(null); setError(null)
     // HR-review 2026-10-08 (#3): send det viste tidsrum med — ændrede registreringer godkendes ikke ubeset
-    const seen = Object.fromEntries((rows ?? []).filter((l) => ids.includes(l.id)).map((l) => [l.id, { start_time: l.start_time, end_time: l.end_time, pay_rate_type: l.pay_rate_type, employee_rate_id: l.employee_rate_id }]))
+    const seen = Object.fromEntries((rows ?? []).filter((l) => ids.includes(l.id)).map((l) => [l.id, { start_time: l.start_time, end_time: l.end_time, pay_rate_type: l.pay_rate_type, employee_rate_id: l.employee_rate_id, billable: l.billable, work_order_id: l.work_order_id }]))
     // TP-8 (review 2026-10-17): serveren tager højst 200 pr. kald — "Godkend alle" over 200 sendes i bidder
     let updated = 0
     let skipped = 0
-    const rs = { own: 0, running: 0, already: 0, invoiced: 0, changed: 0, hidden: 0, overlap: 0 }
+    const rs = { own: 0, running: 0, already: 0, invoiced: 0, changed: 0, hidden: 0, overlap: 0, closed: 0 }
     for (let i = 0; i < ids.length; i += 200) {
       const chunk = ids.slice(i, i + 200)
       const part = await approveTimeLogsAction(chunk, Object.fromEntries(chunk.map((id) => [id, seen[id]]).filter(([, v]) => v)))
@@ -94,7 +94,7 @@ export function TimeApprovalClient() {
     // T-11: årsager i klartekst (før en samlet parentes uden tal)
     const parts = rs ? [
       rs.own ? `${rs.own} egne` : '', rs.running ? `${rs.running} kører stadig` : '', rs.already ? `${rs.already} allerede godkendt` : '',
-      rs.changed ? `${rs.changed} ændret siden visning` : '', rs.overlap ? `${rs.overlap} overlapper en anden registrering` : '', rs.invoiced ? `${rs.invoiced} faktureret` : '', rs.hidden ? `${rs.hidden} ikke tilgængelige` : '',
+      rs.changed ? `${rs.changed} ændret siden visning` : '', rs.overlap ? `${rs.overlap} overlapper en anden registrering` : '', rs.invoiced ? `${rs.invoiced} faktureret` : '', rs.closed ? `${rs.closed} på lukket sag` : '', rs.hidden ? `${rs.hidden} ikke tilgængelige` : '',
     ].filter(Boolean) : []
     setMsg(`${r.data?.updated ?? 0} registrering(er) godkendt${r.data?.skipped ? ` · ${r.data.skipped} sprunget over${parts.length ? ` (${parts.join(', ')})` : ''}` : ''}`)
     await load()

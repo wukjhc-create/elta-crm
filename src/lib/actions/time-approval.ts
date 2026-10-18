@@ -20,6 +20,8 @@ export type TimeApprovalStatus = 'pending' | 'approved' | 'rejected'
 export interface ApprovalTimeLog {
   id: string
   employee_id: string
+  /** TT-8: arbejdsordren godkenderen så (flyttes rækken, godkendes den ikke usét) */
+  work_order_id: string | null
   employee_name: string | null
   start_time: string
   end_time: string | null
@@ -53,7 +55,7 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
     const st = STATUSES.includes(status) ? status : 'pending'
     const { data, error } = await supabase
       .from('time_logs')
-      .select(`id, employee_id, start_time, end_time, hours, description, billable, approval_status, approved_at, rejection_reason, pay_rate_type, employee_rate_id, invoice_line_id,
+      .select(`id, employee_id, work_order_id, start_time, end_time, hours, description, billable, approval_status, approved_at, rejection_reason, pay_rate_type, employee_rate_id, invoice_line_id,
         employee:employees(name, profile_id), approver:profiles!time_logs_approved_by_fkey(full_name),
         work_order:work_orders(title, case:service_cases(id, case_number, title))`)
       .eq('approval_status', st)
@@ -64,7 +66,7 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
       return { success: false, error: 'Kunne ikke hente timer' }
     }
     type Row = {
-      id: string; employee_id: string; start_time: string; end_time: string | null; hours: number | string | null
+      id: string; employee_id: string; work_order_id: string | null; start_time: string; end_time: string | null; hours: number | string | null
       description: string | null; billable: boolean | null; approval_status: TimeApprovalStatus; approved_at: string | null
       rejection_reason: string | null
       pay_rate_type: string | null; employee_rate_id: string | null; invoice_line_id: string | null
@@ -77,7 +79,7 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
       const wo = one(r.work_order)
       const cs = one(wo?.case as { id: string; case_number: string | null; title: string | null } | null)
       return {
-        id: r.id, employee_id: r.employee_id, employee_name: emp?.name ?? null, start_time: r.start_time, end_time: r.end_time,
+        id: r.id, employee_id: r.employee_id, work_order_id: r.work_order_id ?? null, employee_name: emp?.name ?? null, start_time: r.start_time, end_time: r.end_time,
         hours: r.hours === null ? null : Number(r.hours), description: r.description, billable: r.billable !== false,
         approval_status: r.approval_status, approved_at: r.approved_at, approved_by_name: one(r.approver)?.full_name ?? null,
         rejection_reason: r.rejection_reason, case_id: cs?.id ?? null, case_number: cs?.case_number ?? null,
@@ -98,10 +100,10 @@ function sameInstant(a: string | null | undefined, b: string | null | undefined)
 }
 
 /** Det godkenderen så pr. id (start/slut) — godkendes kun hvis registreringen ikke er ændret siden */
-export type SeenTimes = Record<string, { start_time: string; end_time: string | null; pay_rate_type?: string; employee_rate_id?: string | null }>
+export type SeenTimes = Record<string, { start_time: string; end_time: string | null; pay_rate_type?: string; employee_rate_id?: string | null; billable?: boolean; work_order_id?: string | null }>
 
 /** T-11 (review 2026-10-16): hvorfor registreringer blev sprunget over (før kun et samlet tal uden årsag) */
-export interface SkipReasons { own: number; running: number; already: number; invoiced: number; changed: number; hidden: number; overlap: number }
+export interface SkipReasons { own: number; running: number; already: number; invoiced: number; changed: number; hidden: number; overlap: number; closed: number }
 
 async function decide(ids: string[], decision: 'approved' | 'rejected', reason: string | null, seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number; reasons?: SkipReasons }>> {
   const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
@@ -113,10 +115,12 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   // Læs med brugerens session (RLS-scope) — kun rækker brugeren må se, kan besluttes
   const { data: visible, error: readErr } = await supabase
     .from('time_logs')
-    .select('id, employee_id, start_time, end_time, approval_status, invoice_line_id, pay_rate_type, employee_rate_id, employee:employees(profile_id)')
+    .select('id, employee_id, work_order_id, billable, start_time, end_time, approval_status, invoice_line_id, pay_rate_type, employee_rate_id, employee:employees(profile_id), work_order:work_orders(case:service_cases(status))')
     .in('id', unique)
   if (readErr) return { success: false, error: 'Kunne ikke hente timer' }
-  type V = { id: string; employee_id: string; start_time: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; pay_rate_type: string | null; employee_rate_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }
+  type V = { id: string; employee_id: string; work_order_id: string | null; billable: boolean | null; start_time: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; pay_rate_type: string | null; employee_rate_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null; work_order: { case: unknown } | Array<{ case: unknown }> | null }
+  // TT-11 (timer-review 2026-10-18): en lukket sags kost/avance må ikke ændres af en senere godkendelse/afvisning
+  const caseClosed = (v: V) => (one(one(v.work_order)?.case as { status?: string } | Array<{ status?: string }> | null)?.status ?? null) === 'closed'
   const eligible = ((visible ?? []) as unknown as V[]).filter((v) =>
     v.end_time !== null && v.approval_status !== decision && one(v.employee)?.profile_id !== userId
     // HR-review 2026-10-08 (#4): fakturerede timer kan ikke afvises (de forsvandt fra kost/avance, men stod på fakturaen)
@@ -125,22 +129,27 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
     && (!seen || !seen[v.id] || (sameInstant(seen[v.id].start_time, v.start_time) && sameInstant(seen[v.id].end_time, v.end_time)
       // PL-2: satstype/sats ændret efter godkenderen så den (fx normal → overtid 100 %) → springes over
       && (seen[v.id].pay_rate_type === undefined || seen[v.id].pay_rate_type === (v.pay_rate_type ?? 'normal'))
-      && (seen[v.id].employee_rate_id === undefined || (seen[v.id].employee_rate_id ?? null) === (v.employee_rate_id ?? null)))))
+      && (seen[v.id].employee_rate_id === undefined || (seen[v.id].employee_rate_id ?? null) === (v.employee_rate_id ?? null))
+      // TT-8: fakturerbar/arbejdsordre ændret efter godkenderen så den → springes over
+      && (seen[v.id].billable === undefined || seen[v.id].billable === (v.billable !== false))
+      && (seen[v.id].work_order_id === undefined || (seen[v.id].work_order_id ?? null) === (v.work_order_id ?? null))))
+    && !caseClosed(v))
   let skipped = unique.length - eligible.length
   // T-11: årsag pr. sprunget-over række (første regel der fejler) — skjulte = ikke synlige for brugeren (RLS/scope)
   const visibleRows = (visible ?? []) as unknown as V[]
   const eligibleIds = new Set(eligible.map((e) => e.id))
-  const reasons: SkipReasons = { own: 0, running: 0, already: 0, invoiced: 0, changed: 0, hidden: unique.length - visibleRows.length, overlap: 0 }
+  const reasons: SkipReasons = { own: 0, running: 0, already: 0, invoiced: 0, changed: 0, hidden: unique.length - visibleRows.length, overlap: 0, closed: 0 }
   for (const v of visibleRows) {
     if (eligibleIds.has(v.id)) continue
     if (v.end_time === null) reasons.running++
     else if (v.approval_status === decision) reasons.already++
     else if (one(v.employee)?.profile_id === userId) reasons.own++
     else if (decision === 'rejected' && v.invoice_line_id) reasons.invoiced++
+    else if (caseClosed(v)) reasons.closed++
     else reasons.changed++
   }
   if (eligible.length === 0) {
-    return { success: false, error: 'Ingen af de valgte registreringer kan behandles (egne timer, igangværende timer, allerede behandlet eller allerede faktureret)' }
+    return { success: false, error: 'Ingen af de valgte registreringer kan behandles (egne timer, igangværende timer, allerede behandlet, allerede faktureret eller på en lukket sag)' }
   }
 
   const { createAdminClient } = await import('@/lib/supabase/admin')
@@ -177,6 +186,9 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
     q = v.end_time === null ? q.is('end_time', null) : q.eq('end_time', v.end_time)
     q = v.pay_rate_type === null ? q.is('pay_rate_type', null) : q.eq('pay_rate_type', v.pay_rate_type)
     q = v.employee_rate_id === null ? q.is('employee_rate_id', null) : q.eq('employee_rate_id', v.employee_rate_id)
+    // TT-8: også fakturerbar/arbejdsordre som set
+    if (v.billable !== null) q = q.eq('billable', v.billable)
+    q = v.work_order_id === null ? q.is('work_order_id', null) : q.eq('work_order_id', v.work_order_id)
     return q.select('id')
   }
   const upd: Array<{ id: string }> = []

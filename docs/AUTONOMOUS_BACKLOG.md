@@ -221,10 +221,10 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | TT-5 | Samtidige overlappende registreringer (ingen exclusion constraint) (S3) | BLOCKED_APPROVAL [MIGRATION] — EXCLUDE USING gist |
 | TT-6 | Salgsbeløb når montører (create/update-svar; kollegaers sale_rate_snapshot via REST) (S3) | DELVIS (kode) — opret/ret-svar uden kost og uden salg for roller uden salgsret (U11/U30/U34/U40); kolonne-REVOKE af sale_* for authenticated = BLOCKED_APPROVAL [MIGRATION] |
 | TT-7 | Slutfaktura kan få en afvist time med (bind uden status-/tidstjek) (S3) | DONE (kode) — slutfakturaens binding kræver approved + uændrede tider; ellers rulles hele slutfakturaen tilbage (billing-model-check, concurrency C8) |
-| TT-8 | Godkendelsens "set"-tjek ignorerer billable/arbejdsordre (S4) | TODO |
+| TT-8 | Godkendelsens "set"-tjek ignorerer billable/arbejdsordre (S4) | DONE (kode) — set-tjek + compare-and-set også på billable og work_order_id (U62/U72/U117/U119) |
 | TT-9 | Gem af ventende/afvist række genprisser til dagens sats (S4) | BESLUTNING — må ventende rækker genprisses? |
 | TT-10 | "Klar til fakturering" tæller timer der afventer godkendelse (S4) | TODO |
-| TT-11 | Godkend/afvis tjekker ikke lukket sag (S4) | TODO |
+| TT-11 | Godkend/afvis tjekker ikke lukket sag (S4) | DONE (kode) — rækker på lukket sag springes over med egen årsag "på lukket sag" |
 | LD-1 | Signeret URL til vilkårlig fil i attachments via leads.custom_fields.attachments (montør/salg kan PATCHe lead) (S2) | DONE (kode) — egen kopi kun under lead-attachments/<leadId>/, kildesti kun hvis den står på leadets egen kildemail (lead-attachment-access-test); RLS-del = LD-2 |
 | LD-2 | Lead-skrivepolitikker bredere end appen (montør INSERT/UPDATE; lead_activities uden performed_by = auth.uid()) (S2) | BLOCKED_APPROVAL [MIGRATION] + BESLUTNING (må salg opdatere alle leads?) |
 | LD-3 | Kobling af lead til eksisterende kunde efterlader leadets tilbud uden kunde (S2) | DONE (kode) — fælles linkLeadArtifactsToCustomer (tilbud uden kunde + kildemail) i konvertering (også allerede-koblet), "Kobl til denne kunde" og "Opret kunde fra mail" (U131 udvidet, U27) |
