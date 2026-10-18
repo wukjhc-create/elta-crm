@@ -3246,6 +3246,26 @@ ${m.text()}`) })
         r.kilde_website = lead?.source === 'website'
         r.knap_bliver_aabn_lead = (await a.page.getByTestId('mail-lead-open').count()) === 1
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        // LD-7: samme person indsender igen → ingen dublet-lead; mailen kobles på det åbne lead
+        const subj2 = `Ny henvendelse fra eltasolar.dk [LEAD2 ${stamp}]`
+        const em2 = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', reply_to: leadMail, subject: subj2,
+          body_text: `Here's what they had to say:\nName\nValue\nname\nWeb Testesen\nphone\n+45 22 33 44 55\nemail\n${leadMail}\ninquiry_type\nSolceller\nmessage\nHar I set min besked?`,
+          received_at: new Date().toISOString(), is_archived: false, link_status: 'unidentified' }]).select('id')
+        const em2Id = (em2.data?.[0] as { id?: string } | undefined)?.id
+        if (em2Id) seededEmailIds.push(em2Id)
+        await gotoSafe(a.page, `${base}/dashboard/mail?filter=webform`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByText(subj2).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('mail-create-lead').click({ timeout: 60_000 }).catch(() => {})
+        let extra: string[] = []
+        for (let i = 0; i < 20 && !extra.includes(em2Id ?? '-'); i++) {
+          const row = (await c.admin.from('leads').select('custom_fields').eq('id', lead?.id ?? '').maybeSingle()).data as { custom_fields?: { extra_source_email_ids?: string[] } | null } | null
+          extra = row?.custom_fields?.extra_source_email_ids ?? []
+          if (!extra.includes(em2Id ?? '-')) await new Promise((res) => setTimeout(res, 1000))
+        }
+        const same = ((await c.admin.from('leads').select('id').eq('email', leadMail)).data ?? []) as Array<{ id: string }>
+        for (const x of same) if (!u27LeadIds.includes(x.id)) u27LeadIds.push(x.id)
+        r.gentaget_ingen_dublet = same.length === 1
+        r.gentaget_koblet_paa_lead = !!em2Id && extra.includes(em2Id)
         out.push({ id: 'U68 N35 webhenvendelse → lead', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 

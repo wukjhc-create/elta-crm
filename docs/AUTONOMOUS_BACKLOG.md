@@ -231,7 +231,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LD-4 | Tildeling vises ingen steder (profiler fyldes aldrig); ikke-admin kan ikke tildele (S2) | DELVIS (kode) — navne på ansvarlig/oprettet af/aktiviteter slås op (RLS); tildelingslisten åben for leads.edit/create, kun aktive (U192). Standardtildeling/"Kun mine" = BESLUTNING |
 | LD-5 | Lead-redigering overskriver samtidige ændringer og kan genåbne vundet lead (S3) | DONE (kode) — updateLead compare-and-set på status + updated_at fra formularen; "ændret imens" (U192 ny) |
 | LD-6 | Webhenvendelse: by tabes, postnr+by havner i gaden (S3) | DELVIS (kode) — postnr.+by i adressen udtrækkes også når postnr. er læst først (samme postnr.); email-parser-city-test +3. By fra postnummertabel ved ren gade = TODO |
-| LD-7 | Dobbelt-indsendt webformular giver dubletleads (S3) | TODO |
+| LD-7 | Dobbelt-indsendt webformular giver dubletleads (S3) | DONE (kode) — webhenvendelse med samme e-mail som et åbent lead (30 dage) kobles på leadet (aktivitet + extra_source_email_ids; tæller som behandlet) (U68 udvidet) |
 | LD-8 | Offentligt kontakt-endpoint opretter kunde men kobler ikke leadet (S3) | DELVIS (kode) — leadet kobles til kunden (custom_fields.customer_id; cli public-contact-limit-check). Kunde ved hver indsendelse = BESLUTNING |
 | LD-9 | Ny webhenvendelse fra eksisterende kunde bliver aldrig lead i bulk (S3) | BESLUTNING |
 | LD-10 | Audit-huller og frit activityType (S3) | DELVIS (kode) — activityType-whitelist (note/call/email/meeting) + længdegrænse; logCreate ved kunde fra lead. Audit i linkLead/createLeadFromEmail = TODO |

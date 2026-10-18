@@ -2095,6 +2095,27 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
       if (pe && isNonCustomerDomain(pe.split('@')[1])) parsed.phone = null
     }
     const name = (parsed.name || parsed.contactPerson || (web ? '' : (e.original_sender_name || e.sender_name)) || contactEmail).trim()
+    // LD-7 (leads-review 2026-10-18): dobbelt-indsendt webformular (to FormSubmit-mails) gav to leads. Findes der et åbent
+    // lead med samme e-mail fra de sidste 30 dage, kobles mailen på det (aktivitet + ekstra kildemail) i stedet.
+    if (web) {
+      const since = new Date(Date.now() - 30 * 86_400_000).toISOString()
+      const { data: openLead } = await supabase.from('leads').select('id, custom_fields')
+        .ilike('email', escapeLike(contactEmail)).not('status', 'in', '("won","lost")').gte('created_at', since)
+        .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(1).maybeSingle()
+      if (openLead) {
+        const ol = openLead as { id: string; custom_fields: Record<string, unknown> | null }
+        const cf = ol.custom_fields ?? {}
+        const extra = Array.isArray(cf.extra_source_email_ids) ? (cf.extra_source_email_ids as string[]) : []
+        if (cf.source_email_id !== e.id && !extra.includes(e.id)) {
+          await supabase.from('leads').update({ custom_fields: { ...cf, extra_source_email_ids: [...extra, e.id] } }).eq('id', ol.id)
+          const f = extractFormSubmitFields(e.body_text, e.body_html)
+          await supabase.from('lead_activities').insert({ lead_id: ol.id, activity_type: 'email', performed_by: userId,
+            description: `Ny webhenvendelse fra samme person${f.Besked ? ` — Besked: ${String(f.Besked).slice(0, 500)}` : ''}` })
+        }
+        revalidatePath('/dashboard/mail')
+        return { success: true, data: { leadId: ol.id, existed: true } }
+      }
+    }
     const { data: lead, error } = await supabase.from('leads').insert({
       company_name: name,
       contact_person: (parsed.contactPerson || name).trim(),
