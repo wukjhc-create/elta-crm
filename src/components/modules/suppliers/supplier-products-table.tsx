@@ -38,6 +38,7 @@ import {
 import type { SupplierProductWithSupplier, SupplierProductFilters } from '@/types/suppliers.types'
 import { formatDate as formatDateUtil } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils/format'
+import { storedCostText } from '@/lib/products/stored-cost-text'
 
 type SortColumn = SupplierProductFilters['sortBy']
 
@@ -239,7 +240,7 @@ export function SupplierProductsTable({
                 <dl className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                   <div>
                     <dt className="text-gray-500">Kostpris</dt>
-                    <dd className="font-mono break-words">{product.cost_price !== null ? formatCurrency(product.cost_price) : '-'}</dd>
+                    <dd className="font-mono break-words">{storedCostText(product.cost_price)}</dd>
                   </div>
                   <div>
                     <dt className="text-gray-500">Listepris</dt>
@@ -318,7 +319,7 @@ export function SupplierProductsTable({
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">
-                      {product.cost_price !== null ? formatCurrency(product.cost_price) : '-'}
+                      {storedCostText(product.cost_price)}
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">
                       {product.list_price !== null ? formatCurrency(product.list_price) : '-'}
