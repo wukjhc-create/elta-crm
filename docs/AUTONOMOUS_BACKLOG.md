@@ -242,7 +242,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | CA-12 | Salgspakke: customerId fra klienten; forkert kategori; mangler rå kost (S3) | DELVIS (kode) — kunden fra tilbuddet; kategori/rå kost = TODO |
 | CA-13 | AI-tid: adgangsfaktorer talt dobbelt; 0 % = standard (S3) | DONE (kode) |
 | CA-14 | savePackageBuilderCalculation: halv gemning + forkerte procenter (S3) | DELVIS (kode) — rækkefejl ruller hovedet tilbage og meldes; procent-felter/overstyringer i rækker = TODO |
-| CA-15 | convertCalculationToOffer: katalogpriser, dropper linjer (S3, latent) | TODO |
+| CA-15 | convertCalculationToOffer: katalogpriser, dropper linjer (S3, latent) | DONE (kode) — fjernet (ubrugt; kun importeret i rumberegneren) |
 
 ## NEXT-41 (review-bølge 2026-10-17 nat — montør-flow + udgående mail)
 | # | Fund | Status |

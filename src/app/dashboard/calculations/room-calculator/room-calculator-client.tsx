@@ -7,7 +7,6 @@ import {
   getRoomTemplates,
   calculateProject,
   simulateProfit,
-  convertCalculationToOffer,
 } from '@/lib/actions/calculation-intelligence'
 import { CALC_DEFAULTS } from '@/lib/constants'
 import { getDBLevel, getDBTextColor } from '@/lib/logic/pricing'
@@ -251,7 +250,6 @@ export function RoomCalculatorClient() {
     setIsConverting(true)
 
     // We need to create a kalkia calculation first, then convert
-    // For now, use convertCalculationToOffer pattern
     // This is a simplified flow - in production you'd save the calculation first
     setConvertResult('Funktion kræver at kalkulationen gemmes først. Brug "Gem som Kalkia kalkulation" først.')
     setIsConverting(false)
