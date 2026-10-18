@@ -278,7 +278,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
             <p className="mt-1 text-xs text-gray-600">
               Tilbud {alert.affects_offers} · kalkulationer {alert.affects_calculations}
             </p>
-            <p className="text-xs text-gray-500">{formatDateUtil(alert.changed_at)}</p>
+            <p className="text-xs text-gray-500 break-words min-w-0" data-testid="pricing-alert-date-mobile">{formatDateUtil(alert.changed_at)}</p>
           </li>
         )
       })}
@@ -341,7 +341,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-right text-xs text-gray-500">
+                  <td className="px-4 py-2.5 text-right text-xs text-gray-500 break-words min-w-0" data-testid="pricing-alert-date">
                     {formatDateUtil(alert.changed_at)}
                   </td>
                 </tr>
