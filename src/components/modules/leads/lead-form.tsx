@@ -121,6 +121,8 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
       const formData = new FormData()
       if (lead?.id) {
         formData.append('id', lead.id)
+        // LD-5: den version formularen blev åbnet med — serveren afviser, hvis leadet er ændret imens
+        if (lead.updated_at) formData.append('expected_updated_at', String(lead.updated_at))
       }
 
       Object.entries(data).forEach(([key, value]) => {

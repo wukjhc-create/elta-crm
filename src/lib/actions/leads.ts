@@ -359,16 +359,17 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       return { success: false, error: `Status kan ikke ændres fra ${LEAD_STATUS_LABELS[oldLead.status as LeadStatus] ?? oldLead.status} til ${LEAD_STATUS_LABELS[newStatus] ?? newStatus}` }
     }
 
-    const { data, error } = await supabase
-      .from('leads')
-      .update(updateData)
-      .eq('id', leadId)
-      .select()
-      .single()
+    // LD-5 (leads-review 2026-10-18): compare-and-set — før overskrev en åben redigeringsformular samtidige ændringer og
+    // kunne sætte et netop vundet lead tilbage til "Forhandling" (won → negotiation er en tilladt overgang)
+    const expectedUpdatedAt = (formData.get('expected_updated_at') as string | null) || null
+    let updQ = supabase.from('leads').update(updateData).eq('id', leadId)
+    if (oldLead) updQ = updQ.eq('status', oldLead.status as string)
+    if (expectedUpdatedAt) updQ = updQ.eq('updated_at', expectedUpdatedAt)
+    const { data, error } = await updQ.select().single()
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return { success: false, error: 'Lead blev ikke fundet' }
+        return { success: false, error: oldLead ? 'Leadet er ændret imens — genindlæs siden og prøv igen' : 'Lead blev ikke fundet' }
       }
       if (error.code === '23503') {
         return { success: false, error: 'Den valgte bruger findes ikke' }
