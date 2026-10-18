@@ -1498,6 +1498,37 @@ Synk-datoen ombrydes. Kaldet er stadig `formatDateUtil(stat.last_sync_at)`. Etik
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-160, G18-161, G18-162, G18-163, G18-164, G18-165.
 
+## Checkpoint 2026-10-18 tyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `0f8b263d`. Det omskriver ikke listerne ovenfor. Produktspids: `ed04ddfe`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push blev afvist før git kørte. De lokale tip er ikke pushet og må ikke prøves igen.
+
+### Alle commits `0f8b263d..ed04ddfe`
+
+```
+ed04ddfe feat(pris): advarseldato ombrydes
+d94b7e60 feat(pris): opdater-knappen ombrydes
+8f0b324d feat(pris): faner ombrydes
+241b2b5f feat(pris): filteretiketter ombrydes
+22eec97b feat(pris): oversigtstal ombrydes
+9f092011 feat(pris): oversigsetiketter ombrydes
+c487b4df feat(pris): tendensoverskrifter ombrydes
+5aa35790 feat(pris): tilbudsoverskrifter ombrydes
+dd0e1b6f feat(pris): advarselsoverskrifter ombrydes
+a6ef44f9 feat(pris): prisbevaegelse-procenter ombrydes
+0f5ac865 feat(pris): statistiktal ombrydes
+256460bf feat(pris): fejltekst ombrydes
+```
+
+Listen er alle commits efter `0f8b263d` til og med `ed04ddfe`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Features
+
+Fejlteksten ombrydes. Sætningen er uændret. Statistiktal og oversigtstal ombrydes. `isText`-udtrykket er uændret. Procenterne ved Prisbevægelse ombrydes. toFixed-udtrykkene er uændret. Kolonneoverskrifter på advarsler, påvirkede tilbud og tendenser ombrydes. Ordene er uændret. Oversigtsetiketter, filteretiketter og faner ombrydes. Knappen Opdater ombrydes. `loadData` er uændret. Datoen på prisadvarslerne ombrydes. Kaldet er stadig `formatDateUtil(alert.changed_at)`. Ingen opfundne priser. Ingen e-conomic.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-172, G18-173, G18-174, G18-175, G18-176, G18-177.
+
 ## NEXT-11 (backlog-wave 2026-10-14 nat — mobil/brugervenlighed salg + kontor)
 Kilde: read-only review (kode, 375 px). [H] = kræver Henrik.
 | # | Fund | Status |
