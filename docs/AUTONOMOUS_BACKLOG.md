@@ -800,7 +800,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-84 | 1 Profit | DONE "Kost pr. linje er skjult" ombrydes. | Sætningen er uændret. |
 | G18-85 | 1 Profit | DONE efterkalk-oversigtens medarbejderfejl ombrydes. | Fejludtrykket er uændret. |
 | G18-86 | 5 Plan | DONE kalenderens "Ansvarlige kunne ikke hentes" ombrydes. | Sætningen er uændret. |
-| G18-87 | 8 Pilot | ÅBEN. Kundens opgavefejl "Ansvarlige kunne ikke hentes" ombrydes. | Sætningen er uændret. |
+| G18-87 | 8 Pilot | DONE kundens opgavefejl "Ansvarlige kunne ikke hentes" ombrydes. | Sætningen er uændret. |
 | G18-30 | 2 Faktura | SPRUNGET. `LineControl` har ikke `unitPrice`. Samme lås som G18-27. | Afvigelsesbeløbet uændret. Ikke BLOCKED_APPROVAL. |
 | G18-32 | 1 Profit | DONE beløb i sagspanelets highlight-liste ombrydes. | `kr()` uændret. |
 | G18-36 | 1 Profit | DONE sagspanelets indledning ombrydes. | Faktureringsstatus og beløb uændret. |
@@ -872,6 +872,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-133 | 5 Plan | ÅBEN. Fejlen på sagens opgaver ombrydes. | Sætningen er uændret. |
 | G18-134 | 8 Pilot | ÅBEN. Kundens "Medarbejdere kunne ikke hentes" ombrydes. | Sætningen er uændret. |
 | G18-135 | 8 Pilot | ÅBEN. "Ingen åbne opgaver" på kundekortet ombrydes. | Sætningen er uændret. |
+| G18-136 | 8 Pilot | ÅBEN. Fejlen på kundens opgaver ombrydes. | `{loadError}` er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
