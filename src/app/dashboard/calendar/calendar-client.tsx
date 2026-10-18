@@ -418,7 +418,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                 <p className="text-xs text-gray-400 text-center py-4 break-words min-w-0" data-testid="calendar-upcoming-empty">Ingen kommende besigtigelser. Book dem fra kunden eller sagen.</p>
               )}
               {upcomingTasks.length > shownUpcoming.length && (
-                <p className="text-xs text-gray-500 text-center pt-2">
+                <p className="text-xs text-gray-500 text-center pt-2 break-words min-w-0" data-testid="calendar-upcoming-count">
                   Viser {shownUpcoming.length} af {upcomingTasks.length}. Resten ligger i månedskalenderen.
                 </p>
               )}
