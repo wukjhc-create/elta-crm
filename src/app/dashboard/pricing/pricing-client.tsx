@@ -374,7 +374,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
           <p className="mt-1 text-xs text-gray-700 break-words">{offer.customer_name}</p>
           <div className="mt-1"><StatusBadge status={offer.status} /></div>
           <p className="mt-1 tabular-nums font-medium break-words">{formatCurrency(offer.total_amount)}</p>
-          <p className="text-xs text-gray-600">Berørte linjer {offer.affected_items}</p>
+          <p className="text-xs text-gray-600 break-words min-w-0" data-testid="pricing-offer-lines-mobile">Berørte linjer {offer.affected_items}</p>
           <p className={`text-xs tabular-nums font-medium break-words ${offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'}`}>
             {offer.potential_loss > 0 ? '-' : '+'}{formatCurrency(Math.abs(offer.potential_loss))}
           </p>
@@ -414,7 +414,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
                 </td>
                 <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(offer.total_amount)}</td>
                 <td className="px-4 py-2.5 text-center">
-                  <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                  <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2 py-0.5 rounded-full break-words min-w-0" data-testid="pricing-offer-lines">
                     {offer.affected_items}
                   </span>
                 </td>
