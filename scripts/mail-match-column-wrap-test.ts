@@ -47,7 +47,8 @@ ok(view.split('data-testid="mail-match-name"').length === 2, 'navne-id kollidere
 ok(view.split('data-testid="mail-match-number"').length === 2, 'nummer-id kolliderer ikke')
 ok(view.split('data-testid="mail-match-kobl-icon"').length === 2, 'kobl-id kolliderer ikke')
 ok(view.split('data-testid="mail-other-column"').length === 2, 'anden kolonne kolliderer ikke')
-ok(view.split(button).length === 3, 'begge knapklasser bliver')
+ok(view.split(button).length === 2, 'e-mail-knappen bliver')
+ok(view.includes('data-testid="mail-other-kobl-button"'), 'forslag-knappen bliver')
 const matchAt = view.indexOf('data-testid="mail-suggest-match"')
 const otherAt = view.indexOf('data-testid="mail-suggest-other"')
 const between = matchAt >= 0 && otherAt > matchAt ? view.slice(matchAt, otherAt) : ''

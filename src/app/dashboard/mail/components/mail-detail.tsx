@@ -660,7 +660,7 @@ export function MailDetail({
                     </div>
                     <button
                       onClick={() => onLinkToCustomer?.(s.id)}
-                      className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                      className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors break-words min-w-0" data-testid="mail-other-kobl-button"
                     >
                       <Link2 className="w-3 h-3 break-words min-w-0" data-testid="mail-other-kobl-icon" />
                       Kobl
