@@ -1179,6 +1179,60 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 fireogtredivte (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `1c4b89cb`. Det lader treogtredivte-hegnet stå. `1c4b89cb` hedder `docs: checkpoint efter f6d5fc14`. Produktspids: `2ae59666`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `2ae59666` blev afvist før git kørte og er ikke prøvet igen. `271958f1` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `1c4b89cb..2ae59666`
+
+```
+2ae59666 feat(pilot): hjaelpeteksten om uprissat lader ombrydes
+271958f1 feat(pilot): etiketten ladestander ombrydes
+72bbbb40 feat(pilot): teksten ingen risici ombrydes
+3ca61892 feat(pilot): etiketten kompleksitet ombrydes
+b68cab82 feat(pilot): etiketten alder ombrydes
+e611edfd feat(pilot): etiketten stoerrelse ombrydes
+db044d29 feat(pilot): etiketten type ombrydes
+c40540f4 feat(pilot): etiketten margin ombrydes
+d9a1b31a feat(pilot): etiketten risikobuffer ombrydes
+```
+
+Listen er alle commits efter `1c4b89cb` til og med `2ae59666`, fra `d9a1b31a`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commit der ikke stod i et hegn
+
+```
+1c4b89cb docs: checkpoint efter f6d5fc14
+```
+
+### Features
+
+G18-424 til G18-432 ombryder etiketterne Risikobuffer, Margin, Type, Størrelse, Alder, Kompleksitet og Ladestander, teksten Ingen væsentlige risici identificeret, og hjælpeteksten om en lader der ikke er prissat. Teksterne og `&quot;` er uændrede. `{result.calculation.price.risk_buffer_percentage}%`, `{result.calculation.price.margin_percentage}%`, bygningsværdierne, `formatCurrency(charger.cost_price)` og sætningen om at der ikke gættes en pris er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter pilotbølgen fra `cb4f0a8f` til `2ae59666`, herunder G18-424 til G18-432. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `2ae59666`, `271958f1` og `1c4b89cb`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-433, G18-434, G18-435, G18-436, G18-437, G18-438, G18-439.
+
 ## Checkpoint 2026-10-18 treogtredivte (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `f6d5fc14`. Det lader toogtredivte-hegnet stå. `f6d5fc14` hedder `docs: checkpoint efter 443837bd`. Produktspids: `84d9fed7`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `84d9fed7` blev afvist før git kørte og er ikke prøvet igen. `8b7a9930` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
