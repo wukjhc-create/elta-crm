@@ -259,7 +259,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
         const severity = Math.abs(alert.change_percentage) >= 10 ? 'critical'
           : Math.abs(alert.change_percentage) >= 5 ? 'warning' : 'info'
         return (
-          <li key={alert.id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
+          <li key={alert.id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm min-w-0" data-testid="pricing-alert-card-mobile">
             <div className="flex items-start justify-between gap-2 min-w-0 break-words" data-testid="pricing-alert-row-mobile">
               <div className="min-w-0 break-words" data-testid="pricing-alert-product-group">
                 <p className="font-medium text-gray-900 break-words min-w-0" data-testid="pricing-alert-product-mobile">{alert.product_name}</p>
