@@ -677,7 +677,7 @@ export function MailDetail({
       {/* EMAIL BODY                                     */}
       {/* ============================================== */}
       <div className="flex-1 overflow-y-auto p-5">
-        <div className="mb-4 empty:hidden"><WebInquiryCard email={email} /></div>
+        <div className="mb-4 empty:hidden break-words min-w-0" data-testid="mail-inquiry-frame"><WebInquiryCard email={email} /></div>
         {email.body_html ? (
           <div className="prose prose-sm max-w-none break-words min-w-0" data-testid="mail-body-html" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(email.body_html) }} />
         ) : (

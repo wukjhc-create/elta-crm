@@ -35,7 +35,7 @@ ok(view.includes('Henter hele mailen…'), 'teksten bliver')
 ok(view.includes('<Loader2 className="w-3 h-3 animate-spin" />'), 'spinneren bliver')
 ok(view.includes('data-testid="mail-body-plain"'), 'broedteksten bliver')
 ok(view.includes('data-testid="mail-body-html"'), 'html-teksten bliver')
-ok(view.includes('className="mb-4 empty:hidden"'), 'henvendelsen bliver')
+ok(view.includes('className="mb-4 empty:hidden break-words min-w-0" data-testid="mail-inquiry-frame"'), 'henvendelsen bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 
 if (bad > 0) {
