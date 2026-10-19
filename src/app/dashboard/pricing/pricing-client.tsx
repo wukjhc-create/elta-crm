@@ -299,7 +299,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
               <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-date">Dato</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="min-w-0" data-testid="pricing-alert-tbody">
             {alerts.map((alert) => {
               const isIncrease = alert.change_direction === 'increase'
               const severity = Math.abs(alert.change_percentage) >= 10 ? 'critical'
