@@ -33,7 +33,7 @@ ok(view.split(id).length === 2, 'broedteksten findes en gang')
 ok(view.split(cell).length === 2, 'broedtekstens klasse findes en gang')
 ok(view.includes('{email.body_text || email.body_preview || \'(Tom email)\'}'), 'indholdet bliver')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
-ok(view.includes('className="prose prose-sm max-w-none"'), 'html-teksten bliver')
+ok(view.includes('className="prose prose-sm max-w-none break-words min-w-0" data-testid="mail-body-html"'), 'html-teksten bliver')
 ok(view.includes('sanitizeEmailHtml(email.body_html)'), 'rensningen bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 
