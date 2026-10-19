@@ -240,6 +240,8 @@ export function OrderPlanningTab({
   }
 
   if (workOrders === null) {
+    // DE-1: en fejl (fx manglende ret) vises — før stod fanen og "hentede" for evigt
+    if (error) return <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3 my-4" data-testid="planning-load-error">{error}</div>
     return <div className="text-sm text-gray-500 py-6 text-center">Henter planlagte arbejdsordrer…</div>
   }
 

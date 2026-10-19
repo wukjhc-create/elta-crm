@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3139,6 +3139,49 @@ ${m.text()}`) })
         r.ingen_uaendrede_felter = !('email' in ch) && !('company_name' in ch)
         r.ingen_falsk_previous = !json.includes('"previous"')
         out.push({ id: 'U203 LG-10 ægte audit-diff uden personværdier', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · felter=${Object.keys(ch).join(',')}` })
+      }
+
+      // U210 NEXT-52 dead ends: salg ser ikke sagsfaner serveren afviser (Planlægning, Materialer, Øvrige, Fakturakladde);
+      // montør ser ikke Fakturaer-fanen, upload/del, portal-oprettelse, partnerportal eller chat på kundekortet
+      if (want('U210') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sx = await mkUser('salg')
+        const cs = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U210 ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: sx.id, assigned_to: sx.id }]).select('id')
+        const caseId = (cs.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        r.seed = !!caseId
+        const sp = await login(sx)
+        try {
+          await gotoSafe(sp.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await sp.page.getByRole('button', { name: /^Overblik$/ }).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.salg_ser_sag = (await sp.page.getByRole('button', { name: /^Overblik$/ }).count()) > 0
+          for (const [k, re] of [['planlaegning', /^Planlægning/], ['materialer', /^Materialer$/], ['oevrige', /^Øvrige omkostninger$/], ['fakturakladde', /^Fakturakladde$/]] as const) {
+            r[`salg_ingen_${k}`] = (await sp.page.getByRole('button', { name: re }).count()) === 0
+          }
+          await gotoSafe(sp.page, `${base}/dashboard/orders/${caseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await sp.page.waitForTimeout(1500)
+          r.salg_deeplink_ingen_evig_hentning = (await sp.page.getByText('Henter planlagte arbejdsordrer').count()) === 0
+        } finally { await sp.ctx.close().catch(() => {}) }
+        const m = await login(montor)
+        try {
+          await gotoSafe(m.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await m.page.getByText('Kontaktpersoner').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.montoer_ingen_fakturaer_fane = (await m.page.getByRole('button', { name: /^Fakturaer$/ }).count()) === 0
+          r.montoer_ingen_portal_opret = (await m.page.getByRole('button', { name: /Opret adgang/ }).count()) === 0
+          r.montoer_ingen_chat = (await m.page.getByRole('button', { name: /^Start chat$/ }).count()) === 0
+          await m.page.getByRole('button', { name: /^Dokumenter$/ }).first().click({ timeout: 30_000 }).catch(() => {})
+          await m.page.waitForTimeout(2000)
+          r.montoer_ingen_upload = (await m.page.getByRole('button', { name: /Upload (fil|din første fil)/ }).count()) === 0
+        } finally { await m.ctx.close().catch(() => {}) }
+        const b = await login(await mkUser('bogholderi'))
+        try {
+          await gotoSafe(b.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await b.page.getByText('Kontaktpersoner').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.bog_ser_fakturaer_fane = (await b.page.getByRole('button', { name: /^Fakturaer$/ }).count()) > 0
+          r.bog_ingen_partnerportal = (await b.page.getByText('Partner-portal', { exact: true }).count()) === 0
+        } finally { await b.ctx.close().catch(() => {}) }
+        out.push({ id: 'U210 NEXT-52 ingen faner/knapper serveren afviser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U208 API-4 (Henrik 2026-10-19): lead med samme e-mail som en eksisterende kunde viser "Mulig eksisterende kunde";

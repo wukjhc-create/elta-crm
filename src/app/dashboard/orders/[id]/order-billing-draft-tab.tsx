@@ -11,6 +11,8 @@
  * On failure: shows error + per-line skip detail.
  */
 
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission as roleHasPermission } from '@/lib/auth/permissions'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -927,6 +929,9 @@ function BillingFinalMode({
   hasOpenTimer?: boolean
   onCreated: () => void
 }) {
+  // DE-3: kun service.close (admin/serviceleder) må vælge afregningsform
+  const { role: viewerRole } = useUserRole()
+  const canChooseBillingModel = !!viewerRole && roleHasPermission(viewerRole, 'service.close')
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -1157,7 +1162,11 @@ function BillingFinalMode({
           <div className={`rounded px-3 py-2 text-sm flex items-center gap-2 flex-wrap ${modelMissing ? 'ring-1 ring-amber-300 bg-amber-50 text-amber-900' : 'bg-gray-50 text-gray-700'}`} data-testid="billing-model-panel">
             <span className="font-medium">Afregningsform:</span>
             <span data-testid="billing-model-current">{contract.billing_model === 'fixed_price' ? 'Fast pris' : contract.billing_model === 'time_and_materials' ? 'Regning (timer og materialer)' : 'Ikke valgt'}</span>
-            {!existingFinal && canCreate && (
+            {/* DE-3: valg af afregningsform kræver service.close (setCaseBillingModelAction) — ellers kun en note */}
+            {!existingFinal && canCreate && !canChooseBillingModel && modelMissing && (
+              <span className="ml-auto text-xs" data-testid="billing-model-ask-lead">Afregningsform vælges af serviceleder</span>
+            )}
+            {!existingFinal && canCreate && canChooseBillingModel && (
               <span className="ml-auto flex gap-1">
                 <button type="button" disabled={modelBusy || contract.billing_model === 'fixed_price'} onClick={() => chooseModel('fixed_price')} className="px-2 py-1 text-xs rounded ring-1 ring-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50" data-testid="billing-model-fixed">Fast pris</button>
                 <button type="button" disabled={modelBusy || contract.billing_model === 'time_and_materials'} onClick={() => chooseModel('time_and_materials')} className="px-2 py-1 text-xs rounded ring-1 ring-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50" data-testid="billing-model-tm">Regning</button>

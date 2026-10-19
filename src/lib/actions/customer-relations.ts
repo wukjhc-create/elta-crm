@@ -92,14 +92,17 @@ export async function getCustomerLeads(customerId: string, customerEmail: string
 
 export async function getCustomerSentQuotes(customerId: string): Promise<CustomerSentQuote[]> {
   validateUUID(customerId, 'customerId')
-  const supabase = await clientFor('offers.view')
-  if (!supabase) return []
+  const ctx = await getAuthenticatedClientWithRole()
+  if (!ctx.hasPermission('offers.view')) return []
+  const supabase = ctx.supabase
 
-  const { data, error } = await supabase
+  let q = supabase
     .from('sent_quotes')
     .select('id, quote_reference, title, total, created_at')
     .eq('customer_id', customerId)
-    .order('created_at', { ascending: false })
+  // DE-13 (dead-end-review 2026-10-19): som API-2 — uden offers.view.all kun egne sendte tilbud
+  if (!ctx.hasPermission('offers.view.all')) q = q.eq('sent_by', ctx.userId)
+  const { data, error } = await q.order('created_at', { ascending: false })
 
   if (error) {
     logger.error('Failed to fetch customer sent quotes', { error, entityId: customerId })

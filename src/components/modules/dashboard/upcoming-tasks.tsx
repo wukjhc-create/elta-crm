@@ -105,8 +105,8 @@ export function UpcomingTasks({ tasks }: UpcomingTasksProps) {
       })}
 
       <div className="pt-2 text-center">
-        <Link href="/dashboard/orders" className="text-sm text-primary hover:underline">
-          Se alle sager →
+        <Link href="/dashboard/tasks" className="text-sm text-primary hover:underline">
+          Se alle opgaver →
         </Link>
       </div>
     </div>

@@ -252,7 +252,7 @@ function StatGrid({ data }: { data: DashboardPayload | null }) {
       <StatCard icon={<Wrench className="h-4 w-4" />} label="Åbne cases"
         value={c?.open_cases} tone="neutral" href="/dashboard/orders" />
       {data?.access?.offers !== false && <StatCard icon={<FileText className="h-4 w-4" />} label="Tilbud i kladde"
-        value={c?.offers_draft} tone="neutral" href="/dashboard/offers" />}
+        value={c?.offers_draft} tone="neutral" href="/dashboard/offers?status=draft" />}
       <StatCard icon={<Send className="h-4 w-4" />} label="Sendte fakturaer"
         value={c?.invoices_sent} tone="neutral" />
       <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Forfaldne fakturaer"

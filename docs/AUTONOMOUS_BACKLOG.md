@@ -211,6 +211,23 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-52 (dead-end-review 2026-10-19 — knapper/faner serveren afviser)
+| # | Fund | Status |
+|---|---|---|
+| DE-1 | Sag → Planlægning for salg/bogholderi: evig "Henter …" (listWorkOrdersForCase kræver work_orders.view.*; fejlen vises ikke) (S3) | DONE (kode, U210) — fanen kun med work_orders.view.*; fejl vises i stedet for evig hentning |
+| DE-2 | Sag → Fakturakladde for salg: røde "Manglende tilladelse" (kræver invoices.view.all/create) (S3) | DONE (kode, U210) — fanen kun med invoices.create eller invoices.view.all (salg ser status på Overblik) |
+| DE-3 | Afregningsform-knapper for bogholderi: setCaseBillingModelAction kræver service.close (S3) | DONE (kode) — knapperne kun med service.close; ellers "Afregningsform vælges af serviceleder" |
+| DE-4 | Kunde → Dokumenter: Upload/Del (customers.edit) og Send rapport (service.edit) uden rolletjek (S3) | DONE (kode, U210) — Upload/Del kun med customers.edit; Send rapport kun med service.edit |
+| DE-5 | Partnerportal opret/deaktivér for alle ikke-admin (settings.manage) (S3) | DONE (kode, U210) — kortet kun med settings.manage |
+| DE-6 | Kundeportal opret/deaktivér for montør/bogholderi (offers.send) (S3) | DONE (kode, U210) — opret/deaktivér kun med offers.send |
+| DE-7 | Portalchat: montør/bogholderi kan skrive, men afsendelse kræver customers.edit (S3) | DONE (kode, U210) — chatkortet kun med customers.edit |
+| DE-8 | Sag → Opgaver: montør ser "udført"-cirkel på andres opgaver; fejl erstatter listen (S3) | DONE (kode) — udført-cirkel kun på egne opgaver (eller customers.edit); fejl vises over listen |
+| DE-9 | Sag → Materialer/Øvrige omkostninger for salg (materials.view/other_costs.view) (S4) | DONE (kode, U210) — fanerne kun med materials.view / other_costs.view |
+| DE-10 | Kunde → Status: Besigtigelse-trin/URL-fane tom uden service.edit (S4) | DONE (kode) — skjult fane (URL/flow-trin) falder tilbage til Oversigt |
+| DE-11 | Dokumentbekræftelse "Send videre" uden service.edit-tjek (S4) | DONE (kode) — "Send videre" kun med service.edit (status vises stadig) |
+| DE-12 | Kunde → Fakturaer-fane for montør (kun lås) (S4) | DONE (kode, U210) — fanen kun med invoices.view.own_cases |
+| DE-13 | Kundens "Sendte tilbud" (sent_quotes) uden salgs-scope (API-2) (S4) | DONE (kode) — uden offers.view.all kun egne (sent_by) |
+
 ## NEXT-51 (API-route-review 2026-10-19 — alle src/app/api undtagen cron/admin; ingen S1/S2)
 | # | Fund | Status |
 |---|---|---|
@@ -413,7 +430,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-15l | "Aktive sager"-tal ekskl. lukket/konverteret, link viser alle (S4) | TODO |
 | DB-15m | Klar til lukning: uden sags-scope + tavs .slice(0,200) (S4) | TODO |
 | DB-15n | Afviste/tabt (90 dage) linker til alle afviste (S4) | TODO |
-| DB-15o | Diverse kort-links uden matchende filter (afventende, aktive kunder, ulæste kundemails, kladder, footers) (S4) | TODO |
+| DB-15o | Diverse kort-links uden matchende filter (afventende, aktive kunder, ulæste kundemails, kladder, footers) (S4) | DELVIS (kode) — aktive kunder (?is_active=true), kladder (?status=draft), opgave-footer → /dashboard/tasks. Afventende (sendt+set) og ulæste kundemails kræver nye listefiltre = TODO |
 | IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | DONE (kode) — fakturanummer kræver et ciffer; invoice-parser-test +4 |
 | IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | DONE — kun gyldige kalenderdatoer (ugyldig → null); fejlet parse-opdatering → parse_status=failed + manuel gennemgang (cli invoice-parse-failure-check) |
 | IV-3 | Mail-fakturaer fra før vedhæftnings-hentning kan dubleres (S2, plausibel) | DONE — enhver ulåst filløs række fra mailen opgraderes (også i backfill); invoice-attachments A9 |

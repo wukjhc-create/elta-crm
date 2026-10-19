@@ -193,7 +193,7 @@ export default async function DashboardPage() {
           icon={Building2}
           iconColor="text-green-600"
           iconBgColor="bg-green-100"
-          href={canViewCustomers ? "/dashboard/customers" : undefined}
+          href={canViewCustomers ? "/dashboard/customers?is_active=true" : undefined /* DB-15o: tallet er aktive kunder */}
         />
         <StatCard
           title="Afventende Tilbud"

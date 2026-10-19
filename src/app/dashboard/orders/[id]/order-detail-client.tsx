@@ -94,6 +94,7 @@ export function OrderDetailClient({
   canInspect = false,
   materialPerms = { seePrices: false, add: false, edit: false, del: false, otherEdit: false, otherDel: false },
   canManageAllNotes = false,
+  tabAccess = { workOrders: true, materials: true, otherCosts: true, allInvoices: false },
 }: {
   sag: ServiceCaseWithRelations
   formand: { id: string; name: string } | null
@@ -116,11 +117,24 @@ export function OrderDetailClient({
   materialPerms?: { seePrices: boolean; add: boolean; edit: boolean; del: boolean; otherEdit?: boolean; otherDel?: boolean }
   /** Sprint Ø7.4 — cases.edit: må redigere/slette ALLE noter (ikke kun egne). */
   canManageAllNotes?: boolean
+  /** DE-1/2/9 (dead-end-review 2026-10-19): faner kun når serveren leverer data (work_orders.view.*, materials.view,
+   *  other_costs.view, invoices.view.all) */
+  tabAccess?: { workOrders: boolean; materials: boolean; otherCosts: boolean; allInvoices: boolean }
 }) {
+  // DE-1/2/9: én regel for fanelinjen, deeplinket (?tab=) og indholdet — ingen fane serveren afviser
+  const isTabVisible = (id: string) =>
+    (id !== 'oekonomi' || canSeeCost) &&
+    // Fakturakladde: kladde-/stadieoversigten kræver invoices.create eller invoices.view.all (salg ser status på Overblik)
+    (id !== 'fakturakladde' || canCreateInvoice || tabAccess.allInvoices) &&
+    (id !== 'handlinger' || canEditCase) &&
+    (id !== 'dokumentation' || canInspect) &&
+    (id !== 'planlaegning' || tabAccess.workOrders) &&
+    (id !== 'materialer' || tabAccess.materials) &&
+    (id !== 'oevrige' || tabAccess.otherCosts)
   // Deep-link ?tab=<id> (fx fra "Mine job" -> planlaegning)
   const tabParam = useSearchParams().get('tab')
   const [active, setActiveState] = useState<TabId>(
-    TABS.some((t) => t.id === tabParam) && (tabParam !== 'oekonomi' || canSeeCost) ? (tabParam as TabId) : 'overblik'
+    TABS.some((t) => t.id === tabParam) && isTabVisible(tabParam as string) ? (tabParam as TabId) : 'overblik'
   )
   // W-13 (pilot-review 2026-10-15): fanen skrives i URL'en (refresh/tilbage/del-link lander på samme fane)
   const setActive = (t: TabId) => {
@@ -232,14 +246,7 @@ export function OrderDetailClient({
       {/* Tabs nav */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
         <div className="flex border-b min-w-max">
-          {TABS.filter(
-            (t) =>
-              (t.id !== 'oekonomi' || canSeeCost) &&
-              // Montør: ingen fakturering/kontorhandlinger (serveren afviser dem alligevel)
-              (t.id !== 'fakturakladde' || canSeeBilling || canCreateInvoice) &&
-              (t.id !== 'handlinger' || canEditCase) &&
-              (t.id !== 'dokumentation' || canInspect)
-          ).map((t) => (
+          {TABS.filter((t) => isTabVisible(t.id)).map((t) => (
             <button
               key={t.id}
               onClick={() => setActive(t.id)}
@@ -278,7 +285,7 @@ export function OrderDetailClient({
               onOpenFakturakladde={() => setActive('fakturakladde')}
             />
           )}
-          {active === 'planlaegning' && (
+          {active === 'planlaegning' && isTabVisible('planlaegning') && (
             <OrderPlanningTab
               caseId={sag.id}
               caseTitle={sag.title}
@@ -288,7 +295,7 @@ export function OrderDetailClient({
             />
           )}
           {active === 'aflevering' && <OrderHandoverTab caseId={sag.id} />}
-          {active === 'materialer' && (
+          {active === 'materialer' && isTabVisible('materialer') && (
             <OrderMaterialsTab
               caseId={sag.id}
               canSeePrices={materialPerms.seePrices}
@@ -297,7 +304,7 @@ export function OrderDetailClient({
               canDelete={materialPerms.del}
             />
           )}
-          {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} canSeeCost={materialPerms.seePrices} canEdit={materialPerms.otherEdit} canDelete={materialPerms.otherDel} />}
+          {active === 'oevrige' && isTabVisible('oevrige') && <OrderOtherCostsTab caseId={sag.id} canSeeCost={materialPerms.seePrices} canEdit={materialPerms.otherEdit} canDelete={materialPerms.otherDel} />}
           {active === 'mails' && <OrderMailsTab caseId={sag.id} />}
           {active === 'dokumenter' && (
             <OrderDocumentsTab caseId={sag.id} customerId={sag.customer_id ?? null} />
@@ -318,7 +325,7 @@ export function OrderDetailClient({
               <CaseUnconvertedSupplierLinesCard caseId={sag.id} />
             </div>
           )}
-          {active === 'fakturakladde' && (canSeeBilling || canCreateInvoice) && (
+          {active === 'fakturakladde' && isTabVisible('fakturakladde') && (
             <OrderBillingDraftTab caseId={sag.id} canCreate={canCreateInvoice} />
           )}
           {active === 'handlinger' && canEditCase && <OrderActionsTab sag={sag} />}

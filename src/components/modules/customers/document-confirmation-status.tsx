@@ -31,6 +31,8 @@ interface Props {
   documentId: string
   /** Trigger refresh fra parent ved en counter-aendring (fx efter send) */
   refreshKey?: number
+  /** DE-11: "Send videre" kræver service.edit (sendReadyChainStep) */
+  canSend?: boolean
 }
 
 interface AggregateStatus {
@@ -118,7 +120,7 @@ function pillFor(agg: AggregateStatus): {
   }
 }
 
-export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props) {
+export function DocumentConfirmationStatus({ documentId, refreshKey = 0, canSend = false }: Props) {
   const [items, setItems] = useState<ConfirmationListItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
@@ -186,7 +188,7 @@ export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props
       {isExpanded && (
         <div className="mt-2 bg-white border rounded-lg divide-y">
           {items.map((it) => (
-            <RecipientRow key={it.id} item={it} onSent={() => setLocalRefresh((v) => v + 1)} />
+            <RecipientRow canSend={canSend} key={it.id} item={it} onSent={() => setLocalRefresh((v) => v + 1)} />
           ))}
         </div>
       )}
@@ -194,14 +196,15 @@ export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props
   )
 }
 
-function RecipientRow({ item, onSent }: { item: ConfirmationListItem; onSent?: () => void }) {
+function RecipientRow({ item, onSent, canSend = false }: { item: ConfirmationListItem; onSent?: () => void; canSend?: boolean }) {
   const roleLabel = RECIPIENT_ROLE_LABELS[item.recipientRole] || 'Modtager'
   const statusBadge = statusBadgeFor(item)
   const toast = useToast()
   const [isSending, setIsSending] = useState(false)
 
   // Fase 2a — trin frigivet til manuelt videresend (kunden har godkendt forrige trin).
-  const canSendNext = item.status === 'pending' && item.readyToSend
+  const readyNext = item.status === 'pending' && item.readyToSend
+  const canSendNext = readyNext && canSend // DE-11
 
   const handleSendNext = async () => {
     setIsSending(true)
@@ -235,7 +238,7 @@ function RecipientRow({ item, onSent }: { item: ConfirmationListItem; onSent?: (
         <span
           className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded ${statusBadge.bg} ${statusBadge.text} text-[11px] font-medium`}
         >
-          {canSendNext ? 'Klar til at sende' : statusBadge.label}
+          {readyNext ? 'Klar til at sende' : statusBadge.label}
         </span>
       </div>
 

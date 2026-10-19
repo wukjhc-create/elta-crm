@@ -106,7 +106,12 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
     const t = searchParams?.get('tab') as CustomerTab | null
     return t && CUSTOMER_TABS.includes(t) ? t : 'oversigt'
   })
+  // DE-10/12 (dead-end-review 2026-10-19): faner kun med ret; en skjult fane fra URL/flow-trin falder tilbage til Oversigt
+  const isCustomerTabVisible = (t: CustomerTab) =>
+    (t !== 'besigtigelse' || can('service.edit')) && (t !== 'fakturaer' || can('invoices.view.own_cases'))
+  const shownTab: CustomerTab = isCustomerTabVisible(activeTab) ? activeTab : 'oversigt'
   const setActiveTab = (t: CustomerTab) => {
+    if (!isCustomerTabVisible(t)) return
     setActiveTabState(t)
     try {
       const url = new URL(window.location.href)
@@ -323,7 +328,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
           <button
             onClick={() => setActiveTab('oversigt')}
             className={`shrink-0 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors touch-manipulation ${
-              activeTab === 'oversigt'
+              shownTab === 'oversigt'
                 ? 'border-green-600 text-green-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
@@ -334,7 +339,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
           <button
             onClick={() => setActiveTab('sager')}
             className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
-              activeTab === 'sager'
+              shownTab === 'sager'
                 ? 'border-green-600 text-green-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
@@ -342,23 +347,23 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             <Briefcase className="w-4 h-4" />
             Sager
           </button>
-          {/* Sprint Ø4.3: Fakturaer-tab (cost-free) */}
-          <button
+          {/* Sprint Ø4.3: Fakturaer-tab (cost-free) — DE-12: kun med invoices.view.own_cases */}
+          {can('invoices.view.own_cases') && <button
             onClick={() => setActiveTab('fakturaer')}
             className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
-              activeTab === 'fakturaer'
+              shownTab === 'fakturaer'
                 ? 'border-green-600 text-green-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
             <Receipt className="w-4 h-4" />
             Fakturaer
-          </button>
+          </button>}
           {/* PM2-6: teknisk besigtigelse (notat) kun med service.edit — booking ligger i knappen øverst (customers.edit) */}
           {can('service.edit') && <button
             onClick={() => setActiveTab('besigtigelse')}
             className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
-              activeTab === 'besigtigelse'
+              shownTab === 'besigtigelse'
                 ? 'border-green-600 text-green-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
@@ -369,7 +374,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
           <button
             onClick={() => setActiveTab('dokumenter')}
             className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
-              activeTab === 'dokumenter'
+              shownTab === 'dokumenter'
                 ? 'border-green-600 text-green-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
@@ -380,7 +385,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
           <button
             onClick={() => setActiveTab('status')}
             className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
-              activeTab === 'status'
+              shownTab === 'status'
                 ? 'border-green-600 text-green-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
@@ -391,12 +396,12 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
         </div>
 
         {/* Sprint 8D-1: Tab: Sager */}
-        {activeTab === 'sager' && (
+        {shownTab === 'sager' && (
           <CustomerCasesTab customerId={customer.id} />
         )}
 
         {/* Sprint Ø4.3: Tab: Fakturaer (cost-free) */}
-        {activeTab === 'fakturaer' && (
+        {shownTab === 'fakturaer' && (
           <>
             <CustomerEconomicLink customerId={customer.id} />
             <CustomerInvoiceOverview
@@ -407,17 +412,17 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
         )}
 
         {/* Tab: Besigtigelse */}
-        {activeTab === 'besigtigelse' && can('service.edit') && (
+        {shownTab === 'besigtigelse' && can('service.edit') && (
           <BesigtigelsesNotat customer={customer} />
         )}
 
         {/* Tab: Dokumenter & Billeder */}
-        {activeTab === 'dokumenter' && (
-          <CustomerDocumentsTab customerId={customer.id} />
+        {shownTab === 'dokumenter' && (
+          <CustomerDocumentsTab customerId={customer.id} canEdit={can('customers.edit')} canSendReport={can('service.edit')} />
         )}
 
         {/* Tab: Status & Flow */}
-        {activeTab === 'status' && (
+        {shownTab === 'status' && (
           <CustomerStatusFlow
             customerId={customer.id}
             customerEmail={customer.email}
@@ -426,7 +431,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
         )}
 
         {/* Tab: Oversigt */}
-        {activeTab === 'oversigt' && (
+        {shownTab === 'oversigt' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main content */}
           <div className="lg:col-span-2 space-y-6">
@@ -782,17 +787,18 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               customerId={customer.id}
               customerEmail={customer.email}
               tokens={portalTokens}
+              canManage={can('offers.send')}
             />
 
-            {/* Partner Portal Access */}
-            <PartnerPortalAccess
+            {/* Partner Portal Access — DE-5: oprettelse/deaktivering kræver settings.manage (admin) */}
+            {can('settings.manage') && <PartnerPortalAccess
               customerId={customer.id}
               customerEmail={customer.email}
               tokens={partnerTokens}
-            />
+            />}
 
-            {/* Portal Chat */}
-            <div className="bg-white rounded-lg border p-6">
+            {/* Portal Chat — DE-7: afsendelse kræver customers.edit */}
+            {can('customers.edit') && <div className="bg-white rounded-lg border p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   <MessageSquare className="w-5 h-5" />
@@ -815,7 +821,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                 <MessageSquare className="w-4 h-4" />
                 Start chat
               </button>
-            </div>
+            </div>}
           </div>
         </div>
         )}

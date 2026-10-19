@@ -11,7 +11,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { CheckCircle2, Circle, Loader2, ListChecks, Sparkles } from 'lucide-react'
-import { getServiceCaseTasks, completeCustomerTask } from '@/lib/actions/customer-tasks'
+import { getServiceCaseTasks, completeCustomerTask, getCustomerTaskAbilitiesAction } from '@/lib/actions/customer-tasks'
 import { TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG, type CustomerTaskWithRelations } from '@/types/customer-tasks.types'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
@@ -20,6 +20,17 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
   const [error, setError] = useState<string | null>(null)
   const [busy, startBusy] = useTransition()
   const [busyId, setBusyId] = useState<string | null>(null)
+  // DE-8 (dead-end-review 2026-10-19): som kundekortet (PM2-5) — uden customers.edit kun egne opgaver (tildelt/oprettet);
+  // fejl vises ved listen i stedet for at erstatte den
+  const [abilities, setAbilities] = useState<{ canEditAll: boolean; userId: string | null } | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const firstCustomerId = tasks?.find((t) => t.customer_id)?.customer_id ?? null
+  useEffect(() => {
+    if (!firstCustomerId) return
+    getCustomerTaskAbilitiesAction(firstCustomerId).then((a) => setAbilities({ canEditAll: a.canEditAll, userId: a.userId })).catch(() => setAbilities({ canEditAll: false, userId: null }))
+  }, [firstCustomerId])
+  const canWrite = (t: CustomerTaskWithRelations) =>
+    canComplete && !!abilities && (abilities.canEditAll || (!!abilities.userId && (t.assigned_to === abilities.userId || t.created_by === abilities.userId)))
 
   const load = () => {
     getServiceCaseTasks(caseId)
@@ -36,7 +47,7 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
       if (res.success) {
         setTasks((prev) => (prev ?? []).map((t) => (t.id === taskId ? { ...t, status: 'done' } : t)))
       } else {
-        setError(humanizeErrorText(res.error) || 'Kunne ikke markere som udført')
+        setActionError(humanizeErrorText(res.error) || 'Kunne ikke markere som udført')
       }
       setBusyId(null)
     })
@@ -61,13 +72,14 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
   return (
     <div className="space-y-2">
       <div className="text-xs text-gray-500 mb-1">{openCount} af {tasks.length} udestår</div>
+      {actionError && <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">{actionError}</div>}
       {tasks.map((t) => {
         const status = TASK_STATUS_CONFIG[t.status] ?? TASK_STATUS_CONFIG.pending
         const prio = TASK_PRIORITY_CONFIG[t.priority] ?? TASK_PRIORITY_CONFIG.normal
         const done = t.status === 'done'
         return (
           <div key={t.id} className="bg-gray-50 rounded ring-1 ring-gray-200 p-3 flex items-start gap-3">
-            {canComplete && !done ? (
+            {canWrite(t) && !done ? (
               <button onClick={() => handleComplete(t.id)} disabled={busy} title="Markér som udført"
                 className="mt-0.5 text-gray-300 hover:text-emerald-600 disabled:opacity-50">
                 {busy && busyId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Circle className="w-4 h-4" />}

@@ -35,6 +35,10 @@ import { isLikelyJsonDescription, getSafeDocumentDescription } from '@/lib/docum
 
 interface CustomerDocumentsTabProps {
   customerId: string
+  /** DE-4: upload/del med kunde kræver customers.edit */
+  canEdit?: boolean
+  /** DE-4: send besigtigelsesrapport kræver service.edit */
+  canSendReport?: boolean
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -46,7 +50,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   andet: 'Andet',
 }
 
-export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) {
+export function CustomerDocumentsTab({ customerId, canEdit = false, canSendReport = false }: CustomerDocumentsTabProps) {
   const router = useRouter()
   const toast = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -155,7 +159,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
     setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, visible_in_portal: next } : d)))
     toast.success(next ? 'Dokumentet er delt med kunden i portalen' : 'Dokumentet er nu internt')
   }
-  const shareButton = (doc: CustomerDocument) => (
+  const shareButton = (doc: CustomerDocument) => !canEdit ? null : (
     <button
       onClick={() => togglePortalShare(doc)}
       disabled={sharingId === doc.id}
@@ -230,7 +234,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
           {documents.length} dokument{documents.length !== 1 ? 'er' : ''} &bull; {images.length} billede{images.length !== 1 ? 'r' : ''}
         </p>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button
+          {canEdit && <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
             className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 active:scale-95 transition-transform"
@@ -240,7 +244,7 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
             ) : (
               <><Upload className="w-4 h-4" /> Upload fil</>
             )}
-          </button>
+          </button>}
           {hasContent && (
             <button
               onClick={handleDownloadAll}
@@ -337,17 +341,17 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                         <Download className="w-3.5 h-3.5" /> PDF
                       </a>
                     )}
-                    <button
+                    {canSendReport && <button
                       onClick={() => setSendDialogDoc(doc)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95 transition-transform"
                     >
                       <Mail className="w-3.5 h-3.5" /> Send
-                    </button>
+                    </button>}
                   </div>
                 </div>
                 {/* Phase B1 — confirmation status (defensiv: viser intet hvis ingen confirmations eller fetch fejler) */}
                 <div className="mt-2 ml-12">
-                  <DocumentConfirmationStatus documentId={doc.id} refreshKey={confirmationRefreshKey} />
+                  <DocumentConfirmationStatus documentId={doc.id} refreshKey={confirmationRefreshKey} canSend={canSendReport} />
                 </div>
               </div>
             ))}
@@ -508,12 +512,12 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
           <FolderOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500 font-medium">Ingen dokumenter eller billeder endnu</p>
           <p className="text-sm text-gray-400 mt-1">Upload filer eller opret en besigtigelse for at komme i gang</p>
-          <button
+          {canEdit && <button
             onClick={() => fileInputRef.current?.click()}
             className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium active:scale-95 transition-transform"
           >
             <Plus className="w-4 h-4" /> Upload din første fil
-          </button>
+          </button>}
         </div>
       )}
     </div>

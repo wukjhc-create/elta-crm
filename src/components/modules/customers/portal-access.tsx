@@ -20,6 +20,8 @@ import type { PortalAccessToken } from '@/types/portal.types'
 import { formatDateTimeDK } from '@/lib/utils/format'
 
 interface PortalAccessProps {
+  /** DE-6: opret/deaktivér adgang kræver offers.send */
+  canManage?: boolean
   customerId: string
   customerEmail: string
   tokens: PortalAccessToken[]
@@ -29,6 +31,7 @@ export function PortalAccess({
   customerId,
   customerEmail,
   tokens,
+  canManage = false,
 }: PortalAccessProps) {
   const router = useRouter()
   const toast = useToast()
@@ -105,14 +108,14 @@ export function PortalAccess({
           <Globe className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold">Kundeportal</h2>
         </div>
-        <button
+        {canManage && <button
           onClick={handleCreateToken}
           disabled={isCreating}
           className="inline-flex items-center gap-1 text-sm text-primary hover:underline disabled:opacity-50"
         >
           <Plus className="w-4 h-4" />
           {isCreating ? 'Opretter...' : 'Opret adgang'}
-        </button>
+        </button>}
       </div>
 
       {activeTokens.length === 0 ? (
@@ -160,14 +163,14 @@ export function PortalAccess({
                     <ExternalLink className="w-4 h-4" />
                   </a>
                   </>)}
-                  <button
+                  {canManage && <button
                     onClick={() => handleDeactivate(token.id)}
                     disabled={deactivatingId === token.id}
                     className="p-1.5 hover:bg-red-100 rounded text-red-500 disabled:opacity-50"
                     title="Deaktiver"
                   >
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </button>}
                 </div>
               </div>
 

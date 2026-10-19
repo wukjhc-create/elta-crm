@@ -129,6 +129,12 @@ export default async function OrderDetailPage({
       canEditCase={canManageAllNotes}
       canInspect={canInspect}
       materialPerms={materialPerms}
+      tabAccess={{
+        workOrders: (await pageHasPermission('work_orders.view.all')) || (await pageHasPermission('work_orders.view.assigned')),
+        materials: await pageHasPermission('materials.view'),
+        otherCosts: await pageHasPermission('other_costs.view'),
+        allInvoices: await pageHasPermission('invoices.view.all'),
+      }}
     />
   )
 }
