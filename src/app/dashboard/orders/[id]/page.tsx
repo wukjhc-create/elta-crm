@@ -101,6 +101,8 @@ export default async function OrderDetailPage({
   const canCreateInvoice = await pageHasPermission('invoices.create')
   // Sprint Ø7.2 — må brugeren tilføje noter? (serveren håndhæver alligevel).
   const canManageAllNotes = await pageHasPermission('cases.edit')
+  // PM2-6 (Henrik 2026-10-19): den tekniske besigtigelse (notat/rapport) kun med service.edit — salg booker via kundekortet
+  const canInspect = await pageHasPermission('service.edit')
   const canAddNote = canManageAllNotes || (await pageHasPermission('cases.edit.own'))
   const materialPerms = {
     seePrices: await pageHasPermission('materials.view.cost_prices'),
@@ -125,6 +127,7 @@ export default async function OrderDetailPage({
       canAddNote={canAddNote}
       canManageAllNotes={canManageAllNotes}
       canEditCase={canManageAllNotes}
+      canInspect={canInspect}
       materialPerms={materialPerms}
     />
   )

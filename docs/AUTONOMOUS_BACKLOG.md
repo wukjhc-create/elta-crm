@@ -219,8 +219,8 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PM2-3 | reports.export bruges aldrig; montør/bogholderi kan eksportere hele kunderegistret (S2) | DONE (kode) — exportCustomers kræver reports.export (admin + bogholderi); kundelistens og rapportsidens knap kun med samme ret (U195 ny: serviceleder/salg/montør uden, admin/bogholderi med). Afgrænset salgseksport = ikke bygget |
 | PM2-4 | Bogholderi ser tilbuds-/leaddata på dashboardet uden offers.view/leads.view; døde links (S3) | TODO |
 | PM2-5 | Opret kundeopgave kræver kun customers.view (alle roller kan oprette/tildele) (S3) | DONE (kode) — tasks.create = admin/serviceleder/salg/bogholderi; montør kun på kunde med egen (ikke annulleret) arbejdsordre og kun til sig selv (server); kundekortet viser Ny opgave/ret/slet/udfør kun efter serverens regel (U196 ny). customer_tasks har ingen sags-kolonne → montør-reglen går via kundens arbejdsordrer |
-| PM2-6 | Besigtigelsesformularen vises for salg/bogholderi, men gem kræver service.edit (arbejdet tabes) (S3) | TODO |
-| PM2-7 | Salgs "Åbn faktura" fører til 404 (detalje kræver invoices.view.all) (S3) | TODO |
+| PM2-6 | Besigtigelsesformularen vises for salg/bogholderi, men gem kræver service.edit (arbejdet tabes) (S3) | DONE (kode) — Henrik 2026-10-19: salg booker (knap, customers.edit); den tekniske besigtigelse (kundekortets fane + sagens Dokumentation) kun med service.edit (U197 ny) |
+| PM2-7 | Salgs "Åbn faktura" fører til 404 (detalje kræver invoices.view.all) (S3) | DONE (kode) — Henrik: ingen udvidelse; "Åbn"/fakturanr.-link kun med invoices.view.all (sag + kunde); PDF-linket bevares (own_cases). Ikke UI-testet (kræver salgs-egen faktura) |
 | PM2-8 | Salg ser Nyt produkt/Rediger/Slet + kostfelt; handlingerne kræver materials.edit (S3) | TODO |
 | PM2-9 | Serviceleder får redigerbare Firma-/Kalkulation-/Integrationsformularer; gem kræver settings.manage (S3) | TODO |
 | PM2-10 | Tilføj/ret/slet kontakt og Ny kunde vises for montør/bogholderi (S4) | TODO |

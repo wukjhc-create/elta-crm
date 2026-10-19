@@ -354,7 +354,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             <Receipt className="w-4 h-4" />
             Fakturaer
           </button>
-          <button
+          {/* PM2-6: teknisk besigtigelse (notat) kun med service.edit — booking ligger i knappen øverst (customers.edit) */}
+          {can('service.edit') && <button
             onClick={() => setActiveTab('besigtigelse')}
             className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
               activeTab === 'besigtigelse'
@@ -364,7 +365,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
           >
             <ClipboardCheck className="w-4 h-4" />
             Besigtigelse
-          </button>
+          </button>}
           <button
             onClick={() => setActiveTab('dokumenter')}
             className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
@@ -406,7 +407,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
         )}
 
         {/* Tab: Besigtigelse */}
-        {activeTab === 'besigtigelse' && (
+        {activeTab === 'besigtigelse' && can('service.edit') && (
           <BesigtigelsesNotat customer={customer} />
         )}
 

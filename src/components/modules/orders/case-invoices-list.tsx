@@ -13,6 +13,8 @@
  */
 
 import Link from 'next/link'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import { useCallback, useEffect, useState } from 'react'
 import {
   AlertCircle, Ban, Eye, FileDown, FileText, Loader2, RefreshCw, Receipt,
@@ -54,6 +56,9 @@ function statusBadge(it: CaseInvoiceListItem): { label: string; cls: string } {
 }
 
 export function CaseInvoicesList({ caseId }: { caseId: string }) {
+  // PM2-7 (Henrik 2026-10-19): fakturadetaljen kræver invoices.view.all — uden den vises kun PDF (ingen 404-link)
+  const { role: viewerRole } = useUserRole()
+  const canOpenInvoice = !!viewerRole && hasPermission(viewerRole, 'invoices.view.all')
   const [items, setItems] = useState<CaseInvoiceListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -167,14 +172,14 @@ export function CaseInvoicesList({ caseId }: { caseId: string }) {
                     </td>
                     <td className="px-2 py-2">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Link
+                        {canOpenInvoice && <Link
                           href={`/dashboard/invoices/${it.id}`}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-emerald-300 text-emerald-700 hover:bg-emerald-50"
                           title="Åbn faktura (send, markér betalt, kreditér, slet)"
                         >
                           <FileText className="w-3.5 h-3.5" />
                           Åbn
-                        </Link>
+                        </Link>}
                         <a
                           href={`/api/invoices/${it.id}/pdf?view=1`}
                           target="_blank"

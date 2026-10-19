@@ -91,6 +91,7 @@ export function OrderDetailClient({
   canCreateInvoice = false,
   canAddNote = false,
   canEditCase = false,
+  canInspect = false,
   materialPerms = { seePrices: false, add: false, edit: false, del: false, otherEdit: false, otherDel: false },
   canManageAllNotes = false,
 }: {
@@ -110,6 +111,8 @@ export function OrderDetailClient({
   canAddNote?: boolean
   /** cases.edit — Handlinger-fanen (status, afslut, DB-flag) */
   canEditCase?: boolean
+  /** PM2-6: service.edit — Dokumentation-fanen (teknisk besigtigelse); uden ret ville gem altid blive afvist */
+  canInspect?: boolean
   materialPerms?: { seePrices: boolean; add: boolean; edit: boolean; del: boolean; otherEdit?: boolean; otherDel?: boolean }
   /** Sprint Ø7.4 — cases.edit: må redigere/slette ALLE noter (ikke kun egne). */
   canManageAllNotes?: boolean
@@ -234,7 +237,8 @@ export function OrderDetailClient({
               (t.id !== 'oekonomi' || canSeeCost) &&
               // Montør: ingen fakturering/kontorhandlinger (serveren afviser dem alligevel)
               (t.id !== 'fakturakladde' || canSeeBilling || canCreateInvoice) &&
-              (t.id !== 'handlinger' || canEditCase)
+              (t.id !== 'handlinger' || canEditCase) &&
+              (t.id !== 'dokumentation' || canInspect)
           ).map((t) => (
             <button
               key={t.id}
@@ -299,7 +303,7 @@ export function OrderDetailClient({
             <OrderDocumentsTab caseId={sag.id} customerId={sag.customer_id ?? null} />
           )}
           {/* Trin 1 — besigtigelse fra sagen (sag forudvalgt + låst) */}
-          {active === 'dokumentation' && (
+          {active === 'dokumentation' && canInspect && (
             <OrderInspectionTab caseId={sag.id} customerId={sag.customer_id ?? null} />
           )}
           {active === 'oekonomi' && canSeeCost && (

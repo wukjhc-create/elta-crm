@@ -12,6 +12,8 @@
  */
 
 import Link from 'next/link'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import { useCallback, useEffect, useState } from 'react'
 import {
   AlertCircle, AlertTriangle, BadgeCheck, Ban, Bell, Eye, FileDown, FileText,
@@ -67,6 +69,9 @@ export function CustomerInvoiceOverview({
   customerId: string
   customerName?: string | null
 }) {
+  // PM2-7 (Henrik 2026-10-19): fakturadetaljen kræver invoices.view.all — uden den vises kun PDF (ingen 404-link)
+  const { role: viewerRole } = useUserRole()
+  const canOpenInvoice = !!viewerRole && hasPermission(viewerRole, 'invoices.view.all')
   const [res, setRes] = useState<CustomerInvoiceOverviewResult | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -196,9 +201,13 @@ export function CustomerInvoiceOverview({
                   return (
                     <tr key={r.id} className={`align-top ${r.is_overdue ? 'bg-rose-50/40' : ''}`}>
                       <td className="px-2 py-2">
-                        <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-emerald-700 hover:underline">
-                          {r.invoice_number ?? '—'}
-                        </Link>
+                        {canOpenInvoice ? (
+                          <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-emerald-700 hover:underline">
+                            {r.invoice_number ?? '—'}
+                          </Link>
+                        ) : (
+                          <span className="font-mono text-gray-800">{r.invoice_number ?? '—'}</span>
+                        )}
                         {pill && (
                           <span className={`block mt-0.5 w-fit px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${pill.cls}`}>
                             {pill.label}
@@ -234,13 +243,13 @@ export function CustomerInvoiceOverview({
                       <td className="px-2 py-2 text-right tabular-nums font-medium">{kr(r.final_amount, r.currency)}</td>
                       <td className="px-2 py-2">
                         <div className="flex items-center justify-end gap-1.5">
-                          <Link
+                          {canOpenInvoice && <Link
                             href={`/dashboard/invoices/${r.id}`}
                             className="inline-flex items-center gap-1 px-2 py-1 rounded ring-1 ring-emerald-300 text-emerald-700 hover:bg-emerald-50"
                             title="Åbn faktura"
                           >
                             <FileText className="w-3.5 h-3.5" /> Åbn
-                          </Link>
+                          </Link>}
                           <a
                             href={`/api/invoices/${r.id}/pdf?view=1`}
                             target="_blank"
