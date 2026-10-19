@@ -61,7 +61,7 @@ export default function ProductDetailClient({
           <Pencil className="w-4 h-4 mr-2" />
           Rediger
         </Button>
-        <Button variant="outline" onClick={handleDelete} className="text-red-600">
+        <Button variant="outline" onClick={handleDelete} className="text-red-600 break-words min-w-0" data-testid="product-detail-delete">
           <Trash2 className="w-4 h-4 mr-2" />
           Slet
         </Button>
