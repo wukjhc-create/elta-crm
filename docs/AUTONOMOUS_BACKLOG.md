@@ -1386,7 +1386,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-652 | 8 Pilot | DONE. Sagsikonet i mail-detaljen kan krympe. | Kun `<Briefcase className="w-4 h-4 text-blue-600 shrink-0" />` i mail-detaljen. `title="Vælg sag"` er uændret. |
 | G18-653 | 8 Pilot | DONE. Sagsnavnet i mail-detaljen kan krympe. | Kun ankeret `className="font-semibold text-blue-700 hover:underline"` ved den valgte sag i mail-detaljen. Sagsnummer, titel og href er uændrede. |
 | G18-654 | 8 Pilot | DONE. Teksten om ingen sager i mail-detaljen kan krympe. | Kun `<span className="text-amber-700">` i mail-detaljen. Teksten `Kunden har ingen sager endnu` er uændret. |
-| G18-655 | 8 Pilot | ÅBEN. Gem-spinneren ved sagsvælgeren kan krympe. | Kun `<Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />` i mail-detaljen. `title="Vælg sag"` er uændret. |
+| G18-655 | 8 Pilot | DONE. Gem-spinneren ved sagsvælgeren kan krympe. | Kun `<Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />` i mail-detaljen. `title="Vælg sag"` er uændret. |
+| G18-656 | 8 Pilot | ÅBEN. Svaret ved sagsvælgeren kan krympe. | Kun spanet med `feedback.startsWith('Fejl')` i mail-detaljen. `{feedback}` er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
