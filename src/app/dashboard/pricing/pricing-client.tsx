@@ -149,7 +149,7 @@ export function PricingDashboardClient() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg border p-4 flex items-center gap-4 flex-wrap min-w-0" data-testid="pricing-filter-row">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0" data-testid="pricing-threshold-row">
           <label className="text-sm text-gray-500 break-words min-w-0" data-testid="pricing-threshold-label">Tærskel:</label>
           <select
             className="border rounded px-2 py-1 text-sm break-words min-w-0"
