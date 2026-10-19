@@ -2917,6 +2917,10 @@ ${m.text()}`) })
             // PM2-4: tilbudskort kun med offers.view (salg har det, bogholderi ikke)
             const offerCards = body.includes('Afventende tilbud') || body.includes('Seneste afviste tilbud')
             r[`${role}_tilbudskort_${role === 'salg' ? 'vist' : 'skjult'}`] = role === 'salg' ? offerCards : !offerCards
+            // PM3-3/PM3-4: afvisningskort kun med offers.view; mailautomatik-kortet kun med inbox.view
+            const rejCard = body.includes('Tabt omsætning')
+            r[`${role}_afvisningskort_${role === 'salg' ? 'vist' : 'skjult'}`] = role === 'salg' ? rejCard : !rejCard
+            r[`${role}_intet_mailautomatik`] = !body.includes('E-mail intelligens (i dag)')
           } finally { await x.ctx.close().catch(() => {}) }
         }
         out.push({ id: 'U193 PM2-1/PM2-4 postkasse og tilbud kun med ret', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })

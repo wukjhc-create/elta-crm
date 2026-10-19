@@ -17,6 +17,8 @@ export async function getOfferActivities(
 ): Promise<ActionResult<OfferActivityWithPerformer[]>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // PM3-6 (rettigheds-audit 2026-10-19): kun med offers.view (montør/bogholderi kunne læse enhver tilbudshistorik)
+    if (!hasPermission('offers.view')) return { success: false, error: 'Manglende tilladelse: offers.view' }
 
     const { data, error } = await supabase
       .from('offer_activities')

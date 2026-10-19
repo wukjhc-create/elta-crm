@@ -216,10 +216,10 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | PM3-1 | runSyncDiagnostic/testGraphConnection/testAllMailboxes/checkGraphEnvVars uden login/gate — postkassens nyeste mails til alle (S1) | DONE (kode) — inbox.view-gate i alle fire (mailsidens ret); audit-scriptet bør markere microsoft-graph-imports som privilegerede = TODO |
 | PM3-2 | DB-læsepolitikker bredere end appen: incoming_emails (salg alle mails), service_cases USING(true), offers, customer_tasks, offer_activities (S2) | BLOCKED_APPROVAL [MIGRATION] + BESLUTNING — bekræftet i prod 2026-10-19 (prod-table-policies): service_cases/offers/customer_tasks SELECT USING(true); incoming_emails for admin/serviceleder/salg/bogholderi (+ montør-scope); anon har fulde tabel-grants på incoming_emails og customer_tasks (RLS uden anon-politik stopper dem) |
-| PM3-3 | getRejectionStats + dashboardets afvisningskort vises for bogholderi (S3) | TODO |
-| PM3-4 | getTodaysIntelligenceCounts (mailautomatik-tal) uden inbox.view (S3) | TODO |
-| PM3-5 | "Ny sag" i seneste aktivitet ignorerer sags-scope (S3) | TODO |
-| PM3-6 | getOfferActivities uden offers.view (S3) | TODO |
+| PM3-3 | getRejectionStats + dashboardets afvisningskort vises for bogholderi (S3) | DONE (kode) — getRejectionStats kræver offers.view eller economy.view; afvisningskort + månedsdiagram kun med offers.view (U193) |
+| PM3-4 | getTodaysIntelligenceCounts (mailautomatik-tal) uden inbox.view (S3) | DONE (kode) — inbox.view i action + kortet kun med inbox.view (U193) |
+| PM3-5 | "Ny sag" i seneste aktivitet ignorerer sags-scope (S3) | DONE (kode) — sager i seneste aktivitet inden for sags-scope |
+| PM3-6 | getOfferActivities uden offers.view (S3) | DONE (kode) — getOfferActivities kræver offers.view |
 | PM3-7 | getCustomerEmailBody læser enhver mail via id uden kunde-tjek (S3) | TODO (+ BESLUTNING: kunder med leverandøradresse) |
 | PM3-8 | Opgavemail: knap vist uden tasks.edit; montør kan maile vilkårlig adresse (S3) | TODO + BESLUTNING |
 | PM3-9 | Ugatede mail-læsninger: getLeadsForEmails, getGraphSyncState(s), mail-recipients.ts (S4) | DONE (kode) — inbox.view resp. customers.view + sags-scope |

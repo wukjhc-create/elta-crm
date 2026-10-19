@@ -16,6 +16,9 @@ export interface TodaysIntelligenceCounts {
 }
 
 export async function getTodaysIntelligenceCounts(): Promise<TodaysIntelligenceCounts> {
+  // PM3-4 (rettigheds-audit 2026-10-19): postkasse-afledt — kun inbox.view (som /api/email-intelligence/stats)
+  const { permissionDenied } = await import('@/lib/actions/action-helpers')
+  if (await permissionDenied('inbox.view')) return { customers_created: 0, customers_matched: 0, skipped: 0, newsletters_ignored: 0 }
   const supabase = await createClient()
   // DB-9 (dashboard-review 2026-10-18): dansk døgnstart — serveren kører i UTC (før startede "i dag" kl. 01/02)
   const since = copenhagenLocalToIso(copenhagenParts(new Date()).date, '00:00')

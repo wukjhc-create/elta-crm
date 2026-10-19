@@ -244,8 +244,8 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Phase 12A Rejection Analytics — afviste tilbud + tabt omsætning (seneste 90 dage) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Phase 12A Rejection Analytics — afviste tilbud + tabt omsætning (seneste 90 dage) — PM3-3: kun offers.view */}
+      {canViewOffers && <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <StatCard
           title="Afviste tilbud"
           value={rejectionStats?.totalRejected ?? 0}
@@ -278,12 +278,12 @@ export default async function DashboardPage() {
           iconBgColor="bg-amber-100"
           href={canViewOffers ? "/dashboard/offers?status=rejected" : undefined}
         />
-      </div>
+      </div>}
 
-      {/* Economic Dashboard — Monthly Offer Stats */}
-      <div className="bg-white p-6 rounded-lg border">
+      {/* Economic Dashboard — Monthly Offer Stats (PM3-3: kun offers.view) */}
+      {canViewOffers && <div className="bg-white p-6 rounded-lg border">
         <MonthlyOfferChart />
-      </div>
+      </div>}
 
       {/* Quick Actions */}
       <div className="bg-white p-6 rounded-lg border">
@@ -307,7 +307,7 @@ export default async function DashboardPage() {
       )}
 
       {/* Email Intelligence — today's counts */}
-      <EmailIntelligenceCard />
+      {canViewMail && <EmailIntelligenceCard />}{/* PM3-4: mailautomatik-tal kun med inbox.view */}
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

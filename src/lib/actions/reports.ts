@@ -697,10 +697,12 @@ const UNKNOWN_LABEL = 'Ikke angivet'
  */
 export async function getRejectionStats(): Promise<ActionResult<RejectionStats>> {
   try {
-    // Sprint Ø2.13: bevidst IKKE economy.view-gated — bruges af alle på
-    // hoved-dashboardet (afvisningsrate/tabt-omsætning-KPI), degraderer
-    // gracefully. Afslører ikke intern kost/DB.
-    const { supabase } = await getAuthenticatedClientWithRole()
+    // Sprint Ø2.13: dashboard-KPI (afvisningsrate/tabt omsætning). PM3-3 (rettigheds-audit 2026-10-19): kun med
+    // offers.view (dashboard) eller economy.view (rapportsiden) — før fik alle roller tilbudstallene
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view') && !hasPermission('economy.view')) {
+      return { success: false, error: 'Manglende tilladelse: offers.view' }
+    }
 
     const now = Date.now()
     const scopeStart = new Date(now - REJECTION_SCOPE_DAYS * 86_400_000)

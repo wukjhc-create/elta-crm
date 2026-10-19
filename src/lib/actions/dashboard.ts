@@ -236,7 +236,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_ACTIVITY): Promise<RecentActivity[]> {
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
+  // PM3-5 (rettigheds-audit 2026-10-19): sager kun inden for brugerens sags-scope (salg så før firmaets nyeste sager)
+  let ownCaseIds: string[] | null = null
+  if (!hasPermission('cases.view.all')) {
+    const { getCaseScope } = await import('@/lib/auth/case-scope')
+    const scope = await getCaseScope({ supabase, userId, role })
+    ownCaseIds = scope.type === 'specific' ? scope.caseIds.slice(0, 200) : []
+  }
   // LD-14 (leads-review 2026-10-18): hver sektion kun med læseretten til modulet — før fik fx bogholderi leadets
   // kontaktnavne uden leads.view (kun RLS stod imellem)
   const none = Promise.resolve({ data: null as null })
@@ -260,13 +267,15 @@ export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_
         .eq('is_proposal', false)
         .order('created_at', { ascending: false })
         .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
-      // N36: sager (ikke gamle projekter)
-      supabase
-        .from('service_cases')
-        .select('id, case_number, title, status, created_at')
-        .eq('is_proposal', false)
-        .order('created_at', { ascending: false })
-        .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
+      // N36: sager (ikke gamle projekter); PM3-5: kun egne uden cases.view.all
+      ownCaseIds !== null && ownCaseIds.length === 0 ? none : (() => {
+        let q = supabase
+          .from('service_cases')
+          .select('id, case_number, title, status, created_at')
+          .eq('is_proposal', false)
+        if (ownCaseIds) q = q.in('id', ownCaseIds)
+        return q.order('created_at', { ascending: false }).limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE)
+      })(),
     ])
 
   const activities: RecentActivity[] = []
