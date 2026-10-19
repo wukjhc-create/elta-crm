@@ -58,7 +58,7 @@ function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <h4 className="font-medium text-sm">{task.title}</h4>
+          <h4 className="font-medium text-sm break-words min-w-0" data-testid="task-board-title">{task.title}</h4>
         </div>
         <div className="relative flex-shrink-0">
           <button
