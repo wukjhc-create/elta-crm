@@ -1196,6 +1196,58 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 otteogtredivte (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `8e3a012a`. Det lader syvogtredivte-hegnet stå. `8e3a012a` hedder `docs: checkpoint efter 24a9d325`. Produktspids: `ed2d4576`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `ed2d4576` blev afvist før git kørte og er ikke prøvet igen. `a26dd0c8` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `8e3a012a..ed2d4576`
+
+```
+ed2d4576 feat(pilot): tom kundeliste i AI-projekt kan krympe
+a26dd0c8 feat(pilot): knappen annuller i kundevaelgeren ombrydes
+c175ae18 feat(pilot): kundeliste-knappen proev igen ombrydes
+607a65e8 feat(pilot): historik-knappen proev igen ombrydes
+d9b1c4f7 feat(pilot): kundens soegefelt kan krympe
+1af70386 feat(pilot): venteteksten analyserer ombrydes
+c2edaf4a feat(pilot): soegeresultatets ladestander kan krympe
+```
+
+Listen er alle commits efter `8e3a012a` til og med `ed2d4576`, fra `c2edaf4a`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commit der ikke stod i et hegn
+
+```
+8e3a012a docs: checkpoint efter 24a9d325
+```
+
+### Features
+
+G18-443 til G18-449 ombryder søgeresultatets ladestander, venteteksten Analyserer, kundens søgefelt, historikkens Prøv igen, kundelistens Prøv igen, Annuller og den tomme kundeliste. `formatCurrency(h.cost_price)`, `Analyserer...`, pladsholderen `Søg efter kunde...`, `aria-label="Søg efter kunde"`, `setHistoryTry`, `void loadCustomers()`, `Annuller`, `'Ingen kunder'` og `'Ingen kunder fundet'` er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter pilotbølgen fra `cb4f0a8f` til `ed2d4576`, herunder G18-443 til G18-449. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `ed2d4576`, `a26dd0c8`, `c175ae18`, `607a65e8`, `d9b1c4f7`, `1af70386`, `c2edaf4a` og `8e3a012a`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-450, G18-451, G18-452, G18-453, G18-454, G18-455, G18-456.
+
 ## Checkpoint 2026-10-18 syvogtredivte (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `24a9d325`. Det lader seksogtredivte-hegnet stå. `24a9d325` hedder `docs: checkpoint efter 47a16f63`. Produktspids: `5425db74`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `5425db74` blev afvist før git kørte og er ikke prøvet igen. `10bb4766` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
