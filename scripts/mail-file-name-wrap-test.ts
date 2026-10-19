@@ -39,7 +39,7 @@ ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'
 ok(view.includes('data-testid="mail-file-link"'), 'linket bliver')
 ok(view.includes('data-testid="mail-list-size"'), 'stoerrelsen bliver')
 ok(view.includes('break-all min-w-0 flex-1 text-sm text-gray-700'), 'filnavnsklassen bliver')
-ok(view.includes('<Bot className="w-4 h-4" />'), 'mailagent-ikonet bliver')
+ok(view.includes('<Bot className="w-4 h-4 break-words min-w-0" data-testid="mail-agent-icon" />'), 'mailagent-ikonet bliver')
 ok(view.includes('Kør Mailagent'), 'mailagent-teksten bliver')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
 ok(view.includes('data-testid="mail-create-offer"'), 'opret-tilbud bliver')
