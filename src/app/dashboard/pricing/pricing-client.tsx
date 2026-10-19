@@ -163,7 +163,7 @@ export function PricingDashboardClient() {
             <option value={20}>20%+</option>
           </select>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0" data-testid="pricing-period-row">
           <label className="text-sm text-gray-500 break-words min-w-0" data-testid="pricing-period-label">Periode:</label>
           <select
             className="border rounded px-2 py-1 text-sm break-words min-w-0"
