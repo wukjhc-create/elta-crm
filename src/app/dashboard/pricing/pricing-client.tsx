@@ -189,7 +189,7 @@ export function PricingDashboardClient() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b">
+      <div className="border-b min-w-0" data-testid="pricing-tab-frame">
         <nav className="flex gap-0 -mb-px flex-wrap min-w-0" data-testid="pricing-tab-nav">
           {[
             { key: 'alerts' as Tab, label: 'Prisadvarsler', count: alerts.length },
