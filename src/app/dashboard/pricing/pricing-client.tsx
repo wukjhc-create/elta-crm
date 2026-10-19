@@ -325,7 +325,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-center break-words min-w-0" data-testid="pricing-alert-affects-cell">
-                    <div className="flex items-center justify-center gap-2 text-xs">
+                    <div className="flex items-center justify-center gap-2 text-xs min-w-0" data-testid="pricing-alert-affects-row">
                       {alert.affects_offers > 0 && (
                         <span className="flex items-center gap-0.5 text-amber-600 break-words min-w-0" data-testid="pricing-alert-affects-offers">
                           <FileText className="h-3 w-3" />
