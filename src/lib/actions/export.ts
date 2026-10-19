@@ -102,7 +102,9 @@ export async function exportCustomers(filters?: {
   try {
     // Kunde-review: eksporten fejlede ALTID (kolonnen billing_zip findes ikke — den hedder billing_postal_code) og
     // havde ingen gate; .limit(10000) gav højst 1.000 rækker. Nu: gate, rigtig kolonne (alias), side for side.
-    const denied = await permissionDenied('customers.view')
+    // PM2-3 (Henrik 2026-10-19): eksport af HELE kunderegistret kun admin + bogholderi (reports.export) — før nok med
+    // customers.view (montør/salg/serviceleder). Får salg senere brug for eksport, laves en separat afgrænset eksport.
+    const denied = await permissionDenied('reports.export')
     if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 

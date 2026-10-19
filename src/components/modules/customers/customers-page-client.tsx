@@ -76,6 +76,8 @@ export function CustomersPageClient({
   const [showImport, setShowImport] = useState(false)
   const { role } = useUserRole()
   const canImport = !!role && hasPermission(role, 'customers.create')
+  // PM2-3 (Henrik 2026-10-19): fuld kundeeksport kun admin + bogholderi (reports.export) — håndhævet i exportCustomers
+  const canExportAll = !!role && hasPermission(role, 'reports.export')
   const [searchInput, setSearchInput] = useState(filters.search || '')
 
   const updateURL = useCallback(
@@ -155,7 +157,7 @@ export function CustomersPageClient({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <ExportButton type="customers" filters={{ search: filters.search, is_active: filters.is_active }} />
+            {canExportAll && <ExportButton type="customers" filters={{ search: filters.search, is_active: filters.is_active }} />}
             {canImport && (
             <button
               type="button"

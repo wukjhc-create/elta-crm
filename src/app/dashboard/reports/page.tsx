@@ -18,7 +18,7 @@ export default async function ReportsPage() {
   }
   // RX-10 (rapport-review 2026-10-18): kun eksportknapper brugeren har ret til (bogholderi fik fem, hvoraf tre altid fejlede)
   const [customers, leads, offers, projects, calculations] = await Promise.all([
-    pageHasPermission('customers.view'), pageHasPermission('leads.view'), pageHasPermission('offers.view'),
+    pageHasPermission('reports.export'), pageHasPermission('leads.view'), pageHasPermission('offers.view'),
     pageHasPermission('economy.cost_prices'), pageHasPermission('tools.calculations'),
   ])
   return <ReportsClient exports={{ customers, leads, offers, projects, calculations }} />
