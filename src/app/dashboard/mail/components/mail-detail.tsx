@@ -399,7 +399,7 @@ export function MailDetail({
 
         {/* Sprint 8E-1B: åben auto-task for denne tråd */}
         {openAutoTasks.length > 0 && (
-          <div className="flex items-center gap-2 text-sm bg-orange-50 border border-orange-200 p-2.5 rounded-md">
+          <div className="flex items-center gap-2 text-sm bg-orange-50 border border-orange-200 p-2.5 rounded-md break-words min-w-0" data-testid="mail-task-frame">
             <AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />
             <span className="text-orange-800">
               {openAutoTasks.length === 1 ? (
