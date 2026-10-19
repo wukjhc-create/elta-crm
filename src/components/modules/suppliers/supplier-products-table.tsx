@@ -212,7 +212,7 @@ export function SupplierProductsTable({
           <Package className="w-12 h-12 mb-2 text-gray-300" />
           <p className="break-words min-w-0" data-testid="supplier-products-empty-title">Ingen produkter fundet</p>
           {search && (
-            <p className="text-sm">Prøv at ændre din søgning</p>
+            <p className="text-sm break-words min-w-0" data-testid="supplier-products-empty-hint">Prøv at ændre din søgning</p>
           )}
         </div>
       ) : (

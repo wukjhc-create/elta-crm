@@ -22,7 +22,7 @@ const row = at >= 0 ? view.slice(at - 40, at + 80) : ''
 ok(row.includes('break-words min-w-0'), 'overskriften ombrydes')
 ok(row.includes('>Ingen produkter fundet<'), 'teksten er uændret')
 ok(view.split('Ingen produkter fundet').length === 2, 'teksten findes en gang')
-ok(view.includes('<p className="text-sm">Prøv at ændre din søgning</p>'), 'sogehintet venter')
+ok(view.includes('data-testid="supplier-products-empty-hint"'), 'sogehintet bliver')
 ok((view.match(/storedCostText\(product\.cost_price\)/g) ?? []).length === 2, 'kostprisen bliver')
 ok((view.match(/storedCostText\(product\.list_price\)/g) ?? []).length === 2, 'listeprisen bliver')
 ok((view.match(/storedCostText\(product\.effective_sale_price\)/g) ?? []).length === 2, 'salgsprisen bliver')
