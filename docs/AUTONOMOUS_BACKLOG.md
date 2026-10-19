@@ -1351,7 +1351,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-617 | 8 Pilot | DONE. Panelet i mailens lysboks kan krympe. | Kun `<div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">` i mail-detaljen. `aria-label="Luk"` er uændret. |
 | G18-618 | 8 Pilot | DONE. Titelrækken i mailens lysboks kan krympe. | Kun `<div className="flex items-start justify-between w-full mb-2 px-1 gap-2">` i mail-detaljen. `aria-label="Luk"` er uændret. |
 | G18-619 | 8 Pilot | DONE. Billedet i mailens lysboks kan krympe. | Kun `<img src={lightboxUrl} alt={lightboxName} className="max-w-full max-h-[80vh] rounded-lg shadow-2xl object-contain" />` i mail-detaljen. `aria-label="Luk"` er uændret. |
-| G18-620 | 8 Pilot | ÅBEN. Download-ikonet i mailens lysboks kan krympe. | Kun `<Download className="w-4 h-4 text-white" />` i mail-detaljen. `aria-label="Download"` er uændret. |
+| G18-620 | 8 Pilot | DONE. Download-ikonet i mailens lysboks kan krympe. | Kun `<Download className="w-4 h-4 text-white" />` i mail-detaljen. `aria-label="Download"` er uændret. |
+| G18-621 | 8 Pilot | ÅBEN. Luk-ikonet i mailens lysboks kan krympe. | Kun `<X className="w-4 h-4 text-white" />` i mail-detaljen. `aria-label="Luk"` er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
