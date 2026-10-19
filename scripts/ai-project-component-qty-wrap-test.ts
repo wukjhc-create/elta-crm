@@ -30,7 +30,7 @@ ok(view.split(id).length === 2, 'antallet findes en gang')
 ok(view.split(cell).length === 3, 'celleklassen findes to gange')
 ok(view.includes(expr + ' ·'), 'mobilantallet bliver')
 ok(view.includes('data-testid="ai-project-component-unit">{formatCurrency(comp.unit_price)}'), 'enhedspriscellen bliver')
-ok(view.includes('className="p-3 text-right font-medium">{formatCurrency(comp.total)}'), 'totalcellen bliver')
+ok(view.includes('data-testid="ai-project-component-total">{formatCurrency(comp.total)}'), 'totalcellen bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

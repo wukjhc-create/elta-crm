@@ -28,7 +28,7 @@ ok(!row.includes('{comp.quantity}'), 'antallet er et andet')
 ok(view.split(id).length === 2, 'enhedsprisen findes en gang')
 ok(view.split(cell).length === 3, 'celleklassen findes to gange')
 ok(view.includes('{comp.quantity} {comp.unit} · {' + expr + '}'), 'mobilprisen bliver')
-ok(view.includes('className="p-3 text-right font-medium">{formatCurrency(comp.total)}'), 'totalcellen bliver')
+ok(view.includes('data-testid="ai-project-component-total">{formatCurrency(comp.total)}'), 'totalcellen bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

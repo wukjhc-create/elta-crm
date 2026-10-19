@@ -560,7 +560,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                         <td className="p-3 break-words min-w-0" data-testid="ai-project-component-name">{comp.name}</td>
                         <td className="p-3 text-right break-words min-w-0" data-testid="ai-project-component-qty">{comp.quantity} {comp.unit}</td>
                         <td className="p-3 text-right break-words min-w-0" data-testid="ai-project-component-unit">{formatCurrency(comp.unit_price)}</td>
-                        <td className="p-3 text-right font-medium">{formatCurrency(comp.total)}</td>
+                        <td className="p-3 text-right font-medium break-words min-w-0" data-testid="ai-project-component-total">{formatCurrency(comp.total)}</td>
                       </tr>
                     ))}
                   </tbody>
