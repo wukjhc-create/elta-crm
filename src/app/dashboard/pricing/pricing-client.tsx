@@ -365,7 +365,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
     <>
     <ul className="md:hidden space-y-2" data-testid="price-offers-mobile">
       {offers.map((offer) => (
-        <li key={offer.offer_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
+        <li key={offer.offer_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm min-w-0" data-testid="pricing-offer-card-mobile">
           <a
             href={`/dashboard/offers/${offer.offer_id}`}
             className="font-medium text-blue-600 hover:underline break-all break-words min-w-0"
