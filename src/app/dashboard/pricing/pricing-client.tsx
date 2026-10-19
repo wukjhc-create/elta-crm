@@ -596,7 +596,7 @@ function TrendsTab({
               <tbody>
                 {trends.map((trend) => (
                   <tr key={trend.supplier_product_id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 break-words min-w-0" data-testid="pricing-trend-product-cell">
                       <div className="font-medium break-words max-w-[16rem]">{trend.product_name}</div>
                     </td>
                     <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(trend.current_price)}</td>

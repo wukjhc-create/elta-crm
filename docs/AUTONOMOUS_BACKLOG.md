@@ -987,7 +987,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-244 | 4 Pris | DONE. Knappen Rediger på produktdetaljen ombrydes. | setShowEditDialog er uændret. |
 | G18-250 | 4 Pris | DONE. Overskriften Specifikationer på produktdetaljen ombrydes. | Ordet er uændret. |
 | G18-256 | 4 Pris | DONE. Etiketten Avance på produktdetaljen ombrydes. | Ordet og margin.toFixed(1) er uændrede. |
-| G18-262 | 4 Pris | ÅBEN. Produktcellen i pristendensens skrivebordstabel ombrydes. | Navnet og prisen er uændrede. |
+| G18-262 | 4 Pris | DONE. Produktcellen i pristendensens skrivebordstabel ombrydes. | Navnet og prisen er uændrede. |
+| G18-268 | 4 Pris | ÅBEN. Varenummeret på prisadvarslens skrivebord ombrydes. | SKU er uændret. |
 | G18-221 | 4 Pris | DONE. Gem-knappen i produktformularen ombrydes. | Ordene Gemmer, Opdater og Opret er uændrede. |
 | G18-227 | 4 Pris | DONE. Etiketten Produktnavn i produktformularen ombrydes. | Ordet og stjernen er uændrede. |
 | G18-233 | 4 Pris | DONE. Pladsholderen på produktnavn ombrydes. | Teksten F.eks. JA Solar 400W Panel er uændret. |
