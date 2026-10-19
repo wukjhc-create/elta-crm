@@ -21,7 +21,7 @@ ok(row.includes('break-all break-words min-w-0'), 'varenummeret ombrydes')
 ok(row.includes('{alert.supplier_sku}'), 'sku er uændret')
 ok(view.includes('formatCurrency(alert.old_price)'), 'gammel pris bliver')
 ok(view.includes('formatCurrency(alert.new_price)'), 'ny pris bliver')
-ok(view.includes('text-xs text-gray-400 break-all">{alert.supplier_sku}'), 'mobil-sku bliver')
+ok(view.includes('text-xs text-gray-400 break-all break-words min-w-0" data-testid="pricing-alert-sku-mobile">{alert.supplier_sku}'), 'mobil-sku bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
 if (bad > 0) {

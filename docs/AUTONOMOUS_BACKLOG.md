@@ -993,7 +993,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-256 | 4 Pris | DONE. Etiketten Avance på produktdetaljen ombrydes. | Ordet og margin.toFixed(1) er uændrede. |
 | G18-262 | 4 Pris | DONE. Produktcellen i pristendensens skrivebordstabel ombrydes. | Navnet og prisen er uændrede. |
 | G18-268 | 4 Pris | DONE. Varenummeret på prisadvarslens skrivebord ombrydes. | SKU er uændret. |
-| G18-274 | 4 Pris | ÅBEN. Varenummeret på prisadvarslens mobilkort ombrydes. | SKU er uændret. |
+| G18-274 | 4 Pris | DONE. Varenummeret på prisadvarslens mobilkort ombrydes. | SKU er uændret. |
 | G18-221 | 4 Pris | DONE. Gem-knappen i produktformularen ombrydes. | Ordene Gemmer, Opdater og Opret er uændrede. |
 | G18-227 | 4 Pris | DONE. Etiketten Produktnavn i produktformularen ombrydes. | Ordet og stjernen er uændrede. |
 | G18-233 | 4 Pris | DONE. Pladsholderen på produktnavn ombrydes. | Teksten F.eks. JA Solar 400W Panel er uændret. |
@@ -1016,6 +1016,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-276 | 4 Pris | ÅBEN. Kundecellen på berørte tilbud kan krympe. | Navnet er uændret. |
 | G18-278 | 4 Pris | ÅBEN. Ændringscellen på prisadvarslens skrivebord ombrydes. | Procenten er uændret. |
 | G18-279 | 4 Pris | ÅBEN. Tilbudstitlen på berørte tilbud kan krympe. | Titlen er uændret. |
+| G18-280 | 4 Pris | ÅBEN. Produktnavnet på prisadvarslens mobilkort kan krympe. | Navnet er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
