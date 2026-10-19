@@ -408,7 +408,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
                   >
                     {offer.offer_number}
                   </a>
-                  <div className="text-xs text-gray-400 break-words max-w-[16rem]">{offer.offer_title}</div>
+                  <div className="text-xs text-gray-400 break-words max-w-[16rem] min-w-0" data-testid="pricing-offer-title">{offer.offer_title}</div>
                 </td>
                 <td className="px-4 py-2.5 text-gray-600 break-words min-w-0" data-testid="pricing-offer-customer-cell">{offer.customer_name}</td>
                 <td className="px-4 py-2.5 break-words min-w-0" data-testid="pricing-offer-status-cell">

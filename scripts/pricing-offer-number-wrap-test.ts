@@ -29,7 +29,7 @@ const desk = deskAt >= 0 ? view.slice(deskAt - 220, deskAt + 120) : ''
 ok(desk.includes('break-words min-w-0'), 'skrivebord ombrydes')
 ok(desk.includes(expr), 'skrivebordsnummeret er uændret')
 ok(desk.includes(href), 'skrivebordslinket er uændret')
-ok(view.includes('break-words max-w-[16rem]">{offer.offer_title}'), 'titlen bliver')
+ok(view.includes('break-words max-w-[16rem] min-w-0" data-testid="pricing-offer-title">{offer.offer_title}'), 'titlen bliver')
 ok(view.split(expr).length - 1 === 2, 'to numre')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 

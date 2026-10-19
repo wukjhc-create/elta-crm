@@ -18,7 +18,7 @@ eq('tab bliver', mobile.includes("offer.potential_loss > 0 ? '-' : '+'}") && mob
 eq('linjer bliver', mobile.includes('{offer.affected_items}'), true)
 eq('dato bliver', mobile.includes('formatDateUtil(offer.created_at)'), true)
 eq('link bliver', mobile.includes('href={`/dashboard/offers/${offer.offer_id}`}'), true)
-eq('desktop-titel bliver', src.includes('break-words max-w-[16rem]">{offer.offer_title}'), true)
+eq('desktop-titel bliver', src.includes('break-words max-w-[16rem] min-w-0" data-testid="pricing-offer-title">{offer.offer_title}'), true)
 eq('tom tekst bliver', src.includes('Ingen tilbud er påvirket af nylige prisændringer'), true)
 eq('ingen truncate', src.includes('truncate'), false)
 
