@@ -763,7 +763,7 @@ export function MailDetail({
                   disabled={isBackfilling}
                   className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 break-words min-w-0" data-testid="mail-attachments-download-button"
                 >
-                  {isBackfilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 break-words min-w-0" data-testid="mail-pending-dl-icon" />}
+                  {isBackfilling ? <Loader2 className="w-4 h-4 animate-spin break-words min-w-0" data-testid="mail-backfill-spinner" /> : <Download className="w-4 h-4 break-words min-w-0" data-testid="mail-pending-dl-icon" />}
                   {isBackfilling ? 'Downloader...' : 'Download vedhæftninger nu'}
                 </button>
                 {backfillMsg && (

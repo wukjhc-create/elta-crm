@@ -18,7 +18,7 @@ ok(formatCurrency(1250).includes('1'), 'beloebsformatet bliver')
 const view = readFileSync('src/app/dashboard/mail/components/mail-detail.tsx', 'utf8')
 const id = 'data-testid="mail-attachments-download-button"'
 const at = view.indexOf(id)
-const row = at >= 0 ? view.slice(at - 290, at + 270) : ''
+const row = at >= 0 ? view.slice(at - 290, at + 400) : ''
 const cell = 'className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 break-words min-w-0" data-testid="mail-attachments-download-button"'
 ok(row.includes('<button'), 'det er knappen')
 ok(row.includes('inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 break-words min-w-0'), 'knappen kan krympe')

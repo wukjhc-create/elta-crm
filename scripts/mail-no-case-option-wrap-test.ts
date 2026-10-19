@@ -41,7 +41,8 @@ ok(view.split('data-testid="mail-case-picker-load-error"').length === 3, 'fejl-i
 ok(view.split('data-testid="mail-empty-case"').length === 2, 'tom-id kolliderer ikke')
 ok(view.split('data-testid="mail-no-cases"').length === 2, 'ingen-sager kolliderer ikke')
 ok(view.includes("pendingAction === 'archive'"), 'arkiv-betingelsen bliver')
-ok(view.includes('<Loader2 className="w-4 h-4 animate-spin" />'), 'spinneren bliver')
+ok(view.includes('data-testid="mail-backfill-spinner"'), 'download-spinneren kan krympe')
+ok(!view.includes('<Loader2 className="w-4 h-4 animate-spin" />'), 'ingen bar w-4-spinner bliver')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
 ok(view.includes('data-testid="mail-create-offer"'), 'opret-tilbud bliver')
 
