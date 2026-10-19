@@ -286,7 +286,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                   className="w-full rounded-md border px-3 py-1.5 text-sm break-words min-w-0"
                 />
                 {chargerError && (
-                  <p className="mt-1 text-xs text-red-700" data-testid="charger-search-error">
+                  <p className="mt-1 text-xs text-red-700 break-words min-w-0" data-testid="charger-search-error">
                     {chargerError}{chargerHits.length === 0 ? '. Det tælles ikke som ingen ladestandere.' : '. De tidligere forslag bliver.'}
                   </p>
                 )}
