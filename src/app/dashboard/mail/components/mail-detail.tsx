@@ -437,7 +437,7 @@ export function MailDetail({
                 onClick={onLink}
                 className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-blue-600 text-white rounded-md hover:bg-blue-700 shadow-sm transition-all hover:shadow-md break-words min-w-0" data-testid="mail-kobl-button"
               >
-                <Link2 className="w-4 h-4" />
+                <Link2 className="w-4 h-4 break-words min-w-0" data-testid="mail-kobl-icon" />
                 Kobl til eksisterende
               </button>
               <button
