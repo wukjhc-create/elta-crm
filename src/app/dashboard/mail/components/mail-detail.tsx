@@ -410,7 +410,7 @@ export function MailDetail({
             </span>
             <a
               href={`/dashboard/tasks?source_email_id=${email.id}`}
-              className="ml-auto text-orange-700 hover:underline inline-flex items-center gap-1 text-xs font-medium"
+              className="ml-auto text-orange-700 hover:underline inline-flex items-center gap-1 text-xs font-medium break-words min-w-0" data-testid="mail-task-link"
             >
               Se opgave <ExternalLink className="w-3 h-3" />
             </a>
