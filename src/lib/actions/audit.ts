@@ -69,7 +69,9 @@ export async function getAuditLogs(
   filters?: AuditLogFilters
 ): Promise<ActionResult<PaginatedResponse<AuditLogEntry>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // PM2-13: revisionsloggen (Indstillinger → Audit) kræver settings.view — før kun login (RLS begrænsede rækkerne)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.view')) return { success: false, error: 'Manglende tilladelse: settings.view' }
 
     // Validate optional UUIDs
     if (filters?.entity_id) {

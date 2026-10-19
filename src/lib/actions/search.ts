@@ -13,7 +13,15 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
   }
 
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
+    // PM2-12 (rolle-review 2026-10-19): sager også for salg/montør (cases.view.assigned) — kun egne (samme scope som sagslisten)
+    const canAllCases = hasPermission('cases.view.all')
+    let ownCaseIds: Set<string> | null = null
+    if (!canAllCases && hasPermission('cases.view.assigned')) {
+      const { getCaseScope } = await import('@/lib/auth/case-scope')
+      const scope = await getCaseScope({ supabase, userId, role })
+      ownCaseIds = new Set(scope.type === 'specific' ? scope.caseIds : [])
+    }
     const searchTerm = `%${sanitizeSearchTerm(query.trim().toLowerCase())}%`
     // Leads-review 2026-10-08 (#8): søgningen viste leads/tilbud/projekter uden modul-rettighed (kun RLS) — tom uden
     const none = Promise.resolve({ data: null, count: 0 })
@@ -37,17 +45,23 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
         .select('id, offer_number, title, status', { count: 'exact' })
         .or(`offer_number.ilike.${pgQuote(searchTerm)},title.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
-      !hasPermission('projects.view') ? none : supabase
+      // PM2-12: det gamle projektmodul er ikke montør-afgrænset (getProject) — kun for kontoret
+      !(hasPermission('projects.view') && canAllCases) ? none : supabase
         .from('projects')
         .select('id, project_number, name, status', { count: 'exact' })
         .or(`project_number.ilike.${pgQuote(searchTerm)},name.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
-      !hasPermission('cases.view.all') ? none : supabase
+      !(canAllCases || (ownCaseIds && ownCaseIds.size > 0)) ? none : supabase
         .from('service_cases')
         .select('id, case_number, title, status', { count: 'exact' })
         .eq('is_proposal', false)
         .or(`case_number.ilike.${pgQuote(searchTerm)},title.ilike.${pgQuote(searchTerm)}`)
-        .limit(5),
+        .limit(canAllCases ? 5 : 50)
+        .then((res) => {
+          if (canAllCases || !ownCaseIds || !res.data) return res
+          const mine = (res.data as Array<{ id: string }>).filter((c) => ownCaseIds!.has(c.id))
+          return { ...res, data: mine.slice(0, 5), count: mine.length } as typeof res
+        }),
     ])
     // P-9: en fejlende delsøgning logges (før tavst 0)
     for (const [name, res] of [['leads', leadsResult], ['customers', customersResult], ['offers', offersResult], ['projects', projectsResult], ['cases', casesResult]] as const) {

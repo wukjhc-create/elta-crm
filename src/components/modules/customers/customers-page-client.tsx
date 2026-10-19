@@ -168,13 +168,14 @@ export function CustomersPageClient({
               Importér
             </button>
             )}
-            <button
+            {/* PM2-10: kun med customers.create (montør/bogholderi fik før en formular serveren afviste) */}
+            {canImport && <button
               onClick={() => setShowForm(true)}
               className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 font-medium"
             >
               <Plus className="w-4 h-4" />
               Ny Kunde
-            </button>
+            </button>}
           </div>
         </div>
 

@@ -285,7 +285,8 @@ const settingsCards = [
 ]
 
 // Personlige sider er aabne for alle roller (header-menuen linker til profil); resten kraever settings.view.
-const PERSONAL_SETTINGS = new Set(['/dashboard/settings/profile', '/dashboard/settings/security'])
+// PM2-13: notifikationer er personlige (egne præferencer) og skal kunne findes af alle roller
+const PERSONAL_SETTINGS = new Set(['/dashboard/settings/profile', '/dashboard/settings/security', '/dashboard/settings/notifications'])
 
 // P-4 (pilot-review 2026-10-16): hvert kort vises efter den rettighed siden faktisk kræver — før så bogholderi aldrig
 // e-conomic-kortet (settings.economic), og serviceleder så Team/e-conomic, der fejlede

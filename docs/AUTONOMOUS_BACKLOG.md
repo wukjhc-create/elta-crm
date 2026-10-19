@@ -223,10 +223,10 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PM2-7 | Salgs "Åbn faktura" fører til 404 (detalje kræver invoices.view.all) (S3) | DONE (kode) — Henrik: ingen udvidelse; "Åbn"/fakturanr.-link kun med invoices.view.all (sag + kunde); PDF-linket bevares (own_cases). Ikke UI-testet (kræver salgs-egen faktura) |
 | PM2-8 | Salg ser Nyt produkt/Rediger/Slet + kostfelt; handlingerne kræver materials.edit (S3) | DONE (kode) — Nyt produkt/Rediger/Slet (liste + detalje) kun med materials.edit (U198 ny) |
 | PM2-9 | Serviceleder får redigerbare Firma-/Kalkulation-/Integrationsformularer; gem kræver settings.manage (S3) | DONE (kode) — ManageOnly: uden settings.manage vises formularen låst (fieldset disabled + besked) på Firma, Kalkulation og Integrationer (U198 ny) |
-| PM2-10 | Tilføj/ret/slet kontakt og Ny kunde vises for montør/bogholderi (S4) | TODO |
-| PM2-11 | Sagens Mails-fane viser "Download og arkivér"/"Arkivér på sag" uden ret (S4) | TODO |
-| PM2-12 | Global søgning finder kun sager med cases.view.all; getProject uskopet for montør (S4) | TODO |
-| PM2-13 | Audit for serviceleder ser kun egne hændelser (RLS) men ligner fuld log; /settings/team-fejl; Notifikationer-kort mangler (S4) | TODO |
+| PM2-10 | Tilføj/ret/slet kontakt og Ny kunde vises for montør/bogholderi (S4) | DONE (kode) — kontakt-knapper kun med customers.edit, Ny Kunde kun med customers.create (U199 ny) |
+| PM2-11 | Sagens Mails-fane viser "Download og arkivér"/"Arkivér på sag" uden ret (S4) | DONE (kode) — Arkivér kun med cases.edit, Download og arkivér med cases.edit + inbox.view |
+| PM2-12 | Global søgning finder kun sager med cases.view.all; getProject uskopet for montør (S4) | DONE (kode) — salg/montør finder egne sager (getCaseScope); gamle projekter kun i søgning for kontoret (getProject selv uændret) |
+| PM2-13 | Audit for serviceleder ser kun egne hændelser (RLS) men ligner fuld log; /settings/team-fejl; Notifikationer-kort mangler (S4) | DONE (kode) — besked på Audit for ikke-admin + getAuditLogs kræver settings.view; Team-guard users.view; Notifikationer personligt kort (U199 ny) |
 
 ## NEXT-48 (review-bølge 2026-10-18 aften — logs/PII/fejlhåndtering; fund fra CRM-sessionen)
 | # | Fund | Status |

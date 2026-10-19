@@ -38,6 +38,8 @@ import {
   type CaseEmailDetail,
 } from '@/lib/actions/service-cases'
 import { backfillEmailAttachments } from '@/lib/actions/incoming-emails'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import { getRequiresResponseStatus } from '@/lib/actions/email-response-status'
 import { sanitizeEmailHtml } from '@/lib/utils/sanitize-email-html'
 
@@ -251,6 +253,10 @@ function ExpandedMailDetail({
   caseId: string
   onArchived: () => void
 }) {
+  // PM2-11: hent fra Outlook kræver inbox.view, arkivering på sagen cases.edit — knapperne kun med rettighederne
+  const { role: viewerRole } = useUserRole()
+  const canArchive = !!viewerRole && hasPermission(viewerRole, 'cases.edit')
+  const canDownload = canArchive && !!viewerRole && hasPermission(viewerRole, 'inbox.view')
   const [detail, setDetail] = useState<CaseEmailDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isArchiving, setIsArchiving] = useState(false)
@@ -408,7 +414,7 @@ function ExpandedMailDetail({
             <div className="flex items-center gap-2">
               {/* Sprint 8D-1: hvis attachments mangler download → vis kombineret
                   download+arkiv-knap (Graph fetch → Storage → customer_documents) */}
-              {downloadedCount < attachments.length && (
+              {canDownload && downloadedCount < attachments.length && (
                 <button
                   onClick={handleDownloadAndArchive}
                   disabled={isDownloading || isArchiving}
@@ -425,7 +431,7 @@ function ExpandedMailDetail({
               )}
               {/* Hvis nogle attachments allerede er downloadet men måske ikke arkiveret —
                   re-arkivér for at sikre customer_documents er up-to-date (idempotent) */}
-              {downloadedCount > 0 && (
+              {canArchive && downloadedCount > 0 && (
                 <button
                   onClick={handleArchive}
                   disabled={isArchiving || isDownloading}

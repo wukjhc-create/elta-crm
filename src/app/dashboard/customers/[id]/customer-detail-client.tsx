@@ -593,13 +593,14 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             <div className="bg-white rounded-lg border p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Kontaktpersoner</h2>
-                <button
+                {/* PM2-10: kontakter oprettes/rettes/slettes kun med customers.edit (serveren afviser ellers) */}
+                {can('customers.edit') && <button
                   onClick={() => setShowContactForm(true)}
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                 >
                   <Plus className="w-4 h-4" />
                   Tilføj kontakt
-                </button>
+                </button>}
               </div>
               {contacts.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">
@@ -672,7 +673,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      {can('customers.edit') && <div className="flex items-center gap-1">
                         <button
                           onClick={() => setEditingContact(contact)}
                           className="p-1 hover:bg-gray-200 rounded"
@@ -686,7 +687,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                         >
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </button>
-                      </div>
+                      </div>}
                     </div>
                   ))}
                 </div>

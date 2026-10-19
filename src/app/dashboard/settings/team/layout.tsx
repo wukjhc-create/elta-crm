@@ -3,5 +3,6 @@ import { ModuleGuard } from '@/components/auth/module-guard'
 
 // P1 #8: direkte URL-adgang uden rettighed -> "Du har ikke adgang" (samme gate som menupunktet).
 export default function Layout({ children }: { children: ReactNode }) {
-  return <ModuleGuard permission="settings.view">{children}</ModuleGuard>
+  // PM2-13: Team kræver users.view (admin) — serviceleder fik før en rød fejl i stedet for "ingen adgang"
+  return <ModuleGuard permission="users.view">{children}</ModuleGuard>
 }
