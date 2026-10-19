@@ -496,7 +496,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.risk_buffer_amount)}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">
-                    <dt>Total</dt>
+                    <dt className="break-words min-w-0" data-testid="ai-project-price-total-label">Total</dt>
                     <dd className="min-w-0 text-green-600 break-words">{formatCurrency(result.calculation.price.total_price)}</dd>
                   </div>
                 </dl>
