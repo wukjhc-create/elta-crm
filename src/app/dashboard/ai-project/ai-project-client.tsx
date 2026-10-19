@@ -505,7 +505,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               {/* Time Breakdown */}
               <div>
                 <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-time-heading">Tidsberegning</h4>
-                <dl className="space-y-2 text-sm">
+                <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-time-list">
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-base-time-label">Basis tid</dt>
                     <dd className="min-w-0 break-words" data-testid="ai-project-base-hours">{result.calculation.time.base_hours.toFixed(1)} timer</dd>
