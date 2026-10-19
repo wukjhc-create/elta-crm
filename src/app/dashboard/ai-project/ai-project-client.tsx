@@ -558,7 +558,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     {result.calculation.components.map((comp, i) => (
                       <tr key={i}>
                         <td className="p-3 break-words min-w-0" data-testid="ai-project-component-name">{comp.name}</td>
-                        <td className="p-3 text-right">{comp.quantity} {comp.unit}</td>
+                        <td className="p-3 text-right break-words min-w-0" data-testid="ai-project-component-qty">{comp.quantity} {comp.unit}</td>
                         <td className="p-3 text-right">{formatCurrency(comp.unit_price)}</td>
                         <td className="p-3 text-right font-medium">{formatCurrency(comp.total)}</td>
                       </tr>
