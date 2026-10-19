@@ -279,9 +279,10 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                       setChargerError(r.error || 'Kunne ikke søge i produktkataloget')
                     }
                   }}
+                  data-testid="ai-project-charger-search"
                   placeholder="Søg ladeboks i produktkataloget (fx Zaptec, Easee, EVlink)…"
                   aria-label="Søg ladestander"
-                  className="w-full rounded-md border px-3 py-1.5 text-sm"
+                  className="w-full rounded-md border px-3 py-1.5 text-sm break-words min-w-0"
                 />
                 {chargerError && (
                   <p className="mt-1 text-xs text-red-700" data-testid="charger-search-error">

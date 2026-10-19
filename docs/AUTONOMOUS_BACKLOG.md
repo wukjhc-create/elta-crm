@@ -1171,13 +1171,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-432 | 8 Pilot | DONE. Hjælpeteksten om en lader der ikke er prissat ombrydes. | Sætningen og `&quot;` er uændrede. Kun det afsnit i AI-projekt. Der gættes ingen pris. |
 | G18-433 | 8 Pilot | DONE. Den valgte ladestanders navn ombrydes. | `formatCurrency(charger.cost_price)` er uændret. Kun det span. |
 | G18-434 | 8 Pilot | DONE. Knappen Fjern på ladestanderen ombrydes. | Teksten `Fjern` og `setCharger(null)` er uændrede. Kun den knap. |
-| G18-435 | 8 Pilot | ÅBEN. Søgefeltet til ladestander kan krympe. | Pladsholderen og `aria-label="Søg ladestander"` er uændrede. Kun det felt. |
+| G18-435 | 8 Pilot | DONE. Søgefeltet til ladestander kan krympe. | Pladsholderen og `aria-label="Søg ladestander"` er uændrede. Kun det felt. |
 | G18-436 | 8 Pilot | ÅBEN. Beskrivelsesfeltet på AI-projekt kan krympe. | Pladsholderen og `value={description}` er uændrede. Kun tekstfeltet. |
 | G18-437 | 8 Pilot | ÅBEN. Timetallet i hurtig estimat ombrydes. | Udtrykket `{Math.round(quickResult.estimatedHours)}` er uændret. Kun det span. |
 | G18-438 | 8 Pilot | ÅBEN. Beløbet i hurtig estimat kan krympe. | `formatCurrency(quickResult.estimatedPrice)` er uændret. Kun det span. |
 | G18-439 | 8 Pilot | ÅBEN. Elpunkt-tallet i hurtig estimat ombrydes. | Udtrykket `{quickResult.totalPoints} elpunkter` er uændret. Kun det span. |
 | G18-440 | 8 Pilot | ÅBEN. Bygningstypen i hurtig estimat ombrydes. | Udtrykket `{getBuildingTypeName(quickResult.buildingType)}` er uændret. Kun det span. |
 | G18-441 | 8 Pilot | ÅBEN. Elpunkt-antallet i fortolkningen ombrydes. | Teksten `{value} stk` er uændret. Kun den værdi. |
+| G18-442 | 8 Pilot | ÅBEN. Fejlteksten ved ladestander-søgning kan krympe. | Sætningerne og `data-testid="charger-search-error"` er uændrede. Kun det afsnit. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
