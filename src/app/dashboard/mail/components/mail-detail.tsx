@@ -809,7 +809,7 @@ export function MailDetail({
                   <Download className="w-4 h-4 text-white break-words min-w-0" data-testid="mail-lightbox-download-icon" />
                 </a>
                 <button type="button" onClick={() => setLightboxUrl(null)} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20" title="Luk" aria-label="Luk">
-                  <X className="w-4 h-4 text-white" />
+                  <X className="w-4 h-4 text-white break-words min-w-0" data-testid="mail-lightbox-close-icon" />
                 </button>
               </div>
             </div>
