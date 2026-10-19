@@ -192,7 +192,7 @@ export function AftercalcOverviewClient() {
                               {r.case_number || 'Sag'}
                             </Link>
                             {r.title && <p className="text-xs text-gray-500 break-words">{r.title}</p>}
-                            <p className="text-sm text-gray-800 break-words">{r.customer_name || '—'}</p>
+                            <p className="text-sm text-gray-800 break-words min-w-0" data-testid="aftercalc-mobile-customer">{r.customer_name || '—'}</p>
                             <p className="text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-mobile-assignee">Ansvarlig: {r.assignee_name || '—'}</p>
                           </div>
                           <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${r.data_quality === 'warning' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
