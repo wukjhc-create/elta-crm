@@ -346,7 +346,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               </>
             ) : (
               <>
-                <Sparkles className="w-5 h-5 mr-2" />
+                <Sparkles className="w-5 h-5 mr-2 break-words min-w-0" data-testid="ai-project-analyze-sparkles" />
                 Analyser projekt
               </>
             )}

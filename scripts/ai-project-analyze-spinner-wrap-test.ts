@@ -30,7 +30,7 @@ ok(view.split(id).length === 2, 'spinneren findes en gang')
 ok(view.split(cell).length === 2, 'spinnerklassen findes en gang')
 ok(!view.includes('<Loader2 className="w-5 h-5 animate-spin mr-2" />'), 'den bare spinner er vaek')
 ok(view.includes('data-testid="ai-project-analyzing">Analyserer...</span>'), 'teksten Analyserer bliver')
-ok(view.includes('<Sparkles className="w-5 h-5 mr-2" />'), 'analyseikonet bliver')
+ok(view.includes('<Sparkles className="w-5 h-5 mr-2 break-words min-w-0" data-testid="ai-project-analyze-sparkles" />'), 'analyseikonet bliver')
 ok(view.includes('<Loader2 className="w-4 h-4 animate-spin mr-2" />'), 'opret-spinneren bliver')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 
