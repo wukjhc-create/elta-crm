@@ -251,7 +251,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
   if (alerts.length === 0) return <EmptyState message="Ingen prisadvarsler i den valgte periode" />
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 min-w-0" data-testid="pricing-alerts-section">
       {error && <LoadFailed message={error} />}
     <ul className="md:hidden space-y-2 min-w-0" data-testid="price-alerts-mobile">
       {alerts.map((alert) => {
