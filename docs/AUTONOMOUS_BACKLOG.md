@@ -1189,6 +1189,55 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 syvogtredivte (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `24a9d325`. Det lader seksogtredivte-hegnet stå. `24a9d325` hedder `docs: checkpoint efter 47a16f63`. Produktspids: `5425db74`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `5425db74` blev afvist før git kørte og er ikke prøvet igen. `10bb4766` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `24a9d325..5425db74`
+
+```
+5425db74 feat(pilot): fejlteksten ved ladestander-soegning kan krympe
+10bb4766 feat(pilot): elpunkt-antallet i fortolkningen ombrydes
+4087d542 feat(pilot): bygningstypen i hurtig estimat ombrydes
+3b4e429c feat(pilot): elpunkt-tallet i hurtig estimat ombrydes
+```
+
+Listen er alle commits efter `24a9d325` til og med `5425db74`, fra `3b4e429c`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commit der ikke stod i et hegn
+
+```
+24a9d325 docs: checkpoint efter 47a16f63
+```
+
+### Features
+
+G18-439 til G18-442 ombryder elpunkt-tallet og bygningstypen i hurtig estimat, elpunkt-antallet i fortolkningen og fejlteksten ved ladestander-søgning. `{quickResult.totalPoints} elpunkter`, `{getBuildingTypeName(quickResult.buildingType)}`, `{value} stk`, `break-words">{getBuildingTypeName(result.interpretation.building_type)}`, sætningerne om ingen ladestandere og tidligere forslag, `data-testid="charger-search-error"` og `formatCurrency(h.cost_price)` er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter pilotbølgen fra `cb4f0a8f` til `5425db74`, herunder G18-439 til G18-442. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `5425db74`, `10bb4766`, `4087d542` og `24a9d325`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-443, G18-444, G18-445, G18-446, G18-447, G18-448, G18-449.
+
 ## Checkpoint 2026-10-18 seksogtredivte (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `47a16f63`. Det lader fireogtredivte-hegnet stå. `47a16f63` hedder `docs: checkpoint efter 1c4b89cb`. Produktspids: `dfa68917`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `dfa68917` blev afvist før git kørte og er ikke prøvet igen. `38d55733` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
