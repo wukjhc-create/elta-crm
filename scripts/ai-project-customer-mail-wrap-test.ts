@@ -32,7 +32,7 @@ ok(view.split(id).length === 2, 'mailen findes en gang')
 ok(view.split(cell).length === 2, 'mailens klasse findes en gang')
 ok(!view.includes('text-sm text-gray-500 break-words">{customer.email}'), 'den gamle mailklasse er vaek')
 ok(view.includes('{customer.email && ('), 'mailen vises stadig kun naar den findes')
-ok(view.includes('font-medium break-words">{customer.name}'), 'navnet bliver')
+ok(view.includes('font-medium break-words min-w-0" data-testid="ai-project-customer-name">{customer.name}'), 'navnet kan krympe')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 
 if (bad > 0) {

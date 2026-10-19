@@ -1299,13 +1299,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-560 | 8 Pilot | DONE. Total-etiketten i prisopbygningen kan krympe. | Kun `<dt>Total</dt>` i AI-projekt. Beløbet er uændret. |
 | G18-561 | 8 Pilot | DONE. Tidsberegningens liste kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Tidsberegning. De tre andre lister med samme klasse er uændrede. |
 | G18-562 | 8 Pilot | DONE. Kundens e-mail i kundevælgeren kan krympe. | Kun `<div className="text-sm text-gray-500 break-words">{customer.email}</div>` i AI-projekt. E-mailen er uændret. |
-| G18-563 | 8 Pilot | ÅBEN. Kundens navn i kundevælgeren kan krympe. | Kun `<div className="font-medium break-words">{customer.name}</div>` i AI-projekt. Navnet er uændret. |
+| G18-563 | 8 Pilot | DONE. Kundens navn i kundevælgeren kan krympe. | Kun `<div className="font-medium break-words">{customer.name}</div>` i AI-projekt. Navnet er uændret. |
 | G18-564 | 8 Pilot | ÅBEN. Historikkens fejltekst kan krympe. | Kun `data-testid="ai-history-load-error"` i AI-projekt. Fejlteksten er uændret. |
 | G18-565 | 8 Pilot | ÅBEN. Hurtig-estimatets fejltekst kan krympe. | Kun `data-testid="ai-quick-load-error"` i AI-projekt. Fejlteksten er uændret. |
 | G18-566 | 8 Pilot | ÅBEN. Prisopbygningens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Prisopbygning. Tidsberegningens kolonne og beløbene er uændrede. |
 | G18-567 | 8 Pilot | ÅBEN. Tidsberegningens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Tidsberegning. Prisopbygningens kolonne og tallene er uændrede. |
 | G18-568 | 8 Pilot | ÅBEN. Totalrækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">` der omslutter totaletiketten i prisopbygningen. Tidsberegningens totalrække og beløbet er uændrede. |
 | G18-569 | 8 Pilot | ÅBEN. Totalrækken i tidsberegningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">` der omslutter etiketten Total tid. Prisopbygningens totalrække og timetallet er uændrede. |
+| G18-570 | 8 Pilot | ÅBEN. Subtotalrækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2">` der omslutter etiketten Subtotal. Totalrækkerne og beløbet er uændrede. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

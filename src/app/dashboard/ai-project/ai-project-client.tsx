@@ -764,7 +764,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                       className="w-full text-left p-3 border rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all disabled:opacity-50 break-words min-w-0"
                       data-testid="ai-project-customer-card"
                     >
-                      <div className="font-medium break-words">{customer.name}</div>
+                      <div className="font-medium break-words min-w-0" data-testid="ai-project-customer-name">{customer.name}</div>
                       {customer.email && (
                         <div className="text-sm text-gray-500 break-words min-w-0" data-testid="ai-project-customer-mail">{customer.email}</div>
                       )}

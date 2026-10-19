@@ -13,7 +13,7 @@ const src = fs.readFileSync('src/app/dashboard/ai-project/ai-project-client.tsx'
 eq('panelet kan rulles', src.includes('max-w-md mx-4 max-h-[90vh] overflow-y-auto'), true)
 eq('luk har et navn', src.includes('aria-label="Luk"'), true)
 eq('soegning har et navn', src.includes('aria-label="Søg efter kunde"'), true)
-eq('navn ombrydes', src.includes('font-medium break-words">{customer.name}'), true)
+eq('navn ombrydes', src.includes('font-medium break-words min-w-0" data-testid="ai-project-customer-name">{customer.name}'), true)
 eq('ikke ingen kunder', src.includes('Det tælles ikke som ingen kunder.'), true)
 eq('tom liste bliver', src.includes("'Ingen kunder'"), true)
 eq('annuller bliver', src.includes('Annuller'), true)

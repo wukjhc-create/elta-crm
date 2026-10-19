@@ -18,10 +18,10 @@ ok(formatCurrency(1250).includes('1'), 'beloebsformatet bliver')
 const view = readFileSync('src/app/dashboard/ai-project/ai-project-client.tsx', 'utf8')
 const id = 'data-testid="ai-project-customer-card"'
 const at = view.indexOf(id)
-const row = at >= 0 ? view.slice(at - 320, at + 160) : ''
+const row = at >= 0 ? view.slice(at - 320, at + 200) : ''
 ok(row.includes('break-words min-w-0'), 'kortet kan krympe')
 ok(row.includes('handleSelectCustomer(customer.id)'), 'valget bliver')
-ok(row.includes('font-medium break-words">{customer.name}'), 'navnet ombrydes som foer')
+ok(row.includes('font-medium break-words min-w-0" data-testid="ai-project-customer-name">{customer.name}'), 'navnet kan krympe')
 ok(view.split(id).length === 2, 'kortet findes en gang')
 ok(view.includes('text-sm text-gray-500 break-words min-w-0" data-testid="ai-project-customer-mail">{customer.email}'), 'mailen kan krympe')
 ok(view.includes('aria-label="Søg efter kunde"'), 'soegningen bliver')
