@@ -542,14 +542,15 @@ function NewCustomersCard({ overview }: { overview: DashboardOverview }) {
 
 function VisitsCard({ overview }: { overview: DashboardOverview }) {
   const { upcoming, empty } = overview.visits
+  const total = overview.visits.count ?? upcoming.length // DB-15a
   const err = overview.errors.visits
   return (
     <Card
       title="Kommende besigtigelser"
       icon={<CalendarClock className="h-4 w-4" />}
-      tone={upcoming.length > 0 ? 'blue' : 'gray'}
+      tone={total > 0 ? 'blue' : 'gray'}
       href="/dashboard/calendar"
-      headline={upcoming.length}
+      headline={total}
       headlineLabel="planlagte"
       error={err}
     >
@@ -575,6 +576,7 @@ function VisitsCard({ overview }: { overview: DashboardOverview }) {
               </Link>
             </li>
           ))}
+          {total > upcoming.length && <li className="py-1.5 text-gray-500" data-testid="cockpit-visits-more">Viser {upcoming.length} af {total}</li>}
         </ul>
       )}
     </Card>

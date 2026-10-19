@@ -113,7 +113,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // Rækker hentes side for side — PostgREST giver højst 1.000 pr. kald (N36-rest: tallene stod stille ved 1.000)
     // Rapport-review 2026-10-09 (#2): værdi ekskl. moms efter rabat (final − tax) — total_amount er subtotal før rabat
     canOffers
-      ? allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').or(__offerOr).eq('is_proposal', false).in('status', ['sent', 'viewed', 'accepted']).order('id').range(f, t))
+      ? allRows<{ status: string; final_amount: number | null; tax_amount: number | null; currency?: string | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount, currency').or(__offerOr).eq('is_proposal', false).in('status', ['sent', 'viewed', 'accepted']).order('id').range(f, t))
       : Promise.resolve([] as Array<{ status: string; final_amount: number | null; tax_amount: number | null }>),
     // N36: sager (ikke gamle projekter)
     // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
@@ -180,8 +180,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   )
   const acceptedOffers = offers.filter((o) => o.status === 'accepted')
 
-  const pendingValue = pendingOffers.reduce((sum, o) => sum + offerExVat(o), 0)
-  const acceptedValue = acceptedOffers.reduce((sum, o) => sum + offerExVat(o), 0)
+  const pendingValue = pendingOffers.reduce((sum, o) => sum + offerExVatDkk(o), 0)
+  const acceptedValue = acceptedOffers.reduce((sum, o) => sum + offerExVatDkk(o), 0)
   const decidedOffers = (offersByStatus['accepted'] || 0) + (offersByStatus['rejected'] || 0)
   const acceptanceRate =
     decidedOffers > 0 ? Math.round(((offersByStatus['accepted'] || 0) / decidedOffers) * 100) : 0
@@ -463,10 +463,10 @@ export async function getMonthlyOfferStats(): Promise<{
   // DB-2 (dashboard-review 2026-10-18): kohorter efter HÆNDELSESDATO — sendt (sent_at), accepteret (accepted_at),
   // afvist (rejected_at) i måneden. Før efter created_at og kun status sendt/set/accepteret: et tilbud oprettet 28/9 og
   // accepteret 2/10 talte aldrig; sendt-og-accepteret talte ikke som sendt; afviste forsvandt (hitrate 40 % mod reelt 29 %)
-  type Row = { status: string; final_amount: number | null; tax_amount: number | null }
+  type Row = { status: string; final_amount: number | null; tax_amount: number | null; currency?: string | null }
   const byDate = (col: 'sent_at' | 'accepted_at' | 'rejected_at') => allRows<Row>((f, t) => supabase
     .from('offers')
-    .select('id, status, final_amount, tax_amount').or(__offerOr)
+    .select('id, status, final_amount, tax_amount, currency').or(__offerOr)
     .eq('is_proposal', false)
     .gte(col, firstDayOfMonth)
     .order('id')
@@ -474,8 +474,8 @@ export async function getMonthlyOfferStats(): Promise<{
   const [sentOffers, acceptedOffers, rejectedOffers] = await Promise.all([byDate('sent_at'), byDate('accepted_at'), byDate('rejected_at')])
 
   return {
-    sentValue: sentOffers.reduce((sum, o) => sum + offerExVat(o), 0),
-    acceptedValue: acceptedOffers.reduce((sum, o) => sum + offerExVat(o), 0),
+    sentValue: sentOffers.reduce((sum, o) => sum + offerExVatDkk(o), 0),
+    acceptedValue: acceptedOffers.reduce((sum, o) => sum + offerExVatDkk(o), 0),
     sentCount: sentOffers.length,
     acceptedCount: acceptedOffers.length,
     rejectedCount: rejectedOffers.length,
@@ -485,4 +485,10 @@ export async function getMonthlyOfferStats(): Promise<{
 /** Tilbudsværdi ekskl. moms efter rabat (final_amount − tax_amount) — samme grundlag som rapporter og salgstragt. */
 function offerExVat(o: { final_amount?: number | string | null; tax_amount?: number | string | null }): number {
   return Number(o.final_amount ?? 0) - Number(o.tax_amount ?? 0)
+}
+
+/** DB-15c (dashboard-review 2026-10-19): summer kun DKK — som rapportsiden (RX-4); andre valutaer tælles ikke som kroner */
+function offerExVatDkk(o: { final_amount?: number | string | null; tax_amount?: number | string | null; currency?: string | null }): number {
+  if (o.currency && o.currency.toUpperCase() !== 'DKK') return 0
+  return offerExVat(o)
 }

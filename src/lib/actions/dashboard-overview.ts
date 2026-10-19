@@ -136,6 +136,8 @@ export interface DashboardOverview {
   }
   visits: {
     upcoming: DashboardOverviewVisit[]
+    /** DB-15a: alle kommende besigtigelser (listen viser højst TOP_N) */
+    count: number
     /** True hvis intet besigtigelses-data fundet — UI viser placeholder. */
     empty: boolean
   }
@@ -167,7 +169,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     overdueInvoices: { allowed: false, count: 0, total: 0, items: [] },
     webInquiries: { allowed: false, count: 0, items: [] },
     staleLeads: { allowed: false, count: 0, items: [] },
-    visits: { upcoming: [], empty: true },
+    visits: { upcoming: [], count: 0, empty: true },
     errors: {},
     generated_at: new Date().toISOString(),
   }
@@ -383,7 +385,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           supabase
             .from('offers')
             .select(`
-              id, offer_number, title, status, created_at,
+              id, offer_number, title, status, created_at, sent_at,
               customer:customers!offers_customer_id_fkey(company_name)
             `).or(__offerOr)
             .in('status', [...OFFER_FOLLOWUP_STATUSES])
@@ -404,6 +406,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           title: string
           status: string
           created_at: string
+          sent_at?: string | null
           customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null
         }>
         overview.offers.oldest = rows.map((r) => {
@@ -415,7 +418,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             customer_name: cust?.company_name || '',
             status: r.status,
             created_at: r.created_at,
-            ageDays: daysBetween(r.created_at, now),
+            ageDays: daysBetween(r.sent_at ?? r.created_at, now), // DB-15h: som tallet/filtret (afsendelsen)
           }
         })
       } catch (err) {
@@ -683,12 +686,12 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           .select(`
             id, title, customer_id, due_date,
             customer:customers(company_name)
-          `)
+          `, { count: 'exact' })
           .neq('status', 'done')
           .gte('due_date', nowIso)
           .ilike('title', '%esigtigelse%'), { role: roleCtx.role, userId: roleCtx.userId, hasPermission: roleCtx.hasPermission as never })
         if (!visitsQ) return
-        const { data } = await visitsQ
+        const { data, count: visitCount } = await visitsQ
           .order('due_date', { ascending: true })
           .limit(TOP_N)
         const rows = (data || []) as Array<{
@@ -711,6 +714,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             }
           })
         overview.visits.upcoming = list
+        overview.visits.count = visitCount ?? list.length // DB-15a: før = listens længde (højst 5)
         overview.visits.empty = list.length === 0
       } catch (err) {
         logger.error('getDashboardOverview: visits failed', { error: err })

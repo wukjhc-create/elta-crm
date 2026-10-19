@@ -121,9 +121,20 @@ export async function GET() {
       safe(supabase.from('customers').select('id', { count: 'exact', head: true })
         .gte('created_at', since24h)),
       // DB-6 (dashboard-review 2026-10-18): 'completed' findes ikke — konverterede sager talte med (cockpittet udelader dem)
-      safe(supabase.from('service_cases').select('id', { count: 'exact', head: true })
-        .not('status', 'in', '("closed","converted")')
-        .eq('is_proposal', false)),
+      // DB-15b (dashboard-review 2026-10-19): som cockpittet (DB-1) — uden cases.view.all kun egne sager
+      (async () => {
+        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+        const ctx = await getAuthenticatedClientWithRole()
+        const base = () => supabase.from('service_cases').select('id', { count: 'exact', head: true })
+          .not('status', 'in', '("closed","converted")').eq('is_proposal', false)
+        if (ctx.hasPermission('cases.view.all')) return safe(base())
+        const { getCaseScope } = await import('@/lib/auth/case-scope')
+        const scope = await getCaseScope({ role: ctx.role, userId: ctx.userId, supabase })
+        if (scope.type === 'all') return safe(base())
+        let n = 0
+        for (let k = 0; k < scope.caseIds.length; k += 200) n += await safe(base().in('id', scope.caseIds.slice(k, k + 200)))
+        return n
+      })().catch(() => 0),
       safe(supabase.from('offers').select('id', { count: 'exact', head: true }).or(__offerOr)
         .eq('status', 'draft')
         .eq('is_proposal', false)),

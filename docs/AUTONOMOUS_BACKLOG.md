@@ -218,6 +218,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | API-2 | Tilbuds-PDF/getOffer: salg kan se ALLE tilbud (ingen ejer-scope), inkl. underskrift + IP (S3) | DONE (kode, U207) — Henrik 2026-10-19: ny ret offers.view.all (admin/serviceleder); salg ser tilbud de har oprettet eller som hører til en sag i deres sags-scope (lib/offers/offer-scope.ts). Håndhævet i liste, detalje + alle by-id-actions (linjer, parter, aktiviteter, konvertering, afsendelse, pakker, revisioner), PDF, Ctrl+K (nu serverside), global søgning, eksport, dashboard-/cockpit-tal, kundekort. Underskriftens IP kun med settings.view (audit-ret). DB-niveau (RLS på offers, i dag USING(true)) = nyt migrationsforslag |
 | API-3 | Kontaktformular: globalt rate limit (30/t) kan opbruges af én afsender → rigtige henvendelser 429 (S4) | BLOCKED_CONFIGURATION — Henrik 2026-10-19: Turnstile (ingen IP-hash-lagring). Kode klar og inaktiv (lib/security/turnstile.ts, turnstile-guard-test 6): aktiveres med CONTACT_TURNSTILE_ENFORCE=true + TURNSTILE_SECRET_KEY i Vercel, NÅR hjemmesiden sender `cf-turnstile-response`. Indtil da uændret adfærd; ingen rå IP i logs |
 | API-4 | Kontaktformular kobler på e-mail alene til eksisterende kunde (falske leads på rigtig kunde) (S4) | DONE (kode, U208 + public-contact-limit-check) — Henrik 2026-10-19: kontaktformularen kobler ikke længere på e-mail alene og rører ikke den eksisterende kunde; leadet viser "Mulig eksisterende kunde (samme e-mail)" øverst i kandidatlisten, og brugeren bekræfter koblingen |
+| ADDR-1 | Adresse-autocomplete (DAWA) er død: api.dataforsyningen.dk/adresser/autocomplete og /postnumre svarer 410 Gone (målt 2026-10-19) — adressesøgningen i kunde-/sags-/stedsdialoger giver stille tomme forslag (S2, brugersynligt) | BLOCKED_CONFIGURATION — DAWA er udfaset; afløseren (Klimadatastyrelsens Dataforsyningen GSearch/DAR) kræver en token. Kræver Henriks valg + token i Vercel; derefter skiftes udbyder i lib/services/address-lookup.ts (én wrapper). LD-6-rest (by fra postnummer) afhænger af samme kilde |
 | API-5 | Tracking-pixel: ingen dedup/loft, klient-styret IP (S4) | DONE (kode) — velformet id, én åbning pr. mail pr. 10 min, max 50 pr. mail, x-real-ip, afkortet UA/IP |
 
 ## NEXT-50 (systematisk rettigheds-audit 2026-10-19 — server-håndhævelse pr. action)
@@ -360,7 +361,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LD-3 | Kobling af lead til eksisterende kunde efterlader leadets tilbud uden kunde (S2) | DONE (kode) — fælles linkLeadArtifactsToCustomer (tilbud uden kunde + kildemail) i konvertering (også allerede-koblet), "Kobl til denne kunde" og "Opret kunde fra mail" (U131 udvidet, U27) |
 | LD-4 | Tildeling vises ingen steder (profiler fyldes aldrig); ikke-admin kan ikke tildele (S2) | DELVIS (kode) — navne på ansvarlig/oprettet af/aktiviteter slås op (RLS); tildelingslisten åben for leads.edit/create, kun aktive (U192). Standardtildeling/"Kun mine" = BESLUTNING |
 | LD-5 | Lead-redigering overskriver samtidige ændringer og kan genåbne vundet lead (S3) | DONE (kode) — updateLead compare-and-set på status + updated_at fra formularen; "ændret imens" (U192 ny) |
-| LD-6 | Webhenvendelse: by tabes, postnr+by havner i gaden (S3) | DELVIS (kode) — postnr.+by i adressen udtrækkes også når postnr. er læst først (samme postnr.); email-parser-city-test +3. By fra postnummertabel ved ren gade = TODO |
+| LD-6 | Webhenvendelse: by tabes, postnr+by havner i gaden (S3) | DELVIS (kode) — postnr.+by i adressen udtrækkes også når postnr. er læst først (samme postnr.); email-parser-city-test +3. By fra postnummertabel ved ren gade = BLOCKED_CONFIGURATION (DAWA 410 Gone, se ADDR-1 — intet gæt) |
 | LD-7 | Dobbelt-indsendt webformular giver dubletleads (S3) | DONE (kode) — webhenvendelse med samme e-mail som et åbent lead (30 dage) kobles på leadet (aktivitet + extra_source_email_ids; tæller som behandlet) (U68 udvidet) |
 | LD-8 | Offentligt kontakt-endpoint opretter kunde men kobler ikke leadet (S3) | DELVIS (kode) — leadet kobles til kunden (custom_fields.customer_id; cli public-contact-limit-check). Kunde ved hver indsendelse = BESLUTNING |
 | LD-9 | Ny webhenvendelse fra eksisterende kunde bliver aldrig lead i bulk (S3) | BESLUTNING |
@@ -398,14 +399,14 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-13 | Porteføljens netto faktureret inkl. moms uden at sige det (S4) | DONE — "inkl. moms" på udestående, netto faktureret og fodnote |
 | DB-14 | Momsgrundlag blandet på samme side (S4) | DONE (kode) — afviste tilbud og seneste klar-til-sag ekskl. moms |
 | DB-15 | Små lofter/filter-mismatch (S4) | Opdelt efter review 2026-10-19 → DB-15a…o |
-| DB-15a | "Kommende besigtigelser" headline = listens .limit(5) — aldrig over 5 (S3) | TODO |
-| DB-15b | /api/dashboard/stats "Åbne cases" uden sags-scope (salg ser firmaets tal) (S3) | TODO |
-| DB-15c | Tilbuds-kr-værdier på dashboardet summerer alle valutaer (rapporten kun DKK) (S3) | TODO |
+| DB-15a | "Kommende besigtigelser" headline = listens .limit(5) — aldrig over 5 (S3) | DONE (kode) — count: 'exact' på samme scoped forespørgsel; "Viser 5 af N" (U193/U70) |
+| DB-15b | /api/dashboard/stats "Åbne cases" uden sags-scope (salg ser firmaets tal) (S3) | DONE (kode) — samme sags-scope som cockpittet (DB-1) (U49/U13) |
+| DB-15c | Tilbuds-kr-værdier på dashboardet summerer alle valutaer (rapporten kun DKK) (S3) | DONE (kode) — summer kun DKK (offerExVatDkk), som rapporten |
 | DB-15d | Overskredne opgaver: overdueCount = listens 5 (S4) | TODO |
 | DB-15e | Portalbeskeder: headline loftet ved 500; link uden filter (S4) | TODO |
 | DB-15f | Webhenvendelser: kort 90 dage/uden lead, link alle (S4) | TODO |
 | DB-15g | Mails kræver svar: kort 14 dage/tråde, link alle (S4) | TODO |
-| DB-15h | Opfølgningsrækkernes alder fra created_at (tal/filter fra sent_at) (S4) | TODO |
+| DB-15h | Opfølgningsrækkernes alder fra created_at (tal/filter fra sent_at) (S4) | DONE (kode) — alder fra sent_at (fallback created_at) (U205) |
 | DB-15i | Gamle kladder > 14 dage: link viser alle kladder (S4) | TODO |
 | DB-15j | Leads-opfølgning: link viser alle åbne leads (S4) | TODO |
 | DB-15k | Klar til fakturering: link uden filter (S4) | TODO |
