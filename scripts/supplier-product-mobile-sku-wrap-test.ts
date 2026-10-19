@@ -21,7 +21,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 120, at + 80) : ''
 ok(row.includes('break-all min-w-0'), 'varenummeret ombrydes')
 ok(row.includes('>{product.supplier_sku}'), 'teksten er uændret')
-ok(view.includes('<TableCell className="font-mono text-sm">'), 'skrivebordscellen bliver')
+ok(view.includes('data-testid="supplier-product-desktop-sku"'), 'skrivebordscellen bliver')
 ok((view.match(/\{product\.supplier_sku\}/g) ?? []).length === 2, 'to varenumre')
 ok(view.includes('font-medium line-clamp-1">{product.supplier_name}'), 'navnet bliver')
 ok(view.includes('text-xs text-gray-500">{product.manufacturer}'), 'producenten bliver')

@@ -299,7 +299,7 @@ export function SupplierProductsTable({
               <TableBody>
                 {products.map((product) => (
                   <TableRow key={product.id}>
-                    <TableCell className="font-mono text-sm">
+                    <TableCell className="font-mono text-sm break-all min-w-0" data-testid="supplier-product-desktop-sku">
                       {product.supplier_sku}
                     </TableCell>
                     <TableCell>
