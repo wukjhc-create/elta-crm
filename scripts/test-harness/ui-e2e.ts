@@ -6193,6 +6193,14 @@ ${m.text()}`) })
         r.kunde_csv = csvC.includes(`[HARNESS] eksport ${stamp}`) && csvC.includes('8999')
         const csvL = await grab(`/dashboard/leads?search=${stamp}`, 'Eksportér leads')
         r.lead_csv = csvL.includes(`[HARNESS] lead-eksport ${stamp}`) && csvL.includes(`Noter ${stamp}`)
+        // RX-9: tilbudseksporten angiver moms tydeligt (ekskl./moms/inkl.)
+        const of = profitCustomerId ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-EXO-${stamp}`, title: `[HARNESS] tilbud-eksport ${stamp}`,
+          created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', total_amount: 1000, discount_amount: 0, tax_amount: 250, final_amount: 1250 }]).select('id') : null
+        const ofId = (of?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        try {
+          const csvO = ofId ? await grab(`/dashboard/offers?search=${stamp}`, 'Eksportér tilbud') : ''
+          r.tilbud_csv_moms = csvO.includes(`[HARNESS] tilbud-eksport ${stamp}`) && csvO.includes('Slutbeløb inkl. moms (DKK)') && csvO.includes('Moms (DKK)')
+        } finally { if (ofId) await c.admin.from('offers').delete().eq('id', ofId) }
         out.push({ id: 'U136 kunde-/lead-eksport virker (rigtige kolonner)', ok: !!cuId && !!leadId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 

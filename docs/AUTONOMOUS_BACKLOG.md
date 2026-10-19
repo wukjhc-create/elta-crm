@@ -377,7 +377,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | RX-6 | Deaktivering via medarbejderkortet: ingen selv-blok og ingen sidste-admin-genoptælling (S3) | DONE (kode) — setLoginWithEmployee: eget login kan ikke deaktiveres; sidste aktive admin genoptælles efter skrivning og rulles tilbage (U145 regression; selv-/race-scenariet ikke UI-testet) |
 | RX-7 | Gen-invitation af afventende bruger skifter rolle uden værn/audit (S4) | DONE (kode) — opslag i Auth før invitation; eksisterende bruger henvises til Gensend/rolleskift (ikke UI-testet) |
 | RX-8 | "Aktive projekter" tæller den gamle projects-tabel (S4) | DONE — tæller aktive service_cases (ikke lukket/konverteret/forslag); feltet vises p.t. ikke i UI |
-| RX-9 | Eksport: AI-forslag/konverterede sager med, inkl. moms under "(DKK)", tavs afkortning ved 10.000 (S4) | DELVIS — AI-forslag og konverterede sager udeladt; advarsel når eksporten rammer 10.000 rækker. Valuta/ekskl. moms-kolonner = TODO |
+| RX-9 | Eksport: AI-forslag/konverterede sager med, inkl. moms under "(DKK)", tavs afkortning ved 10.000 (S4) | DELVIS — AI-forslag og konverterede sager udeladt; advarsel når eksporten rammer 10.000 rækker. Moms: DONE (kode, U136) — tilbud/kalkulationer: "ekskl. moms før rabat", "Moms", "Slutbeløb inkl. moms" |
 | RX-10 | Bogholderi ser eksportknapper der altid fejler (S4) | DONE — kun eksportknapper med ret (U88/U91/U100) |
 
 ## NEXT-43 (review-bølge 2026-10-18 morgen — dashboard-tal + leverandørfakturaer)

@@ -54,6 +54,7 @@ export interface ExportOffer {
   status: string
   total_amount: number | null
   discount_amount: number | null
+  tax_amount: number | null
   final_amount: number | null
   valid_until: string | null
   notes: string | null
@@ -84,6 +85,7 @@ export interface ExportCalculation {
   customer_number: string | null
   is_template: boolean
   total_amount: number | null
+  tax_amount: number | null
   final_amount: number | null
   created_by_name: string | null
   created_at: string
@@ -217,7 +219,7 @@ export async function exportOffers(filters?: {
     const build = () => {
     let query = supabase
       .from('offers')
-      .select('offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, final_amount, valid_until, notes, created_at')
+      .select('offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, tax_amount, final_amount, valid_until, notes, created_at')
       .eq('is_proposal', false) // RX-9: AI-forslag er ikke tilbud
       .order('created_at', { ascending: false })
       .order('id')
@@ -256,6 +258,7 @@ export async function exportOffers(filters?: {
         status: row.status as string,
         total_amount: row.total_amount as number | null,
         discount_amount: row.discount_amount as number | null,
+        tax_amount: row.tax_amount as number | null,
         final_amount: row.final_amount as number | null,
         valid_until: row.valid_until as string | null,
         notes: row.notes as string | null,
@@ -388,7 +391,7 @@ export async function exportCalculations(filters?: {
     const build = () => {
     let query = supabase
       .from('calculations')
-      .select('name, calculation_type, customer:customers(company_name, customer_number), is_template, total_amount:subtotal, final_amount, created_by_profile:profiles!created_by(full_name), created_at')
+      .select('name, calculation_type, customer:customers(company_name, customer_number), is_template, total_amount:subtotal, tax_amount, final_amount, created_by_profile:profiles!created_by(full_name), created_at')
       .order('created_at', { ascending: false })
       .order('id')
 
@@ -430,6 +433,7 @@ export async function exportCalculations(filters?: {
         customer_number: customer?.customer_number || null,
         is_template: row.is_template as boolean,
         total_amount: row.total_amount as number | null,
+        tax_amount: row.tax_amount as number | null,
         final_amount: row.final_amount as number | null,
         created_by_name: createdBy?.full_name || null,
         created_at: row.created_at as string,
