@@ -187,7 +187,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -2884,6 +2884,39 @@ ${m.text()}`) })
         r.forfald_i_dag_ikke_forfalden = !nums.includes(`UI-E2E-DT-${stamp}`)
         out.push({ id: 'U49 dashboard: forfaldne', ok: u49Ids.length === 4 && Object.values(r).every(Boolean),
           note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · seed=${u49Ids.length} ${ins.error?.message ?? ''}` })
+      }
+
+      // U193 PM2-1 (Henrik 2026-10-19): postkasse-afledt data kræver inbox.view — salg/bogholderi får hverken emne,
+      // afsender eller antal fra stats-API'et, og cockpittets mailkort vises ikke; admin får dem stadig
+      if (want('U193')) {
+        const r: Record<string, boolean> = {}
+        const subj = `[HARNESS] PM2-1 hemmeligt emne ${stamp}`
+        const em = await c.admin.from('incoming_emails').insert([{ sender_email: `pm21-${stamp}@harness.test`, sender_name: 'PM2 Afsender', subject: subj,
+          body_text: 'x', received_at: new Date().toISOString(), is_archived: false, link_status: 'unidentified' }]).select('id')
+        const emId = (em.data?.[0] as { id?: string } | undefined)?.id
+        if (emId) seededEmailIds.push(emId)
+        type S = { access?: { inbox?: boolean }; counts?: { new_emails_last_24h?: number }; latest_emails?: Array<{ subject: string | null }> }
+        const readStats = async (pg: typeof a.page): Promise<{ json: S; raw: string }> => {
+          const resp = await gotoSafe(pg, `${base}/api/dashboard/stats`, { waitUntil: 'load', timeout: 180_000 })
+          const raw = (await resp?.text().catch(() => '')) ?? ''
+          let json: S = {}
+          try { json = JSON.parse(raw) } catch { json = {} }
+          return { json, raw }
+        }
+        const adminStats = await readStats(a.page)
+        r.admin_ser_mail = adminStats.json.access?.inbox === true && (adminStats.json.counts?.new_emails_last_24h ?? 0) > 0
+        for (const role of ['salg', 'bogholderi'] as const) {
+          const x = await login(await mkUser(role))
+          try {
+            const st = await readStats(x.page)
+            r[`${role}_intet_emne_i_api`] = !st.raw.includes(subj) && (st.json.latest_emails ?? []).length === 0
+            r[`${role}_intet_antal`] = (st.json.counts?.new_emails_last_24h ?? 0) === 0 && st.json.access?.inbox === false
+            await gotoSafe(x.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const body = (await x.page.locator('body').textContent().catch(() => '')) ?? ''
+            r[`${role}_intet_mailkort`] = !body.includes('Mails kræver svar') && !body.includes(subj) && !body.includes('Seneste e-mails')
+          } finally { await x.ctx.close().catch(() => {}) }
+        }
+        out.push({ id: 'U193 PM2-1 postkasse kun med inbox.view', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U50 kundeportal: tilbudslinjer sendes uden kostpris/margin/interne noter til kundens browser

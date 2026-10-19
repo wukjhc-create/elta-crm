@@ -132,13 +132,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .eq('to_user_id', userId)
       .eq('status', 'unread'),
     // Unread customer emails (linked, not archived)
-    supabase
-      .from('incoming_emails')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_read', false)
-      .eq('is_archived', false)
-      .eq('link_status', 'linked')
-      .not('customer_id', 'is', null),
+    // PM2-1 (Henrik 2026-10-19): postkasse-afledt tal kun med inbox.view eller den eksplicitte kundemail-ret
+    (roleCtx.hasPermission('inbox.view') || roleCtx.hasPermission('customers.emails.view'))
+      ? supabase
+        .from('incoming_emails')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_read', false)
+        .eq('is_archived', false)
+        .eq('link_status', 'linked')
+        .not('customer_id', 'is', null)
+      : Promise.resolve({ count: 0, error: null }),
   ])
 
   const offers = offersResult

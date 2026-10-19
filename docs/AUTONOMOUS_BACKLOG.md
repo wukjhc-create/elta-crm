@@ -211,6 +211,23 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-49 (review-bølge 2026-10-18 aften — UI vs. server-rettigheder pr. rolle; fund fra CRM-sessionen)
+| # | Fund | Status |
+|---|---|---|
+| PM2-1 | Dashboardet viser postkassen (seneste mails, "kræver svar") til salg/bogholderi uden inbox.view (S2) | DONE (kode) — stats-API (liste + antal + access-flag), cockpittets mailkort og kundemail-tallet kun med inbox.view (kundemail-tal også med customers.emails.view); UI skjuler kort/links (U193 ny: salg/bogholderi negativ, admin positiv) |
+| PM2-2 | Montør har hele Leads-modulet via Ctrl+K/søgning/URL inkl. kontaktdata og CSV-eksport (S2) | TODO — Henrik 2026-10-19: montør mister leads.view helt (navigation, URL, guard, søgning, Ctrl+K, actions, eksport, RLS hvor relevant) |
+| PM2-3 | reports.export bruges aldrig; montør/bogholderi kan eksportere hele kunderegistret (S2) | TODO — Henrik 2026-10-19: fuld kundeeksport kun admin + bogholderi (server-side); salg får evt. senere en separat afgrænset eksport |
+| PM2-4 | Bogholderi ser tilbuds-/leaddata på dashboardet uden offers.view/leads.view; døde links (S3) | TODO |
+| PM2-5 | Opret kundeopgave kræver kun customers.view (alle roller kan oprette/tildele) (S3) | TODO — Henrik 2026-10-19: admin/serviceleder/salg/bogholderi generelt; montør kun på egen tildelt sag/arbejdsordre og kun til sig selv |
+| PM2-6 | Besigtigelsesformularen vises for salg/bogholderi, men gem kræver service.edit (arbejdet tabes) (S3) | TODO |
+| PM2-7 | Salgs "Åbn faktura" fører til 404 (detalje kræver invoices.view.all) (S3) | TODO |
+| PM2-8 | Salg ser Nyt produkt/Rediger/Slet + kostfelt; handlingerne kræver materials.edit (S3) | TODO |
+| PM2-9 | Serviceleder får redigerbare Firma-/Kalkulation-/Integrationsformularer; gem kræver settings.manage (S3) | TODO |
+| PM2-10 | Tilføj/ret/slet kontakt og Ny kunde vises for montør/bogholderi (S4) | TODO |
+| PM2-11 | Sagens Mails-fane viser "Download og arkivér"/"Arkivér på sag" uden ret (S4) | TODO |
+| PM2-12 | Global søgning finder kun sager med cases.view.all; getProject uskopet for montør (S4) | TODO |
+| PM2-13 | Audit for serviceleder ser kun egne hændelser (RLS) men ligner fuld log; /settings/team-fejl; Notifikationer-kort mangler (S4) | TODO |
+
 ## NEXT-48 (review-bølge 2026-10-18 aften — logs/PII/fejlhåndtering; fund fra CRM-sessionen)
 | # | Fund | Status |
 |---|---|---|

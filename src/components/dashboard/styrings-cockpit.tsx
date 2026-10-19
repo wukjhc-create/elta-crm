@@ -73,7 +73,7 @@ export function StyringsCockpit({ overview }: Props) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        <MailsCard overview={overview} />
+        {overview.mails.allowed && <MailsCard overview={overview} />}
         <TasksCard overview={overview} />
         <CasesCard overview={overview} />
         <OffersCard overview={overview} />

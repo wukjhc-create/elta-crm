@@ -20,6 +20,8 @@ const OPS_ROLES: UserRole[] = ['admin', 'serviceleder', 'bogholderi'] as UserRol
 
 interface DashboardStats {
   generated_at: string
+  /** PM2-1/PM2-4: hvilke moduler brugeren må se — UI skjuler kort/links uden ret (data er også tom på serveren) */
+  access: { inbox: boolean; offers: boolean; bank: boolean }
   counts: {
     new_emails_last_24h: number
     new_customers_last_24h: number
@@ -97,6 +99,10 @@ export async function GET() {
       try { return (await p).count ?? 0 } catch { return 0 }
     }
 
+    // PM2-1 (rolle-review 2026-10-18; Henrik: al postkasse-afledt data kræver inbox.view): seneste mails OG antallet af
+    // nye mails kun med inbox.view (RLS lader salg læse alle mails)
+    const { hasPermission } = await import('@/lib/auth/permissions')
+    const canSeeInbox = hasPermission(await getUserRoleForPage(), 'inbox.view')
     const [
       newEmails,
       newCustomers,
@@ -107,8 +113,10 @@ export async function GET() {
       paymentsToday,
       systemErrors,
     ] = await Promise.all([
-      safe(supabase.from('incoming_emails').select('id', { count: 'exact', head: true })
-        .gte('received_at', since24h)),
+      canSeeInbox
+        ? safe(supabase.from('incoming_emails').select('id', { count: 'exact', head: true })
+          .gte('received_at', since24h))
+        : Promise.resolve(0),
       safe(supabase.from('customers').select('id', { count: 'exact', head: true })
         .gte('created_at', since24h)),
       // DB-6 (dashboard-review 2026-10-18): 'completed' findes ikke — konverterede sager talte med (cockpittet udelader dem)
@@ -138,11 +146,13 @@ export async function GET() {
     // List views — independently safe.
     const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
     const [latestEmailsRes, latestInvoicesRes, overdueRes] = await Promise.all([
-      supabase
-        .from('incoming_emails')
-        .select('id, subject, sender_name, sender_email, received_at, customer_id')
-        .order('received_at', { ascending: false })
-        .limit(8),
+      canSeeInbox
+        ? supabase
+          .from('incoming_emails')
+          .select('id, subject, sender_name, sender_email, received_at, customer_id')
+          .order('received_at', { ascending: false })
+          .limit(8)
+        : Promise.resolve({ data: [] as Array<{ id: string; subject: string | null; sender_name: string | null; sender_email: string; received_at: string; customer_id: string | null }> }),
       supabase
         .from('invoices')
         .select('id, invoice_number, final_amount, currency, status, payment_status, created_at')
@@ -204,13 +214,17 @@ export async function GET() {
       }
     } catch { /* ignore */ }
 
+    const statsRole = await getUserRoleForPage()
+    const canSeeOffers = hasPermission(statsRole, 'offers.view')
     const payload: DashboardStats = {
       generated_at: now.toISOString(),
+      access: { inbox: canSeeInbox, offers: canSeeOffers, bank: hasPermission(statsRole, 'bank.view') },
       counts: {
         new_emails_last_24h: newEmails,
         new_customers_last_24h: newCustomers,
         open_cases: openCases,
-        offers_draft: offersDraft,
+        // PM2-4: tilbudstal kun med offers.view
+        offers_draft: canSeeOffers ? offersDraft : 0,
         invoices_sent: invoicesSent,
         invoices_overdue: invoicesOverdue,
         payments_today: paymentsToday,

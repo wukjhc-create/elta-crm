@@ -30,6 +30,7 @@ type Status = 'ok' | 'warning' | 'error'
 
 interface DashboardPayload {
   generated_at: string
+  access?: { inbox: boolean; offers: boolean; bank: boolean }
   counts: {
     new_emails_last_24h: number
     new_customers_last_24h: number
@@ -134,7 +135,7 @@ export function OperationalOverview() {
       <StatGrid data={data} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ListCard
+        {data?.access?.inbox !== false && <ListCard
           title="Seneste e-mails"
           empty="Ingen e-mails endnu."
           rows={data?.latest_emails ?? []}
@@ -149,7 +150,7 @@ export function OperationalOverview() {
               </div>
             </div>
           )}
-        />
+        />}
         <ListCard
           title="Seneste fakturaer"
           empty="Ingen fakturaer endnu."
@@ -243,21 +244,22 @@ function StatGrid({ data }: { data: DashboardPayload | null }) {
   const c = data?.counts
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <StatCard icon={<Mail className="h-4 w-4" />} label="Nye e-mails (24t)"
-        value={c?.new_emails_last_24h} tone="neutral" href="/dashboard/mail" />
+      {/* PM2-1/PM2-4: kort og links kun med adgang til modulet */}
+      {data?.access?.inbox !== false && <StatCard icon={<Mail className="h-4 w-4" />} label="Nye e-mails (24t)"
+        value={c?.new_emails_last_24h} tone="neutral" href="/dashboard/mail" />}
       <StatCard icon={<Users className="h-4 w-4" />} label="Nye kunder (24t)"
         value={c?.new_customers_last_24h} tone="neutral" href="/dashboard/customers" />
       <StatCard icon={<Wrench className="h-4 w-4" />} label="Åbne cases"
         value={c?.open_cases} tone="neutral" href="/dashboard/orders" />
-      <StatCard icon={<FileText className="h-4 w-4" />} label="Tilbud i kladde"
-        value={c?.offers_draft} tone="neutral" href="/dashboard/offers" />
+      {data?.access?.offers !== false && <StatCard icon={<FileText className="h-4 w-4" />} label="Tilbud i kladde"
+        value={c?.offers_draft} tone="neutral" href="/dashboard/offers" />}
       <StatCard icon={<Send className="h-4 w-4" />} label="Sendte fakturaer"
         value={c?.invoices_sent} tone="neutral" />
       <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Forfaldne fakturaer"
         value={c?.invoices_overdue}
         tone={(c?.invoices_overdue ?? 0) > 0 ? 'error' : 'ok'} />
       <StatCard icon={<CreditCard className="h-4 w-4" />} label="Betalinger i dag"
-        value={c?.payments_today} tone="ok" href="/dashboard/bank" />
+        value={c?.payments_today} tone="ok" href={data?.access?.bank === false ? undefined : '/dashboard/bank'} />
       <StatCard icon={<ShieldCheck className="h-4 w-4" />} label="System-fejl (1t)"
         value={c?.system_errors_last_hour}
         tone={

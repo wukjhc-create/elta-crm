@@ -60,6 +60,8 @@ export interface DashboardOverviewVisit {
 
 export interface DashboardOverview {
   mails: {
+    /** PM2-1: kun med inbox.view (salg/bogholderi så før emne og afsender på mails fra kontakt@/ordre@) */
+    allowed: boolean
     requiresResponseCount: number
     /** N73: tråde der har ventet > REPLY_WINDOW_DAYS — typisk besvaret fra en personlig postkasse (ses ikke i CRM) */
     olderCount: number
@@ -153,7 +155,7 @@ function daysBetween(iso: string, now: number): number {
 export async function getDashboardOverview(): Promise<DashboardOverview> {
   const now = Date.now()
   const overview: DashboardOverview = {
-    mails: { requiresResponseCount: 0, olderCount: 0, oldest: [] },
+    mails: { allowed: false, requiresResponseCount: 0, olderCount: 0, oldest: [] },
     tasks: { openCount: 0, autoCount: 0, overdueCount: 0, overdue: [] },
     cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0, timesPendingApproval: 0 },
     offers: { followupCount: 0, oldest: [], staleDraftCount: 0 },
@@ -188,6 +190,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // Mails — kraever svar
     (async () => {
       try {
+        // PM2-1 (rolle-review 2026-10-18): postkassen kun for roller med inbox.view
+        if (!roleCtx.hasPermission('inbox.view')) return
+        overview.mails.allowed = true
         // N73: prod 2026-10-04: 117 tråde "kræver svar", 95 ældre end 30 dage — svar sendt fra personlige postkasser
         // ses ikke i CRM (N69), så den samlede tæller var støj. Overskriften tæller nu kun tråde fra de seneste
         // REPLY_WINDOW_DAYS (pr. tråd, ikke pr. mail; én beregning i stedet for to); ældre vises som note.
