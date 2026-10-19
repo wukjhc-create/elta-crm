@@ -681,7 +681,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             </p>
           )}
           {!historyError && recentAnalyses.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">
+          <p className="text-sm text-gray-500 text-center py-4 break-words min-w-0" data-testid="ai-project-history-empty">
             Ingen tidligere analyser endnu. Kør en analyse ovenfor, så den kan ses her.
           </p>
         ) : recentAnalyses.length > 0 ? (
