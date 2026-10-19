@@ -121,7 +121,7 @@ export function PartnerDashboard({
                     </div>
 
                     {c.description && (
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                      <p className="text-sm text-gray-600 mt-1 break-words min-w-0" data-testid="partner-case-description">
                         {c.description}
                       </p>
                     )}
