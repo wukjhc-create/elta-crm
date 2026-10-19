@@ -19,7 +19,7 @@ const at = view.indexOf('data-testid="pricing-alert-new-mobile"')
 const row = at >= 0 ? view.slice(at - 160, at + 80) : ''
 ok(row.includes('text-xs tabular-nums font-medium text-gray-900 break-words min-w-0'), 'ny pris kan krympe')
 ok(row.includes('Ny {formatCurrency(alert.new_price)}'), 'beløbet er uændret')
-ok(view.includes('text-right font-medium">{formatCurrency(alert.new_price)}'), 'skrivebordets pris bliver')
+ok(view.includes('text-right font-medium break-words min-w-0" data-testid="pricing-alert-new-desktop">{formatCurrency(alert.new_price)}'), 'skrivebordets pris bliver')
 ok(view.includes('data-testid="pricing-alert-old-mobile"'), 'gammel mobilpris bliver')
 ok(view.includes('Gammel {formatCurrency(alert.old_price)}'), 'gammel pris bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')

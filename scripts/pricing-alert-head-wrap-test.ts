@@ -23,7 +23,7 @@ ok(row.includes('bg-gray-50 min-w-0'), 'rækken kan krympe')
 ok(row.includes('data-testid="pricing-alert-col-product"'), 'produktkolonnen bliver')
 ok(row.includes('{alert.product_name}'), 'navnet er uændret')
 ok(row.includes('text-right text-gray-500 break-words min-w-0" data-testid="pricing-alert-old-desktop">{formatCurrency(alert.old_price)}'), 'gammel pris er uændret')
-ok(row.includes('text-right font-medium">{formatCurrency(alert.new_price)}'), 'ny pris er uændret')
+ok(row.includes('text-right font-medium break-words min-w-0" data-testid="pricing-alert-new-desktop">{formatCurrency(alert.new_price)}'), 'ny pris er uændret')
 ok(view.split('<tr className="border-b bg-gray-50">').length - 1 === 0, 'ingen upakket kolonnerække')
 const words: Array<[string, string]> = [
   ['pricing-alert-col-product', '>Produkt<'],

@@ -23,7 +23,7 @@ ok(row.includes('{alert.affects_calculations}'), 'kalkulationstallet er uændret
 ok(row.includes('alert.affects_offers > 0'), 'tilbuds-betingelsen bliver')
 ok(row.includes('alert.affects_calculations > 0'), 'kalkule-betingelsen bliver')
 ok(view.includes('text-right text-gray-500 break-words min-w-0" data-testid="pricing-alert-old-desktop">{formatCurrency(alert.old_price)}'), 'gammel pris bliver')
-ok(view.includes('text-right font-medium">{formatCurrency(alert.new_price)}'), 'ny pris bliver')
+ok(view.includes('text-right font-medium break-words min-w-0" data-testid="pricing-alert-new-desktop">{formatCurrency(alert.new_price)}'), 'ny pris bliver')
 ok(view.split('{alert.affects_offers}').length - 1 === 2, 'to tilbudstal')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 

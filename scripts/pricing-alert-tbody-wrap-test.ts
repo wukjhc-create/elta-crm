@@ -20,7 +20,7 @@ const row = at >= 0 ? view.slice(at - 80, at + 2800) : ''
 ok(row.includes('className="min-w-0" data-testid="pricing-alert-tbody"'), 'kroppen kan krympe')
 ok(row.includes('{alert.product_name}'), 'navnet er uændret')
 ok(row.includes('text-right text-gray-500 break-words min-w-0" data-testid="pricing-alert-old-desktop">{formatCurrency(alert.old_price)}'), 'gammel pris er uændret')
-ok(row.includes('text-right font-medium">{formatCurrency(alert.new_price)}'), 'ny pris er uændret')
+ok(row.includes('text-right font-medium break-words min-w-0" data-testid="pricing-alert-new-desktop">{formatCurrency(alert.new_price)}'), 'ny pris er uændret')
 ok(view.split('<tbody>').length - 1 === 0, 'ingen upakket tabelkrop')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
