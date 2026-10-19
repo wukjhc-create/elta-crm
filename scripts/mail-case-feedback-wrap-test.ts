@@ -51,7 +51,7 @@ ok(view.split('data-testid="mail-case-frame"').length === 2, 'ramme-id kollidere
 ok(view.split('data-testid="mail-case-picker-load-error"').length === 3, 'fejl-id kolliderer ikke')
 ok(view.includes('title="Vælg sag"'), 'titlen bliver')
 ok(view.includes('max-w-[280px] truncate'), 'vaelgeren bliver klippet')
-ok(view.includes('className="text-gray-600">Ingen sag tilknyttet'), 'ingen sag bliver')
+ok(view.includes('className="text-gray-600 break-words min-w-0" data-testid="mail-empty-case">Ingen sag tilknyttet'), 'ingen sag bliver')
 ok(view.includes('{isSaving && <Loader2'), 'spinneren bliver')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
 ok(view.includes('>Ulæst</span>'), 'ulaest bliver')

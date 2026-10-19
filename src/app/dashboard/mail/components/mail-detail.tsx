@@ -927,7 +927,7 @@ function EmailCasePicker({
       ) : casesError && cases.length === 0 ? (
         <span className="text-red-700" data-testid="mail-case-picker-load-error">{casesError}</span>
       ) : (
-        <span className="text-gray-600">Ingen sag tilknyttet</span>
+        <span className="text-gray-600 break-words min-w-0" data-testid="mail-empty-case">Ingen sag tilknyttet</span>
       )}
       <div className="ml-auto flex items-center gap-2 shrink-0 break-words min-w-0" data-testid="mail-case-actions">
         {casesError && cases.length > 0 && (
