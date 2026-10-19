@@ -609,7 +609,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             expanded={expandedSections.offer}
             onToggle={() => toggleSection('offer')}
             actions={
-              <div className="flex gap-2">
+              <div className="flex gap-2 break-words min-w-0" data-testid="ai-project-offer-actions">
                 <Button variant="outline" size="sm" onClick={copyOfferText} className="break-words min-w-0" data-testid="ai-project-copy">
                   <Copy className="w-4 h-4 mr-1" />
                   Kopier
