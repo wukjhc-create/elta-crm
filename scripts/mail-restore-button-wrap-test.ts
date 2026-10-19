@@ -21,7 +21,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 370, at + 10) : ''
 const bare = 'className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-amber-50 text-amber-700 border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"'
 const cell = bare.slice(0, -1) + ' break-words min-w-0" data-testid="mail-restore-button"'
-const ignoreBare = 'className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"'
+const ignoreBare = 'className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed break-words min-w-0" data-testid="mail-ignore-button"'
 ok(row.includes('<button'), 'det er knappen')
 ok(row.includes('border-amber-300'), 'farven bliver')
 ok(row.includes('hover:bg-amber-50'), 'hover bliver')

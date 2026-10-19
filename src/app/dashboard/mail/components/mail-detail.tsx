@@ -511,7 +511,7 @@ export function MailDetail({
             <button
               onClick={() => runHeaderAction('ignore', onIgnore)}
               disabled={pendingAction !== null}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed break-words min-w-0" data-testid="mail-ignore-button"
             >
               {pendingAction === 'ignore' ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
