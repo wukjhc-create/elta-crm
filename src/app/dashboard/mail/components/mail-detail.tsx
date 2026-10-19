@@ -419,7 +419,7 @@ export function MailDetail({
 
         {/* Portal */}
         {portalAccess?.hasPortal && email.customers && (
-          <div className="flex items-center gap-2 text-sm bg-purple-50 border border-purple-200 p-2.5 rounded-md">
+          <div className="flex items-center gap-2 text-sm bg-purple-50 border border-purple-200 p-2.5 rounded-md break-words min-w-0" data-testid="mail-portal-frame">
             <MessageCircle className="w-4 h-4 text-purple-600" />
             <span className="text-purple-700">Kunden har en aktiv portal</span>
             <a href={`/dashboard/customers/${email.customers.id}#chat`} className="ml-auto text-purple-600 hover:underline inline-flex items-center gap-1 text-xs font-medium">
