@@ -403,7 +403,7 @@ export function MailDetail({
             <AlertCircle className="w-4 h-4 text-orange-600 shrink-0 break-words min-w-0" data-testid="mail-task-icon" />
             <span className="text-orange-800 break-words min-w-0" data-testid="mail-task-text">
               {openAutoTasks.length === 1 ? (
-                <>Auto-opgave oprettet: <strong>{openAutoTasks[0].title}</strong></>
+                <>Auto-opgave oprettet: <strong className="break-words min-w-0" data-testid="mail-task-title">{openAutoTasks[0].title}</strong></>
               ) : (
                 <>{openAutoTasks.length} åbne auto-opgaver for denne tråd</>
               )}
