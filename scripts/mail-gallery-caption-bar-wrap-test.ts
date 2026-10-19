@@ -34,7 +34,7 @@ ok(view.split(cell).length === 2, 'bjælkens klasse findes en gang')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 ok(view.includes('data-testid="mail-gallery-size"'), 'billedteksten bliver')
 ok(view.includes('data-testid="mail-gallery-image-button"'), 'billedknappen bliver')
-ok(view.includes('<img src={att.url} alt={att.filename} className="w-full h-full object-cover" />'), 'billedet bliver')
+ok(view.includes('<img src={att.url} alt={att.filename} className="w-full h-full object-cover break-words min-w-0" data-testid="mail-gallery-photo" />'), 'billedet bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

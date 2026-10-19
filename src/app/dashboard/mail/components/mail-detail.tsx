@@ -717,7 +717,7 @@ export function MailDetail({
                         className="group relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all bg-gray-100 break-words min-w-0" data-testid="mail-gallery-image-button"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={att.url} alt={att.filename} className="w-full h-full object-cover" />
+                        <img src={att.url} alt={att.filename} className="w-full h-full object-cover break-words min-w-0" data-testid="mail-gallery-photo" />
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 break-words min-w-0" data-testid="mail-gallery-caption-bar">
                           <p className="text-[11px] text-white line-clamp-2 break-all">{att.filename}</p>
                           <p className="text-[10px] text-white/70 break-words min-w-0" data-testid="mail-gallery-size">{formatFileSize(att.size)}</p>
