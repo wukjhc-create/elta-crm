@@ -135,7 +135,7 @@ export default function ProductForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="cost_price">Kostpris (DKK)</Label>
+          <Label htmlFor="cost_price" className="break-words min-w-0" data-testid="product-form-cost-label">Kostpris (DKK)</Label>
           <Input
             id="cost_price"
             name="cost_price"
