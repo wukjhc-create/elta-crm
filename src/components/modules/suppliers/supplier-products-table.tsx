@@ -250,7 +250,7 @@ export function SupplierProductsTable({
                     <dd className="font-mono break-words text-blue-600">{storedCostText(product.effective_sale_price)}</dd>
                   </div>
                 </dl>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 break-words min-w-0" data-testid="supplier-product-mobile-updated">
                   Opdateret {(product.last_synced_at || product.updated_at) ? formatDateUtil(product.last_synced_at || product.updated_at) : '-'}
                 </p>
               </article>
