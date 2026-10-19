@@ -175,7 +175,8 @@ export default function ProductsClient({
               placeholder="Søg efter produkter..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
+              className="pl-10 break-words min-w-0"
+              data-testid="product-search"
             />
           </div>
         </form>
