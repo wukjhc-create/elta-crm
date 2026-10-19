@@ -361,7 +361,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           {result.warnings.length > 0 && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 break-words min-w-0" data-testid="ai-project-warnings-box">
               <div className="flex items-start gap-2 break-words min-w-0" data-testid="ai-project-warnings-row">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 break-words min-w-0" data-testid="ai-project-warning-icon" />
                 <div>
                   <div className="font-medium text-yellow-800 break-words min-w-0" data-testid="ai-project-warnings-heading">Bemærkninger</div>
                   <ul className="text-sm text-yellow-700 mt-1 space-y-1 break-words min-w-0" data-testid="ai-project-warnings-list">
