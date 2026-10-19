@@ -1182,13 +1182,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-443 | 8 Pilot | DONE. Søgeresultatets ladestander kan krympe. | `formatCurrency(h.cost_price)` er uændret. Kun den knap. |
 | G18-444 | 8 Pilot | DONE. Venteteksten Analyserer ombrydes. | Teksten `Analyserer...` er uændret. Kun det span i AI-projekt. |
 | G18-445 | 8 Pilot | DONE. Kundens søgefelt i AI-projekt kan krympe. | Pladsholderen `Søg efter kunde...` og `aria-label="Søg efter kunde"` er uændrede. Kun det felt. |
-| G18-446 | 8 Pilot | ÅBEN. Knappen Prøv igen under seneste analyser ombrydes. | Teksten `Prøv igen` og `setHistoryTry` er uændrede. Kun den knap. |
+| G18-446 | 8 Pilot | DONE. Knappen Prøv igen under seneste analyser ombrydes. | Teksten `Prøv igen` og `setHistoryTry` er uændrede. Kun den knap. |
 | G18-447 | 8 Pilot | ÅBEN. Knappen Prøv igen i kundevælgeren ombrydes. | Teksten `Prøv igen` og `void loadCustomers()` er uændrede. Kun den knap. |
 | G18-448 | 8 Pilot | ÅBEN. Knappen Annuller i kundevælgeren ombrydes. | Teksten `Annuller` og `setShowCustomerModal(false)` er uændrede. Kun den knap. |
 | G18-449 | 8 Pilot | ÅBEN. Den tomme kundeliste i AI-projekt kan krympe. | Teksterne `Ingen kunder fundet` og `Ingen kunder` er uændrede. Kun det afsnit. |
 | G18-450 | 8 Pilot | ÅBEN. Luk-knappen i kundevælgeren kan krympe. | `aria-label="Luk"` er uændret. Kun den knap. |
 | G18-451 | 8 Pilot | ÅBEN. Historikkortet på AI-projekt kan krympe. | Beskrivelsen forbliver to linjer. `formatCurrency(analysis.total_price)` er uændret. Kun rækken. |
 | G18-452 | 8 Pilot | ÅBEN. Kundekortet i kundevælgeren kan krympe. | `handleSelectCustomer` er uændret. Navn og mail ombrydes som før. Kun knappen. |
+| G18-453 | 8 Pilot | ÅBEN. Eksempelkortet i AI-projekt kan krympe. | `handleDescriptionChange(example.text)` er uændret. Titel og tekst ombrydes som før. Kun knappen. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
