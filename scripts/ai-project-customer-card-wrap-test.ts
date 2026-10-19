@@ -23,7 +23,7 @@ ok(row.includes('break-words min-w-0'), 'kortet kan krympe')
 ok(row.includes('handleSelectCustomer(customer.id)'), 'valget bliver')
 ok(row.includes('font-medium break-words">{customer.name}'), 'navnet ombrydes som foer')
 ok(view.split(id).length === 2, 'kortet findes en gang')
-ok(view.includes('text-sm text-gray-500 break-words">{customer.email}'), 'mailen ombrydes som foer')
+ok(view.includes('text-sm text-gray-500 break-words min-w-0" data-testid="ai-project-customer-mail">{customer.email}'), 'mailen kan krympe')
 ok(view.includes('aria-label="Søg efter kunde"'), 'soegningen bliver')
 ok(view.includes('data-testid="ai-project-customer-cancel"'), 'annuller bliver')
 
