@@ -81,6 +81,8 @@ export default function ProductForm({
             name="sku"
             defaultValue={product?.sku || ''}
             placeholder="F.eks. JA400-MONO"
+            className="break-words min-w-0"
+            data-testid="product-form-sku"
           />
         </div>
       </div>
