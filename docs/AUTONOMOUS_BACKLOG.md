@@ -1148,13 +1148,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-409 | 8 Pilot | DONE. Knappen Opret tilbud ombrydes. | Teksten `Opret tilbud` er uændret. Kun den knap. |
 | G18-410 | 8 Pilot | DONE. Overskriften Hurtig estimat ombrydes. | Teksten `Hurtig estimat` er uændret. Kun den overskrift. |
 | G18-411 | 8 Pilot | DONE. Knappen Analyser projekt ombrydes. | Teksten `Analyser projekt` er uændret. Kun den knap. |
-| G18-412 | 8 Pilot | ÅBEN. Overskriften Tidsberegning ombrydes. | Teksten `Tidsberegning` er uændret. Kun den overskrift. |
+| G18-412 | 8 Pilot | DONE. Overskriften Tidsberegning ombrydes. | Teksten `Tidsberegning` er uændret. Kun den overskrift. |
 | G18-413 | 8 Pilot | ÅBEN. Overskriften Kompleksitetsfaktorer ombrydes. | Teksten `Kompleksitetsfaktorer` er uændret. Kun den overskrift. |
 | G18-414 | 8 Pilot | ÅBEN. Overskriften Elpunkter ombrydes. | Teksten `Elpunkter` er uændret. Kun den overskrift. |
 | G18-415 | 8 Pilot | ÅBEN. Overskriften Prisopbygning ombrydes. | Teksten `Prisopbygning` er uændret. Kun den overskrift. |
 | G18-416 | 8 Pilot | ÅBEN. Overskriften Komponenter ombrydes. | Teksten `Komponenter` er uændret. Kun den overskrift. `>Komponenter</h4>` bliver. |
 | G18-417 | 8 Pilot | ÅBEN. Overskriften Bygningsinformation ombrydes. | Teksten `Bygningsinformation` er uændret. Kun den overskrift. `>Bygningsinformation</h4>` bliver. |
 | G18-418 | 8 Pilot | ÅBEN. Overskriften Bemærkninger ombrydes. | Teksten `Bemærkninger` er uændret. Kun den overskrift. |
+| G18-419 | 8 Pilot | ÅBEN. Etiketten Basis tid ombrydes. | Teksten `Basis tid` er uændret. Kun den etiket i AI-projekt. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
