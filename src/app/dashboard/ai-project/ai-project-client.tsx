@@ -811,7 +811,7 @@ function SummaryCard({
   }
 
   return (
-    <div className="bg-white border rounded-lg p-4">
+    <div className="bg-white border rounded-lg p-4 break-words min-w-0" data-testid="ai-project-summary-card">
       <div className={`w-10 h-10 rounded-lg ${colors[color]} flex items-center justify-center mb-3`}>
         {icon}
       </div>
