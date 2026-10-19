@@ -841,7 +841,8 @@ function CollapsibleSection({
     <div className="bg-white border rounded-lg">
       <button
         onClick={onToggle}
-        className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors break-words min-w-0"
+        data-testid="ai-project-section-toggle"
       >
         <div className="flex items-center gap-3">
           <h3 className="font-semibold">{title}</h3>
