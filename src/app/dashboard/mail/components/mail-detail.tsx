@@ -741,7 +741,7 @@ export function MailDetail({
                           className="group flex items-start gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors break-words min-w-0" data-testid="mail-file-link"
                         >
                           <Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0" />
-                          <span className="break-all min-w-0 flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium">
+                          <span className="break-all min-w-0 flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium break-words" data-testid="mail-file-name">
                             {att.filename}
                           </span>
                           <span className="text-xs text-gray-400 shrink-0 break-words min-w-0" data-testid="mail-list-size">{formatFileSize(att.size)}</span>
