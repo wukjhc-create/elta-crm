@@ -198,7 +198,7 @@ export function ProposalsClient() {
                       <p className="text-sm text-gray-600 mt-1">Kunde: {c.customer_name}</p>
                     )}
                     {c.description && (
-                      <p className="text-sm text-gray-500 mt-1 line-clamp-2">{c.description}</p>
+                      <p className="text-sm text-gray-500 mt-1 break-words min-w-0" data-testid="proposal-case-description">{c.description}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
