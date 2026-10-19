@@ -16,7 +16,7 @@ ok(formatCurrency(1250).includes('1'), 'beløbsformatet bliver')
 
 const view = readFileSync(join('src', 'app', 'dashboard', 'pricing', 'pricing-client.tsx'), 'utf8')
 const at = view.indexOf('data-testid="pricing-alert-product-cell"')
-const row = at >= 0 ? view.slice(at - 40, at + 700) : ''
+const row = at >= 0 ? view.slice(at - 40, at + 900) : ''
 ok(row.includes('break-words min-w-0'), 'cellen ombrydes')
 ok(row.includes('{alert.product_name}'), 'navnet er uændret')
 ok(row.includes('formatCurrency(alert.old_price)'), 'gammel pris er uændret')

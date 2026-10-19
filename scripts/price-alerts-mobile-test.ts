@@ -19,7 +19,7 @@ eq('aendring bliver', mobile.includes('alert.change_percentage.toFixed(1)'), tru
 eq('taerskel bliver', mobile.includes('Math.abs(alert.change_percentage) >= 10') && mobile.includes('Math.abs(alert.change_percentage) >= 5'), true)
 eq('dato bliver', mobile.includes('formatDateUtil(alert.changed_at)'), true)
 eq('paavirkning bliver', mobile.includes('{alert.affects_offers}') && mobile.includes('{alert.affects_calculations}'), true)
-eq('desktop-navn bliver', src.includes('font-medium break-words max-w-[16rem]">{alert.product_name}'), true)
+eq('desktop-navn bliver', src.includes('font-medium break-words max-w-[16rem] min-w-0" data-testid="pricing-alert-product-name">{alert.product_name}'), true)
 eq('ingen truncate', src.includes('truncate'), false)
 eq('desktop-tabel bliver', src.slice(start).includes('hidden md:block'), true)
 
