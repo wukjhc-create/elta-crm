@@ -33,7 +33,7 @@ ok(view.split(cell).length === 2, 'lysboksens klasse findes en gang')
 ok(view.includes('aria-label="Luk"'), 'luk bliver')
 ok(view.includes('setLightboxUrl(null)'), 'lukningen bliver')
 ok(view.includes('break-all min-w-0 flex-1">{lightboxName}'), 'navnet bliver')
-ok(view.includes('className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center"'), 'panelet bliver')
+ok(view.includes('className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center break-words min-w-0" data-testid="mail-lightbox-panel"'), 'panelet bliver')
 ok(view.includes('data-testid="mail-inquiry-frame"'), 'henvendelsen bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 
