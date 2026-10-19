@@ -22,7 +22,7 @@ const row = at >= 0 ? view.slice(at - 80, at + 80) : ''
 ok(row.includes('break-words min-w-0'), 'overskriften ombrydes')
 ok(row.includes('>Næste skridt<'), 'teksten er uændret')
 ok(view.split('Næste skridt').length === 2, 'teksten findes en gang')
-ok(view.includes('className="text-sm text-gray-500">Opret et rigtigt tilbud baseret på denne analyse'), 'forklaringen venter')
+ok(view.includes('data-testid="ai-project-next-step-text"'), 'forklaringen bliver')
 ok(view.includes('onClick={handleCreateOffer}'), 'oprettelsen bliver')
 ok(view.includes('text-sm text-gray-700 break-words line-clamp-2">{analysis.description}'), 'historikken bliver paa to linjer')
 ok(view.includes('formatCurrency(analysis.total_price)'), 'prisen er uændret')
