@@ -166,6 +166,8 @@ export default function ProductForm({
             defaultValue={product?.list_price || ''}
             required
             placeholder="0,00"
+            className="break-words min-w-0"
+            data-testid="product-form-list"
           />
         </div>
       </div>

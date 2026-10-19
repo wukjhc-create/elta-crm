@@ -24,10 +24,10 @@ ok(row.includes('id="cost_price"'), 'feltet bliver')
 ok(row.includes('type="number"'), 'talfeltet bliver')
 
 const listAt = view.indexOf('id="list_price"')
-const listRow = listAt >= 0 ? view.slice(listAt, listAt + 240) : ''
+const listRow = listAt >= 0 ? view.slice(listAt, listAt + 420) : ''
 ok(listRow.includes('placeholder="0,00"'), 'listepladsholderen venter')
 ok(listRow.includes("defaultValue={product?.list_price || ''}"), 'listeprisen bliver')
-ok(!listRow.includes('data-testid="product-form-list"'), 'listefeltet er ikke med')
+ok(listRow.includes('data-testid="product-form-list"'), 'listefeltet ombrydes ogsaa')
 ok(view.includes('data-testid="product-form-cost-label"'), 'etiketten bliver')
 ok(!view.includes('truncate'), 'formularen klipper ikke')
 
