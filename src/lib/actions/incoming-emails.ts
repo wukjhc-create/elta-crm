@@ -10,7 +10,7 @@ import { redactEmail, redactSubject } from '@/lib/utils/log-redact'
 import { leadSourceEmailIds } from '@/lib/leads/source-email'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
-import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 
 /**
  * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
@@ -1302,7 +1302,7 @@ export async function testAllMailboxes(): Promise<MailboxTestResult[]> {
         mailbox: mb.email,
         type: mb.type,
         success: false,
-        error: err instanceof Error ? err.message : 'Unknown error',
+        error: formatError(err, 'Der opstod en fejl'),
       })
     }
   }
@@ -1537,7 +1537,7 @@ export async function sendQuickReply(
     return result
   } catch (err) {
     logger.error('sendQuickReply failed', { error: err })
-    return { success: false, error: err instanceof Error ? err.message : 'Ukendt fejl ved afsendelse' }
+    return { success: false, error: formatError(err, 'Mailen kunne ikke sendes — prøv igen') }
   }
 }
 
@@ -2011,7 +2011,7 @@ export async function fastForwardAllMailboxes(): Promise<{
         pagesScanned: 0,
         messagesScanned: 0,
         deltaLinkSaved: false,
-        error: err instanceof Error ? err.message : 'Unknown error',
+        error: formatError(err, 'Der opstod en fejl'),
       })
     }
   }
@@ -2197,7 +2197,7 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
     revalidatePath('/dashboard/mail')
     return { success: true, data: { leadId: (lead as { id: string }).id, existed: false } }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : 'Der opstod en fejl' }
+    return { success: false, error: formatError(err, 'Der opstod en fejl') }
   }
 }
 

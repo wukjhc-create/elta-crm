@@ -11,7 +11,7 @@
  * site_contact_id — dem ejer EditSiteInfoDialog (Sprint 8G).
  */
 
-import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { revalidatePath } from 'next/cache'
@@ -184,6 +184,6 @@ export async function updateServiceCaseParties(
       error: err instanceof Error ? err : new Error(String(err)),
       entityId: caseId,
     })
-    return { success: false, error: err instanceof Error ? err.message : 'Uventet fejl' }
+    return { success: false, error: formatError(err, 'Uventet fejl') }
   }
 }

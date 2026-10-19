@@ -1,7 +1,7 @@
 'use server'
 import { stripPortalLinks, containsPortalLink } from '@/lib/portal/strip-portal-links'
 import { secretTokenReader } from '@/lib/portal/token-reader'
-import { permissionDenied } from '@/lib/actions/action-helpers'
+import { permissionDenied, formatError } from '@/lib/actions/action-helpers'
 
 /**
  * EMAIL SERVER ACTIONS
@@ -1436,7 +1436,7 @@ export async function testEmailConnectionAction(): Promise<{ success: boolean; e
     logger.error('Error testing Graph connection', { error: error })
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Uventet fejl',
+      error: formatError(error, 'Uventet fejl'),
     }
   }
 }
@@ -1473,7 +1473,7 @@ export async function sendTestEmailAction(
     logger.error('Error sending test email', { error: error })
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Uventet fejl',
+      error: formatError(error, 'Uventet fejl'),
     }
   }
 }

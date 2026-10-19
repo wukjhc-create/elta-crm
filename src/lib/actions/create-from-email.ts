@@ -18,7 +18,7 @@
  */
 
 import { escapeLike } from '@/lib/validations/postgrest-filter'
-import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -329,7 +329,7 @@ export async function createCustomerAndCaseFromEmail(
     })
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Uventet fejl',
+      error: formatError(err, 'Uventet fejl'),
     }
   }
 }

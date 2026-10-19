@@ -270,7 +270,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LG-10 | updateCustomer kopierer personfelter til audit_logs som falsk diff (S3) | DONE (kode, U203) — forrige række hentes; kun ægte ændringer logges; personfelter som [ændret] uden værdier; intet log-indslag uden ændring |
 | LG-11 | email-autolink: mailemne som entity_name i audit (S4) | DONE (kode) — entity_name = 'Indgående mail' (mailen findes via entity_id) |
 | LG-12 | Integrations-webhook gemmer hele payloaden (op til 1 MB) pr. kald (S4) | DONE (kode) — integration_logs.request_body = resumé (routing-felter afkortet, topnøgler, størrelse); harness integration-webhook-check +1 |
-| LG-13 | Rå DB-/engelske fejltekster til UI (flere actions) (S4) | TODO |
+| LG-13 | Rå DB-/engelske fejltekster til UI (flere actions) (S4) | DONE (kode) — formatError viser kun egne danske tekster (isUserSafeMessage: dansk + ingen spor af DB-/netværks-/stakfejl); catch-alls i mail/kundepostkasse/parter/opret-fra-mail bruger formatError; direkte DB-fejl via mapDatabaseError (kalkulator, materialer, indkøb) (user-safe-error-test 13; U10/U15/U129/U133/U202) |
 | LG-14 | markInvoicePaid: claim-fejl tjekkes ikke (DB-fejl vises som "ændret imens") (S4) | DONE (kode) — claim-fejl logges og gives som "databasefejl — prøv igen" (U29) |
 
 ## NEXT-47 (review-bølge 2026-10-18 aften — inputvalidering, PDF, tidszoner)
@@ -397,7 +397,22 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-12 | Hver visning pager hele time_logs (S3) | UDSAT (jf. PF2-7; aggregat-RPC = migration) |
 | DB-13 | Porteføljens netto faktureret inkl. moms uden at sige det (S4) | DONE — "inkl. moms" på udestående, netto faktureret og fodnote |
 | DB-14 | Momsgrundlag blandet på samme side (S4) | DONE (kode) — afviste tilbud og seneste klar-til-sag ekskl. moms |
-| DB-15 | Små lofter/filter-mismatch (S4) | TODO |
+| DB-15 | Små lofter/filter-mismatch (S4) | Opdelt efter review 2026-10-19 → DB-15a…o |
+| DB-15a | "Kommende besigtigelser" headline = listens .limit(5) — aldrig over 5 (S3) | TODO |
+| DB-15b | /api/dashboard/stats "Åbne cases" uden sags-scope (salg ser firmaets tal) (S3) | TODO |
+| DB-15c | Tilbuds-kr-værdier på dashboardet summerer alle valutaer (rapporten kun DKK) (S3) | TODO |
+| DB-15d | Overskredne opgaver: overdueCount = listens 5 (S4) | TODO |
+| DB-15e | Portalbeskeder: headline loftet ved 500; link uden filter (S4) | TODO |
+| DB-15f | Webhenvendelser: kort 90 dage/uden lead, link alle (S4) | TODO |
+| DB-15g | Mails kræver svar: kort 14 dage/tråde, link alle (S4) | TODO |
+| DB-15h | Opfølgningsrækkernes alder fra created_at (tal/filter fra sent_at) (S4) | TODO |
+| DB-15i | Gamle kladder > 14 dage: link viser alle kladder (S4) | TODO |
+| DB-15j | Leads-opfølgning: link viser alle åbne leads (S4) | TODO |
+| DB-15k | Klar til fakturering: link uden filter (S4) | TODO |
+| DB-15l | "Aktive sager"-tal ekskl. lukket/konverteret, link viser alle (S4) | TODO |
+| DB-15m | Klar til lukning: uden sags-scope + tavs .slice(0,200) (S4) | TODO |
+| DB-15n | Afviste/tabt (90 dage) linker til alle afviste (S4) | TODO |
+| DB-15o | Diverse kort-links uden matchende filter (afventende, aktive kunder, ulæste kundemails, kladder, footers) (S4) | TODO |
 | IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | DONE (kode) — fakturanummer kræver et ciffer; invoice-parser-test +4 |
 | IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | DONE — kun gyldige kalenderdatoer (ugyldig → null); fejlet parse-opdatering → parse_status=failed + manuel gennemgang (cli invoice-parse-failure-check) |
 | IV-3 | Mail-fakturaer fra før vedhæftnings-hentning kan dubleres (S2, plausibel) | DONE — enhver ulåst filløs række fra mailen opgraderes (også i backfill); invoice-attachments A9 |

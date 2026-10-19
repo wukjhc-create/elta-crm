@@ -1,7 +1,7 @@
 'use server'
 import { escapeHtml } from '@/lib/utils/html-escape'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
-import { permissionDenied } from '@/lib/actions/action-helpers'
+import { permissionDenied, formatError } from '@/lib/actions/action-helpers'
 
 /**
  * Server Actions — Customer Mailbox (Smart Indbakke pr. kunde)
@@ -441,7 +441,7 @@ export async function sendEmailToCustomer(
     return result
   } catch (err) {
     logger.error('sendEmailToCustomer failed', { error: err })
-    return { success: false, error: err instanceof Error ? err.message : 'Ukendt fejl' }
+    return { success: false, error: formatError(err, 'Der opstod en fejl — prøv igen') }
   }
 }
 
@@ -560,7 +560,7 @@ export async function replyToCustomerEmail(
     return result
   } catch (err) {
     logger.error('replyToCustomerEmail failed', { error: err })
-    return { success: false, error: err instanceof Error ? err.message : 'Ukendt fejl' }
+    return { success: false, error: formatError(err, 'Der opstod en fejl — prøv igen') }
   }
 }
 

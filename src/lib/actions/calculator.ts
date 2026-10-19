@@ -1,6 +1,6 @@
 'use server'
 
-import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, mapDatabaseError } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -69,7 +69,7 @@ export async function createTemplate(input: CreateTemplateInput): Promise<{
 
     if (error) {
       logger.error('Supabase insert error', { error: error })
-      return { success: false, error: `Database fejl: ${error.message}` }
+      return { success: false, error: mapDatabaseError(error, 'Kalkulationen') }
     }
 
     revalidatePath('/dashboard/calc')

@@ -30,7 +30,7 @@
  */
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
-import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole, mapDatabaseError } from '@/lib/actions/action-helpers'
 import { formatError } from '@/lib/actions/action-helpers'
 import { incomingDueBadge } from '@/lib/invoices/incoming-invoice-due'
 import { selectInChunks } from '@/lib/supabase/in-chunks'
@@ -182,7 +182,7 @@ async function scanPurchaseOpsLegacy(): Promise<{ result?: ScanResult; error?: s
     .order('invoice_date', { ascending: false, nullsFirst: false })
     .limit(INVOICE_SCAN_CAP)
 
-  if (invErr) return { error: invErr.message, canViewAmounts }
+  if (invErr) return { error: mapDatabaseError(invErr, 'Indkøbsoversigten'), canViewAmounts }
 
   type InvRow = {
     id: string; status: string; matched_case_id: string | null

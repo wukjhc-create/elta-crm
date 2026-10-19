@@ -6,7 +6,7 @@
 
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole, mapDatabaseError } from '@/lib/actions/action-helpers'
 
 /**
  * P3 #17 / P-005: disse actions bruger service-role og havde INTET login-tjek (kaldbare af enhver indlogget
@@ -141,7 +141,7 @@ export async function bindMaterialToSupplier(
       entityId: material.id,
       error: updErr,
     })
-    return { success: false, error: updErr.message }
+    return { success: false, error: mapDatabaseError(updErr, 'Materialet') }
   }
 
   console.log('MATERIAL BOUND:', material.slug, supplierProductId)

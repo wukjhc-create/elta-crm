@@ -148,6 +148,15 @@ export class ActionError extends Error {
  * Handles ActionError, AUTH_REQUIRED, and Ugyldig* messages.
  * Drop-in replacement for local formatError functions.
  */
+const RAW_ERROR_RE = /duplicate key|violates|relation "|column "|PGRST|JWT|fetch failed|ECONN|ETIMEDOUT|ENOTFOUND|syntax error|permission denied|null value|invalid input|failed to|unexpected token|cannot read|undefined|is not a function|timeout|network|status code|\bat \w+ \(|https?:\/\//i
+const DANISH_RE = /[æøåÆØÅ]|^(Du |Der |Kunne |Kan |Ingen |Mangler |Sagen |Kunden |Mailen |Tilbud|Faktura|Opgaven |Leadet |Vælg |Angiv |Kun )|\b(ikke|kunne|skal|findes|mangler|prøv|venligst|allerede)\b/i
+
+/** LG-13: må teksten vises for brugeren? (dansk, kort og uden spor af en rå teknisk fejl) */
+export function isUserSafeMessage(msg: string | null | undefined): boolean {
+  const m = String(msg ?? '').trim()
+  return m.length > 0 && m.length <= 300 && DANISH_RE.test(m) && !RAW_ERROR_RE.test(m)
+}
+
 export function formatError(err: unknown, defaultMessage: string): string {
   if (err instanceof ActionError) {
     return err.message
@@ -159,6 +168,9 @@ export function formatError(err: unknown, defaultMessage: string): string {
     if (err.message.startsWith('Ugyldig')) {
       return err.message
     }
+    // LG-13 (log-review 2026-10-19): vores egne danske fejltekster (fx "Sagen er lukket", "Microsoft Graph er ikke
+    // konfigureret …") må vises; rå DB-/netværks-/engelske fejl aldrig
+    if (isUserSafeMessage(err.message)) return err.message
   }
   // LG-4: aldrig det rå fejlobjekt (PostgREST `details` kan indeholde hele persondata-rækken)
   console.error(`${defaultMessage}: ${safeErrorSummary(err)}`)
