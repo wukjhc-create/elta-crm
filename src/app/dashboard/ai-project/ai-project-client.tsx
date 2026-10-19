@@ -879,7 +879,7 @@ function RiskCard({ risk }: { risk: RiskFactor }) {
         {severityIcons[risk.severity]}
         <div className="flex-1">
           <div className="font-medium">{risk.title}</div>
-          <div className="text-sm text-gray-600 mt-1">{risk.description}</div>
+          <div className="text-sm text-gray-600 mt-1 break-words min-w-0" data-testid="ai-project-risk-description">{risk.description}</div>
           {risk.recommendation && (
             <div className="text-sm text-gray-500 mt-2 italic">
               Anbefaling: {risk.recommendation}
