@@ -21,7 +21,7 @@ ok(row.includes('className="min-w-0" data-testid="pricing-offer-thead"'), 'hoved
 ok(row.includes('data-testid="pricing-offer-head"'), 'kolonnerækken bliver')
 ok(row.includes('{offer.offer_number}'), 'nummeret er uændret')
 ok(row.includes('text-right font-medium">{formatCurrency(offer.total_amount)}'), 'beløbet er uændret')
-ok(view.split('<thead>').length - 1 === 1, 'tendenshovedet bliver')
+ok(view.split('<thead>').length - 1 === 0, 'ingen upakket tabelhoved')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
 if (bad > 0) {
