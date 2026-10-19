@@ -318,7 +318,8 @@ export function NewOrderForm({
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
               disabled={isSubmitting}
             >
-              {SERVICE_CASE_STATUSES.map((s) => (
+              {/* IV2-4: en ny sag kan ikke oprettes lukket (serveren afviser) */}
+              {SERVICE_CASE_STATUSES.filter((s) => s !== 'closed').map((s) => (
                 <option key={s} value={s}>{SERVICE_CASE_STATUS_LABELS[s]}</option>
               ))}
             </select>

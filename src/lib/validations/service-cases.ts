@@ -61,7 +61,8 @@ export const createServiceCaseSchema = z.object({
 
   // Display + classification
   project_name: optionalString(200, 'Projektnavn'),
-  type: z.enum(SERVICE_CASE_TYPES).nullable().optional(),
+  // "— Vælg type —" sender '' → null (før en valideringsfejl: formularen kunne ikke gemmes uden type, U202)
+  type: z.enum(SERVICE_CASE_TYPES).nullable().optional().or(z.literal('').transform(() => null)),
 
   // Status / priority / source
   status: z.enum(SERVICE_CASE_STATUSES).default('new'),
@@ -103,6 +104,41 @@ export const createServiceCaseSchema = z.object({
 })
 
 export type CreateServiceCaseInput = z.infer<typeof createServiceCaseSchema>
+
+/**
+ * IV2-4 (inputvaliderings-review 2026-10-18): serverens skema for createServiceCase — formularens felter plus de
+ * felter modalen/mail-flowet sender (adresse, koordinater, KSR/EAN, kilde-id'er). Før validerede serveren intet
+ * (formularens zod-skema kørte kun i browseren). Ukendte nøgler fjernes; insert'et lister selv sine kolonner.
+ */
+const optionalCoord = (min: number, max: number) =>
+  z.number().refine((n) => Number.isFinite(n) && n >= min && n <= max, 'Ugyldig koordinat').nullable().optional()
+
+export const createServiceCaseServerSchema = createServiceCaseSchema.extend({
+  address: optionalString(300, 'Adresse'),
+  postal_code: optionalString(10, 'Postnummer'),
+  city: optionalString(100, 'By'),
+  floor_door: optionalString(50, 'Etage/dør'),
+  latitude: optionalCoord(-90, 90),
+  longitude: optionalCoord(-180, 180),
+  contact_phone: optionalString(50, 'Telefon'),
+  ksr_number: optionalString(50, 'KSR-nummer'),
+  ean_number: optionalString(50, 'EAN-nummer'),
+  source_email_id: optionalUuid,
+  source_offer_id: optionalUuid,
+})
+
+/** Beløb/timer på en sag: endelige, ikke-negative og under et fornuftigt loft. null = ok, ellers dansk fejl. */
+export function serviceCaseAmountsError(v: { planned_hours?: number | null; contract_sum?: number | null; revised_sum?: number | null; budget?: number | null }): string | null {
+  const checks: Array<[number | null | undefined, string, number]> = [
+    [v.planned_hours, 'Planlagte timer', 100_000], [v.contract_sum, 'Kontraktsum', 1_000_000_000],
+    [v.revised_sum, 'Revideret sum', 1_000_000_000], [v.budget, 'Budget', 1_000_000_000],
+  ]
+  for (const [n, label, max] of checks) {
+    if (n == null) continue
+    if (!Number.isFinite(n) || n < 0 || n > max) return `${label} skal være mellem 0 og ${max.toLocaleString('da-DK')}`
+  }
+  return null
+}
 
 export const updateServiceCaseSchema = createServiceCaseSchema.partial().extend({
   id: z.string().uuid('Ugyldigt sag ID'),

@@ -276,6 +276,20 @@ export async function createServiceCase(
       return { success: false, error: 'Manglende tilladelse: cases.create' }
     }
 
+    // IV2-4 (inputvaliderings-review 2026-10-18): serverside-skema (før kun i browseren) + forretningsregler
+    {
+      const { createServiceCaseServerSchema, serviceCaseAmountsError } = await import('@/lib/validations/service-cases')
+      const parsed = createServiceCaseServerSchema.safeParse(input)
+      if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || 'Ugyldige sagsdata' }
+      input = { ...input, ...(parsed.data as Partial<CreateServiceCaseInput>) }
+      const amountErr = serviceCaseAmountsError(input)
+      if (amountErr) return { success: false, error: amountErr }
+      // En ny sag kan ikke oprettes lukket — det gik uden om lukke-værnet (ufaktureret arbejde) og cases.close
+      if (input.status === 'closed') return { success: false, error: 'En ny sag kan ikke oprettes som lukket' }
+      // Kobling til et tilbud sættes af tilbud→sag-flowet; fra klienten kun med cases.edit (admin/serviceleder)
+      if (input.source_offer_id && !hasPermission('cases.edit')) input = { ...input, source_offer_id: null }
+    }
+
     // Sprint 9E Phase 4 — sagspartner-roller med smart defaults.
     // Hvis et partner-felt ikke er sat, peger vi det paa customer_id
     // (samme adfaerd som migration 00112 backfill). Saa nye sager

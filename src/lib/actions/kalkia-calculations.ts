@@ -685,6 +685,12 @@ export async function createOfferFromCalculation(
   try {
     const { supabase, userId } = await requireGate('tools.calculations')
 
+    // IV2-6 (inputvaliderings-review 2026-10-18): klientens tal tjekkes — før kunne NaN/Infinity/negative mængder eller
+    // >100 % rabat havne på tilbuddet. (Fuld genberegning på serveren = senere; tilbuddet oprettes som kladde.)
+    const { calculationOfferInputError } = await import('@/lib/offers/calculation-offer-input')
+    const invalid = calculationOfferInputError(input)
+    if (invalid) return { success: false, error: invalid }
+
     // Validate customer exists
     const { data: customer, error: customerError } = await supabase
       .from('customers')
