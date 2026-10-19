@@ -307,7 +307,7 @@ export default function ProductsClient({
                     {product.category ? (
                       <Badge variant="outline" className="break-words min-w-0" data-testid="product-category">{product.category.name}</Badge>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-gray-400 break-words min-w-0" data-testid="product-category-missing">-</span>
                     )}
                   </TableCell>
                   {canSeeCost && (
