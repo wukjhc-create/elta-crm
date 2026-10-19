@@ -1425,6 +1425,52 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 firsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister produktcommits efter `44f955fe`. Det lader nioghalvfjerdsindstyvende-hegnet stå. `44f955fe` hedder `docs: checkpoint efter 68fc429b`. Produktspids: `96d7b13e`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `96d7b13e` blev afvist før git kørte og er ikke prøvet igen. `86bdae57`, `a0e89a8c`, `6ee2b78f` og `0302ec0b` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `0302ec0b..96d7b13e`
+
+```
+96d7b13e feat(pilot): knappen Marker som laest i mail-detaljen kan krympe
+86bdae57 feat(pilot): knappen Arkiver i mail-detaljen kan krympe
+a0e89a8c feat(pilot): knappen Ignorer i mail-detaljen kan krympe
+6ee2b78f feat(pilot): knappen Marker som relevant i mail-detaljen kan krympe
+0302ec0b feat(pilot): ikonet paa Marker som ulaest i mail-detaljen kan krympe
+```
+
+Listen er alle produktcommits efter `44f955fe` til og med `96d7b13e`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+44f955fe docs: checkpoint efter 68fc429b
+```
+
+### Features
+
+G18-680, G18-681, G18-682, G18-683 og G18-684 lader kun ikonet på Markér som ulæst og knapperne Markér som relevant, Ignorér, Arkivér og Markér som læst i mail-detaljen krympe. `Markér som ulæst` bliver. `Markér som relevant` bliver. `Ignorér` bliver. `Arkivér` bliver. `Markér som læst` bliver. `data-testid="mail-mark-unread-icon"` bliver. `data-testid="mail-restore-icon"` bliver. `data-testid="mail-ignore-icon"` bliver. `data-testid="mail-archive-icon"` bliver. `data-testid="mail-mark-read-icon"` bliver. `>Ulæst</span>` bliver. `formatDate(email.received_at)` bliver. `href={lightboxUrl}` bliver. Filnavnets `line-clamp-2` bliver. `formatCurrency` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede mail-detalje og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. G18-680: `scripts/mail-mark-unread-icon-wrap-test.ts`. G18-681: `scripts/mail-restore-button-wrap-test.ts`. G18-682: `scripts/mail-ignore-button-wrap-test.ts`. G18-683: `scripts/mail-archive-button-wrap-test.ts`. G18-684: `scripts/mail-mark-read-button-wrap-test.ts`. Samme G18-680-commit opdaterede Mail-låsen i læst-ikon-testen. Samme G18-682-commit opdaterede ignorer-låsen i relevant-knap-testen. Samme G18-683-commit opdaterede arkiv-låsen i ignorer-knap-testen. Samme G18-684-commit opdaterede læse-låsen i arkiv-knap-testen. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `96d7b13e`, herunder G18-289 til G18-684. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. Når push er tilladt, push kun `grok-next` og prøv ikke afviste tip igen, herunder `96d7b13e`, `86bdae57`, `a0e89a8c`, `6ee2b78f`, `0302ec0b`, `44f955fe`, `68fc429b`, `823ee048`, `990eeb0f`, `69d1e2e4`, `00e217ed`, `4ce9acc7`, `d4cd92bb`, `251d3c0c`, `ed9b0086`, `8a254f56`, `400a5180`, `b1fa1bd5`, `55612992`, `9a367f09`, `4a5b1b4e`, `be33e396`, `2e1e110a`, `13c764e4`, `5224acd7`, `da9fbb1d`, `66dbd689`, `bab91e58`, `87fa4b82`, `9b80b5b4` og de ældre tip i checkpointet før dette. Flet derefter `origin/main` ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-685, G18-597.
+
 ## Checkpoint 2026-10-18 nioghalvfjerdsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister produktcommits efter `4ce9acc7`. Det lader otteoghalvfjerdsindstyvende-hegnet stå. `4ce9acc7` hedder `docs: checkpoint efter d4cd92bb`. Produktspids: `68fc429b`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `68fc429b` blev afvist før git kørte og er ikke prøvet igen. `823ee048`, `990eeb0f`, `69d1e2e4` og `00e217ed` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
