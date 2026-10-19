@@ -300,7 +300,7 @@ export function MailDetail({
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white break-words min-w-0" data-testid="mail-detail-frame">
       {/* ============================================== */}
       {/* HEADER: Subject + meta + action buttons        */}
       {/* ============================================== */}
