@@ -235,7 +235,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           <Sparkles className="w-6 h-6 text-purple-500" />
           AI Projektanalyse
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 mt-1 break-words min-w-0" data-testid="ai-project-intro">
           Beskriv projektet og få automatisk kalkulation, risikovurdering og tilbudstekst
         </p>
       </div>
