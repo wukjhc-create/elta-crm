@@ -611,7 +611,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             actions={
               <div className="flex gap-2 break-words min-w-0" data-testid="ai-project-offer-actions">
                 <Button variant="outline" size="sm" onClick={copyOfferText} className="break-words min-w-0" data-testid="ai-project-copy">
-                  <Copy className="w-4 h-4 mr-1" />
+                  <Copy className="w-4 h-4 mr-1 break-words min-w-0" data-testid="ai-project-offer-copy-icon" />
                   Kopier
                 </Button>
               </div>
