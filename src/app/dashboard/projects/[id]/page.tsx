@@ -1,22 +1,9 @@
-import { notFound } from 'next/navigation'
-import { getProject } from '@/lib/actions/projects'
-import { ProjectDetailClient } from './project-detail-client'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-interface ProjectPageProps {
-  params: Promise<{
-    id: string
-  }>
-}
-
-export default async function ProjectPage({ params }: ProjectPageProps) {
-  const { id } = await params
-
-  const result = await getProject(id)
-  if (!result.success || !result.data) {
-    notFound()
-  }
-
-  return <ProjectDetailClient projectId={id} />
+// PM3-11 (Henrik 2026-10-19): det gamle projektmodul er afviklet — sager (service_cases) er sandheden.
+// Gamle bogmærker/links til /dashboard/projects/<id> sendes til sagsoversigten.
+export default function LegacyProjectPage() {
+  redirect('/dashboard/orders')
 }

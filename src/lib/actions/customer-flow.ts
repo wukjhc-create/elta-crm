@@ -73,10 +73,13 @@ export async function getCustomerFlow(
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false })
         .limit(10),
+      // PM3-11 (Henrik 2026-10-19): montagetrinnet bygger på kundens SAGER (service_cases) — ikke det afviklede projektmodul
       supabase
-        .from('projects')
+        .from('service_cases')
         .select('id, status, created_at')
         .eq('customer_id', customerId)
+        .eq('is_proposal', false)
+        .neq('status', 'converted')
         .order('created_at', { ascending: false })
         .limit(5),
       supabase
@@ -94,7 +97,7 @@ export async function getCustomerFlow(
     const tasks = tasksRes.data || []
     const docs = docsRes.data || []
     const offers = hasPermission('offers.view') ? (offersRes.data || []) : []
-    const projects = projectsRes.data || []
+    const projects = hasPermission('cases.view.all') || hasPermission('cases.view.assigned') ? (projectsRes.data || []) : []
     const recentEmails = hasPermission('customers.emails.view') ? (emailsRes.data || []) : []
 
     const now = new Date()
@@ -297,15 +300,16 @@ function computeMontageStep(
   projects: { id: string; status: string; created_at: string }[],
   offers: { id: string; status: string }[]
 ): FlowStep {
+  // PM3-11: `projects` er kundens sager (service_cases)
   if (projects.length > 0) {
     const latest = projects[0]
-    if (['completed', 'done', 'finished'].includes(latest.status)) {
-      return { key: 'montage', label: 'Montage', status: 'done', detail: 'Afsluttet', date: latest.created_at }
+    if (latest.status === 'closed') {
+      return { key: 'montage', label: 'Montage', status: 'done', detail: 'Sag lukket', date: latest.created_at }
     }
-    if (['in_progress', 'active', 'started'].includes(latest.status)) {
-      return { key: 'montage', label: 'Montage', status: 'awaiting', detail: 'I gang', date: latest.created_at }
+    if (latest.status === 'in_progress') {
+      return { key: 'montage', label: 'Montage', status: 'awaiting', detail: 'Sag i gang', date: latest.created_at }
     }
-    return { key: 'montage', label: 'Montage', status: 'awaiting', detail: `Status: ${latest.status}`, date: latest.created_at }
+    return { key: 'montage', label: 'Montage', status: 'awaiting', detail: latest.status === 'pending' ? 'Sag afventer' : 'Sag oprettet', date: latest.created_at }
   }
   // If at least one offer is accepted, montage is next
   const hasAccepted = offers.some((o) => o.status === 'accepted')

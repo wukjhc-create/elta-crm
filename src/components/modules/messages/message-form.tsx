@@ -268,25 +268,7 @@ export function MessageForm({ replyTo, onClose, onSuccess }: MessageFormProps) {
                   </select>
                 </div>
 
-                {/* Project */}
-                <div className="space-y-1">
-                  <label htmlFor="project_id" className="text-sm font-medium">
-                    Projekt
-                  </label>
-                  <select
-                    {...register('project_id')}
-                    id="project_id"
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    disabled={isLoading}
-                  >
-                    <option value="">Intet projekt...</option>
-                    {relatedEntities.projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.project_number} - {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* PM3-11 (Henrik 2026-10-19): projektvalget er fjernet — det gamle projektmodul er afviklet */}
               </div>
             )}
           </div>

@@ -780,7 +780,6 @@ ${link}`,
     }
 
     revalidatePath('/dashboard/offers')
-    revalidatePath('/dashboard/projects')
 
     return { success: true }
   } catch (error) {

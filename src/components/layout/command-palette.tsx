@@ -136,12 +136,8 @@ export function CommandPalette() {
           .then(({ data }) => data || []),
         // API-2: serverside med salgs-scope (salg ser kun egne tilbud)
         !may('offers.view') ? Promise.resolve([]) : import('@/lib/actions/offers').then(({ searchOffersForPalette }) => searchOffersForPalette(q)),
-        !may('projects.view') ? Promise.resolve([]) : supabase
-          .from('projects')
-          .select('id, project_number, name, status')
-          .or(orIlikeContains(['name', 'project_number'], q))
-          .limit(5)
-          .then(({ data }) => data || []),
+        // PM3-11 (Henrik 2026-10-19): det gamle projektmodul er afviklet — sager søges via sager
+        Promise.resolve([]),
       ])
 
       if (seq !== searchSeq.current) return
@@ -193,17 +189,9 @@ export function CommandPalette() {
         })))
       } else { setOfferResults([]) }
 
-      // Projects
-      if (projectsRes.status === 'fulfilled') {
-        setProjectResults(projectsRes.value.map((p: any) => ({
-          id: `project-${p.id}`,
-          label: `${p.project_number ? p.project_number + ' — ' : ''}${p.name}`,
-          section: 'Projekter',
-          icon: <FolderKanban className="w-4 h-4" />,
-          action: () => navigate(`/dashboard/projects/${p.id}`),
-          keywords: [],
-        })))
-      } else { setProjectResults([]) }
+      // PM3-11: ingen gamle projekter i søgningen
+      void projectsRes
+      setProjectResults([])
 
       setIsSearching(false)
     }, 300)

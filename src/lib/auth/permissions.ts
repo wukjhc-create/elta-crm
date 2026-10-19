@@ -47,10 +47,6 @@ export const PERMISSIONS = {
   'customers.emails.view': ['admin', 'serviceleder', 'salg', 'bogholderi'],
 
   // Project permissions
-  'projects.view': ['admin', 'serviceleder', 'montør'],
-  'projects.create': ['admin', 'serviceleder'],
-  'projects.edit': ['admin', 'serviceleder'],
-  'projects.delete': ['admin'],
 
   // Service case permissions
   'service.view': ['admin', 'serviceleder', 'montør', 'bogholderi'],

@@ -181,11 +181,8 @@ export async function POST(
       const { data: offer } = payload.offer_id ? await q.eq('id', payload.offer_id).maybeSingle() : await q.eq('offer_number', payload.offer_number).maybeSingle()
       if (offer && (await ownsEntity('offer', offer.id))) offerId = offer.id
     }
-    if (!projectId && (payload.project_id || payload.project_number)) {
-      const q = supabase.from('projects').select('id')
-      const { data: project } = payload.project_id ? await q.eq('id', payload.project_id).maybeSingle() : await q.eq('project_number', payload.project_number).maybeSingle()
-      if (project && (await ownsEntity('project', project.id))) projectId = project.id
-    }
+    // PM3-11 (Henrik 2026-10-19): det gamle projektmodul er afviklet — projekt-id/-nummer i payloaden ignoreres
+    const legacyProjectRef = !!(payload.project_id || payload.project_number)
 
     // Process the webhook based on event type
     let processed = false
@@ -220,20 +217,8 @@ export async function POST(
         }
       }
 
-      if (projectId) {
-        // Update project status
-        const mappedStatus = mapExternalStatus(newStatus, 'project')
-        if (mappedStatus) {
-          const { error } = await supabase
-            .from('projects')
-            .update({ status: mappedStatus })
-            .eq('id', projectId)
-
-          if (!error) {
-            processed = true
-            updateResult = { entity: 'project', id: projectId, status: mappedStatus }
-          }
-        }
+      if (!offerId && legacyProjectRef) {
+        updateResult = { entity: 'project', ignored: 'projektmodulet er afviklet — brug sager' }
       }
     }
 

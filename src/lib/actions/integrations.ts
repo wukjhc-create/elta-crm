@@ -549,49 +549,6 @@ export async function getExternalReferences(
 // WEBHOOK TRIGGERING
 // =====================================================
 
-/**
- * Build webhook payload for a project event
- */
-export async function buildProjectWebhookPayload(
-  projectId: string,
-  eventType: WebhookEventType
-): Promise<WebhookPayload | null> {
-  const { supabase } = await getAuthenticatedClient()
-
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select(`
-      *,
-      customer:customers(id, company_name),
-      offer:offers(id, offer_number)
-    `)
-    .eq('id', projectId)
-    .maybeSingle()
-
-  if (error || !project) return null
-
-  const payload: WebhookPayload = {
-    event: eventType,
-    timestamp: new Date().toISOString(),
-    data: {
-      type: 'project',
-      id: project.id,
-      project_number: project.project_number,
-      name: project.name,
-      status: project.status,
-      priority: project.priority,
-      customer: project.customer,
-      offer: project.offer,
-      budget: project.budget,
-      start_date: project.start_date,
-      end_date: project.end_date,
-      created_at: project.created_at,
-    },
-  }
-
-  return payload
-}
-
 // =====================================================
 // MANUAL EXPORT
 // =====================================================

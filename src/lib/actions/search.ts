@@ -49,12 +49,8 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
         .or(`offer_number.ilike.${pgQuote(searchTerm)},title.ilike.${pgQuote(searchTerm)}`)
         .or(offerScopeFilter)
         .limit(5),
-      // PM2-12: det gamle projektmodul er ikke montør-afgrænset (getProject) — kun for kontoret
-      !(hasPermission('projects.view') && canAllCases) ? none : supabase
-        .from('projects')
-        .select('id, project_number, name, status', { count: 'exact' })
-        .or(`project_number.ilike.${pgQuote(searchTerm)},name.ilike.${pgQuote(searchTerm)}`)
-        .limit(5),
+      // PM3-11 (Henrik 2026-10-19): det gamle projektmodul er afviklet — ingen projekt-søgning
+      none,
       !(canAllCases || (ownCaseIds && ownCaseIds.size > 0)) ? none : supabase
         .from('service_cases')
         .select('id, case_number, title, status', { count: 'exact' })
@@ -114,18 +110,6 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
           title: offer.title || offer.offer_number,
           subtitle: offer.offer_number,
           url: `/dashboard/offers/${offer.id}`,
-        })
-      }
-    }
-
-    if (projectsResult.data) {
-      for (const project of projectsResult.data) {
-        results.push({
-          id: project.id,
-          type: 'project',
-          title: project.name,
-          subtitle: project.project_number,
-          url: `/dashboard/projects/${project.id}`,
         })
       }
     }

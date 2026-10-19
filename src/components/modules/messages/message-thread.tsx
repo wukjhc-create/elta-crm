@@ -242,14 +242,12 @@ export function MessageThread({
                   {message.customer.company_name}
                 </Link>
               )}
+              {/* PM3-11: gamle projekter er afviklet — projektnummeret vises kun som tekst (intet link) */}
               {message.project && (
-                <Link
-                  href={`/dashboard/projects/${message.project.id}`}
-                  className="inline-flex items-center gap-1 text-sm bg-purple-50 text-purple-700 px-2 py-1 rounded hover:bg-purple-100"
-                >
+                <span className="inline-flex items-center gap-1 text-sm bg-gray-50 text-gray-600 px-2 py-1 rounded">
                   <Folder className="w-4 h-4" />
                   {message.project.project_number}
-                </Link>
+                </span>
               )}
             </div>
           )}

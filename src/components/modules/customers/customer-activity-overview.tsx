@@ -16,14 +16,12 @@ import {
 } from 'lucide-react'
 import {
   getCustomerOffers,
-  getCustomerProjects,
   getCustomerLeads,
   getCustomerSentQuotes,
 } from '@/lib/actions/customer-relations'
 import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import type {
   CustomerOffer,
-  CustomerProject,
   CustomerLead,
   CustomerSentQuote,
 } from '@/lib/actions/customer-relations'
@@ -37,7 +35,6 @@ interface CustomerActivityOverviewProps {
 
 export function CustomerActivityOverview({ customerId, customerEmail }: CustomerActivityOverviewProps) {
   const [offers, setOffers] = useState<CustomerOffer[]>([])
-  const [projects, setProjects] = useState<CustomerProject[]>([])
   const [leads, setLeads] = useState<CustomerLead[]>([])
   const [sentQuotes, setSentQuotes] = useState<CustomerSentQuote[]>([])
   const [serviceCases, setServiceCases] = useState<ServiceCase[]>([])
@@ -46,15 +43,13 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
   useEffect(() => {
     async function loadAll() {
       setIsLoading(true)
-      const [o, p, l, sq, sc] = await Promise.all([
+      const [o, l, sq, sc] = await Promise.all([
         getCustomerOffers(customerId),
-        getCustomerProjects(customerId),
         getCustomerLeads(customerId, customerEmail),
         getCustomerSentQuotes(customerId),
         getCustomerServiceCases(customerId),
       ])
       setOffers(o)
-      setProjects(p)
       setLeads(l)
       setSentQuotes(sq)
       setServiceCases(sc)
@@ -89,7 +84,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
     )
   }
 
-  const totalItems = offers.length + projects.length + leads.length + sentQuotes.length + serviceCases.length
+  const totalItems = offers.length + leads.length + sentQuotes.length + serviceCases.length
   if (totalItems === 0) {
     return (
       <div className="bg-white rounded-lg border p-6">
@@ -157,32 +152,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
           ))}
         </ActivitySection>
 
-        {/* N36: gammel projektmodel — kun når kunden har sådanne (sager er den gældende model) */}
-        {projects.length > 0 && (<ActivitySection
-          icon={<FolderKanban className="w-4 h-4" />}
-          title="Projekter (gammel model)"
-          count={projects.length}
-          defaultOpen={false}
-        >
-          {projects.map((project) => (
-            <Link
-              key={project.id}
-              href={`/dashboard/projects/${project.id}`}
-              className="flex items-center justify-between py-2 px-3 text-sm bg-gray-50 rounded hover:bg-blue-50 transition-colors group"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{project.name}</span>
-                  <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
-                  {project.project_number && <span>{project.project_number}</span>}
-                  <StatusBadge status={project.status} />
-                </div>
-              </div>
-            </Link>
-          ))}
-        </ActivitySection>)}
+        {/* PM3-11 (Henrik 2026-10-19): den gamle projektmodel er afviklet — kundens sager vises ovenfor */}
 
         <ActivitySection
           icon={<Send className="w-4 h-4" />}

@@ -501,57 +501,6 @@ export async function getOfferTemplates(): Promise<ActionResult<OfferTextTemplat
 // Feedback Actions
 // =====================================================
 
-/**
- * Record feedback for a calculation (for self-improvement)
- */
-export async function recordCalculationFeedback(
-  calculationId: string | null,
-  feedback: Partial<CalculationFeedback>
-): Promise<ActionResult<{ id: string }>> {
-  try {
-    // AI-2 (AI-review 2026-10-18): feedback styrer kalibrering af basistider og risikobuffer — kun projects.edit
-    // (admin/serviceleder; før projects.view inkl. montør) og kun plausible værdier
-    const { supabase } = await requireGate('projects.edit')
-    const num = (v: unknown) => (v === undefined || v === null ? null : Number(v))
-    for (const [label, v, max] of [['faktiske timer', num(feedback.actual_hours), 10_000], ['estimerede timer', num(feedback.estimated_hours), 10_000]] as const) {
-      if (v !== null && (!Number.isFinite(v) || v < 0 || v > max)) return { success: false, error: `Ugyldige ${label}` }
-    }
-    if (calculationId) {
-      const { data: calc } = await supabase.from('auto_calculations').select('id').eq('id', calculationId).maybeSingle()
-      if (!calc) return { success: false, error: 'Kalkulationen findes ikke' }
-    }
-
-    const { data, error } = await supabase
-      .from('calculation_feedback')
-      .insert({
-        calculation_id: calculationId || null,
-        offer_id: feedback.offer_id,
-        project_id: feedback.project_id,
-        estimated_hours: feedback.estimated_hours,
-        actual_hours: feedback.actual_hours,
-        hours_variance_percentage: feedback.hours_variance_percentage,
-        estimated_material_cost: feedback.estimated_material_cost,
-        actual_material_cost: feedback.actual_material_cost,
-        material_variance_percentage: feedback.material_variance_percentage,
-        offer_accepted: feedback.offer_accepted,
-        project_profitable: feedback.project_profitable,
-        customer_satisfaction: feedback.customer_satisfaction,
-        lessons_learned: feedback.lessons_learned,
-        adjustment_suggestions: feedback.adjustment_suggestions || [],
-      })
-      .select('id')
-      .single()
-
-    if (error) {
-      return { success: false, error: 'Kunne ikke gemme feedback' }
-    }
-
-    return { success: true, data: { id: data.id } }
-  } catch (err) {
-    return { success: false, error: formatError(err, 'Kunne ikke gemme feedback') }
-  }
-}
-
 // =====================================================
 // Create Offer from Analysis
 // =====================================================

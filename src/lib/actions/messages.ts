@@ -437,12 +437,8 @@ export async function getRelatedEntities(): Promise<
         .eq('is_active', true)
         .order('company_name')
         .limit(50),
-      !hasPermission('projects.view') ? none : supabase
-        .from('projects')
-        .select('id, project_number, name')
-        .not('status', 'in', '("completed","cancelled")')
-        .order('created_at', { ascending: false })
-        .limit(50),
+      // PM3-11 (Henrik 2026-10-19): ingen gamle projekter at vælge (modulet er afviklet)
+      none,
     ])
 
     return {

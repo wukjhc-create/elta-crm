@@ -118,7 +118,7 @@ const EXPORT_CONFIG: Record<ExportType, { filename: string; label: string }> = {
   customers: { filename: 'kunder', label: 'Eksportér kunder' },
   leads: { filename: 'leads', label: 'Eksportér leads' },
   offers: { filename: 'tilbud', label: 'Eksportér tilbud' },
-  projects: { filename: 'projekter', label: 'Eksportér projekter' },
+  projects: { filename: 'sager', label: 'Eksportér sager' }, // PM3-11: eksporten er service_cases
   calculations: { filename: 'kalkulationer', label: 'Eksportér kalkulationer' },
 }
 

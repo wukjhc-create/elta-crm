@@ -29,12 +29,6 @@ export interface CustomerOffer {
   created_at: string | null
 }
 
-export interface CustomerProject {
-  id: string
-  project_number: string | null
-  name: string
-  status: string
-}
 
 export interface CustomerLead {
   id: string
@@ -72,24 +66,6 @@ export async function getCustomerOffers(customerId: string): Promise<CustomerOff
   return (data || []) as CustomerOffer[]
 }
 
-export async function getCustomerProjects(customerId: string): Promise<CustomerProject[]> {
-  validateUUID(customerId, 'customerId')
-  const supabase = await clientFor('projects.view')
-  if (!supabase) return []
-
-  const { data, error } = await supabase
-    .from('projects')
-    .select('id, project_number, name, status')
-    .eq('customer_id', customerId)
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    logger.error('Failed to fetch customer projects', { error, entityId: customerId })
-    return []
-  }
-
-  return (data || []) as CustomerProject[]
-}
 
 /**
  * Leads-review 2026-10-08 (#11): kun e-mail-match — et konverteret lead med anden/ingen e-mail (custom_fields.customer_id)
