@@ -172,7 +172,7 @@ export default function ProductForm({
       </div>
 
       <div className="flex justify-end gap-2 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} className="break-words min-w-0" data-testid="product-form-cancel">
           Annuller
         </Button>
         <Button type="submit" disabled={isPending}>

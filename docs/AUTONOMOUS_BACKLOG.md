@@ -959,7 +959,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-224 | 4 Pris | ÅBEN. Etiketten Aktiv i produktformularen ombrydes. | Ordet er uændret. |
 | G18-219 | 4 Pris | DONE. Kategori-vælgerens etiket ombrydes. | aria-label Kategori er uændret. |
 | G18-225 | 4 Pris | ÅBEN. Etiketten Enhed i produktformularen ombrydes. | Ordet er uændret. |
-| G18-220 | 4 Pris | ÅBEN. Knappen Annuller i produktformularen ombrydes. | onCancel er uændret. |
+| G18-220 | 4 Pris | DONE. Knappen Annuller i produktformularen ombrydes. | onCancel er uændret. |
+| G18-226 | 4 Pris | ÅBEN. Pladsholderen Vælg kategori i produktformularen ombrydes. | Ordene er uændrede. |
 | G18-221 | 4 Pris | ÅBEN. Gem-knappen i produktformularen ombrydes. | Ordene Gemmer, Opdater og Opret er uændrede. |
 | G18-222 | 4 Pris | ÅBEN. Etiketten Kategori i produktformularen ombrydes. | Ordet er uændret. |
 
