@@ -1475,6 +1475,51 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 syvoghalvfemsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `c8aabb8a`. Det lader seksoghalvfemsindstyvende-hegnet stå. `c8aabb8a` hedder `feat(pilot): fjern-kobling-spinneren i mail-detaljen kan krympe`. `0345079c` hedder `feat(pilot): download-spinneren i mail-detaljen kan krympe`. `da03a4cc` hedder `feat(pilot): opret-sag-spinneren i mail-detaljen kan krympe`. `d3e74d19` hedder `docs: checkpoint efter 97f876de`. Start: `80ab0dab`. `origin/grok-next` er `c8aabb8a`. Push af `da03a4cc` lykkedes og flyttede `origin/grok-next` fra `80ab0dab` til `da03a4cc`. Push af `0345079c` og `c8aabb8a` lykkedes bagefter. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `d3e74d19..c8aabb8a`
+
+```
+c8aabb8a feat(pilot): fjern-kobling-spinneren i mail-detaljen kan krympe
+0345079c feat(pilot): download-spinneren i mail-detaljen kan krympe
+da03a4cc feat(pilot): opret-sag-spinneren i mail-detaljen kan krympe
+d3e74d19 docs: checkpoint efter 97f876de
+```
+
+Listen er skiftets commits fra `d3e74d19` til og med `c8aabb8a`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+43bb376f docs: checkpoint efter 3e3e4d5b
+```
+
+### Features
+
+G18-732 lader kun opret-sag-spinneren i mail-detaljen krympe. Teksten `Opret sag` bliver. G18-733 lader kun download-spinneren i mail-detaljen krympe. Teksten `Download vedhæftninger nu` bliver. G18-734 lader kun fjern-kobling-spinneren i mail-detaljen krympe. Teksten `Fjern kobling` bliver. De andre spinner-ikoner bliver. `data-testid="mail-opret-sag-spinner"` bliver. `data-testid="mail-backfill-spinner"` bliver. `data-testid="mail-unlink-spinner"` bliver. `data-testid="mail-create-offer"` bliver. `data-testid="mail-body-loading"` bliver. `formatCurrency` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/mail-opret-sag-spinner-wrap-test.ts`, `scripts/mail-backfill-spinner-wrap-test.ts` og `scripts/mail-unlink-spinner-wrap-test.ts` læser den shippede mail-detalje og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetestene for agent-, relevant-, ignorer-, arkiv-, opret-sag-ikon-, opret-sag-knap-, download-ikon-, download-knap-, ingen-sag-, indlæsning-, hurtigt-svar-ikon-, fjern-ikon- og fjern-knap-wrap exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for hvert produktcommit. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `c8aabb8a`, herunder G18-289 til G18-734. `d3e74d19` er kun docs. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `c8aabb8a`. Flet `origin/main` ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-735, G18-597.
+
 ## Checkpoint 2026-10-18 seksoghalvfemsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `97f876de`. Det lader femoghalvfemsindstyvende-hegnet stå. `97f876de` hedder `feat(pilot): mailagent-spinneren i mail-detaljen kan krympe`. `43bb376f` hedder `docs: checkpoint efter 3e3e4d5b`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `97f876de` blev afvist før git kørte og er ikke prøvet igen. `43bb376f` er ikke pushet. `3e3e4d5b` og `60fd0558` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
