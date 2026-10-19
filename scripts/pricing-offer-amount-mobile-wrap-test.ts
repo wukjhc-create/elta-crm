@@ -20,7 +20,7 @@ const row = at >= 0 ? view.slice(at - 120, at + 80) : ''
 ok(row.includes('tabular-nums font-medium break-words min-w-0'), 'beløbet kan krympe')
 ok(row.includes('{formatCurrency(offer.total_amount)}'), 'beløbet er uændret')
 ok(view.includes('text-right font-medium">{formatCurrency(offer.total_amount)}'), 'skrivebordets beløb bliver')
-ok(view.includes('tabular-nums font-medium break-words ${offer.potential_loss > 0'), 'tablinjen bliver')
+ok(view.includes('tabular-nums font-medium break-words min-w-0 ${offer.potential_loss > 0'), 'tablinjen bliver')
 ok(view.includes('formatCurrency(Math.abs(offer.potential_loss))'), 'tabet bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
