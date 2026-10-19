@@ -1141,13 +1141,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-402 | 8 Pilot | DONE. Den tomme leverandørvareliste ombrydes. | Teksten `Ingen produkter fundet` er uændret. Kun det afsnit i leverandørvaretabellen. |
 | G18-403 | 8 Pilot | DONE. Rediger-teksten på opgavekortet ombrydes. | Teksten `Rediger` er uændret. Kun den knap. |
 | G18-404 | 8 Pilot | DONE. Søgehintet på den tomme leverandørvareliste ombrydes. | Teksten `Prøv at ændre din søgning` er uændret. Kun det afsnit. |
-| G18-405 | 8 Pilot | ÅBEN. Sidetitel på AI-projekt ombrydes. | Teksten `AI Projektanalyse` er uændret. Kun den overskrift. |
+| G18-405 | 8 Pilot | DONE. Sidetitel på AI-projekt ombrydes. | Teksten `AI Projektanalyse` er uændret. Kun den overskrift. |
 | G18-406 | 8 Pilot | ÅBEN. Kopier-teksten på AI-projekt ombrydes. | Teksten `Kopier` er uændret. Kun den knap. |
 | G18-407 | 8 Pilot | ÅBEN. Forklaringen under Næste skridt ombrydes. | Sætningen `Opret et rigtigt tilbud baseret på denne analyse` er uændret. Kun det afsnit. |
 | G18-408 | 8 Pilot | ÅBEN. Etiketten Projektbeskrivelse ombrydes. | Teksten `Projektbeskrivelse` er uændret. Kun den etiket. |
 | G18-409 | 8 Pilot | ÅBEN. Knappen Opret tilbud ombrydes. | Teksten `Opret tilbud` er uændret. Kun den knap. |
 | G18-410 | 8 Pilot | ÅBEN. Overskriften Hurtig estimat ombrydes. | Teksten `Hurtig estimat` er uændret. Kun den overskrift. |
 | G18-411 | 8 Pilot | ÅBEN. Knappen Analyser projekt ombrydes. | Teksten `Analyser projekt` er uændret. Kun den knap. |
+| G18-412 | 8 Pilot | ÅBEN. Overskriften Tidsberegning ombrydes. | Teksten `Tidsberegning` er uændret. Kun den overskrift. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

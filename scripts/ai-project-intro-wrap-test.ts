@@ -23,7 +23,7 @@ const row = at >= 0 ? view.slice(at - 40, at + 200) : ''
 ok(row.includes('break-words min-w-0'), 'indledningen ombrydes')
 ok(row.includes(sentence), 'sætningen er uændret')
 ok(view.split(sentence).length === 2, 'sætningen findes en gang')
-ok(view.includes('<h1 className="text-2xl font-bold flex items-center gap-2">'), 'sidetitlen venter')
+ok(view.includes('data-testid="ai-project-page-title"'), 'sidetitlen bliver')
 ok(view.includes('AI Projektanalyse'), 'sidetitelsteksten bliver')
 ok(view.includes('data-testid="ai-project-next-step-heading"'), 'naeste skridt bliver')
 ok(view.includes('formatCurrency(analysis.total_price)'), 'prisen er uændret')
