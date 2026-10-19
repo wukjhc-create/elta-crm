@@ -624,7 +624,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
 
           {/* Actions */}
           <div className="bg-white border rounded-lg p-6 break-words min-w-0" data-testid="ai-project-next-step">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between break-words min-w-0" data-testid="ai-project-next-step-row">
               <div>
                 <h3 className="font-semibold break-words min-w-0" data-testid="ai-project-next-step-heading">Næste skridt</h3>
                 <p className="text-sm text-gray-500 break-words min-w-0" data-testid="ai-project-next-step-text">Opret et rigtigt tilbud baseret på denne analyse</p>
