@@ -557,7 +557,7 @@ export function MailDetail({
                 disabled={isSendingReply !== null}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-blue-50 hover:text-blue-700 border border-gray-200 hover:border-blue-300 transition-colors disabled:opacity-50 break-words min-w-0" data-testid="mail-quick-reply-button"
               >
-                {isSendingReply === tpl.text ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                {isSendingReply === tpl.text ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3 break-words min-w-0" data-testid="mail-quick-reply-icon" />}
                 {tpl.label}
               </button>
             ))}
