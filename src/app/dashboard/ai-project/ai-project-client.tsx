@@ -726,7 +726,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <X className="w-5 h-5 break-words min-w-0" data-testid="ai-project-close-icon" />
               </button>
             </div>
-            <div className="p-4">
+            <div className="p-4 break-words min-w-0" data-testid="ai-project-customer-body">
               <div className="relative mb-4 break-words min-w-0" data-testid="ai-project-customer-search-frame">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 break-words min-w-0" data-testid="ai-project-search-glyph" />
                 <input
