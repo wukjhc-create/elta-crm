@@ -377,7 +377,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 break-words min-w-0" data-testid="ai-project-summary-grid">
             <SummaryCard
-              icon={<Banknote className="w-5 h-5" />}
+              icon={<Banknote className="w-5 h-5 break-words min-w-0" data-testid="ai-project-summary-banknote" />}
               label="Total pris"
               value={formatCurrency(result.calculation.price.total_price)}
               sublabel="ekskl. moms"
