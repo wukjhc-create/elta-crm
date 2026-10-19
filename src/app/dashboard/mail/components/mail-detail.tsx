@@ -755,7 +755,7 @@ export function MailDetail({
               </div>
             ) : (
               /* No stored URLs yet — offer backfill */
-              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 space-y-2">
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 space-y-2 break-words min-w-0" data-testid="mail-attachments-pending-box">
                 <p className="text-sm text-amber-800">
                   Vedhæftningerne er ikke downloadet endnu.
                 </p>

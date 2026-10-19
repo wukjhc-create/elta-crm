@@ -36,7 +36,7 @@ ok(view.includes('data-testid="mail-attachments-heading"'), 'overskriften bliver
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 ok(view.includes('data-testid="mail-gallery-size"'), 'galleriets størrelse bliver')
 ok(view.includes('data-testid="mail-list-size"'), 'listens størrelse bliver')
-ok(view.includes('className="bg-amber-50 border border-amber-200 rounded-md p-3 space-y-2"'), 'boksen bliver')
+ok(view.includes('className="bg-amber-50 border border-amber-200 rounded-md p-3 space-y-2 break-words min-w-0" data-testid="mail-attachments-pending-box"'), 'boksen bliver')
 ok(view.includes('Vedhæftningerne er ikke downloadet endnu.'), 'sætningen bliver')
 
 if (bad > 0) {
