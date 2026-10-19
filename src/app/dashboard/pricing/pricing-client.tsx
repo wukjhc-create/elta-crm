@@ -286,7 +286,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
       })}
     </ul>
     <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto min-w-0" data-testid="pricing-alert-scroll">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-gray-50">

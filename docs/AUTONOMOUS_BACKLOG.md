@@ -1069,12 +1069,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-330 | 4 Pris | DONE. Prisovervågningens side kan krympe. | Tallene er uændrede. |
 | G18-331 | 4 Pris | DONE. Pristendensens afsnit kan krympe. | Pris og navn er uændrede. |
 | G18-332 | 4 Pris | DONE. Prisbevægelsens blok kan krympe. | Procenterne er uændrede. |
-| G18-333 | 4 Pris | ÅBEN. Prisadvarslens tabelrulle kan krympe. | Navn og priser er uændrede. |
+| G18-333 | 4 Pris | DONE. Prisadvarslens tabelrulle kan krympe. | Navn og priser er uændrede. |
 | G18-334 | 4 Pris | ÅBEN. Prisadvarslens skrivebordsramme kan krympe. | Navn og priser er uændrede. |
 | G18-335 | 4 Pris | ÅBEN. Berørte tilbuds tabelrulle kan krympe. | Nummer og beløb er uændrede. |
 | G18-336 | 4 Pris | ÅBEN. Pristendensens tabelrulle kan krympe. | Pris og navn er uændrede. |
 | G18-337 | 4 Pris | ÅBEN. Berørte tilbuds skrivebordsramme kan krympe. | Nummer og beløb er uændrede. |
 | G18-338 | 4 Pris | ÅBEN. Pristendensens skrivebordsramme kan krympe. | Pris og navn er uændrede. |
+| G18-339 | 4 Pris | ÅBEN. Prisadvarslens kolonnerække kan krympe. | Navn og priser er uændrede. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
