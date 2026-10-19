@@ -915,7 +915,8 @@ function EmailCasePicker({
           Sag:{' '}
           <a
             href={`/dashboard/orders/${currentCase.id}`}
-            className="font-semibold text-blue-700 hover:underline"
+            className="font-semibold text-blue-700 hover:underline break-words min-w-0"
+            data-testid="mail-case-link"
           >
             {currentCase.case_number} — {currentCase.title}
           </a>
