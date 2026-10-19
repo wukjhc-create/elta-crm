@@ -521,7 +521,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     <dd>×{result.calculation.time.accessibility_multiplier}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">
-                    <dt>Total tid</dt>
+                    <dt className="break-words min-w-0" data-testid="ai-project-total-time-label">Total tid</dt>
                     <dd>{result.calculation.time.total_hours.toFixed(1)} timer</dd>
                   </div>
                 </dl>
