@@ -850,7 +850,7 @@ function CollapsibleSection({
         </div>
         <div className="flex items-center gap-2">
           {actions && <div onClick={(e) => e.stopPropagation()}>{actions}</div>}
-          {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          {expanded ? <ChevronUp className="w-5 h-5 break-words min-w-0" data-testid="ai-project-section-chevron-up" /> : <ChevronDown className="w-5 h-5" />}
         </div>
       </button>
       {expanded && <div className="p-4 pt-0 border-t break-words min-w-0" data-testid="ai-project-section-body">{children}</div>}
