@@ -595,7 +595,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <span className="break-words min-w-0" data-testid="ai-project-no-risks">Ingen væsentlige risici identificeret</span>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 break-words min-w-0" data-testid="ai-project-risks-list">
                 {result.risks.map((risk, i) => (
                   <RiskCard key={i} risk={risk} />
                 ))}
