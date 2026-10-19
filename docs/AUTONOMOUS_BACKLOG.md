@@ -959,7 +959,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-235 | 4 Pris | DONE. Pladsholderen på SKU ombrydes. | Teksten F.eks. JA400-MONO er uændret. |
 | G18-241 | 4 Pris | DONE. Produktnavnet på produktdetaljen ombrydes. | {productResult.data.name} er uændret. |
 | G18-247 | 4 Pris | DONE. Beskrivelsen på produktdetaljen ombrydes. | {product.description} er uændret. |
-| G18-253 | 4 Pris | ÅBEN. Etiketten Enhed på produktdetaljen ombrydes. | Ordet og {product.unit} er uændrede. |
+| G18-253 | 4 Pris | DONE. Etiketten Enhed på produktdetaljen ombrydes. | Ordet og {product.unit} er uændrede. |
+| G18-259 | 4 Pris | ÅBEN. Volatilitets-linjen på pristendensens mobilkort ombrydes. | Etiketterne og procenterne er uændrede. |
 | G18-218 | 4 Pris | DONE. Kategorinavnet i kategori-vælgeren ombrydes. | {category.name} er uændret. |
 | G18-224 | 4 Pris | DONE. Etiketten Aktiv i produktformularen ombrydes. | Ordet er uændret. |
 | G18-230 | 4 Pris | DONE. Enhedsnavnet i produktformularen ombrydes. | {unit.label} er uændret. |
