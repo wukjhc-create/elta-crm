@@ -358,7 +358,7 @@ export function MailDetail({
 
         {/* Customer link */}
         {email.link_status === 'linked' && email.customers && (
-          <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 p-2.5 rounded-md">
+          <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 p-2.5 rounded-md break-words min-w-0" data-testid="mail-linked-customer-row">
             <Link2 className="w-4 h-4 text-green-600 shrink-0" />
             <span>Koblet til: <strong>{email.customers.company_name}</strong> ({email.customers.customer_number})</span>
             <div className="ml-auto flex items-center gap-2 shrink-0">
