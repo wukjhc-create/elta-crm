@@ -21,7 +21,7 @@ ok(row.includes('overflow-x-auto min-w-0'), 'rullen kan krympe')
 ok(row.includes('data-testid="pricing-offer-col-title"'), 'tilbudskolonnen bliver')
 ok(row.includes('{offer.offer_number}'), 'nummeret er uændret')
 ok(row.includes('text-right font-medium">{formatCurrency(offer.total_amount)}'), 'beløbet er uændret')
-ok(view.split('<div className="overflow-x-auto">').length - 1 === 1, 'trendrullen bliver')
+ok(view.split('<div className="overflow-x-auto">').length - 1 === 0, 'ingen upakket rulle')
 ok(view.split('{offer.offer_number}').length - 1 === 2, 'to numre')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 

@@ -22,7 +22,7 @@ ok(row.includes('data-testid="pricing-alert-col-product"'), 'produktkolonnen bli
 ok(row.includes('{alert.product_name}'), 'navnet er uændret')
 ok(row.includes('text-right text-gray-500">{formatCurrency(alert.old_price)}'), 'gammel pris er uændret')
 ok(row.includes('text-right font-medium">{formatCurrency(alert.new_price)}'), 'ny pris er uændret')
-ok(view.split('<div className="overflow-x-auto">').length - 1 === 1, 'trendrullen bliver')
+ok(view.split('<div className="overflow-x-auto">').length - 1 === 0, 'ingen upakket rulle')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
 if (bad > 0) {
