@@ -1202,6 +1202,70 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 niogtredivte (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `c2edaf4a`. Det lader otteogtredivte-hegnet stå. `c2edaf4a` hedder `feat(pilot): soegeresultatets ladestander kan krympe`. Produktspids: `f73938c0`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `f73938c0` blev afvist før git kørte og er ikke prøvet igen. `b4a3b85a` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `c2edaf4a..f73938c0`
+
+```
+f73938c0 feat(pilot): kundevaelgerens hoved kan krympe
+b4a3b85a feat(pilot): kundelisten i kundevaelgeren kan krympe
+867830ac feat(pilot): eksempelkortet i AI-projekt kan krympe
+1fc63094 feat(pilot): kundekortet i kundevaelgeren kan krympe
+b76f0a8f feat(pilot): historikkortet paa AI-projekt kan krympe
+718ffa2d feat(pilot): luk-knappen i kundevaelgeren kan krympe
+f37624e6 docs: checkpoint efter 8e3a012a
+ed2d4576 feat(pilot): tom kundeliste i AI-projekt kan krympe
+a26dd0c8 feat(pilot): knappen annuller i kundevaelgeren ombrydes
+c175ae18 feat(pilot): kundeliste-knappen proev igen ombrydes
+607a65e8 feat(pilot): historik-knappen proev igen ombrydes
+d9b1c4f7 feat(pilot): kundens soegefelt kan krympe
+1af70386 feat(pilot): venteteksten analyserer ombrydes
+```
+
+Listen er alle commits efter `c2edaf4a` til og med `f73938c0`, fra `1af70386`. Docs-committen med denne sektion kommer bagefter og står ikke i listen. `f37624e6` står i listen, fordi den selv er en commit efter `c2edaf4a`.
+
+### Forrige docs-commit
+
+```
+f37624e6 docs: checkpoint efter 8e3a012a
+```
+
+### Commit rækken starter efter
+
+```
+c2edaf4a feat(pilot): soegeresultatets ladestander kan krympe
+```
+
+### Features
+
+G18-444 til G18-455 ombryder venteteksten Analyserer, kundens søgefelt, historikkens Prøv igen, kundelistens Prøv igen, Annuller, den tomme kundeliste, Luk, historikkortet, kundekortet, eksempelkortet, kundelisten og kundevælgerens hoved. `Analyserer...`, pladsholderen `Søg efter kunde...`, `aria-label="Søg efter kunde"`, `setHistoryTry`, `void loadCustomers()`, `Annuller`, `'Ingen kunder'`, `'Ingen kunder fundet'`, `aria-label="Luk"`, `formatCurrency(analysis.total_price)`, `handleSelectCustomer`, `handleDescriptionChange(example.text)`, `max-h-64` og `Vælg kunde` er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter pilotbølgen fra `cb4f0a8f` til `f73938c0`, herunder G18-444 til G18-455. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `f73938c0`, `b4a3b85a`, `867830ac`, `1fc63094`, `b76f0a8f`, `718ffa2d`, `f37624e6` og `c2edaf4a`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-456, G18-457, G18-458, G18-459, G18-460, G18-461, G18-462.
+
 ## Checkpoint 2026-10-18 otteogtredivte (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `8e3a012a`. Det lader syvogtredivte-hegnet stå. `8e3a012a` hedder `docs: checkpoint efter 24a9d325`. Produktspids: `ed2d4576`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `ed2d4576` blev afvist før git kørte og er ikke prøvet igen. `a26dd0c8` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
