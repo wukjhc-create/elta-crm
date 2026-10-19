@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -67,6 +69,9 @@ export default function ProductsClient({
   initialFilters,
   canSeeCost = false,
 }: ProductsClientProps) {
+  // PM2-8 (rolle-review): opret/ret/slet kræver materials.edit — salg (tools.products) så knapperne og fik afvisning
+  const { role: viewerRole } = useUserRole()
+  const canEdit = !!viewerRole && hasPermission(viewerRole, 'materials.edit')
   const router = useRouter()
   const searchParams = useSearchParams()
   const toast = useToast()
@@ -145,10 +150,10 @@ export default function ProductsClient({
             {total} {total === 1 ? 'produkt' : 'produkter'}
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
+        {canEdit && <Button onClick={() => setShowCreateDialog(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Nyt produkt
-        </Button>
+        </Button>}
       </div>
 
       {/* Filters */}
@@ -258,7 +263,7 @@ export default function ProductsClient({
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
+                    {canEdit && <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
                           <MoreHorizontal className="w-4 h-4" />
@@ -277,7 +282,7 @@ export default function ProductsClient({
                           Slet
                         </DropdownMenuItem>
                       </DropdownMenuContent>
-                    </DropdownMenu>
+                    </DropdownMenu>}
                   </TableCell>
                 </TableRow>
               ))}

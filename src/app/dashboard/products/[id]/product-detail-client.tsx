@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import { useRouter } from 'next/navigation'
 import { Pencil, Trash2, Package } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -27,6 +29,9 @@ export default function ProductDetailClient({
   product,
   categories,
 }: ProductDetailClientProps) {
+  // PM2-8 (rolle-review): opret/ret/slet kræver materials.edit — salg (tools.products) så knapperne og fik afvisning
+  const { role: viewerRole } = useUserRole()
+  const canEdit = !!viewerRole && hasPermission(viewerRole, 'materials.edit')
   const router = useRouter()
   const toast = useToast()
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -54,7 +59,7 @@ export default function ProductDetailClient({
   return (
     <div className="space-y-6">
       {/* Actions */}
-      <div className="flex gap-2">
+      {canEdit && <div className="flex gap-2">
         <Button variant="outline" onClick={() => setShowEditDialog(true)}>
           <Pencil className="w-4 h-4 mr-2" />
           Rediger
@@ -63,7 +68,7 @@ export default function ProductDetailClient({
           <Trash2 className="w-4 h-4 mr-2" />
           Slet
         </Button>
-      </div>
+      </div>}
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Product Info */}

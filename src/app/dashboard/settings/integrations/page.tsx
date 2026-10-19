@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { IntegrationsSettingsClient } from './integrations-settings-client'
 
+import { ManageOnly } from '@/components/auth/manage-only'
+import { pageHasPermission } from '@/lib/auth/page-guard'
 export const metadata: Metadata = {
   title: 'Integrationer',
   description: 'Konfigurer webhooks og eksterne integrationer',
@@ -11,6 +13,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function IntegrationsSettingsPage() {
+  const canManage = await pageHasPermission('settings.manage') // PM2-9: gem/test/slet kræver settings.manage
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -26,7 +29,7 @@ export default async function IntegrationsSettingsPage() {
         </div>
       </div>
 
-      <IntegrationsSettingsClient />
+      <ManageOnly canManage={canManage} what="integrationerne"><IntegrationsSettingsClient /></ManageOnly>
     </div>
   )
 }

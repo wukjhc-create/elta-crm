@@ -4,6 +4,8 @@ import { ArrowLeft } from 'lucide-react'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { CompanySettingsClient } from './company-settings-client'
 
+import { ManageOnly } from '@/components/auth/manage-only'
+import { pageHasPermission } from '@/lib/auth/page-guard'
 export const metadata: Metadata = {
   title: 'Virksomhed',
   description: 'Virksomhedsoplysninger og standardindstillinger',
@@ -13,6 +15,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function CompanySettingsPage() {
   const result = await getCompanySettings()
+  const canManage = await pageHasPermission('settings.manage') // PM2-9: gem kræver settings.manage
 
   return (
     <div className="space-y-6">
@@ -30,7 +33,7 @@ export default async function CompanySettingsPage() {
       </div>
 
       {result.success && result.data ? (
-        <CompanySettingsClient settings={result.data} />
+        <ManageOnly canManage={canManage} what="virksomhedsindstillingerne"><CompanySettingsClient settings={result.data} /></ManageOnly>
       ) : (
         <div className="bg-white rounded-lg border p-12 text-center">
           <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
