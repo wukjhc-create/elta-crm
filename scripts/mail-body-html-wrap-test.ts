@@ -34,7 +34,7 @@ ok(view.split(cell).length === 2, 'html-tekstens klasse findes en gang')
 ok(view.includes('dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(email.body_html) }}'), 'rensningen bliver')
 ok(view.includes('data-testid="mail-body-plain"'), 'broedteksten bliver')
 ok(view.includes('{email.body_text || email.body_preview || \'(Tom email)\'}'), 'indholdet bliver')
-ok(view.includes('className="text-xs text-gray-400 mb-2 flex items-center gap-1" data-testid="mail-body-loading"'), 'indlaesningen bliver')
+ok(view.includes('className="text-xs text-gray-400 mb-2 flex items-center gap-1 break-words min-w-0" data-testid="mail-body-loading"'), 'indlaesningen bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 
 if (bad > 0) {
