@@ -717,7 +717,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
       {showCustomerModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between gap-2 p-4 border-b">
+            <div className="flex items-start justify-between gap-2 p-4 border-b break-words min-w-0" data-testid="ai-project-customer-head">
               <div className="flex items-center gap-2 min-w-0">
                 <Users className="w-5 h-5 text-purple-500 shrink-0" />
                 <h2 className="font-semibold break-words min-w-0">Vælg kunde</h2>
