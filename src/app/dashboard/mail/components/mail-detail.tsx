@@ -805,7 +805,7 @@ export function MailDetail({
             <div className="flex items-start justify-between w-full mb-2 px-1 gap-2 break-words min-w-0" data-testid="mail-lightbox-title-row">
               <span className="text-sm text-white/80 break-all min-w-0 flex-1">{lightboxName}</span>
               <div className="flex items-center gap-2 shrink-0">
-                <a href={lightboxUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-full bg-white/10 hover:bg-white/20" title="Download" aria-label="Download">
+                <a href={lightboxUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 break-words min-w-0" data-testid="mail-lightbox-download-link" title="Download" aria-label="Download">
                   <Download className="w-4 h-4 text-white break-words min-w-0" data-testid="mail-lightbox-download-icon" />
                 </a>
                 <button type="button" onClick={() => setLightboxUrl(null)} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 break-words min-w-0" data-testid="mail-lightbox-close-button" title="Luk" aria-label="Luk">
