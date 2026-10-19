@@ -129,7 +129,7 @@ export function PackagePickerDialog({
                       <p className="text-xs text-gray-400">{pkg.code}</p>
                     )}
                     {pkg.description && (
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{pkg.description}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 break-words min-w-0" data-testid="package-picker-description">{pkg.description}</p>
                     )}
                     <div className="flex gap-2 mt-1">
                       <Badge variant="outline" className="text-xs">
