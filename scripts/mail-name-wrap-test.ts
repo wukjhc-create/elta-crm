@@ -14,7 +14,7 @@ const suggestions = detail.slice(start, detail.indexOf('EMAIL BODY', start))
 const lines = fs.readFileSync('src/app/dashboard/mail/components/quote-line-items-editor.tsx', 'utf8')
 
 eq('fundet kunde ombrydes', suggestions.includes('break-words min-w-0" data-testid="mail-match-name">{detectedCustomer.company_name}'), true)
-eq('forslag ombrydes', suggestions.includes('break-words">{s.company_name}'), true)
+eq('forslag ombrydes', suggestions.includes('break-words min-w-0" data-testid="mail-other-name">{s.company_name}'), true)
 eq('kobl bliver', suggestions.includes('Kobl'), true)
 eq('produktnavn ombrydes', lines.includes('break-words">{product.product_name}'), true)
 eq('varelinje ombrydes', lines.includes('text-[10px] text-gray-400 break-words'), true)
