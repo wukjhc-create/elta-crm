@@ -1,0 +1,33 @@
+/**
+ * Tilbudsbeskrivelsen i mailforslag ombrydes. Teksten er uændret.
+ *   npx tsx scripts/proposal-offer-description-wrap-test.ts
+ */
+import { readFileSync } from 'node:fs'
+import { formatDate } from '../src/lib/utils'
+import { formatCurrency } from '../src/lib/utils/format'
+
+let bad = 0
+const ok = (c: boolean, label: string) => {
+  if (!c) bad++
+  console.log(`${c ? 'PASS' : 'FAIL'}  ${label}`)
+}
+
+ok(formatDate('2026-06-02').includes('2026'), 'datoen bliver')
+ok(formatCurrency(1250).includes('1'), 'beløbsformatet bliver')
+
+const view = readFileSync('src/app/dashboard/mail/proposals/proposals-client.tsx', 'utf8')
+const at = view.indexOf('data-testid="proposal-offer-description"')
+const row = at >= 0 ? view.slice(at - 120, at + 80) : ''
+ok(row.includes('break-words min-w-0'), 'beskrivelsen ombrydes')
+ok(row.includes('>{o.description}'), 'teksten er uændret')
+ok(!row.includes('line-clamp-2'), 'den klippes ikke til to linjer')
+ok(view.includes('data-testid="proposal-offer-title"'), 'tilbudstitlen bliver')
+ok(view.includes('data-testid="proposal-case-description"'), 'sagsbeskrivelsen bliver')
+ok(view.includes('formatCurrency(o.final_amount, \'DKK\')'), 'beløbet er uændret')
+ok(view.includes('onPromoteOffer(o.id)'), 'opret bliver')
+
+if (bad > 0) {
+  console.log(`FAIL  ${bad}`)
+  process.exit(1)
+}
+console.log('PASS  proposal-offer-description-wrap-test')

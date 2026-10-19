@@ -23,7 +23,7 @@ ok(row.includes('>{c.description}'), 'teksten er uændret')
 ok(!row.includes('line-clamp-2'), 'den klippes ikke til to linjer')
 ok(view.includes('data-testid="proposal-case-title"'), 'sagstitlen bliver')
 ok(view.includes('data-testid="proposal-offer-title"'), 'tilbudstitlen bliver')
-ok(view.includes('line-clamp-2">{o.description}'), 'tilbudsbeskrivelsen bliver')
+ok(view.includes('break-words min-w-0" data-testid="proposal-offer-description">{o.description}'), 'tilbudsbeskrivelsen ombrydes')
 ok(view.includes('onPromoteCase(c.id)'), 'opret bliver')
 
 if (bad > 0) {

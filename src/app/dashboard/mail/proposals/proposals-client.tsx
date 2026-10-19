@@ -247,7 +247,7 @@ export function ProposalsClient() {
                       <p className="text-sm text-gray-600 mt-1">Kunde: {o.customer_name}</p>
                     )}
                     {o.description && (
-                      <p className="text-sm text-gray-500 mt-1 line-clamp-2">{o.description}</p>
+                      <p className="text-sm text-gray-500 mt-1 break-words min-w-0" data-testid="proposal-offer-description">{o.description}</p>
                     )}
                     <p className="text-sm font-semibold text-gray-900 mt-1">
                       {formatCurrency(o.final_amount, 'DKK')}
