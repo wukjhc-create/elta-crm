@@ -729,11 +729,12 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
+                  data-testid="ai-project-customer-search"
                   placeholder="Søg efter kunde..."
                   aria-label="Søg efter kunde"
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 break-words min-w-0"
                 />
               </div>
               <div className="max-h-64 overflow-y-auto space-y-2">
