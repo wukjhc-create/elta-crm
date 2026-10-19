@@ -1158,6 +1158,62 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 toogtredivte (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `443837bd`. Det lader enogtredivte-hegnet stå. `443837bd` hedder `docs: checkpoint efter 59c8fed8`. Produktspids: `875ca1ab`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `875ca1ab` blev afvist før git kørte og er ikke prøvet igen. `d94fb9e1` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `443837bd..875ca1ab`
+
+```
+875ca1ab feat(pilot): knappen analyser projekt ombrydes
+d94fb9e1 feat(pilot): overskriften hurtig estimat ombrydes
+a40b93bd feat(pilot): knappen opret tilbud ombrydes
+a7cf6608 feat(pilot): etiketten projektbeskrivelse ombrydes
+ab3c3da9 feat(pilot): forklaringen under naeste skridt ombrydes
+b6ebe8d4 feat(pilot): kopier-teksten paa AI-projekt ombrydes
+86fb22b0 feat(pilot): sidetitlen paa AI-projekt ombrydes
+f1d34483 feat(pris): sogehintet paa den tomme leverandorvareliste ombrydes
+6b51fa2e feat(pilot): rediger-teksten paa opgavekortet ombrydes
+50471e2c feat(pris): den tomme leverandorvareliste ombrydes
+94264b06 feat(pilot): indledningen paa AI-projekt ombrydes
+```
+
+Listen er alle commits efter `443837bd` til og med `875ca1ab`, fra `94264b06`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commit der ikke stod i et hegn
+
+```
+443837bd docs: checkpoint efter 59c8fed8
+```
+
+### Features
+
+G18-401 til G18-411 ombryder indledningen på AI-projekt, den tomme leverandørvareliste, Rediger-teksten på opgavekortet, søgehintet, sidetitlen, Kopier-teksten, forklaringen under Næste skridt, etiketten Projektbeskrivelse, knappen Opret tilbud, overskriften Hurtig estimat og knappen Analyser projekt. Teksterne i de linjer er uændrede. Priser, `storedCostText`, `formatCurrency(quickResult.estimatedPrice)`, `formatCurrency(analysis.total_price)`, historikkens `line-clamp-2`, toasten `Kopieret` og `handleCreateOffer` er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter pilot- og prisbølgen fra `cb4f0a8f` til `875ca1ab`, herunder G18-401 til G18-411. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `875ca1ab`, `d94fb9e1` og `443837bd`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-412, G18-413, G18-414, G18-415, G18-416, G18-417, G18-418.
+
 ## Checkpoint 2026-10-18 enogtredivte (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `59c8fed8`. Det lader tredivte-hegnet stå. `59c8fed8` hedder `docs: checkpoint efter 94bbeb6a`. Produktspids: `bfc023d4`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `bfc023d4` blev afvist før git kørte og er ikke prøvet igen. `d60a20c2` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
