@@ -1237,13 +1237,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-498 | 8 Pilot | DONE. AI-projektets sidehoved kan krympe. | Kun `<div className="mb-8">` i AI-projekt. Overskriften er uændret. |
 | G18-499 | 8 Pilot | DONE. Analysér-knappens række kan krympe. | Kun `<div className="mt-4 flex justify-end">` i AI-projekt. Knappen er uændret. |
 | G18-500 | 8 Pilot | DONE. AI-projektets resultatstak kan krympe. | Kun `<div className="space-y-6">` i AI-projekt. Priserne er uændrede. |
-| G18-501 | 8 Pilot | ÅBEN. Bemærkningsrækken kan krympe. | Kun `<div className="flex items-start gap-2">` i AI-projekt. Advarselsteksten er uændret. |
+| G18-501 | 8 Pilot | DONE. Bemærkningsrækken kan krympe. | Kun `<div className="flex items-start gap-2">` i AI-projekt. Advarselsteksten er uændret. |
 | G18-502 | 8 Pilot | ÅBEN. Listen med identificerede risici kan krympe. | Kun `<div className="space-y-3">` i AI-projekt. Risikokortet er uændret. |
 | G18-503 | 8 Pilot | ÅBEN. Knaprækken ved tilbudsteksten kan krympe. | Kun `<div className="flex gap-2">` i AI-projekt. Knappen Kopier er uændret. |
 | G18-504 | 8 Pilot | ÅBEN. Næste skridts række kan krympe. | Kun `<div className="flex items-center justify-between">` i AI-projekt. Knappen Opret tilbud er uændret. |
 | G18-505 | 8 Pilot | ÅBEN. Rækken med valgt ladestander kan krympe. | Kun `<div className="flex items-center justify-between gap-2 text-sm">` i AI-projekt. Prisen er uændret. |
 | G18-506 | 8 Pilot | ÅBEN. Søgefeltets ramme i kundevaelgeren kan krympe. | Kun `<div className="relative mb-4">` i AI-projekt. Søgefeltet er uændret. |
 | G18-507 | 8 Pilot | ÅBEN. Kundevaelgerens titelrække kan krympe. | Kun `<div className="flex items-center gap-2 min-w-0">` i AI-projekt. Teksten `Vælg kunde` er uændret. |
+| G18-508 | 8 Pilot | ÅBEN. Advarselsikonet kan krympe. | Kun `<AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />` i AI-projekt. Advarselsteksten er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
