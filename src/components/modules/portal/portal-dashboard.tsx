@@ -384,7 +384,7 @@ export function PortalDashboard({
                       </div>
                       <p className="font-medium text-gray-900 mt-1 break-words">{sc.title}</p>
                       {sc.description && (
-                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{sc.description}</p>
+                        <p className="text-sm text-gray-500 mt-1 break-words min-w-0" data-testid="portal-case-description">{sc.description}</p>
                       )}
                     </div>
                     <div className="text-right text-sm text-gray-500">
