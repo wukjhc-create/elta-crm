@@ -331,7 +331,7 @@ export function SupplierProductsTable({
                         {product.is_available ? 'Aktiv' : 'Inaktiv'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-gray-500">
+                    <TableCell className="text-xs text-gray-500 break-words min-w-0" data-testid="supplier-product-desktop-updated">
                       {(product.last_synced_at || product.updated_at) ? formatDateUtil(product.last_synced_at || product.updated_at) : '-'}
                     </TableCell>
                   </TableRow>

@@ -21,7 +21,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 120, at + 220) : ''
 ok(row.includes('break-words min-w-0'), 'linjen ombrydes')
 ok(row.includes('formatDateUtil(product.last_synced_at || product.updated_at)'), 'datoen er uændret')
-ok(view.includes('<TableCell className="text-xs text-gray-500">'), 'skrivebordscellen bliver')
+ok(view.includes('data-testid="supplier-product-desktop-updated"'), 'skrivebordscellen bliver')
 ok(view.includes('data-testid="supplier-product-mobile-sku"'), 'varenummeret bliver')
 ok((view.match(/storedCostText\(product\.cost_price\)/g) ?? []).length === 2, 'kostprisen bliver')
 ok((view.match(/storedCostText\(product\.list_price\)/g) ?? []).length === 2, 'listeprisen bliver')

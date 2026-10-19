@@ -1117,13 +1117,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-378 | 8 Pilot | DONE. Tilbudsnummeret i opgavepåmindelsen ombrydes. | Teksten `{reminder.offer.offer_number}` er uændret. Kun det link. |
 | G18-379 | 8 Pilot | DONE. Eksempeltitlen i AI-projekt ombrydes. | Teksten `{example.title}` er uændret. Kun den linje. |
 | G18-380 | 4 Pris | DONE. Opdateret-linjen på leverandørvarens mobilkort ombrydes. | Dato-udtrykket er uændret. Priser er uændret. Kun den linje. |
-| G18-381 | 4 Pris | ÅBEN. Opdateret-cellen på leverandørvarens skrivebord kan krympe. | Dato-udtrykket er uændret. Priser er uændret. Kun den celle. |
+| G18-381 | 4 Pris | DONE. Opdateret-cellen på leverandørvarens skrivebord kan krympe. | Dato-udtrykket er uændret. Priser er uændret. Kun den celle. |
 | G18-382 | 8 Pilot | ÅBEN. Ansvarlig på opgavekortet ombrydes. | Teksten `{task.assigned_to_profile.full_name || task.assigned_to_profile.email}` er uændret. Kun den linje. |
 | G18-383 | 8 Pilot | ÅBEN. Forfaldsdatoen på opgavekortet ombrydes. | Kaldet `formatDate(task.due_date)` er uændret. Kun det span. |
 | G18-384 | 8 Pilot | ÅBEN. Omfang-id på tilbudstekstkortet ombrydes. | Udtrykket `{template.scope_id}` er uændret. Kun det mærke. |
 | G18-385 | 8 Pilot | ÅBEN. Kundenavnet i opgavepåmindelsen kan krympe. | Teksten `{reminder.customer.company_name}` er uændret. Kun det link. |
 | G18-386 | 8 Pilot | ÅBEN. Overskriften på AI-projektets eksempler ombrydes. | Teksten `Eksempler på projektbeskrivelser` er uændret. Kun den overskrift. |
 | G18-387 | 4 Pris | ÅBEN. Kategorien på leverandørvarens mobilkort ombrydes. | Teksten `{product.category}` er uændret. Priser er uændret. Kun det mærke. |
+| G18-388 | 4 Pris | ÅBEN. Kategorien på leverandørvarens skrivebord kan krympe. | Teksten `{product.category}` er uændret. Priser er uændret. Kun mærket i tabellen. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
