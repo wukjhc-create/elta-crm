@@ -529,7 +529,7 @@ export function MailDetail({
             <button
               onClick={() => runHeaderAction('restore', onRestoreFromIgnored)}
               disabled={pendingAction !== null}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-amber-50 text-amber-700 border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-amber-50 text-amber-700 border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed break-words min-w-0" data-testid="mail-restore-button"
               title="Saet mailen tilbage til Uidentificeret saa den kan kobles manuelt"
             >
               {pendingAction === 'restore' ? (
