@@ -465,7 +465,7 @@ function SuppliersTab({ stats, error }: { stats: SupplierPriceStats[]; error: st
           </div>
 
           {/* Price change distribution bar */}
-          <div className="mt-3">
+          <div className="mt-3 min-w-0" data-testid="pricing-movement-block">
             <div className="flex items-center justify-between text-xs text-gray-500 mb-1 min-w-0 break-words" data-testid="pricing-movement-row">
               <span className="break-words min-w-0" data-testid="pricing-movement-label">Prisbevægelse</span>
               <span className="min-w-0 break-words" data-testid="pricing-movement-group">
