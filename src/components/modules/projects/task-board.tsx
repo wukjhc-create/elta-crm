@@ -76,7 +76,8 @@ function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps) {
                     onEdit(task)
                     setOpenMenu(false)
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted"
+                  className="w-full flex flex-wrap items-center gap-2 px-3 py-2 text-sm hover:bg-muted break-words min-w-0"
+                  data-testid="task-board-edit"
                 >
                   <Pencil className="w-4 h-4" />
                   Rediger

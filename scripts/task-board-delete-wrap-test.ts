@@ -25,7 +25,7 @@ ok(view.split("{isDeleting ? 'Sletter...' : 'Slet'}").length === 2, 'udtrykket f
 ok(view.includes('handleDelete()'), 'sletningen bliver')
 ok(view.includes('data-testid="task-board-hours"'), 'timetallet bliver')
 ok(view.includes('{task.actual_hours}/{task.estimated_hours}t'), 'timeudtrykket bliver')
-ok(view.includes('className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted"'), 'rediger venter')
+ok(view.includes('data-testid="task-board-edit"'), 'rediger bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
