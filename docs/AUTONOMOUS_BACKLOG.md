@@ -1163,13 +1163,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-424 | 8 Pilot | DONE. Etiketten Risikobuffer ombrydes. | Udtrykket `{result.calculation.price.risk_buffer_percentage}%` er uændret. Kun den etiket. |
 | G18-425 | 8 Pilot | DONE. Etiketten Margin ombrydes. | Udtrykket `{result.calculation.price.margin_percentage}%` er uændret. Kun den etiket. |
 | G18-426 | 8 Pilot | DONE. Etiketten Type ombrydes. | Teksten `Type` er uændret. Kun den etiket i AI-projekt. Værdierne bliver. |
-| G18-427 | 8 Pilot | ÅBEN. Etiketten Størrelse ombrydes. | Teksten `Størrelse` er uændret. Kun den etiket i AI-projekt. Værdien bliver. |
+| G18-427 | 8 Pilot | DONE. Etiketten Størrelse ombrydes. | Teksten `Størrelse` er uændret. Kun den etiket i AI-projekt. Værdien bliver. |
 | G18-428 | 8 Pilot | ÅBEN. Etiketten Alder ombrydes. | Teksten `Alder` er uændret. Kun den etiket i AI-projekt. Værdien bliver. |
 | G18-429 | 8 Pilot | ÅBEN. Etiketten Kompleksitet ombrydes. | Teksten `Kompleksitet` er uændret. Kun den etiket. Værdien og overskriften Kompleksitetsfaktorer bliver. |
 | G18-430 | 8 Pilot | ÅBEN. Teksten Ingen væsentlige risici identificeret ombrydes. | Teksten er uændret. Kun det span i AI-projekt. |
 | G18-431 | 8 Pilot | ÅBEN. Etiketten Ladestander ombrydes. | Teksten `Ladestander (kun hvis opgaven indeholder en elbillader)` er uændret. Kun den etiket. |
 | G18-432 | 8 Pilot | ÅBEN. Hjælpeteksten om en lader der ikke er prissat ombrydes. | Sætningen og `&quot;` er uændrede. Kun det afsnit i AI-projekt. Der gættes ingen pris. |
 | G18-433 | 8 Pilot | ÅBEN. Den valgte ladestanders navn ombrydes. | `formatCurrency(charger.cost_price)` er uændret. Kun det span. |
+| G18-434 | 8 Pilot | ÅBEN. Knappen Fjern på ladestanderen ombrydes. | Teksten `Fjern` og `setCharger(null)` er uændrede. Kun den knap. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
