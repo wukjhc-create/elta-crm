@@ -490,7 +490,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.margin_amount)}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
-                    <dt className="text-gray-500">Risikobuffer ({result.calculation.price.risk_buffer_percentage}%)</dt>
+                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-risk-buffer-label">Risikobuffer ({result.calculation.price.risk_buffer_percentage}%)</dt>
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.risk_buffer_amount)}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">
