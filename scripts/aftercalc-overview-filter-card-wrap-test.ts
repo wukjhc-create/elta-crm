@@ -40,7 +40,7 @@ ok(view.includes('>Fra dato</span>'), 'fra-dato bliver')
 ok(view.includes('onChange={(e) => setFilter({ from: e.target.value || null })}'), 'fra-dato-handlingen bliver')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 ok(view.includes('data-testid="aftercalc-overview-toggle"'), 'sager-knappen bliver')
-ok(view.includes('<h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">'), 'sager-overskriften bliver')
+ok(view.includes('<h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 break-words min-w-0" data-testid="aftercalc-sager-heading">'), 'sager-overskriften kan krympe')
 const ids = [...view.matchAll(/data-testid="([^"]+)"/g)].map((m) => m[1])
 const collisions = [...new Set(ids)].filter((name) => {
   const q = `data-testid="${name}"`
