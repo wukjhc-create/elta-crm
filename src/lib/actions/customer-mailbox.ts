@@ -298,25 +298,36 @@ export async function getCustomerMailbox(
 /**
  * Get the full email body (HTML) for viewing
  */
-export async function getCustomerEmailBody(emailId: string): Promise<{
+export async function getCustomerEmailBody(emailId: string, customerId: string): Promise<{
   html: string | null
   text: string | null
 }> {
   const access = await mailAccess()
   if (!access.view) return { html: null, text: null }
+  if (!/^[0-9a-f-]{36}$/i.test(String(customerId ?? ''))) return { html: null, text: null }
   const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('incoming_emails')
-    .select('body_html, body_text, customer_id')
+    .select('body_html, body_text, customer_id, sender_email, original_sender_email, to_email')
     .eq('id', emailId)
     .maybeSingle()
 
   if (error || !data) {
     return { html: null, text: null }
   }
-  // D28: uden customers.edit kun mails koblet til en kunde (ikke vilkårlige mails i postkassen via id)
-  if (!access.edit && !(data as { customer_id?: string | null }).customer_id) return { html: null, text: null }
+  // PM3-7 (rettigheds-audit 2026-10-19): kun en mail der hører til DENNE kunde — før kunne salg (customers.edit) læse
+  // enhver mail i postkassen via id (fx leverandørmails med nettopriser). Samme regel som getCustomerMailbox: koblet til
+  // kunden, eller (med customers.edit) adresse-match mod kundens gemte e-mail.
+  const row = data as { customer_id?: string | null; sender_email?: string | null; original_sender_email?: string | null; to_email?: string | null }
+  if (row.customer_id !== customerId) {
+    if (!access.edit) return { html: null, text: null }
+    const { data: cust } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+    const addr = String((cust as { email?: string | null } | null)?.email ?? '').trim().toLowerCase()
+    const matches = !!addr && retroLinkable(addr) && [row.sender_email, row.original_sender_email, row.to_email]
+      .some((x) => String(x ?? '').toLowerCase().includes(addr))
+    if (!matches || row.customer_id) return { html: null, text: null } // koblet til en ANDEN kunde → aldrig
+  }
 
   return { html: data.body_html, text: data.body_text }
 }

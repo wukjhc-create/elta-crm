@@ -220,7 +220,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PM3-4 | getTodaysIntelligenceCounts (mailautomatik-tal) uden inbox.view (S3) | DONE (kode) — inbox.view i action + kortet kun med inbox.view (U193) |
 | PM3-5 | "Ny sag" i seneste aktivitet ignorerer sags-scope (S3) | DONE (kode) — sager i seneste aktivitet inden for sags-scope |
 | PM3-6 | getOfferActivities uden offers.view (S3) | DONE (kode) — getOfferActivities kræver offers.view |
-| PM3-7 | getCustomerEmailBody læser enhver mail via id uden kunde-tjek (S3) | TODO (+ BESLUTNING: kunder med leverandøradresse) |
+| PM3-7 | getCustomerEmailBody læser enhver mail via id uden kunde-tjek (S3) | DONE (kode, U200) — brødtekst kun for mail koblet til kunden eller adresse-match (customers.edit); aldrig en mail koblet til en anden kunde. Rest-BESLUTNING: kunder med leverandøradresse |
 | PM3-8 | Opgavemail: knap vist uden tasks.edit; montør kan maile vilkårlig adresse (S3) | TODO + BESLUTNING |
 | PM3-9 | Ugatede mail-læsninger: getLeadsForEmails, getGraphSyncState(s), mail-recipients.ts (S4) | DONE (kode) — inbox.view resp. customers.view + sags-scope |
 | PM3-10 | Lead-/tilbudseksport kun med view-ret (S3) | BESLUTNING — samme regel som kundeeksport? |
