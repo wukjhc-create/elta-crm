@@ -1457,7 +1457,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-723 | 8 Pilot | DONE. Tekstkolonnen i e-mail-match kan krympe. | Kun `<div className="flex-1 min-w-0">` i e-mail-match-kortet i mail-detaljen. Kolonnen i andre forslag røres ikke. |
 | G18-724 | 8 Pilot | DONE. Kobl-knappen i andre mailforslag kan krympe. | Kun knappen med `onLinkToCustomer?.(s.id)` i mail-detaljen. Knappen i e-mail-match røres ikke. Teksten `Kobl` er uændret. |
 | G18-725 | 8 Pilot | DONE. Kobl-knappen i e-mail-match kan krympe. | Kun knappen med `onLinkToCustomer?.(detectedCustomer.id)` i mail-detaljen. Knappen i andre forslag røres ikke. Teksten `Kobl` er uændret. |
-| G18-726 | 8 Pilot | ÅBEN. Sag-etiketten i sagsvælgeren kan krympe. | Kun `<span>` omkring `Sag:` i mail-detaljen. Teksten `Sag:` og sagslinket er uændrede. |
+| G18-726 | 8 Pilot | DONE. Sag-etiketten i sagsvælgeren kan krympe. | Kun `<span>` omkring `Sag:` i mail-detaljen. Teksten `Sag:` og sagslinket er uændrede. |
+| G18-727 | 8 Pilot | ÅBEN. Valget Ingen sag kan krympe. | Kun `<option value="">— Ingen sag —</option>` i mail-detaljen. Teksten er uændret. Sagsvælgerens `truncate` røres ikke. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
