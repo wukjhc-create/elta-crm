@@ -99,7 +99,7 @@ export default function ProductDetailClient({
             {product.description && (
               <div>
                 <span className="text-gray-500 block mb-1">Beskrivelse</span>
-                <p className="text-sm">{product.description}</p>
+                <p className="text-sm break-words min-w-0" data-testid="product-detail-description">{product.description}</p>
               </div>
             )}
           </CardContent>
