@@ -812,7 +812,7 @@ function SummaryCard({
 
   return (
     <div className="bg-white border rounded-lg p-4 break-words min-w-0" data-testid="ai-project-summary-card">
-      <div className={`w-10 h-10 rounded-lg ${colors[color]} flex items-center justify-center mb-3`}>
+      <div className={`w-10 h-10 rounded-lg break-words min-w-0 ${colors[color]} flex items-center justify-center mb-3`} data-testid="ai-project-summary-icon">
         {icon}
       </div>
       <div className="text-sm text-gray-500 break-words min-w-0" data-testid="ai-project-summary-label">{label}</div>
