@@ -665,7 +665,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
       {/* Recent Analyses History */}
       <div className="bg-white border rounded-lg p-6 mt-6 break-words min-w-0" data-testid="ai-project-history-section">
         <h2 className="text-lg font-semibold mb-4 flex flex-wrap items-center gap-2 break-words min-w-0" data-testid="ai-project-history-heading">
-          <Clock className="w-5 h-5 text-gray-500" />
+          <Clock className="w-5 h-5 text-gray-500 break-words min-w-0" data-testid="ai-project-history-clock" />
           Seneste analyser
         </h2>
         {loadingHistory ? (

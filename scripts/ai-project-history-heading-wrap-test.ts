@@ -18,7 +18,7 @@ ok(formatCurrency(1250).includes('1'), 'beløbsformatet bliver')
 const view = readFileSync('src/app/dashboard/ai-project/ai-project-client.tsx', 'utf8')
 const id = 'data-testid="ai-project-history-heading"'
 const at = view.indexOf(id)
-const row = at >= 0 ? view.slice(at - 120, at + 160) : ''
+const row = at >= 0 ? view.slice(at - 120, at + 240) : ''
 ok(row.includes('break-words min-w-0'), 'overskriften ombrydes')
 ok(row.includes('Seneste analyser'), 'teksten er uændret')
 ok(view.split('Seneste analyser').length === 2, 'teksten findes en gang')
