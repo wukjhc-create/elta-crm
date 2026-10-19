@@ -35,7 +35,7 @@ ok(!row.includes('getBuildingTypeName'), 'bygningstypen er et andet sted')
 ok(!row.includes('ai-project-building-list'), 'bygningslisten er et andet sted')
 ok(view.split(id).length === 2, 'størrelsesrækken findes en gang')
 ok(view.split(cell).length === 2, 'størrelsesrækkens klasse findes en gang')
-ok(view.split(bare).length === 2, 'de andre rækker bliver')
+ok(view.split(bare).length === 1, 'de andre rækker bliver')
 ok(view.includes("break-words\">{result.interpretation.building_size_m2 || 'Ukendt'} m²"), 'størrelsen bliver')
 ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-building-age-row">\r\n                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-building-age-label">'), 'aldersrækken kan krympe')
 

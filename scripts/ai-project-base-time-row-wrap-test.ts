@@ -35,7 +35,7 @@ ok(!row.includes('ai-project-time-list'), 'tidslisten er et andet sted')
 ok(!row.includes('Tidsberegning'), 'overskriften er et andet sted')
 ok(view.split(id).length === 2, 'basistidsrækken findes en gang')
 ok(view.split(cell).length === 2, 'basistidsrækkens klasse findes en gang')
-ok(view.split(bare).length === 2, 'de andre rækker bliver')
+ok(view.split(bare).length === 1, 'de andre rækker bliver')
 ok(view.includes('result.calculation.time.base_hours.toFixed(1)'), 'timetallet bliver')
 ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-time-complexity-row">\r\n                    <dt className="text-gray-500 min-w-0 break-words">Kompleksitetsfaktor</dt>'), 'kompleksitetsfaktorrækken kan krympe')
 

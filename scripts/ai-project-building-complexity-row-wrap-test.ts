@@ -37,9 +37,9 @@ ok(!row.includes('formatCurrency'), 'priserne er et andet sted')
 ok(!row.includes('ai-project-building-list'), 'bygningslisten er et andet sted')
 ok(view.split(id).length === 2, 'kompleksitetsrækken findes en gang')
 ok(view.split(cell).length === 2, 'kompleksitetsrækkens klasse findes en gang')
-ok(view.split(bare).length === 2, 'de andre rækker bliver')
+ok(view.split(bare).length === 1, 'de andre rækker bliver')
 ok(view.includes('break-words">{getComplexityLabel(result.interpretation.complexity_score)}'), 'kompleksiteten bliver')
-ok(view.includes('<div key={key} className="flex flex-wrap justify-between gap-x-3 min-w-0">\r\n                        <dt className="text-gray-500 min-w-0 break-words">{getPointTypeName(key)}</dt>'), 'elpunktrækken bliver bar')
+ok(view.includes('<div key={key} className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-point-row">\r\n                        <dt className="text-gray-500 min-w-0 break-words">{getPointTypeName(key)}</dt>'), 'elpunktrækken kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

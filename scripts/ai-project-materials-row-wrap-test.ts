@@ -33,7 +33,7 @@ ok(!row.includes('material_cost'), 'materialeprisen er et andet sted')
 ok(!row.includes('ai-project-price-list'), 'prislisten er et andet sted')
 ok(view.split(id).length === 2, 'materialerækken findes en gang')
 ok(view.split(cell).length === 2, 'materialerækkens klasse findes en gang')
-ok(view.split(bare).length === 2, 'de andre rækker bliver')
+ok(view.split(bare).length === 1, 'de andre rækker bliver')
 ok(view.includes('break-words">{formatCurrency(result.calculation.price.material_cost)}'), 'materialeprisen bliver')
 ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-labor-row">\r\n                    <dt className="text-gray-500 min-w-0 break-words">Arbejdsløn ({result.calculation.time.total_hours.toFixed(1)}t × {result.calculation.price.hourly_rate} kr)</dt>'), 'arbejdslønrækken kan krympe')
 

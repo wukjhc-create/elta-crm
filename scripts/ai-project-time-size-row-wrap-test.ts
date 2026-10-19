@@ -37,7 +37,7 @@ ok(view.split(id).length === 2, 'størrelsesfaktorrækken findes en gang')
 ok(view.split('data-testid="ai-project-size-factor-label"').length === 2, 'etiketten findes en gang')
 ok(view.split('data-testid="ai-project-size-multiplier"').length === 2, 'faktorværdien findes en gang')
 ok(view.split(cell).length === 2, 'størrelsesfaktorrækkens klasse findes en gang')
-ok(view.split(bare).length === 2, 'de andre rækker bliver')
+ok(view.split(bare).length === 1, 'de andre rækker bliver')
 ok(view.includes('data-testid="ai-project-size-multiplier">×{result.calculation.time.size_multiplier}'), 'faktoren bliver')
 ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-time-access-row">\r\n                    <dt className="text-gray-500 min-w-0 break-words">Tilgængelighedsfaktor</dt>'), 'tilgængelighedsfaktorrækken kan krympe')
 

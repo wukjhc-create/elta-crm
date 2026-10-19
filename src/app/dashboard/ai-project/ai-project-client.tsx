@@ -440,7 +440,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-points-list">
                   {Object.entries(result.interpretation.electrical_points).map(([key, value]) => (
                     value ? (
-                      <div key={key} className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                      <div key={key} className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-point-row">
                         <dt className="text-gray-500 min-w-0 break-words">{getPointTypeName(key)}</dt>
                         <dd className="font-medium break-words min-w-0" data-testid="ai-project-point-count">{value} stk</dd>
                       </div>
