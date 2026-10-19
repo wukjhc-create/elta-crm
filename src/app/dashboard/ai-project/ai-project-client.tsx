@@ -688,7 +688,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             Ingen tidligere analyser endnu. Kør en analyse ovenfor, så den kan ses her.
           </p>
         ) : recentAnalyses.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-2 break-words min-w-0" data-testid="ai-project-history-list">
             {recentAnalyses.map((analysis) => (
               <div
                 key={analysis.id}

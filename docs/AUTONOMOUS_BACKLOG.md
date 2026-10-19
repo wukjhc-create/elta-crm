@@ -1194,13 +1194,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-455 | 8 Pilot | DONE. Kundevælgerens hoved kan krympe. | Teksten `Vælg kunde` og `aria-label="Luk"` er uændrede. Kun rækken i AI-projekt. |
 | G18-456 | 8 Pilot | DONE. Kundevælgerens bund kan krympe. | Knappen `Annuller` er uændret. Kun rækken. |
 | G18-457 | 8 Pilot | DONE. Historikkens indlæsning kan krympe. | Den tomme sætning er uændret. Kun pulsen i AI-projekt. |
-| G18-458 | 8 Pilot | ÅBEN. Historikkens liste kan krympe. | Beskrivelsen forbliver to linjer. `formatCurrency(analysis.total_price)` er uændret. Kun listen. |
+| G18-458 | 8 Pilot | DONE. Historikkens liste kan krympe. | Beskrivelsen forbliver to linjer. `formatCurrency(analysis.total_price)` er uændret. Kun listen. |
 | G18-459 | 8 Pilot | ÅBEN. Eksempelgitteret i AI-projekt kan krympe. | Titel og tekst ombrydes som før. Kun gitteret. |
 | G18-460 | 8 Pilot | ÅBEN. Kundevælgerens baggrund kan krympe. | Panelet kan stadig rulles. Kun baggrunden i AI-projekt. |
 | G18-461 | 8 Pilot | ÅBEN. Historikafsnittet kan krympe. | Overskriften og den tomme sætning er uændrede. Kun rammen. |
 | G18-462 | 8 Pilot | ÅBEN. Eksempelafsnittet i AI-projekt kan krympe. | Overskrift, titel og tekst ombrydes som før. Kun rammen. |
 | G18-463 | 8 Pilot | ÅBEN. Kundevælgerens panel kan krympe. | `max-h-[90vh]` og rulning er uændret. Kun panelet. |
 | G18-464 | 8 Pilot | ÅBEN. AI-projektets side kan krympe. | Kun den ydre ramme `p-6 max-w-6xl mx-auto`. Indholdet er uændret. |
+| G18-465 | 8 Pilot | ÅBEN. Hurtig estimat kan krympe. | `formatCurrency(quickResult.estimatedPrice)` er uændret. Kun boksen `mt-4 p-4 bg-purple-50 rounded-lg`. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
