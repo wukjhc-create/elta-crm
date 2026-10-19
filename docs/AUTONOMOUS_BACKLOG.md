@@ -257,7 +257,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LG-6 | Uredigerede adresser/IP i logs (portal, invoices, document-confirmations) (S3) | DONE — redactEmail i portal/fakturaer/bekræftelser; ip fjernet |
 | LG-7 | email-intelligence logger navn/telefon og DUPLICATE_EMAIL med fuld mail (S3) | DONE — kun fejlkode + flag |
 | LG-8 | logMailRoute genindsætter modtagere via meta (S3) | DONE — meta-whitelist (id/tællere/flag) i logMailRoute |
-| LG-9 | Timegodkendelse: delvis commit uden audit/revalidate ved fejl midt i (S3) | TODO |
+| LG-9 | Timegodkendelse: delvis commit uden audit/revalidate ved fejl midt i (S3) | DONE (kode) — fejlede rækker tælles; gemte rækker får altid audit + revalidate; brugeren får "X gemt, Y fejlede" (U62/U72) |
 | LG-10 | updateCustomer kopierer personfelter til audit_logs som falsk diff (S3) | DONE (kode, U203) — forrige række hentes; kun ægte ændringer logges; personfelter som [ændret] uden værdier; intet log-indslag uden ændring |
 | LG-11 | email-autolink: mailemne som entity_name i audit (S4) | DONE (kode) — entity_name = 'Indgående mail' (mailen findes via entity_id) |
 | LG-12 | Integrations-webhook gemmer hele payloaden (op til 1 MB) pr. kald (S4) | DONE (kode) — integration_logs.request_body = resumé (routing-felter afkortet, topnøgler, størrelse); harness integration-webhook-check +1 |
@@ -295,7 +295,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | RC-4 | Første udsendelse af et tilbud kan maile kunden to gange (to tråde) (S3) | DONE (kode) — dubletværnet ser på alle tilbuddets tråde (genlæst efter indsættelse) (U14/U42/U60). Unikt indeks på email_threads.offer_id = valgfri migration |
 | RC-5 | Overlap-tjek på timer er læs-så-skriv (S4) | = TT-5 (forslag 00253) |
 | RC-6 | Tilbage til kladde kan race med konvertering til sag (S4) | DONE (kode) — tilbage til kladde kræver converted_case_id IS NULL i compare-and-set |
-| RC-7 | Kunde fra mail kan oprettes dobbelt (S4) | TODO |
+| RC-7 | Kunde fra mail kan oprettes dobbelt (S4) | DONE (kode, samtidighed ikke e2e-testet) — genkontrol efter oprettelse: findes en ældre kunde med samme mail, fjernes den netop oprettede (egen, < 5 min, endnu uden lead/kobling) og mailen kobles til den ældste (U129/U133/U10 regression) |
 | RC-8 | Start af aflevering kan nulstille et netop afkrydset punkt (S4) | DONE (kode) — start med compare-and-set på updated_at |
 | RC-9 | Redigering af agentudkast under udførelse sender den gamle tekst (S4) | DONE (kode) — saveDraftAction kun i ikke-udførte statusser (CAS); executor genlæser payload efter claim (agent-actions/gating/send-producer) |
 | DL-1 | Sletning af gammel besigtigelse ("other") sletter kundens underskrevne bekræftelser (CASCADE) (S2) | DELVIS (kode) — besigtigelse gemt som "other" er beskyttet; dokument med bekræftelser kan ikke slettes (document-deletable-test). FK RESTRICT = BLOCKED_APPROVAL [MIGRATION] (forslag 00259) |

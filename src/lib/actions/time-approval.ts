@@ -191,13 +191,18 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
     q = v.work_order_id === null ? q.is('work_order_id', null) : q.eq('work_order_id', v.work_order_id)
     return q.select('id')
   }
+  // LG-9 (log-review 2026-10-19): en fejl midt i stopper ikke længere før audit/revalidate — de rækker der ER gemt
+  // (tidligere bidder) får deres audit-række og siden opdateres; brugeren får antal gemt/fejlet
   const upd: Array<{ id: string }> = []
+  let failed = 0
   for (let k = 0; k < eligible.length; k += 20) {
-    const results = await Promise.all(eligible.slice(k, k + 20).map(updateOne))
+    const chunk = eligible.slice(k, k + 20)
+    const results = await Promise.all(chunk.map((v) => updateOne(v).then((r) => r, (e: unknown) => ({ data: null, error: e }))))
     for (const { data, error } of results) {
       if (error) {
+        failed++
         logger.error('time approval update failed', { error })
-        return { success: false, error: 'Kunne ikke gemme godkendelsen' }
+        continue
       }
       upd.push(...((data ?? []) as Array<{ id: string }>))
     }
@@ -211,6 +216,11 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
     })
   }
   revalidatePath('/dashboard/time-approval')
+  if (failed > 0) {
+    return { success: false, error: upd.length
+      ? `${upd.length} registrering(er) blev gemt, men ${failed} kunne ikke gemmes — prøv igen for de resterende`
+      : 'Kunne ikke gemme godkendelsen' }
+  }
   // T-1: rækker ændret/faktureret mellem læsning og skrivning tæller som sprunget over
   reasons.changed += eligible.length - upd.length
   return { success: true, data: { updated: upd.length, skipped: skipped + (eligible.length - upd.length), reasons } }

@@ -847,7 +847,8 @@ export async function createCustomerFromEmail(
     .limit(1)
     .maybeSingle()
 
-  if (existingCustomer) {
+  // RC-7: fælles sti for "kunden findes allerede" (også når en samtidig oprettelse vandt kapløbet, se nedenfor)
+  const linkToExisting = async (existingCustomer: { id: string; company_name: string }) => {
     // Link the email to existing customer
     // T-4 (review 2026-10-16): kun en mail uden kunde (eller allerede denne kunde) — før blev en mail koblet til en
     // anden kunde overskrevet; fejl/0 rækker meldes (før altid succes); linked_at sættes
@@ -871,6 +872,7 @@ export async function createCustomerFromEmail(
     revalidatePath('/dashboard/customers')
     return { success: true, customerId: existingCustomer.id, isExisting: true, customerName: existingCustomer.company_name }
   }
+  if (existingCustomer) return linkToExisting(existingCustomer)
 
   // 5+6. Opret kunde med kundenummer + genforsøg ved samtidig oprettelse (kunde-/leads-review 2026-10-07: egen
   //      nummergenerator uden retry → 23505 og rå DB-fejl, når to brugere/synken oprettede samtidig)
@@ -890,6 +892,22 @@ export async function createCustomerFromEmail(
   if (customerError || !newCustomer) {
     logger.error('Failed to create customer from email', { error: customerError })
     return { success: false, error: 'Kunne ikke oprette kunden — prøv igen' }
+  }
+
+  // RC-7 (race-review 2026-10-18): to samtidige "Opret kunde" (dobbeltklik / to brugere) så begge "ingen kunde" og
+  // oprettede to. Genkontrol efter oprettelsen: findes en ÆLDRE kunde med samme mail, fjernes vores netop oprettede
+  // (endnu uden lead/kobling) og mailen kobles til den ældste — begge kald ender på samme kunde.
+  {
+    const { data: same } = await supabase.from('customers').select('id, company_name, created_at')
+      .ilike('email', escapeLike(senderEmail)).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(2)
+    const rows = (same ?? []) as Array<{ id: string; company_name: string }>
+    if (rows.length > 1 && rows[0].id !== newCustomer.id) {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const { error: delErr } = await createAdminClient().from('customers').delete()
+        .eq('id', newCustomer.id).eq('created_by', userId).gte('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
+      if (delErr) logger.warn('createCustomerFromEmail: dublet kunne ikke fjernes', { entityId: newCustomer.id, error: delErr })
+      else return linkToExisting(rows[0])
+    }
   }
 
   // 7. Create lead with full email context
