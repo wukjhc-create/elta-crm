@@ -512,7 +512,7 @@ export function OfferTextsClient({ initialTemplates, loadError = null }: OfferTe
                       <p className="text-sm text-gray-600 mt-2 break-words min-w-0" data-testid="offer-text-content">{template.content}</p>
                       {template.conditions && (
                         <div className="mt-2">
-                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 break-words min-w-0 max-w-full" data-testid="offer-text-conditions">
                             Betingelser: {JSON.stringify(template.conditions)}
                           </Badge>
                         </div>
