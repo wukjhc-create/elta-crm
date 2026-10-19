@@ -112,7 +112,7 @@ export function PricingDashboardClient() {
   }, [activeTab, loadTabData])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0" data-testid="pricing-page">
       {/* Summary Cards */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 min-w-0" data-testid="pricing-summary-grid">
