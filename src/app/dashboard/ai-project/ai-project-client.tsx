@@ -417,7 +417,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               <div className="break-words min-w-0" data-testid="ai-project-building-column">
                 <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-building-heading">Bygningsinformation</h4>
                 <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-building-list">
-                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-building-type-row">
                     <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-building-type-label">Type</dt>
                     <dd className="font-medium min-w-0 break-words">{getBuildingTypeName(result.interpretation.building_type)}</dd>
                   </div>
