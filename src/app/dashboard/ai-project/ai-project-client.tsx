@@ -482,7 +482,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.labor_cost)}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2">
-                    <dt className="text-gray-500">Subtotal</dt>
+                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-subtotal-label">Subtotal</dt>
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.subtotal)}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
