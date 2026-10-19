@@ -234,7 +234,7 @@ export function SupplierProductsTable({
                   </Badge>
                 </div>
                 {product.category && (
-                  <Badge variant="secondary" className="text-xs">{product.category}</Badge>
+                  <Badge variant="secondary" className="text-xs break-words min-w-0 max-w-full" data-testid="supplier-product-mobile-category">{product.category}</Badge>
                 )}
                 <dl className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                   <div>
