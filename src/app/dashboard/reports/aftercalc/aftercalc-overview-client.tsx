@@ -183,7 +183,7 @@ export function AftercalcOverviewClient() {
                   </div>
                 ) : (
                   <>
-                  <div className="md:hidden space-y-2" data-testid="aftercalc-overview-mobile">
+                  <div className="md:hidden space-y-2 break-words min-w-0" data-testid="aftercalc-overview-mobile">
                     {data.rows.map((r) => (
                       <article key={r.case_id} className="rounded-lg ring-1 ring-gray-200 p-3">
                         <div className="flex items-start justify-between gap-2">
