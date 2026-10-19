@@ -263,11 +263,11 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
                 <p className="font-medium text-gray-900 break-words">{alert.product_name}</p>
                 <p className="text-xs text-gray-400 break-all">{alert.supplier_sku}</p>
               </div>
-              <span className={`min-w-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+              <span className={`break-words min-w-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                 severity === 'critical' ? 'bg-red-100 text-red-700'
                   : severity === 'warning' ? 'bg-amber-100 text-amber-700'
                   : 'bg-blue-100 text-blue-700'
-              }`}>
+              }`} data-testid="pricing-alert-severity-mobile">
                 {isIncrease ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 <span className="break-words min-w-0" data-testid="pricing-alert-change-mobile">{isIncrease ? '+' : ''}{alert.change_percentage.toFixed(1)}%</span>
               </span>

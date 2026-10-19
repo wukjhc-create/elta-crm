@@ -973,7 +973,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-254 | 4 Pris | DONE. Etiketten Listepris på produktdetaljen ombrydes. | Ordet og formatCurrency(product.list_price) er uændrede. |
 | G18-260 | 4 Pris | DONE. Leverandørvælgeren på pristendenser ombrydes. | Værdien og teksten Vælg leverandør er uændrede. |
 | G18-266 | 4 Pris | DONE. Produktcellen på prisadvarslens skrivebord ombrydes. | Navnet og priserne er uændrede. |
-| G18-272 | 4 Pris | ÅBEN. Alvorligheds-mærket på prisadvarslens mobilkort ombrydes. | Procenten er uændret. |
+| G18-272 | 4 Pris | DONE. Alvorligheds-mærket på prisadvarslens mobilkort ombrydes. | Procenten er uændret. |
 | G18-219 | 4 Pris | DONE. Kategori-vælgerens etiket ombrydes. | aria-label Kategori er uændret. |
 | G18-225 | 4 Pris | DONE. Etiketten Enhed i produktformularen ombrydes. | Ordet er uændret. |
 | G18-231 | 4 Pris | DONE. Etiketten Kostpris i produktformularen ombrydes. | Ordene og feltets værdi er uændrede. |
@@ -1014,6 +1014,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-264 | 4 Pris | DONE. 90-dages-cellen på pristendensens skrivebord ombrydes. | Procenten er uændret. |
 | G18-270 | 4 Pris | DONE. Volatilitets-cellen på pristendensens skrivebord ombrydes. | Etiketten er uændret. |
 | G18-276 | 4 Pris | ÅBEN. Kundecellen på berørte tilbud kan krympe. | Navnet er uændret. |
+| G18-278 | 4 Pris | ÅBEN. Ændringscellen på prisadvarslens skrivebord ombrydes. | Procenten er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
