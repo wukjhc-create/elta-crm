@@ -34,7 +34,7 @@ ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'
 ok(view.includes('data-testid="mail-gallery-caption-bar"'), 'bjælken bliver')
 ok(view.includes('data-testid="mail-gallery-size"'), 'billedteksten bliver')
 ok(view.includes('data-testid="mail-gallery-image-button"'), 'billedknappen bliver')
-ok(view.includes('className="group flex items-start gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors"'), 'fillinket bliver')
+ok(view.includes('className="group flex items-start gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors break-words min-w-0" data-testid="mail-file-link"'), 'fillinket bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
