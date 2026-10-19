@@ -21,8 +21,8 @@ ok(row.includes('<SelectTrigger className="break-words min-w-0">'), 'vaelgeren o
 ok(row.includes('placeholder="Vælg kategori"'), 'pladsholderen er uændret')
 ok(view.includes("defaultValue={product?.category_id || ''}"), 'kategorien bliver')
 const unitAt = view.indexOf("defaultValue={product?.unit || 'stk'}")
-const unitRow = unitAt >= 0 ? view.slice(unitAt, unitAt + 160) : ''
-ok(unitRow.includes('<SelectTrigger>') && !unitRow.includes('<SelectTrigger className'), 'enhedsvælgeren venter')
+const unitRow = unitAt >= 0 ? view.slice(unitAt, unitAt + 240) : ''
+ok(unitRow.includes('<SelectTrigger className="break-words min-w-0">'), 'enhedsvælgeren ombrydes')
 ok(view.includes("defaultValue={product?.list_price || ''}"), 'listeprisen bliver')
 ok(view.includes("defaultValue={product?.cost_price || ''}"), 'kostprisen bliver')
 ok(!view.includes('truncate'), 'formularen klipper ikke')
