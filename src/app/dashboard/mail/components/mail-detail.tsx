@@ -564,7 +564,7 @@ export function MailDetail({
           </div>
           {replyMsg && (
             <div className="space-y-1 break-words min-w-0" data-testid="mail-reply-stack">
-              <p className={`text-xs ${replyMsg.startsWith('Fejl') || replyMsg.startsWith('Manglende') ? 'text-red-600' : 'text-green-600 font-medium'}`}>
+              <p className={`text-xs ${replyMsg.startsWith('Fejl') || replyMsg.startsWith('Manglende') ? 'text-red-600' : 'text-green-600 font-medium'} break-words min-w-0`} data-testid="mail-reply-msg">
                 {replyMsg}
               </p>
               {graphDiag && (
