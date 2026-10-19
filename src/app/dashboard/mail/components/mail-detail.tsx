@@ -922,7 +922,7 @@ function EmailCasePicker({
           </a>
         </span>
       ) : hasNoCases ? (
-        <span className="text-amber-700">
+        <span className="text-amber-700 break-words min-w-0" data-testid="mail-no-cases">
           Kunden har ingen sager endnu — brug <strong>&quot;Opret sag&quot;</strong>-knappen nedenfor for at oprette en
         </span>
       ) : casesError && cases.length === 0 ? (
