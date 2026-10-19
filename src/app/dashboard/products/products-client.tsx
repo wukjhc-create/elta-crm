@@ -190,7 +190,7 @@ export default function ProductsClient({
             <SelectValue placeholder="Alle kategorier" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Alle kategorier</SelectItem>
+            <SelectItem value="all"><span className="break-words min-w-0" data-testid="product-category-all">Alle kategorier</span></SelectItem>
             {categories.map((category) => (
               <SelectItem key={category.id} value={category.id}>
                 {category.name}
