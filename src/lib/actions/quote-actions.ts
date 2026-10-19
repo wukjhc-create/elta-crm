@@ -14,6 +14,7 @@ async function requireGate(permission: Permission) {
   return ctx
 }
 import { generateAndSendQuote } from '@/lib/services/quote-generator'
+import { validateQuoteInput } from '@/lib/quotes/validate-quote-input'
 import type { ActionResult } from '@/types/common.types'
 import type {
   GenerateQuoteInput,
@@ -133,18 +134,11 @@ export async function sendQuoteAction(
   try {
     const { userId } = await requireGate('offers.send')
 
-    // Validate required fields
-    if (!input.customer.email) {
-      return { success: false, error: 'Kunde-email er påkrævet' }
-    }
-    if (!input.title) {
-      return { success: false, error: 'Titel er påkrævet' }
-    }
-    if (input.lineItems.length === 0) {
-      return { success: false, error: 'Mindst én tilbudslinje er påkrævet' }
-    }
-    if (!input.senderName) {
-      return { success: false, error: 'Afsendernavn er påkrævet' }
+    // IV2-2 (inputvaliderings-review 2026-10-18): fuld serverside-validering — før kun tilstedeværelse af felterne
+    const invalid = validateQuoteInput(input)
+    if (invalid) return { success: false, error: invalid }
+    if (incomingEmailId != null && !/^[0-9a-f-]{36}$/i.test(String(incomingEmailId))) {
+      return { success: false, error: 'Ugyldigt mail-id' }
     }
 
     const result = await generateAndSendQuote(input, userId, incomingEmailId)

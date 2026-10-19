@@ -12,6 +12,7 @@
  */
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { randomUUID } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { GenerateQuoteInput, GenerateQuoteResult } from '@/types/quote-templates.types'
 import { getCompanySettings } from '@/lib/actions/settings'
@@ -143,13 +144,15 @@ export async function generateAndSendQuote(
 
     // 6. Upload to Supabase Storage
     const year = new Date().getFullYear()
-    const storagePath = `quotes/${year}/${quoteReference}.pdf`
+    // IV2-2: unik sti pr. afsendelse og ALDRIG upsert — to samtidige afsendelser kan få samme reference (læs-max+1), og
+    // den anden overskrev før den første kundes PDF (som første kundes mail-link så pegede på)
+    const storagePath = `quotes/${year}/${quoteReference}-${randomUUID().slice(0, 8)}.pdf`
 
     const { error: uploadError } = await supabase.storage
       .from('attachments')
       .upload(storagePath, pdfBuffer, {
         contentType: 'application/pdf',
-        upsert: true,
+        upsert: false,
       })
 
     if (uploadError) {

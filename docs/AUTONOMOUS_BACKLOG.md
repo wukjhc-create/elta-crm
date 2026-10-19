@@ -268,7 +268,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | # | Fund | Status |
 |---|---|---|
 | IV2-1 | Tilbud med moms 0 % men momsmode standard_25 → faktura lægger 25 % på, som kunden ikke har underskrevet (S2) | DONE (kode) — tilbuddets sats skal være 25 % også ved mode standard_25 (vat-guard V12; billing-model, contract-final, invoice-pipeline, U15/U29/U162). Fri % på tilbud = BESLUTNING |
-| IV2-2 | sendQuoteAction uden validering; samtidige afsendelser kan overskrive en anden kundes PDF (samme ref + upsert) (S2) | TODO |
+| IV2-2 | sendQuoteAction uden validering; samtidige afsendelser kan overskrive en anden kundes PDF (samme ref + upsert) (S2) | DONE (kode) — validateQuoteInput (skabelon, email, kunde-id, længder, endelige tal med lofter, total > 0, gyldighed 1–365, moms/rabat 0–100; quote-input-validation-test 29); PDF-sti unik pr. afsendelse uden upsert (ingen overskrivning af en anden kundes PDF). Rest: dobbelt reference ved samtidig afsendelse giver fortsat fejlet sent_quotes-log (UNIQUE) — reservation via nextval_quote_ref = evt. senere |
 | IV2-3 | Tilbudslinjens image_url hentes af PDF-renderen (SSRF/lokal fil/hængning) (S3) | TODO |
 | IV2-4 | Sag opret/ret uden server-skema; vilkårlige kolonner (source_offer_id, status=closed, contract_sum for salg) (S3) | TODO |
 | IV2-5 | Standardfaktura kan sendes med total ≤ 0 (S3) | DONE (kode) — sendInvoiceEmail afviser ikke-kreditfaktura med total ≤ 0 før kravet (invoice-send-claim-check +2, U15/U29/U31/U32/U33) |
