@@ -1,5 +1,5 @@
 /**
- * Elpunktlisten kan krympe. Bygningslisten, prislisten og tidslisten bliver.
+ * Elpunktlisten kan krympe. Bygningslisten og tidslisten bliver. Prislisten kan krympe.
  *   npx tsx scripts/ai-project-points-list-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -35,8 +35,8 @@ ok(!row.includes('ai-project-building-list'), 'bygningslisten er et andet sted')
 ok(!row.includes('ai-project-time-list'), 'tidslisten er et andet sted')
 ok(view.split(id).length === 2, 'elpunktlisten findes en gang')
 ok(view.split(cell).length === 2, 'elpunktlistens klasse findes en gang')
-ok(view.split(bare).length === 2, 'en anden liste bliver')
-ok(view.includes('<h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-price-heading">Prisopbygning</h4>\r\n                <dl className="space-y-2 text-sm">'), 'prislisten bliver bar')
+ok(view.split(bare).length === 1, 'ingen bar liste bliver')
+ok(view.includes('<h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-price-heading">Prisopbygning</h4>\r\n                <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-price-list">'), 'prislisten kan krympe')
 ok(view.includes('className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-building-list"'), 'bygningslisten bliver')
 ok(view.includes('className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-time-list"'), 'tidslisten bliver')
 ok(view.includes('break-words">{getPointTypeName(key)}'), 'punktnavnet bliver')

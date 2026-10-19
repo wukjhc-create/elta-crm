@@ -1,5 +1,5 @@
 /**
- * Bygningsinformationens liste kan krympe. Prislisten bliver bar. Elpunktlisten og tidslisten bliver.
+ * Bygningsinformationens liste kan krympe. Prislisten kan krympe. Elpunktlisten og tidslisten bliver.
  *   npx tsx scripts/ai-project-building-list-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -33,9 +33,9 @@ ok(!row.includes('getBuildingTypeName'), 'bygningstypen er et andet sted')
 ok(!row.includes('ai-project-time-list'), 'tidslisten er et andet sted')
 ok(view.split(id).length === 2, 'bygningslisten findes en gang')
 ok(view.split(cell).length === 2, 'bygningslistens klasse findes en gang')
-ok(view.split(bare).length === 2, 'en anden liste bliver')
+ok(view.split(bare).length === 1, 'ingen bar liste bliver')
 ok(view.includes('<h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-points-heading">Elpunkter</h4>\r\n                <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-points-list">'), 'elpunktlisten kan krympe')
-ok(view.includes('<h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-price-heading">Prisopbygning</h4>\r\n                <dl className="space-y-2 text-sm">'), 'prislisten bliver bar')
+ok(view.includes('<h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-price-heading">Prisopbygning</h4>\r\n                <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-price-list">'), 'prislisten kan krympe')
 ok(view.includes('className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-time-list"'), 'tidslisten bliver')
 ok(view.includes('break-words">{getBuildingTypeName(result.interpretation.building_type)}'), 'bygningstypen bliver')
 
