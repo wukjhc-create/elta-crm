@@ -182,7 +182,7 @@ export function SuppliersList() {
                   <p className="text-sm text-gray-500 break-all">{supplier.contact_email}</p>
                 )}
                 {supplier.notes && (
-                  <p className="text-sm text-gray-400 line-clamp-2">{supplier.notes}</p>
+                  <p className="text-sm text-gray-400 break-words min-w-0" data-testid="supplier-card-notes">{supplier.notes}</p>
                 )}
               </div>
 
