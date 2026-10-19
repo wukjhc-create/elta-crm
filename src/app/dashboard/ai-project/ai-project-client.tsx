@@ -546,7 +546,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               </ul>
               <div className="hidden md:block border rounded-lg overflow-hidden break-words min-w-0" data-testid="ai-project-components-frame">
                 <table className="w-full text-sm break-words min-w-0" data-testid="ai-project-components-table">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 break-words min-w-0" data-testid="ai-project-components-head">
                     <tr>
                       <th className="text-left p-3 break-words min-w-0" data-testid="ai-project-component-col">Komponent</th>
                       <th className="text-right p-3 break-words min-w-0" data-testid="ai-project-antal-col">Antal</th>
