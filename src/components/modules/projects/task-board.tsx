@@ -123,7 +123,7 @@ function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps) {
       </div>
 
       {task.assigned_to_profile && (
-        <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-1 mt-2 text-xs text-muted-foreground break-words min-w-0" data-testid="task-board-assignee">
           <User className="w-3 h-3" />
           {task.assigned_to_profile.full_name || task.assigned_to_profile.email}
         </div>
