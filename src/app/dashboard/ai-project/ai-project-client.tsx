@@ -878,7 +878,7 @@ function RiskCard({ risk }: { risk: RiskFactor }) {
       <div className="flex items-start gap-3 break-words min-w-0" data-testid="ai-project-risk-row">
         {severityIcons[risk.severity]}
         <div className="flex-1">
-          <div className="font-medium">{risk.title}</div>
+          <div className="font-medium break-words min-w-0" data-testid="ai-project-risk-title">{risk.title}</div>
           <div className="text-sm text-gray-600 mt-1 break-words min-w-0" data-testid="ai-project-risk-description">{risk.description}</div>
           {risk.recommendation && (
             <div className="text-sm text-gray-500 mt-2 italic break-words min-w-0" data-testid="ai-project-risk-recommendation">

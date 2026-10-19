@@ -31,7 +31,7 @@ ok(view.split(id).length === 2, 'beskrivelsen findes en gang')
 ok(view.split(cell).length === 2, 'beskrivelsesklassen findes en gang')
 ok(view.split('{risk.description}').length === 2, 'teksten bliver')
 ok(!view.includes('className="text-sm text-gray-600 mt-1"'), 'den bare beskrivelse er vaek')
-ok(view.includes('className="font-medium">{risk.title}</div>'), 'titlen bliver')
+ok(view.includes('className="font-medium break-words min-w-0" data-testid="ai-project-risk-title">{risk.title}</div>'), 'titlen bliver')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 
 if (bad > 0) {

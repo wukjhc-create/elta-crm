@@ -29,7 +29,7 @@ ok(!row.includes('ai-project-risk-buffer-label'), 'bufferen er et andet sted')
 ok(view.split(id).length === 2, 'raekken findes en gang')
 ok(view.split(cell).length === 2, 'raekkeklassen findes en gang')
 ok(!view.includes('className="flex items-start gap-3"'), 'den bare raekke er vaek')
-ok(view.includes('className="font-medium">{risk.title}</div>'), 'titlen bliver')
+ok(view.includes('className="font-medium break-words min-w-0" data-testid="ai-project-risk-title">{risk.title}</div>'), 'titlen bliver')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 ok(view.includes('data-testid="ai-project-risks-list"'), 'listen bliver')
 
