@@ -255,7 +255,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           <div className="mt-3 rounded-lg border border-dashed p-3 break-words min-w-0" data-testid="charger-picker">
             <label className="block text-sm font-medium mb-1 break-words min-w-0" data-testid="ai-project-charger-label">Ladestander (kun hvis opgaven indeholder en elbillader)</label>
             {charger ? (
-              <div className="flex items-center justify-between gap-2 text-sm">
+              <div className="flex items-center justify-between gap-2 text-sm break-words min-w-0" data-testid="ai-project-charger-selected-row">
                 <span className="break-words min-w-0" data-testid="ai-project-charger-selected">{charger.name}{charger.sku ? ` · ${charger.sku}` : ''}{charger.supplier ? ` · ${charger.supplier}` : ''} — kost {formatCurrency(charger.cost_price)}{charger.available ? '' : ' (ikke tilgængelig)'}</span>
                 <button type="button" className="text-red-600 hover:underline break-words min-w-0" data-testid="ai-project-charger-remove" onClick={() => setCharger(null)}>Fjern</button>
               </div>
