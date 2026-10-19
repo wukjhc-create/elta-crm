@@ -550,7 +550,7 @@ function TrendsTab({
         <>
         <ul className="md:hidden space-y-2" data-testid="price-trends-mobile">
           {trends.map((trend) => (
-            <li key={trend.supplier_product_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">
+            <li key={trend.supplier_product_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm min-w-0" data-testid="pricing-trend-card-mobile">
               <p className="font-medium text-gray-900 break-words min-w-0" data-testid="pricing-trend-product-mobile">{trend.product_name}</p>
               <p className="mt-1 tabular-nums font-medium break-words min-w-0" data-testid="pricing-trend-price-mobile">{formatCurrency(trend.current_price)}</p>
               <p className="mt-1 text-xs break-words min-w-0" data-testid="pricing-trend-label-30-mobile">

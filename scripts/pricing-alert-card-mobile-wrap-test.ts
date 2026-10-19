@@ -22,7 +22,7 @@ ok(row.includes('{alert.product_name}'), 'navnet er uændret')
 ok(row.includes("{isIncrease ? '+' : ''}{alert.change_percentage.toFixed(1)}%"), 'procenten er uændret')
 ok(row.includes('formatCurrency(alert.old_price)'), 'gammel pris er uændret')
 ok(view.includes('<li key={offer.offer_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm min-w-0" data-testid="pricing-offer-card-mobile">'), 'tilbudskortet kan krympe')
-ok(view.includes('<li key={trend.supplier_product_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">'), 'trendkortet er uændret')
+ok(view.includes('<li key={trend.supplier_product_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm min-w-0" data-testid="pricing-trend-card-mobile">'), 'trendkortet kan krympe')
 ok(view.includes('formatCurrency(alert.new_price)'), 'ny pris bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 

@@ -22,7 +22,7 @@ ok(row.includes('href={`/dashboard/offers/${offer.offer_id}`}'), 'linket er uæn
 ok(row.includes('{offer.offer_number}'), 'nummeret er uændret')
 ok(row.includes('{formatCurrency(offer.total_amount)}'), 'beløbet er uændret')
 ok(view.includes('text-right font-medium">{formatCurrency(offer.total_amount)}'), 'skrivebordets beløb bliver')
-ok(view.includes('<li key={trend.supplier_product_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm">'), 'trendkortet er uændret')
+ok(view.includes('<li key={trend.supplier_product_id} className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-sm min-w-0" data-testid="pricing-trend-card-mobile">'), 'trendkortet kan krympe')
 ok(view.split('{offer.offer_number}').length - 1 === 2, 'to numre')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
