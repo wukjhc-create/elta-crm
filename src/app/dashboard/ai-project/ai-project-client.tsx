@@ -720,7 +720,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <Users className="w-5 h-5 text-purple-500 shrink-0" />
                 <h2 className="font-semibold break-words min-w-0">Vælg kunde</h2>
               </div>
-              <button onClick={() => setShowCustomerModal(false)} className="text-gray-400 hover:text-gray-600 shrink-0" aria-label="Luk">
+              <button onClick={() => setShowCustomerModal(false)} className="text-gray-400 hover:text-gray-600 shrink-0 break-words min-w-0" data-testid="ai-project-customer-close" aria-label="Luk">
                 <X className="w-5 h-5" />
               </button>
             </div>
