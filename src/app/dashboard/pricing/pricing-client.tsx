@@ -253,7 +253,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
   return (
     <div className="space-y-3">
       {error && <LoadFailed message={error} />}
-    <ul className="md:hidden space-y-2" data-testid="price-alerts-mobile">
+    <ul className="md:hidden space-y-2 min-w-0" data-testid="price-alerts-mobile">
       {alerts.map((alert) => {
         const isIncrease = alert.change_direction === 'increase'
         const severity = Math.abs(alert.change_percentage) >= 10 ? 'critical'
