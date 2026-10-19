@@ -1323,6 +1323,52 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 seksoghalvtredsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `b4b16ec0`. Det lader femoghalvtredsindstyvende-hegnet stå. `b4b16ec0` hedder `docs: checkpoint efter c1fddd5a`. Produktspids: `b5e93c28`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `b5e93c28` blev afvist før git kørte og er ikke prøvet igen. `20255ab9`, `d773820f`, `a173dc85` og `7d5c0992` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `b4b16ec0..b5e93c28`
+
+```
+b5e93c28 feat(pilot): arbejdslonraekken i prisopbygningen kan krympe
+20255ab9 feat(pilot): materialeraekken i prisopbygningen kan krympe
+d773820f feat(pilot): prisopbygningens liste kan krympe
+a173dc85 feat(pilot): elpunktlisten kan krympe
+7d5c0992 feat(pilot): bygningsinformationens liste kan krympe
+```
+
+Listen er alle commits efter `b4b16ec0` til og med `b5e93c28`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+b4b16ec0 docs: checkpoint efter c1fddd5a
+```
+
+### Features
+
+G18-572 til G18-576 lader kun AI-projektets bygningsliste, elpunktliste, prisliste, materialerække og arbejdslønrække krympe. `formatCurrency(result.calculation.price.material_cost)` bliver. `formatCurrency(result.calculation.price.labor_cost)` bliver. `result.calculation.time.total_hours.toFixed(1)` bliver. `result.calculation.price.hourly_rate` bliver. Bygningslisten, elpunktlisten og tidslisten bliver pakket ind. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede AI-projektfil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. G18-572: `scripts/ai-project-building-list-wrap-test.ts` plus tidsliste, bygningsoverskrift og bygningsblok. G18-573: `scripts/ai-project-points-list-wrap-test.ts` plus bygningsliste, tidsliste, elpunktsoverskrift og punktantal. G18-574: `scripts/ai-project-price-list-wrap-test.ts` plus elpunktliste, bygningsliste, tidsliste, prisoverksrift, priskolonne og prisbeløb. G18-575: `scripts/ai-project-materials-row-wrap-test.ts` plus materialetiket, prisliste og prisbeløb. G18-576: `scripts/ai-project-labor-row-wrap-test.ts` plus materialerække og prisbeløb. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `b5e93c28`, herunder G18-289 til G18-576. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. Når push er tilladt, push kun `grok-next` og prøv ikke afviste tip igen, herunder `b5e93c28`, `20255ab9`, `d773820f`, `a173dc85`, `7d5c0992`, `b4b16ec0`, `c1fddd5a`, `5442632c`, `1a1d9a83`, `4787b533`, `3fc62b81`, `7c6788af`, `3da378e4`, `c342647d`, `d45fcb3b`, `f2555768`, `d6955125`, `ab6518a6`, `b8256210`, `cdbd2137`, `897ce36a`, `2ff378d7`, `441ef869`, `0a2326fc`, `a48a3054`, `6f993cf7`, `f8596a13`, `ab774daa`, `2a710178`, `634190cc`, `d8437c94`, `55ba8a65`, `4c77d244`, `8d9cf47f`, `53feb5c6`, `911cdc18`, `b9354d9b`, `1f3f9e80`, `353d3e24`, `8c66e51d`, `6fe5805d`, `acb9c456`, `b2b9bef5`, `36a8ce8d`, `b871fda6`, `37b25dcd`, `0b34e41a`, `a623f3c3`, `439ca8b0`, `ea96664c`, `e8f68985`, `cfc481fc`, `4844064d`, `1d4e0ed4`, `fddccb09`, `900c129e`, `def6b245`, `c6dafe97`, `02eac352`, `23d43087`, `4b9fd2ee`, `6df6114a`, `bfcac529`, `e2760143`, `f7f34a42`, `4607487b`, `ae64af32`, `c028a873`, `ffa327ad`, `cc59416f`, `c6e18461` og `4245647d`. Flet derefter `origin/main` ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-581, G18-582, G18-583, G18-577, G18-578, G18-579, G18-580.
+
 ## Checkpoint 2026-10-18 femoghalvtredsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `1a1d9a83`. Det lader fireoghalvtredsindstyvende-hegnet stå. `1a1d9a83` hedder `docs: checkpoint efter 4787b533`. Produktspids: `c1fddd5a`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `c1fddd5a` blev afvist før git kørte og er ikke prøvet igen. `5442632c` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
