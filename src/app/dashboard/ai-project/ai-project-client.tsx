@@ -550,7 +550,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     <tr>
                       <th className="text-left p-3 break-words min-w-0" data-testid="ai-project-component-col">Komponent</th>
                       <th className="text-right p-3 break-words min-w-0" data-testid="ai-project-antal-col">Antal</th>
-                      <th className="text-right p-3">Enhedspris</th>
+                      <th className="text-right p-3 break-words min-w-0" data-testid="ai-project-unit-col">Enhedspris</th>
                       <th className="text-right p-3">Total</th>
                     </tr>
                   </thead>
