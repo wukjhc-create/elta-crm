@@ -400,7 +400,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
           <tbody>
             {offers.map((offer) => (
               <tr key={offer.offer_id} className="border-b last:border-0 hover:bg-gray-50">
-                <td className="px-4 py-2.5">
+                <td className="px-4 py-2.5 break-words min-w-0" data-testid="pricing-offer-number-cell">
                   <a
                     href={`/dashboard/offers/${offer.offer_id}`}
                     className="font-medium text-blue-600 hover:underline break-words min-w-0"
