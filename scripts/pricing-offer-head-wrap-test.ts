@@ -41,7 +41,7 @@ const row = at >= 0 ? view.slice(at - 80, at + 2800) : ''
 ok(row.includes('bg-gray-50 min-w-0'), 'rækken kan krympe')
 ok(row.includes('data-testid="pricing-offer-col-title"'), 'tilbudskolonnen bliver')
 ok(row.includes('{offer.offer_number}'), 'nummeret er uændret')
-ok(row.includes('text-right font-medium">{formatCurrency(offer.total_amount)}'), 'beløbet er uændret')
+ok(row.includes('text-right font-medium break-words min-w-0" data-testid="pricing-offer-amount-desktop">{formatCurrency(offer.total_amount)}'), 'beløbet er uændret')
 ok(view.split('<tr className="border-b bg-gray-50">').length - 1 === 0, 'ingen upakket kolonnerække')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
