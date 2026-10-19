@@ -651,7 +651,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 onClick={() => handleDescriptionChange(example.text)}
                 className="text-left p-4 bg-white border rounded-lg hover:border-purple-300 hover:shadow-sm transition-all"
               >
-                <div className="font-medium text-sm mb-1">{example.title}</div>
+                <div className="font-medium text-sm mb-1 break-words min-w-0" data-testid="ai-project-example-title">{example.title}</div>
                 <div className="text-sm text-gray-500 break-words min-w-0" data-testid="ai-project-example-text">{example.text}</div>
               </button>
             ))}
