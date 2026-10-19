@@ -385,7 +385,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
         </li>
       ))}
     </ul>
-    <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
+    <div className="hidden md:block bg-white rounded-lg border overflow-hidden min-w-0" data-testid="pricing-offer-desktop">
       <div className="overflow-x-auto min-w-0" data-testid="pricing-offer-scroll">
         <table className="w-full text-sm">
           <thead>
