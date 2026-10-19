@@ -223,7 +223,7 @@ export function SupplierProductsTable({
               <article key={product.id} className="rounded-lg border bg-white p-3 space-y-2 text-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-mono text-xs text-gray-500">{product.supplier_sku}</p>
+                    <p className="font-mono text-xs text-gray-500 break-all min-w-0" data-testid="supplier-product-mobile-sku">{product.supplier_sku}</p>
                     <p className="font-medium break-words">{product.supplier_name}</p>
                     {product.manufacturer && (
                       <p className="text-xs text-gray-500">{product.manufacturer}</p>
