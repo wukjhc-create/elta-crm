@@ -1189,13 +1189,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-450 | 8 Pilot | DONE. Luk-knappen i kundevælgeren kan krympe. | `aria-label="Luk"` er uændret. Kun den knap. |
 | G18-451 | 8 Pilot | DONE. Historikkortet på AI-projekt kan krympe. | Beskrivelsen forbliver to linjer. `formatCurrency(analysis.total_price)` er uændret. Kun rækken. |
 | G18-452 | 8 Pilot | DONE. Kundekortet i kundevælgeren kan krympe. | `handleSelectCustomer` er uændret. Navn og mail ombrydes som før. Kun knappen. |
-| G18-453 | 8 Pilot | ÅBEN. Eksempelkortet i AI-projekt kan krympe. | `handleDescriptionChange(example.text)` er uændret. Titel og tekst ombrydes som før. Kun knappen. |
+| G18-453 | 8 Pilot | DONE. Eksempelkortet i AI-projekt kan krympe. | `handleDescriptionChange(example.text)` er uændret. Titel og tekst ombrydes som før. Kun knappen. |
 | G18-454 | 8 Pilot | ÅBEN. Kundelisten i kundevælgeren kan krympe. | `max-h-64` og rulning er uændret. Kun den ramme. |
 | G18-455 | 8 Pilot | ÅBEN. Kundevælgerens hoved kan krympe. | Teksten `Vælg kunde` og `aria-label="Luk"` er uændrede. Kun rækken i AI-projekt. |
 | G18-456 | 8 Pilot | ÅBEN. Kundevælgerens bund kan krympe. | Knappen `Annuller` er uændret. Kun rækken. |
 | G18-457 | 8 Pilot | ÅBEN. Historikkens indlæsning kan krympe. | Den tomme sætning er uændret. Kun pulsen i AI-projekt. |
 | G18-458 | 8 Pilot | ÅBEN. Historikkens liste kan krympe. | Beskrivelsen forbliver to linjer. `formatCurrency(analysis.total_price)` er uændret. Kun listen. |
 | G18-459 | 8 Pilot | ÅBEN. Eksempelgitteret i AI-projekt kan krympe. | Titel og tekst ombrydes som før. Kun gitteret. |
+| G18-460 | 8 Pilot | ÅBEN. Kundevælgerens baggrund kan krympe. | Panelet kan stadig rulles. Kun baggrunden i AI-projekt. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
