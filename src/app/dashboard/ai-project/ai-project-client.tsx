@@ -442,7 +442,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     value ? (
                       <div key={key} className="flex flex-wrap justify-between gap-x-3 min-w-0">
                         <dt className="text-gray-500 min-w-0 break-words">{getPointTypeName(key)}</dt>
-                        <dd className="font-medium">{value} stk</dd>
+                        <dd className="font-medium break-words min-w-0" data-testid="ai-project-point-count">{value} stk</dd>
                       </div>
                     ) : null
                   ))}
