@@ -1367,7 +1367,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-633 | 8 Pilot | DONE. Ulæst-mærket i mail-detaljen kan krympe. | Kun `<span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">Ulæst</span>` i mail-detaljen. Teksten `Ulæst` er uændret. |
 | G18-634 | 8 Pilot | DONE. Emnerækken i mail-detaljen kan krympe. | Kun `<div className="flex items-start justify-between gap-3">` i mail-detaljen. Emnet og `Ulæst` er uændrede. |
 | G18-635 | 8 Pilot | DONE. Sidehovedet i mail-detaljen kan krympe. | Kun `<div className="border-b p-5 space-y-4">` i mail-detaljen. Emnet, emnerækken og `Ulæst` er uændrede. |
-| G18-636 | 8 Pilot | ÅBEN. Badge-rækken ved emnet kan krympe. | Kun den tilbageværende `<div className="flex items-center gap-2 shrink-0">` i mail-detaljen. Lysboksens knaprække er allerede ombrudt. `Ulæst` er uændret. |
+| G18-636 | 8 Pilot | DONE. Badge-rækken ved emnet kan krympe. | Kun den tilbageværende `<div className="flex items-center gap-2 shrink-0">` i mail-detaljen. Lysboksens knaprække er allerede ombrudt. `Ulæst` er uændret. |
+| G18-637 | 8 Pilot | ÅBEN. Mail-detaljens ydre ramme kan krympe. | Kun `<div className="flex flex-col h-full bg-white">` i mail-detaljen. Sidehovedet, emnet og `Ulæst` er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
