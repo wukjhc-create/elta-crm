@@ -468,7 +468,7 @@ function SuppliersTab({ stats, error }: { stats: SupplierPriceStats[]; error: st
           <div className="mt-3">
             <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
               <span className="break-words min-w-0" data-testid="pricing-movement-label">Prisbevægelse</span>
-              <span className="min-w-0">
+              <span className="min-w-0 break-words" data-testid="pricing-movement-group">
                 <span className="text-red-500 break-words min-w-0" data-testid="pricing-movement-increase">+{stat.average_price_increase.toFixed(1)}%</span>
                 {' / '}
                 <span className="text-green-500 break-words min-w-0" data-testid="pricing-movement-decrease">-{stat.average_price_decrease.toFixed(1)}%</span>
