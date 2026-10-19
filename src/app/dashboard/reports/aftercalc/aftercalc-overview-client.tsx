@@ -200,7 +200,7 @@ export function AftercalcOverviewClient() {
                           </span>
                         </div>
                         {r.warning_codes.length > 0 && (
-                          <p className="mt-1 text-xs text-amber-900 break-words">
+                          <p className="mt-1 text-xs text-amber-900 break-words min-w-0" data-testid="aftercalc-mobile-warning">
                             {r.warning_codes.map((c: DataQualityCode) => DATA_QUALITY_LABELS[c]).join(', ')}
                           </p>
                         )}
