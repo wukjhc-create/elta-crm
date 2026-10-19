@@ -306,7 +306,7 @@ export function MailDetail({
       {/* ============================================== */}
       <div className="border-b p-5 space-y-4">
         {/* Subject + badges */}
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3 break-words min-w-0" data-testid="mail-subject-row">
           <h2 className="text-xl font-bold text-gray-900 break-words min-w-0" data-testid="mail-subject">{email.subject || '(Intet emne)'}</h2>
           <div className="flex items-center gap-2 shrink-0">
             {!email.is_read && (
