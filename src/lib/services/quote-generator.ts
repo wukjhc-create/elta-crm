@@ -11,7 +11,7 @@
  * Auto-shares to customer portal if customer has active portal session.
  */
 
-import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { copenhagenParts, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { randomUUID } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { GenerateQuoteInput, GenerateQuoteResult } from '@/types/quote-templates.types'
@@ -113,8 +113,9 @@ export async function generateAndSendQuote(
     const quoteReference = await generateQuoteReference(supabase)
 
     // 4. Calculate validity date
-    const validUntil = new Date()
-    validUntil.setDate(validUntil.getDate() + input.validityDays)
+    // TZ-6 (tidszone-review 2026-10-18): N danske kalenderdage; kl. 12 UTC = samme dato i dansk tid uanset sommertid
+    // (før: setDate i serverens UTC → én dag for lidt for tilbud lavet mellem kl. 00 og 02 dansk tid / over DST)
+    const validUntil = new Date(`${copenhagenDatePlusDays(input.validityDays)}T12:00:00Z`)
 
     // 5. Render PDF
     const { renderToBuffer } = await import('@react-pdf/renderer')

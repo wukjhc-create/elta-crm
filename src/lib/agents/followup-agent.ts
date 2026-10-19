@@ -45,7 +45,8 @@ export interface FollowupPayload {
   days_since_sent: number
 }
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' })
+// TZ-8 (tidszone-review 2026-10-18): dansk dato uanset serverens tidszone (før UTC → et tilbud sendt kl. 00:30 stod som dagen før)
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Copenhagen' })
 
 /** Hvorfor tilbuddet ikke skal følges op - eller null. Ren funktion. */
 export function followupBlocker(o: FollowupOffer, now: Date, minAgeDays: number): string | null {

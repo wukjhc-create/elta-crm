@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { copenhagenInputToIso } from '@/lib/utils/datetime-local'
 import { X } from 'lucide-react'
 import { createCustomerTask, getActiveProfiles } from '@/lib/actions/customer-tasks'
 import { TASK_PRIORITY_CONFIG } from '@/types/customer-tasks.types'
@@ -48,8 +49,9 @@ export function OfferTaskForm({ offerId, offerTitle, customerId, onClose, onSucc
       description: description.trim() || undefined,
       priority,
       assigned_to: assignedTo || undefined,
-      due_date: dueDate ? new Date(dueDate).toISOString() : undefined,
-      reminder_at: reminderAt ? new Date(reminderAt).toISOString() : undefined,
+      // TZ-9: feltet er dansk lokaltid (som opgavesiden/kundekortet) — før browserens tidszone
+      due_date: copenhagenInputToIso(dueDate) ?? undefined,
+      reminder_at: copenhagenInputToIso(reminderAt) ?? undefined,
     }
 
     const result = await createCustomerTask(input)

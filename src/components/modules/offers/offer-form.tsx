@@ -1,6 +1,6 @@
 'use client'
 
-import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -49,9 +49,8 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
   // Calculate default validity date from company settings
   const getDefaultValidUntil = () => {
     if (companySettings?.default_offer_validity_days) {
-      const date = new Date()
-      date.setDate(date.getDate() + companySettings.default_offer_validity_days)
-      return copenhagenParts(date).date
+      // TZ-6: danske kalenderdage (setDate + omregning gav én dag for lidt omkring midnat/sommertid)
+      return copenhagenDatePlusDays(companySettings.default_offer_validity_days)
     }
     return undefined
   }
@@ -141,9 +140,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
     getOfferFormDefaultsAction().then((d) => {
       if (cancelled || !d) return
       if (d.default_offer_validity_days) {
-        const date = new Date()
-        date.setDate(date.getDate() + d.default_offer_validity_days)
-        setValue('valid_until', copenhagenParts(date).date)
+        setValue('valid_until', copenhagenDatePlusDays(d.default_offer_validity_days)) // TZ-6
       }
       if (d.default_tax_percentage != null) setValue('tax_percentage', d.default_tax_percentage)
       if (d.default_terms_and_conditions) setValue('terms_and_conditions', d.default_terms_and_conditions)

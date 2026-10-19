@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { format, isPast, isToday } from 'date-fns'
+import { format } from 'date-fns'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { da } from 'date-fns/locale'
 import { Calendar, CheckCircle2, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -29,12 +30,15 @@ export function UpcomingTasks({ tasks }: UpcomingTasksProps) {
     )
   }
 
+  // TZ-4 (tidszone-review 2026-10-18): serverkomponent — "i dag"/"forsinket" i DANSK kalender (før UTC på Vercel:
+  // en opgave med forfald i dag kl. 00:30 stod som "i går"/forsinket til kl. 02, og datoen viste dagen før)
+  const today = copenhagenParts(new Date()).date
   return (
     <div className="space-y-3">
       {tasks.map((task) => {
-        const dueDate = task.due_date ? new Date(task.due_date) : null
-        const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate)
-        const isDueToday = dueDate && isToday(dueDate)
+        const dueDay = task.due_date ? copenhagenParts(task.due_date).date : null
+        const isOverdue = !!dueDay && dueDay < today
+        const isDueToday = dueDay === today
         const priorityColor = PROJECT_PRIORITY_COLORS[task.priority as keyof typeof PROJECT_PRIORITY_COLORS] || 'bg-gray-100 text-gray-800'
 
         return (
@@ -77,7 +81,7 @@ export function UpcomingTasks({ tasks }: UpcomingTasksProps) {
               >
                 {PROJECT_PRIORITY_LABELS[task.priority as keyof typeof PROJECT_PRIORITY_LABELS] || task.priority}
               </span>
-              {dueDate && (
+              {dueDay && (
                 <span
                   className={cn(
                     'text-xs',
@@ -92,7 +96,7 @@ export function UpcomingTasks({ tasks }: UpcomingTasksProps) {
                     ? 'Forsinket'
                     : isDueToday
                     ? 'I dag'
-                    : format(dueDate, 'd. MMM', { locale: da })}
+                    : format(new Date(`${dueDay}T12:00:00Z`), 'd. MMM', { locale: da })}
                 </span>
               )}
             </div>

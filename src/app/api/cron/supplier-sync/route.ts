@@ -8,6 +8,7 @@
  */
 
 import { NextResponse } from 'next/server'
+import { nextDailyRunIso } from '@/lib/suppliers/next-run'
 import { safeEqual } from '@/lib/security/safe-equal'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SupplierAPIClientFactory } from '@/lib/services/supplier-api-client'
@@ -615,29 +616,9 @@ async function executeFtpSyncSchedule(
  * Parses hour from cron format "minute hour * * *" (standard 5-field cron)
  * Falls back to tomorrow 3 AM if parsing fails
  */
+// TZ-7: næste kørsel i dansk tid (fælles beregning, lib/suppliers/next-run.ts); ruten kører lige nu → næste forekomst
 function getNextRunTime(cronExpression: string): string {
-  const now = new Date()
-  const tomorrow = new Date(now)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-
-  try {
-    // Parse cron: "min hour day month weekday"
-    const parts = cronExpression.trim().split(/\s+/)
-    if (parts.length >= 2) {
-      const minute = parseInt(parts[0])
-      const hour = parseInt(parts[1])
-      if (!isNaN(minute) && !isNaN(hour)) {
-        tomorrow.setHours(hour, minute, 0, 0)
-        return tomorrow.toISOString()
-      }
-    }
-  } catch {
-    // Fall through to default
-  }
-
-  // Default: 3 AM
-  tomorrow.setHours(3, 0, 0, 0)
-  return tomorrow.toISOString()
+  return nextDailyRunIso(cronExpression)
 }
 
 // P1 #9: hver autoriseret koersel registreres i system_health_log (service='cron').

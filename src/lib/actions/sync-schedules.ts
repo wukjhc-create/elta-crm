@@ -1,5 +1,6 @@
 'use server'
 import { permissionDenied } from '@/lib/actions/action-helpers'
+import { nextDailyRunIso } from '@/lib/suppliers/next-run'
 
 import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
@@ -373,38 +374,9 @@ export async function getSyncHistory(
     return { success: false, error: formatError(err, 'Kunne ikke hente synkroniseringshistorik') }
   }
 }
-/**
- * Calculate next run time from cron expression
- * Simple implementation - handles common cases
- */
+/** TZ-7: næste kørsel i dansk tid (fælles beregning, lib/suppliers/next-run.ts) */
 function calculateNextRun(cronExpression: string): string {
-  const now = new Date()
-  const parts = cronExpression.split(' ')
-
-  if (parts.length !== 5) {
-    // Invalid cron, default to tomorrow 3 AM
-    const tomorrow = new Date(now)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    tomorrow.setHours(3, 0, 0, 0)
-    return tomorrow.toISOString()
-  }
-
-  const [minute, hour] = parts
-
-  // Parse hour and minute (handle wildcards)
-  const targetHour = hour === '*' ? 0 : parseInt(hour)
-  const targetMinute = minute === '*' ? 0 : parseInt(minute)
-
-  // Calculate next occurrence
-  const nextRun = new Date(now)
-  nextRun.setHours(targetHour, targetMinute, 0, 0)
-
-  // If time has passed today, move to tomorrow
-  if (nextRun <= now) {
-    nextRun.setDate(nextRun.getDate() + 1)
-  }
-
-  return nextRun.toISOString()
+  return nextDailyRunIso(cronExpression)
 }
 
 // UI Helper Constants moved to client components (sync-schedules-manager.tsx)
