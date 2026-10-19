@@ -501,7 +501,7 @@ export function MailDetail({
             {pendingAction === 'archive' ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Archive className="w-4 h-4" />
+              <Archive className="w-4 h-4 break-words min-w-0" data-testid="mail-archive-icon" />
             )}
             Arkivér
           </button>
