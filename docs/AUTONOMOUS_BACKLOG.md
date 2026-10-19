@@ -1393,6 +1393,52 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tooghalvfjerdsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister produktcommits efter `d232709a`. Det lader enoghalvfjerdsindstyvende-hegnet stå. `d232709a` hedder `docs: checkpoint efter 48d6a64c`. Produktspids: `434ca742`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `434ca742` blev afvist før git kørte og er ikke prøvet igen. `ef860495`, `23e7e482`, `08513c21` og `093bbbbc` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `093bbbbc..434ca742`
+
+```
+434ca742 feat(pilot): sagsikonet i mail-detaljen kan krympe
+ef860495 feat(pilot): sagsvaelgerens ramme kan krympe
+23e7e482 feat(pilot): handlingsraekken ved sagsvaelgeren kan krympe
+08513c21 feat(pilot): handlingsraekken ved koblet kunde kan krympe
+093bbbbc feat(pilot): kundenummeret i mail-detaljen kan krympe
+```
+
+Listen er alle produktcommits efter `d232709a` til og med `434ca742`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+d232709a docs: checkpoint efter 48d6a64c
+```
+
+### Features
+
+G18-648, G18-649, G18-650, G18-651 og G18-652 lader kun kundenummeret, handlingsrækken ved den koblede kunde, handlingsrækken ved sagsvælgeren, sagsvælgerens ramme og sagsikonet i mail-detaljen krympe. `({email.customers.customer_number})` bliver. `Åbn kunde` bliver. `title="Vælg sag"` bliver. `max-w-[280px] truncate` bliver. `Ingen sag tilknyttet` bliver. `<Briefcase` bliver. `>Ulæst</span>` bliver. `formatDate(email.received_at)` bliver. `href={lightboxUrl}` bliver. Filnavnets `line-clamp-2` bliver. `formatCurrency` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede mail-detalje og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. G18-648: `scripts/mail-linked-customer-number-wrap-test.ts`. G18-649: `scripts/mail-linked-customer-actions-wrap-test.ts`. G18-650: `scripts/mail-case-actions-wrap-test.ts`. Samme commit satte den bare handlingsrækkes split i 649-testen til 1. G18-651: `scripts/mail-case-frame-wrap-test.ts`. G18-652: `scripts/mail-case-icon-wrap-test.ts`. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `434ca742`, herunder G18-289 til G18-652. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. Når push er tilladt, push kun `grok-next` og prøv ikke afviste tip igen, herunder `434ca742`, `ef860495`, `23e7e482`, `08513c21`, `093bbbbc`, `d232709a`, `48d6a64c`, `2ab3cf04`, `93e29427`, `9437e23f`, `e3fcee49`, `66b19a0f`, `c8dfef74`, `eca6ddb3`, `b5661c91`, `299b4115`, `5b1b8000`, `a3850d18`, `b30cbb1b`, `f28da480`, `6a87be4f`, `6aad4d31`, `57c81f93`, `5b65f706`, `31326fc9`, `e4521b1e`, `d991f7ad`, `40947ab2`, `ae086350`, `ea88bc19`, `7493ecf6`, `6533e8cd`, `8a1d5504`, `e34f027d`, `2f90c98c`, `828c29e0` og `3534e9e6`, plus de ældre tip i checkpointet før dette. Flet derefter `origin/main` ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-653, G18-597.
+
 ## Checkpoint 2026-10-18 enoghalvfjerdsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister produktcommits efter `66b19a0f`. Det lader halvfjerdsindstyvende-hegnet stå. `66b19a0f` hedder `docs: checkpoint efter c8dfef74`. Produktspids: `48d6a64c`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `48d6a64c` blev afvist før git kørte og er ikke prøvet igen. `2ab3cf04`, `93e29427`, `9437e23f` og `e3fcee49` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
