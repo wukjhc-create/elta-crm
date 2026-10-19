@@ -804,6 +804,9 @@ export async function sendOfferEmail(
           if (fullOffer) {
             if (fullOffer.line_items) {
               fullOffer.line_items.sort((a: { position: number }, b: { position: number }) => a.position - b.position)
+              // IV2-3: produktbilleder hentes sikkert og indlejres før rendering (renderen henter aldrig selv en URL)
+              const { inlinePdfLineImages } = await import('@/lib/pdf/inline-pdf-images')
+              fullOffer.line_items = await inlinePdfLineImages(fullOffer.line_items as Array<{ position: number; image_url?: string | null }>)
             }
             const pdfDoc = OfferPdfDocument({
               offer: fullOffer as any,

@@ -89,6 +89,12 @@ export async function GET(
       signature = sig as { signer_name: string; signer_email: string; signer_ip: string | null; signed_at: string | null; signature_data: string | null } | null
     }
 
+    // IV2-3: produktbilleder hentes sikkert og indlejres før rendering (renderen henter aldrig selv en URL)
+    {
+      const { inlinePdfLineImages } = await import('@/lib/pdf/inline-pdf-images')
+      offer.line_items = await inlinePdfLineImages(offer.line_items)
+    }
+
     // Generate PDF
     const pdfDocument = OfferPdfDocument({
       offer,
