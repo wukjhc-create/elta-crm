@@ -1108,6 +1108,74 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 seksogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `38acd6c2`. Det lader femogtyvende-hegnet stå. `38acd6c2` hedder `docs: checkpoint efter 794bf051`. Produktspids: `9ddc23f6`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `9ddc23f6` blev afvist før git kørte og er ikke prøvet igen. `2a17284a` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `38acd6c2..9ddc23f6`
+
+```
+9ddc23f6 feat(pilot): tilbudstitel i mailforslag ombrydes
+2a17284a feat(pilot): sagstitel i mailforslag ombrydes
+667f6d6c feat(pilot): pakkebeskrivelse ombrydes
+9b8c7aa0 feat(pilot): listeforhaandsvisning ombrydes
+63209da3 feat(pilot): seneste mailforhaandsvisning ombrydes
+792d97c8 feat(pris): tab-maerket paa skrivebord kan krympe
+120a3302 feat(pris): nuvaerende trendpris paa skrivebord kan krympe
+f65cae5b feat(pris): potentielt tab paa skrivebord kan krympe
+b9c7c10d feat(pris): tilbudsbeloeb paa skrivebord kan krympe
+234d79dc feat(pris): ny skrivebordspris kan krympe
+39482c2e feat(pris): gammel skrivebordspris kan krympe
+9e730e91 feat(pris): pristendensens tabelkrop kan krympe
+e5c6f202 feat(pris): beroerte tilbuds tabelkrop kan krympe
+04bfb76d feat(pris): prisadvarslens tabelkrop kan krympe
+57306cb7 feat(pris): pristendensens tabelhoved kan krympe
+69a9d4fb feat(pris): beroerte tilbuds tabelhoved kan krympe
+c8cf396d feat(pris): prisadvarslens tabelhoved kan krympe
+d1686ff4 feat(pris): pristendensens tabel kan krympe
+df92355b feat(pris): beroerte tilbuds tabel kan krympe
+cbd98180 feat(pris): prisadvarslens tabel kan krympe
+50d899cc feat(pris): pristendensens kolonnerekke kan krympe
+e34f7df1 test(pris): behold kolonneordene paa beroerte tilbud
+148894a9 feat(pris): beroerte tilbuds kolonnerekke kan krympe
+```
+
+Listen er alle commits efter `38acd6c2` til og med `9ddc23f6`, fra `148894a9`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commit der ikke stod i et hegn
+
+```
+38acd6c2 docs: checkpoint efter 794bf051
+```
+
+### Features
+
+G18-340 til G18-356 lader prisovervågningens tabeller, tabelhoveder, tabelkroppe, kolonnerækker og skrivebordspriser krympe med `break-words min-w-0`. Gammel pris, ny pris, tilbudsbeløb, potentielt tab og nuværende trendpris bruger stadig `formatCurrency`. Fortegn og farver på tabet er uændrede. G18-15 er lukket, fordi trendprisen kan krympe. `e34f7df1` beholdt kolonneordene Tilbud, Kunde, Status, Beløb, Ber. linjer, Potentielt tab og Oprettet. G18-357 til G18-361 ombryder seneste mail, listeforhåndsvisning, pakkebeskrivelse, sagstitel og tilbudstitel. Teksterne, valget og `formatCurrency(pkg.total_sale_price)` samt `formatCurrency(o.final_amount)` er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil. Pris- og pakketestene kalder `formatCurrency(1250)` fra `src/lib/utils/format`. Mailforslag kalder også `formatDate('2026-06-02')` fra `src/lib/utils`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter katalog-, formular-, detalje- og prisbølgen fra `cb4f0a8f` til `9ddc23f6`, herunder G18-340 til G18-361. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `9ddc23f6`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-362, G18-363, G18-364, G18-365, G18-366, G18-367, G18-368.
+
 ## Checkpoint 2026-10-18 femogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `794bf051`. Det omskriver ikke listerne ovenfor. `794bf051` er forælder til `0a3f6f89` og hedder `docs: checkpoint efter 44858657`. Produktspids: `bb54d71e`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `bb54d71e` blev afvist før git kørte og er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
