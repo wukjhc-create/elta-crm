@@ -62,7 +62,7 @@ export default function ProductForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2 sm:col-span-1">
-          <Label htmlFor="name">Produktnavn *</Label>
+          <Label htmlFor="name" className="break-words min-w-0" data-testid="product-form-name-label">Produktnavn *</Label>
           <Input
             id="name"
             name="name"

@@ -966,7 +966,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-226 | 4 Pris | DONE. Pladsholderen Vælg kategori i produktformularen ombrydes. | Ordene er uændrede. |
 | G18-232 | 4 Pris | ÅBEN. Etiketten Listepris i produktformularen ombrydes. | Ordene og feltets værdi er uændrede. |
 | G18-221 | 4 Pris | DONE. Gem-knappen i produktformularen ombrydes. | Ordene Gemmer, Opdater og Opret er uændrede. |
-| G18-227 | 4 Pris | ÅBEN. Etiketten Produktnavn i produktformularen ombrydes. | Ordet og stjernen er uændrede. |
+| G18-227 | 4 Pris | DONE. Etiketten Produktnavn i produktformularen ombrydes. | Ordet og stjernen er uændrede. |
+| G18-233 | 4 Pris | ÅBEN. Pladsholderen på produktnavn ombrydes. | Teksten F.eks. JA Solar 400W Panel er uændret. |
 | G18-222 | 4 Pris | DONE. Etiketten Kategori i produktformularen ombrydes. | Ordet er uændret. |
 | G18-228 | 4 Pris | ÅBEN. Etiketten Beskrivelse i produktformularen ombrydes. | Ordet er uændret. |
 
