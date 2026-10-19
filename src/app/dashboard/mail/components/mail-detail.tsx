@@ -360,7 +360,7 @@ export function MailDetail({
         {email.link_status === 'linked' && email.customers && (
           <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 p-2.5 rounded-md break-words min-w-0" data-testid="mail-linked-customer-row">
             <Link2 className="w-4 h-4 text-green-600 shrink-0 break-words min-w-0" data-testid="mail-link2-icon" />
-            <span>Koblet til: <strong>{email.customers.company_name}</strong> ({email.customers.customer_number})</span>
+            <span className="break-words min-w-0" data-testid="mail-linked-customer-name">Koblet til: <strong>{email.customers.company_name}</strong> ({email.customers.customer_number})</span>
             <div className="ml-auto flex items-center gap-2 shrink-0">
               <a href={`/dashboard/customers/${email.customers.id}`} className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs break-words min-w-0" data-testid="mail-open-customer-link">
                 Åbn kunde <ExternalLink className="w-3 h-3" />
