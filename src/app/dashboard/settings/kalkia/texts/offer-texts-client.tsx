@@ -493,7 +493,7 @@ export function OfferTextsClient({ initialTemplates, loadError = null }: OfferTe
                         <Badge variant="outline" className="text-xs">
                           {typeConfig.label}
                         </Badge>
-                        <Badge variant="outline" className="text-xs bg-gray-50">
+                        <Badge variant="outline" className="text-xs bg-gray-50 break-words min-w-0 max-w-full" data-testid="offer-text-scope">
                           <scopeConfig.icon className="w-3 h-3 mr-1" />
                           {scopeConfig.label}
                           {template.scope_id && `: ${template.scope_id}`}
