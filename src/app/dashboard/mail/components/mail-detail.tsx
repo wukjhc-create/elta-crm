@@ -628,7 +628,7 @@ export function MailDetail({
                 Mulige matches (forslag)
               </p>
               {detectedPhone && (
-                <p className="text-xs text-gray-600 break-words min-w-0" data-testid="mail-found-phone">Telefon fundet i email: <strong>{detectedPhone}</strong></p>
+                <p className="text-xs text-gray-600 break-words min-w-0" data-testid="mail-found-phone">Telefon fundet i email: <strong className="break-words min-w-0" data-testid="mail-phone-value">{detectedPhone}</strong></p>
               )}
               {detectedOrderId && (
                 <p className="text-xs text-gray-600 break-words min-w-0" data-testid="mail-found-order">Ordre/ref fundet i email: <strong>{detectedOrderId}</strong></p>

@@ -20,7 +20,7 @@ const id = 'data-testid="mail-found-phone"'
 const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 60, at + 10) : ''
 const bare = '<p className="text-xs text-gray-600">Telefon fundet i email: <strong>{detectedPhone}</strong></p>'
-const cell = '<p className="text-xs text-gray-600 break-words min-w-0" data-testid="mail-found-phone">Telefon fundet i email: <strong>{detectedPhone}</strong></p>'
+const cell = '<p className="text-xs text-gray-600 break-words min-w-0" data-testid="mail-found-phone">Telefon fundet i email: <strong className="break-words min-w-0" data-testid="mail-phone-value">{detectedPhone}</strong></p>'
 ok(row.includes('<p '), 'det er telefonlinjen')
 ok(row.includes('text-xs text-gray-600'), 'linjen bliver graa')
 ok(row.includes('break-words min-w-0'), 'linjen kan krympe')
