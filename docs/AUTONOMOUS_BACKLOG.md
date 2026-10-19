@@ -1203,13 +1203,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-464 | 8 Pilot | DONE. AI-projektets side kan krympe. | Kun den ydre ramme `p-6 max-w-6xl mx-auto`. Indholdet er uændret. |
 | G18-465 | 8 Pilot | DONE. Hurtig estimat kan krympe. | `formatCurrency(quickResult.estimatedPrice)` er uændret. Kun boksen `mt-4 p-4 bg-purple-50 rounded-lg`. |
 | G18-466 | 8 Pilot | DONE. Søgeresultatets liste til ladestander kan krympe. | `formatCurrency(h.cost_price)` er uændret. Kun listen `mt-2 max-h-48 overflow-auto divide-y text-sm`. |
-| G18-467 | 8 Pilot | ÅBEN. Beskrivelsesafsnittet på AI-projekt kan krympe. | Pladsholderen og `value={description}` er uændrede. Kun rammen `bg-white border rounded-lg p-6 mb-6`. |
+| G18-467 | 8 Pilot | DONE. Beskrivelsesafsnittet på AI-projekt kan krympe. | Pladsholderen og `value={description}` er uændrede. Kun rammen `bg-white border rounded-lg p-6 mb-6`. |
 | G18-468 | 8 Pilot | ÅBEN. Tilbudsteksten på AI-projekt kan krympe. | Teksten i `pre` er uændret. Kun rammen `whitespace-pre-wrap font-mono overflow-x-auto`. |
 | G18-469 | 8 Pilot | ÅBEN. Bemærkningsboksen på AI-projekt kan krympe. | Overskriften `Bemærkninger` er uændret. Kun boksen i AI-projekt. |
 | G18-470 | 8 Pilot | ÅBEN. Næste skridt-afsnittet kan krympe. | Overskrift og tekst ombrydes som før. Kun rammen i AI-projekt. |
 | G18-471 | 8 Pilot | ÅBEN. Komponenttabellen på skrivebord kan krympe. | `hidden md:block border rounded-lg overflow-hidden` bliver. Priserne er uændrede. Kun rammen. |
 | G18-472 | 8 Pilot | ÅBEN. Gitteret i hurtig estimat kan krympe. | `formatCurrency(quickResult.estimatedPrice)` er uændret. Kun gitteret `grid grid-cols-2 md:grid-cols-4 gap-4 text-sm`. |
 | G18-473 | 8 Pilot | ÅBEN. Opsummeringsgitteret på AI-projekt kan krympe. | `formatCurrency(result.calculation.price.total_price)` er uændret. Kun gitteret `grid grid-cols-1 md:grid-cols-4 gap-4` i AI-projekt. |
+| G18-474 | 8 Pilot | ÅBEN. Bemærkningslisten på AI-projekt kan krympe. | Teksten `{w}` er uændret. Kun listen `text-sm text-yellow-700 mt-1 space-y-1` i AI-projekt. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

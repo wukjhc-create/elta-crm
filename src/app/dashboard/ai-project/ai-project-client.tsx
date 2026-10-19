@@ -241,7 +241,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
       </div>
 
       {/* Input Section */}
-      <div className="bg-white border rounded-lg p-6 mb-6">
+      <div className="bg-white border rounded-lg p-6 mb-6 break-words min-w-0" data-testid="ai-project-description-section">
         <label className="block text-sm font-medium mb-2 break-words min-w-0" data-testid="ai-project-description-label">Projektbeskrivelse</label>
         <textarea
           data-testid="ai-project-description"
