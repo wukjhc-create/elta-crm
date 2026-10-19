@@ -391,7 +391,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               color="blue"
             />
             <SummaryCard
-              icon={<Package className="w-5 h-5" />}
+              icon={<Package className="w-5 h-5 break-words min-w-0" data-testid="ai-project-summary-package" />}
               label="Komponenter"
               value={`${result.calculation.components.reduce((s, c) => s + c.quantity, 0)} stk`}
               sublabel={`${result.calculation.components.length} typer`}
