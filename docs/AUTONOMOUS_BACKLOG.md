@@ -1434,7 +1434,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-700 | 8 Pilot | DONE. Kortet for andre mailforslag kan krympe. | Kun `className="flex items-center gap-2 bg-white rounded px-2.5 py-2 border border-gray-100"` i mail-detaljen. `key={s.id}`, kundenavnet og `Kobl` er uændrede. |
 | G18-701 | 8 Pilot | DONE. Kundenummeret på e-mail-match i mail-detaljen kan krympe. | Kun afsnittet med `{detectedCustomer.customer_number} — email-match` i mail-detaljen. Nummeret er uændret. |
 | G18-702 | 8 Pilot | DONE. Kundenummeret på andre mailforslag kan krympe. | Kun afsnittet med `{s.customer_number} — {s.matchReason}` i mail-detaljen. Nummeret og matchårsagen er uændrede. |
-| G18-703 | 8 Pilot | ÅBEN. Telefonlinjen i mailforslag kan krympe. | Kun afsnittet med `Telefon fundet i email` i mail-detaljen. `{detectedPhone}` er uændret. Ordre/ref-linjen røres ikke. |
+| G18-703 | 8 Pilot | DONE. Telefonlinjen i mailforslag kan krympe. | Kun afsnittet med `Telefon fundet i email` i mail-detaljen. `{detectedPhone}` er uændret. Ordre/ref-linjen røres ikke. |
+| G18-704 | 8 Pilot | ÅBEN. Ordre/ref-linjen i mailforslag kan krympe. | Kun afsnittet med `Ordre/ref fundet i email` i mail-detaljen. `{detectedOrderId}` er uændret. Telefonlinjen røres ikke. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
