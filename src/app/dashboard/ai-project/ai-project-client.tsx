@@ -318,7 +318,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             <div className="text-sm font-medium text-purple-800 mb-2 break-words min-w-0" data-testid="ai-project-quick-estimate">Hurtig estimat</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm break-words min-w-0" data-testid="ai-project-quick-grid">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-purple-500" />
+                <Building2 className="w-4 h-4 text-purple-500 break-words min-w-0" data-testid="ai-project-building-icon" />
                 <span className="break-words min-w-0" data-testid="ai-project-quick-building">{getBuildingTypeName(quickResult.buildingType)}</span>
               </div>
               <div className="flex items-center gap-2">
