@@ -624,7 +624,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           <div className="bg-white border rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold">Næste skridt</h3>
+                <h3 className="font-semibold break-words min-w-0" data-testid="ai-project-next-step-heading">Næste skridt</h3>
                 <p className="text-sm text-gray-500">Opret et rigtigt tilbud baseret på denne analyse</p>
               </div>
               <Button onClick={handleCreateOffer} disabled={creatingOffer}>
