@@ -807,8 +807,9 @@ export async function getRecentRejections(
   limit: number = 5,
 ): Promise<ActionResult<RecentRejection[]>> {
   try {
-    // Sprint Ø2.13: bevidst IKKE gated — dashboard-delt (se getRejectionStats).
-    const { supabase } = await getAuthenticatedClientWithRole()
+    // Sprint Ø2.13: dashboard-delt; PM2-4 (Henrik 2026-10-19): tilbudsdata kun med offers.view (bogholderi så før kunder/beløb)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) return { success: true, data: [] }
 
     const { data: offers, error } = await supabase
       .from('offers')

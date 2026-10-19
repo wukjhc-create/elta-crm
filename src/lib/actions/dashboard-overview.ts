@@ -84,6 +84,8 @@ export interface DashboardOverview {
     timesPendingApproval: number
   }
   offers: {
+    /** PM2-4: kun med offers.view */
+    allowed: boolean
     followupCount: number
     oldest: DashboardOverviewOffer[]
     /** N52: kladder ældre end 14 dage (aldrig sendt) */
@@ -158,7 +160,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     mails: { allowed: false, requiresResponseCount: 0, olderCount: 0, oldest: [] },
     tasks: { openCount: 0, autoCount: 0, overdueCount: 0, overdue: [] },
     cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0, timesPendingApproval: 0 },
-    offers: { followupCount: 0, oldest: [], staleDraftCount: 0 },
+    offers: { allowed: false, followupCount: 0, oldest: [], staleDraftCount: 0 },
     newCustomers: { allowed: false, count: 0, items: [] },
     portal: { allowed: false, unreadCount: 0, customers: [] },
     unbilled: { allowed: false, caseCount: 0, saleTotal: 0, cases: [] },
@@ -361,6 +363,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // Offers — sendte/sete der ikke er accepteret, aeldre end OFFER_FOLLOWUP_DAYS
     (async () => {
       try {
+        if (!roleCtx.hasPermission('offers.view')) return // PM2-4: tilbudsdata kun med offers.view
+        overview.offers.allowed = true
         const cutoff = new Date(now - OFFER_FOLLOWUP_DAYS * 86_400_000).toISOString()
         const [countRes, listRes] = await Promise.all([
           supabase

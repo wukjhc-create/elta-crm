@@ -341,13 +341,14 @@ export default async function DashboardPage() {
             <UpcomingTasks tasks={tasks} />
           </div>
 
-          <div className="bg-white p-6 rounded-lg border">
+          {/* PM2-4: tilbudskort kun med offers.view (bogholderi fik før data og døde links) */}
+          {canViewOffers && <div className="bg-white p-6 rounded-lg border">
             <h2 className="text-lg font-semibold mb-4">Afventende tilbud</h2>
             <PendingOffers offers={offers} />
-          </div>
+          </div>}
 
           {/* Phase 12A — Seneste afviste tilbud */}
-          <div className="bg-white p-6 rounded-lg border">
+          {canViewOffers && <div className="bg-white p-6 rounded-lg border">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Seneste afviste tilbud</h2>
               {recentRejections.length > 0 && (
@@ -396,7 +397,7 @@ export default async function DashboardPage() {
                 ))}
               </ul>
             )}
-          </div>
+          </div>}
         </div>
       </div>
     </div>

@@ -2914,9 +2914,12 @@ ${m.text()}`) })
             await gotoSafe(x.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
             const body = (await x.page.locator('body').textContent().catch(() => '')) ?? ''
             r[`${role}_intet_mailkort`] = !body.includes('Mails kræver svar') && !body.includes(subj) && !body.includes('Seneste e-mails')
+            // PM2-4: tilbudskort kun med offers.view (salg har det, bogholderi ikke)
+            const offerCards = body.includes('Afventende tilbud') || body.includes('Seneste afviste tilbud')
+            r[`${role}_tilbudskort_${role === 'salg' ? 'vist' : 'skjult'}`] = role === 'salg' ? offerCards : !offerCards
           } finally { await x.ctx.close().catch(() => {}) }
         }
-        out.push({ id: 'U193 PM2-1 postkasse kun med inbox.view', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+        out.push({ id: 'U193 PM2-1/PM2-4 postkasse og tilbud kun med ret', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U194 PM2-2 (Henrik 2026-10-19): montør mister leads helt — listen og et lead via direkte URL giver "ingen adgang"

@@ -76,7 +76,7 @@ export function StyringsCockpit({ overview }: Props) {
         {overview.mails.allowed && <MailsCard overview={overview} />}
         <TasksCard overview={overview} />
         <CasesCard overview={overview} />
-        <OffersCard overview={overview} />
+        {overview.offers.allowed && <OffersCard overview={overview} />}
         {overview.webInquiries.allowed && <WebInquiriesCard overview={overview} />}
         {overview.staleLeads.allowed && overview.staleLeads.count > 0 && <StaleLeadsCard overview={overview} />}
         {/* DB-8: kun når rollen har data — ellers viste kortene falsk "0 / alt i orden" */}

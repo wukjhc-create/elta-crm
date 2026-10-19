@@ -70,6 +70,7 @@ function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] 
 export async function getDashboardStats(): Promise<DashboardStats> {
   const roleCtx = await getAuthenticatedClientWithRole()
   const { supabase, userId } = roleCtx
+  const canOffers = roleCtx.hasPermission('offers.view')
   // En fejlende forespørgsel giver tomme tal frem for at vælte dashboardet — men markeres (B-10), så siden kan sige det
   let incomplete = false
   const allRows = <T,>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> =>
@@ -103,11 +104,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     headCount(supabase.from('customers').select('id', { count: 'exact', head: true })),
     headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).eq('is_active', true)),
     headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', monthStartIso)),
-    Promise.all(OFFER_STATUSES_ALL.map((st) => headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).eq('is_proposal', false).eq('status', st)))),
-    headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).eq('is_proposal', false)),
+    // PM2-4 (Henrik 2026-10-19): tilbudstal og -værdier kun med offers.view
+    canOffers
+      ? Promise.all(OFFER_STATUSES_ALL.map((st) => headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).eq('is_proposal', false).eq('status', st))))
+      : Promise.resolve(OFFER_STATUSES_ALL.map(() => 0)),
+    canOffers ? headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).eq('is_proposal', false)) : Promise.resolve(0),
     // Rækker hentes side for side — PostgREST giver højst 1.000 pr. kald (N36-rest: tallene stod stille ved 1.000)
     // Rapport-review 2026-10-09 (#2): værdi ekskl. moms efter rabat (final − tax) — total_amount er subtotal før rabat
-    allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).in('status', ['sent', 'viewed', 'accepted']).order('id').range(f, t)),
+    canOffers
+      ? allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).in('status', ['sent', 'viewed', 'accepted']).order('id').range(f, t))
+      : Promise.resolve([] as Array<{ status: string; final_amount: number | null; tax_amount: number | null }>),
     // N36: sager (ikke gamle projekter)
     // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
     // DB-1 (dashboard-review 2026-10-18): roller uden cases.view.all (salg) tæller kun egne sager (som listen de klikker til)
@@ -387,7 +393,8 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
     created_at: string
   }[]
 > {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('offers.view')) return [] // PM2-4: tilbudsdata kun med offers.view
 
   const { data } = await supabase
     .from('offers')
@@ -433,7 +440,9 @@ export async function getMonthlyOfferStats(): Promise<{
   /** DB-2: afviste i måneden (rejected_at) — nævner i hitraten */
   rejectedCount: number
 }> {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  // PM2-4: tilbudsdata kun med offers.view
+  if (!hasPermission('offers.view')) return { sentValue: 0, acceptedValue: 0, sentCount: 0, acceptedCount: 0, rejectedCount: 0 }
 
   // Rapport-review 2026-10-09 (#9): dansk månedsstart (før serverens UTC → 00–02 den 1. tabt), alle rækker, ekskl. moms
   const firstDayOfMonth = copenhagenLocalToIso(`${copenhagenParts(new Date()).date.slice(0, 7)}-01`, '00:00')
