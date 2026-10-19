@@ -313,11 +313,11 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
                   <td className="px-4 py-2.5 text-right text-gray-500">{formatCurrency(alert.old_price)}</td>
                   <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(alert.new_price)}</td>
                   <td className="px-4 py-2.5 text-right">
-                    <span className={`min-w-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                    <span className={`break-words min-w-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                       severity === 'critical' ? 'bg-red-100 text-red-700'
                         : severity === 'warning' ? 'bg-amber-100 text-amber-700'
                         : 'bg-blue-100 text-blue-700'
-                    }`}>
+                    }`} data-testid="pricing-alert-severity">
                       {isIncrease ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                       <span className="break-words min-w-0" data-testid="pricing-alert-change">{isIncrease ? '+' : ''}{alert.change_percentage.toFixed(1)}%</span>
                     </span>

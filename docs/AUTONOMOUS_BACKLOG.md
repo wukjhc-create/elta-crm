@@ -961,7 +961,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-247 | 4 Pris | DONE. Beskrivelsen på produktdetaljen ombrydes. | {product.description} er uændret. |
 | G18-253 | 4 Pris | DONE. Etiketten Enhed på produktdetaljen ombrydes. | Ordet og {product.unit} er uændrede. |
 | G18-259 | 4 Pris | DONE. Volatilitets-linjen på pristendensens mobilkort ombrydes. | Etiketterne og procenterne er uændrede. |
-| G18-265 | 4 Pris | ÅBEN. Alvorligheds-mærket på prisadvarslens skrivebord ombrydes. | Procenten er uændret. |
+| G18-265 | 4 Pris | DONE. Alvorligheds-mærket på prisadvarslens skrivebord ombrydes. | Procenten er uændret. |
+| G18-271 | 4 Pris | ÅBEN. Linjecellen på berørte tilbud ombrydes. | Antallet er uændret. |
 | G18-218 | 4 Pris | DONE. Kategorinavnet i kategori-vælgeren ombrydes. | {category.name} er uændret. |
 | G18-224 | 4 Pris | DONE. Etiketten Aktiv i produktformularen ombrydes. | Ordet er uændret. |
 | G18-230 | 4 Pris | DONE. Enhedsnavnet i produktformularen ombrydes. | {unit.label} er uændret. |
