@@ -475,7 +475,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               <div className="break-words min-w-0" data-testid="ai-project-price-column">
                 <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-price-heading">Prisopbygning</h4>
                 <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-price-list">
-                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-materials-row">
                     <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-materials-label">Materialer</dt>
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.material_cost)}</dd>
                   </div>
