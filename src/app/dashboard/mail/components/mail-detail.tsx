@@ -442,7 +442,7 @@ export function MailDetail({
               </button>
               <button
                 onClick={() => setShowCreateCustomerModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm transition-all hover:shadow-md"
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm transition-all hover:shadow-md break-words min-w-0" data-testid="mail-opret-kunde-button"
               >
                 <UserPlus className="w-4 h-4" />
                 Opret som ny kunde
