@@ -33,9 +33,9 @@ ok(!row.includes('Alder'), 'alder er en anden række')
 ok(!row.includes('ai-project-building-list'), 'bygningslisten er et andet sted')
 ok(view.split(id).length === 2, 'typerækken findes en gang')
 ok(view.split(cell).length === 2, 'typerækkens klasse findes en gang')
-ok(view.split(bare).length === 9, 'de andre rækker bliver')
+ok(view.split(bare).length === 8, 'de andre rækker bliver')
 ok(view.includes('break-words">{getBuildingTypeName(result.interpretation.building_type)}'), 'bygningstypen bliver')
-ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0">\r\n                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-building-size-label">'), 'størrelsesrækken bliver bar')
+ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-building-size-row">\r\n                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-building-size-label">'), 'størrelsesrækken kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
