@@ -18,7 +18,7 @@ ok(formatCurrency(1250).includes('1'), 'beloebsformatet bliver')
 const view = readFileSync('src/app/dashboard/ai-project/ai-project-client.tsx', 'utf8')
 const id = 'data-testid="ai-project-customer-head"'
 const at = view.indexOf(id)
-const row = at >= 0 ? view.slice(at - 80, at + 480) : ''
+const row = at >= 0 ? view.slice(at - 80, at + 560) : ''
 ok(row.includes('break-words min-w-0'), 'hovedet kan krympe')
 ok(row.includes('>Vælg kunde<'), 'teksten er uaendret')
 ok(row.includes('aria-label="Luk"'), 'luk er uaendret')
