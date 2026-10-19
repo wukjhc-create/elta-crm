@@ -317,7 +317,7 @@ export function MailDetail({
         </div>
 
         {/* Sender + date */}
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center justify-between text-sm break-words min-w-0" data-testid="mail-sender-row">
           <div className="text-gray-600">
             <span className="font-medium text-gray-800 break-words min-w-0" data-testid="mail-sender">{email.sender_name || email.sender_email}</span>
             {email.sender_name && <span className="ml-1 text-gray-400 break-words min-w-0" data-testid="mail-sender-address">&lt;{email.sender_email}&gt;</span>}
