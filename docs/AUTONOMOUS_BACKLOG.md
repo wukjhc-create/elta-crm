@@ -1359,6 +1359,52 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 fireogtresindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `330c3b5c`. Det lader treogtresindstyvende-hegnet stå. `330c3b5c` hedder `docs: checkpoint efter 522850fd`. Produktspids: `a5c6612e`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `a5c6612e` blev afvist før git kørte og er ikke prøvet igen. `b4ebefc0`, `ced2369b`, `bf9ac2a7` og `d300c741` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `d300c741..a5c6612e`
+
+```
+a5c6612e feat(pilot): titelraekken i mailens lysboks kan krympe
+b4ebefc0 feat(pilot): panelet i mailens lysboks kan krympe
+ced2369b feat(pilot): lysboksen i mailen kan krympe
+bf9ac2a7 feat(pilot): rammen om webhenvendelsen i mailen kan krympe
+d300c741 feat(pilot): indlaesningen af mailens broedtekst kan krympe
+```
+
+Listen er alle commits efter `330c3b5c` til og med `a5c6612e`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+330c3b5c docs: checkpoint efter 522850fd
+```
+
+### Features
+
+G18-614, G18-615, G18-616, G18-617 og G18-618 lader kun indlæsningen af mailens brødtekst, rammen om webhenvendelsen, lysboksen, panelet og titelrækken i mailens lysboks krympe. `data-testid="mail-body-loading"` bliver. `<WebInquiryCard email={email} />` bliver. `aria-label="Luk"` bliver. `setLightboxUrl(null)` bliver. `break-all min-w-0 flex-1">{lightboxName}` bliver. Filnavnets `line-clamp-2` bliver. `formatCurrency` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede mail-detalje og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. G18-614: `scripts/mail-body-loading-wrap-test.ts` plus HTML-brødtekst, brødtekst og vedhæftningsomslag. G18-615: `scripts/mail-inquiry-frame-wrap-test.ts` plus indlæsning og vedhæftningsomslag. G18-616: `scripts/mail-lightbox-shell-wrap-test.ts` plus henvendelse og vedhæftningsomslag. G18-617: `scripts/mail-lightbox-panel-wrap-test.ts` plus lysboks og vedhæftningsomslag. G18-618: `scripts/mail-lightbox-title-row-wrap-test.ts` plus panel, lysboks og vedhæftningsomslag. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `a5c6612e`, herunder G18-289 til G18-618. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. Når push er tilladt, push kun `grok-next` og prøv ikke afviste tip igen, herunder `a5c6612e`, `b4ebefc0`, `ced2369b`, `bf9ac2a7`, `d300c741`, `330c3b5c`, `522850fd`, `6c037fa2`, `634e11d7`, `ac352f4e`, `030f4985`, `953da8a7`, `1f34326f`, `d5f1405e`, `2518255c`, `36f17cfe`, `8cf964e4`, `2946e7f2`, `47f0f80c`, `702c951a`, `14253394`, `ca4ccf5b`, `593f3462`, `cff3fa0f`, `e653556a`, `7a4b9c85`, `a5f192ca`, `cb5961d2`, `5428a776`, `57dbc8e3`, `248ff83d`, `776433ca`, `40cb3512`, `65f85272`, `4dbe54d9`, `7d5c7115`, `a6e33199`, `64be36a5`, `3922d7e2`, `8d2f6c83`, `2c179dfb`, `9473f6c0`, `a22d92b5`, `f4dfeb1b`, `b5e93c28`, `20255ab9`, `d773820f`, `a173dc85`, `7d5c0992`, `b4b16ec0`, `c1fddd5a`, `5442632c`, `1a1d9a83`, `4787b533`, `3fc62b81`, `7c6788af`, `3da378e4`, `c342647d`, `d45fcb3b`, `f2555768`, `d6955125`, `ab6518a6`, `b8256210`, `cdbd2137`, `897ce36a`, `2ff378d7`, `441ef869`, `0a2326fc`, `a48a3054`, `6f993cf7`, `f8596a13`, `ab774daa`, `2a710178`, `634190cc`, `d8437c94`, `55ba8a65`, `4c77d244`, `8d9cf47f`, `53feb5c6`, `911cdc18`, `b9354d9b`, `1f3f9e80`, `353d3e24`, `8c66e51d`, `6fe5805d`, `acb9c456`, `b2b9bef5`, `36a8ce8d`, `b871fda6`, `37b25dcd`, `0b34e41a`, `a623f3c3`, `439ca8b0`, `ea96664c`, `e8f68985`, `cfc481fc`, `4844064d`, `1d4e0ed4`, `fddccb09`, `900c129e`, `def6b245`, `c6dafe97`, `02eac352`, `23d43087`, `4b9fd2ee`, `6df6114a`, `bfcac529`, `e2760143`, `f7f34a42`, `4607487b`, `ae64af32`, `c028a873`, `ffa327ad`, `cc59416f`, `c6e18461` og `4245647d`. Flet derefter `origin/main` ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-619, G18-597.
+
 ## Checkpoint 2026-10-18 treogtresindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `953da8a7`. Det lader toogtresindstyvende-hegnet stå. `953da8a7` hedder `docs: checkpoint efter 1f34326f`. Produktspids: `522850fd`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `522850fd` blev afvist før git kørte og er ikke prøvet igen. `6c037fa2`, `634e11d7`, `ac352f4e` og `030f4985` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
