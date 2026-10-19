@@ -701,7 +701,7 @@ export function MailDetail({
               <Paperclip className="w-5 h-5 text-gray-500" />
               <h3 className="text-sm font-semibold text-gray-700 break-words min-w-0" data-testid="mail-attachments-heading">
                 Vedhæftede filer
-                {realAttachments.length > 0 && <span className="text-gray-400 font-normal ml-1">({realAttachments.length})</span>}
+                {realAttachments.length > 0 && <span className="text-gray-400 font-normal ml-1 break-words min-w-0" data-testid="mail-attachments-count">({realAttachments.length})</span>}
               </h3>
             </div>
 
