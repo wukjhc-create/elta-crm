@@ -21,9 +21,9 @@ ok(row.includes('break-words min-w-0'), 'navnet ombrydes')
 ok(row.includes('{productResult.data.name}'), 'navnet er uændret')
 ok(row.includes('text-2xl font-bold'), 'stoerrelsen bliver')
 const skuAt = view.indexOf('{productResult.data.sku}')
-const skuRow = skuAt >= 0 ? view.slice(skuAt - 80, skuAt + 40) : ''
+const skuRow = skuAt >= 0 ? view.slice(skuAt - 160, skuAt + 40) : ''
 ok(skuRow.includes('{productResult.data.sku}'), 'sku bliver')
-ok(!skuRow.includes('break-words'), 'sku-linjen venter')
+ok(skuRow.includes('data-testid="product-detail-sku"') && skuRow.includes('break-words min-w-0'), 'sku-linjen ombrydes')
 ok(view.includes('Det tælles ikke som at produktet mangler.'), 'fejlteksten bliver')
 ok(view.includes('href="/dashboard/products"'), 'tilbage-linket bliver')
 
