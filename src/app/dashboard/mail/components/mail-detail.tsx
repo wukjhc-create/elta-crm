@@ -322,7 +322,7 @@ export function MailDetail({
             <span className="font-medium text-gray-800 break-words min-w-0" data-testid="mail-sender">{email.sender_name || email.sender_email}</span>
             {email.sender_name && <span className="ml-1 text-gray-400 break-words min-w-0" data-testid="mail-sender-address">&lt;{email.sender_email}&gt;</span>}
             {email.is_forwarded && email.original_sender_email && (
-              <span className="ml-2 text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+              <span className="ml-2 text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded break-words min-w-0" data-testid="mail-forwarded-from">
                 Videresendt fra: {email.original_sender_name || email.original_sender_email}
               </span>
             )}
