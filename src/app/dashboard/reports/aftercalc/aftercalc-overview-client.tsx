@@ -101,7 +101,7 @@ export function AftercalcOverviewClient() {
             <Scale className="w-4 h-4 text-gray-500 break-words min-w-0" data-testid="aftercalc-sager-icon" />
             Sager
           </h2>
-          {open ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+          {open ? <ChevronDown className="w-4 h-4 text-gray-500 break-words min-w-0" data-testid="aftercalc-fold-open-icon" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
         </button>
         {!open && <p className="mt-1 text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-overview-closed-hint">Kost og DB er skjult, indtil du åbner oversigten.</p>}
 
