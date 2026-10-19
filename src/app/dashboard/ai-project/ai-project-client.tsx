@@ -838,7 +838,7 @@ function CollapsibleSection({
   children: React.ReactNode
 }) {
   return (
-    <div className="bg-white border rounded-lg">
+    <div className="bg-white border rounded-lg break-words min-w-0" data-testid="ai-project-section-shell">
       <button
         onClick={onToggle}
         className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors break-words min-w-0"
