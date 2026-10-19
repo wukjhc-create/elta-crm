@@ -242,7 +242,7 @@ export function ProposalsClient() {
                       <span className="font-mono">{o.offer_number}</span>
                       <span>{formatDate(o.created_at)}</span>
                     </div>
-                    <p className="font-medium text-gray-900 line-clamp-1">{o.title}</p>
+                    <p className="font-medium text-gray-900 break-words min-w-0" data-testid="proposal-offer-title">{o.title}</p>
                     {o.customer_name && (
                       <p className="text-sm text-gray-600 mt-1">Kunde: {o.customer_name}</p>
                     )}

@@ -21,7 +21,7 @@ const row = at >= 0 ? view.slice(at - 120, at + 60) : ''
 ok(row.includes('break-words min-w-0'), 'titlen ombrydes')
 ok(row.includes('>{c.title}'), 'teksten er uændret')
 ok(!row.includes('line-clamp-1'), 'den klippes ikke til en linje')
-ok(view.includes('line-clamp-1">{o.title}'), 'tilbudstitlen bliver')
+ok(view.includes('break-words min-w-0" data-testid="proposal-offer-title">{o.title}'), 'tilbudstitlen ombrydes')
 ok(view.includes('onPromoteCase(c.id)'), 'opret bliver')
 
 if (bad > 0) {
