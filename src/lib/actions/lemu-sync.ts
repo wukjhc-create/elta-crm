@@ -7,7 +7,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
@@ -29,6 +29,8 @@ export interface LemuSyncStatus {
 
 export async function getLemuSyncStatus(): Promise<ActionResult<LemuSyncStatus>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
 
     // Find LM supplier
@@ -115,6 +117,8 @@ export interface SupplierSyncOverview {
 
 export async function getAllSupplierSyncStatuses(): Promise<ActionResult<SupplierSyncOverview[]>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
 
     // Get all active suppliers

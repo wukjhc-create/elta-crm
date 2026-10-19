@@ -16,7 +16,7 @@ import {
   type Adjustment,
 } from '@/lib/ai/learningEngine'
 import type { ActionResult } from '@/types/common.types'
-import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -44,6 +44,8 @@ import { logger } from '@/lib/utils/logger'
  */
 export async function getLearningMetrics(): Promise<ActionResult<LearningMetrics>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     await requireAuth()
 
     const metrics = await analyzeLearningMetrics()
@@ -59,6 +61,8 @@ export async function getLearningMetrics(): Promise<ActionResult<LearningMetrics
  */
 export async function getComponentCalibrations(): Promise<ActionResult<ComponentCalibration[]>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     await requireAuth()
 
     const calibrations = await analyzeComponentCalibration()
@@ -517,6 +521,8 @@ export async function getLearningSystemStatus(): Promise<
   }>
 > {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
 
     // Count feedback records
@@ -590,6 +596,8 @@ export async function getAccuracyTrends(
   }>
 > {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
 
     // Determine date range

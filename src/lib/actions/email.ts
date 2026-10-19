@@ -1411,6 +1411,10 @@ export async function getEmailStats(options?: {
  * Test Graph API connection
  */
 export async function testEmailConnectionAction(): Promise<{ success: boolean; error?: string; mailbox?: string }> {
+  // PM3-1-opfølgning (gate-audit tæller nu Graph-kald som privilegerede): før uden login — afslørede postkasse-
+  // adressen og hentede et Graph-token for enhver kalder. Samme ret som siden (settings/email: settings.view)
+  const __denied = await permissionDenied('settings.view')
+  if (__denied) return { success: false, error: __denied }
   try {
     if (!isGraphConfigured()) {
       return { success: false, error: 'Microsoft Graph er ikke konfigureret. Sæt AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET.' }

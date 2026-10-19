@@ -19,7 +19,7 @@ import type {
   PriceChange,
   ColumnMappings,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import { dedupeRowsBySku } from '@/lib/import/dedupe-sku'
 
 /**
@@ -543,6 +543,8 @@ export async function getImportBatches(
   filters?: ImportBatchFilters
 ): Promise<ActionResult<PaginatedResponse<ImportBatchSummary>>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
 
     const page = filters?.page || 1
@@ -616,6 +618,8 @@ export async function getImportBatch(
   batchId: string
 ): Promise<ActionResult<ImportBatchSummary>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(batchId, 'batch ID')
 

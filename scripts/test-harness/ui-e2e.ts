@@ -187,7 +187,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3052,6 +3052,34 @@ ${m.text()}`) })
           r.indhold_vist = (await s.page.getByText(bodyStamp).count()) > 0
         } finally { await s.ctx.close().catch(() => {}) }
         out.push({ id: 'U200 PM3-7 salg ser koblet mails indhold', ok: !!emId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${emId ? '' : ` · SEED: ${em.error?.message}`}` })
+      }
+
+      // U201 PM3-8: mailknappen på opgavesiden kun med tasks.edit (sendTaskEmail afviser ellers) — salg ser sin egen opgave
+      // uden mailknap; montør (tasks.edit) ser mailknappen på sin tildelte opgave
+      if (want('U201') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const salg = await mkUser('salg')
+        const ins = await c.admin.from('customer_tasks').insert([
+          { customer_id: profitCustomerId, title: `[HARNESS] U201 salg ${stamp}`, priority: 'normal', created_by: salg.id, assigned_to: salg.id },
+          { customer_id: profitCustomerId, title: `[HARNESS] U201 montør ${stamp}`, priority: 'normal', created_by: adminUser.id, assigned_to: montor.id },
+        ]).select('id')
+        const ids = ((ins.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        r.seed = ids.length === 2
+        const mailBtns = async (pg: typeof a.page, title: string) => {
+          await gotoSafe(pg, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await pg.getByText(title).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const seen = (await pg.getByText(title).count()) > 0
+          return { seen, mail: await pg.getByRole('button', { name: /^Send mail til / }).count() }
+        }
+        try {
+          const s = await login(salg)
+          try { const x = await mailBtns(s.page, `[HARNESS] U201 salg ${stamp}`); r.salg_ser_opgave = x.seen; r.salg_ingen_mailknap = x.seen && x.mail === 0 }
+          finally { await s.ctx.close().catch(() => {}) }
+          const m = await login(montor)
+          try { const x = await mailBtns(m.page, `[HARNESS] U201 montør ${stamp}`); r.montoer_ser_opgave = x.seen; r.montoer_mailknap = x.mail > 0 }
+          finally { await m.ctx.close().catch(() => {}) }
+        } finally { if (ids.length) await c.admin.from('customer_tasks').delete().in('id', ids) }
+        out.push({ id: 'U201 PM3-8 opgavemail kun med tasks.edit', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${ins.error ? ` · SEED: ${ins.error.message}` : ''}` })
       }
 
       // U50 kundeportal: tilbudslinjer sendes uden kostpris/margin/interne noter til kundens browser

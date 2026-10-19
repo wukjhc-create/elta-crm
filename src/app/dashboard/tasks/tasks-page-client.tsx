@@ -81,6 +81,7 @@ const emptyForm: TaskFormData = {
 export function TasksPageClient({
   isMontor = false,
   canManage = true,
+  canMail = false,
   graphConfigured = false,
 }: {
   /** Sprint 7E fix — montor ser kun egne tildelte tasks (server-action
@@ -88,6 +89,8 @@ export function TasksPageClient({
    *  delete handlinger der kraever tasks.create/edit/delete. */
   isMontor?: boolean
   canManage?: boolean
+  /** PM3-8 — tasks.edit (sendTaskEmail afviser ellers); uden den vises mailknappen ikke */
+  canMail?: boolean
   /** Sprint 8C-1 — om Microsoft Graph er konfigureret. Hvis false viser
    *  send-mail-dialogen advarsel + mailto-fallback. */
   graphConfigured?: boolean
@@ -543,7 +546,7 @@ export function TasksPageClient({
                 onDeleteConfirm={() => setDeleteConfirm(task.id)}
                 onDeleteCancel={() => setDeleteConfirm(null)}
                 onDelete={() => handleDelete(task.id)}
-                onMailClick={() => setMailTask(task)}
+                onMailClick={canMail ? () => setMailTask(task) : undefined}
                 canManage={canManage}
               />
             ))}
@@ -688,8 +691,8 @@ function TaskRow({
   onDeleteCancel: () => void
   onDelete: () => void
   /** Sprint 8C-1 — kaldes naar mail-knappen klikkes paa task-row.
-   *  Aabner intern send-mail-dialog i parent. */
-  onMailClick: () => void
+   *  Aabner intern send-mail-dialog i parent. Udeladt = ingen mailknap (PM3-8). */
+  onMailClick?: () => void
   /** Sprint 7E fix — gates Edit/Delete-knapper. Montor kan complete + status,
    *  men ikke redigere eller slette tasks. */
   canManage?: boolean

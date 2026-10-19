@@ -57,6 +57,13 @@ export async function indirectServiceWrite(id: string) {
 }
 export async function storageUpload(p: string) {
   await supabase.storage.from('attachments').upload(p, new Blob())
+}
+export async function graphReadNoGate() {
+  const { pollInbox } = await import('@/lib/services/microsoft-graph')
+  return pollInbox('kontakt@x.dk')
+}
+export async function graphConfigOnly() {
+  return isGraphConfigured()
 }`)
   client('c.tsx', `import { helperOnly } from '@/lib/actions/a'\nexport default function C() { return helperOnly }`)
 
@@ -98,7 +105,10 @@ export default function U() { return [deleteDocNoLogin, deleteDocWithGate] }`)
   assert(has(/a\.ts:gatedWrite: undtaget men nu gatet/), 'overflødig undtagelse på gatet action fejler (stale)')
   assert(has(/a\.ts:doesNotExist: undtagelse for en action der ikke/), 'undtagelse for ikke-eksisterende action fejler (stale)')
   assert(!has(/readOnly/), 'ren læsning ignoreres')
-  assert(r.scanned === 9, 'skrivende actions tælles korrekt', String(r.scanned))
+  // PM3-1: Graph-læsning (postkassen) uden gate fejler, selv uden DB-skrivning; rent konfig-opslag ignoreres
+  assert(has(/a\.ts:graphReadNoGate: skrivende action uden rettighedstjek/), 'ugatet Graph-læsning fejler')
+  assert(!has(/graphConfigOnly/), 'isGraphConfigured alene ignoreres')
+  assert(r.scanned === 10, 'skrivende actions tælles korrekt', String(r.scanned))
 } finally {
   rmSync(root, { recursive: true, force: true })
 }

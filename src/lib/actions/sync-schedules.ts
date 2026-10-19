@@ -34,6 +34,8 @@ export async function getSupplierSyncSchedules(
   supplierId: string
 ): Promise<ActionResult<SupplierSyncSchedule[]>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 
@@ -324,6 +326,8 @@ export async function getSyncHistory(
   error_message: string | null
 }>>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 

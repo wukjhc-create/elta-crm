@@ -37,6 +37,24 @@ function computeServiceWriters(): string[] {
 const GENERIC_FN_NAMES = new Set(['handler', 'POST', 'GET', 'PUT', 'PATCH', 'DELETE', 'execute', 'main', 'default', 'modul'])
 export const INDIRECT_WRITERS = [...new Set([...STATIC_INDIRECT_WRITERS, ...computeServiceWriters()])]
 const WRITE_RE = new RegExp(String.raw`\.(insert|update|upsert|delete)\(|\.rpc\(\s*['"](?!get_|calculate_)|\.storage\s*\.from\([^)]*\)\s*\.(upload|remove|move)\(|\b(` + INDIRECT_WRITERS.join('|') + String.raw`)\(`)
+/**
+ * PM3-1 (rettigheds-audit 2026-10-19): Microsoft Graph-kald læser/sender firmaets postkasser med app-rettigheder — de er
+ * privilegerede selv når actionen ikke skriver til DB (runSyncDiagnostic returnerede nyeste mails uden login). Alle
+ * eksporterede funktioner i services/microsoft-graph.ts tæller, undtagen rene konfigurations-opslag.
+ */
+const GRAPH_CONFIG_ONLY = new Set(['isGraphConfigured', 'getMailbox', 'getMailboxes', 'getDefaultSendMailbox', 'invalidateTokenCache'])
+function graphPrivilegedNames(): string[] {
+  try {
+    const src = readFileSync(join(process.cwd(), 'src', 'lib', 'services', 'microsoft-graph.ts'), 'utf8')
+    return [...src.matchAll(/^export (?:async )?function (\w+)/gm)].map((m) => m[1]).filter((n) => !GRAPH_CONFIG_ONLY.has(n))
+  } catch {
+    return []
+  }
+}
+export const GRAPH_PRIVILEGED = graphPrivilegedNames()
+const GRAPH_RE = GRAPH_PRIVILEGED.length ? new RegExp(String.raw`\b(` + GRAPH_PRIVILEGED.join('|') + String.raw`)\(`) : /(?!)/
+/** Kræver et rettighedstjek: skriver (direkte/indirekte) eller kalder Graph. */
+const needsGate = (body: string) => WRITE_RE.test(body) || GRAPH_RE.test(body)
 const AUTH_RE = /permissionDenied\(|gateDenied\(|requireGate\(|getAuthenticatedClient|getUser\(|auth\.getUser|requirePermission|require[A-Z]\w*\(|pageHasPermission|getUserRoleForPage|[Tt]oken|timingSafeEqual/
 /** Bevidst offentlige actions (glemt-password begraenser selv sit svar). */
 const INTENTIONALLY_PUBLIC = new Set(['requestPasswordReset'])
@@ -79,7 +97,7 @@ export function runActionGateAudit(dir = join(process.cwd(), 'src', 'lib', 'acti
     const helpers = localGateHelpers(src)
     const file = path.slice(dir.length + 1).split('\\').join('/')
     for (const f of exportedFunctions(src)) {
-      if (!WRITE_RE.test(f.body)) continue
+      if (!needsGate(f.body)) continue
       scanned++
       if (GATE_RE.test(f.body) || (helpers && helpers.test(f.body))) continue
       ungated.push({ file, fn: f.name })
@@ -122,7 +140,7 @@ export function runUnauthenticatedAdminAudit(root = join(process.cwd(), 'src')):
     if (!/^\s*['"]use server['"]/.test(src)) continue
     for (const f of exportedFunctions(src)) {
       // P-009: ogsaa INDIREKTE skrivning (service-role inde i en service) uden login-tjek taeller.
-      if (!(/createAdminClient\(/.test(f.body) || WRITE_RE.test(f.body)) || AUTH_RE.test(f.body)) continue
+      if (!(/createAdminClient\(/.test(f.body) || needsGate(f.body)) || AUTH_RE.test(f.body)) continue
       out.push({ file: path.slice(root.length + 1).split('\\').join('/'), fn: f.name, writes: WRITE_RE.test(f.body),
         exposed: clientNames.has(f.name), intentionallyPublic: INTENTIONALLY_PUBLIC.has(f.name) })
     }
@@ -155,7 +173,7 @@ export function runStrictAudit(
     const helpers = localGateHelpers(src)
     const file = path.slice(dir.length + 1).split('\\').join('/')
     for (const f of exportedFunctions(src)) {
-      if (!WRITE_RE.test(f.body)) continue
+      if (!needsGate(f.body)) continue
       scanned++
       const key = `${file}:${f.name}`
       const isGated = GATE_RE.test(f.body) || (helpers !== null && helpers.test(f.body))

@@ -1,7 +1,7 @@
 'use server'
 
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import { SUPPLIER_API_CONFIG } from '@/lib/constants'
 
 // =====================================================
@@ -42,6 +42,8 @@ export async function getSupplierHealth(
   supplierId: string
 ): Promise<ActionResult<SupplierHealth>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
     const maxCacheAge = SUPPLIER_API_CONFIG.CACHE_TTL_MS
 
@@ -139,6 +141,8 @@ export async function getSupplierHealth(
  */
 export async function getSystemHealthSummary(): Promise<ActionResult<SystemHealthSummary>> {
   try {
+    // PM3-12: leverandørstatus vises på leverandørsiden (settings.view) og dashboardets kostblok (economy.cost_prices)
+    { const __d = await permissionDenied('settings.view'); if (__d && await permissionDenied('economy.cost_prices')) return { success: false, error: __d } }
     const { supabase } = await getAuthenticatedClient()
     const maxCacheAge = SUPPLIER_API_CONFIG.CACHE_TTL_MS
 

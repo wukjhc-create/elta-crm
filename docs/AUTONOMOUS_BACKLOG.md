@@ -221,11 +221,11 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PM3-5 | "Ny sag" i seneste aktivitet ignorerer sags-scope (S3) | DONE (kode) — sager i seneste aktivitet inden for sags-scope |
 | PM3-6 | getOfferActivities uden offers.view (S3) | DONE (kode) — getOfferActivities kræver offers.view |
 | PM3-7 | getCustomerEmailBody læser enhver mail via id uden kunde-tjek (S3) | DONE (kode, U200) — brødtekst kun for mail koblet til kunden eller adresse-match (customers.edit); aldrig en mail koblet til en anden kunde. Rest-BESLUTNING: kunder med leverandøradresse |
-| PM3-8 | Opgavemail: knap vist uden tasks.edit; montør kan maile vilkårlig adresse (S3) | TODO + BESLUTNING |
+| PM3-8 | Opgavemail: knap vist uden tasks.edit; montør kan maile vilkårlig adresse (S3) | DONE (kode, U201) — mailknappen vises kun med tasks.edit (salg/bogholderi så en knap serveren afviste). Rest-BESLUTNING: montør må maile vilkårlig modtager-adresse fra egen opgave |
 | PM3-9 | Ugatede mail-læsninger: getLeadsForEmails, getGraphSyncState(s), mail-recipients.ts (S4) | DONE (kode) — inbox.view resp. customers.view + sags-scope |
 | PM3-10 | Lead-/tilbudseksport kun med view-ret (S3) | BESLUTNING — samme regel som kundeeksport? |
 | PM3-11 | Gammelt projektmodul uden scope (getProject/getProjects, tasks, time entries) (S3) | TODO (eller pensionér modulet = BESLUTNING) |
-| PM3-12 | Indstillings-/diagnose-læsninger kun login (learning, sync, import, lemu, supplier-health, email-stats) (S4) | TODO |
+| PM3-12 | Indstillings-/diagnose-læsninger kun login (learning, sync, import, lemu, supplier-health, email-stats) (S4) | DONE (kode) — 15 læsninger kræver settings.view (getSystemHealthSummary: settings.view ELLER economy.cost_prices for dashboardets kostblok); email-stats var allerede inbox.view. Gate-audit tæller nu Graph-kald som privilegerede → fandt testEmailConnectionAction uden login (gatet settings.view). Ikke gatet: rene referencedata (installationstyper, rumskabeloner, tilbudstekst-skabeloner) |
 | PM3-13 | Rapportsiden viser tilbudsdata til bogholderi (S4) | BESLUTNING |
 | PM3-14 | Montør ser hele kunderegistret (customers.view uden scope) (S4) | BESLUTNING |
 

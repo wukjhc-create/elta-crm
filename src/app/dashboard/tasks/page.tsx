@@ -20,6 +20,8 @@ export default async function TasksPage() {
   // X-13: uden tasks.view (salg/bogholderi) vises kun egne opgaver — samme visning som montørens "Mine opgaver"
   const ownOnly = isMontor || !ctx.has('tasks.view')
   const canManage = ctx.has('tasks.create') // admin + serviceleder
+  // PM3-8 (rettigheds-audit 2026-10-19): sendTaskEmail kræver tasks.edit — uden den vises mailknappen ikke
+  const canMail = ctx.has('tasks.edit')
   // Sprint 8C-1 — saa send-mail-dialogen kan vise advarsel + mailto-fallback
   // hvis Graph ikke er konfigureret i miljøet.
   const graphConfigured = isGraphConfigured()
@@ -33,6 +35,7 @@ export default async function TasksPage() {
       <TasksPageClient
         isMontor={ownOnly}
         canManage={canManage}
+        canMail={canMail}
         graphConfigured={graphConfigured}
       />
     </>

@@ -12,7 +12,7 @@ import type {
   UpdateSyncJobData,
   SyncLogFilters,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -33,6 +33,8 @@ export async function getSyncJobs(
   supplierId?: string
 ): Promise<ActionResult<SupplierSyncJobWithSupplier[]>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
@@ -64,6 +66,8 @@ export async function getSyncJob(
   id: string
 ): Promise<ActionResult<SupplierSyncJobWithSupplier>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'sync job ID')
 
@@ -322,6 +326,8 @@ export async function getSyncLogs(
   filters?: SyncLogFilters
 ): Promise<ActionResult<PaginatedResponse<SupplierSyncLog>>> {
   try {
+    // PM3-12 (rettigheds-audit 2026-10-19): indstillings-/diagnosedata kun med settings.view (før: kun login)
+    { const __denied = await permissionDenied('settings.view'); if (__denied) return { success: false, error: __denied } }
     const { supabase } = await getAuthenticatedClient()
 
     const page = filters?.page || 1
