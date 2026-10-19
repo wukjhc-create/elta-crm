@@ -1483,6 +1483,55 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 nioghalvfemsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `f4209137`. Det lader otteoghalvfemsindstyvende-hegnet stå. `f4209137` hedder `feat(profit): filterkortet paa efterkalkulation kan krympe`. `ec978082` hedder `feat(profit): overskriftens raekke paa efterkalkulation kan krympe`. `3508d332` hedder `feat(profit): overskriften Efterkalkulation kan krympe`. `441a3909` hedder `feat(pilot): den faerdige mail-raekke kan krympe`. `ccfe4e02` hedder `feat(pilot): raekken ved nye mails kan krympe`. `f4169714` hedder `feat(pilot): indlaesnings-spinneren ved nye mails kan krympe`. `fac1472d` hedder `feat(pilot): indlaesnings-spinneren i mail-detaljen kan krympe`. `a99e3b1a` hedder `docs: checkpoint efter 9f701000`. Start: `80ab0dab`. `origin/grok-next` er `f4209137`. Push af `f4209137` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `a99e3b1a..f4209137`
+
+```
+f4209137 feat(profit): filterkortet paa efterkalkulation kan krympe
+ec978082 feat(profit): overskriftens raekke paa efterkalkulation kan krympe
+3508d332 feat(profit): overskriften Efterkalkulation kan krympe
+441a3909 feat(pilot): den faerdige mail-raekke kan krympe
+ccfe4e02 feat(pilot): raekken ved nye mails kan krympe
+f4169714 feat(pilot): indlaesnings-spinneren ved nye mails kan krympe
+fac1472d feat(pilot): indlaesnings-spinneren i mail-detaljen kan krympe
+a99e3b1a docs: checkpoint efter 9f701000
+```
+
+Listen er skiftets commits fra `a99e3b1a` til og med `f4209137`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+db75511e docs: checkpoint efter c8aabb8a
+```
+
+### Features
+
+G18-736 lader kun indlæsnings-spinneren i mail-detaljen krympe. Teksten `Henter hele mailen…` bliver. G18-737 lader kun indlæsnings-spinneren ved nye mails krympe. Teksten `Henter nye mails…` bliver. G18-738 lader kun rækken ved nye mails krympe. G18-739 lader kun den færdige mail-række krympe. Teksten `Mail opdateret` bliver. G18-740 lader kun overskriften Efterkalkulation krympe. Teksten `Efterkalkulation` bliver. G18-741 lader kun overskriftens række på efterkalkulation krympe. G18-742 lader kun filterkortet på efterkalkulation krympe. Filtre, beløb og overskriften bliver. `data-testid="aftercalc-overview-filter-card"` bliver. `data-testid="mail-body-loading-spinner"` bliver. `data-testid="mail-freshness-spinner"` bliver. `data-testid="mail-freshness"` bliver. `data-testid="aftercalc-overview-title"` bliver. `data-testid="aftercalc-overview-heading-row"` bliver. `formatCurrency` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/mail-body-loading-spinner-wrap-test.ts`, `scripts/mail-freshness-spinner-wrap-test.ts`, `scripts/mail-freshness-row-wrap-test.ts`, `scripts/mail-freshness-done-wrap-test.ts`, `scripts/aftercalc-overview-title-wrap-test.ts`, `scripts/aftercalc-overview-heading-row-wrap-test.ts` og `scripts/aftercalc-overview-filter-card-wrap-test.ts` læser den shippede kilde og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetestene for mail-indlæsning, hurtigt svar, fjern-kobling og efterkalk-indledning exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for hvert produktcommit. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `f4209137`, herunder G18-289 til G18-742. `a99e3b1a` er kun docs. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `f4209137`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-743, G18-597.
+
 ## Checkpoint 2026-10-18 otteoghalvfemsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `9f701000`. Det lader syvoghalvfemsindstyvende-hegnet stå. `9f701000` hedder `feat(pilot): hurtigt-svar-spinneren i mail-detaljen kan krympe`. `db75511e` hedder `docs: checkpoint efter c8aabb8a`. Start: `80ab0dab`. `origin/grok-next` er `9f701000`. Push af `9f701000` lykkedes. `db75511e` blev pushet før den. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
