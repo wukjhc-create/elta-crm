@@ -22,7 +22,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 91, at + 10) : ''
 const bare = '<span className="text-xs text-gray-500 inline-flex items-center gap-1" data-testid="mail-freshness">'
 const cell = '<span className="text-xs text-gray-500 inline-flex items-center gap-1 break-words min-w-0" data-testid="mail-freshness">'
-const done = '<span className="text-xs text-gray-500" data-testid="mail-freshness">'
+const done = '<span className="text-xs text-gray-500 break-words min-w-0" data-testid="mail-freshness">'
 ok(row.startsWith('<span'), 'det er raekken')
 ok(row.includes('break-words min-w-0'), 'raekken kan krympe')
 ok(row.includes('inline-flex items-center gap-1'), 'raekken bliver en raekke')
