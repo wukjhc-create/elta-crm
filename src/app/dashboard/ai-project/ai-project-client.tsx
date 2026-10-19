@@ -631,7 +631,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               </div>
               <Button onClick={handleCreateOffer} disabled={creatingOffer} className="break-words min-w-0" data-testid="ai-project-create-offer">
                 {creatingOffer ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  <Loader2 className="w-4 h-4 animate-spin mr-2 break-words min-w-0" data-testid="ai-project-offer-spinner" />
                 ) : (
                   <ArrowRight className="w-4 h-4 mr-2 break-words min-w-0" data-testid="ai-project-offer-arrow" />
                 )}
