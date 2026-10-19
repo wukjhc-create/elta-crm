@@ -645,6 +645,19 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
 // Update a single text field on an offer (scope, notes, terms_and_conditions, description)
 const ALLOWED_TEXT_FIELDS = ['scope', 'notes', 'terms_and_conditions', 'description'] as const
 type AllowedTextField = typeof ALLOWED_TEXT_FIELDS[number]
+// IV2-8 (inputvaliderings-review 2026-10-18): længdegrænse pr. felt (før ubegrænset tekst i tilbud/PDF)
+const TEXT_FIELD_MAX: Record<AllowedTextField, number> = { scope: 20_000, notes: 20_000, terms_and_conditions: 20_000, description: 5_000 }
+
+/** IV2-7: kost-/leverandørfelter fra formData (Number(...)) skal være endelige og inden for rimelige grænser. */
+function lineExtraFieldsError(v: { costPrice?: number | null; supplierMargin?: number | null; supplierCostAtCreation?: number | null; supplierNameAtCreation?: string | null; imageUrl?: string | null }): string | null {
+  const bad = (n: number | null | undefined, min: number, max: number) => n != null && (!Number.isFinite(n) || n < min || n > max)
+  if (bad(v.costPrice, 0, 100_000_000)) return 'Ugyldig kostpris'
+  if (bad(v.supplierCostAtCreation, 0, 100_000_000)) return 'Ugyldig leverandørpris'
+  if (bad(v.supplierMargin, -100, 1_000)) return 'Ugyldig avance'
+  if (v.supplierNameAtCreation && v.supplierNameAtCreation.length > 200) return 'Leverandørnavn er for langt'
+  if (v.imageUrl && v.imageUrl.length > 2_048) return 'Billed-URL er for lang'
+  return null
+}
 
 export async function updateOfferField(
   offerId: string,
@@ -660,6 +673,9 @@ export async function updateOfferField(
 
     if (!ALLOWED_TEXT_FIELDS.includes(field)) {
       return { success: false, error: 'Ugyldigt felt' }
+    }
+    if (value != null && (typeof value !== 'string' || value.length > TEXT_FIELD_MAX[field])) {
+      return { success: false, error: `Teksten er for lang (max ${TEXT_FIELD_MAX[field].toLocaleString('da-DK')} tegn)` }
     }
     // Henrik 2026-10-07: kundevendt indhold kun i kladde; interne noter må altid redigeres
     if (field !== 'notes') { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }
@@ -1030,6 +1046,8 @@ export async function createLineItem(
     const supplierCostAtCreation = mayTouchCost && formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
     const supplierNameAtCreation = formData.get('supplier_name_at_creation') as string || null
     const imageUrl = formData.get('image_url') as string || null
+    const lineExtraErr = lineExtraFieldsError({ costPrice, supplierMargin, supplierCostAtCreation, supplierNameAtCreation, imageUrl })
+    if (lineExtraErr) return { success: false, error: lineExtraErr }
 
     const { data, error } = await supabase
       .from('offer_line_items')
@@ -1122,6 +1140,8 @@ export async function updateLineItem(
     const supplierMargin = formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
     const supplierCostAtCreation = formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
     const imageUrl = formData.get('image_url') as string || undefined
+    const lineExtraErr = lineExtraFieldsError({ costPrice, supplierMargin, supplierCostAtCreation, imageUrl })
+    if (lineExtraErr) return { success: false, error: lineExtraErr }
 
     const { data, error } = await supabase
       .from('offer_line_items')

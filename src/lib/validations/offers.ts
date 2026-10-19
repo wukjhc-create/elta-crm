@@ -78,15 +78,21 @@ export const createLineItemSchema = z.object({
     .string()
     .min(1, 'Beskrivelse er påkrævet')
     .max(500, 'Beskrivelse må højst være 500 tegn'),
+  // IV2-7 (inputvaliderings-review 2026-10-18): endelige tal med øvre grænse (før kunne Infinity/1e300 gemmes)
   quantity: z
     .number()
-    .min(0.01, 'Antal skal være større end 0'),
-  unit: z.string().default('stk'),
+    .finite('Ugyldigt antal')
+    .min(0.01, 'Antal skal være større end 0')
+    .max(1_000_000, 'Antal må højst være 1.000.000'),
+  unit: z.string().max(30, 'Enhed må højst være 30 tegn').default('stk'),
   unit_price: z
     .number()
-    .min(0, 'Pris skal være mindst 0'),
+    .finite('Ugyldig pris')
+    .min(0, 'Pris skal være mindst 0')
+    .max(100_000_000, 'Pris må højst være 100.000.000'),
   discount_percentage: z
     .number()
+    .finite('Ugyldig rabat')
     .min(0, 'Rabat skal være mindst 0%')
     .max(100, 'Rabat må højst være 100%')
     .default(0),

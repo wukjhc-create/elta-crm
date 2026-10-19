@@ -544,12 +544,45 @@ export async function createCustomerTask(
   return { success: true }
 }
 
+const TASK_STATUSES = ['pending', 'in_progress', 'done'] as const
+const TASK_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
+/** IV2-9: null = ok, ellers dansk fejl. */
+function taskUpdateFieldsError(input: UpdateCustomerTaskInput): string | null {
+  const isDate = (v: unknown) => v == null || (typeof v === 'string' && v.length <= 40 && !Number.isNaN(Date.parse(v)))
+  if (input.title !== undefined && (typeof input.title !== 'string' || !input.title.trim() || input.title.length > 300)) return 'Titel mangler eller er for lang (max 300 tegn)'
+  if (input.description !== undefined && input.description !== null && (typeof input.description !== 'string' || input.description.length > 10_000)) return 'Beskrivelsen er for lang (max 10.000 tegn)'
+  if (input.status !== undefined && !(TASK_STATUSES as readonly string[]).includes(input.status)) return 'Ugyldig status'
+  if (input.priority !== undefined && !(TASK_PRIORITIES as readonly string[]).includes(input.priority)) return 'Ugyldig prioritet'
+  if (input.assigned_to !== undefined && input.assigned_to !== null && !/^[0-9a-f-]{36}$/i.test(String(input.assigned_to))) return 'Ugyldig ansvarlig'
+  if (!isDate(input.due_date) || !isDate(input.reminder_at) || !isDate(input.snoozed_until)) return 'Ugyldig dato'
+  return null
+}
+
 export async function updateCustomerTask(
   input: UpdateCustomerTaskInput
 ): Promise<{ success: boolean; error?: string }> {
   const denied = (await gateDenied('customers.view')) ?? (await taskWriteDenied(input.id))
   if (denied) return { success: false, error: denied }
   const supabase = await createClient()
+
+  // IV2-9 (inputvaliderings-review 2026-10-18): felterne valideres (før blev alt fra klienten skrevet direkte)
+  const fieldErr = taskUpdateFieldsError(input)
+  if (fieldErr) return { success: false, error: fieldErr }
+  if (input.assigned_to !== undefined) {
+    const ctx = await getAuthenticatedClientWithRole()
+    const { data: cur } = await supabase.from('customer_tasks').select('assigned_to').eq('id', input.id).maybeSingle()
+    const current = (cur as { assigned_to: string | null } | null)?.assigned_to ?? null
+    if (input.assigned_to !== current) {
+      // PM2-5: montør (uden tasks.create) må ikke tildele opgaver til andre
+      if (!ctx.hasPermission('tasks.create') && input.assigned_to !== ctx.userId) {
+        return { success: false, error: 'Du kan kun tildele opgaven til dig selv' }
+      }
+      if (input.assigned_to && input.assigned_to !== ctx.userId) {
+        const { data: prof } = await supabase.from('profiles').select('is_active').eq('id', input.assigned_to).maybeSingle()
+        if (!prof || (prof as { is_active: boolean | null }).is_active === false) return { success: false, error: 'Den ansvarlige findes ikke eller er deaktiveret' }
+      }
+    }
+  }
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
