@@ -244,10 +244,11 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
       <div className="bg-white border rounded-lg p-6 mb-6">
         <label className="block text-sm font-medium mb-2 break-words min-w-0" data-testid="ai-project-description-label">Projektbeskrivelse</label>
         <textarea
-          className="w-full h-32 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+          data-testid="ai-project-description"
           placeholder="Eksempel: Renovering af 140m2 hus. Nye spots i køkken, 20 stikkontakter, ny tavle, udendørs belysning..."
           value={description}
           onChange={(e) => handleDescriptionChange(e.target.value)}
+          className="w-full h-32 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 break-words min-w-0"
         />
 
         {eltaComponents && (
