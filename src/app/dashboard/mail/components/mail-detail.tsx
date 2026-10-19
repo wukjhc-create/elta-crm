@@ -623,7 +623,7 @@ export function MailDetail({
         {email.link_status !== 'linked' && (detectedCustomer || suggestions.length > 0) && (
           <div className="pt-2 border-t">
             <div className="bg-gray-50 border border-gray-200 rounded-md p-3 space-y-2 break-words min-w-0" data-testid="mail-suggest-box">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5 break-words min-w-0" data-testid="mail-suggest-title">
                 <AlertCircle className="w-3.5 h-3.5" />
                 Mulige matches (forslag)
               </p>
