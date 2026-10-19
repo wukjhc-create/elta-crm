@@ -96,7 +96,7 @@ export default function ProductForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="category_id">Kategori</Label>
+          <Label htmlFor="category_id" className="break-words min-w-0" data-testid="product-form-category-label">Kategori</Label>
           {categoriesError && (
             <p className="text-xs text-red-700 mb-1" data-testid="product-form-categories-error">
               {categoriesError}. Det tælles ikke som ingen kategorier.
