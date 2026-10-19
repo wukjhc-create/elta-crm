@@ -125,7 +125,7 @@ export default function ProductForm({
             <SelectContent>
               {PRODUCT_UNITS.map((unit) => (
                 <SelectItem key={unit.value} value={unit.value}>
-                  {unit.label}
+                  <span className="break-words min-w-0" data-testid="product-form-unit-option">{unit.label}</span>
                 </SelectItem>
               ))}
             </SelectContent>
