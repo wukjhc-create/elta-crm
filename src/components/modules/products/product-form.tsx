@@ -109,7 +109,7 @@ export default function ProductForm({
             </p>
           )}
           <Select name="category_id" defaultValue={product?.category_id || ''}>
-            <SelectTrigger>
+            <SelectTrigger className="break-words min-w-0">
               <SelectValue placeholder="Vælg kategori" className="break-words min-w-0" />
             </SelectTrigger>
             <SelectContent>
