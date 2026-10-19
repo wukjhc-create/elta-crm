@@ -276,7 +276,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
             </div>
             <p className="mt-1 text-xs text-gray-600 break-words min-w-0" data-testid="pricing-alert-supplier-mobile">{alert.supplier_name}</p>
             <p className="mt-1 text-xs tabular-nums text-gray-500 break-words min-w-0" data-testid="pricing-alert-old-mobile">Gammel {formatCurrency(alert.old_price)}</p>
-            <p className="text-xs tabular-nums font-medium text-gray-900 break-words">Ny {formatCurrency(alert.new_price)}</p>
+            <p className="text-xs tabular-nums font-medium text-gray-900 break-words min-w-0" data-testid="pricing-alert-new-mobile">Ny {formatCurrency(alert.new_price)}</p>
             <p className="mt-1 text-xs text-gray-600 break-words min-w-0" data-testid="pricing-alert-affects-mobile">
               Tilbud {alert.affects_offers} · kalkulationer {alert.affects_calculations}
             </p>

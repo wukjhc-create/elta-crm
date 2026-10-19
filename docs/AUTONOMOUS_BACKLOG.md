@@ -1028,12 +1028,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-289 | 4 Pris | DONE. Periode-vælgeren på prisovervågning ombrydes. | Værdierne er uændrede. |
 | G18-290 | 4 Pris | DONE. Prisbevægelsens gruppe på leverandørkortet ombrydes. | Procenterne er uændrede. |
 | G18-291 | 4 Pris | DONE. Den gamle pris på prisadvarslens mobilkort kan krympe. | formatCurrency er uændret. |
-| G18-292 | 4 Pris | ÅBEN. Den nye pris på prisadvarslens mobilkort kan krympe. | formatCurrency er uændret. |
+| G18-292 | 4 Pris | DONE. Den nye pris på prisadvarslens mobilkort kan krympe. | formatCurrency er uændret. |
 | G18-293 | 4 Pris | ÅBEN. Tilbudsbeløbet på berørte tilbuds mobilkort kan krympe. | formatCurrency er uændret. |
 | G18-294 | 4 Pris | ÅBEN. Det potentielle tab på berørte tilbuds mobilkort kan krympe. | Beløbet er uændret. |
 | G18-295 | 4 Pris | ÅBEN. Nuværende pris på pristendensens mobilkort kan krympe. | formatCurrency er uændret. |
 | G18-296 | 4 Pris | ÅBEN. Tilbudsnummeret på berørte tilbuds mobilkort kan krympe. | Nummeret og href er uændrede. |
 | G18-297 | 4 Pris | ÅBEN. Produktgruppen på prisadvarslens mobilkort ombrydes. | Navnet er uændret. |
+| G18-298 | 4 Pris | ÅBEN. Prisbevægelsens række på leverandørkortet kan krympe. | Procenterne er uændrede. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
