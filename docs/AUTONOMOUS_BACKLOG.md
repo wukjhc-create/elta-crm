@@ -1199,13 +1199,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-460 | 8 Pilot | DONE. Kundevælgerens baggrund kan krympe. | Panelet kan stadig rulles. Kun baggrunden i AI-projekt. |
 | G18-461 | 8 Pilot | DONE. Historikafsnittet kan krympe. | Overskriften og den tomme sætning er uændrede. Kun rammen. |
 | G18-462 | 8 Pilot | DONE. Eksempelafsnittet i AI-projekt kan krympe. | Overskrift, titel og tekst ombrydes som før. Kun rammen. |
-| G18-463 | 8 Pilot | ÅBEN. Kundevælgerens panel kan krympe. | `max-h-[90vh]` og rulning er uændret. Kun panelet. |
+| G18-463 | 8 Pilot | DONE. Kundevælgerens panel kan krympe. | `max-h-[90vh]` og rulning er uændret. Kun panelet. |
 | G18-464 | 8 Pilot | ÅBEN. AI-projektets side kan krympe. | Kun den ydre ramme `p-6 max-w-6xl mx-auto`. Indholdet er uændret. |
 | G18-465 | 8 Pilot | ÅBEN. Hurtig estimat kan krympe. | `formatCurrency(quickResult.estimatedPrice)` er uændret. Kun boksen `mt-4 p-4 bg-purple-50 rounded-lg`. |
 | G18-466 | 8 Pilot | ÅBEN. Søgeresultatets liste til ladestander kan krympe. | `formatCurrency(h.cost_price)` er uændret. Kun listen `mt-2 max-h-48 overflow-auto divide-y text-sm`. |
 | G18-467 | 8 Pilot | ÅBEN. Beskrivelsesafsnittet på AI-projekt kan krympe. | Pladsholderen og `value={description}` er uændrede. Kun rammen `bg-white border rounded-lg p-6 mb-6`. |
 | G18-468 | 8 Pilot | ÅBEN. Tilbudsteksten på AI-projekt kan krympe. | Teksten i `pre` er uændret. Kun rammen `whitespace-pre-wrap font-mono overflow-x-auto`. |
 | G18-469 | 8 Pilot | ÅBEN. Bemærkningsboksen på AI-projekt kan krympe. | Overskriften `Bemærkninger` er uændret. Kun boksen i AI-projekt. |
+| G18-470 | 8 Pilot | ÅBEN. Næste skridt-afsnittet kan krympe. | Overskrift og tekst ombrydes som før. Kun rammen i AI-projekt. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
