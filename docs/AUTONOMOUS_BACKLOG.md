@@ -1247,6 +1247,507 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 treogfyrretyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `a1f2bc11`. Det lader fortsat-hegnet og toogfyrretyvende-hegnet stå. `a1f2bc11` hedder `docs: checkpoint for grok-shift 2026-10-18`. Produktspids: `c6e18461`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `c6e18461` blev afvist før git kørte og er ikke prøvet igen. `d9f15811` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `a1f2bc11..c6e18461`
+
+```
+c6e18461 feat(pilot): AI-projektets resultatstak kan krympe
+d9f15811 feat(pilot): Analysér-knappens række kan krympe
+7507df27 feat(pilot): AI-projektets sidehoved kan krympe
+6ef426e9 feat(pilot): mobilkortet for en komponent kan krympe
+a0df88c9 feat(pilot): mobillisten af komponenter kan krympe
+776fb3dc feat(pilot): rækken uden væsentlige risici kan krympe
+ecf278b7 feat(pilot): komponentafsnittet kan krympe
+b28e3ded feat(pilot): opsummeringskortets ikon kan krympe
+46c11137 feat(pilot): opsummeringskortets ramme kan krympe
+04c07045 feat(pilot): komponenttabellens krop kan krympe
+524f0c27 feat(pilot): opsummeringskortets etiket kan krympe
+ab715959 feat(pilot): kolonnerækken kan krympe
+92fc0361 feat(pilot): komponentrækken kan krympe
+ef58686b feat(pilot): komponenttabellens hoved kan krympe
+70ad2222 feat(pilot): kolonnen Total kan krympe
+ab6fa211 feat(pilot): kolonnen Enhedspris kan krympe
+e71bd773 feat(pilot): kolonnen Antal kan krympe
+92c20e0d feat(pilot): opsummeringskortets note kan krympe
+9eff5637 feat(pilot): kolonnen Komponent kan krympe
+9d20b76c feat(pilot): komponenttotalen kan krympe
+8f25a91d feat(pilot): enhedsprisen kan krympe
+324438d3 feat(pilot): antal og enhed kan krympe
+fefd33d3 feat(pilot): komponentnavnet kan krympe
+2deaa32a feat(pilot): komponenttabellen kan krympe
+ad59212d feat(pilot): opsummeringskortets tal kan krympe
+344f3997 feat(pilot): ladestander-vaelgeren kan krympe
+8dc4cd60 feat(pilot): bemaerkningslisten kan krympe
+d9ce13f6 docs: checkpoint efter 839ba253
+2e07f8bc feat(pilot): opsummeringsgitteret kan krympe
+b0a3e94f feat(pilot): hurtig estimats gitter kan krympe
+37d7f2bd feat(pilot): skrivebordets komponentramme kan krympe
+946d934a feat(pilot): naeste skridt kan krympe
+f718e063 feat(pilot): bemaerkningsboksen kan krympe
+37a35cfa feat(pilot): tilbudsteksten kan krympe
+44da777f feat(pilot): beskrivelsesafsnittet kan krympe
+af3b4962 feat(pilot): ladestanderlisten kan krympe
+9c0d52a6 feat(pilot): hurtig estimat kan krympe
+6367a93c feat(pilot): AI-projektets side kan krympe
+839ba253 docs: checkpoint efter 7d2349d0
+7f98f318 feat(pilot): kundevaelgerens panel kan krympe
+f963860e feat(pilot): eksempelafsnittet i AI-projekt kan krympe
+3960c1bd feat(pilot): historikafsnittet kan krympe
+0a5932d2 feat(pilot): kundevaelgerens baggrund kan krympe
+271ae724 feat(pilot): eksempelgitteret i AI-projekt kan krympe
+29a17460 feat(pilot): historikkens liste kan krympe
+7d2349d0 docs: checkpoint efter a18ed7fe
+61fad971 feat(pilot): historikkens indlaesning kan krympe
+c4fb2790 feat(pilot): kundevaelgerens bund kan krympe
+a18ed7fe docs: checkpoint efter c2edaf4a
+f73938c0 feat(pilot): kundevaelgerens hoved kan krympe
+b4a3b85a feat(pilot): kundelisten i kundevaelgeren kan krympe
+867830ac feat(pilot): eksempelkortet i AI-projekt kan krympe
+1fc63094 feat(pilot): kundekortet i kundevaelgeren kan krympe
+b76f0a8f feat(pilot): historikkortet paa AI-projekt kan krympe
+718ffa2d feat(pilot): luk-knappen i kundevaelgeren kan krympe
+f37624e6 docs: checkpoint efter 8e3a012a
+ed2d4576 feat(pilot): tom kundeliste i AI-projekt kan krympe
+a26dd0c8 feat(pilot): knappen annuller i kundevaelgeren ombrydes
+c175ae18 feat(pilot): kundeliste-knappen proev igen ombrydes
+607a65e8 feat(pilot): historik-knappen proev igen ombrydes
+d9b1c4f7 feat(pilot): kundens soegefelt kan krympe
+1af70386 feat(pilot): venteteksten analyserer ombrydes
+c2edaf4a feat(pilot): soegeresultatets ladestander kan krympe
+8e3a012a docs: checkpoint efter 24a9d325
+5425db74 feat(pilot): fejlteksten ved ladestander-soegning kan krympe
+10bb4766 feat(pilot): elpunkt-antallet i fortolkningen ombrydes
+4087d542 feat(pilot): bygningstypen i hurtig estimat ombrydes
+3b4e429c feat(pilot): elpunkt-tallet i hurtig estimat ombrydes
+24a9d325 docs: checkpoint efter 47a16f63
+dfa68917 feat(pilot): beloebet i hurtig estimat kan krympe
+38d55733 feat(pilot): timetallet i hurtig estimat ombrydes
+7e2e2362 feat(pilot): beskrivelsesfeltet kan krympe
+c9f92517 feat(pilot): soegefeltet til ladestander kan krympe
+df9f96c2 feat(pilot): knappen fjern ombrydes
+b8ef575c feat(pilot): valgt ladestander ombrydes
+47a16f63 docs: checkpoint efter 1c4b89cb
+2ae59666 feat(pilot): hjaelpeteksten om uprissat lader ombrydes
+271958f1 feat(pilot): etiketten ladestander ombrydes
+72bbbb40 feat(pilot): teksten ingen risici ombrydes
+3ca61892 feat(pilot): etiketten kompleksitet ombrydes
+b68cab82 feat(pilot): etiketten alder ombrydes
+e611edfd feat(pilot): etiketten stoerrelse ombrydes
+db044d29 feat(pilot): etiketten type ombrydes
+c40540f4 feat(pilot): etiketten margin ombrydes
+d9a1b31a feat(pilot): etiketten risikobuffer ombrydes
+1c4b89cb docs: checkpoint efter f6d5fc14
+84d9fed7 feat(pilot): etiketten subtotal ombrydes
+8b7a9930 feat(pilot): etiketten materialer ombrydes
+8da61338 feat(pilot): etiketten stoerrelsesfaktor ombrydes
+30e8705b feat(pilot): etiketten total tid ombrydes
+662af0d5 feat(pilot): etiketten basis tid ombrydes
+b560adc7 feat(pilot): overskriften bemarkninger ombrydes
+8f158962 feat(pilot): overskriften bygningsinformation ombrydes
+05b0b4c7 feat(pilot): overskriften komponenter ombrydes
+4a19216a feat(pilot): overskriften prisopbygning ombrydes
+4bc3b447 feat(pilot): overskriften elpunkter ombrydes
+57a3bc71 feat(pilot): overskriften kompleksitetsfaktorer ombrydes
+592b4b5f feat(pilot): overskriften tidsberegning ombrydes
+f6d5fc14 docs: checkpoint efter 443837bd
+875ca1ab feat(pilot): knappen analyser projekt ombrydes
+d94fb9e1 feat(pilot): overskriften hurtig estimat ombrydes
+a40b93bd feat(pilot): knappen opret tilbud ombrydes
+a7cf6608 feat(pilot): etiketten projektbeskrivelse ombrydes
+ab3c3da9 feat(pilot): forklaringen under naeste skridt ombrydes
+b6ebe8d4 feat(pilot): kopier-teksten paa AI-projekt ombrydes
+86fb22b0 feat(pilot): sidetitlen paa AI-projekt ombrydes
+f1d34483 feat(pris): sogehintet paa den tomme leverandorvareliste ombrydes
+6b51fa2e feat(pilot): rediger-teksten paa opgavekortet ombrydes
+50471e2c feat(pris): den tomme leverandorvareliste ombrydes
+94264b06 feat(pilot): indledningen paa AI-projekt ombrydes
+443837bd docs: checkpoint efter 59c8fed8
+bfc023d4 feat(pilot): overskriften naeste skridt ombrydes
+d60a20c2 feat(pilot): betingelsesmaerket paa tilbudstekstkortet ombrydes
+d3abcc74 feat(pilot): inaktiv-maerket paa tilbudstekstkortet ombrydes
+b400d7c1 feat(pilot): datoen under en analyse ombrydes
+48341851 feat(pilot): slette-teksten paa opgavekortet ombrydes
+8a7cc350 feat(pris): statusmaerke paa leverandorvarens skrivebord kan krympe
+e8f1c3f5 feat(pris): statusmaerke paa leverandorvarens mobilkort ombrydes
+59c8fed8 docs: checkpoint efter 94bbeb6a
+88aa29f3 feat(pilot): tom historiktekst i AI-projekt ombrydes
+42e12949 feat(pilot): prioritetsmaerket paa tilbudstekstkortet ombrydes
+f667aa07 feat(pilot): typemaerket paa tilbudstekstkortet ombrydes
+4245647d ﻿feat(pilot): overskriften seneste analyser ombrydes
+52e803b1 feat(pilot): timetal paa opgavekortet ombrydes
+234dfb1a feat(pris): kategori paa leverandorvarens skrivebord kan krympe
+a7c2399c feat(pris): kategori paa leverandorvarens mobilkort ombrydes
+b2fd4088 feat(pilot): overskrift paa AI-projektets eksempler ombrydes
+68b005d7 feat(pilot): kundenavn i opgavepaamindelse kan krympe
+7ac3010c feat(pilot): omfang-id paa tilbudstekstkortet ombrydes
+66cd3b8b feat(pilot): forfaldsdato paa opgavekortet ombrydes
+94bbeb6a docs: checkpoint efter b4d64ad0
+b028b391 feat(pilot): ansvarlig paa opgavekortet ombrydes
+03b7eeed feat(pris): opdateret-celle paa leverandorvarens skrivebord kan krympe
+c115025d feat(pris): opdateret-linje paa leverandorvarens mobilkort ombrydes
+6b4cc11b feat(pilot): eksempeltitel i AI-projekt ombrydes
+bcccb7b2 feat(pilot): tilbudsnummer i opgavepaamindelse ombrydes
+deae6830 feat(pilot): titel paa tilbudstekstkortet ombrydes
+07b88ee7 feat(pilot): navn paa kalkulationstypen ombrydes
+e3121cde feat(pilot): opgavetitel paa braettet ombrydes
+cd65875e feat(pris): varenummer paa leverandorvarens skrivebord kan krympe
+b18aea53 feat(pris): varenummer paa leverandorvarens mobilkort ombrydes
+7b2c0d72 feat(pilot): eksempeltekst i AI-projekt ombrydes
+2013e3dc feat(pilot): besked i opgavepaamindelse ombrydes
+b4d64ad0 docs: checkpoint efter e3479705
+688fa934 feat(pilot): tilbudstekstens indhold ombrydes
+39e41351 feat(pilot): tilstandsbeskrivelse i kalkulationstypen ombrydes
+10454fe9 feat(pilot): opgavebeskrivelse paa brættet ombrydes
+e3479705 docs: checkpoint efter 96f90a04
+d7aecc01 feat(pilot): sagsbeskrivelse paa partnerkortet ombrydes
+e951ac7b feat(pilot): sagsbeskrivelse i kundeportalen ombrydes
+51cc5635 feat(pilot): emne i beskedlisten ombrydes
+16d92c46 feat(pilot): leverandørnotat på kortet ombrydes
+cecb54ad feat(pilot): tilbudsbeskrivelse i mailforslag ombrydes
+3e1099bd feat(pilot): sagsbeskrivelse i mailforslag ombrydes
+96f90a04 docs: checkpoint efter 38acd6c2
+9ddc23f6 feat(pilot): tilbudstitel i mailforslag ombrydes
+2a17284a feat(pilot): sagstitel i mailforslag ombrydes
+667f6d6c feat(pilot): pakkebeskrivelse ombrydes
+9b8c7aa0 feat(pilot): listeforhaandsvisning ombrydes
+63209da3 feat(pilot): seneste mailforhaandsvisning ombrydes
+792d97c8 feat(pris): tab-maerket paa skrivebord kan krympe
+120a3302 feat(pris): nuvaerende trendpris paa skrivebord kan krympe
+f65cae5b feat(pris): potentielt tab paa skrivebord kan krympe
+b9c7c10d feat(pris): tilbudsbeloeb paa skrivebord kan krympe
+234d79dc feat(pris): ny skrivebordspris kan krympe
+39482c2e feat(pris): gammel skrivebordspris kan krympe
+9e730e91 feat(pris): pristendensens tabelkrop kan krympe
+e5c6f202 feat(pris): beroerte tilbuds tabelkrop kan krympe
+04bfb76d feat(pris): prisadvarslens tabelkrop kan krympe
+57306cb7 feat(pris): pristendensens tabelhoved kan krympe
+69a9d4fb feat(pris): beroerte tilbuds tabelhoved kan krympe
+c8cf396d feat(pris): prisadvarslens tabelhoved kan krympe
+d1686ff4 feat(pris): pristendensens tabel kan krympe
+df92355b feat(pris): beroerte tilbuds tabel kan krympe
+cbd98180 feat(pris): prisadvarslens tabel kan krympe
+50d899cc feat(pris): pristendensens kolonnerekke kan krympe
+e34f7df1 test(pris): behold kolonneordene paa beroerte tilbud
+148894a9 feat(pris): beroerte tilbuds kolonnerekke kan krympe
+38acd6c2 docs: checkpoint efter 794bf051
+bb54d71e test(pris): behold kolonneordene paa prisadvarslen
+930f52e1 feat(pris): prisadvarslens kolonnerekke kan krympe
+427e419e feat(pris): pristendensens skrivebordsramme kan krympe
+97bb9543 feat(pris): beroerte tilbuds skrivebordsramme kan krympe
+57bf2509 feat(pris): pristendensens tabelrulle kan krympe
+53dc59f8 feat(pris): beroerte tilbuds tabelrulle kan krympe
+fb2cda33 feat(pris): prisadvarslens skrivebordsramme kan krympe
+05fdaa7c feat(pris): prisadvarslens tabelrulle kan krympe
+3d8e322c feat(pris): prisbevaegelsens blok kan krympe
+60b856be feat(pris): pristendensens afsnit kan krympe
+02d7d28b feat(pris): prisovervaagningens side kan krympe
+a52b2712 feat(pris): prisadvarslens afsnit kan krympe
+d9f48e93 feat(pris): pavirker-raekken kan krympe
+160edde9 feat(pris): mobilisten af pristendenser kan krympe
+017630a8 feat(pris): mobilisten af beroerte tilbud kan krympe
+8b51923e feat(pris): mobilisten af prisadvarsler kan krympe
+b3bb441e feat(pris): prisbevaegelsens bjaelke kan krympe
+7a908b64 feat(pris): ministatistikkens ramme kan krympe
+397b202a feat(pris): oversigtskortets etiketraekke kan krympe
+daf40a25 feat(pris): fejlrammen kan krympe
+3a3a332a feat(pris): pristendensens skrivebordsraekke kan krympe
+8f227bbd feat(pris): beroerte tilbuds skrivebordsraekke kan krympe
+1f087044 feat(pris): indlaesningsrammen kan krympe
+44aa9244 feat(pris): den tomme pristilstand kan krympe
+8254393a feat(pris): oversigtskortet kan krympe
+23da9451 feat(pris): fanerammens kant kan krympe
+b3da689b feat(pris): prisadvarslens skrivebordsraekke kan krympe
+51a1d20c feat(pris): perioderaekken kan krympe
+7b31d984 feat(pris): taerskelraekken kan krympe
+6076a320 feat(pris): leverandoerkortet kan krympe
+e04b2149 feat(pris): ministatistikken kan krympe
+309eb047 feat(pris): filterraekken kan krympe
+e0b1ee14 feat(pris): pristendensens mobilkort kan krympe
+34502bf7 feat(pris): beroerte tilbuds mobilkort kan krympe
+3a275360 feat(pris): prisadvarslens mobilkort kan krympe
+5d095b73 feat(pris): leverandoerkortenes gitter kan krympe
+b3d87c79 feat(pris): oversigtskortenes gitter kan krympe
+708a86df feat(pris): faneraekken kan ombrydes
+46cc9417 feat(pris): trendvaelgerens navn kan ombrydes
+36266c40 feat(pris): trendfilterets raekke kan ombrydes
+f7bddb79 feat(pris): mobil-advarselsraekke kan krympe
+5c93b485 feat(pris): leverandoerkortets overskrift kan krympe
+1c4d1e6e feat(pris): prisbevaegelsens raekke kan krympe
+f730c437 feat(pris): mobil-produktgruppe ombrydes
+84732ccc feat(pris): mobil-tilbudsnummer kan krympe
+4cf9ab08 feat(pris): mobil-trendpris kan krympe
+b35b95d2 feat(pris): mobil-potentielt-tab kan krympe
+c2e3c588 feat(pris): mobil-tilbudsbeloeb kan krympe
+1bcf6394 feat(pris): mobil-ny-pris kan krympe
+5a0a7d9e feat(pris): mobil-gammel-pris kan krympe
+8c444c34 feat(pris): prisbevaegelsens gruppe ombrydes
+0a3f6f89 feat(pris): periodevaelger ombrydes
+794bf051 docs: checkpoint efter 44858657
+44858657 feat(pris): taerskelvaelger ombrydes
+0cf926cc feat(pris): skrivebords-trendnavn kan krympe
+b9cced96 feat(pris): skrivebords-produktnavn kan krympe
+1ce6a187 feat(pris): mobil-statusfelt ombrydes
+522b4afc feat(pris): mobil-trendnavn kan krympe
+e17fd377 feat(pris): mobil-tilbudstitel kan krympe
+444f9f8c feat(pris): mobil-kundenavn kan krympe
+70925e74 feat(pris): mobil-leverandoernavn kan krympe
+8592d5ed feat(pris): mobil-produktnavn kan krympe
+c66b70d3 feat(pris): tilbudstitel kan krympe
+1dfa747e feat(pris): aendringscelle ombrydes
+518cd83c feat(pris): leverandoercelle kan krympe
+e53a4ed6 feat(pris): kundecelle kan krympe
+240cec01 feat(pris): nul-maerke ombrydes
+83c33712 feat(pris): mobil-varenummer ombrydes
+623d39a1 feat(pris): tilbudscelle ombrydes
+67b26455 feat(pris): mobil-alvorlighed ombrydes
+7942e74d feat(pris): linjecelle ombrydes
+60a806cd feat(pris): volatilitets-celle ombrydes
+64091122 feat(pris): paavirkningscelle ombrydes
+6f70f086 feat(pris): advarsels-varenummer ombrydes
+3b10c854 feat(pris): tilbudsstatus-celle ombrydes
+a4985512 feat(pris): advarsels-produktcelle ombrydes
+b24673cb feat(pris): alvorlighedsmaerke ombrydes
+e1e99436 feat(pris): 90-dages-celle ombrydes
+69075fa6 feat(pris): 30-dages-celle ombrydes
+021680c7 feat(pris): trend-produktcelle ombrydes
+c62450de feat(pris): leverandoer-option ombrydes
+fa8d3a8e feat(pris): leverandoervaelger ombrydes
+19c8c643 feat(pris): volatilitets-linje ombrydes
+9d356dc5 feat(pris): tilbage-knap ombrydes
+45e180cb feat(pris): dialogtitel ombrydes
+d884e2e3 feat(pris): avance-etiket paa detaljen ombrydes
+f3ebc877 feat(pris): kostpris-etiket paa detaljen ombrydes
+6dbb2d7d feat(pris): listepris-etiket paa detaljen ombrydes
+330793cc feat(pris): enhed-etiket paa detaljen ombrydes
+f3afbb3f feat(pris): kategori-etiket paa detaljen ombrydes
+faf93d38 feat(pris): status-etiket paa detaljen ombrydes
+876760a1 feat(pris): specifikationer ombrydes
+5e27c20c feat(pris): beskrivelse-etiket paa detaljen ombrydes
+8ac66042 feat(pris): prisoverskrift ombrydes
+5cc44f4d feat(pris): detalje-beskrivelse ombrydes
+59334730 feat(pris): produktinformation ombrydes
+d6096465 feat(pris): detalje-slet ombrydes
+bbb8ed0b feat(pris): detalje-rediger ombrydes
+70e7c704 feat(pris): detalje-fejl ombrydes
+da0465f1 feat(pris): sku-linje paa detaljen ombrydes
+96baa1dd feat(pris): produktnavn paa detaljen ombrydes
+48bfe72a feat(pris): formularens enhedsvaelger ombrydes
+c8f775a0 feat(pris): formularens kategori-vaelger ombrydes
+4c616ac0 feat(pris): formularens kategorinavn ombrydes
+2b31782e feat(pris): listepris-pladsholder ombrydes
+f30da9fd feat(pris): kostpris-pladsholder ombrydes
+e1fe48d2 feat(pris): sku-pladsholder ombrydes
+8fa842a1 feat(pris): beskrivelse-pladsholder ombrydes
+3195370a feat(pris): produktnavn-pladsholder ombrydes
+fc137ff3 feat(pris): listepris-etiket ombrydes
+bc92e526 feat(pris): kostpris-etiket ombrydes
+571c98b3 feat(pris): enhedsnavn ombrydes
+5720d8fd feat(pris): sku-etiket ombrydes
+688e5c5d feat(pris): beskrivelse-etiket ombrydes
+3495cca6 feat(pris): produktnavn-etiket ombrydes
+436aa622 feat(pris): vaelg-kategori ombrydes
+e325204a feat(pris): enhed-etiket ombrydes
+fe5c0d0a feat(pris): aktiv-etiket ombrydes
+bbd5c993 feat(pris): kategorifejl i formularen ombrydes
+149d3931 feat(pris): kategori-etiket i formularen ombrydes
+8f2af7a4 feat(pris): gem-knap ombrydes
+5ed0baca feat(pris): annuller ombrydes
+074fd307 feat(pris): kategori-etiket ombrydes
+f4c9345f feat(pris): kategorinavn ombrydes
+d5a34ddd feat(pris): soegeetiket ombrydes
+0bfa834b feat(pris): kategori-pladsholder ombrydes
+6fb0821d feat(pris): soegefelt ombrydes
+40dc8157 feat(pris): mobil-slet ombrydes
+c0b939df feat(pris): mobil-rediger ombrydes
+aed9f5aa feat(pris): alle-kategorier ombrydes
+22863ffa feat(pris): slet-menu ombrydes
+cb4f0a8f feat(pris): rediger-menu ombrydes
+9d888c0b docs: checkpoint efter ffc0fffb
+03376da4 feat(pris): manglende kategori ombrydes
+1a8179c5 feat(pris): rediger-dialog ombrydes
+a08873f1 feat(pris): opret-dialog ombrydes
+79d19d67 feat(pris): opret-knap ombrydes
+cabc43cd feat(pris): ryd-knap ombrydes
+ece52245 feat(pris): kategorifejl ombrydes
+90b6dcc1 feat(pris): katalogfejl ombrydes
+2068b4c3 feat(pris): katalogoverskrift ombrydes
+2469bd6e feat(pris): antal ombrydes
+1891ab86 feat(pris): ny-knap ombrydes
+637b14e8 feat(pris): prisetiketter ombrydes
+ffc0fffb docs: checkpoint efter 7790a262
+925f0e18 feat(pris): kolonneoverskrifter ombrydes
+b737ab48 feat(pris): statusmaerke ombrydes
+55e9e20d feat(pris): tom overskrift ombrydes
+8bfcca6d feat(pris): tom katalogtekst ombrydes
+65c999c5 feat(pris): kategorimaerke ombrydes
+096ef11c feat(pris): listepris ombrydes
+fb6b1c33 feat(pris): mobilbeskrivelse ombrydes
+c3d38a79 feat(pris): produktbeskrivelse ombrydes
+3de5273d feat(pris): fejlknapper ombrydes
+133894f2 feat(pris): fejlkode ombrydes
+d70d349a feat(pris): fejltekst ombrydes
+76ebac7d feat(pris): fejloverskrift ombrydes
+02f04601 feat(pris): sideindledning ombrydes
+9360b884 feat(pris): sideoverskrift ombrydes
+716a580f feat(pris): fanetaeller ombrydes
+0f960431 feat(pris): leverandoeretiket ombrydes
+7790a262 docs: checkpoint efter 277b56fd
+65c9590d feat(pris): manglende tendens ombrydes
+da1765b5 feat(pris): trendetiket ombrydes
+31c71fe3 feat(pris): tilbudsnummer ombrydes
+878e8df9 feat(pris): aendringstal ombrydes
+565e7037 feat(pris): linjetal ombrydes
+2403d625 feat(pris): volatilitet ombrydes
+25b44749 feat(pris): trendprocent ombrydes
+470b88be feat(pris): statusmaerke ombrydes
+cf6077ce feat(pris): paavirkningsantal ombrydes
+f9add430 feat(pris): procentmaerke ombrydes
+7292f51d feat(pris): tilbudsdato ombrydes
+277b56fd docs: checkpoint efter 0f8b263d
+ed04ddfe feat(pris): advarseldato ombrydes
+d94b7e60 feat(pris): opdater-knappen ombrydes
+8f0b324d feat(pris): faner ombrydes
+241b2b5f feat(pris): filteretiketter ombrydes
+22eec97b feat(pris): oversigtstal ombrydes
+9f092011 feat(pris): oversigsetiketter ombrydes
+c487b4df feat(pris): tendensoverskrifter ombrydes
+5aa35790 feat(pris): tilbudsoverskrifter ombrydes
+dd0e1b6f feat(pris): advarselsoverskrifter ombrydes
+a6ef44f9 feat(pris): prisbevaegelse-procenter ombrydes
+0f5ac865 feat(pris): statistiktal ombrydes
+256460bf feat(pris): fejltekst ombrydes
+0f8b263d docs: checkpoint efter 02778774
+2c7c1deb feat(pris): tom tekst ombrydes
+a5b2c693 feat(pris): indlaesertekst ombrydes
+302d2e41 feat(pris): statistiketiketter ombrydes
+608321fd feat(pris): prisbevaegelse ombrydes
+f414c152 feat(pris): synk-dato ombrydes
+02778774 docs: checkpoint efter 4a77eb75
+50d81f5d feat(pris): leverandoernavn ombrydes
+79cf1c85 feat(pilot): ansvarlig kan krympe
+7452d3bc feat(plan): i dag-knappen ombrydes
+558d5ea0 feat(pilot): rediger og slet kan rammes
+4a77eb75 docs: checkpoint efter 8f8322fb
+1d1f4aeb feat(pilot): ingen forfaldsdato ombrydes
+6ccd5dcf feat(pilot): vis udfoerte ombrydes
+bc288dae feat(pilot): kundens forfaldsdato ombrydes
+3eada6f6 feat(pilot): kundens statusmaerker ombrydes
+8f8322fb docs: checkpoint efter 6ec2c234
+995b0928 feat(plan): kommende dagsnummer ombrydes
+9c1ca47d feat(pilot): opgaveformularens knapper ombrydes
+d205ee76 feat(pilot): opgavefeltets etiketter ombrydes
+c66bc0ac feat(pilot): titelfeltets etiket ombrydes
+6ec2c234 docs: checkpoint efter da6b7d99
+f9e89917 feat(plan): opstartsmaerke ombrydes
+8653e9e4 feat(plan): sagens statusmaerker ombrydes
+75ddb805 feat(plan): kommende maaned ombrydes
+da98d6e8 feat(plan): kommende besigtigelser ombrydes
+da6b7d99 docs: checkpoint efter 496594f0
+623c151d feat(pilot): opgaveoverskrift ombrydes
+da791158 feat(plan): flere paamindelser ombrydes
+496594f0 docs: checkpoint efter 9f4eb434
+4f4e11a1 feat(plan): flere opgaver ombrydes
+bbc64cf0 feat(plan): henter opgaver ombrydes
+9f4eb434 docs: checkpoint efter 53906875
+d9c88673 feat(pilot): kundens hentefejl ombrydes
+53906875 docs: checkpoint efter fc1047a0
+c66870f5 feat(pilot): ingen aabne opgaver ombrydes
+416cddc4 feat(pilot): kundens medarbejderfejl ombrydes
+95a82c0e feat(plan): sagens hentefejl ombrydes
+fc1047a0 docs: checkpoint efter d8d63c83
+70bd3243 feat(pilot): kundens ansvarlige-fejl ombrydes
+d8d63c83 docs: checkpoint efter 1d0db479
+d125ebe7 feat(pilot): tom kundeliste ombrydes
+1d0db479 docs: checkpoint efter 9c093aba
+5226e820 feat(plan): sagens ansvarlige-fejl ombrydes
+b1bdda6d feat(plan): udestaaende opgaver ombrydes
+31101a40 feat(plan): tom sagsliste ombrydes
+638d9b5e feat(plan): dagsoverskrift ombrydes
+9c093aba docs: checkpoint efter e584cfad
+a9833b0e feat(faktura): kontrolettiketter ombrydes
+cc1a4391 feat(plan): Mine paamindelser ombrydes
+91cecb64 feat(faktura): mobilens linjenummer kan krympe
+d64a588c feat(plan): ugedagsnavne ombrydes
+3459aa2a feat(faktura): fragtmaerket ombrydes
+495bcce4 feat(faktura): kolonnen # kan krympe
+e584cfad docs: checkpoint efter 227e1344
+eac7f0af feat(faktura): fragtnoten ombrydes
+fff1ec31 feat(faktura): Beskrivelse-overskriften ombrydes
+82ef0334 feat(faktura): Status-overskriften ombrydes
+f5854dac feat(faktura): linjenummeret ombrydes
+f91f706c feat(faktura): beskrivelsen kan krympe
+227e1344 docs: checkpoint efter dc4a2a51
+297b396b feat(faktura): Match-overskriften ombrydes
+a16bcf40 feat(faktura): match-teksten ombrydes
+4f37b072 feat(faktura): kolonneoverskrifter ombrydes
+152b0027 feat(faktura): mobilens forventet pris og afvigelse ombrydes
+1e7dfbff feat(faktura): forventet pris og afvigelse ombrydes
+dc4a2a51 docs: checkpoint efter 58e87d32
+a808cab6 feat(plan): maanedens navn ombrydes
+bb2e5a31 feat(plan): maanedsknapper er hoeje nok
+d1c90b60 feat(plan): I dag-knappen er hoej nok
+58e87d32 docs: checkpoint efter dfd78f86
+9ecacb50 feat(plan): kalenderoverskrift ombrydes
+3fefb3d0 test(faktura): behold hovedmaerkets daekning
+d4102cee feat(faktura): linjedommen ombrydes
+6fb22aa9 feat(efterkalk): linjestatus ombrydes
+642d7801 feat(plan): kalenderens taelling ombrydes
+a3f028cc feat(plan): bekraeftelse ombrydes
+72dc1331 feat(plan): ansvarliges navn ombrydes
+d2b8a770 feat(plan): rutevejledning ombrydes
+f20e64a7 feat(plan): kundekortlinket ombrydes
+78c3b012 feat(plan): kommende tælling ombrydes
+2027a0b6 feat(plan): dagens klokkeslet ombrydes
+8553f6ca feat(plan): kommende klokkeslet ombrydes
+7392bcaf feat(efterkalk): skrivebordsstatus ombrydes
+dfd78f86 docs: checkpoint for grok-shift 2026-10-18 fortsat
+53cf508e feat(plan): påmindelsestitler ombrydes
+7ca6b1dd feat(efterkalk): mobilstatus ombrydes
+dbb2daa3 feat(efterkalk): skrivebordsafvigelse ombrydes
+41ba94d4 feat(efterkalk): skrivebordsbeloeb ombrydes
+d70d8608 feat(efterkalk): manglende kostdata ombrydes
+dd85f002 feat(efterkalk): skjult oversigt ombrydes
+bee06793 feat(efterkalk): vis dem ombrydes
+99a6a824 feat(efterkalk): nulstil filtre ombrydes
+fa3a4a5c feat(efterkalk): den tomme oversigt ombrydes
+3aa8baee feat(plan): påmindelseslinket ombrydes
+```
+
+Listen er alle commits efter `a1f2bc11` til og med `c6e18461`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+a1f2bc11 docs: checkpoint for grok-shift 2026-10-18
+```
+
+### Features
+
+G18-500 lader kun AI-projektets resultatstak krympe. `formatCurrency(comp.unit_price)`, `formatCurrency(comp.total)` og `formatCurrency(result.calculation.price.total_price)` er uændrede. G18-474 til G18-499 bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Claude kan se ombrydes-klasserne. Ingen pris, kost, margin, moms eller afsendelse er ændret.
+
+### Integration
+
+Push ikke til main. Når push er tilladt, push kun `grok-next` og prøv ikke afviste tip igen, herunder `c6e18461`, `d9f15811` og `a1f2bc11`. Flet derefter `origin/main` ind i `grok-next` uden at køre migrationer.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-501, G18-502, G18-503, G18-504, G18-505, G18-506, G18-507.
+
 ## Checkpoint 2026-10-18 toogfyrretyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `839ba253`. Det lader enogfyrretyvende-hegnet stå. `839ba253` hedder `docs: checkpoint efter 7d2349d0`. Produktspids: `2e07f8bc`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `2e07f8bc` blev afvist før git kørte og er ikke prøvet igen. `b0a3e94f` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
