@@ -190,7 +190,7 @@ export function PricingDashboardClient() {
 
       {/* Tabs */}
       <div className="border-b">
-        <nav className="flex gap-0 -mb-px">
+        <nav className="flex gap-0 -mb-px flex-wrap min-w-0" data-testid="pricing-tab-nav">
           {[
             { key: 'alerts' as Tab, label: 'Prisadvarsler', count: alerts.length },
             { key: 'affected' as Tab, label: 'Påvirkede tilbud', count: affectedOffers.length },
