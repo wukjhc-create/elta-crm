@@ -423,7 +423,7 @@ export function MailDetail({
             <MessageCircle className="w-4 h-4 text-purple-600 break-words min-w-0" data-testid="mail-portal-icon" />
             <span className="text-purple-700 break-words min-w-0" data-testid="mail-portal-text">Kunden har en aktiv portal</span>
             <a href={`/dashboard/customers/${email.customers.id}#chat`} className="ml-auto text-purple-600 hover:underline inline-flex items-center gap-1 text-xs font-medium break-words min-w-0" data-testid="mail-portal-link">
-              Hop til Chat <ExternalLink className="w-3 h-3" />
+              Hop til Chat <ExternalLink className="w-3 h-3 break-words min-w-0" data-testid="mail-chat-arrow" />
             </a>
           </div>
         )}

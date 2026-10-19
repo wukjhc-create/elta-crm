@@ -40,7 +40,7 @@ ok(view.split('data-testid="mail-portal-icon"').length === 2, 'ikon-id kollidere
 ok(view.split('data-testid="mail-portal-text"').length === 2, 'tekst-id kolliderer ikke')
 ok(view.split('data-testid="mail-portal-frame"').length === 2, 'ramme-id kolliderer ikke')
 ok(view.includes('Hop til Chat'), 'linkteksten bliver')
-ok(view.includes('Hop til Chat <ExternalLink className="w-3 h-3" />'), 'pil-ikonet bliver')
+ok(view.includes('Hop til Chat <ExternalLink className="w-3 h-3 break-words min-w-0" data-testid="mail-chat-arrow" />'), 'pil-ikonet bliver')
 ok(view.includes('Kunden har en aktiv portal'), 'teksten bliver')
 ok(view.includes('<MessageCircle className="w-4 h-4 text-purple-600 break-words min-w-0" data-testid="mail-portal-icon" />'), 'ikonet bliver')
 ok(view.includes('href={`/dashboard/customers/${email.customers.id}#chat`}'), 'href bliver')
