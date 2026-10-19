@@ -535,7 +535,7 @@ export function MailDetail({
               {pendingAction === 'restore' ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <AlertCircle className="w-4 h-4" />
+                <AlertCircle className="w-4 h-4 break-words min-w-0" data-testid="mail-restore-icon" />
               )}
               Markér som relevant
             </button>
