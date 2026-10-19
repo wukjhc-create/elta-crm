@@ -909,7 +909,7 @@ function EmailCasePicker({
 
   return (
     <div className="flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 p-2.5 rounded-md flex-wrap break-words min-w-0" data-testid="mail-case-frame">
-      <Briefcase className="w-4 h-4 text-blue-600 shrink-0" />
+      <Briefcase className="w-4 h-4 text-blue-600 shrink-0 break-words min-w-0" data-testid="mail-case-icon" />
       {currentCase ? (
         <span>
           Sag:{' '}
