@@ -469,8 +469,7 @@ export function MailDetail({
           {email.link_status === 'linked' && email.customers?.id && currentRole && hasPermission(currentRole, 'offers.create') && (
             <Link
               href={`/dashboard/customers/${email.customers.id}?nytilbud=1`}
-              data-testid="mail-create-offer"
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-emerald-600 text-emerald-700 rounded-md hover:bg-emerald-50"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-emerald-600 text-emerald-700 rounded-md hover:bg-emerald-50 break-words min-w-0" data-testid="mail-create-offer"
             >
               <FilePlus className="w-4 h-4" />
               Opret tilbud
