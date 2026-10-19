@@ -1210,6 +1210,57 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 enogfyrretyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `7d2349d0`. Det lader fyrretyvende-hegnet stå. `7d2349d0` hedder `docs: checkpoint efter a18ed7fe`. Produktspids: `7f98f318`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `7f98f318` blev afvist før git kørte og er ikke prøvet igen. `f963860e` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `7d2349d0..7f98f318`
+
+```
+7f98f318 feat(pilot): kundevaelgerens panel kan krympe
+f963860e feat(pilot): eksempelafsnittet i AI-projekt kan krympe
+3960c1bd feat(pilot): historikafsnittet kan krympe
+0a5932d2 feat(pilot): kundevaelgerens baggrund kan krympe
+271ae724 feat(pilot): eksempelgitteret i AI-projekt kan krympe
+29a17460 feat(pilot): historikkens liste kan krympe
+```
+
+Listen er alle commits efter `7d2349d0` til og med `7f98f318`, fra `29a17460`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+7d2349d0 docs: checkpoint efter a18ed7fe
+```
+
+### Features
+
+G18-458 til G18-463 lader historikkens liste, eksempelgitteret, kundevælgerens baggrund, historikafsnittet, eksempelafsnittet og kundevælgerens panel krympe. `formatCurrency(analysis.total_price)`, beskrivelsens to linjer, den tomme historiksætning, eksempelteksten og `max-w-md mx-4 max-h-[90vh] overflow-y-auto` er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter pilotbølgen fra `cb4f0a8f` til `7f98f318`, herunder G18-458 til G18-463. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `7f98f318`, `f963860e`, `3960c1bd`, `0a5932d2`, `271ae724`, `29a17460` og `7d2349d0`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-464, G18-465, G18-466, G18-467, G18-468, G18-469, G18-470.
+
 ## Checkpoint 2026-10-18 fyrretyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `a18ed7fe`. Det lader niogtredivte-hegnet stå. `a18ed7fe` hedder `docs: checkpoint efter c2edaf4a`. Produktspids: `61fad971`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `61fad971` blev afvist før git kørte og er ikke prøvet igen. `c4fb2790` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
