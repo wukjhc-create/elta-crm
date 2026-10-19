@@ -702,7 +702,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     {copenhagenDateTimeLabel(analysis.created_at)}
                   </p>
                 </div>
-                <span className="text-sm font-medium text-gray-900 shrink-0">
+                <span className="text-sm font-medium text-gray-900 shrink-0 break-words min-w-0" data-testid="ai-project-history-price">
                   {formatCurrency(analysis.total_price)}
                 </span>
               </div>

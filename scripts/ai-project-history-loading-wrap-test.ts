@@ -27,7 +27,7 @@ ok(!row.includes('formatCurrency(analysis.total_price)'), 'prisen er en anden')
 ok(view.split(id).length === 2, 'indlaesningen findes en gang')
 ok(view.includes('Ingen tidligere analyser endnu. Kør en analyse ovenfor, så den kan ses her.'), 'den tomme saetning bliver')
 ok(view.includes('formatCurrency(analysis.total_price)'), 'prisen bliver')
-ok(view.includes('text-sm font-medium text-gray-900 shrink-0'), 'prisens shrink-0 bliver')
+ok(view.includes('text-sm font-medium text-gray-900 shrink-0 break-words min-w-0" data-testid="ai-project-history-price"'), 'prisens shrink-0 bliver')
 ok(view.includes('text-sm text-gray-700 break-words line-clamp-2">{analysis.description}'), 'beskrivelsen forbliver to linjer')
 
 if (bad > 0) {

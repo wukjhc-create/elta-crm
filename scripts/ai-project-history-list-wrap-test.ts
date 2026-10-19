@@ -27,7 +27,7 @@ ok(view.split(id).length === 2, 'listen findes en gang')
 ok(view.split('className="space-y-2 break-words min-w-0"').length === 2, 'kun den liste')
 ok(view.includes('text-sm text-gray-700 break-words line-clamp-2">{analysis.description}'), 'beskrivelsen forbliver to linjer')
 ok(view.includes('formatCurrency(analysis.total_price)'), 'prisen bliver')
-ok(view.includes('text-sm font-medium text-gray-900 shrink-0'), 'prisens shrink-0 bliver')
+ok(view.includes('text-sm font-medium text-gray-900 shrink-0 break-words min-w-0" data-testid="ai-project-history-price"'), 'prisens shrink-0 bliver')
 ok(view.includes('data-testid="ai-project-history-card"'), 'kortet bliver')
 ok(view.includes('Ingen tidligere analyser endnu. Kør en analyse ovenfor, så den kan ses her.'), 'den tomme saetning bliver')
 

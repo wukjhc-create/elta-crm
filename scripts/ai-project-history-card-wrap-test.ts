@@ -24,7 +24,7 @@ ok(row.includes('hover:bg-gray-50'), 'rammen bliver')
 ok(view.split(id).length === 2, 'kortet findes en gang')
 ok(view.includes('text-sm text-gray-700 break-words line-clamp-2">{analysis.description}'), 'beskrivelsen bliver paa to linjer')
 ok(view.includes('formatCurrency(analysis.total_price)'), 'prisen er uaendret')
-ok(view.includes('text-sm font-medium text-gray-900 shrink-0'), 'prisens shrink-0 bliver')
+ok(view.includes('text-sm font-medium text-gray-900 shrink-0 break-words min-w-0" data-testid="ai-project-history-price"'), 'prisens shrink-0 bliver')
 ok(view.includes('data-testid="ai-project-history-date"'), 'datoen paa kortet bliver')
 
 if (bad > 0) {
