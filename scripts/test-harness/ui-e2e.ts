@@ -3098,8 +3098,17 @@ ${m.text()}`) })
           try { const x = await mailBtns(s.page, `[HARNESS] U201 salg ${stamp}`); r.salg_ser_opgave = x.seen; r.salg_ingen_mailknap = x.seen && x.mail === 0 }
           finally { await s.ctx.close().catch(() => {}) }
           const m = await login(montor)
-          try { const x = await mailBtns(m.page, `[HARNESS] U201 montør ${stamp}`); r.montoer_ser_opgave = x.seen; r.montoer_mailknap = x.mail > 0 }
-          finally { await m.ctx.close().catch(() => {}) }
+          try {
+            const x = await mailBtns(m.page, `[HARNESS] U201 montør ${stamp}`); r.montoer_ser_opgave = x.seen; r.montoer_mailknap = x.mail > 0
+            // PM3-8 (Henrik 2026-10-19): montørens dialog — modtager kun fra listen (skrivebeskyttet), ingen Cc. Intet sendes.
+            if (x.mail > 0) {
+              await m.page.getByRole('button', { name: /^Send mail til / }).first().click({ timeout: 30_000 }).catch(() => {})
+              const inp = m.page.getByTestId('recipient-picker-input').first()
+              await inp.waitFor({ timeout: 30_000 }).catch(() => {})
+              r.montoer_modtager_skrivebeskyttet = (await inp.getAttribute('readonly').catch(() => null)) !== null
+              r.montoer_ingen_cc = (await m.page.getByRole('button', { name: /Tilføj Cc/ }).count()) === 0
+            }
+          } finally { await m.ctx.close().catch(() => {}) }
         } finally { if (ids.length) await c.admin.from('customer_tasks').delete().in('id', ids) }
         out.push({ id: 'U201 PM3-8 opgavemail kun med tasks.edit', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${ins.error ? ` · SEED: ${ins.error.message}` : ''}` })
       }

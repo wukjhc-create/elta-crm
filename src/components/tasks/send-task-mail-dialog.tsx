@@ -30,6 +30,8 @@ import { useToast } from '@/components/ui/toast'
 import { sendTaskEmail } from '@/lib/actions/task-mail'
 import { AttachmentPicker, type PickerAttachment } from '@/components/mail/attachment-picker'
 import { RecipientPicker } from '@/components/mail/recipient-picker'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import {
   proofreadText,
   makeProfessional,
@@ -60,6 +62,9 @@ export function SendTaskMailDialog({
 }: SendTaskMailDialogProps) {
   const toast = useToast()
   const dialogRef = useRef<HTMLDivElement>(null)
+  // PM3-8: montør (uden tasks.create) vælger kun blandt kundens kendte adresser — ingen fri modtager/cc (serveren afviser)
+  const { role } = useUserRole()
+  const restrictRecipients = !!role && !hasPermission(role, 'tasks.create')
 
   const initialTo = task.customer?.email?.trim() || ''
   const initialSubject = task.title
@@ -266,6 +271,7 @@ export function SendTaskMailDialog({
               onChange={setTo}
               disabled={sending}
               label={undefined}
+              restrictToOptions={restrictRecipients}
             />
             {initialTo &&
               to.trim().toLowerCase() !== initialTo.trim().toLowerCase() &&
@@ -276,7 +282,7 @@ export function SendTaskMailDialog({
               )}
           </div>
 
-          {showCc ? (
+          {restrictRecipients ? null : showCc ? (
             <div>
               <label htmlFor="task-mail-cc" className="block text-sm font-medium text-gray-700 mb-1">
                 Cc

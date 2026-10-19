@@ -153,6 +153,13 @@ export async function sendTaskEmail(
       return { success: false, error: 'Opgaven har ingen tilknyttet kunde' }
     }
 
+    // PM3-8 (Henrik 2026-10-19): montør må kun maile kendte kunde-/kontaktadresser på en tildelt sag/arbejdsordre
+    {
+      const { montorTaskMailDenied } = await import('@/lib/tasks/montor-task-mail-guard')
+      const guardErr = await montorTaskMailDenied(ctx, { serviceCaseId: task.service_case_id, customerId: task.customer_id }, to, cc)
+      if (guardErr) return { success: false, error: guardErr }
+    }
+
     // Sprint 8C-2: hent branding + signatur defensivt. Crasher aldrig på
     // manglende felter; falder tilbage til konstanter i branding-helperen.
     const branding = await getCompanyBranding()

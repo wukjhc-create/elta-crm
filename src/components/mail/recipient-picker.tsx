@@ -33,6 +33,8 @@ interface RecipientPickerProps {
   disabled?: boolean
   /** Hvis sat: vis 'Vælg modtager' header-label, ellers vis kun input + dropdown. */
   label?: string
+  /** PM3-8: kun valg fra listen (ingen fri adresse) — fx montørens opgavemail */
+  restrictToOptions?: boolean
 }
 
 export function RecipientPicker({
@@ -42,6 +44,7 @@ export function RecipientPicker({
   onChange,
   disabled = false,
   label = 'Modtager',
+  restrictToOptions = false,
 }: RecipientPickerProps) {
   const [options, setOptions] = useState<RecipientOption[]>([])
   const [defaultEmail, setDefaultEmail] = useState<string | null>(null)
@@ -115,10 +118,12 @@ export function RecipientPicker({
           <input
             type="email"
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => { if (!restrictToOptions) onChange(e.target.value) }}
+            readOnly={restrictToOptions}
+            data-testid="recipient-picker-input"
             disabled={disabled || loading}
             placeholder={
-              hasNoOptions ? 'Skriv modtager-email manuelt' : 'kunde@example.dk'
+              restrictToOptions ? (hasNoOptions ? 'Ingen kendte adresser på kunden' : 'Vælg modtager fra listen') : hasNoOptions ? 'Skriv modtager-email manuelt' : 'kunde@example.dk'
             }
             className="flex-1 px-2.5 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:bg-gray-100"
           />
