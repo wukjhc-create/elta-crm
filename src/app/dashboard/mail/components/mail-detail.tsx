@@ -380,7 +380,7 @@ export function MailDetail({
                   className="text-red-500 hover:text-red-700 hover:bg-red-50 inline-flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed break-words min-w-0" data-testid="mail-unlink-button"
                   title="Fjern kobling"
                 >
-                  {isUnlinking ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3 break-words min-w-0" data-testid="mail-unlink-x" />}
+                  {isUnlinking ? <Loader2 className="w-3 h-3 animate-spin break-words min-w-0" data-testid="mail-unlink-spinner" /> : <X className="w-3 h-3 break-words min-w-0" data-testid="mail-unlink-x" />}
                   Fjern kobling
                 </button>
               )}
