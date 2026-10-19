@@ -1288,13 +1288,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-549 | 8 Pilot | DONE. Fluebenet ved ingen risici kan krympe. | Kun `<CheckCircle2 className="w-5 h-5" />` i AI-projekt. Teksten Ingen væsentlige risici identificeret er uændret. |
 | G18-550 | 8 Pilot | DONE. Historikkens pris kan krympe. | Kun `className="text-sm font-medium text-gray-900 shrink-0"`. `formatCurrency(analysis.total_price)` er uændret. |
 | G18-551 | 8 Pilot | DONE. Fold-ud-ikonet i sektionen kan krympe. | Kun `<ChevronUp className="w-5 h-5" />` i AI-projekt. ChevronDown er uændret. |
-| G18-552 | 8 Pilot | ÅBEN. Fold-ind-ikonet i sektionen kan krympe. | Kun `<ChevronDown className="w-5 h-5" />` i AI-projekt. ChevronUp er uændret. |
+| G18-552 | 8 Pilot | DONE. Fold-ind-ikonet i sektionen kan krympe. | Kun `<ChevronDown className="w-5 h-5" />` i AI-projekt. ChevronUp er uændret. |
 | G18-553 | 8 Pilot | ÅBEN. Basistiden i tidsberegningen kan krympe. | Kun `<dd>{result.calculation.time.base_hours.toFixed(1)} timer</dd>`. Tallet er uændret. |
 | G18-554 | 8 Pilot | ÅBEN. Total tid i tidsberegningen kan krympe. | Kun `<dd>{result.calculation.time.total_hours.toFixed(1)} timer</dd>`. Tallet er uændret. |
 | G18-555 | 8 Pilot | ÅBEN. Kompleksitetsfaktoren i tidsberegningen kan krympe. | Kun `<dd>×{result.calculation.time.complexity_multiplier}</dd>`. Faktoren er uændret. |
 | G18-556 | 8 Pilot | ÅBEN. Størrelsesfaktoren i tidsberegningen kan krympe. | Kun `<dd>×{result.calculation.time.size_multiplier}</dd>`. Faktoren er uændret. |
 | G18-557 | 8 Pilot | ÅBEN. Tilgængelighedsfaktoren i tidsberegningen kan krympe. | Kun `<dd>×{result.calculation.time.accessibility_multiplier}</dd>`. Faktoren er uændret. |
 | G18-558 | 8 Pilot | ÅBEN. Historikkens pladsholderbjælker kan krympe. | Kun de to `<div className="h-10 bg-gray-200 rounded" />` i AI-projekt. |
+| G18-559 | 8 Pilot | ÅBEN. Ikonrækken ved sektionens fold kan krympe. | Kun den `<div className="flex items-center gap-2">` der omslutter ChevronUp og ChevronDown. De fire hurtig-estimat-rækker med samme klasse er uændrede. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

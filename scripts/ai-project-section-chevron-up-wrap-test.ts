@@ -1,5 +1,5 @@
 /**
- * Fold-ud-ikonet i sektionen kan krympe. ChevronDown er uaendret.
+ * Fold-ud-ikonet i sektionen kan krympe. Fold-ind-ikonet er pakket for sig.
  *   npx tsx scripts/ai-project-section-chevron-up-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -28,7 +28,7 @@ ok(!row.includes('formatCurrency'), 'priserne er et andet sted')
 ok(view.split(id).length === 2, 'ikonet findes en gang')
 ok(view.split(cell).length === 2, 'ikonklassen findes en gang')
 ok(!view.includes('<ChevronUp className="w-5 h-5" />'), 'det bare fold-ud-ikon er vaek')
-ok(view.includes('<ChevronDown className="w-5 h-5" />'), 'fold-ind-ikonet bliver')
+ok(view.includes('<ChevronDown className="w-5 h-5 break-words min-w-0" data-testid="ai-project-section-chevron-down" />'), 'fold-ind-ikonet bliver')
 ok(view.split('>{title}<').length === 2, 'titelteksten findes en gang')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 
