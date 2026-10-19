@@ -869,7 +869,7 @@ function RiskCard({ risk }: { risk: RiskFactor }) {
   const severityIcons = {
     low: <CheckCircle2 className="w-4 h-4 text-green-500 break-words min-w-0" data-testid="ai-project-risk-low-icon" />,
     medium: <AlertTriangle className="w-4 h-4 text-yellow-500 break-words min-w-0" data-testid="ai-project-risk-medium-icon" />,
-    high: <AlertTriangle className="w-4 h-4 text-orange-500" />,
+    high: <AlertTriangle className="w-4 h-4 text-orange-500 break-words min-w-0" data-testid="ai-project-risk-high-icon" />,
     critical: <AlertTriangle className="w-4 h-4 text-red-500" />,
   }
 
