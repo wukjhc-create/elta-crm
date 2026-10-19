@@ -499,7 +499,7 @@ export function OfferTextsClient({ initialTemplates, loadError = null }: OfferTe
                           {template.scope_id && `: ${template.scope_id}`}
                         </Badge>
                         {template.priority > 0 && (
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-xs break-words min-w-0 max-w-full" data-testid="offer-text-priority">
                             Prioritet: {template.priority}
                           </Badge>
                         )}
