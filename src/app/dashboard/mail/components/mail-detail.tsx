@@ -533,7 +533,7 @@ export function MailDetail({
               title="Saet mailen tilbage til Uidentificeret saa den kan kobles manuelt"
             >
               {pendingAction === 'restore' ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin break-words min-w-0" data-testid="mail-restore-spinner" />
               ) : (
                 <AlertCircle className="w-4 h-4 break-words min-w-0" data-testid="mail-restore-icon" />
               )}
