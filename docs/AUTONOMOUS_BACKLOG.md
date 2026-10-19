@@ -969,7 +969,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-227 | 4 Pris | DONE. Etiketten Produktnavn i produktformularen ombrydes. | Ordet og stjernen er uændrede. |
 | G18-233 | 4 Pris | ÅBEN. Pladsholderen på produktnavn ombrydes. | Teksten F.eks. JA Solar 400W Panel er uændret. |
 | G18-222 | 4 Pris | DONE. Etiketten Kategori i produktformularen ombrydes. | Ordet er uændret. |
-| G18-228 | 4 Pris | ÅBEN. Etiketten Beskrivelse i produktformularen ombrydes. | Ordet er uændret. |
+| G18-228 | 4 Pris | DONE. Etiketten Beskrivelse i produktformularen ombrydes. | Ordet er uændret. |
+| G18-234 | 4 Pris | ÅBEN. Pladsholderen på produktbeskrivelsen ombrydes. | Teksten Produktbeskrivelse... er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

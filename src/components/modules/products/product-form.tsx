@@ -84,7 +84,7 @@ export default function ProductForm({
       </div>
 
       <div>
-        <Label htmlFor="description">Beskrivelse</Label>
+        <Label htmlFor="description" className="break-words min-w-0" data-testid="product-form-description-label">Beskrivelse</Label>
         <Textarea
           id="description"
           name="description"
