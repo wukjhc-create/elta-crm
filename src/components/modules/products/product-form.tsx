@@ -148,7 +148,7 @@ export default function ProductForm({
         </div>
 
         <div>
-          <Label htmlFor="list_price">Listepris (DKK) *</Label>
+          <Label htmlFor="list_price" className="break-words min-w-0" data-testid="product-form-list-label">Listepris (DKK) *</Label>
           <Input
             id="list_price"
             name="list_price"
