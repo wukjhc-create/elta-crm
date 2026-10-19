@@ -66,6 +66,8 @@ export async function getOffers(filters?: {
   conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
   /** W-18 (pilot-review 2026-10-15): kun tilbud brugeren selv har oprettet */
   mine?: boolean
+  /** DB-3: kun tilbud der skal følges op (samme definition som cockpittets tal) */
+  followup?: boolean
 }): Promise<ActionResult<PaginatedResponse<OfferWithRelations>>> {
   try {
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
@@ -133,6 +135,13 @@ export async function getOffers(filters?: {
     if (filters?.mine) {
       countQuery = countQuery.eq('created_by', userId)
       dataQuery = dataQuery.eq('created_by', userId)
+    }
+
+    if (filters?.followup) {
+      const { OFFER_FOLLOWUP_STATUSES, offerFollowupAgeFilter } = await import('@/lib/offers/followup-window')
+      const age = offerFollowupAgeFilter()
+      countQuery = countQuery.in('status', [...OFFER_FOLLOWUP_STATUSES]).or(age)
+      dataQuery = dataQuery.in('status', [...OFFER_FOLLOWUP_STATUSES]).or(age)
     }
 
     // Sprint Ø7.2 — konverteringsfilter (samme logik som Ø7.1-badget; O(1),

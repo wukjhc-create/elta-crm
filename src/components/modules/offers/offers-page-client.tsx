@@ -30,6 +30,7 @@ interface Filters {
   status?: OfferStatus
   conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
   mine?: boolean
+  followup?: boolean
 }
 
 const CONVERSION_LABELS: Record<string, string> = {
@@ -101,7 +102,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
       })
 
       // Reset to page 1 when filters change
-      if (updates.search !== undefined || updates.status !== undefined || updates.conversion !== undefined || updates.mine !== undefined) {
+      if (updates.search !== undefined || updates.status !== undefined || updates.conversion !== undefined || updates.mine !== undefined || updates.followup !== undefined) {
         params.delete('page')
       }
 
@@ -145,7 +146,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
     router.push('/dashboard/offers')
   }
 
-  const hasActiveFilters = filters.search || filters.status || filters.conversion || filters.mine
+  const hasActiveFilters = filters.search || filters.status || filters.conversion || filters.mine || filters.followup
 
   return (
     <>
@@ -268,6 +269,14 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
                   Konvertering: {CONVERSION_LABELS[filters.conversion]}
                   <button onClick={() => handleConversionFilter('')} aria-label="Ryd konverteringsfilter" className="hover:text-red-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {filters.followup && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 rounded-full text-sm" data-testid="offers-followup-chip">
+                  Skal følges op (sendt/set &gt; 7 dage)
+                  <button onClick={() => updateURL({ followup: '' })} aria-label="Ryd opfølgningsfilter" className="hover:text-red-600">
                     <X className="w-3 h-3" />
                   </button>
                 </span>

@@ -21,6 +21,7 @@ interface PageProps {
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
     mine?: string
+    followup?: string
   }>
 }
 
@@ -38,6 +39,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
   const mine = params.mine === '1'
+  const followup = params.followup === '1' // DB-3: cockpittets "Tilbud — opfølgning"
 
   const [offersResult, settingsResult] = await Promise.all([
     getOffers({
@@ -49,6 +51,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
       sortBy,
       sortOrder,
       mine,
+      followup,
     }),
     getDocumentCompanySettings(),
   ])
@@ -72,7 +75,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
         totalItems: offersResult.data.total,
         pageSize: offersResult.data.pageSize,
       }}
-      filters={{ search, status, conversion, mine }}
+      filters={{ search, status, conversion, mine, followup }}
       sort={{ sortBy, sortOrder }}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />

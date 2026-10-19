@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3130,6 +3130,31 @@ ${m.text()}`) })
         r.ingen_uaendrede_felter = !('email' in ch) && !('company_name' in ch)
         r.ingen_falsk_previous = !json.includes('"previous"')
         out.push({ id: 'U203 LG-10 ægte audit-diff uden personværdier', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · felter=${Object.keys(ch).join(',')}` })
+      }
+
+      // U205 DB-3: cockpittets "Tilbud — opfølgning" linker til ?followup=1, og listen viser præcis det tallet tæller
+      // (sendt/set, afsendt > 7 dage) — før linkede kortet til alle sendte uanset alder og uden "set"
+      if (want('U205') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U205-${stamp}`
+        const old = new Date(Date.now() - 10 * 86_400_000).toISOString()
+        const ins = await c.admin.from('offers').insert([
+          { offer_number: `${tag}-A`, title: `[HARNESS] ${tag} gammel set`, created_by: adminUser.id, customer_id: profitCustomerId, status: 'viewed', sent_at: old },
+          { offer_number: `${tag}-B`, title: `[HARNESS] ${tag} ny sendt`, created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString() },
+        ]).select('id')
+        const ids = ((ins.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        r.seed = ids.length === 2
+        try {
+          await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.waitForTimeout(1500)
+          r.cockpit_link = (await a.page.locator('a[href="/dashboard/offers?followup=1"]').count()) > 0
+          await gotoSafe(a.page, `${base}/dashboard/offers?followup=1&search=${encodeURIComponent(tag)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('offers-followup-chip').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.chip = (await a.page.getByTestId('offers-followup-chip').count()) > 0
+          r.gammel_set_vist = (await a.page.getByText(`[HARNESS] ${tag} gammel set`).count()) > 0
+          r.ny_sendt_skjult = (await a.page.getByText(`[HARNESS] ${tag} ny sendt`).count()) === 0
+        } finally { if (ids.length) await c.admin.from('offers').delete().in('id', ids) }
+        out.push({ id: 'U205 DB-3 opfølgningslink = opfølgningstal', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${ins.error ? ` · SEED: ${ins.error.message}` : ''}` })
       }
 
       // U50 kundeportal: tilbudslinjer sendes uden kostpris/margin/interne noter til kundens browser

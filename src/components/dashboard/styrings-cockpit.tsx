@@ -249,7 +249,7 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
       title="Tilbud — opfølgning"
       icon={<FileText className="h-4 w-4" />}
       tone={followupCount > 0 ? 'amber' : 'green'}
-      href="/dashboard/offers?status=sent"
+      href="/dashboard/offers?followup=1"
       headline={followupCount}
       headlineLabel="ældre end 7 dage"
       error={err}

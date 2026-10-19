@@ -14,6 +14,7 @@
  */
 
 import { leadSourceEmailIds } from '@/lib/leads/source-email'
+import { OFFER_FOLLOWUP_STATUSES, offerFollowupAgeFilter } from '@/lib/offers/followup-window'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import {
   getRequiresResponseEmailIds,
@@ -143,7 +144,6 @@ export interface DashboardOverview {
   generated_at: string
 }
 
-const OFFER_FOLLOWUP_DAYS = 7
 const TOP_N = 5
 /** N73: "Mails kræver svar" i cockpittet tæller kun tråde fra de seneste 14 dage */
 const REPLY_WINDOW_DAYS = 14
@@ -365,25 +365,25 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       try {
         if (!roleCtx.hasPermission('offers.view')) return // PM2-4: tilbudsdata kun med offers.view
         overview.offers.allowed = true
-        const cutoff = new Date(now - OFFER_FOLLOWUP_DAYS * 86_400_000).toISOString()
+        const followupAge = offerFollowupAgeFilter(now) // DB-3: samme definition som tilbudslisten (?followup=1)
         const [countRes, listRes] = await Promise.all([
           supabase
             .from('offers')
             .select('id', { count: 'exact', head: true })
-            .in('status', ['sent', 'viewed'])
+            .in('status', [...OFFER_FOLLOWUP_STATUSES])
             .eq('is_proposal', false)
             // DB-3 (dashboard-review 2026-10-18): alder regnes fra AFSENDELSEN (sent_at) — en kladde oprettet for 20 dage
             // siden og sendt i går er ikke 20 dage gammel. Uden sent_at (ældre rækker) bruges oprettelsen.
-            .or(`sent_at.lt.${cutoff},and(sent_at.is.null,created_at.lt.${cutoff})`),
+            .or(followupAge),
           supabase
             .from('offers')
             .select(`
               id, offer_number, title, status, created_at,
               customer:customers!offers_customer_id_fkey(company_name)
             `)
-            .in('status', ['sent', 'viewed'])
+            .in('status', [...OFFER_FOLLOWUP_STATUSES])
             .eq('is_proposal', false)
-            .or(`sent_at.lt.${cutoff},and(sent_at.is.null,created_at.lt.${cutoff})`)
+            .or(followupAge)
             .order('sent_at', { ascending: true, nullsFirst: true })
             .limit(TOP_N),
         ])

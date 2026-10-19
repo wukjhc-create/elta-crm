@@ -211,6 +211,15 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-51 (API-route-review 2026-10-19 — alle src/app/api undtagen cron/admin; ingen S1/S2)
+| # | Fund | Status |
+|---|---|---|
+| API-1 | Faktura-PDF: userCanViewCase lukker salg ind via assigned_to, RLS (can_view_case_finance) kun created_by → tildelt sælger kunne hente PDF'er listen skjulte (S3) | DONE (kode) — PDF kræver også at fakturaen er synlig via brugerens RLS-klient |
+| API-2 | Tilbuds-PDF/getOffer: salg kan se ALLE tilbud (ingen ejer-scope), inkl. underskrift + IP (S3) | BESLUTNING — skal salg kun se egne tilbud? Ellers: skjul signer_ip for roller uden offers.approve |
+| API-3 | Kontaktformular: globalt rate limit (30/t) kan opbruges af én afsender → rigtige henvendelser 429 (S4) | TODO — pr. IP/afsenderdomæne eller Turnstile (kræver nøgle = BESLUTNING) |
+| API-4 | Kontaktformular kobler på e-mail alene til eksisterende kunde (falske leads på rigtig kunde) (S4) | BESLUTNING — forslag frem for auto-kobling? |
+| API-5 | Tracking-pixel: ingen dedup/loft, klient-styret IP (S4) | DONE (kode) — velformet id, én åbning pr. mail pr. 10 min, max 50 pr. mail, x-real-ip, afkortet UA/IP |
+
 ## NEXT-50 (systematisk rettigheds-audit 2026-10-19 — server-håndhævelse pr. action)
 | # | Fund | Status |
 |---|---|---|
@@ -376,7 +385,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | DB-1 | Salg ser hele firmaets sagstal (kortet), listen viser kun egne (S2) | DONE (kode) — kortet og cockpittets sagstal tælles i eget sags-scope for roller uden cases.view.all (U70/U13/U178) |
 | DB-2 | Månedligt tilbudsdiagram: forkert kohorte (created_at) og oppustet hitrate (S2) | DONE (kode) — kohorter efter sent_at/accepted_at/rejected_at; hitrate = accepteret/(accepteret+afvist) |
-| DB-3 | Tilbudsopfølgning måles fra created_at; link med andet filter (S3) | DELVIS (kode) — alder fra sent_at (fallback created_at); linkets filter (kun status=sendt) = TODO |
+| DB-3 | Tilbudsopfølgning måles fra created_at; link med andet filter (S3) | DELVIS (kode) — alder fra sent_at (fallback created_at); linkets filter: DONE (kode, U205) — fælles definition lib/offers/followup-window; cockpit linker til ?followup=1 (sendt/set, afsendt > 7 dage) med filterchip |
 | DB-4 | Fakturaøkonomi: sagslink med sagsnummer i stedet for id (404) (S3) | DONE (kode) |
 | DB-5 | Cockpittets forfaldne fakturaer: andre regler end Fakturaøkonomi (0,5-tærskel, valuta, limit 500) (S3) | DONE — fetchAllRows, kun DKK, åbent ≥ 0,50 (U70/U76/U99) |
 | DB-6 | /api/dashboard/stats: "completed" findes ikke — konverterede sager talte med; forfaldne m.m. (S3) | DONE — sagsstatus rettet; forfaldne tælles af alle rækker med samme regler som cockpittet (DKK, åbent ≥ 0,50), listen er top 10 af dem (U49/U70; U76 flaky ved 1. kørsel, grøn ved genkørsel) |
