@@ -140,7 +140,7 @@ export default function ProductDetailClient({
         {product.specifications && Object.keys(product.specifications).length > 0 && (
           <Card className="md:col-span-2">
             <CardHeader>
-              <CardTitle>Specifikationer</CardTitle>
+              <CardTitle className="break-words min-w-0" data-testid="product-detail-specs-title">Specifikationer</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
