@@ -695,7 +695,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 className="flex items-start gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors break-words min-w-0"
                 data-testid="ai-project-history-card"
               >
-                <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5 break-words min-w-0" data-testid="ai-project-history-sparkles" />
                 <div className="flex-1 min-w-0 break-words" data-testid="ai-project-history-text">
                   <p className="text-sm text-gray-700 break-words line-clamp-2">{analysis.description}</p>
                   <p className="text-xs text-gray-400 break-words min-w-0" data-testid="ai-project-history-date">

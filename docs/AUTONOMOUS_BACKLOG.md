@@ -1277,13 +1277,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-538 | 8 Pilot | DONE. Kundeikonet i kundevælgeren kan krympe. | Kun `<Users className="w-5 h-5 text-purple-500 shrink-0" />` i AI-projekt. Teksten Vælg kunde er uændret. |
 | G18-539 | 8 Pilot | DONE. Analysér-knappens ikon kan krympe. | Kun `<Sparkles className="w-5 h-5 mr-2" />` i AI-projekt. Teksten Analyser projekt er uændret. |
 | G18-540 | 8 Pilot | DONE. Luk-ikonet i kundevælgeren kan krympe. | Kun `<X className="w-5 h-5" />` i AI-projekt. aria-label Luk er uændret. |
-| G18-541 | 8 Pilot | ÅBEN. Eksempelikonet i AI-projekt kan krympe. | Kun `<Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />` i AI-projekt. Eksempelteksten er uændret. |
+| G18-541 | 8 Pilot | DONE. Eksempelikonet i AI-projekt kan krympe. | Kun `<Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />` i AI-projekt. Eksempelteksten er uændret. |
 | G18-542 | 8 Pilot | ÅBEN. Opsummeringens prisikon kan krympe. | Kun `icon={<Banknote className="w-5 h-5" />}`. Etiketten Total pris og `formatCurrency(result.calculation.price.total_price)` er uændrede. |
 | G18-543 | 8 Pilot | ÅBEN. Opret-tilbuds pilen kan krympe. | Kun `<ArrowRight className="w-4 h-4 mr-2" />` i AI-projekt. Teksten Opret tilbud er uændret. |
 | G18-544 | 8 Pilot | ÅBEN. Opret-tilbuds spinner kan krympe. | Kun `<Loader2 className="w-4 h-4 animate-spin mr-2" />` i AI-projekt. Teksten Opret tilbud er uændret. |
 | G18-545 | 8 Pilot | ÅBEN. Opsummeringens tidsikon kan krympe. | Kun `icon={<Clock className="w-5 h-5" />}`. Etiketten Estimeret tid er uændret. |
 | G18-546 | 8 Pilot | ÅBEN. Opsummeringens risikoikon kan krympe. | Kun `icon={<AlertTriangle className="w-5 h-5" />}`. Etiketten Risikoniveau er uændret. |
 | G18-547 | 8 Pilot | ÅBEN. Opsummeringens komponentikon kan krympe. | Kun `icon={<Package className="w-5 h-5" />}`. Etiketten Komponenter er uændret. |
+| G18-548 | 8 Pilot | ÅBEN. Kopier-ikonet ved tilbudsteksten kan krympe. | Kun `<Copy className="w-4 h-4 mr-1" />` i AI-projekt. Teksten Kopier er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
