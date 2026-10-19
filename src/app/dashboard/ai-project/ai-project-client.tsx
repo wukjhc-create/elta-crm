@@ -623,7 +623,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           </CollapsibleSection>
 
           {/* Actions */}
-          <div className="bg-white border rounded-lg p-6">
+          <div className="bg-white border rounded-lg p-6 break-words min-w-0" data-testid="ai-project-next-step">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold break-words min-w-0" data-testid="ai-project-next-step-heading">Næste skridt</h3>
