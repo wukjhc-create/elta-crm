@@ -676,7 +676,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
         ) : (
           <>
           {historyError && (
-            <p className="text-sm text-red-700 break-words text-center py-4" data-testid="ai-history-load-error">
+            <p className="text-sm text-red-700 break-words min-w-0 text-center py-4" data-testid="ai-history-load-error">
               {historyError}{recentAnalyses.length === 0 ? '. Det tælles ikke som ingen analyser.' : '. De tidligere analyser bliver.'}{' '}
               <button type="button" onClick={() => setHistoryTry((n) => n + 1)} className="min-h-[44px] px-2 font-medium underline break-words min-w-0" data-testid="ai-project-history-retry">
                 Prøv igen
