@@ -305,7 +305,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
 
               return (
                 <tr key={alert.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-2.5 break-words min-w-0" data-testid="pricing-alert-product-cell">
                     <div className="font-medium break-words max-w-[16rem]">{alert.product_name}</div>
                     <div className="text-xs text-gray-400 break-all">{alert.supplier_sku}</div>
                   </td>

@@ -971,7 +971,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-248 | 4 Pris | DONE. Overskriften Priser på produktdetaljen ombrydes. | Ordet er uændret. |
 | G18-254 | 4 Pris | DONE. Etiketten Listepris på produktdetaljen ombrydes. | Ordet og formatCurrency(product.list_price) er uændrede. |
 | G18-260 | 4 Pris | DONE. Leverandørvælgeren på pristendenser ombrydes. | Værdien og teksten Vælg leverandør er uændrede. |
-| G18-266 | 4 Pris | ÅBEN. Produktcellen på prisadvarslens skrivebord ombrydes. | Navnet og priserne er uændrede. |
+| G18-266 | 4 Pris | DONE. Produktcellen på prisadvarslens skrivebord ombrydes. | Navnet og priserne er uændrede. |
+| G18-272 | 4 Pris | ÅBEN. Alvorligheds-mærket på prisadvarslens mobilkort ombrydes. | Procenten er uændret. |
 | G18-219 | 4 Pris | DONE. Kategori-vælgerens etiket ombrydes. | aria-label Kategori er uændret. |
 | G18-225 | 4 Pris | DONE. Etiketten Enhed i produktformularen ombrydes. | Ordet er uændret. |
 | G18-231 | 4 Pris | DONE. Etiketten Kostpris i produktformularen ombrydes. | Ordene og feltets værdi er uændrede. |
