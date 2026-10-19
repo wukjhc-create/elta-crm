@@ -186,7 +186,7 @@ export function AftercalcOverviewClient() {
                   <div className="md:hidden space-y-2 break-words min-w-0" data-testid="aftercalc-overview-mobile">
                     {data.rows.map((r) => (
                       <article key={r.case_id} className="rounded-lg ring-1 ring-gray-200 p-3 break-words min-w-0" data-testid="aftercalc-mobile-card">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-2 break-words min-w-0" data-testid="aftercalc-card-head">
                           <div className="min-w-0">
                             <Link href={`/dashboard/orders/${r.case_id}?tab=oekonomi`} className="font-medium text-blue-700 hover:underline break-words">
                               {r.case_number || 'Sag'}
