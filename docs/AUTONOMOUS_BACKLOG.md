@@ -961,7 +961,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-225 | 4 Pris | ÅBEN. Etiketten Enhed i produktformularen ombrydes. | Ordet er uændret. |
 | G18-220 | 4 Pris | DONE. Knappen Annuller i produktformularen ombrydes. | onCancel er uændret. |
 | G18-226 | 4 Pris | ÅBEN. Pladsholderen Vælg kategori i produktformularen ombrydes. | Ordene er uændrede. |
-| G18-221 | 4 Pris | ÅBEN. Gem-knappen i produktformularen ombrydes. | Ordene Gemmer, Opdater og Opret er uændrede. |
+| G18-221 | 4 Pris | DONE. Gem-knappen i produktformularen ombrydes. | Ordene Gemmer, Opdater og Opret er uændrede. |
+| G18-227 | 4 Pris | ÅBEN. Etiketten Produktnavn i produktformularen ombrydes. | Ordet og stjernen er uændrede. |
 | G18-222 | 4 Pris | ÅBEN. Etiketten Kategori i produktformularen ombrydes. | Ordet er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.

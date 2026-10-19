@@ -175,7 +175,7 @@ export default function ProductForm({
         <Button type="button" variant="outline" onClick={onCancel} className="break-words min-w-0" data-testid="product-form-cancel">
           Annuller
         </Button>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending} className="break-words min-w-0" data-testid="product-form-submit">
           {isPending ? 'Gemmer...' : product ? 'Opdater' : 'Opret'}
         </Button>
       </div>
