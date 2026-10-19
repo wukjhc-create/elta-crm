@@ -37,7 +37,7 @@ ok(view.split('data-testid="mail-detail-header"').length === 2, 'sidehoved-id ko
 ok(view.split('data-testid="mail-detail-frame"').length === 2, 'ramme-id kolliderer ikke')
 ok(view.includes('onClick={handleRunMailAgent}'), 'handleren bliver')
 ok(view.includes("{agentRunning ? 'Kører Mailagent…' : 'Kør Mailagent'}"), 'knapteksten bliver')
-ok(view.includes('className="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"'), 'knapklassen bliver')
+ok(view.includes('className="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed break-words min-w-0" data-testid="mail-agent-button"'), 'knapklassen bliver')
 ok(view.includes('data-testid="mail-detail-frame"'), 'rammen bliver')
 ok(view.includes('data-testid="mail-detail-header"'), 'sidehovedet bliver')
 ok(view.includes('data-testid="mail-sender-row"'), 'afsenderraekken bliver')
