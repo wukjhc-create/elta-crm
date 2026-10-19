@@ -1270,13 +1270,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-531 | 8 Pilot | DONE. Kundelistens spinner kan krympe. | Kun `<Loader2 className="w-6 h-6 animate-spin text-gray-400" />` i AI-projekt. Forældre-div'en er uændret. |
 | G18-532 | 8 Pilot | DONE. Hurtig-estimatets bygningsikon kan krympe. | Kun `<Building2 className="w-4 h-4 text-purple-500" />` i AI-projekt. Bygningstypen er uændret. |
 | G18-533 | 8 Pilot | DONE. Hurtig-estimatets elpunktsikon kan krympe. | Kun `<Plug className="w-4 h-4 text-purple-500" />` i AI-projekt. Elpunktsteksten er uændret. |
-| G18-534 | 8 Pilot | ÅBEN. Hurtig-estimatets tidsikon kan krympe. | Kun `<Clock className="w-4 h-4 text-purple-500" />` i AI-projekt. Timeteksten er uændret. |
+| G18-534 | 8 Pilot | DONE. Hurtig-estimatets tidsikon kan krympe. | Kun `<Clock className="w-4 h-4 text-purple-500" />` i AI-projekt. Timeteksten er uændret. |
 | G18-535 | 8 Pilot | ÅBEN. Hurtig-estimatets beløbsikon kan krympe. | Kun `<Banknote className="w-4 h-4 text-purple-500" />` i AI-projekt. Beløbet er uændret. |
 | G18-536 | 8 Pilot | ÅBEN. Søgeikonet i kundevælgeren kan krympe. | Kun `<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />` i AI-projekt. Pladsholderen er uændret. |
 | G18-537 | 8 Pilot | ÅBEN. Analysér-knappens spinner kan krympe. | Kun `<Loader2 className="w-5 h-5 animate-spin mr-2" />` i AI-projekt. Teksten Analyserer er uændret. |
 | G18-538 | 8 Pilot | ÅBEN. Kundeikonet i kundevælgeren kan krympe. | Kun `<Users className="w-5 h-5 text-purple-500 shrink-0" />` i AI-projekt. Teksten Vælg kunde er uændret. |
 | G18-539 | 8 Pilot | ÅBEN. Analysér-knappens ikon kan krympe. | Kun `<Sparkles className="w-5 h-5 mr-2" />` i AI-projekt. Teksten Analyser projekt er uændret. |
 | G18-540 | 8 Pilot | ÅBEN. Luk-ikonet i kundevælgeren kan krympe. | Kun `<X className="w-5 h-5" />` i AI-projekt. aria-label Luk er uændret. |
+| G18-541 | 8 Pilot | ÅBEN. Eksempelikonet i AI-projekt kan krympe. | Kun `<Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />` i AI-projekt. Eksempelteksten er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

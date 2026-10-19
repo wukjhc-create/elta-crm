@@ -326,7 +326,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <span className="break-words min-w-0" data-testid="ai-project-quick-points">{quickResult.totalPoints} elpunkter</span>
               </div>
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-purple-500" />
+                <Clock className="w-4 h-4 text-purple-500 break-words min-w-0" data-testid="ai-project-estimate-clock" />
                 <span className="break-words min-w-0" data-testid="ai-project-quick-hours">~{Math.round(quickResult.estimatedHours)} timer</span>
               </div>
               <div className="flex items-center gap-2">
