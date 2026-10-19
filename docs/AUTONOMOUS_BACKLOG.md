@@ -258,8 +258,8 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LG-7 | email-intelligence logger navn/telefon og DUPLICATE_EMAIL med fuld mail (S3) | DONE — kun fejlkode + flag |
 | LG-8 | logMailRoute genindsætter modtagere via meta (S3) | DONE — meta-whitelist (id/tællere/flag) i logMailRoute |
 | LG-9 | Timegodkendelse: delvis commit uden audit/revalidate ved fejl midt i (S3) | TODO |
-| LG-10 | updateCustomer kopierer personfelter til audit_logs som falsk diff (S3) | TODO |
-| LG-11 | email-autolink: mailemne som entity_name i audit (S4) | TODO |
+| LG-10 | updateCustomer kopierer personfelter til audit_logs som falsk diff (S3) | DONE (kode, U203) — forrige række hentes; kun ægte ændringer logges; personfelter som [ændret] uden værdier; intet log-indslag uden ændring |
+| LG-11 | email-autolink: mailemne som entity_name i audit (S4) | DONE (kode) — entity_name = 'Indgående mail' (mailen findes via entity_id) |
 | LG-12 | Integrations-webhook gemmer hele payloaden (op til 1 MB) pr. kald (S4) | TODO |
 | LG-13 | Rå DB-/engelske fejltekster til UI (flere actions) (S4) | TODO |
 | LG-14 | markInvoicePaid: claim-fejl tjekkes ikke (DB-fejl vises som "ændret imens") (S4) | DONE (kode) — claim-fejl logges og gives som "databasefejl — prøv igen" (U29) |

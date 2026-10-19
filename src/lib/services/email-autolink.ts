@@ -99,7 +99,8 @@ async function audit(admin: Admin, emailId: string, subject: string, decision: A
     user_name: 'Mail-automatik',
     entity_type: 'incoming_email',
     entity_id: emailId,
-    entity_name: (subject || '(Intet emne)').slice(0, 120),
+    // LG-11 (log-review 2026-10-19): ikke mailens emne (kan indeholde persondata) — mailen findes via entity_id
+    entity_name: 'Indgående mail',
     action: linked ? 'email_auto_linked' : 'email_link_suggested',
     action_description: linked ? `Mail koblet automatisk (${decision.reason})` : `Forslag til manuel kobling (${decision.reason})`,
     metadata: linked

@@ -733,6 +733,12 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
       }
     }
 
+    // LG-10: forrige værdier til en ÆGTE diff i audit-loggen
+    const auditKeys = Object.keys(updateData).filter((k) => /^[a-z_]+$/.test(k))
+    const { data: beforeRow } = auditKeys.length
+      ? await supabase.from('customers').select(auditKeys.join(', ')).eq('id', customerId).maybeSingle()
+      : { data: null }
+
     const { data, error } = await supabase
       .from('customers')
       .update(updateData)
@@ -748,15 +754,22 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
       throw new Error('DATABASE_ERROR')
     }
 
-    // Audit log - log what fields changed
+    // LG-10 (log-review 2026-10-19): kun felter der FAKTISK ændrede sig (før blev alle formularfelter logget som
+    // {old:'previous', new:<værdi>} — falsk diff og kopi af kontakt-/adressedata i audit_logs). Personfelter logges
+    // uden værdier (kun at de er ændret); forretningsfelter med før/efter.
+    const PERSONAL_FIELDS = new Set(['contact_person', 'email', 'phone', 'mobile', 'notes', 'vat_number',
+      'billing_address', 'billing_city', 'billing_postal_code', 'billing_country',
+      'shipping_address', 'shipping_city', 'shipping_postal_code', 'shipping_country'])
+    const norm = (v: unknown) => (v === '' || v === undefined ? null : v)
+    const prev = (beforeRow ?? {}) as unknown as Record<string, unknown>
     const changes: Record<string, { old: unknown; new: unknown }> = {}
-    Object.keys(updateData).forEach((key) => {
+    for (const key of auditKeys) {
       const newVal = updateData[key as keyof typeof updateData]
-      if (newVal !== undefined) {
-        changes[key] = { old: 'previous', new: newVal }
-      }
-    })
-    await logUpdate('customer', customerId, data.company_name, changes)
+      if (newVal === undefined) continue
+      if (beforeRow && norm(prev[key]) === norm(newVal)) continue
+      changes[key] = PERSONAL_FIELDS.has(key) ? { old: '[ændret]', new: '[ændret]' } : { old: beforeRow ? prev[key] ?? null : null, new: newVal }
+    }
+    if (Object.keys(changes).length) await logUpdate('customer', customerId, data.company_name, changes)
 
     revalidatePath('/dashboard/customers')
     // N24a: ny/ændret mailadresse → kobl tidligere ukoblede mails fra adressen
