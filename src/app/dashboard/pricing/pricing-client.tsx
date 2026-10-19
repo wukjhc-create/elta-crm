@@ -415,7 +415,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
                   <StatusBadge status={offer.status} />
                 </td>
                 <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(offer.total_amount)}</td>
-                <td className="px-4 py-2.5 text-center">
+                <td className="px-4 py-2.5 text-center break-words min-w-0" data-testid="pricing-offer-lines-cell">
                   <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2 py-0.5 rounded-full break-words min-w-0" data-testid="pricing-offer-lines">
                     {offer.affected_items}
                   </span>
