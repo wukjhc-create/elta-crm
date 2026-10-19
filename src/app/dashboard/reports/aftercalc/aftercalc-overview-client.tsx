@@ -89,7 +89,7 @@ export function AftercalcOverviewClient() {
     <div className="p-4 md:p-6 space-y-4" data-testid="aftercalc-overview">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Efterkalkulation</h1>
+          <h1 className="text-2xl font-bold text-gray-900 break-words min-w-0" data-testid="aftercalc-overview-title">Efterkalkulation</h1>
           <p className="text-gray-500 break-words min-w-0" data-testid="aftercalc-overview-intro">Tilbudt mod faktisk dækningsbidrag pr. sag. Beløb er ekskl. moms.</p>
         </div>
         <Link href="/dashboard/reports" className="text-sm text-blue-700 hover:underline break-words min-w-0" data-testid="aftercalc-back-link">Tilbage til rapporter</Link>
