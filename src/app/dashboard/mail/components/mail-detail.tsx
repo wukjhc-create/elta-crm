@@ -488,7 +488,7 @@ export function MailDetail({
             {email.is_read ? (
               <><Mail className="w-4 h-4" /> Markér som ulæst</>
             ) : (
-              <><MailOpen className="w-4 h-4" /> Markér som læst</>
+              <><MailOpen className="w-4 h-4 break-words min-w-0" data-testid="mail-mark-read-icon" /> Markér som læst</>
             )}
           </button>
 
