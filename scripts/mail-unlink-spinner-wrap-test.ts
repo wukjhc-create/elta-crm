@@ -32,7 +32,7 @@ ok(!row.includes('\n'), 'linjeskiftet er et andet sted')
 ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'spinneren findes en gang')
 ok(view.split(cell).length === 2, 'spinnerklassen findes en gang')
-ok(view.split(bare).length === 3, 'de andre w-3-spinnere bliver bare')
+ok(view.split(bare).length === 2, 'indlaesnings-spinneren bliver bar')
 ok(view.includes('Fjern kobling'), 'teksten bliver')
 ok(view.includes('title="Fjern kobling"'), 'titlen bliver')
 ok(view.includes('data-testid="mail-unlink-x"'), 'luk-ikonet bliver')
@@ -41,11 +41,12 @@ const unlinkAt = view.indexOf('{isUnlinking ? <Loader2')
 const replyAt = view.indexOf('{isSendingReply === tpl.text ? <Loader2')
 const bodyAt = view.indexOf('data-testid="mail-body-loading"')
 const unlinkSlice = unlinkAt >= 0 ? view.slice(unlinkAt, unlinkAt + 160) : ''
-const replySlice = replyAt >= 0 ? view.slice(replyAt, replyAt + 90) : ''
+const replySlice = replyAt >= 0 ? view.slice(replyAt, replyAt + 160) : ''
 const bodySlice = bodyAt >= 0 ? view.slice(bodyAt, bodyAt + 90) : ''
 ok(unlinkSlice.includes(id), 'spinneren er ved fjern kobling')
 ok(!unlinkSlice.includes(bare), 'fjern-kobling-spinneren er ikke bar')
-ok(replySlice.includes(bare), 'hurtigt-svar-spinneren er stadig bar')
+ok(!replySlice.includes(bare), 'hurtigt-svar-spinneren er ikke bar')
+ok(replySlice.includes('data-testid="mail-quick-reply-spinner"'), 'hurtigt-svar-spinneren kan krympe')
 ok(!replySlice.includes(id), 'fjern-kobling-spinneren er ikke ved hurtigt svar')
 ok(bodySlice.includes(bare), 'indlaesnings-spinneren er stadig bar')
 ok(!bodySlice.includes(id), 'fjern-kobling-spinneren er ikke ved indlaesning')
