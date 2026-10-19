@@ -653,7 +653,7 @@ export function MailDetail({
               {suggestions
                 .filter((s) => s.id !== detectedCustomer?.id)
                 .map((s) => (
-                  <div key={s.id} className="flex items-center gap-2 bg-white rounded px-2.5 py-2 border border-gray-100">
+                  <div key={s.id} className="flex items-center gap-2 bg-white rounded px-2.5 py-2 border border-gray-100 break-words min-w-0" data-testid="mail-suggest-other">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 break-words">{s.company_name}</p>
                       <p className="text-xs text-gray-500">{s.customer_number} — {s.matchReason}</p>

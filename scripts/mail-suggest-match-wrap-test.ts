@@ -37,7 +37,7 @@ ok(view.split('data-testid="mail-suggest-box"').length === 2, 'boks-id kollidere
 ok(view.includes('break-words">{detectedCustomer.company_name}'), 'fundet kunde ombrydes stadig')
 ok(view.includes('break-words">{s.company_name}'), 'forslag ombrydes stadig')
 ok(view.includes('Kobl'), 'kobl bliver')
-ok(view.includes('border border-gray-100"'), 'det graa kort bliver')
+ok(view.includes('border border-gray-100 break-words min-w-0" data-testid="mail-suggest-other"'), 'det graa kort bliver')
 ok(view.includes('Mulige matches (forslag)'), 'overskriften bliver')
 ok(view.includes('data-testid="mail-suggest-frame"'), 'rammen bliver')
 ok(view.includes('data-testid="mail-reply-msg"'), 'svaret bliver')
