@@ -156,6 +156,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // API-3 (Henrik 2026-10-19): Cloudflare Turnstile — kun aktiv med CONTACT_TURNSTILE_ENFORCE=true + TURNSTILE_SECRET_KEY
+    // (BLOCKED_CONFIGURATION). Uden konfiguration ændres intet.
+    {
+      const { turnstileEnforced, verifyTurnstileToken } = await import('@/lib/security/turnstile')
+      if (turnstileEnforced()) {
+        const b = (body ?? {}) as Record<string, unknown>
+        const token = b['cf-turnstile-response'] ?? b.turnstile_token
+        const ok = await verifyTurnstileToken(token, request.headers.get('x-real-ip'))
+        if (!ok) {
+          logger.warn('Contact form: Turnstile afvist')
+          return NextResponse.json({ success: false, error: 'Bekræft venligst at du ikke er en robot, og prøv igen' }, { status: 403, headers: cors })
+        }
+      }
+    }
+
     const parsed = contactFormSchema.safeParse(body)
     if (!parsed.success) {
       const errors = parsed.error.errors.map((e) => e.message).join(', ')
