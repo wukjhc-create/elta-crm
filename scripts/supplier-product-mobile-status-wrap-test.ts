@@ -23,7 +23,7 @@ const label = "{product.is_available ? 'Aktiv' : 'Inaktiv'}"
 ok(row.includes('break-words min-w-0'), 'mærket ombrydes')
 ok(row.includes(label), 'teksten er uændret')
 ok((view.match(/\{product\.is_available \? 'Aktiv' : 'Inaktiv'\}/g) ?? []).length === 2, 'to statusser')
-ok((view.match(/<Badge variant=\{product\.is_available \? 'default' : 'secondary'\}>/g) ?? []).length === 1, 'skrivebordsmærket venter')
+ok(view.includes('data-testid="supplier-product-desktop-status"'), 'skrivebordsmærket bliver')
 ok(view.includes('data-testid="supplier-product-mobile-category"'), 'mobilkategorien bliver')
 ok(view.includes('data-testid="supplier-product-desktop-category"'), 'skrivebordskategorien bliver')
 ok((view.match(/storedCostText\(product\.cost_price\)/g) ?? []).length === 2, 'kostprisen bliver')

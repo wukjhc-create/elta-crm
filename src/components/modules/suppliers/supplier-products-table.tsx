@@ -327,7 +327,7 @@ export function SupplierProductsTable({
                       {storedCostText(product.effective_sale_price)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={product.is_available ? 'default' : 'secondary'}>
+                      <Badge variant={product.is_available ? 'default' : 'secondary'} className="break-words min-w-0 max-w-full" data-testid="supplier-product-desktop-status">
                         {product.is_available ? 'Aktiv' : 'Inaktiv'}
                       </Badge>
                     </TableCell>

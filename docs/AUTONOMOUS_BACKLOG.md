@@ -1131,13 +1131,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-392 | 8 Pilot | DONE. Prioritetsmærket på tilbudstekstkortet ombrydes. | Teksten `Prioritet: {template.priority}` er uændret. Kun det mærke. |
 | G18-393 | 8 Pilot | DONE. Den tomme historiktekst i AI-projekt ombrydes. | Sætningen `Ingen tidligere analyser endnu. Kør en analyse ovenfor, så den kan ses her.` er uændret. Kun det afsnit. |
 | G18-394 | 4 Pris | DONE. Statusmærket på leverandørvarens mobilkort ombrydes. | Teksten `Aktiv`/`Inaktiv` er uændret. Kun det mærke. |
-| G18-395 | 4 Pris | ÅBEN. Statusmærket på leverandørvarens skrivebord kan krympe. | Teksten `Aktiv`/`Inaktiv` er uændret. Kun mærket i tabellen. |
+| G18-395 | 4 Pris | DONE. Statusmærket på leverandørvarens skrivebord kan krympe. | Teksten `Aktiv`/`Inaktiv` er uændret. Kun mærket i tabellen. |
 | G18-396 | 8 Pilot | ÅBEN. Slette-teksten på opgavekortet ombrydes. | Udtrykket `{isDeleting ? 'Sletter...' : 'Slet'}` er uændret. Kun den knap. |
 | G18-397 | 8 Pilot | ÅBEN. Datoen under en analyse ombrydes. | Kaldet `copenhagenDateTimeLabel(analysis.created_at)` er uændret. Kun det afsnit. |
 | G18-398 | 8 Pilot | ÅBEN. Inaktiv-mærket på tilbudstekstkortet ombrydes. | Teksten `Inaktiv` er uændret. Kun det mærke. |
 | G18-399 | 8 Pilot | ÅBEN. Betingelsesmærket på tilbudstekstkortet ombrydes. | Udtrykket `Betingelser: {JSON.stringify(template.conditions)}` er uændret. Kun det mærke. |
 | G18-400 | 8 Pilot | ÅBEN. Overskriften Næste skridt ombrydes. | Teksten `Næste skridt` er uændret. Kun den overskrift. |
 | G18-401 | 8 Pilot | ÅBEN. Indledningen på AI-projekt ombrydes. | Sætningen `Beskriv projektet og få automatisk kalkulation, risikovurdering og tilbudstekst` er uændret. Kun det afsnit. |
+| G18-402 | 8 Pilot | ÅBEN. Den tomme leverandørvareliste ombrydes. | Teksten `Ingen produkter fundet` er uændret. Kun det afsnit i leverandørvaretabellen. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
