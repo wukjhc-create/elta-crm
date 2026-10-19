@@ -115,7 +115,7 @@ export function PricingDashboardClient() {
     <div className="space-y-6">
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 min-w-0" data-testid="pricing-summary-grid">
           <SummaryCard
             label="Kritiske advarsler"
             value={summary.criticalAlerts}
