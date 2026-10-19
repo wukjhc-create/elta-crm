@@ -319,7 +319,7 @@ export function MailDetail({
         {/* Sender + date */}
         <div className="flex items-center justify-between text-sm">
           <div className="text-gray-600">
-            <span className="font-medium text-gray-800">{email.sender_name || email.sender_email}</span>
+            <span className="font-medium text-gray-800 break-words min-w-0" data-testid="mail-sender">{email.sender_name || email.sender_email}</span>
             {email.sender_name && <span className="ml-1 text-gray-400">&lt;{email.sender_email}&gt;</span>}
             {email.is_forwarded && email.original_sender_email && (
               <span className="ml-2 text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
