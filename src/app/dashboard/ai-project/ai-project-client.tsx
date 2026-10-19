@@ -723,7 +723,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <h2 className="font-semibold break-words min-w-0">Vælg kunde</h2>
               </div>
               <button onClick={() => setShowCustomerModal(false)} className="text-gray-400 hover:text-gray-600 shrink-0 break-words min-w-0" data-testid="ai-project-customer-close" aria-label="Luk">
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 break-words min-w-0" data-testid="ai-project-close-icon" />
               </button>
             </div>
             <div className="p-4">

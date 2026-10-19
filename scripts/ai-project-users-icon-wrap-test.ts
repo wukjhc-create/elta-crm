@@ -31,7 +31,7 @@ ok(view.split(cell).length === 2, 'ikonklassen findes en gang')
 ok(!view.includes('<Users className="w-5 h-5 text-purple-500 shrink-0" />'), 'det bare ikon er vaek')
 ok(view.split('>Vælg kunde<').length === 2, 'teksten findes en gang')
 ok(view.includes('aria-label="Luk"'), 'luk bliver')
-ok(view.includes('<X className="w-5 h-5" />'), 'lukikonet bliver')
+ok(view.includes('<X className="w-5 h-5 break-words min-w-0" data-testid="ai-project-close-icon" />'), 'lukikonet bliver')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 
 if (bad > 0) {
