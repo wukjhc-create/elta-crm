@@ -41,7 +41,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Link href="/dashboard/products">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" className="break-words min-w-0" data-testid="product-detail-back">
             <ArrowLeft className="w-4 h-4" />
           </Button>
         </Link>
