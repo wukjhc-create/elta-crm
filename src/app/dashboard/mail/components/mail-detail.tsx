@@ -429,7 +429,7 @@ export function MailDetail({
         )}
 
         {/* ========== ACTION BUTTONS ========== */}
-        <div className="flex items-center gap-2 pt-2 flex-wrap">
+        <div className="flex items-center gap-2 pt-2 flex-wrap break-words min-w-0" data-testid="mail-action-row">
           {/* ★ UNLINKED: Two clear choices — user decides */}
           {email.link_status !== 'linked' && (
             <>
