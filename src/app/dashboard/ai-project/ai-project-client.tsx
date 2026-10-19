@@ -590,7 +590,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             {result.risks.length === 0 ? (
               <div className="flex items-center gap-2 text-green-600">
                 <CheckCircle2 className="w-5 h-5" />
-                <span>Ingen væsentlige risici identificeret</span>
+                <span className="break-words min-w-0" data-testid="ai-project-no-risks">Ingen væsentlige risici identificeret</span>
               </div>
             ) : (
               <div className="space-y-3">
