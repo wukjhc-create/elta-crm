@@ -210,7 +210,7 @@ export function SupplierProductsTable({
       ) : loadError && !showingThisQuery ? null : products.length === 0 ? (
         <div className="h-32 flex flex-col items-center justify-center text-center text-gray-500 bg-white rounded-lg border">
           <Package className="w-12 h-12 mb-2 text-gray-300" />
-          <p>Ingen produkter fundet</p>
+          <p className="break-words min-w-0" data-testid="supplier-products-empty-title">Ingen produkter fundet</p>
           {search && (
             <p className="text-sm">Prøv at ændre din søgning</p>
           )}
