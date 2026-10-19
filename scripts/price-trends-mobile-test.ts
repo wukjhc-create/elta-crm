@@ -12,7 +12,7 @@ const src = fs.readFileSync('src/app/dashboard/pricing/pricing-client.tsx', 'utf
 const start = src.indexOf('data-testid="price-trends-mobile"')
 const mobile = src.slice(start, src.indexOf('hidden md:block', start))
 eq('mobilkort findes', start > 0, true)
-eq('navn ombrydes', mobile.includes('break-words">{trend.product_name}'), true)
+eq('navn ombrydes', mobile.includes('break-words min-w-0" data-testid="pricing-trend-product-mobile">{trend.product_name}'), true)
 eq('nuværende pris bliver', mobile.includes('formatCurrency(trend.current_price)'), true)
 eq('30 dage bliver', mobile.includes('{trend.trend_30_days}%'), true)
 eq('90 dage bliver', mobile.includes('{trend.trend_90_days}%'), true)
