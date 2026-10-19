@@ -750,7 +750,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     </button>
                   </div>
                 ) : filteredCustomers.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-gray-500 break-words min-w-0" data-testid="ai-project-customer-empty">
                     {customerSearch ? 'Ingen kunder fundet' : 'Ingen kunder'}
                   </div>
                 ) : (
