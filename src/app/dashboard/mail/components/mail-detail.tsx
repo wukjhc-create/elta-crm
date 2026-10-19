@@ -706,7 +706,7 @@ export function MailDetail({
             </div>
 
             {realAttachments.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-3 break-words min-w-0" data-testid="mail-attachments-stack">
                 {/* Image gallery */}
                 {imageAttachments.length > 0 && (
                   <div className="grid grid-cols-3 gap-2">
