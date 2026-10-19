@@ -656,7 +656,7 @@ function SummaryCard({
 }) {
   return (
     <div className={`rounded-lg border p-4 min-w-0 ${bgColor}`} data-testid="pricing-summary-card">
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2 min-w-0" data-testid="pricing-summary-label-row">
         {icon}
         <span className="text-xs text-gray-600 break-words min-w-0" data-testid="pricing-summary-label">{label}</span>
       </div>
