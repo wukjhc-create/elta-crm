@@ -1536,6 +1536,62 @@ Synk-datoen ombrydes. Kaldet er stadig `formatDateUtil(stat.last_sync_at)`. Etik
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-160, G18-161, G18-162, G18-163, G18-164, G18-165.
 
+## Checkpoint 2026-10-18 treogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `ffc0fffb`. Det omskriver ikke listerne ovenfor. Produktspids: `03376da4`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `03376da4` blev afvist før git kørte og er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `ffc0fffb..03376da4`
+
+```
+03376da4 feat(pris): manglende kategori ombrydes
+1a8179c5 feat(pris): rediger-dialog ombrydes
+a08873f1 feat(pris): opret-dialog ombrydes
+79d19d67 feat(pris): opret-knap ombrydes
+cabc43cd feat(pris): ryd-knap ombrydes
+ece52245 feat(pris): kategorifejl ombrydes
+90b6dcc1 feat(pris): katalogfejl ombrydes
+2068b4c3 feat(pris): katalogoverskrift ombrydes
+2469bd6e feat(pris): antal ombrydes
+1891ab86 feat(pris): ny-knap ombrydes
+637b14e8 feat(pris): prisetiketter ombrydes
+```
+
+Listen er alle commits efter `ffc0fffb` til og med `03376da4`, fra `637b14e8`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commit der ikke stod i et hegn
+
+```
+ffc0fffb docs: checkpoint efter 7790a262
+```
+
+### Features
+
+Etiketterne Kostpris og Listepris på mobilkortet ombrydes. Ordene er uændrede. Kostetiketten kræver stadig `canSeeCost`. Værdierne er stadig `storedCostText(product.cost_price)` og `formatCurrency(product.list_price)`. Knappen Nyt produkt ombrydes. `setShowCreateDialog` er uændret. Antallet ombrydes. Sætningen og `total` er uændrede. Overskriften Produktkatalog ombrydes. Katalogfejlen og kategorifejlen ombrydes. Sætningerne er uændrede. Knappen Ryd søgning ombrydes. `clearFilters` er uændret. Knappen Opret produkt ombrydes. Dialogen Opret nyt produkt og dialogen Rediger produkt ombrydes. Ordene er uændrede. Bindestregen for en manglende kategori ombrydes. Bindestregen er stadig `-`. Varenummerets bindestreg er uændret. Ingen opfundne priser. Ingen e-conomic.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log, ikke skrevet om. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter katalogbølgen G18-199 til G18-209: mobil-etiketter, knapper, antal, overskrift, fejltekster, dialoger og den manglende kategoris bindestreg. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-210, G18-211, G18-212, G18-213, G18-214, G18-215.
+
 ## Checkpoint 2026-10-18 toogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `7790a262`. Det omskriver ikke listerne ovenfor. Produktspids: `925f0e18`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `925f0e18` blev afvist før git kørte og er ikke prøvet igen. De lokale tip er ikke pushet.
