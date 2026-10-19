@@ -544,7 +544,7 @@ export function MailDetail({
 
         {/* ========== QUICK REPLY BUTTONS ========== */}
         <div className="pt-2 border-t space-y-2">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Hurtigt svar</p>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide break-words min-w-0" data-testid="mail-quick-reply-label">Hurtigt svar</p>
           <div className="flex items-center gap-2 flex-wrap">
             {[
               { label: 'Bekræft modtagelse', text: 'Tak for din henvendelse. Vi har modtaget din email og vender tilbage hurtigst muligt.\n\nMed venlig hilsen,\nElta Solar' },
