@@ -21,7 +21,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 100, at + 10) : ''
 const bare = '<p className="text-xs font-medium text-gray-500 uppercase tracking-wide">'
 const cell = '<p className="text-xs font-medium text-gray-500 uppercase tracking-wide break-words min-w-0" data-testid="mail-quick-reply-label">'
-const replyBare = 'className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-blue-50 hover:text-blue-700 border border-gray-200 hover:border-blue-300 transition-colors disabled:opacity-50"'
+const replyBare = 'className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-blue-50 hover:text-blue-700 border border-gray-200 hover:border-blue-300 transition-colors disabled:opacity-50 break-words min-w-0" data-testid="mail-quick-reply-button"'
 ok(row.includes('<p '), 'det er overskriften')
 ok(row.includes('uppercase tracking-wide'), 'spaerringen bliver')
 ok(row.includes('text-gray-500'), 'farven bliver')
