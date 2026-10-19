@@ -817,7 +817,7 @@ function SummaryCard({
       </div>
       <div className="text-sm text-gray-500">{label}</div>
       <div className="text-xl font-bold break-words min-w-0" data-testid="ai-project-summary-value">{value}</div>
-      <div className="text-xs text-gray-400">{sublabel}</div>
+      <div className="text-xs text-gray-400 break-words min-w-0" data-testid="ai-project-summary-sublabel">{sublabel}</div>
     </div>
   )
 }
