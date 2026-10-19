@@ -760,7 +760,8 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                       key={customer.id}
                       onClick={() => handleSelectCustomer(customer.id)}
                       disabled={creatingOffer}
-                      className="w-full text-left p-3 border rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all disabled:opacity-50"
+                      className="w-full text-left p-3 border rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all disabled:opacity-50 break-words min-w-0"
+                      data-testid="ai-project-customer-card"
                     >
                       <div className="font-medium break-words">{customer.name}</div>
                       {customer.email && (
