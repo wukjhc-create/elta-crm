@@ -108,7 +108,7 @@ function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps) {
         <ProjectPriorityBadge priority={task.priority} className="text-[10px] px-1.5 py-0.5" />
 
         {task.estimated_hours && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground break-words min-w-0" data-testid="task-board-hours">
             <Clock className="w-3 h-3" />
             {task.actual_hours}/{task.estimated_hours}t
           </span>
