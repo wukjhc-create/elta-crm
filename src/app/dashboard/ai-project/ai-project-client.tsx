@@ -337,7 +337,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           </div>
         )}
 
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex justify-end break-words min-w-0" data-testid="ai-project-analyze-row">
           <Button onClick={handleAnalyze} disabled={analyzing || !description.trim()} size="lg" className="break-words min-w-0" data-testid="ai-project-analyze">
             {analyzing ? (
               <>
