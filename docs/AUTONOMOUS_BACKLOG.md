@@ -991,7 +991,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-239 | 4 Pris | DONE. Kategori-vælgeren i produktformularen ombrydes. | Pladsholderen Vælg kategori er uændret. |
 | G18-245 | 4 Pris | DONE. Knappen Slet på produktdetaljen ombrydes. | handleDelete er uændret. |
 | G18-251 | 4 Pris | DONE. Etiketten Status på produktdetaljen ombrydes. | Ordet og badge-værdien er uændrede. |
-| G18-257 | 4 Pris | ÅBEN. Dialogtitlen Rediger produkt ombrydes. | Ordene er uændrede. |
+| G18-257 | 4 Pris | DONE. Dialogtitlen Rediger produkt ombrydes. | Ordene er uændrede. |
+| G18-263 | 4 Pris | ÅBEN. 30-dages-cellen på pristendensens skrivebord ombrydes. | Procenten er uændret. |
 | G18-222 | 4 Pris | DONE. Etiketten Kategori i produktformularen ombrydes. | Ordet er uændret. |
 | G18-228 | 4 Pris | DONE. Etiketten Beskrivelse i produktformularen ombrydes. | Ordet er uændret. |
 | G18-234 | 4 Pris | DONE. Pladsholderen på produktbeskrivelsen ombrydes. | Teksten Produktbeskrivelse... er uændret. |

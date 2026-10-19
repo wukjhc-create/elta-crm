@@ -162,7 +162,7 @@ export default function ProductDetailClient({
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Rediger produkt</DialogTitle>
+            <DialogTitle className="break-words min-w-0">Rediger produkt</DialogTitle>
           </DialogHeader>
           <ProductForm
             product={product}
