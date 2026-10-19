@@ -1347,7 +1347,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-613 | 8 Pilot | DONE. HTML-brødteksten i mailen kan krympe. | Kun `<div className="prose prose-sm max-w-none">` i mail-detaljen. `dangerouslySetInnerHTML` er uændret. |
 | G18-614 | 8 Pilot | DONE. Indlæsningen af mailens brødtekst kan krympe. | Kun `className="text-xs text-gray-400 mb-2 flex items-center gap-1"` i mail-detaljen. `data-testid="mail-body-loading"` og teksten Henter hele mailen bliver. |
 | G18-615 | 8 Pilot | DONE. Rammen om webhenvendelsen i mailen kan krympe. | Kun `<div className="mb-4 empty:hidden">` i mail-detaljen. WebInquiryCard er uændret. |
-| G18-616 | 8 Pilot | ÅBEN. Lysboksen i mailen kan krympe. | Kun `<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">` i mail-detaljen. `aria-label="Luk"` er uændret. |
+| G18-616 | 8 Pilot | DONE. Lysboksen i mailen kan krympe. | Kun `<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">` i mail-detaljen. `aria-label="Luk"` er uændret. |
+| G18-617 | 8 Pilot | ÅBEN. Panelet i mailens lysboks kan krympe. | Kun `<div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">` i mail-detaljen. `aria-label="Luk"` er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

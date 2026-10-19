@@ -32,7 +32,7 @@ ok(view.split(id).length === 2, 'rammen findes en gang')
 ok(view.split(cell).length === 2, 'rammens klasse findes en gang')
 ok(view.includes('<WebInquiryCard email={email} />'), 'kortet bliver')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
-ok(view.includes('className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"'), 'lysboksen bliver')
+ok(view.includes('className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 break-words min-w-0" data-testid="mail-lightbox-shell"'), 'lysboksen bliver')
 ok(view.includes('aria-label="Luk"'), 'luk bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 

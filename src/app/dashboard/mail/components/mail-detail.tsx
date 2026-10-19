@@ -800,7 +800,7 @@ export function MailDetail({
 
       {/* Lightbox */}
       {lightboxUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 break-words min-w-0" data-testid="mail-lightbox-shell">
           <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
             <div className="flex items-start justify-between w-full mb-2 px-1 gap-2">
               <span className="text-sm text-white/80 break-all min-w-0 flex-1">{lightboxName}</span>
