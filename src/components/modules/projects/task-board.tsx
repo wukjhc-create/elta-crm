@@ -87,7 +87,8 @@ function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps) {
                     setOpenMenu(false)
                   }}
                   disabled={isDeleting}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                  className="w-full flex flex-wrap items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 break-words min-w-0"
+                  data-testid="task-board-delete"
                 >
                   <Trash2 className="w-4 h-4" />
                   {isDeleting ? 'Sletter...' : 'Slet'}
