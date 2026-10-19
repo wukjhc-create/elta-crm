@@ -711,7 +711,7 @@ function LoadingState() {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="bg-white rounded-lg border p-8 text-center">
+    <div className="bg-white rounded-lg border p-8 text-center min-w-0" data-testid="pricing-empty-state">
       <Package className="h-8 w-8 mx-auto text-gray-300 mb-2" />
       <p className="text-sm text-gray-500 break-words min-w-0" data-testid="pricing-empty-text">{message}</p>
     </div>
