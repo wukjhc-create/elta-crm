@@ -22,7 +22,7 @@ ok(row.includes('{alert.product_name}'), 'navnet er uændret')
 ok(row.includes('text-right text-gray-500">{formatCurrency(alert.old_price)}'), 'gammel pris er uændret')
 ok(row.includes('text-right font-medium">{formatCurrency(alert.new_price)}'), 'ny pris er uændret')
 ok(row.includes("{isIncrease ? '+' : ''}{alert.change_percentage.toFixed(1)}%"), 'procenten er uændret')
-ok(view.includes('<tr key={offer.offer_id} className="border-b last:border-0 hover:bg-gray-50">'), 'tilbudsraekken er uændret')
+ok(view.includes('<tr key={offer.offer_id} className="border-b last:border-0 hover:bg-gray-50 min-w-0" data-testid="pricing-offer-row">'), 'tilbudsraekken kan krympe')
 ok(view.includes('<tr key={trend.supplier_product_id} className="border-b last:border-0 hover:bg-gray-50">'), 'trendraekken er uændret')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
