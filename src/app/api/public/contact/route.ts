@@ -120,7 +120,8 @@ export async function POST(request: NextRequest) {
     // 2. API key validation
     if (!validateApiKey(request)) {
       logger.warn('Contact form: Invalid or missing API key', {
-        metadata: { ip: request.headers.get('x-forwarded-for') },
+        // LG: ikke fuld IP i logs (persondata) — kun netværksdelen til mønstergenkendelse
+        metadata: { ipNet: (request.headers.get('x-real-ip') || request.headers.get('x-forwarded-for') || '').split(',')[0].trim().replace(/(\.\d+)$/, '.x').replace(/(:[0-9a-f]*){1,4}$/i, ':x').slice(0, 45) },
       })
       return NextResponse.json(
         { success: false, error: 'Ugyldig API-nøgle' },
