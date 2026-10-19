@@ -739,7 +739,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                   className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 break-words min-w-0"
                 />
               </div>
-              <div className="max-h-64 overflow-y-auto space-y-2">
+              <div className="max-h-64 overflow-y-auto space-y-2 break-words min-w-0" data-testid="ai-project-customer-list">
                 {loadingCustomers ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
