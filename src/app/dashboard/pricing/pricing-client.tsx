@@ -445,7 +445,7 @@ function SuppliersTab({ stats, error }: { stats: SupplierPriceStats[]; error: st
   if (stats.length === 0) return <EmptyState message="Ingen leverandørstatistik tilgængelig" />
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0" data-testid="pricing-supplier-grid">
       {stats.map((stat) => (
         <div key={stat.supplier_id} className="bg-white rounded-lg border p-5">
           <div className="flex items-center justify-between mb-4 min-w-0 break-words" data-testid="pricing-supplier-head">

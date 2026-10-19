@@ -1041,12 +1041,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-302 | 4 Pris | DONE. Leverandørnavnet i pristendensens vælger kan ombrydes. | Navnet og value er uændrede. |
 | G18-303 | 4 Pris | DONE. Fanerækken på prisovervågning kan ombrydes. | Faneteksterne er uændrede. |
 | G18-304 | 4 Pris | DONE. Oversigtskortenes gitter kan krympe. | Tallene er uændrede. |
-| G18-305 | 4 Pris | ÅBEN. Leverandørkortenes gitter kan krympe. | Kortenes tal er uændrede. |
+| G18-305 | 4 Pris | DONE. Leverandørkortenes gitter kan krympe. | Kortenes tal er uændrede. |
 | G18-306 | 4 Pris | ÅBEN. Prisadvarslens mobilkort kan krympe. | Navn og procent er uændrede. |
 | G18-307 | 4 Pris | ÅBEN. Berørte tilbuds mobilkort kan krympe. | Nummer og beløb er uændrede. |
 | G18-308 | 4 Pris | ÅBEN. Pristendensens mobilkort kan krympe. | Pris og navn er uændrede. |
 | G18-309 | 4 Pris | ÅBEN. Filterrækken på prisovervågning kan krympe. | Værdierne er uændrede. |
 | G18-310 | 4 Pris | ÅBEN. Ministatistikken på leverandørkortet kan krympe. | Tallene er uændrede. |
+| G18-311 | 4 Pris | ÅBEN. Leverandørkortet kan krympe. | Navn og tal er uændrede. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
