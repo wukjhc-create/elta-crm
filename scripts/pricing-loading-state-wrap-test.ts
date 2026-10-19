@@ -20,7 +20,7 @@ const row = at >= 0 ? view.slice(at - 160, at + 320) : ''
 ok(row.includes('min-w-0'), 'rammen kan krympe')
 ok(row.includes('>Indlæser data...<'), 'teksten er uændret')
 ok(view.includes('data-testid="pricing-empty-state"'), 'den tomme ramme bliver')
-ok(view.includes('className="bg-white rounded-lg border p-8 text-center" data-testid="pricing-load-error"'), 'fejlrammen er uændret')
+ok(view.includes('className="bg-white rounded-lg border p-8 text-center min-w-0" data-testid="pricing-load-error"'), 'fejlrammen kan krympe')
 ok(view.includes('formatCurrency(alert.old_price)'), 'gammel pris bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
