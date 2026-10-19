@@ -22,7 +22,7 @@ ok(row.includes("{offer.potential_loss > 0 ? '-' : '+'}"), 'fortegn er uændret'
 ok(row.includes('{formatCurrency(Math.abs(offer.potential_loss))}'), 'beløbet er uændret')
 ok(row.includes("offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'"), 'farverne er uændrede')
 ok(
-  view.includes("className={`font-medium ${offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'}`"),
+  view.includes("className={`font-medium break-words min-w-0 ${offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'}`"),
   'skrivebordets tab bliver',
 )
 ok(view.includes('data-testid="pricing-offer-amount-mobile"'), 'tilbudsbeløbet bliver')

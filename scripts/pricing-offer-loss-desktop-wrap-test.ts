@@ -16,12 +16,12 @@ ok(formatCurrency(1250).includes('1'), 'beløbsformatet bliver')
 
 const view = readFileSync(join('src', 'app', 'dashboard', 'pricing', 'pricing-client.tsx'), 'utf8')
 const at = view.indexOf('data-testid="pricing-offer-loss-desktop"')
-const row = at >= 0 ? view.slice(at - 140, at + 280) : ''
+const row = at >= 0 ? view.slice(at - 140, at + 400) : ''
 ok(row.includes('text-right break-words min-w-0'), 'cellen kan krympe')
 ok(row.includes("{offer.potential_loss > 0 ? '-' : '+'}"), 'fortegn er uændret')
 ok(row.includes('{formatCurrency(Math.abs(offer.potential_loss))}'), 'beløbet er uændret')
 ok(
-  row.includes("className={`font-medium ${offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'}`"),
+  row.includes("className={`font-medium break-words min-w-0 ${offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'}`"),
   'mærket er uændret',
 )
 ok(view.includes('data-testid="pricing-offer-loss-mobile"'), 'mobiltabet bliver')
