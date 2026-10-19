@@ -570,7 +570,7 @@ export function MailDetail({
               {graphDiag && (
                 <div className="bg-gray-50 border rounded p-2 text-[11px] font-mono space-y-0.5 break-words min-w-0" data-testid="mail-graph-diag-frame">
                   {Object.entries(graphDiag).map(([key, val]) => (
-                    <div key={key} className={val ? 'text-green-700' : 'text-red-600 font-bold'}>
+                    <div key={key} className={(val ? 'text-green-700' : 'text-red-600 font-bold') + ' break-words min-w-0'} data-testid="mail-graph-diag-line">
                       {val ? '✓' : '✗'} {key}
                     </div>
                   ))}
