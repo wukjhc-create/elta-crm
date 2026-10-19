@@ -1134,13 +1134,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-395 | 4 Pris | DONE. Statusmærket på leverandørvarens skrivebord kan krympe. | Teksten `Aktiv`/`Inaktiv` er uændret. Kun mærket i tabellen. |
 | G18-396 | 8 Pilot | DONE. Slette-teksten på opgavekortet ombrydes. | Udtrykket `{isDeleting ? 'Sletter...' : 'Slet'}` er uændret. Kun den knap. |
 | G18-397 | 8 Pilot | DONE. Datoen under en analyse ombrydes. | Kaldet `copenhagenDateTimeLabel(analysis.created_at)` er uændret. Kun det afsnit. |
-| G18-398 | 8 Pilot | ÅBEN. Inaktiv-mærket på tilbudstekstkortet ombrydes. | Teksten `Inaktiv` er uændret. Kun det mærke. |
+| G18-398 | 8 Pilot | DONE. Inaktiv-mærket på tilbudstekstkortet ombrydes. | Teksten `Inaktiv` er uændret. Kun det mærke. |
 | G18-399 | 8 Pilot | ÅBEN. Betingelsesmærket på tilbudstekstkortet ombrydes. | Udtrykket `Betingelser: {JSON.stringify(template.conditions)}` er uændret. Kun det mærke. |
 | G18-400 | 8 Pilot | ÅBEN. Overskriften Næste skridt ombrydes. | Teksten `Næste skridt` er uændret. Kun den overskrift. |
 | G18-401 | 8 Pilot | ÅBEN. Indledningen på AI-projekt ombrydes. | Sætningen `Beskriv projektet og få automatisk kalkulation, risikovurdering og tilbudstekst` er uændret. Kun det afsnit. |
 | G18-402 | 8 Pilot | ÅBEN. Den tomme leverandørvareliste ombrydes. | Teksten `Ingen produkter fundet` er uændret. Kun det afsnit i leverandørvaretabellen. |
 | G18-403 | 8 Pilot | ÅBEN. Rediger-teksten på opgavekortet ombrydes. | Teksten `Rediger` er uændret. Kun den knap. |
 | G18-404 | 8 Pilot | ÅBEN. Søgehintet på den tomme leverandørvareliste ombrydes. | Teksten `Prøv at ændre din søgning` er uændret. Kun det afsnit. |
+| G18-405 | 8 Pilot | ÅBEN. Sidetitel på AI-projekt ombrydes. | Teksten `AI Projektanalyse` er uændret. Kun den overskrift. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

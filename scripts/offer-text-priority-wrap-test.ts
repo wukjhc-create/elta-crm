@@ -25,9 +25,7 @@ ok(view.split('Prioritet: {template.priority}').length === 2, 'teksten findes en
 ok(view.includes('data-testid="offer-text-type"'), 'typemærket bliver')
 ok(view.includes('{typeConfig.label}'), 'typeetiketten bliver')
 ok(view.includes('data-testid="offer-text-scope"'), 'omfangsmærket bliver')
-const inactiveAt = view.indexOf('>Inaktiv<') >= 0 ? view.indexOf('>Inaktiv<') : view.indexOf('Inaktiv')
-const inactiveRow = inactiveAt >= 0 ? view.slice(inactiveAt - 90, inactiveAt + 10) : ''
-ok(inactiveRow.includes('className="text-xs">'), 'inaktiv-mærket venter')
+ok(view.includes('data-testid="offer-text-inactive"'), 'inaktiv-mærket bliver')
 ok(view.includes('deleteOfferTextTemplate'), 'slet bliver')
 
 if (bad > 0) {

@@ -504,7 +504,7 @@ export function OfferTextsClient({ initialTemplates, loadError = null }: OfferTe
                           </Badge>
                         )}
                         {!template.is_active && (
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-xs break-words min-w-0 max-w-full" data-testid="offer-text-inactive">
                             Inaktiv
                           </Badge>
                         )}
