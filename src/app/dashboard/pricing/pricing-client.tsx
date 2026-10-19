@@ -457,7 +457,7 @@ function SuppliersTab({ stats, error }: { stats: SupplierPriceStats[]; error: st
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-4 min-w-0" data-testid="pricing-ministat-grid">
             <MiniStat label="Produkter" value={stat.total_products} />
             <MiniStat label="Prisændringer" value={stat.products_with_price_changes} warn={stat.products_with_price_changes > 10} />
             <MiniStat label="Forældede" value={stat.stale_products} warn={stat.stale_products > 0} />
