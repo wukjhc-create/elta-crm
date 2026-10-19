@@ -152,7 +152,8 @@ export function PricingDashboardClient() {
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-500 break-words min-w-0" data-testid="pricing-threshold-label">Tærskel:</label>
           <select
-            className="border rounded px-2 py-1 text-sm"
+            className="border rounded px-2 py-1 text-sm break-words min-w-0"
+            data-testid="pricing-threshold-select"
             value={threshold}
             onChange={(e) => setThreshold(Number(e.target.value))}
           >
