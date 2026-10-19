@@ -28,7 +28,7 @@ ok(!row.includes('>Antal</th>'), 'antalkolonnen er en anden')
 ok(view.split(id).length === 2, 'kolonnen findes en gang')
 ok(view.split(cell).length === 2, 'kolonneklassen findes en gang')
 ok(view.split('>Komponenter</h4>').length === 2, 'overskriften bliver')
-ok(view.includes('text-right p-3">Antal</th>'), 'antalkolonnen bliver')
+ok(view.includes('data-testid="ai-project-antal-col">Antal</th>'), 'antalkolonnen bliver')
 ok(view.includes('formatCurrency(comp.unit_price)'), 'enhedsprisen bliver')
 ok(view.includes('formatCurrency(comp.total)'), 'totalen bliver')
 
