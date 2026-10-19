@@ -518,7 +518,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-size-factor-label">Størrelsesfaktor</dt>
                     <dd className="min-w-0 break-words" data-testid="ai-project-size-multiplier">×{result.calculation.time.size_multiplier}</dd>
                   </div>
-                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-time-access-row">
                     <dt className="text-gray-500 min-w-0 break-words">Tilgængelighedsfaktor</dt>
                     <dd className="min-w-0 break-words" data-testid="ai-project-accessibility-multiplier">×{result.calculation.time.accessibility_multiplier}</dd>
                   </div>
