@@ -20,7 +20,7 @@ const row = at >= 0 ? view.slice(at - 80, at + 3200) : ''
 ok(row.includes('overflow-x-auto min-w-0'), 'rullen kan krympe')
 ok(row.includes('data-testid="pricing-alert-col-product"'), 'produktkolonnen bliver')
 ok(row.includes('{alert.product_name}'), 'navnet er uændret')
-ok(row.includes('text-right text-gray-500">{formatCurrency(alert.old_price)}'), 'gammel pris er uændret')
+ok(row.includes('text-right text-gray-500 break-words min-w-0" data-testid="pricing-alert-old-desktop">{formatCurrency(alert.old_price)}'), 'gammel pris er uændret')
 ok(row.includes('text-right font-medium">{formatCurrency(alert.new_price)}'), 'ny pris er uændret')
 ok(view.split('<div className="overflow-x-auto">').length - 1 === 0, 'ingen upakket rulle')
 ok(!view.includes('truncate'), 'siden klipper ikke')

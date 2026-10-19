@@ -763,7 +763,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-14 | 5 Plan | DONE dagsoverskriften viser antal hentede opgaver. Tom dag siger stadig ingen besigtigelser. | Ingen ny query. Påmindelser tælles ikke her. |
 | G18-37 | 4 Pris | DONE null listepris siger "Ingen lagret pris". | Kost er G18-19. 0 kr forbliver 0 kr. Ingen opfundet pris. |
 | G18-46 | 8 Pilot | ÅBEN. Leverandørvarens navn på skrivebordet ombrydes i stedet for `line-clamp-1`. | Priser og status er uændret. |
-| G18-15 | 8 Pilot | ÅBEN. Desktop-celler i `pricing-client.tsx` for gammel/ny pris, tilbudsbeløb, difference og trendpris mangler `break-words`. Mobil ombryder allerede. | Ingen truncate. Ingen nye priser. |
+| G18-15 | 8 Pilot | ÅBEN. Desktop-celler i `pricing-client.tsx` for ny pris, tilbudsbeløb, difference og trendpris mangler `break-words`. Mobil ombryder allerede. | Ingen truncate. Ingen nye priser. |
 | G18-16 | 2 Faktura | DONE fragt og gebyr vises hver for sig. Beløb og motor uændret. | Ingen e-conomic. |
 | G18-17 | 1 Profit | DONE dansk faktureringsstatus på efterkalk-rækken fra `invoiced_state`. | Statusberegningen uændret. |
 | G18-18 | 8 Pilot | ALLEREDE I PRODUKT: produktlisten siger at fejlet hentning ikke tælles som ingen produkter. Ingen ny commit. | Tom succes forbliver tom. |
@@ -1087,12 +1087,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-348 | 4 Pris | DONE. Prisadvarslens tabelkrop kan krympe. | Navn og priser er uændrede. |
 | G18-349 | 4 Pris | DONE. Berørte tilbuds tabelkrop kan krympe. | Nummer og beløb er uændrede. |
 | G18-350 | 4 Pris | DONE. Pristendensens tabelkrop kan krympe. | Pris og navn er uændrede. |
-| G18-351 | 4 Pris | ÅBEN. Den gamle skrivebordspris på prisadvarslen kan krympe. | `formatCurrency(alert.old_price)` er uændret. Kun den celle. |
+| G18-351 | 4 Pris | DONE. Den gamle skrivebordspris på prisadvarslen kan krympe. | `formatCurrency(alert.old_price)` er uændret. Kun den celle. |
 | G18-352 | 4 Pris | ÅBEN. Den nye skrivebordspris på prisadvarslen kan krympe. | `formatCurrency(alert.new_price)` er uændret. Kun den celle. |
 | G18-353 | 4 Pris | ÅBEN. Tilbudsbeløbet på berørte tilbuds skrivebord kan krympe. | `formatCurrency(offer.total_amount)` er uændret. Kun den celle. |
 | G18-354 | 4 Pris | ÅBEN. Det potentielle tab på berørte tilbuds skrivebord kan krympe. | Beløbet er uændret. Kun den celle. |
 | G18-355 | 4 Pris | ÅBEN. Nuværende pris på pristendensens skrivebord kan krympe. | `formatCurrency(trend.current_price)` er uændret. Kun den celle. |
 | G18-356 | 4 Pris | ÅBEN. Tab-mærket på berørte tilbuds skrivebord kan krympe. | Beløbet er uændret. Kun span-elementet. |
+| G18-357 | 8 Pilot | ÅBEN. Seneste mail-forhåndsvisning på kundetidslinjen ombrydes i stedet for `line-clamp-1`. | Teksten er uændret. Kun den linje. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
