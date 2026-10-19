@@ -22,6 +22,7 @@ import {
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
 import { isUnbilledCloseError, confirmCloseDespiteUnbilled } from '@/lib/cases/close-guard'
+import { isContractChangeError, confirmContractChange } from '@/lib/cases/contract-guard'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 interface CustomerOption {
@@ -129,10 +130,18 @@ export function EditOrderForm({
         revised_sum: data.revised_sum,
         budget: data.budget,
       }
+      // IV2-4: kontraktsum-ændring på accepteret tilbud/fakturering og lukning med ufaktureret arbejde bekræftes
+      const ack: { acknowledgeUnbilled?: boolean; acknowledgeContractChange?: boolean } = {}
       let result = await updateServiceCase(sag.id, payload)
-      if (!result.success && isUnbilledCloseError(result.error)) {
-        if (!confirmCloseDespiteUnbilled(result.error)) return
-        result = await updateServiceCase(sag.id, payload, { acknowledgeUnbilled: true })
+      for (let i = 0; i < 2 && !result.success; i++) {
+        if (isContractChangeError(result.error)) {
+          if (!confirmContractChange(result.error)) return
+          ack.acknowledgeContractChange = true
+        } else if (isUnbilledCloseError(result.error)) {
+          if (!confirmCloseDespiteUnbilled(result.error)) return
+          ack.acknowledgeUnbilled = true
+        } else break
+        result = await updateServiceCase(sag.id, payload, ack)
       }
 
       if (!result.success || !result.data) {

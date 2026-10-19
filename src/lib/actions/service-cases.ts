@@ -421,13 +421,14 @@ interface UpdateServiceCaseInput {
 export async function updateServiceCase(
   id: string,
   input: UpdateServiceCaseInput,
-  opts?: { acknowledgeUnbilled?: boolean }
+  opts?: { acknowledgeUnbilled?: boolean; acknowledgeContractChange?: boolean }
 ): Promise<ActionResult<ServiceCase>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.edit')) {
       return { success: false, error: 'Manglende tilladelse: cases.edit' }
     }
+    validateUUID(id, 'sag ID')
 
     // Strip undefined keys so we don't NULL columns the caller did not touch.
     const payload: Record<string, unknown> = {}
@@ -465,6 +466,38 @@ export async function updateServiceCase(
       }
     }
 
+    // IV2-4 (Henrik 2026-10-19): kontraktsummen ændres aldrig stille, når der er et accepteret tilbud eller fakturering —
+    // brugeren bekræfter; ændringen auditeres altid. (Giver ingen adgang til kost-/avancefelter.)
+    let contractChange: { old: number | null; new: number | null } | null = null
+    if (payload.contract_sum !== undefined) {
+      const { serviceCaseAmountsError } = await import('@/lib/validations/service-cases')
+      const amountErr = serviceCaseAmountsError({ contract_sum: payload.contract_sum as number | null })
+      if (amountErr) return { success: false, error: amountErr }
+      const { data: cur } = await supabase.from('service_cases').select('contract_sum, source_offer_id').eq('id', id).maybeSingle()
+      const before = (cur as { contract_sum: number | null; source_offer_id: string | null } | null)
+      const oldSum = before?.contract_sum == null ? null : Number(before.contract_sum)
+      const newSum = payload.contract_sum == null ? null : Number(payload.contract_sum)
+      if (before && oldSum !== newSum) {
+        contractChange = { old: oldSum, new: newSum }
+        if (!opts?.acknowledgeContractChange) {
+          const reasons: string[] = []
+          if (before.source_offer_id) {
+            const { data: off } = await supabase.from('offers').select('offer_number, status').eq('id', before.source_offer_id).maybeSingle()
+            const o = off as { offer_number: string | null; status: string } | null
+            if (o?.status === 'accepted') reasons.push(`Sagen er oprettet fra det accepterede tilbud ${o.offer_number ?? ''}`.trim())
+          }
+          const { count: invCount } = await supabase.from('invoices').select('id', { count: 'exact', head: true })
+            .eq('case_id', id).neq('status', 'cancelled')
+          if ((invCount ?? 0) > 0) reasons.push(`Der er allerede ${invCount} faktura(er) på sagen — kontraktgrundlaget ændres`)
+          if (reasons.length) {
+            const { CONTRACT_PREFIX } = await import('@/lib/cases/contract-guard')
+            const fmt = (n: number | null) => (n == null ? 'ingen' : `${n.toLocaleString('da-DK')} kr. ekskl. moms`)
+            return { success: false, error: `${CONTRACT_PREFIX}${reasons.join('. ')}. Kontraktsum ${fmt(oldSum)} → ${fmt(newSum)}.` }
+          }
+        }
+      }
+    }
+
     const { data, error } = await supabase
       .from('service_cases')
       .update(payload)
@@ -475,6 +508,11 @@ export async function updateServiceCase(
     if (error) {
       logger.error('Error updating service case', { error })
       return { success: false, error: 'Kunne ikke opdatere serviceopgave' }
+    }
+    if (contractChange) {
+      const { logUpdate } = await import('@/lib/audit/audit-log-writer')
+      await logUpdate('service_case', id, (data as { case_number?: string | null })?.case_number ?? 'Sag', { contract_sum: contractChange },
+        { acknowledged: !!opts?.acknowledgeContractChange })
     }
 
     revalidatePath('/dashboard/service-cases')

@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3139,6 +3139,78 @@ ${m.text()}`) })
         r.ingen_uaendrede_felter = !('email' in ch) && !('company_name' in ch)
         r.ingen_falsk_previous = !json.includes('"previous"')
         out.push({ id: 'U203 LG-10 ægte audit-diff uden personværdier', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · felter=${Object.keys(ch).join(',')}` })
+      }
+
+      // U208 API-4 (Henrik 2026-10-19): lead med samme e-mail som en eksisterende kunde viser "Mulig eksisterende kunde";
+      // koblingen sker først når brugeren bekræfter
+      if (want('U208')) {
+        const r: Record<string, boolean> = {}
+        const em = `u208-${stamp}@harness.test`
+        const cu = await c.admin.from('customers').insert([{ customer_number: `U208-${stamp}`, company_name: `[HARNESS] U208 kunde ${stamp}`, contact_person: 'K',
+          email: em, created_by: adminUser.id }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const ld = await c.admin.from('leads').insert([{ company_name: `[HARNESS] U208 lead ${stamp}`, contact_person: 'Web Kunde', email: em, status: 'new',
+          source: 'website', created_by: adminUser.id, custom_fields: { inquiry_type: 'Solceller' } }]).select('id')
+        const leadId = (ld.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!custId && !!leadId
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('lead-possible-existing').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.banner_mulig_kunde = (await a.page.getByTestId('lead-possible-existing').count()) > 0
+          const before = ((await c.admin.from('leads').select('custom_fields').eq('id', leadId ?? '').maybeSingle()).data as { custom_fields?: Record<string, unknown> } | null)?.custom_fields ?? {}
+          r.ikke_koblet_foer = !before.customer_id
+          await a.page.getByTestId('lead-link-candidate').first().click({ timeout: 30_000 }).catch(() => {})
+          let after: Record<string, unknown> = {}
+          for (let i = 0; i < 20; i++) {
+            await a.page.waitForTimeout(1000)
+            after = ((await c.admin.from('leads').select('custom_fields').eq('id', leadId ?? '').maybeSingle()).data as { custom_fields?: Record<string, unknown> } | null)?.custom_fields ?? {}
+            if (after.customer_id) break
+          }
+          r.koblet_efter_bekraeftelse = after.customer_id === custId
+        } finally {
+          if (leadId) { await c.admin.from('lead_activities').delete().eq('lead_id', leadId); await c.admin.from('leads').delete().eq('id', leadId) }
+          if (custId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        out.push({ id: 'U208 API-4 mulig eksisterende kunde bekræftes', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U209 IV2-4 (Henrik 2026-10-19): kontraktsum på en sag fra et accepteret tilbud ændres kun efter bekræftelse og
+      // auditeres; annulleres bekræftelsen, gemmes intet
+      if (want('U209') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const of = await c.admin.from('offers').insert([{ offer_number: `U209-${stamp}`, title: `[HARNESS] U209 ${stamp}`, created_by: adminUser.id,
+          customer_id: profitCustomerId, status: 'accepted', accepted_at: new Date().toISOString() }]).select('id')
+        const offId = (of.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const cs = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U209 sag ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, source_offer_id: offId, contract_sum: 10000 }]).select('id')
+        const caseId = (cs.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        r.seed = !!offId && !!caseId
+        const sum = async () => Number(((await c.admin.from('service_cases').select('contract_sum').eq('id', caseId ?? '').maybeSingle()).data as { contract_sum?: number } | null)?.contract_sum)
+        const edit = async (value: string, accept: boolean) => {
+          await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}/edit`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const f = a.page.locator('input[name="contract_sum"]')
+          await f.waitFor({ timeout: 60_000 }).catch(() => {})
+          await f.fill(value).catch(() => {})
+          let seen = ''
+          a.page.once('dialog', (d) => { seen = d.message(); void (accept ? d.accept() : d.dismiss()) })
+          await a.page.getByRole('button', { name: /^Gem ændringer$/ }).click({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForTimeout(4000)
+          return seen
+        }
+        try {
+          const m1 = await edit('12000', false)
+          r.spoerges = /accepterede tilbud/i.test(m1)
+          r.annuller_gemmer_intet = (await sum()) === 10000
+          const m2 = await edit('12000', true)
+          r.spoerges_igen = /accepterede tilbud/i.test(m2)
+          let v = 0
+          for (let i = 0; i < 15 && v !== 12000; i++) { v = await sum(); if (v !== 12000) await a.page.waitForTimeout(1000) }
+          r.gemt_efter_bekraeftelse = v === 12000
+          const aud = ((await c.admin.from('audit_logs').select('changes').eq('entity_id', caseId ?? '').eq('action', 'update')).data ?? []) as Array<{ changes: Record<string, { old: unknown; new: unknown }> | null }>
+          r.auditeret = aud.some((x) => Number(x.changes?.contract_sum?.old) === 10000 && Number(x.changes?.contract_sum?.new) === 12000)
+        } finally { if (offId) await c.admin.from('offers').delete().eq('id', offId).then(() => {}, () => {}) }
+        out.push({ id: 'U209 IV2-4 kontraktsum kræver bekræftelse + audit', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U207 API-2 (Henrik 2026-10-19): salg ser kun egne tilbud (oprettet / på en sag i eget sags-scope) — liste, PDF og

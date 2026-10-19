@@ -15,7 +15,7 @@ import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 
-export interface LeadCustomerCandidate { id: string; name: string; customer_number: string | null; email: string | null; reason: 'phone' | 'name' }
+export interface LeadCustomerCandidate { id: string; name: string; customer_number: string | null; email: string | null; reason: 'email' | 'phone' | 'name' }
 
 const last8 = (s: string | null | undefined) => { const d = phoneDigits(s); return d.length >= 8 ? d.slice(-8) : '' }
 
@@ -31,6 +31,17 @@ export async function getLeadCustomerCandidatesAction(leadId: string): Promise<A
     const phone = last8(lead.phone as string | null)
     const name = String(lead.contact_person || lead.company_name || '').trim()
     const out = new Map<string, LeadCustomerCandidate>()
+    // API-4 (Henrik 2026-10-19): samme e-mail = "Mulig eksisterende kunde" (stærkeste forslag, øverst) — webhenvendelser
+    // kobles ikke længere automatisk på e-mail alene; brugeren bekræfter koblingen her
+    const leadEmail = String(lead.email ?? '').trim().toLowerCase()
+    if (leadEmail.includes('@')) {
+      const { escapeLike } = await import('@/lib/validations/postgrest-filter')
+      const { data } = await supabase.from('customers').select('id, company_name, customer_number, email')
+        .ilike('email', escapeLike(leadEmail)).order('is_active', { ascending: false }).limit(3)
+      for (const c of (data ?? []) as Array<{ id: string; company_name: string; customer_number: string | null; email: string | null }>) {
+        out.set(c.id, { id: c.id, name: c.company_name, customer_number: c.customer_number, email: c.email, reason: 'email' })
+      }
+    }
     if (phone) {
       // telefon gemmes i forskellige formater ("+45 12 34 56 78", "12345678") — et ilike-forfilter rammer ikke tal med
       // mellemrum, så telefonfelterne hentes (lette kolonner; kundetabellen er lille) og matches på de sidste 8 cifre
@@ -44,7 +55,7 @@ export async function getLeadCustomerCandidatesAction(leadId: string): Promise<A
         if (!page || page.length < 1000) break
       }
       for (const c of data) {
-        if (last8(c.phone) === phone || last8(c.mobile) === phone) out.set(c.id, { id: c.id, name: c.company_name, customer_number: c.customer_number, email: c.email, reason: 'phone' })
+        if (!out.has(c.id) && (last8(c.phone) === phone || last8(c.mobile) === phone)) out.set(c.id, { id: c.id, name: c.company_name, customer_number: c.customer_number, email: c.email, reason: 'phone' })
       }
     }
     if (name.includes(' ') && name.length >= 5) {
@@ -55,9 +66,7 @@ export async function getLeadCustomerCandidatesAction(leadId: string): Promise<A
         if (!out.has(c.id)) out.set(c.id, { id: c.id, name: c.company_name, customer_number: c.customer_number, email: c.email, reason: 'name' })
       }
     }
-    // samme e-mail håndteres allerede af "Opret som kunde" (kobler automatisk)
-    const leadEmail = String(lead.email ?? '').trim().toLowerCase()
-    return { success: true, data: Array.from(out.values()).filter((c) => (c.email ?? '').toLowerCase() !== leadEmail).slice(0, 5) }
+    return { success: true, data: Array.from(out.values()).slice(0, 5) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke finde mulige kunder') }
   }

@@ -1309,7 +1309,15 @@ async function main() {
       check('leadet er koblet til kunden (custom_fields.customer_id)', !!ca?.id && la?.custom_fields?.customer_id === ca.id, `lead=${la?.custom_fields?.customer_id ?? '-'} kunde=${ca?.id ?? '-'}`)
       // SEC2-6 (2026-10-17): dubletsvaret udleverer ikke længere lead-id'et
       check('samme e-mail inden for 10 min → succes uden lead-id, ingen ny række', a2.status === 200 && a2.json.success === true && a2.json.leadId === undefined && (await leadCount('a')) === 1)
-      const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+      // API-4 (Henrik 2026-10-19): henvendelse med en EKSISTERENDE kundes e-mail kobles ikke automatisk (og kunden røres ikke)
+      const ownerX = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+      const exist = (await admin.from('customers').insert({ customer_number: `PC-X-${stamp}`, company_name: `[HARNESS] pc eksisterende ${stamp}`, contact_person: 'Eks', email: mail('x'), created_by: ownerX, notes: 'urørt' }).select('id, updated_at').single()).data as { id: string; updated_at: string } | null
+      const x1 = await call(form('x'))
+      const lx = (await admin.from('leads').select('custom_fields').eq('email', mail('x')).maybeSingle()).data as { custom_fields?: { customer_id?: string } | null } | null
+      const ex2 = exist ? (await admin.from('customers').select('updated_at, notes').eq('id', exist.id).maybeSingle()).data as { updated_at: string; notes: string | null } | null : null
+      const nCust = (await admin.from('customers').select('id', { count: 'exact', head: true }).eq('email', mail('x'))).count ?? 0
+      check('eksisterende kundes e-mail → lead oprettet, IKKE koblet, ingen ny kunde, kunden urørt (API-4)', x1.status === 200 && (await leadCount('x')) === 1 && !lx?.custom_fields?.customer_id && nCust === 1 && ex2?.updated_at === exist?.updated_at && ex2?.notes === 'urørt', `koblet=${lx?.custom_fields?.customer_id ?? '-'} kunder=${nCust}`)
+      const owner =((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
       const { count: already } = await admin.from('leads').select('id', { count: 'exact', head: true }).eq('source', 'website').gte('created_at', new Date(Date.now() - 3_600_000).toISOString())
       const need = Math.max(0, 30 - (already ?? 0))
       if (need) {

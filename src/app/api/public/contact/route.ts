@@ -239,14 +239,15 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    let customerId: string
+    // API-4 (Henrik 2026-10-19): en henvendelse kobles IKKE automatisk til en eksisterende kunde på e-mail alene (enhver
+    // kan skrive en kendt kundes adresse). Leadet står ukoblet og viser "Mulig eksisterende kunde" — brugeren bekræfter.
+    let customerId: string | null
 
     if (existingCustomer) {
-      // Existing customer — reuse
-      customerId = existingCustomer.id
-      logger.info('Contact form: Matched existing customer', {
+      customerId = null
+      logger.info('Contact form: Possible existing customer (not linked — needs confirmation)', {
         entity: 'customers',
-        entityId: customerId,
+        entityId: existingCustomer.id,
         metadata: { email_domain: redactEmail(email), customer_number: existingCustomer.customer_number }, // LC-7
       })
     } else {

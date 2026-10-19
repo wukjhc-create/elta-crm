@@ -24,14 +24,17 @@ export function LeadCustomerCandidates({ leadId }: { leadId: string }) {
   }, [leadId])
 
   if (!items.length) return null
+  const emailMatch = items.some((c) => c.reason === 'email')
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2" data-testid="lead-customer-candidates">
-      <p className="text-sm font-medium text-blue-900 flex items-center gap-2"><Users className="w-4 h-4" /> Findes kunden allerede?</p>
+    <div className={`${emailMatch ? 'bg-amber-50 border-amber-300' : 'bg-blue-50 border-blue-200'} border rounded-lg p-4 space-y-2`} data-testid="lead-customer-candidates">
+      <p className="text-sm font-medium text-blue-900 flex items-center gap-2" data-testid={emailMatch ? 'lead-possible-existing' : undefined}>
+        <Users className="w-4 h-4" /> {emailMatch ? 'Mulig eksisterende kunde (samme e-mail) — bekræft koblingen' : 'Findes kunden allerede?'}
+      </p>
       <ul className="space-y-1.5">
         {items.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center gap-2 text-sm">
             <Link href={`/dashboard/customers/${c.id}`} className="font-medium text-blue-900 hover:underline">{c.name}</Link>
-            <span className="text-xs text-blue-700">{c.customer_number ?? ''} · {c.reason === 'phone' ? 'samme telefon' : 'samme navn'}</span>
+            <span className="text-xs text-blue-700">{c.customer_number ?? ''} · {c.reason === 'email' ? 'samme e-mail' : c.reason === 'phone' ? 'samme telefon' : 'samme navn'}</span>
             <button
               type="button"
               disabled={!!busy}
