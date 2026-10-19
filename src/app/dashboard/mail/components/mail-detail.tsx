@@ -363,7 +363,7 @@ export function MailDetail({
             <span className="break-words min-w-0" data-testid="mail-linked-customer-name">Koblet til: <strong className="break-words min-w-0" data-testid="mail-linked-customer-strong">{email.customers.company_name}</strong> <span className="break-words min-w-0" data-testid="mail-linked-customer-number">({email.customers.customer_number})</span></span>
             <div className="ml-auto flex items-center gap-2 shrink-0 break-words min-w-0" data-testid="mail-linked-customer-actions">
               <a href={`/dashboard/customers/${email.customers.id}`} className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs break-words min-w-0" data-testid="mail-open-customer-link">
-                Åbn kunde <ExternalLink className="w-3 h-3" />
+                Åbn kunde <ExternalLink className="w-3 h-3 break-words min-w-0" data-testid="mail-kunde-arrow" />
               </a>
               {onUnlinkCustomer && (
                 <button

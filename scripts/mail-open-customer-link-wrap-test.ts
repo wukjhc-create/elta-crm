@@ -34,7 +34,7 @@ ok(view.split('className="text-blue-600 hover:underline inline-flex items-center
 ok(view.split('data-testid="mail-linked-customer-row"').length === 2, 'kunderakke-id kolliderer ikke')
 ok(view.split('data-testid="mail-agent-inbox-link"').length === 2, 'indbakke-id kolliderer ikke')
 ok(view.includes('href={`/dashboard/customers/${email.customers.id}`}'), 'kundehref bliver')
-ok(view.includes('Åbn kunde <ExternalLink className="w-3 h-3" />'), 'linkteksten bliver')
+ok(view.includes('Åbn kunde <ExternalLink className="w-3 h-3 break-words min-w-0" data-testid="mail-kunde-arrow" />'), 'linkteksten bliver')
 ok(view.includes('Koblet til:'), 'koblingsteksten bliver')
 ok(view.includes('{email.customers.company_name}'), 'kundenavnet bliver')
 ok(view.includes('data-testid="mail-linked-customer-row"'), 'kunderakken bliver')

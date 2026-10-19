@@ -35,7 +35,7 @@ ok(view.split(bare).length === 1, 'det bare ikon er vaek')
 ok(view.includes('Fjern kobling'), 'teksten bliver')
 ok(view.includes('data-testid="mail-unlink-button"'), 'knappen bliver')
 ok(view.includes('data-testid="mail-lightbox-close-icon"'), 'lightbox-ikonet bliver')
-ok(view.includes('Åbn kunde <ExternalLink className="w-3 h-3" />'), 'kundepilen bliver')
+ok(view.includes('Åbn kunde <ExternalLink className="w-3 h-3 break-words min-w-0" data-testid="mail-kunde-arrow" />'), 'kundepilen bliver')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
 ok(view.includes('data-testid="mail-create-offer"'), 'opret-tilbud bliver')
 
