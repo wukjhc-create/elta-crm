@@ -185,7 +185,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
-  montor: ['U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -6499,6 +6499,37 @@ ${m.text()}`) })
           await c.admin.from('offers').delete().eq('id', u131OfferId)
         }
         out.push({ id: 'U131 N87 lead → eksisterende kunde (samme telefon)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U196 PM2-5 (Henrik 2026-10-19): opret opgave — salg/bogholderi generelt; montør kun på en kunde med egen tildelt
+      // arbejdsordre (U11's sag) og ikke på en fremmed kunde
+      if (want('U196') && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        const jobCust = ((await c.admin.from('service_cases').select('customer_id').eq('id', jobCaseId).maybeSingle()).data as { customer_id?: string } | null)?.customer_id ?? null
+        const fc = await c.admin.from('customers').insert([{ customer_number: `UI-PM25-${stamp}`, company_name: `[HARNESS] PM2-5 fremmed ${stamp}`, contact_person: 'F',
+          email: `pm25-${stamp}@harness.test`, created_by: adminUser.id }]).select('id')
+        const foreignCust = (fc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const hasNewTask = async (pg: typeof a.page, custId: string | null) => {
+          await gotoSafe(pg, `${base}/dashboard/customers/${custId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await pg.getByRole('heading', { name: 'Opgaver' }).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          await pg.waitForTimeout(1500)
+          return (await pg.getByRole('button', { name: /Ny opgave/ }).count()) > 0
+        }
+        try {
+          r.seed = !!jobCust && !!foreignCust
+          const m = await login(montor)
+          try {
+            r.montoer_egen_sag_kan_oprette = await hasNewTask(m.page, jobCust)
+            r.montoer_fremmed_kunde_kan_ikke = !(await hasNewTask(m.page, foreignCust))
+          } finally { await m.ctx.close().catch(() => {}) }
+          for (const role of ['salg', 'bogholderi'] as const) {
+            const x = await login(await mkUser(role))
+            try { r[`${role}_kan_oprette`] = await hasNewTask(x.page, foreignCust) } finally { await x.ctx.close().catch(() => {}) }
+          }
+        } finally {
+          if (foreignCust) { await c.admin.from('customer_tasks').delete().eq('customer_id', foreignCust); await c.admin.from('customers').delete().eq('id', foreignCust) }
+        }
+        out.push({ id: 'U196 PM2-5 opret opgave pr. rolle', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;

@@ -62,7 +62,9 @@ export const PERMISSIONS = {
   // X-13 (Henrik 2026-10-16): opgavemenuen for alle roller — uden tasks.view ses kun egne (oprettede/tildelte) opgaver
   // (getAllTasks/getTaskCounts, W-8); ændring/sletning gates fortsat i customer-tasks.ts (taskWriteDenied)
   'tasks.menu': ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'],
-  'tasks.create': ['admin', 'serviceleder'],
+  // PM2-5 (Henrik 2026-10-19): generel oprettelse for admin/serviceleder/salg/bogholderi; montør kun til sig selv på en
+  // kunde med en arbejdsordre tildelt montøren (håndhævet i createCustomerTask)
+  'tasks.create': ['admin', 'serviceleder', 'salg', 'bogholderi'],
   'tasks.edit': ['admin', 'serviceleder', 'montør'],
   'tasks.delete': ['admin', 'serviceleder'],
 

@@ -463,12 +463,48 @@ export async function getActiveProfiles(): Promise<
 // WRITE
 // =====================================================
 
+/**
+ * PM2-5 (Henrik 2026-10-19): må brugeren oprette en opgave på kunden? tasks.create (admin/serviceleder/salg/bogholderi)
+ * generelt; montør kun på en kunde, hvor en (ikke annulleret) arbejdsordre er tildelt montøren — og kun til sig selv.
+ */
+async function taskCreateRule(customerId: string): Promise<{ allowed: false; reason: string } | { allowed: true; selfOnly: boolean; userId: string }> {
+  const ctx = await getAuthenticatedClientWithRole()
+  if (!ctx.hasPermission('customers.view')) return { allowed: false, reason: 'Manglende tilladelse: customers.view' }
+  if (ctx.hasPermission('tasks.create')) return { allowed: true, selfOnly: false, userId: ctx.userId }
+  if (ctx.hasPermission('work_orders.view.assigned')) {
+    const { getWorkOrderEmployeeScope } = await import('@/lib/auth/case-scope')
+    const scope = await getWorkOrderEmployeeScope({ supabase: ctx.supabase, userId: ctx.userId, role: ctx.role })
+    if (scope.type === 'employee' && scope.employeeId) {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const { count } = await createAdminClient().from('work_orders').select('id, service_cases!inner(customer_id)', { count: 'exact', head: true })
+        .eq('assigned_employee_id', scope.employeeId).neq('status', 'cancelled').eq('service_cases.customer_id', customerId)
+      if ((count ?? 0) > 0) return { allowed: true, selfOnly: true, userId: ctx.userId }
+    }
+    return { allowed: false, reason: 'Montører kan kun oprette opgaver på kunder med en arbejdsordre tildelt dem' }
+  }
+  return { allowed: false, reason: 'Manglende tilladelse: tasks.create' }
+}
+
+/** PM2-5: hvad brugeren må på kundekortets opgaveliste (UI viser kun handlinger serveren tillader) */
+export async function getCustomerTaskAbilitiesAction(customerId: string): Promise<{ canCreate: boolean; canEditAll: boolean; userId: string | null }> {
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(customerId)) return { canCreate: false, canEditAll: false, userId: null }
+    const rule = await taskCreateRule(customerId)
+    const ctx = await getAuthenticatedClientWithRole()
+    return { canCreate: rule.allowed, canEditAll: ctx.hasPermission('customers.edit'), userId: ctx.userId }
+  } catch {
+    return { canCreate: false, canEditAll: false, userId: null }
+  }
+}
+
 export async function createCustomerTask(
   input: CreateCustomerTaskInput
 ): Promise<{ success: boolean; error?: string }> {
-  const denied = await gateDenied('customers.view')
-  if (denied) return { success: false, error: denied }
   if (!/^[0-9a-f-]{36}$/i.test(String(input.customer_id ?? ''))) return { success: false, error: 'Ugyldig kunde' }
+  const rule = await taskCreateRule(input.customer_id).catch(() => ({ allowed: false as const, reason: 'Ikke logget ind' }))
+  if (!rule.allowed) return { success: false, error: rule.reason }
+  // montør: kun til sig selv
+  if (rule.selfOnly && input.assigned_to && input.assigned_to !== rule.userId) return { success: false, error: 'Montører kan kun oprette opgaver til sig selv' }
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()

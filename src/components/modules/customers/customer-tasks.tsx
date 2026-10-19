@@ -21,6 +21,7 @@ import {
   deleteCustomerTask,
   updateCustomerTask,
   getActiveProfiles,
+  getCustomerTaskAbilitiesAction,
 } from '@/lib/actions/customer-tasks'
 import {
   TASK_STATUS_CONFIG,
@@ -46,15 +47,21 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingTask, setEditingTask] = useState<CustomerTaskWithRelations | null>(null)
   const [showDone, setShowDone] = useState(false)
+  // PM2-5: kun handlinger serveren tillader (opret efter rolle/montør-scope; ret/slet/udfør egne eller med customers.edit)
+  const [abilities, setAbilities] = useState<{ canCreate: boolean; canEditAll: boolean; userId: string | null }>({ canCreate: false, canEditAll: false, userId: null })
+  const canWrite = (t: CustomerTaskWithRelations) =>
+    abilities.canEditAll || (!!abilities.userId && (t.assigned_to === abilities.userId || t.created_by === abilities.userId))
 
   const loadData = async () => {
     setIsLoading(true)
-    const [tasksData, profilesData] = await Promise.all([
+    const [tasksData, profilesData, ab] = await Promise.all([
       getCustomerTasks(customerId),
       getActiveProfiles(),
+      getCustomerTaskAbilitiesAction(customerId),
     ])
     setTasks(tasksData)
     setProfiles(profilesData)
+    setAbilities(ab)
     setIsLoading(false)
   }
 
@@ -102,13 +109,15 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
     <div className="bg-white rounded-lg border p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">Opgaver</h2>
-        <button
-          onClick={() => { setEditingTask(null); setShowForm(true) }}
-          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-        >
-          <Plus className="w-4 h-4" />
-          Ny opgave
-        </button>
+        {abilities.canCreate && (
+          <button
+            onClick={() => { setEditingTask(null); setShowForm(true) }}
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            <Plus className="w-4 h-4" />
+            Ny opgave
+          </button>
+        )}
       </div>
 
       {isLoading ? (
@@ -135,6 +144,7 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
             <TaskRow
               key={task.id}
               task={task}
+              canWrite={canWrite(task)}
               onComplete={() => handleComplete(task.id)}
               onEdit={() => { setEditingTask(task); setShowForm(true) }}
               onDelete={() => handleDelete(task.id)}
@@ -155,6 +165,7 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
                     <TaskRow
                       key={task.id}
                       task={task}
+                      canWrite={canWrite(task)}
                       onComplete={() => handleReopen(task.id)}
                       onEdit={() => { setEditingTask(task); setShowForm(true) }}
                       onDelete={() => handleDelete(task.id)}
@@ -186,11 +197,13 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
 
 function TaskRow({
   task,
+  canWrite,
   onComplete,
   onEdit,
   onDelete,
 }: {
   task: CustomerTaskWithRelations
+  canWrite: boolean
   onComplete: () => void
   onEdit: () => void
   onDelete: () => void
@@ -204,8 +217,9 @@ function TaskRow({
     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg group">
       <button
         onClick={onComplete}
-        className="mt-0.5 shrink-0"
-        title={isDone ? 'Genåbn' : 'Marker som udført'}
+        disabled={!canWrite}
+        className="mt-0.5 shrink-0 disabled:cursor-default"
+        title={!canWrite ? 'Kun den ansvarlige eller opretteren kan ændre opgaven' : isDone ? 'Genåbn' : 'Marker som udført'}
       >
         {isDone ? (
           <CheckCircle2 className="w-5 h-5 text-green-500" />
@@ -242,14 +256,14 @@ function TaskRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+      {canWrite && <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         <button onClick={onEdit} className="p-1 hover:bg-gray-200 rounded" aria-label="Rediger opgave">
           <Pencil className="w-3.5 h-3.5 text-gray-500" />
         </button>
         <button onClick={onDelete} className="p-1 hover:bg-red-100 rounded" aria-label="Slet opgave">
           <Trash2 className="w-3.5 h-3.5 text-red-500" />
         </button>
-      </div>
+      </div>}
     </div>
   )
 }
