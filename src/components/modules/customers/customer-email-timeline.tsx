@@ -552,7 +552,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                       </p>
 
                       {!isViewing && email.body_preview && (
-                        <p className="text-xs text-gray-400 mt-1 line-clamp-1">{email.body_preview}</p>
+                        <p className="text-xs text-gray-400 mt-1 break-words min-w-0" data-testid="customer-mail-list-preview">{email.body_preview}</p>
                       )}
                     </div>
                   </div>

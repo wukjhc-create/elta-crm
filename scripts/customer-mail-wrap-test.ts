@@ -14,7 +14,7 @@ eq('emne viser to linjer', src.split('text-sm mt-1 line-clamp-2').length === 3, 
 eq('emne klippes ikke paa en linje', src.includes('text-sm mt-1 truncate'), false)
 eq('afsender ombrydes', src.split('text-xs text-gray-500 mt-0.5 break-all').length === 3, true)
 eq('seneste forhaandsvisning ombrydes', src.includes('break-words min-w-0" data-testid="customer-mail-latest-preview">{latestMsg.body_preview}'), true)
-eq('listeforhaandsvisning bliver paa en linje', src.includes('line-clamp-1">{email.body_preview}') && src.includes('body_preview'), true)
+eq('listeforhaandsvisning ombrydes', src.includes('break-words min-w-0" data-testid="customer-mail-list-preview">{email.body_preview}') && src.includes('body_preview'), true)
 eq('intet emne bliver', src.includes("email.subject || '(Intet emne)'"), true)
 
 console.log(fail ? `\n${fail} fejl` : '\ncustomer-mail-wrap-test OK')
