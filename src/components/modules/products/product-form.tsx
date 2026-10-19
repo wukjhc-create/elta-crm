@@ -73,7 +73,7 @@ export default function ProductForm({
         </div>
 
         <div className="col-span-2 sm:col-span-1">
-          <Label htmlFor="sku">SKU</Label>
+          <Label htmlFor="sku" className="break-words min-w-0" data-testid="product-form-sku-label">SKU</Label>
           <Input
             id="sku"
             name="sku"
