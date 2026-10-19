@@ -289,7 +289,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
       <div className="overflow-x-auto min-w-0" data-testid="pricing-alert-scroll">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-gray-50">
+            <tr className="border-b bg-gray-50 min-w-0" data-testid="pricing-alert-head">
               <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-product">Produkt</th>
               <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-supplier">Leverandør</th>
               <th className="text-right px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-alert-col-old">Gammel pris</th>
