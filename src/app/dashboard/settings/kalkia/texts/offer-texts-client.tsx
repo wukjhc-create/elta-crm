@@ -490,7 +490,7 @@ export function OfferTextsClient({ initialTemplates, loadError = null }: OfferTe
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-gray-900 break-words min-w-0 max-w-full" data-testid="offer-text-title">{template.title}</h3>
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs break-words min-w-0 max-w-full" data-testid="offer-text-type">
                           {typeConfig.label}
                         </Badge>
                         <Badge variant="outline" className="text-xs bg-gray-50 break-words min-w-0 max-w-full" data-testid="offer-text-scope">
