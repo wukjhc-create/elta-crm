@@ -29,7 +29,7 @@ ok(!row.includes('font-semibold'), 'titeltekstens klasse er et andet sted')
 ok(view.split(id).length === 2, 'hovedet findes en gang')
 ok(view.split(cell).length === 2, 'hovedklassen findes en gang')
 ok(!view.includes('className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"'), 'det bare hoved er vaek')
-ok(view.includes('font-semibold">{title}'), 'titelteksten bliver')
+ok(view.includes('font-semibold break-words min-w-0" data-testid="ai-project-section-heading">{title}'), 'titelteksten bliver')
 ok(view.split('>{title}<').length === 2, 'titelteksten findes en gang')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 

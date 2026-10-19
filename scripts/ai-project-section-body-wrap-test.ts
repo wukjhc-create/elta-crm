@@ -32,7 +32,7 @@ ok(view.split(cell).length === 2, 'indholdsklassen findes en gang')
 ok(!view.includes('className="p-4 pt-0 border-t"'), 'det bare indhold er vaek')
 ok(view.includes('data-testid="ai-project-section-body">{children}</div>'), 'indholdet bliver')
 ok(view.split('{children}').length === 2, 'indholdet findes en gang')
-ok(view.includes('font-semibold">{title}'), 'titelteksten bliver')
+ok(view.includes('font-semibold break-words min-w-0" data-testid="ai-project-section-heading">{title}'), 'titelteksten bliver')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 
 if (bad > 0) {

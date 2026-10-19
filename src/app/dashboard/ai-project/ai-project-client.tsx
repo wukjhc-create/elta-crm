@@ -845,7 +845,7 @@ function CollapsibleSection({
         data-testid="ai-project-section-toggle"
       >
         <div className="flex items-center gap-3 break-words min-w-0" data-testid="ai-project-section-title-row">
-          <h3 className="font-semibold">{title}</h3>
+          <h3 className="font-semibold break-words min-w-0" data-testid="ai-project-section-heading">{title}</h3>
           {badge}
         </div>
         <div className="flex items-center gap-2">

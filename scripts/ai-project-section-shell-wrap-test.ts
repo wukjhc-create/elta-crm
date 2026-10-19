@@ -29,7 +29,7 @@ ok(!row.includes('p-6'), 'de andre rammer er et andet sted')
 ok(view.split(id).length === 2, 'rammen findes en gang')
 ok(view.split(cell).length === 2, 'rammeklassen findes en gang')
 ok(!view.includes('className="bg-white border rounded-lg"'), 'den bare ramme er vaek')
-ok(view.includes('font-semibold">{title}'), 'titelteksten bliver')
+ok(view.includes('font-semibold break-words min-w-0" data-testid="ai-project-section-heading">{title}'), 'titelteksten bliver')
 ok(view.includes('bg-white border rounded-lg p-6 break-words min-w-0'), 'naeste skridt bliver')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 

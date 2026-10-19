@@ -30,7 +30,7 @@ ok(!row.includes('ai-project-section-shell'), 'rammen er et andet sted')
 ok(view.split(id).length === 2, 'raekken findes en gang')
 ok(view.split(cell).length === 2, 'raekkeklassen findes en gang')
 ok(!view.includes('className="flex items-center gap-3"'), 'den bare raekke er vaek')
-ok(view.includes('font-semibold">{title}'), 'titelteksten bliver')
+ok(view.includes('font-semibold break-words min-w-0" data-testid="ai-project-section-heading">{title}'), 'titelteksten bliver')
 ok(view.split('>{title}<').length === 2, 'titelteksten findes en gang')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 
