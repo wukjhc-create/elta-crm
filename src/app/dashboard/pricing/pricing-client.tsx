@@ -584,7 +584,7 @@ function TrendsTab({
         </ul>
         <div className="hidden md:block bg-white rounded-lg border overflow-hidden min-w-0" data-testid="pricing-trend-desktop">
           <div className="overflow-x-auto min-w-0" data-testid="pricing-trend-scroll">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-0" data-testid="pricing-trend-table">
               <thead>
                 <tr className="border-b bg-gray-50 min-w-0" data-testid="pricing-trend-head">
                   <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-trend-col-product">Produkt</th>

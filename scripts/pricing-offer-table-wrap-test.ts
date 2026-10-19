@@ -21,7 +21,7 @@ ok(row.includes('w-full text-sm min-w-0'), 'tabellen kan krympe')
 ok(row.includes('data-testid="pricing-offer-col-title"'), 'tilbudskolonnen bliver')
 ok(row.includes('{offer.offer_number}'), 'nummeret er uændret')
 ok(row.includes('text-right font-medium">{formatCurrency(offer.total_amount)}'), 'beløbet er uændret')
-ok(view.split('<table className="w-full text-sm">').length - 1 === 1, 'tendens-tabellen bliver')
+ok(view.split('<table className="w-full text-sm">').length - 1 === 0, 'ingen upakket tabel')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
 if (bad > 0) {
