@@ -34,7 +34,7 @@ ok(view.split('data-testid="mail-linked-customer-row"').length === 2, 'kunderakk
 ok(view.split('data-testid="mail-link2-icon"').length === 2, 'ikon-id kolliderer ikke')
 ok(view.includes('Koblet til:'), 'koblingsteksten bliver')
 ok(view.includes('{email.customers.company_name}'), 'kundenavnet bliver')
-ok(view.includes('<strong>'), 'strong bliver')
+ok(view.includes('<strong '), 'strong bliver')
 ok(view.includes('({email.customers.customer_number})'), 'kundenummeret bliver')
 ok(view.includes('data-testid="mail-linked-customer-row"'), 'kunderakken bliver')
 ok(view.includes('data-testid="mail-link2-icon"'), 'ikonet bliver')
