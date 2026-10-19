@@ -319,7 +319,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-purple-500" />
-                <span>{getBuildingTypeName(quickResult.buildingType)}</span>
+                <span className="break-words min-w-0" data-testid="ai-project-quick-building">{getBuildingTypeName(quickResult.buildingType)}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Plug className="w-4 h-4 text-purple-500" />
