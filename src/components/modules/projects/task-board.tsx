@@ -115,7 +115,7 @@ function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps) {
         )}
 
         {task.due_date && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground break-words min-w-0" data-testid="task-board-due-date">
             <Calendar className="w-3 h-3" />
             {formatDate(task.due_date)}
           </span>
