@@ -43,7 +43,7 @@ ok(view.includes('<Loader2 className="w-3 h-3 animate-spin" />'), 'spinneren bli
 ok(view.includes('data-testid="mail-quick-reply-button"'), 'knappen bliver')
 ok(view.includes('data-testid="mail-quick-reply-label"'), 'overskriften bliver')
 ok(view.includes('>Hurtigt svar</p>'), 'overskriftsteksten bliver')
-ok(view.includes('className="pt-2 border-t space-y-2"'), 'rammen bliver')
+ok(view.includes('className="pt-2 border-t space-y-2 break-words min-w-0" data-testid="mail-quick-reply-frame"'), 'rammen bliver')
 ok(view.includes('data-testid="mail-mark-unread-icon"'), 'ulaest-ikonet bliver')
 ok(view.includes('data-testid="mail-action-row"'), 'handlingsraekken bliver')
 ok(view.includes('Kobl til eksisterende'), 'kobl-teksten bliver')
