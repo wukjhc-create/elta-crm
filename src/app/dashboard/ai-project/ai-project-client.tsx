@@ -745,7 +745,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 ) : customerLoadError ? (
                   <div className="text-center py-8 text-sm text-red-700 break-words" data-testid="ai-customer-load-error">
                     {customerLoadError}. Det tælles ikke som ingen kunder.
-                    <button type="button" onClick={() => void loadCustomers()} className="block mx-auto mt-2 min-h-[44px] px-3 font-medium underline">
+                    <button type="button" onClick={() => void loadCustomers()} className="block mx-auto mt-2 min-h-[44px] px-3 font-medium underline break-words min-w-0" data-testid="ai-project-customer-retry">
                       Prøv igen
                     </button>
                   </div>
