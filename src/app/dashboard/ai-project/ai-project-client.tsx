@@ -881,7 +881,7 @@ function RiskCard({ risk }: { risk: RiskFactor }) {
           <div className="font-medium">{risk.title}</div>
           <div className="text-sm text-gray-600 mt-1 break-words min-w-0" data-testid="ai-project-risk-description">{risk.description}</div>
           {risk.recommendation && (
-            <div className="text-sm text-gray-500 mt-2 italic">
+            <div className="text-sm text-gray-500 mt-2 italic break-words min-w-0" data-testid="ai-project-risk-recommendation">
               Anbefaling: {risk.recommendation}
             </div>
           )}
