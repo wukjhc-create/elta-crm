@@ -112,7 +112,7 @@ export default function ProductDetailClient({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
-              <span className="text-gray-500">Listepris</span>
+              <span className="text-gray-500 break-words min-w-0" data-testid="product-detail-list-label">Listepris</span>
               <span className="text-xl font-bold min-w-0 break-words">
                 {formatCurrency(product.list_price)}
               </span>
