@@ -1264,6 +1264,64 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 fireogfyrretyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `cc59416f`. Det lader treogfyrretyvende-hegnet stå. `cc59416f` hedder `docs: checkpoint efter c6e18461`. Produktspids: `c028a873`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `c028a873` blev afvist før git kørte og er ikke prøvet igen. `ffa327ad` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `cc59416f..c028a873`
+
+```
+c028a873 feat(pilot): risikokortets raekke kan krympe
+ffa327ad feat(pilot): sektionens titeltekst kan krympe
+d5c99652 feat(pilot): sektionens indhold kan krympe
+b40f523b feat(pilot): sektionens titelraekke kan krympe
+ba376969 feat(pilot): sektionsrammen kan krympe
+70a82e96 feat(pilot): sektionshovedet kan krympe
+ee944131 feat(pilot): historikkens tekstkolonne kan krympe
+41a71a67 feat(pilot): kompleksitetschips kan krympe
+7ee1033f feat(pilot): kompleksitetsrammen kan krympe
+03efd440 feat(pilot): advarselsikonet kan krympe
+695fe8d7 feat(pilot): kundevaelgerens titelraekke kan krympe
+94edbae3 feat(pilot): soegefeltets ramme i kundevaelgeren kan krympe
+718656f9 feat(pilot): raekken med valgt ladestander kan krympe
+77dbdd8e feat(pilot): næste skridts række kan krympe
+cd59792e feat(pilot): knapraekken ved tilbudsteksten kan krympe
+eb2a7fb3 feat(pilot): listen med identificerede risici kan krympe
+74e3a94a feat(pilot): AI-projektets bemærkningsrække kan krympe
+```
+
+Listen er alle commits efter `cc59416f` til og med `c028a873`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+cc59416f docs: checkpoint efter c6e18461
+```
+
+### Features
+
+G18-501 til G18-517 lader kun AI-projektets visning krympe: bemærkningsrække, risikoliste, knaprække, næste skridt, valgt ladestander, søgeramme, titelrække, advarselsikon, kompleksitetsramme, chips, historiktekst, sektionshoved, sektionsramme, titelrække, sektionsindhold, titeltekst og risikokortets række. `formatCurrency` på enhedspris, linjetotal og `result.calculation.price.total_price` er uændret. `{title}`, `{children}`, `{risk.title}` og `line-clamp-2` på historikbeskrivelsen bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit i hegnet har et `scripts/*-test.ts`, der læser den shippede AI-projektfil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. G18-515: `scripts/ai-project-section-body-wrap-test.ts` plus titelrække, sektionshoved og sektionsramme. G18-516: `scripts/ai-project-section-heading-wrap-test.ts` plus de samme søskendetests og sektionsindhold. G18-517: `scripts/ai-project-risk-row-wrap-test.ts` plus `scripts/ai-project-risks-list-wrap-test.ts`. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `c028a873`, herunder G18-289 til G18-517. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. Når push er tilladt, push kun `grok-next` og prøv ikke afviste tip igen, herunder `c028a873`, `ffa327ad`, `d5c99652`, `b40f523b`, `ba376969`, `70a82e96`, `ee944131`, `41a71a67`, `7ee1033f`, `03efd440`, `695fe8d7`, `94edbae3`, `718656f9`, `cc59416f`, `c6e18461` og `4245647d`. Flet derefter `origin/main` ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-518, G18-519, G18-520, G18-521, G18-522, G18-523, G18-524.
+
 ## Checkpoint 2026-10-18 treogfyrretyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `a1f2bc11`. Det lader fortsat-hegnet og toogfyrretyvende-hegnet stå. `a1f2bc11` hedder `docs: checkpoint for grok-shift 2026-10-18`. Produktspids: `c6e18461`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `c6e18461` blev afvist før git kørte og er ikke prøvet igen. `d9f15811` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
