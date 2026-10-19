@@ -610,7 +610,7 @@ function TrendsTab({
                         <span className="text-gray-400 break-words min-w-0" data-testid="pricing-trend-30-missing">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-2.5 text-right break-words min-w-0" data-testid="pricing-trend-90-cell">
                       {trend.trend_90_days !== null ? (
                         <span className={`break-words min-w-0 inline-flex items-center gap-1 ${trend.trend_90_days > 0 ? 'text-red-600' : trend.trend_90_days < 0 ? 'text-green-600' : 'text-gray-500'}`} data-testid="pricing-trend-90">
                           {trend.trend_90_days > 0 ? <TrendingUp className="h-3 w-3" /> : trend.trend_90_days < 0 ? <TrendingDown className="h-3 w-3" /> : null}
