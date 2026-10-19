@@ -437,7 +437,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               </div>
               <div>
                 <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-points-heading">Elpunkter</h4>
-                <dl className="space-y-2 text-sm">
+                <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-points-list">
                   {Object.entries(result.interpretation.electrical_points).map(([key, value]) => (
                     value ? (
                       <div key={key} className="flex flex-wrap justify-between gap-x-3 min-w-0">

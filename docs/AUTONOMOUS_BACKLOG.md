@@ -1315,7 +1315,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-578 | 8 Pilot | ÅBEN. Risikobufferrækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Risikobuffer. De andre rækker med samme klasse og beløbet er uændrede. |
 | G18-572 | 8 Pilot | DONE. Bygningsinformationens liste kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Bygningsinformation. Prislisten, elpunktlisten og tidsberegningens liste er uændrede. |
 | G18-579 | 8 Pilot | ÅBEN. Bygningsinformationens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Bygningsinformation. Elpunktkolonnen og listen er uændrede. |
-| G18-573 | 8 Pilot | ÅBEN. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
+| G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
+| G18-580 | 8 Pilot | ÅBEN. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

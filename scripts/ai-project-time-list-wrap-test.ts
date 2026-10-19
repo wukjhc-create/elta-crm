@@ -1,5 +1,5 @@
 /**
- * Tidsberegningens liste kan krympe. De andre lister med samme klasse bliver.
+ * Tidsberegningens liste kan krympe. Den anden liste med samme klasse bliver.
  *   npx tsx scripts/ai-project-time-list-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -32,7 +32,7 @@ ok(!row.includes('formatCurrency'), 'priserne er et andet sted')
 ok(!row.includes('base_hours'), 'basistallets formel er et andet sted')
 ok(view.split(id).length === 2, 'listen findes en gang')
 ok(view.split(cell).length === 2, 'listens klasse findes en gang')
-ok(view.split('className="space-y-2 text-sm"').length === 3, 'to andre lister bliver')
+ok(view.split('className="space-y-2 text-sm"').length === 2, 'en anden liste bliver')
 ok(view.includes('result.calculation.time.base_hours.toFixed(1)'), 'basistiden bliver')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 ok(view.includes('data-testid="ai-project-price-total-label">Total</dt>'), 'totaletiketten bliver')
