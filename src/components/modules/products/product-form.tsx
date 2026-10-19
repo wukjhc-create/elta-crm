@@ -168,7 +168,7 @@ export default function ProductForm({
           checked={isActive}
           onCheckedChange={setIsActive}
         />
-        <Label htmlFor="is_active">Aktiv</Label>
+        <Label htmlFor="is_active" className="break-words min-w-0" data-testid="product-form-active-label">Aktiv</Label>
       </div>
 
       <div className="flex justify-end gap-2 pt-4 border-t">
