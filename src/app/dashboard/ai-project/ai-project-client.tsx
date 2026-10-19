@@ -451,7 +451,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             </div>
 
             {result.interpretation.complexity_factors.length > 0 && (
-              <div className="mt-4 pt-4 border-t">
+              <div className="mt-4 pt-4 border-t break-words min-w-0" data-testid="ai-project-complexity-frame">
                 <h4 className="font-medium mb-2 break-words min-w-0" data-testid="ai-project-complexity-heading">Kompleksitetsfaktorer</h4>
                 <div className="flex flex-wrap gap-2">
                   {result.interpretation.complexity_factors.map((f, i) => (
