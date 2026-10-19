@@ -12,6 +12,7 @@ import { cache } from 'react'
 import { getUser } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
 import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import { safeErrorSummary } from '@/lib/utils/logger'
 import type { UserRole } from '@/types/auth.types'
 
 // =====================================================
@@ -159,7 +160,8 @@ export function formatError(err: unknown, defaultMessage: string): string {
       return err.message
     }
   }
-  console.error(`${defaultMessage}:`, err)
+  // LG-4: aldrig det rå fejlobjekt (PostgREST `details` kan indeholde hele persondata-rækken)
+  console.error(`${defaultMessage}: ${safeErrorSummary(err)}`)
   return defaultMessage
 }
 

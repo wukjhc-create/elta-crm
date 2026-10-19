@@ -263,7 +263,7 @@ async function syncOneMailbox(
     }
 
     if (insertError) {
-      console.error('UPSERT FAILED:', redactSubject(subject), 'error:', insertError.message, 'code:', insertError.code, 'details:', insertError.details)
+      console.error('UPSERT FAILED:', redactSubject(subject), 'error:', insertError.message, 'code:', insertError.code) // LG-4: ikke details (hele rækken)
       result.errors.push(`${mailbox}: upsert failed: ${insertError.message}`)
       continue
     }
@@ -507,7 +507,7 @@ async function insertEmail(
   }
 
   if (error) {
-    console.error('INSERT FAILED:', redactSubject(subject), 'error:', error.message, 'code:', error.code, 'details:', error.details)
+    console.error('INSERT FAILED:', redactSubject(subject), 'error:', error.message, 'code:', error.code) // LG-4: ikke details (hele rækken)
     return null
   }
 

@@ -22,6 +22,26 @@ interface LogEntry {
   context?: LogContext
 }
 
+/**
+ * LG-3/LG-4 (log-review 2026-10-18): fejl skrives som {code, message, hint} — aldrig PostgREST/Postgres `details`, der
+ * kan være "Failing row contains (…)" med en hel persondata-række (navn, mail, telefon, adresse) eller
+ * "Key (email)=(x@y.dk) already exists". Bruges for både warn og error (før smed warn fejlen helt væk).
+ */
+export function safeErrorSummary(err: unknown): string {
+  if (err == null) return ''
+  if (err instanceof Error) return err.message
+  if (typeof err === 'object') {
+    const e = err as { code?: unknown; message?: unknown; hint?: unknown }
+    const parts = [
+      e.code ? `code=${String(e.code)}` : '',
+      e.message ? String(e.message) : '',
+      e.hint ? `hint=${String(e.hint)}` : '',
+    ].filter(Boolean)
+    return parts.length ? parts.join(' · ') : '[ukendt fejlobjekt]'
+  }
+  return String(err)
+}
+
 function formatLogEntry(entry: LogEntry): string {
   const { timestamp, level, message, context } = entry
   const levelStr = level.toUpperCase().padEnd(5)
@@ -69,17 +89,14 @@ function log(level: LogLevel, message: string, context?: LogContext): void {
       break
     case 'warn':
       console.warn(logLine)
+      if (context?.error) console.warn(`  Error: ${safeErrorSummary(context.error)}`)
       break
     case 'error':
       console.error(logLine)
       if (context?.error) {
-        if (context.error instanceof Error) {
-          console.error(`  Error: ${context.error.message}`)
-          if (context.error.stack) {
-            console.error(`  Stack: ${context.error.stack.split('\n').slice(1, 4).join('\n')}`)
-          }
-        } else {
-          console.error(`  Error details:`, context.error)
+        console.error(`  Error: ${safeErrorSummary(context.error)}`)
+        if (context.error instanceof Error && context.error.stack) {
+          console.error(`  Stack: ${context.error.stack.split('\n').slice(1, 4).join('\n')}`)
         }
       }
       break

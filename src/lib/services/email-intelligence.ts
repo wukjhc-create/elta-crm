@@ -680,9 +680,11 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
   )
 
   if (result.error || !result.data) {
+    // LG-7 (log-review 2026-10-18): kun fejlkoden og flag — displayName er typisk en privatpersons navn/telefon, og
+    // DUPLICATE_EMAIL-beskeden indeholder fuld mail + eksisterende kundenavn
     logger.error('Failed to auto-create customer from email', {
-      error: result.error,
-      metadata: { displayName, hasPhone: !!normalizedPhone, hasAddress: !!data.address },
+      error: { code: (result.error as { code?: string } | null)?.code ?? 'insert_failed' },
+      metadata: { hasName: !!data.name, hasPhone: !!normalizedPhone, hasAddress: !!data.address },
     })
     return { customerId: null, created: false }
   }

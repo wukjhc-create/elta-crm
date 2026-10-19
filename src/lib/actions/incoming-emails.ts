@@ -1024,7 +1024,8 @@ export async function createCustomerFromEmail(
   logger.info('Customer + lead created from email', {
     entity: 'customers',
     entityId: newCustomer.id,
-    metadata: { emailId, leadId: newLead?.id, senderEmail, phone, cleanedSubject },
+    // LG-5 (log-review 2026-10-18): ingen personværdier i loggen (som LC-7)
+    metadata: { emailId, leadId: newLead?.id, sender: redactEmail(senderEmail), hasPhone: !!phone, subject: redactSubject(cleanedSubject) },
   })
 
   revalidatePath('/dashboard/mail')

@@ -1377,10 +1377,24 @@ export async function logMailRoute(
         // Begge er undefined for legacy-callers og bliver ikke skrevet.
         ...(shadowOnly ? { shadow: true } : {}),
         ...(divergence ? { divergence } : {}),
-        ...(meta || {}),
+        // LG-8 (log-review 2026-10-18): kun ufarlige meta-nøgler — shadow-meta og Graph-fejl kunne genindsætte fulde
+        // modtageradresser og navne (*_route.to, reason), som ML-3 netop havde redigeret væk
+        ...safeRouteMeta(meta),
       },
     })
   } catch {
     // Audit-log fejl maa ikke blokere selve send-flowet
   }
+}
+
+/** LG-8: whitelist af meta-nøgler i mail-routing-loggen (id'er, tællere og flag — aldrig adresser, navne eller fritekst) */
+function safeRouteMeta(meta: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  if (!meta) return {}
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(meta)) {
+    // snake_case og camelCase (invoiceId, offer_id, attachmentCount …); aldrig to/from/reason/error/subject
+    if (/(^|_|[a-z])(id|ids|count|number|type|kind|status|intent|role|channel)$/i.test(k) && !/^(to|from|reason|error|subject)$/i.test(k)) out[k] = v
+    else if (typeof v === 'boolean') out[k] = v
+  }
+  return out
 }

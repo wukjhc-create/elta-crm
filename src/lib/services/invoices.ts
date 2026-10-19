@@ -8,6 +8,7 @@
  * transaction.
  */
 
+import { redactEmail } from '@/lib/utils/log-redact'
 import { caseVatBlock } from '@/lib/invoices/vat-guard'
 import { MIN_DAYS_BETWEEN_REMINDERS, pickReminderLevel } from '@/lib/invoices/reminder-plan' // regler delt med cockpittet (N89)
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
@@ -1460,7 +1461,7 @@ async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   if (!result.success) {
     logger.error('sendInvoiceEmail Graph send failed', {
       entityId: invoiceId,
-      metadata: { recipient, invoice_number: invoice.invoice_number },
+      metadata: { recipient: redactEmail(recipient), invoice_number: invoice.invoice_number }, // LG-6
       error: new Error(result.error || 'send failed'),
     })
     await logMailRoute(route, 'failed', { invoiceId, error: result.error })

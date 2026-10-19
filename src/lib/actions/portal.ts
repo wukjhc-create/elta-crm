@@ -1,4 +1,5 @@
 'use server'
+import { redactEmail } from '@/lib/utils/log-redact'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { closeOfferFollowUpTasks } from '@/lib/offers/follow-up-tasks'
 import { secretTokenReader, PORTAL_TOKEN_PUBLIC_COLUMNS } from '@/lib/portal/token-reader'
@@ -1286,7 +1287,7 @@ export async function sendEmployeeMessage(
           action: 'portal_message_email_notification',
           entity: 'customers',
           entityId: customerId,
-          metadata: { outcome: 'skipped', reason: 'internal_email', to: recipientEmail },
+          metadata: { outcome: 'skipped', reason: 'internal_email', to: redactEmail(recipientEmail) }, // LG-6
         })
       } else {
         // Find newest active, non-expired portal_access_token for deep-link.
@@ -1385,7 +1386,7 @@ export async function sendEmployeeMessage(
               entityId: customerId,
               metadata: {
                 outcome: 'sent',
-                to: recipientEmail,
+                to: redactEmail(recipientEmail), // LG-6
                 via: isGraphConfigured() ? 'graph' : 'smtp',
                 has_offer_link: !!offerId,
               },
@@ -1397,7 +1398,7 @@ export async function sendEmployeeMessage(
               entityId: customerId,
               metadata: {
                 outcome: 'failed',
-                to: recipientEmail,
+                to: redactEmail(recipientEmail), // LG-6
                 via: isGraphConfigured() ? 'graph' : 'smtp',
                 error: mailError,
               },

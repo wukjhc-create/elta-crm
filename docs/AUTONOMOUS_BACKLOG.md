@@ -233,12 +233,12 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | LG-1 | Faktura sendt, men status-opdateringen fejler/rammer 0 rækker → returnerer 'sent' og pusher til e-conomic, mens CRM viser kladde (S2) | DONE (kode) — opdateringen skal ramme rækken (ét genforsøg); ellers fejl-log + helbredslog + systemadvarsel, ingen e-conomic-push og besked "markér sendt manuelt" (invoice-send-claim-check, U29/U31/U32/U33/U15). Fejlvejen ikke deterministisk testet |
 | LG-2 | Kreditnota annullerer ikke originalen ved fejl (kun warn); frigivelse af kilderækker uden fejltjek (S2) | DONE (kode) — annullering, frigivelse og udligning: fejl → logger.error + helbredslog + systemadvarsel; frigivelsens fejl tjekkes (U33, contract-final, concurrency) |
-| LG-3 | logger.warn/info smider context.error væk (S3) | TODO |
-| LG-4 | Rå PostgrestError med details (persondata) i logs (S3) | TODO |
-| LG-5 | incoming-emails: afsender, telefon og emne i klar tekst i logs (S3) | TODO |
-| LG-6 | Uredigerede adresser/IP i logs (portal, invoices, document-confirmations) (S3) | TODO |
-| LG-7 | email-intelligence logger navn/telefon og DUPLICATE_EMAIL med fuld mail (S3) | TODO |
-| LG-8 | logMailRoute genindsætter modtagere via meta (S3) | TODO |
+| LG-3 | logger.warn/info smider context.error væk (S3) | DONE (kode) — warn udskriver nu saniteret fejl (safeErrorSummary) |
+| LG-4 | Rå PostgrestError med details (persondata) i logs (S3) | DONE (kode) — logger + formatError + orchestrator logger code/message/hint, aldrig details (log-safety-test) |
+| LG-5 | incoming-emails: afsender, telefon og emne i klar tekst i logs (S3) | DONE — afsender/emne redigeret, kun hasPhone |
+| LG-6 | Uredigerede adresser/IP i logs (portal, invoices, document-confirmations) (S3) | DONE — redactEmail i portal/fakturaer/bekræftelser; ip fjernet |
+| LG-7 | email-intelligence logger navn/telefon og DUPLICATE_EMAIL med fuld mail (S3) | DONE — kun fejlkode + flag |
+| LG-8 | logMailRoute genindsætter modtagere via meta (S3) | DONE — meta-whitelist (id/tællere/flag) i logMailRoute |
 | LG-9 | Timegodkendelse: delvis commit uden audit/revalidate ved fejl midt i (S3) | TODO |
 | LG-10 | updateCustomer kopierer personfelter til audit_logs som falsk diff (S3) | TODO |
 | LG-11 | email-autolink: mailemne som entity_name i audit (S4) | TODO |

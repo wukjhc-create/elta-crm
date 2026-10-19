@@ -27,6 +27,7 @@
  *     'expired'). Ingen cron behoevet.
  */
 
+import { redactEmail } from '@/lib/utils/log-redact'
 import { headers } from 'next/headers'
 import {
   getAuthenticatedClient,
@@ -518,8 +519,7 @@ export async function submitConfirmation(
         entityId: updated.id,
         metadata: {
           document_id: updated.customer_document_id,
-          confirmed_by_email: email,
-          ip,
+          confirmed_by: redactEmail(email), // LG-6: redigeret; ip står på bekræftelsesrækken
         },
       })
       // Fase 2a — frigiv næste kæde-trin til manuelt videresend (sender IKKE
