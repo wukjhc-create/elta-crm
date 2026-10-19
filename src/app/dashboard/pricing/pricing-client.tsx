@@ -410,7 +410,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
                   </a>
                   <div className="text-xs text-gray-400 break-words max-w-[16rem]">{offer.offer_title}</div>
                 </td>
-                <td className="px-4 py-2.5 text-gray-600 break-words">{offer.customer_name}</td>
+                <td className="px-4 py-2.5 text-gray-600 break-words min-w-0" data-testid="pricing-offer-customer-cell">{offer.customer_name}</td>
                 <td className="px-4 py-2.5 break-words min-w-0" data-testid="pricing-offer-status-cell">
                   <StatusBadge status={offer.status} />
                 </td>
