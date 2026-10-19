@@ -581,7 +581,7 @@ export function MailDetail({
           {!replyMsg && (
             <button
               onClick={handleDiagnoseGraph}
-              className="text-[10px] text-gray-400 hover:text-blue-600 underline"
+              className="text-[10px] text-gray-400 hover:text-blue-600 underline break-words min-w-0" data-testid="mail-graph-diagnose"
             >
               Diagnosticér Graph-forbindelse
             </button>
