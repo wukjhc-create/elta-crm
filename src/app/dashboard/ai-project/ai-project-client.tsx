@@ -670,8 +670,8 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
         </h2>
         {loadingHistory ? (
           <div className="animate-pulse space-y-3 break-words min-w-0" data-testid="ai-project-history-loading">
-            <div className="h-10 bg-gray-200 rounded" />
-            <div className="h-10 bg-gray-200 rounded" />
+            <div className="h-10 bg-gray-200 rounded break-words min-w-0" data-testid="ai-project-history-bar-one" />
+            <div className="h-10 bg-gray-200 rounded break-words min-w-0" data-testid="ai-project-history-bar-two" />
           </div>
         ) : (
           <>

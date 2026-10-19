@@ -18,10 +18,10 @@ ok(formatCurrency(1250).includes('1'), 'beloebsformatet bliver')
 const view = readFileSync('src/app/dashboard/ai-project/ai-project-client.tsx', 'utf8')
 const id = 'data-testid="ai-project-history-loading"'
 const at = view.indexOf(id)
-const row = at >= 0 ? view.slice(at - 80, at + 160) : ''
+const row = at >= 0 ? view.slice(at - 80, at + 240) : ''
 ok(row.includes('break-words min-w-0'), 'indlaesningen kan krympe')
 ok(row.includes('animate-pulse space-y-3'), 'pulsen bliver')
-ok(row.split('h-10 bg-gray-200 rounded').length === 3, 'begge bjaelker bliver')
+ok(row.split('h-10 bg-gray-200 rounded break-words min-w-0').length === 3, 'begge bjaelker bliver')
 ok(!row.includes('Ingen tidligere analyser'), 'den tomme saetning er en anden')
 ok(!row.includes('formatCurrency(analysis.total_price)'), 'prisen er en anden')
 ok(view.split(id).length === 2, 'indlaesningen findes en gang')
