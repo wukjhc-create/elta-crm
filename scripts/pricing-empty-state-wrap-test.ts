@@ -25,8 +25,8 @@ ok(view.includes('Ingen leverandørstatistik tilgængelig'), 'tom statistik bliv
 ok(view.includes('Vælg en leverandør for at se pristendenser'), 'vælg leverandør bliver')
 ok(view.includes('Ingen pristendenser fundet for denne leverandør'), 'tomme tendenser bliver')
 const loadAt = view.indexOf('data-testid="pricing-loading-text"')
-const loadRow = loadAt >= 0 ? view.slice(loadAt - 220, loadAt) : ''
-ok(loadRow.includes('className="bg-white rounded-lg border p-8 text-center"'), 'indlæsningsrammen er uændret')
+const loadRow = loadAt >= 0 ? view.slice(loadAt - 320, loadAt) : ''
+ok(loadRow.includes('data-testid="pricing-loading-state"'), 'indlæsningsrammen kan krympe')
 ok(view.includes('formatCurrency(alert.old_price)'), 'gammel pris bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
