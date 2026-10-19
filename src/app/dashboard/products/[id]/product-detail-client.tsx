@@ -108,7 +108,7 @@ export default function ProductDetailClient({
         {/* Pricing */}
         <Card>
           <CardHeader>
-            <CardTitle>Priser</CardTitle>
+            <CardTitle className="break-words min-w-0" data-testid="product-detail-prices-title">Priser</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
