@@ -314,7 +314,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
         )}
         {/* Quick Preview */}
         {quickResult && (
-          <div className="mt-4 p-4 bg-purple-50 rounded-lg">
+          <div className="mt-4 p-4 bg-purple-50 rounded-lg break-words min-w-0" data-testid="ai-project-quick-box">
             <div className="text-sm font-medium text-purple-800 mb-2 break-words min-w-0" data-testid="ai-project-quick-estimate">Hurtig estimat</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div className="flex items-center gap-2">
