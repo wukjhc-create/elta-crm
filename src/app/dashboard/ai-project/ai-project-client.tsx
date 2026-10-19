@@ -291,7 +291,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                   </p>
                 )}
                 {chargerHits.length > 0 && (
-                  <ul className="mt-2 max-h-48 overflow-auto divide-y text-sm">
+                  <ul className="mt-2 max-h-48 overflow-auto divide-y text-sm break-words min-w-0" data-testid="ai-project-charger-list">
                     {chargerHits.map((h) => (
                       <li key={h.id}>
                         <button type="button" className="w-full text-left px-2 py-1 hover:bg-purple-50 break-words min-w-0" data-testid="ai-project-charger-hit" onClick={() => { setCharger(h); setChargerHits([]); setChargerError(null) }}>
