@@ -99,7 +99,7 @@ function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps) {
       </div>
 
       {task.description && (
-        <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+        <p className="text-xs text-muted-foreground mt-2 break-words min-w-0" data-testid="task-board-description">
           {task.description}
         </p>
       )}
