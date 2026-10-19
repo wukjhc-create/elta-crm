@@ -1396,7 +1396,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-662 | 8 Pilot | DONE. Linket Hop til Chat i mail-detaljen kan krympe. | Kun ankeret `className="ml-auto text-purple-600 hover:underline inline-flex items-center gap-1 text-xs font-medium"` i mail-detaljen. Teksten `Hop til Chat` og href er uændrede. |
 | G18-663 | 8 Pilot | DONE. Linket Se opgave i mail-detaljen kan krympe. | Kun `className="ml-auto text-orange-700 hover:underline inline-flex items-center gap-1 text-xs font-medium"` ved Se opgave i mail-detaljen. Teksten `Se opgave` og href er uændrede. |
 | G18-664 | 8 Pilot | DONE. Opgaveteksten i mail-detaljen kan krympe. | Kun `<span className="text-orange-800">` i mail-detaljen. Auto-opgave-teksten er uændret. |
-| G18-665 | 8 Pilot | ÅBEN. Advarselsikonet ved auto-opgaven kan krympe. | Kun `<AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />` i mail-detaljen. Auto-opgave-teksten er uændret. |
+| G18-665 | 8 Pilot | DONE. Advarselsikonet ved auto-opgaven kan krympe. | Kun `<AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />` i mail-detaljen. Auto-opgave-teksten er uændret. |
+| G18-666 | 8 Pilot | ÅBEN. Titlen på auto-opgaven i mail-detaljen kan krympe. | Kun `<strong>{openAutoTasks[0].title}</strong>` i mail-detaljen. Titlen er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

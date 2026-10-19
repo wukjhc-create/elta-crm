@@ -38,7 +38,7 @@ ok(view.split('data-testid="mail-task-frame"').length === 2, 'ramme-id kollidere
 ok(view.split('data-testid="mail-task-link"').length === 2, 'link-id kolliderer ikke')
 ok(view.includes('Auto-opgave oprettet:'), 'opgaveteksten bliver')
 ok(view.includes('åbne auto-opgaver for denne tråd'), 'flere opgaver bliver')
-ok(view.includes('<AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />'), 'advarselsikonet bliver')
+ok(view.includes('<AlertCircle className="w-4 h-4 text-orange-600 shrink-0 break-words min-w-0" data-testid="mail-task-icon" />'), 'advarselsikonet bliver')
 ok(view.includes('Se opgave'), 'linkteksten bliver')
 ok(view.includes('data-testid="mail-task-frame"'), 'rammen bliver')
 ok(view.includes('data-testid="mail-task-link"'), 'linket bliver')
