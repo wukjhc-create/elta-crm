@@ -327,7 +327,7 @@ export function MailDetail({
               </span>
             )}
           </div>
-          <span className="text-xs text-gray-400">{formatDate(email.received_at)}</span>
+          <span className="text-xs text-gray-400 break-words min-w-0" data-testid="mail-received-at">{formatDate(email.received_at)}</span>
         </div>
 
         {/* Fase 3: Kør Mailagent (kun admin; server-action haandhaever adgang) */}

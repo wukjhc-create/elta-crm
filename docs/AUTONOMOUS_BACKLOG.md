@@ -1360,7 +1360,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-626 | 8 Pilot | DONE. Emnet i mail-detaljen kan krympe. | Kun `<h2 className="text-xl font-bold text-gray-900">{email.subject || '(Intet emne)'}</h2>` i mail-detaljen. Emneteksten er uændret. |
 | G18-627 | 8 Pilot | DONE. Afsenderen i mail-detaljen kan krympe. | Kun `<span className="font-medium text-gray-800">{email.sender_name || email.sender_email}</span>` i mail-detaljen. Afsenderen er uændret. |
 | G18-628 | 8 Pilot | DONE. Afsenderadressen i mail-detaljen kan krympe. | Kun `<span className="ml-1 text-gray-400">&lt;{email.sender_email}&gt;</span>` i mail-detaljen. Adressen er uændret. |
-| G18-629 | 8 Pilot | ÅBEN. Modtagelsestidspunktet i mail-detaljen kan krympe. | Kun `<span className="text-xs text-gray-400">{formatDate(email.received_at)}</span>` i mail-detaljen. `formatDate` er uændret. |
+| G18-629 | 8 Pilot | DONE. Modtagelsestidspunktet i mail-detaljen kan krympe. | Kun `<span className="text-xs text-gray-400">{formatDate(email.received_at)}</span>` i mail-detaljen. `formatDate` er uændret. |
+| G18-630 | 8 Pilot | ÅBEN. Afsenderrækken i mail-detaljen kan krympe. | Kun `<div className="flex items-center justify-between text-sm">` i mail-detaljen. Afsenderen, adressen og `formatDate` er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
