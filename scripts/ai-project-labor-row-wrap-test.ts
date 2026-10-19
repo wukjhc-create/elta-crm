@@ -34,11 +34,11 @@ ok(!row.includes('Margin'), 'margin er en anden række')
 ok(!row.includes('ai-project-materials-row'), 'materialerækken er et andet sted')
 ok(view.split(id).length === 2, 'arbejdslønrækken findes en gang')
 ok(view.split(cell).length === 2, 'arbejdslønrækkens klasse findes en gang')
-ok(view.split(bare).length === 12, 'de andre rækker bliver')
+ok(view.split(bare).length === 11, 'de andre rækker bliver')
 ok(view.includes('formatCurrency(result.calculation.price.labor_cost)'), 'lønbeløbet bliver')
 ok(view.includes('result.calculation.time.total_hours.toFixed(1)'), 'timetallet bliver')
 ok(view.includes('result.calculation.price.hourly_rate'), 'timelønnen bliver')
-ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0">\r\n                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-margin-label">'), 'marginrækken bliver bar')
+ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-margin-row">\r\n                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-margin-label">'), 'marginrækken kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
