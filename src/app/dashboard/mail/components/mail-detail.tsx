@@ -362,7 +362,7 @@ export function MailDetail({
             <Link2 className="w-4 h-4 text-green-600 shrink-0" />
             <span>Koblet til: <strong>{email.customers.company_name}</strong> ({email.customers.customer_number})</span>
             <div className="ml-auto flex items-center gap-2 shrink-0">
-              <a href={`/dashboard/customers/${email.customers.id}`} className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs">
+              <a href={`/dashboard/customers/${email.customers.id}`} className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs break-words min-w-0" data-testid="mail-open-customer-link">
                 Åbn kunde <ExternalLink className="w-3 h-3" />
               </a>
               {onUnlinkCustomer && (
