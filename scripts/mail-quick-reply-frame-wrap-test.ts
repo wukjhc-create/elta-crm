@@ -37,7 +37,7 @@ ok(view.split('data-testid="mail-quick-reply-button"').length === 2, 'knap-id ko
 ok(view.split('data-testid="mail-quick-reply-icon"').length === 2, 'ikon-id kolliderer ikke')
 ok(view.includes('>Hurtigt svar</p>'), 'teksten bliver')
 ok(view.includes('data-testid="mail-quick-reply-label"'), 'overskriften bliver')
-ok(view.includes('className="flex items-center gap-2 flex-wrap"'), 'knaekken bliver')
+ok(view.includes('className="flex items-center gap-2 flex-wrap break-words min-w-0" data-testid="mail-quick-reply-row"'), 'knaekken bliver')
 ok(view.includes('Bekræft modtagelse'), 'bekraeft bliver')
 ok(view.includes('Mangler info'), 'mangler-info bliver')
 ok(view.includes('Tak for ordren'), 'tak-for-ordren bliver')

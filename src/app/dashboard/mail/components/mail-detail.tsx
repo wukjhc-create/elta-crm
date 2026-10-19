@@ -545,7 +545,7 @@ export function MailDetail({
         {/* ========== QUICK REPLY BUTTONS ========== */}
         <div className="pt-2 border-t space-y-2 break-words min-w-0" data-testid="mail-quick-reply-frame">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide break-words min-w-0" data-testid="mail-quick-reply-label">Hurtigt svar</p>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap break-words min-w-0" data-testid="mail-quick-reply-row">
             {[
               { label: 'Bekræft modtagelse', text: 'Tak for din henvendelse. Vi har modtaget din email og vender tilbage hurtigst muligt.\n\nMed venlig hilsen,\nElta Solar' },
               { label: 'Mangler info', text: 'Tak for din henvendelse. Vi mangler lidt yderligere information for at kunne hjælpe dig. Kan du venligst sende os følgende:\n\n- [Udfyld manglende information]\n\nMed venlig hilsen,\nElta Solar' },
