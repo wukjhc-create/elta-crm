@@ -524,9 +524,10 @@ function TrendsTab({
       <div className="bg-white rounded-lg border p-4 flex items-center gap-4">
         <label className="text-sm text-gray-500 break-words min-w-0" data-testid="pricing-trend-supplier-label">Leverandør:</label>
         <select
-          className="border rounded px-3 py-1.5 text-sm flex-1 max-w-xs"
+          className="border rounded px-3 py-1.5 text-sm flex-1 max-w-xs break-words min-w-0"
           value={selectedSupplierId}
           onChange={(e) => onSupplierChange(e.target.value)}
+          data-testid="pricing-trend-supplier-select"
         >
           <option value="">Vælg leverandør...</option>
           {suppliers.map((s) => (
