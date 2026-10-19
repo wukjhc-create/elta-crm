@@ -191,7 +191,7 @@ function PriceAlertCard({
               <TrendingUp className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-sm font-medium text-gray-900 break-words min-w-0">{alert.title}</p>
             </div>
-            <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-line line-clamp-2">{alert.message}</p>
+            <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-line break-words min-w-0" data-testid="task-reminder-message">{alert.message}</p>
           </div>
           <button
             type="button"
