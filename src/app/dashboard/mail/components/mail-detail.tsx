@@ -720,7 +720,7 @@ export function MailDetail({
                         <img src={att.url} alt={att.filename} className="w-full h-full object-cover" />
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
                           <p className="text-[11px] text-white line-clamp-2 break-all">{att.filename}</p>
-                          <p className="text-[10px] text-white/70">{formatFileSize(att.size)}</p>
+                          <p className="text-[10px] text-white/70 break-words min-w-0" data-testid="mail-gallery-size">{formatFileSize(att.size)}</p>
                         </div>
                       </button>
                     ))}
