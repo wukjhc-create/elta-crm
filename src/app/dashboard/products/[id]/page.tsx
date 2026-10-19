@@ -28,7 +28,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     if (!productResult.success && productResult.error && productResult.error !== 'Produktet blev ikke fundet') {
       return (
         <div className="p-6">
-          <p className="text-sm text-red-700" data-testid="product-detail-load-error">
+          <p className="text-sm text-red-700 break-words min-w-0" data-testid="product-detail-load-error">
             {productResult.error}. Det tælles ikke som at produktet mangler.
           </p>
         </div>
