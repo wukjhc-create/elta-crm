@@ -470,7 +470,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             expanded={expandedSections.calculation}
             onToggle={() => toggleSection('calculation')}
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 break-words min-w-0" data-testid="ai-project-calculation-grid">
               {/* Price Breakdown */}
               <div className="break-words min-w-0" data-testid="ai-project-price-column">
                 <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-price-heading">Prisopbygning</h4>

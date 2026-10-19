@@ -37,7 +37,7 @@ ok(view.split(cell).length === 2, 'elpunktrækkens klasse findes en gang')
 ok(view.split(bare).length === 1, 'ingen bar række bliver')
 ok(view.includes('data-testid="ai-project-point-count">{value} stk'), 'antallet bliver')
 ok(view.includes('break-words">{getPointTypeName(key)}'), 'punktnavnet bliver')
-ok(view.includes('<div className="grid grid-cols-1 md:grid-cols-2 gap-6">\r\n              {/* Price Breakdown */}'), 'kalkulationsgitteret bliver bart')
+ok(view.includes('<div className="grid grid-cols-1 md:grid-cols-2 gap-6 break-words min-w-0" data-testid="ai-project-calculation-grid">\r\n              {/* Price Breakdown */}'), 'kalkulationsgitteret kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

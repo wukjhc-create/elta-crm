@@ -34,8 +34,8 @@ ok(!row.includes('formatCurrency'), 'priserne er et andet sted')
 ok(!row.includes('getBuildingTypeName'), 'bygningstypen er et andet sted')
 ok(view.split(id).length === 2, 'fortolkningsgitteret findes en gang')
 ok(view.split(cell).length === 2, 'fortolkningsgitterets klasse findes en gang')
-ok(view.split(bare).length === 2, 'kalkulationsgitteret bliver bart')
-ok(view.includes('<div className="grid grid-cols-1 md:grid-cols-2 gap-6">\r\n              {/* Price Breakdown */}'), 'kalkulationsgitteret bliver')
+ok(view.split(bare).length === 1, 'den bare kalkulationsgitterklasse er vaek')
+ok(view.includes('<div className="grid grid-cols-1 md:grid-cols-2 gap-6 break-words min-w-0" data-testid="ai-project-calculation-grid">\r\n              {/* Price Breakdown */}'), 'kalkulationsgitteret kan krympe')
 ok(view.includes('break-words">{getBuildingTypeName(result.interpretation.building_type)}'), 'bygningstypen bliver')
 
 if (bad > 0) {
