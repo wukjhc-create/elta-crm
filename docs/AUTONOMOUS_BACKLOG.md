@@ -1319,7 +1319,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-578 | 8 Pilot | DONE. Risikobufferrækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Risikobuffer. De andre rækker med samme klasse og beløbet er uændrede. |
 | G18-585 | 8 Pilot | ÅBEN. Størrelsesrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Størrelse. De andre rækker med samme klasse er uændrede. |
 | G18-572 | 8 Pilot | DONE. Bygningsinformationens liste kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Bygningsinformation. Prislisten, elpunktlisten og tidsberegningens liste er uændrede. |
-| G18-579 | 8 Pilot | ÅBEN. Bygningsinformationens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Bygningsinformation. Elpunktkolonnen og listen er uændrede. |
+| G18-579 | 8 Pilot | DONE. Bygningsinformationens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Bygningsinformation. Elpunktkolonnen og listen er uændrede. |
+| G18-586 | 8 Pilot | ÅBEN. Aldersrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Alder. De andre rækker med samme klasse er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | ÅBEN. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 
