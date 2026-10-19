@@ -460,7 +460,7 @@ export function MailDetail({
               disabled={isCreatingServiceCase}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 break-words min-w-0" data-testid="mail-opret-sag-button"
             >
-              {isCreatingServiceCase ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4 break-words min-w-0" data-testid="mail-opret-sag-icon" />}
+              {isCreatingServiceCase ? <Loader2 className="w-4 h-4 animate-spin break-words min-w-0" data-testid="mail-opret-sag-spinner" /> : <ExternalLink className="w-4 h-4 break-words min-w-0" data-testid="mail-opret-sag-icon" />}
               Opret sag
             </button>
           )}
