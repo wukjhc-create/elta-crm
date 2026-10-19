@@ -1492,6 +1492,52 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogførste (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `33136e8e`. Det lader hundrede-hegnet stå. `33136e8e` hedder `feat(profit): mobillisten paa efterkalkulation kan krympe`. `86b782f1` hedder `feat(profit): sidevaelgeren paa efterkalkulation kan krympe`. `778e8cf4` hedder `feat(profit): den tomme efterkalkulation kan krympe`. `708c28e4` hedder `feat(profit): indlaesnings-spinneren paa efterkalkulation kan krympe`. `fcde9dfd` hedder `docs: checkpoint efter d90fa324`. Start: `80ab0dab`. `origin/grok-next` er `33136e8e`. Push af `33136e8e` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `fcde9dfd..33136e8e`
+
+```
+33136e8e feat(profit): mobillisten paa efterkalkulation kan krympe
+86b782f1 feat(profit): sidevaelgeren paa efterkalkulation kan krympe
+778e8cf4 feat(profit): den tomme efterkalkulation kan krympe
+708c28e4 feat(profit): indlaesnings-spinneren paa efterkalkulation kan krympe
+fcde9dfd docs: checkpoint efter d90fa324
+```
+
+Listen er skiftets commits fra `fcde9dfd` til og med `33136e8e`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+10e3502d docs: checkpoint efter f4209137
+```
+
+### Features
+
+G18-748 lader kun indlæsnings-spinneren på efterkalkulation krympe. Teksten `Henter…` bliver. G18-749 lader kun den tomme efterkalkulation krympe. Sætningerne om ingen sager bliver. G18-750 lader kun sidevælgeren krympe. Den indre `data-testid="aftercalc-pager"` bliver. Sagøkonomiens række røres ikke. G18-751 lader kun mobillisten krympe. Mobilkortet, beløb og filtre bliver. `data-testid="aftercalc-overview-loading-spinner"` bliver. `data-testid="aftercalc-empty"` bliver. `data-testid="aftercalc-pager-row"` bliver. `data-testid="aftercalc-overview-mobile"` bliver. `formatCurrency` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/aftercalc-overview-loading-spinner-wrap-test.ts`, `scripts/aftercalc-overview-empty-wrap-test.ts`, `scripts/aftercalc-overview-pager-row-wrap-test.ts` og `scripts/aftercalc-overview-mobile-wrap-test.ts` læser den shippede efterkalkulation og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetestene `scripts/aftercalc-overview-loading-wrap-test.ts`, `scripts/aftercalc-empty-filter-test.ts`, `scripts/aftercalc-pager-touch-test.ts` og `scripts/aftercalc-desktop-money-wrap-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for hvert produktcommit. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `33136e8e`, herunder G18-289 til G18-751. `fcde9dfd` er kun docs. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `33136e8e`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-752, G18-597.
+
 ## Checkpoint 2026-10-18 hundrede (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `d90fa324`. Det lader nioghalvfemsindstyvende-hegnet stå. `d90fa324` hedder `feat(profit): fold-ind-ikonet paa efterkalkulation kan krympe`. `1f3a8ce6` hedder `feat(profit): fold-ud-ikonet paa efterkalkulation kan krympe`. `7d0bfbfe` hedder `feat(profit): sager-ikonet paa efterkalkulation kan krympe`. `8108f157` hedder `feat(profit): sager-overskriften paa efterkalkulation kan krympe`. `f3b5af58` hedder `feat(profit): sager-knappen paa efterkalkulation kan krympe`. `10e3502d` hedder `docs: checkpoint efter f4209137`. Start: `80ab0dab`. `origin/grok-next` er `d90fa324`. Push af `d90fa324` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
