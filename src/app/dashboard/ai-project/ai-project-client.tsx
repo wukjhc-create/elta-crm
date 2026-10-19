@@ -694,7 +694,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-700 break-words line-clamp-2">{analysis.description}</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-400 break-words min-w-0" data-testid="ai-project-history-date">
                     {copenhagenDateTimeLabel(analysis.created_at)}
                   </p>
                 </div>
