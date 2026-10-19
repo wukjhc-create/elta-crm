@@ -331,7 +331,7 @@ export default function ProductsClient({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setEditingProduct(product)}>
+                        <DropdownMenuItem onClick={() => setEditingProduct(product)} className="break-words min-w-0" data-testid="product-menu-edit">
                           <Pencil className="w-4 h-4 mr-2" />
                           Rediger
                         </DropdownMenuItem>
