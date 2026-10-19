@@ -1423,7 +1423,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-689 | 8 Pilot | DONE. Hurtigsvar-rækken i mail-detaljen kan krympe. | Kun `className="flex items-center gap-2 flex-wrap"` i mail-detaljen. Teksterne `Bekræft modtagelse`, `Mangler info` og `Tak for ordren` er uændrede. |
 | G18-690 | 8 Pilot | DONE. Knappen Diagnosticér Graph-forbindelse i mail-detaljen kan krympe. | Kun `className="text-[10px] text-gray-400 hover:text-blue-600 underline"` i mail-detaljen. Teksten `Diagnosticér Graph-forbindelse` er uændret. |
 | G18-691 | 8 Pilot | DONE. Svarstakken efter hurtigsvar i mail-detaljen kan krympe. | Kun `<div className="space-y-1">` i mail-detaljen. `{replyMsg}` er uændret. |
-| G18-692 | 8 Pilot | ÅBEN. Graph-diagnosens ramme i mail-detaljen kan krympe. | Kun `className="bg-gray-50 border rounded p-2 text-[11px] font-mono space-y-0.5"` i mail-detaljen. Nøglerne i diagnosen er uændrede. |
+| G18-692 | 8 Pilot | DONE. Graph-diagnosens ramme i mail-detaljen kan krympe. | Kun `className="bg-gray-50 border rounded p-2 text-[11px] font-mono space-y-0.5"` i mail-detaljen. Nøglerne i diagnosen er uændrede. |
+| G18-693 | 8 Pilot | ÅBEN. Graph-diagnosens linje i mail-detaljen kan krympe. | Kun `className={val ? 'text-green-700' : 'text-red-600 font-bold'}` i mail-detaljen. `{key}` er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
