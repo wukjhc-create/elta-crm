@@ -21,7 +21,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 340, at + 10) : ''
 const bare = 'className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"'
 const cell = bare.slice(0, -1) + ' break-words min-w-0" data-testid="mail-ignore-button"'
-const archiveBare = 'className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"'
+const archiveBare = 'className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed break-words min-w-0" data-testid="mail-archive-button"'
 ok(row.includes('<button'), 'det er knappen')
 ok(row.includes('hover:bg-gray-50'), 'hover bliver')
 ok(row.includes('text-gray-500'), 'farven bliver')

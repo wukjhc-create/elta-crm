@@ -496,7 +496,7 @@ export function MailDetail({
           <button
             onClick={() => runHeaderAction('archive', onArchive)}
             disabled={pendingAction !== null}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed break-words min-w-0" data-testid="mail-archive-button"
           >
             {pendingAction === 'archive' ? (
               <Loader2 className="w-4 h-4 animate-spin" />
