@@ -347,7 +347,7 @@ export function MailDetail({
               <span className={`text-sm break-words min-w-0 ${agentResult.ok ? 'text-green-700' : 'text-red-600'}`} data-testid="mail-agent-result">
                 {agentResult.msg}
                 {agentResult.ok && (
-                  <a href="/dashboard/agents" className="ml-2 text-blue-600 hover:underline">
+                  <a href="/dashboard/agents" className="ml-2 text-blue-600 hover:underline break-words min-w-0" data-testid="mail-agent-inbox-link">
                     Åbn Agent Inbox →
                   </a>
                 )}
