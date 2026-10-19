@@ -20,7 +20,7 @@ const id = 'data-testid="mail-found-order"'
 const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 60, at + 10) : ''
 const bare = '<p className="text-xs text-gray-600">Ordre/ref fundet i email: <strong>{detectedOrderId}</strong></p>'
-const cell = '<p className="text-xs text-gray-600 break-words min-w-0" data-testid="mail-found-order">Ordre/ref fundet i email: <strong>{detectedOrderId}</strong></p>'
+const cell = '<p className="text-xs text-gray-600 break-words min-w-0" data-testid="mail-found-order">Ordre/ref fundet i email: <strong className="break-words min-w-0" data-testid="mail-order-value">{detectedOrderId}</strong></p>'
 ok(row.includes('<p '), 'det er ordre-linjen')
 ok(row.includes('text-xs text-gray-600'), 'linjen bliver graa')
 ok(row.includes('break-words min-w-0'), 'linjen kan krympe')
@@ -33,7 +33,7 @@ ok(view.split(cell).length === 2, 'linjeklassen findes en gang')
 ok(view.split(bare).length === 1, 'det bare afsnit er vaek')
 ok(view.includes('Ordre/ref fundet i email'), 'teksten bliver')
 ok(view.includes('{detectedOrderId}'), 'referencen bliver')
-ok(view.includes('<strong>{detectedOrderId}</strong>'), 'ordre-tallet bliver')
+ok(view.includes('<strong className="break-words min-w-0" data-testid="mail-order-value">{detectedOrderId}</strong>'), 'ordre-tallet bliver')
 ok(view.includes('<strong className="break-words min-w-0" data-testid="mail-phone-value">{detectedPhone}</strong>'), 'telefon-tallet bliver')
 ok(view.includes('data-testid="mail-found-phone"'), 'telefonlinjen bliver')
 ok(view.includes('data-testid="mail-other-number"'), 'det andet nummer bliver')
