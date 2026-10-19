@@ -745,7 +745,7 @@ export function MailDetail({
                           <span className="break-all min-w-0 flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium">
                             {att.filename}
                           </span>
-                          <span className="text-xs text-gray-400 shrink-0">{formatFileSize(att.size)}</span>
+                          <span className="text-xs text-gray-400 shrink-0 break-words min-w-0" data-testid="mail-list-size">{formatFileSize(att.size)}</span>
                           <Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0" />
                         </a>
                       )

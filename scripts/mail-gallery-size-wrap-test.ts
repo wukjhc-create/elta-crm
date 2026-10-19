@@ -32,7 +32,7 @@ ok(view.split(cell).length === 2, 'størrelsens klasse findes en gang')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 ok(view.includes('href={att.url}'), 'download bliver')
 ok(view.includes('aria-label="Download"'), 'download-navnet bliver')
-ok(view.includes('text-xs text-gray-400 shrink-0">{formatFileSize(att.size)}'), 'listestørrelsen bliver')
+ok(view.includes('text-xs text-gray-400 shrink-0 break-words min-w-0" data-testid="mail-list-size">{formatFileSize(att.size)}'), 'listestørrelsen kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
