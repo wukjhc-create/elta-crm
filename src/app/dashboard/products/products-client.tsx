@@ -188,7 +188,7 @@ export default function ProductsClient({
           }}
         >
           <SelectTrigger className="w-full sm:w-[200px]" aria-label="Kategori">
-            <SelectValue placeholder="Alle kategorier" />
+            <SelectValue placeholder="Alle kategorier" className="break-words min-w-0" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all"><span className="break-words min-w-0" data-testid="product-category-all">Alle kategorier</span></SelectItem>

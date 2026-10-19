@@ -91,14 +91,15 @@ export function SelectTrigger({ children, className, 'aria-label': ariaLabel }: 
 
 interface SelectValueProps {
   placeholder?: string
+  className?: string
 }
 
-export function SelectValue({ placeholder }: SelectValueProps) {
+export function SelectValue({ placeholder, className }: SelectValueProps) {
   const context = useContext(SelectContext)
   if (!context) throw new Error('SelectValue must be used within Select')
 
   // The actual label will be set by the selected item
-  return <span className={context.value ? '' : 'text-gray-400'}>{placeholder}</span>
+  return <span className={clsx(context.value ? '' : 'text-gray-400', className)}>{placeholder}</span>
 }
 
 interface SelectContentProps {
