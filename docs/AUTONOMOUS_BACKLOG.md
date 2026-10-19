@@ -260,7 +260,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | LG-9 | Timegodkendelse: delvis commit uden audit/revalidate ved fejl midt i (S3) | TODO |
 | LG-10 | updateCustomer kopierer personfelter til audit_logs som falsk diff (S3) | DONE (kode, U203) — forrige række hentes; kun ægte ændringer logges; personfelter som [ændret] uden værdier; intet log-indslag uden ændring |
 | LG-11 | email-autolink: mailemne som entity_name i audit (S4) | DONE (kode) — entity_name = 'Indgående mail' (mailen findes via entity_id) |
-| LG-12 | Integrations-webhook gemmer hele payloaden (op til 1 MB) pr. kald (S4) | TODO |
+| LG-12 | Integrations-webhook gemmer hele payloaden (op til 1 MB) pr. kald (S4) | DONE (kode) — integration_logs.request_body = resumé (routing-felter afkortet, topnøgler, størrelse); harness integration-webhook-check +1 |
 | LG-13 | Rå DB-/engelske fejltekster til UI (flere actions) (S4) | TODO |
 | LG-14 | markInvoicePaid: claim-fejl tjekkes ikke (DB-fejl vises som "ændret imens") (S4) | DONE (kode) — claim-fejl logges og gives som "databasefejl — prøv igen" (U29) |
 

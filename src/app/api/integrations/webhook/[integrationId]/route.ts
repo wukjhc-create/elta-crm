@@ -321,7 +321,7 @@ async function logWebhook(
     event_type: data.event_type,
     offer_id: data.offer_id,
     project_id: data.project_id,
-    request_body: data.request_body as Record<string, unknown>,
+    request_body: summarizeWebhookBody(data.request_body),
     response_status: data.response_status,
     success: data.success,
     error_message: data.error_message,
@@ -356,4 +356,27 @@ function mapExternalStatus(
   }
 
   return null
+}
+
+/**
+ * LG-12 (log-review 2026-10-19): integration_logs gemte HELE kroppen (op til 1 MB pr. kald — vilkårlige kunde-/persondata
+ * fra partneren, og loggen voksede ubegrænset). Nu kun de felter ruten bruger til routing (afkortet), topniveau-nøglerne
+ * og størrelsen — nok til fejlsøgning.
+ */
+const WEBHOOK_LOG_FIELDS = ['event', 'event_type', 'type', 'external_id', 'offer_id', 'offer_number', 'project_id', 'project_number', 'status', 'new_status'] as const
+function summarizeWebhookBody(body: unknown): Record<string, unknown> | null {
+  if (body == null) return null
+  if (typeof body !== 'object' || Array.isArray(body)) return { _type: Array.isArray(body) ? 'array' : typeof body }
+  const b = body as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const k of WEBHOOK_LOG_FIELDS) {
+    const v = b[k]
+    if (v == null) continue
+    out[k] = typeof v === 'string' ? v.slice(0, 200) : typeof v === 'number' || typeof v === 'boolean' ? v : `[${typeof v}]`
+  }
+  let size = 0
+  try { size = JSON.stringify(b).length } catch { size = -1 }
+  out._keys = Object.keys(b).slice(0, 50).map((k) => k.slice(0, 60))
+  out._size = size
+  return out
 }

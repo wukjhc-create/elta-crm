@@ -1459,6 +1459,12 @@ async function main() {
       check("'accepted' via webhook afvises (kræver underskrift)", (await st(sent)) === 'sent')
       await call({ external_id: `ext-sent-${stamp}`, status: 'declined' })
       check('gyldig overgang (sendt → afvist) via egen reference virker', (await st(sent)) === 'rejected')
+      // LG-12: loggen gemmer kun et resumé (routing-felter + nøgler + størrelse), ikke partnerens persondata
+      const secret = `PERSONDATA-${stamp}`
+      await call({ external_id: `ext-sent-${stamp}`, event: 'note', customer: { name: secret, cpr: '010101-1234' }, note: secret })
+      const lastLog = ((await admin.from('integration_logs').select('request_body').eq('integration_id', integId).order('created_at', { ascending: false }).limit(1).maybeSingle()).data as { request_body: Record<string, unknown> | null } | null)?.request_body ?? null
+      const lj = JSON.stringify(lastLog ?? {})
+      check('integration_logs: resumé uden payload-værdier (LG-12)', !!lastLog && !lj.includes(secret) && !lj.includes('010101') && Array.isArray(lastLog._keys) && lastLog.external_id === `ext-sent-${stamp}`, lj.slice(0, 200))
     } finally {
       await admin.from('integration_logs').delete().eq('integration_id', integId)
       await admin.from('external_references').delete().eq('integration_id', integId)
