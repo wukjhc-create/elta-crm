@@ -1443,7 +1443,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-709 | 8 Pilot | DONE. Filnavnet i downloadlisten kan krympe. | Kun `<span className="break-all min-w-0 flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium">` i mail-detaljen. `{att.filename}` er uændret. Galleriets `line-clamp-2` røres ikke. |
 | G18-710 | 8 Pilot | DONE. Mailagent-ikonet i mail-detaljen kan krympe. | Kun `<Bot className="w-4 h-4" />` i mail-detaljen. Teksten `Kør Mailagent` er uændret. |
 | G18-711 | 8 Pilot | DONE. Download-ikonet på vedhæftningsknappen kan krympe. | Kun `<Download className="w-4 h-4" />` i mail-detaljen. Teksten `Download vedhæftninger nu` er uændret. |
-| G18-712 | 8 Pilot | ÅBEN. Luk-ikonet på Fjern kobling kan krympe. | Kun `<X className="w-3 h-3" />` i mail-detaljen. Teksten `Fjern kobling` er uændret. |
+| G18-712 | 8 Pilot | DONE. Luk-ikonet på Fjern kobling kan krympe. | Kun `<X className="w-3 h-3" />` i mail-detaljen. Teksten `Fjern kobling` er uændret. |
+| G18-713 | 8 Pilot | ÅBEN. Statusikonet i mail-detaljen kan krympe. | Kun `<Icon className="w-3 h-3" />` i mail-detaljen. Statusteksten er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
