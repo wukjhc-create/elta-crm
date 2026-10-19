@@ -413,7 +413,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             onToggle={() => toggleSection('interpretation')}
             badge={<Badge variant="secondary">{result.interpretation.ai_confidence > 0.7 ? 'Høj sikkerhed' : 'Moderat sikkerhed'}</Badge>}
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 break-words min-w-0" data-testid="ai-project-interpretation-grid">
               <div className="break-words min-w-0" data-testid="ai-project-building-column">
                 <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-building-heading">Bygningsinformation</h4>
                 <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-building-list">

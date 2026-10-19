@@ -1305,7 +1305,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-566 | 8 Pilot | DONE. Prisopbygningens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Prisopbygning. Tidsberegningens kolonne og beløbene er uændrede. |
 | G18-567 | 8 Pilot | DONE. Tidsberegningens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Tidsberegning. Prisopbygningens kolonne og tallene er uændrede. |
 | G18-574 | 8 Pilot | DONE. Prisopbygningens liste kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Prisopbygning. Bygningslisten, elpunktlisten og tidsberegningens liste er uændrede. |
-| G18-581 | 8 Pilot | ÅBEN. Fortolkningsgitteret kan krympe. | Kun det `<div className="grid grid-cols-1 md:grid-cols-2 gap-6">` der omslutter Bygningsinformation. Kalkulationsgitteret er uændret. |
+| G18-581 | 8 Pilot | DONE. Fortolkningsgitteret kan krympe. | Kun det `<div className="grid grid-cols-1 md:grid-cols-2 gap-6">` der omslutter Bygningsinformation. Kalkulationsgitteret er uændret. |
+| G18-588 | 8 Pilot | ÅBEN. Basistidsrækken i tidsberegningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Basis tid. De andre rækker med samme klasse og timetallet er uændrede. |
 | G18-568 | 8 Pilot | DONE. Totalrækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">` der omslutter totaletiketten i prisopbygningen. Tidsberegningens totalrække og beløbet er uændrede. |
 | G18-575 | 8 Pilot | DONE. Materialerækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Materialer. De andre rækker med samme klasse og beløbet er uændrede. |
 | G18-582 | 8 Pilot | ÅBEN. Kundevælgerens indhold kan krympe. | Kun `<div className="p-4">` i kundevælgeren. Søgefeltet og listen er uændrede. |
