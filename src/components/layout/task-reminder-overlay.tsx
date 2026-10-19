@@ -270,7 +270,7 @@ function ReminderCard({
               {reminder.offer && (
                 <a
                   href={`/dashboard/offers/${reminder.offer.id}`}
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+                  className="inline-flex flex-wrap items-center gap-1 text-xs text-primary hover:underline font-medium break-all min-w-0 max-w-full" data-testid="task-reminder-offer-number"
                 >
                   <FileText className="w-3 h-3" />
                   {reminder.offer.offer_number}
