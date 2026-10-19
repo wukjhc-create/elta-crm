@@ -22,7 +22,7 @@ ok(row.includes('data-testid="pricing-alert-head"'), 'kolonnerækken bliver')
 ok(row.includes('{alert.product_name}'), 'navnet er uændret')
 ok(row.includes('text-right text-gray-500">{formatCurrency(alert.old_price)}'), 'gammel pris er uændret')
 ok(row.includes('text-right font-medium">{formatCurrency(alert.new_price)}'), 'ny pris er uændret')
-ok(view.split('<thead>').length - 1 === 2, 'de andre tabelhoveder bliver')
+ok(view.split('<thead>').length - 1 === 1, 'de andre tabelhoveder bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
 if (bad > 0) {

@@ -388,7 +388,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
     <div className="hidden md:block bg-white rounded-lg border overflow-hidden min-w-0" data-testid="pricing-offer-desktop">
       <div className="overflow-x-auto min-w-0" data-testid="pricing-offer-scroll">
         <table className="w-full text-sm min-w-0" data-testid="pricing-offer-table">
-          <thead>
+          <thead className="min-w-0" data-testid="pricing-offer-thead">
             <tr className="border-b bg-gray-50 min-w-0" data-testid="pricing-offer-head">
               <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-offer-col-title">Tilbud</th>
               <th className="text-left px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-offer-col-customer">Kunde</th>
