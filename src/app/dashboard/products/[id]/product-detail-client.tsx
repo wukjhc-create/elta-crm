@@ -127,7 +127,7 @@ export default function ProductDetailClient({
 
             {margin !== null && (
               <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
-                <span className="text-gray-500">Avance</span>
+                <span className="text-gray-500 break-words min-w-0" data-testid="product-detail-margin-label">Avance</span>
                 <span className={`min-w-0 break-words ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {margin.toFixed(1)}%
                 </span>
