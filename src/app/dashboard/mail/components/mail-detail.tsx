@@ -516,7 +516,7 @@ export function MailDetail({
               {pendingAction === 'ignore' ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <EyeOff className="w-4 h-4" />
+                <EyeOff className="w-4 h-4 break-words min-w-0" data-testid="mail-ignore-icon" />
               )}
               Ignorér
             </button>

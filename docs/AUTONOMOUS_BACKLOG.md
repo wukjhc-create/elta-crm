@@ -1409,7 +1409,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-675 | 8 Pilot | DONE. Ikonet på Opret sag i mail-detaljen kan krympe. | Kun `<ExternalLink className="w-4 h-4" />` i mail-detaljen. Teksten `Opret sag` og `data-testid="mail-opret-sag-button"` er uændrede. |
 | G18-676 | 8 Pilot | DONE. Ikonet på Markér som læst i mail-detaljen kan krympe. | Kun `<MailOpen className="w-4 h-4" />` i mail-detaljen. Teksten `Markér som læst` er uændret. |
 | G18-677 | 8 Pilot | DONE. Ikonet på Arkivér i mail-detaljen kan krympe. | Kun `<Archive className="w-4 h-4" />` i mail-detaljen. Teksten `Arkivér` er uændret. |
-| G18-678 | 8 Pilot | ÅBEN. Ikonet på Ignorér i mail-detaljen kan krympe. | Kun `<EyeOff className="w-4 h-4" />` i mail-detaljen. Teksten `Ignorér` er uændret. |
+| G18-678 | 8 Pilot | DONE. Ikonet på Ignorér i mail-detaljen kan krympe. | Kun `<EyeOff className="w-4 h-4" />` i mail-detaljen. Teksten `Ignorér` er uændret. |
+| G18-679 | 8 Pilot | ÅBEN. Ikonet på Markér som relevant i mail-detaljen kan krympe. | Kun `<AlertCircle className="w-4 h-4" />` i mail-detaljen. Teksten `Markér som relevant` er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
