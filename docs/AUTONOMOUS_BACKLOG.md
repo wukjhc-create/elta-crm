@@ -1225,13 +1225,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-486 | 8 Pilot | DONE. Kolonnen Total kan krympe. | Teksten `Total` er uændret. Kun `<th className="text-right p-3">Total</th>` i AI-projekt. Priserne er uændrede. |
 | G18-487 | 8 Pilot | DONE. Komponenttabellens hoved kan krympe. | `bg-gray-50` er uændret. Kun `<thead className="bg-gray-50">` i AI-projekt. Priserne er uændrede. |
 | G18-488 | 8 Pilot | DONE. Komponentrækken kan krympe. | `key={i}` er uændret. Kun `<tr key={i}>` i AI-projekt. Priserne er uændrede. |
-| G18-489 | 8 Pilot | ÅBEN. Kolonnerækken kan krympe. | Kun den ene `<tr>` i AI-projektets komponenttabel. `key={i}` er uændret. Priserne er uændrede. |
+| G18-489 | 8 Pilot | DONE. Kolonnerækken kan krympe. | Kun den ene `<tr>` i AI-projektets komponenttabel. `key={i}` er uændret. Priserne er uændrede. |
 | G18-490 | 8 Pilot | ÅBEN. Opsummeringskortets etiket kan krympe. | `{label}` er uændret. Kun `<div className="text-sm text-gray-500">{label}</div>` i SummaryCard på AI-projekt. |
 | G18-491 | 8 Pilot | ÅBEN. Komponenttabellens krop kan krympe. | Kun `<tbody className="divide-y">` i AI-projekt. Priserne er uændrede. |
 | G18-492 | 8 Pilot | ÅBEN. Opsummeringskortets ramme kan krympe. | Kun `<div className="bg-white border rounded-lg p-4">` i SummaryCard på AI-projekt. `{value}` og `{sublabel}` er uændrede. |
 | G18-493 | 8 Pilot | ÅBEN. Opsummeringskortets ikon kan krympe. | Kun diven med `w-10 h-10 rounded-lg` i SummaryCard på AI-projekt. `{icon}` er uændret. |
 | G18-494 | 8 Pilot | ÅBEN. Komponentafsnittet kan krympe. | Kun `<div className="mt-6">` omkring komponenttabellen i AI-projekt. Priserne er uændrede. |
 | G18-495 | 8 Pilot | ÅBEN. Rækken uden væsentlige risici kan krympe. | Teksten `Ingen væsentlige risici identificeret` er uændret. Kun `<div className="flex items-center gap-2 text-green-600">` i AI-projekt. |
+| G18-496 | 8 Pilot | ÅBEN. Mobillisten af komponenter kan krympe. | Kun `<ul className="md:hidden space-y-2" data-testid="ai-components-mobile">` i AI-projekt. Priserne er uændrede. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
