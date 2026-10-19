@@ -326,6 +326,7 @@ export async function getLeadsForEmails(
   emailIds: string[]
 ): Promise<Record<string, { leadId: string; status: string }>> {
   if (emailIds.length === 0) return {}
+  if (await gateDenied('inbox.view')) return {} // PM3-9: som søsteren getLeadForEmail (LC-9)
   const supabase = await createClient()
 
   // N67: alle leads oprettet fra en mail — også webhenvendelser (source='website'; før kun 'email').
@@ -1146,6 +1147,7 @@ export async function applyEmailKalkiaPriceUpdates(emailId: string) {
 // =====================================================
 
 export async function getGraphSyncState(): Promise<GraphSyncState | null> {
+  if (await gateDenied('inbox.view')) return null // PM3-9: synkfejl kun for indbakke-roller
   const supabase = await createClient()
   const mailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'
   const { data } = await supabase
@@ -1159,6 +1161,7 @@ export async function getGraphSyncState(): Promise<GraphSyncState | null> {
 
 /** Get sync state for ALL configured mailboxes */
 export async function getAllGraphSyncStates(): Promise<GraphSyncState[]> {
+  if (await gateDenied('inbox.view')) return [] // PM3-9
   const supabase = await createClient()
   const { data } = await supabase
     .from('graph_sync_state')
@@ -1220,6 +1223,9 @@ export async function testGraphConnection(): Promise<{
   mailbox: string
   error?: string
 }> {
+  // PM3-1 (rettigheds-audit 2026-10-19, S1): før uden login/gate — kunne kaldes af alle (også uden login via en action-POST)
+  // og returnerede postkassens nyeste mails/Graph-fejl. Samme ret som mailsiden.
+  { const denied = await gateDenied('inbox.view'); if (denied) throw new Error(denied) }
   const { isGraphConfigured, testGraphConnection: testConn } = await import(
     '@/lib/services/microsoft-graph'
   )
@@ -1250,6 +1256,9 @@ export interface MailboxTestResult {
  * This is the key diagnostic for "403 on kontakt@ but not ordre@".
  */
 export async function testAllMailboxes(): Promise<MailboxTestResult[]> {
+  // PM3-1 (rettigheds-audit 2026-10-19, S1): før uden login/gate — kunne kaldes af alle (også uden login via en action-POST)
+  // og returnerede postkassens nyeste mails/Graph-fejl. Samme ret som mailsiden.
+  { const denied = await gateDenied('inbox.view'); if (denied) throw new Error(denied) }
   const { isGraphConfigured, getMailboxes, testGraphConnection: testConn } = await import(
     '@/lib/services/microsoft-graph'
   )
@@ -1297,6 +1306,9 @@ export async function checkGraphEnvVars(): Promise<{
   mailbox: string
   mailboxes: string[]
 }> {
+  // PM3-1 (rettigheds-audit 2026-10-19, S1): før uden login/gate — kunne kaldes af alle (også uden login via en action-POST)
+  // og returnerede postkassens nyeste mails/Graph-fejl. Samme ret som mailsiden.
+  { const denied = await gateDenied('inbox.view'); if (denied) throw new Error(denied) }
   const { getMailboxes } = await import('@/lib/services/microsoft-graph')
   const allMailboxes = getMailboxes()
 
@@ -1718,6 +1730,9 @@ export interface SyncDiagnostic {
  * Returns structured data for the debug panel.
  */
 export async function runSyncDiagnostic(): Promise<SyncDiagnostic> {
+  // PM3-1 (rettigheds-audit 2026-10-19, S1): før uden login/gate — kunne kaldes af alle (også uden login via en action-POST)
+  // og returnerede postkassens nyeste mails/Graph-fejl. Samme ret som mailsiden.
+  { const denied = await gateDenied('inbox.view'); if (denied) throw new Error(denied) }
   const { isGraphConfigured, getMailbox, getMailboxes, debugFetchInbox, testGraphConnection: testConn } = await import('@/lib/services/microsoft-graph')
 
   const configured = isGraphConfigured()

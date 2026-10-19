@@ -11,6 +11,17 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+
+/** PM3-9 (rettigheds-audit 2026-10-19): før uden login/gate — kontakter og e-mails på enhver sags betaler/sted */
+async function requireRecipientAccess(serviceCaseId?: string): Promise<void> {
+  const ctx = await getAuthenticatedClientWithRole()
+  if (!ctx.hasPermission('customers.view')) throw new Error('Manglende tilladelse: customers.view')
+  if (serviceCaseId) {
+    const { userCanViewCase } = await import('@/lib/auth/case-scope')
+    if (!(await userCanViewCase(serviceCaseId, ctx))) throw new Error('Du har ikke adgang til denne sag')
+  }
+}
 import { validateUUID } from '@/lib/validations/common'
 import {
   CUSTOMER_CONTACT_ROLE_LABELS,
@@ -54,6 +65,7 @@ export async function getCustomerContactsByRole(
   options?: { roleFilter?: CustomerContactRole }
 ): Promise<RecipientOption[]> {
   validateUUID(customerId, 'customerId')
+  await requireRecipientAccess()
   const supabase = await createClient()
 
   let q = supabase
@@ -118,6 +130,7 @@ export async function getRecipientOptionsForCase(
   serviceCaseId: string
 ): Promise<{ options: RecipientOption[]; defaultEmail: string | null; context: RecipientContext }> {
   validateUUID(serviceCaseId, 'serviceCaseId')
+  await requireRecipientAccess(serviceCaseId)
   const supabase = await createClient()
 
   const { data: caseRow, error } = await supabase
@@ -240,6 +253,7 @@ export async function getRecipientOptionsForCustomer(
   customerId: string
 ): Promise<{ options: RecipientOption[]; defaultEmail: string | null; context: RecipientContext }> {
   validateUUID(customerId, 'customerId')
+  await requireRecipientAccess()
   const supabase = await createClient()
 
   const { data: customer } = await supabase

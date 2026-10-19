@@ -211,6 +211,24 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-50 (systematisk rettigheds-audit 2026-10-19 — server-håndhævelse pr. action)
+| # | Fund | Status |
+|---|---|---|
+| PM3-1 | runSyncDiagnostic/testGraphConnection/testAllMailboxes/checkGraphEnvVars uden login/gate — postkassens nyeste mails til alle (S1) | DONE (kode) — inbox.view-gate i alle fire (mailsidens ret); audit-scriptet bør markere microsoft-graph-imports som privilegerede = TODO |
+| PM3-2 | DB-læsepolitikker bredere end appen: incoming_emails (salg alle mails), service_cases USING(true), offers, customer_tasks, offer_activities (S2) | BLOCKED_APPROVAL [MIGRATION] + BESLUTNING — bekræftet i prod 2026-10-19 (prod-table-policies): service_cases/offers/customer_tasks SELECT USING(true); incoming_emails for admin/serviceleder/salg/bogholderi (+ montør-scope); anon har fulde tabel-grants på incoming_emails og customer_tasks (RLS uden anon-politik stopper dem) |
+| PM3-3 | getRejectionStats + dashboardets afvisningskort vises for bogholderi (S3) | TODO |
+| PM3-4 | getTodaysIntelligenceCounts (mailautomatik-tal) uden inbox.view (S3) | TODO |
+| PM3-5 | "Ny sag" i seneste aktivitet ignorerer sags-scope (S3) | TODO |
+| PM3-6 | getOfferActivities uden offers.view (S3) | TODO |
+| PM3-7 | getCustomerEmailBody læser enhver mail via id uden kunde-tjek (S3) | TODO (+ BESLUTNING: kunder med leverandøradresse) |
+| PM3-8 | Opgavemail: knap vist uden tasks.edit; montør kan maile vilkårlig adresse (S3) | TODO + BESLUTNING |
+| PM3-9 | Ugatede mail-læsninger: getLeadsForEmails, getGraphSyncState(s), mail-recipients.ts (S4) | DONE (kode) — inbox.view resp. customers.view + sags-scope |
+| PM3-10 | Lead-/tilbudseksport kun med view-ret (S3) | BESLUTNING — samme regel som kundeeksport? |
+| PM3-11 | Gammelt projektmodul uden scope (getProject/getProjects, tasks, time entries) (S3) | TODO (eller pensionér modulet = BESLUTNING) |
+| PM3-12 | Indstillings-/diagnose-læsninger kun login (learning, sync, import, lemu, supplier-health, email-stats) (S4) | TODO |
+| PM3-13 | Rapportsiden viser tilbudsdata til bogholderi (S4) | BESLUTNING |
+| PM3-14 | Montør ser hele kunderegistret (customers.view uden scope) (S4) | BESLUTNING |
+
 ## NEXT-49 (review-bølge 2026-10-18 aften — UI vs. server-rettigheder pr. rolle; fund fra CRM-sessionen)
 | # | Fund | Status |
 |---|---|---|
