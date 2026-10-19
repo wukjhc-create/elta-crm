@@ -1275,6 +1275,52 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 seksogfyrretyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `e2760143`. Det lader femogfyrretyvende-hegnet stå. `e2760143` hedder `docs: checkpoint efter f7f34a42`. Produktspids: `02eac352`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `02eac352` blev afvist før git kørte og er ikke prøvet igen. `23d43087` er ikke prøvet igen. `4b9fd2ee`, `6df6114a` og `bfcac529` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `e2760143..02eac352`
+
+```
+02eac352 feat(pilot): sideikonet kan krympe
+23d43087 feat(pilot): kritisk-risikoikonet kan krympe
+4b9fd2ee feat(pilot): hoej-risikoikonet kan krympe
+6df6114a feat(pilot): moderat-risikoikonet kan krympe
+bfcac529 feat(pilot): lav-risikoikonet kan krympe
+```
+
+Listen er alle commits efter `e2760143` til og med `02eac352`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+e2760143 docs: checkpoint efter f7f34a42
+```
+
+### Features
+
+G18-524 til G18-528 lader kun AI-projektets risikoikoner og sideikon krympe: lav, moderat, høj, kritisk og sideikonet. Teksterne Lav, Moderat, Høj og Kritisk bliver. Overskriften `AI Projektanalyse` bliver. Advarselsikonet `text-yellow-600` bliver. De andre Sparkles-ikoner bliver. `formatCurrency(result.calculation.price.total_price)` og `formatCurrency(analysis.total_price)` er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede AI-projektfil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. G18-524: `scripts/ai-project-risk-low-icon-wrap-test.ts` plus risikomærket. G18-525: `scripts/ai-project-risk-medium-icon-wrap-test.ts` plus lav-ikon og mærke. G18-526: `scripts/ai-project-risk-high-icon-wrap-test.ts` plus moderat- og lav-ikon. G18-527: `scripts/ai-project-risk-critical-icon-wrap-test.ts` plus høj-, moderat- og lav-ikon. G18-528: `scripts/ai-project-page-sparkles-wrap-test.ts`; sidetitlens vindue er `at - 80` til `at + 240`, plus side, sidehoved og indledning. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `02eac352`, herunder G18-289 til G18-528. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. Når push er tilladt, push kun `grok-next` og prøv ikke afviste tip igen, herunder `02eac352`, `23d43087`, `4b9fd2ee`, `6df6114a`, `bfcac529`, `e2760143`, `f7f34a42`, `4607487b`, `ae64af32`, `c028a873`, `ffa327ad`, `cc59416f`, `c6e18461` og `4245647d`. Flet derefter `origin/main` ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-529, G18-530, G18-531, G18-532, G18-533, G18-534, G18-535.
+
 ## Checkpoint 2026-10-18 femogfyrretyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `ae64af32`. Det lader fireogfyrretyvende-hegnet stå. `ae64af32` hedder `docs: checkpoint efter c028a873`. Produktspids: `f7f34a42`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `f7f34a42` blev afvist før git kørte og er ikke prøvet igen. `4607487b` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
