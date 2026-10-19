@@ -36,7 +36,7 @@ ok(view.includes('break-all min-w-0 flex-1 text-sm text-gray-700'), 'filnavnet b
 ok(view.includes('href={att.url}'), 'download bliver')
 ok(view.includes('data-testid="mail-list-size"'), 'listestørrelsen bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'gallerifilnavnet bliver')
-ok(view.includes('className="whitespace-pre-wrap text-sm text-gray-700 font-sans"'), 'broedteksten bliver')
+ok(view.includes('className="whitespace-pre-wrap text-sm text-gray-700 font-sans break-words min-w-0" data-testid="mail-body-plain"'), 'broedteksten bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
