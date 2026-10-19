@@ -1086,12 +1086,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-347 | 4 Pris | DONE. Pristendensens tabelhoved kan krympe. | Pris og navn er uændrede. |
 | G18-348 | 4 Pris | DONE. Prisadvarslens tabelkrop kan krympe. | Navn og priser er uændrede. |
 | G18-349 | 4 Pris | DONE. Berørte tilbuds tabelkrop kan krympe. | Nummer og beløb er uændrede. |
-| G18-350 | 4 Pris | ÅBEN. Pristendensens tabelkrop kan krympe. | Pris og navn er uændrede. |
+| G18-350 | 4 Pris | DONE. Pristendensens tabelkrop kan krympe. | Pris og navn er uændrede. |
 | G18-351 | 4 Pris | ÅBEN. Den gamle skrivebordspris på prisadvarslen kan krympe. | `formatCurrency(alert.old_price)` er uændret. Kun den celle. |
 | G18-352 | 4 Pris | ÅBEN. Den nye skrivebordspris på prisadvarslen kan krympe. | `formatCurrency(alert.new_price)` er uændret. Kun den celle. |
 | G18-353 | 4 Pris | ÅBEN. Tilbudsbeløbet på berørte tilbuds skrivebord kan krympe. | `formatCurrency(offer.total_amount)` er uændret. Kun den celle. |
 | G18-354 | 4 Pris | ÅBEN. Det potentielle tab på berørte tilbuds skrivebord kan krympe. | Beløbet er uændret. Kun den celle. |
 | G18-355 | 4 Pris | ÅBEN. Nuværende pris på pristendensens skrivebord kan krympe. | `formatCurrency(trend.current_price)` er uændret. Kun den celle. |
+| G18-356 | 4 Pris | ÅBEN. Tab-mærket på berørte tilbuds skrivebord kan krympe. | Beløbet er uændret. Kun span-elementet. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

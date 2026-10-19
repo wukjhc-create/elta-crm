@@ -595,7 +595,7 @@ function TrendsTab({
                   <th className="text-center px-4 py-2.5 font-medium break-words min-w-0" data-testid="pricing-trend-col-changes">Ændringer</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="min-w-0" data-testid="pricing-trend-tbody">
                 {trends.map((trend) => (
                   <tr key={trend.supplier_product_id} className="border-b last:border-0 hover:bg-gray-50 min-w-0" data-testid="pricing-trend-row">
                     <td className="px-4 py-2.5 break-words min-w-0" data-testid="pricing-trend-product-cell">
