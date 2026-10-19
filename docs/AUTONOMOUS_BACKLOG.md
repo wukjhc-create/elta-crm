@@ -1263,13 +1263,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-524 | 8 Pilot | DONE. Lav-risikoikonet kan krympe. | Kun `<CheckCircle2 className="w-4 h-4 text-green-500" />` i AI-projekt. Teksten Lav er uændret. |
 | G18-525 | 8 Pilot | DONE. Moderat-risikoikonet kan krympe. | Kun `<AlertTriangle className="w-4 h-4 text-yellow-500" />` i AI-projekt. Teksten Moderat er uændret. |
 | G18-526 | 8 Pilot | DONE. Høj-risikoikonet kan krympe. | Kun `<AlertTriangle className="w-4 h-4 text-orange-500" />` i AI-projekt. Teksten Høj er uændret. |
-| G18-527 | 8 Pilot | ÅBEN. Kritisk-risikoikonet kan krympe. | Kun `<AlertTriangle className="w-4 h-4 text-red-500" />` i AI-projekt. Teksten Kritisk er uændret. |
+| G18-527 | 8 Pilot | DONE. Kritisk-risikoikonet kan krympe. | Kun `<AlertTriangle className="w-4 h-4 text-red-500" />` i AI-projekt. Teksten Kritisk er uændret. |
 | G18-528 | 8 Pilot | ÅBEN. AI-projektets sideikon kan krympe. | Kun `<Sparkles className="w-6 h-6 text-purple-500" />` i AI-projekt. Overskriften er uændret. |
 | G18-529 | 8 Pilot | ÅBEN. Risikokortets ramme kan krympe. | Kun `` className={`border rounded-lg p-4 ${severityColors[risk.severity]}`} `` i AI-projekt. Kortteksterne er uændrede. |
 | G18-530 | 8 Pilot | ÅBEN. Kundelistens indlæsning kan krympe. | Kun `<div className="flex items-center justify-center py-8">` i AI-projekt. Spinneren er uændret. |
 | G18-531 | 8 Pilot | ÅBEN. Kundelistens spinner kan krympe. | Kun `<Loader2 className="w-6 h-6 animate-spin text-gray-400" />` i AI-projekt. Forældre-div'en er uændret. |
 | G18-532 | 8 Pilot | ÅBEN. Hurtig-estimatets bygningsikon kan krympe. | Kun `<Building2 className="w-4 h-4 text-purple-500" />` i AI-projekt. Bygningstypen er uændret. |
 | G18-533 | 8 Pilot | ÅBEN. Hurtig-estimatets elpunktsikon kan krympe. | Kun `<Plug className="w-4 h-4 text-purple-500" />` i AI-projekt. Elpunktsteksten er uændret. |
+| G18-534 | 8 Pilot | ÅBEN. Hurtig-estimatets tidsikon kan krympe. | Kun `<Clock className="w-4 h-4 text-purple-500" />` i AI-projekt. Timeteksten er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

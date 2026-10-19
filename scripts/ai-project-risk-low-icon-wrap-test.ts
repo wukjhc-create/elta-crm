@@ -32,7 +32,7 @@ ok(!view.includes('className="w-4 h-4 text-green-500"'), 'det bare ikon er vaek'
 ok(view.includes("{risk.severity === 'low' && 'Lav'}"), 'teksten Lav bliver')
 ok(view.includes('className="w-4 h-4 text-yellow-500 break-words min-w-0" data-testid="ai-project-risk-medium-icon" />'), 'moderat-ikonet bliver')
 ok(view.includes('className="w-4 h-4 text-orange-500 break-words min-w-0" data-testid="ai-project-risk-high-icon" />'), 'hoej-ikonet bliver')
-ok(view.includes('className="w-4 h-4 text-red-500"'), 'kritisk-ikonet bliver')
+ok(view.includes('className="w-4 h-4 text-red-500 break-words min-w-0" data-testid="ai-project-risk-critical-icon" />'), 'kritisk-ikonet bliver')
 ok(view.includes('<CheckCircle2 className="w-5 h-5" />'), 'det andet flueben bliver')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 
