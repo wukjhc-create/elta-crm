@@ -742,7 +742,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               <div className="max-h-64 overflow-y-auto space-y-2 break-words min-w-0" data-testid="ai-project-customer-list">
                 {loadingCustomers ? (
                   <div className="flex items-center justify-center py-8 break-words min-w-0" data-testid="ai-project-customer-loading">
-                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400 break-words min-w-0" data-testid="ai-project-customer-spinner" />
                   </div>
                 ) : customerLoadError ? (
                   <div className="text-center py-8 text-sm text-red-700 break-words" data-testid="ai-customer-load-error">
