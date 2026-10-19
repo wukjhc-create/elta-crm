@@ -191,7 +191,7 @@ export function AftercalcOverviewClient() {
                             <Link href={`/dashboard/orders/${r.case_id}?tab=oekonomi`} className="font-medium text-blue-700 hover:underline break-words min-w-0" data-testid="aftercalc-mobile-case-link">
                               {r.case_number || 'Sag'}
                             </Link>
-                            {r.title && <p className="text-xs text-gray-500 break-words">{r.title}</p>}
+                            {r.title && <p className="text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-mobile-title">{r.title}</p>}
                             <p className="text-sm text-gray-800 break-words min-w-0" data-testid="aftercalc-mobile-customer">{r.customer_name || '—'}</p>
                             <p className="text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-mobile-assignee">Ansvarlig: {r.assignee_name || '—'}</p>
                           </div>
