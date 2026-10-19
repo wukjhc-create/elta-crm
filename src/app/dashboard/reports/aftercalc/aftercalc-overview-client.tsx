@@ -173,7 +173,7 @@ export function AftercalcOverviewClient() {
                 </div>
                 <p className="text-xs text-gray-600 break-words" data-testid="aftercalc-variance-filter">Afvigelsesfilter: {varianceFilterLabel(filters.variance)}</p>
                 {data.rows.length === 0 ? (
-                  <div className="text-sm text-gray-500" data-testid="aftercalc-empty">
+                  <div className="text-sm text-gray-500 break-words min-w-0" data-testid="aftercalc-empty">
                     <p className="break-words min-w-0">{filtersActive ? 'Ingen sager matcher filtrene.' : 'Ingen sager i oversigten. Opret en sag fra kunden, så den kan efterkalkuleres her.'}</p>
                     {filtersActive && (
                       <button type="button" onClick={resetFilters} className="mt-2 text-blue-700 hover:underline break-words min-w-0" data-testid="aftercalc-clear-filters">
