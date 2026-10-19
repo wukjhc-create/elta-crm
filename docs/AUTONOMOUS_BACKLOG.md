@@ -1253,13 +1253,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-514 | 8 Pilot | DONE. Sektionens titelrække kan krympe. | Kun `<div className="flex items-center gap-3">` i AI-projekt. `{title}` er uændret. |
 | G18-515 | 8 Pilot | DONE. Sektionens indhold kan krympe. | Kun `<div className="p-4 pt-0 border-t">` i AI-projekt. `{children}` er uændret. |
 | G18-516 | 8 Pilot | DONE. Sektionens titeltekst kan krympe. | Kun `<h3 className="font-semibold">{title}</h3>` i AI-projekt. `{title}` er uændret. |
-| G18-517 | 8 Pilot | ÅBEN. Risikokortets række kan krympe. | Kun `<div className="flex items-start gap-3">` i AI-projekt. `{risk.title}` er uændret. |
+| G18-517 | 8 Pilot | DONE. Risikokortets række kan krympe. | Kun `<div className="flex items-start gap-3">` i AI-projekt. `{risk.title}` er uændret. |
 | G18-518 | 8 Pilot | ÅBEN. Risikobeskrivelsen kan krympe. | Kun `<div className="text-sm text-gray-600 mt-1">{risk.description}</div>` i AI-projekt. `{risk.description}` er uændret. |
 | G18-519 | 8 Pilot | ÅBEN. Risikoanbefalingen kan krympe. | Kun `<div className="text-sm text-gray-500 mt-2 italic">` i AI-projekt. Teksten `Anbefaling:` er uændret. |
 | G18-520 | 8 Pilot | ÅBEN. Risikotitlen kan krympe. | Kun `<div className="font-medium">{risk.title}</div>` i AI-projekt. `{risk.title}` er uændret. |
 | G18-521 | 8 Pilot | ÅBEN. Risikokortets tekstkolonne kan krympe. | Kun `<div className="flex-1">` i AI-projekt. `{risk.title}` er uændret. |
 | G18-522 | 8 Pilot | ÅBEN. Historikikonet kan krympe. | Kun `<Clock className="w-5 h-5 text-gray-500" />` i AI-projekt. Overskriften `Seneste analyser` er uændret. |
 | G18-523 | 8 Pilot | ÅBEN. Risikomærket kan krympe. | Kun `<Badge variant="secondary" className="text-xs">` i AI-projekt. Teksterne Lav, Moderat, Høj og Kritisk er uændrede. |
+| G18-524 | 8 Pilot | ÅBEN. Lav-risikoikonet kan krympe. | Kun `<CheckCircle2 className="w-4 h-4 text-green-500" />` i AI-projekt. Teksten Lav er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
