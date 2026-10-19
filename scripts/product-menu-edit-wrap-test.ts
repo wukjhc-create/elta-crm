@@ -20,7 +20,7 @@ const row = at >= 0 ? view.slice(at - 120, at + 220) : ''
 ok(row.includes('break-words min-w-0'), 'menupunktet ombrydes')
 ok(row.includes('Rediger'), 'ordet er uændret')
 ok(row.includes('setEditingProduct(product)'), 'redigering bliver')
-ok(view.includes('className="text-blue-700" aria-label={`Rediger ${product.name}`}>Rediger</button>'), 'mobilknappen venter')
+ok(view.includes('className="text-blue-700 break-words min-w-0" data-testid="product-edit-mobile" aria-label={`Rediger ${product.name}`}>Rediger</button>'), 'mobilknappen ombrydes')
 ok(view.includes('formatCurrency(product.list_price)'), 'listeprisen bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
