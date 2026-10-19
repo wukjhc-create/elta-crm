@@ -32,7 +32,7 @@ ok(!row.includes('formatCurrency'), 'priserne er et andet sted')
 ok(view.split(id).length === 2, 'bygningskolonnen findes en gang')
 ok(view.split(cell).length === 2, 'bygningskolonens klasse findes en gang')
 ok(!view.includes('<div>\r\n                <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-building-heading">'), 'den bare bygningskolonne er vaek')
-ok(view.includes('<div>\r\n                <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-points-heading">'), 'elpunktkolonnen bliver bar')
+ok(view.includes('<div className="break-words min-w-0" data-testid="ai-project-points-column">\r\n                <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-points-heading">'), 'elpunktkolonnen kan krympe')
 ok(view.includes('className="break-words min-w-0" data-testid="ai-project-price-column"'), 'priskolonnen bliver')
 ok(view.includes('break-words">{getBuildingTypeName(result.interpretation.building_type)}'), 'bygningstypen bliver')
 
