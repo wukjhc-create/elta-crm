@@ -652,7 +652,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 className="text-left p-4 bg-white border rounded-lg hover:border-purple-300 hover:shadow-sm transition-all"
               >
                 <div className="font-medium text-sm mb-1">{example.title}</div>
-                <div className="text-sm text-gray-500 line-clamp-2">{example.text}</div>
+                <div className="text-sm text-gray-500 break-words min-w-0" data-testid="ai-project-example-text">{example.text}</div>
               </button>
             ))}
           </div>

@@ -1108,13 +1108,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-369 | 8 Pilot | DONE. Tilstandsbeskrivelsen i kalkulationstypen ombrydes i stedet for `line-clamp-2`. | Teksten `{MODE_DESCRIPTIONS[mode]}` er uændret. Kun det span. |
 | G18-370 | 8 Pilot | DONE. Tilbudstekstens indhold på skabelonkortet ombrydes i stedet for `line-clamp-2`. | Teksten `{template.content}` er uændret. Kun den linje. |
 | G18-371 | 8 Pilot | DONE. Beskeden i opgavepåmindelsen ombrydes i stedet for `line-clamp-2`. | Teksten `{alert.message}` er uændret. Kun den linje. |
-| G18-372 | 8 Pilot | ÅBEN. Eksempelteksten i AI-projekt ombrydes i stedet for `line-clamp-2`. | Teksten `{example.text}` er uændret. Kun den linje. |
+| G18-372 | 8 Pilot | DONE. Eksempelteksten i AI-projekt ombrydes i stedet for `line-clamp-2`. | Teksten `{example.text}` er uændret. Kun den linje. |
 | G18-373 | 4 Pris | ÅBEN. Varenummeret på leverandørvarens mobilkort ombrydes. | Teksten `{product.supplier_sku}` er uændret. Priser er uændret. Kun den linje. |
 | G18-374 | 4 Pris | ÅBEN. Varenummeret på leverandørvarens skrivebord kan krympe. | Teksten `{product.supplier_sku}` er uændret. Priser er uændret. Kun den celle. |
 | G18-375 | 8 Pilot | ÅBEN. Opgavetitlen på opgavebrættet ombrydes. | Teksten `{task.title}` er uændret. Kun den overskrift. |
 | G18-376 | 8 Pilot | ÅBEN. Navnet på kalkulationstypen ombrydes. | Teksten `{CALCULATION_MODE_LABELS[mode]}` er uændret. Kun det span. |
 | G18-377 | 8 Pilot | ÅBEN. Titlen på tilbudstekstkortet ombrydes. | Teksten `{template.title}` er uændret. Kun den overskrift. |
 | G18-378 | 8 Pilot | ÅBEN. Tilbudsnummeret i opgavepåmindelsen ombrydes. | Teksten `{reminder.offer.offer_number}` er uændret. Kun det link. |
+| G18-379 | 8 Pilot | ÅBEN. Eksempeltitlen i AI-projekt ombrydes. | Teksten `{example.title}` er uændret. Kun den linje. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
