@@ -16,7 +16,8 @@ eq('besked bruger hjaelperen', src.includes('fmtMailTime(msg.received_at)'), tru
 eq('aaben mail bruger lang maaned', src.includes("fmtMailTime(viewingEmail.received_at, 'long')"), true)
 eq('date-fns er vaek', src.includes("from 'date-fns'"), false)
 eq('emne viser stadig to linjer', src.split('text-sm mt-1 line-clamp-2').length === 3, true)
-eq('forhaandsvisning bliver paa en linje', src.split('line-clamp-1">{').length === 3, true)
+eq('seneste forhaandsvisning ombrydes', src.includes('break-words min-w-0" data-testid="customer-mail-latest-preview">{latestMsg.body_preview}'), true)
+eq('listeforhaandsvisning bliver paa en linje', src.includes('line-clamp-1">{email.body_preview}'), true)
 eq('meta kan ombrydes', src.split('flex flex-wrap items-center gap-2').length >= 3, true)
 
 const lateUtc = new Date('2026-01-15T23:30:00.000Z').toLocaleString('da-DK', {

@@ -1093,13 +1093,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-354 | 4 Pris | DONE. Det potentielle tab på berørte tilbuds skrivebord kan krympe. | Beløbet er uændret. Kun den celle. |
 | G18-355 | 4 Pris | DONE. Nuværende pris på pristendensens skrivebord kan krympe. | `formatCurrency(trend.current_price)` er uændret. Kun den celle. |
 | G18-356 | 4 Pris | DONE. Tab-mærket på berørte tilbuds skrivebord kan krympe. | Beløbet er uændret. Kun span-elementet. |
-| G18-357 | 8 Pilot | ÅBEN. Seneste mail-forhåndsvisning på kundetidslinjen ombrydes i stedet for `line-clamp-1`. | Teksten er uændret. Kun den linje. |
+| G18-357 | 8 Pilot | DONE. Seneste mail-forhåndsvisning på kundetidslinjen ombrydes i stedet for `line-clamp-1`. | Teksten er uændret. Kun den linje. |
 | G18-358 | 8 Pilot | ÅBEN. Mail-forhåndsvisningen i kundetidslinjens liste ombrydes i stedet for `line-clamp-1`. | Teksten er uændret. Kun den linje. |
 | G18-359 | 8 Pilot | ÅBEN. Pakkebeskrivelsen i pakkevælgeren ombrydes i stedet for `line-clamp-1`. | Teksten er uændret. Kun den linje. |
 | G18-360 | 8 Pilot | ÅBEN. Sagstitlen i mailforslag ombrydes i stedet for `line-clamp-1`. | Teksten `{c.title}` er uændret. Kun den linje. |
 | G18-361 | 8 Pilot | ÅBEN. Tilbudstitlen i mailforslag ombrydes i stedet for `line-clamp-1`. | Teksten `{o.title}` er uændret. Kun den linje. |
 | G18-362 | 8 Pilot | ÅBEN. Sagsbeskrivelsen i mailforslag ombrydes i stedet for `line-clamp-2`. | Teksten `{c.description}` er uændret. Kun den linje. |
 | G18-363 | 8 Pilot | ÅBEN. Tilbudsbeskrivelsen i mailforslag ombrydes i stedet for `line-clamp-2`. | Teksten `{o.description}` er uændret. Kun den linje. |
+| G18-364 | 8 Pilot | ÅBEN. Leverandørnotatet på leverandørkortet ombrydes i stedet for `line-clamp-2`. | Teksten `{supplier.notes}` er uændret. Kun den linje. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
