@@ -384,7 +384,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               color="green"
             />
             <SummaryCard
-              icon={<Clock className="w-5 h-5" />}
+              icon={<Clock className="w-5 h-5 break-words min-w-0" data-testid="ai-project-summary-clock" />}
               label="Estimeret tid"
               value={`${Math.round(result.calculation.time.total_hours)} timer`}
               sublabel={`${Math.ceil(result.calculation.time.total_hours / 7.5)} arbejdsdage`}
