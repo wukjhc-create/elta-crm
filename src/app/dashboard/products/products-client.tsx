@@ -266,7 +266,7 @@ export default function ProductsClient({
                 </dl>
                 <div className="flex flex-wrap gap-3 text-sm">
                   <button type="button" onClick={() => setEditingProduct(product)} className="text-blue-700 break-words min-w-0" data-testid="product-edit-mobile" aria-label={`Rediger ${product.name}`}>Rediger</button>
-                  <button type="button" onClick={() => handleDelete(product)} className="text-red-600" aria-label={`Slet ${product.name}`}>Slet</button>
+                  <button type="button" onClick={() => handleDelete(product)} className="text-red-600 break-words min-w-0" data-testid="product-delete-mobile" aria-label={`Slet ${product.name}`}>Slet</button>
                 </div>
               </article>
             ))}
