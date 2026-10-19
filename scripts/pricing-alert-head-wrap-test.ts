@@ -24,7 +24,7 @@ ok(row.includes('data-testid="pricing-alert-col-product"'), 'produktkolonnen bli
 ok(row.includes('{alert.product_name}'), 'navnet er uændret')
 ok(row.includes('text-right text-gray-500">{formatCurrency(alert.old_price)}'), 'gammel pris er uændret')
 ok(row.includes('text-right font-medium">{formatCurrency(alert.new_price)}'), 'ny pris er uændret')
-ok(view.split('<tr className="border-b bg-gray-50">').length - 1 === 1, 'de andre kolonnerækker bliver')
+ok(view.split('<tr className="border-b bg-gray-50">').length - 1 === 0, 'ingen upakket kolonnerække')
 const words: Array<[string, string]> = [
   ['pricing-alert-col-product', '>Produkt<'],
   ['pricing-alert-col-supplier', '>Leverandør<'],
