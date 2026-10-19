@@ -332,7 +332,7 @@ export function MailDetail({
 
         {/* Fase 3: Kør Mailagent (kun admin; server-action haandhaever adgang) */}
         {currentRole === 'admin' && (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 break-words min-w-0" data-testid="mail-agent-row">
             <button
               type="button"
               onClick={handleRunMailAgent}
