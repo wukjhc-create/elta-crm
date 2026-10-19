@@ -215,7 +215,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | # | Fund | Status |
 |---|---|---|
 | PM2-1 | Dashboardet viser postkassen (seneste mails, "kræver svar") til salg/bogholderi uden inbox.view (S2) | DONE (kode) — stats-API (liste + antal + access-flag), cockpittets mailkort og kundemail-tallet kun med inbox.view (kundemail-tal også med customers.emails.view); UI skjuler kort/links (U193 ny: salg/bogholderi negativ, admin positiv) |
-| PM2-2 | Montør har hele Leads-modulet via Ctrl+K/søgning/URL inkl. kontaktdata og CSV-eksport (S2) | TODO — Henrik 2026-10-19: montør mister leads.view helt (navigation, URL, guard, søgning, Ctrl+K, actions, eksport, RLS hvor relevant) |
+| PM2-2 | Montør har hele Leads-modulet via Ctrl+K/søgning/URL inkl. kontaktdata og CSV-eksport (S2) | DELVIS (kode) — leads.view = admin/serviceleder/salg; guard, søgning, Ctrl+K, actions, eksport og dashboard-leadtal følger gaten (U194 ny: montør nægtes liste + URL, salg har adgang). RLS: prod har "Users can view leads" USING(true) → SELECT-politik tilføjet forslag 00254 = BLOCKED_APPROVAL [MIGRATION] |
 | PM2-3 | reports.export bruges aldrig; montør/bogholderi kan eksportere hele kunderegistret (S2) | TODO — Henrik 2026-10-19: fuld kundeeksport kun admin + bogholderi (server-side); salg får evt. senere en separat afgrænset eksport |
 | PM2-4 | Bogholderi ser tilbuds-/leaddata på dashboardet uden offers.view/leads.view; døde links (S3) | TODO |
 | PM2-5 | Opret kundeopgave kræver kun customers.view (alle roller kan oprette/tildele) (S3) | TODO — Henrik 2026-10-19: admin/serviceleder/salg/bogholderi generelt; montør kun på egen tildelt sag/arbejdsordre og kun til sig selv |

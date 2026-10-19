@@ -96,7 +96,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     messagesResult,
     customerEmailsResult,
   ] = await Promise.all([
-    Promise.all(LEAD_STATUSES_ALL.map((st) => headCount(supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', st)))),
+    // PM2-2/PM2-4: leadtal kun med leads.view
+    roleCtx.hasPermission('leads.view')
+      ? Promise.all(LEAD_STATUSES_ALL.map((st) => headCount(supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', st))))
+      : Promise.resolve(LEAD_STATUSES_ALL.map(() => 0)),
     headCount(supabase.from('customers').select('id', { count: 'exact', head: true })),
     headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).eq('is_active', true)),
     headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', monthStartIso)),

@@ -15,7 +15,8 @@ export const PERMISSIONS = {
   // ===== EKSISTERENDE — BEVARES 1:1 (sidebar+UI bruger disse) =====
 
   // Lead permissions
-  'leads.view': ['admin', 'serviceleder', 'montør', 'salg'],
+  // PM2-2 (Henrik 2026-10-19): montør mister leads helt (som G9 for mail) — før skjult i menuen, men åben via søgning/URL/eksport
+  'leads.view': ['admin', 'serviceleder', 'salg'],
   'leads.create': ['admin', 'serviceleder', 'salg'],
   'leads.edit': ['admin', 'serviceleder', 'salg'],
   'leads.delete': ['admin'],

@@ -105,8 +105,16 @@ SELECT count(*) FROM time_logs a JOIN time_logs b
 - `lead_activities` kan indsættes i en anden brugers navn, fordi der ikke er noget `performed_by = auth.uid()`-krav.
 - Koden (LD-1) validerer nu vedhæftningsstier. Politikken er værn nr. 2.
 
+**Opdateret 2026-10-19 (PM2-2, Henrik: montør mister leads helt):**
+- Prod har i dag `"Users can view leads" … USING (true)` (læst read-only med `scripts/prod-table-policies.ts leads`).
+- Montør og bogholderi kan derfor læse alle leads direkte over REST, selvom appen nu nægter dem `leads.view`.
+- SELECT-politikken følger derfor med i samme migration.
+
 ```sql
 BEGIN;
+DROP POLICY IF EXISTS "Users can view leads" ON public.leads;
+CREATE POLICY leads_select_role ON public.leads FOR SELECT TO authenticated
+  USING (public.user_role() IN ('admin', 'serviceleder', 'salg'));
 DROP POLICY IF EXISTS leads_insert_role ON public.leads;
 DROP POLICY IF EXISTS leads_update_role ON public.leads;
 CREATE POLICY leads_insert_role ON public.leads FOR INSERT TO authenticated
