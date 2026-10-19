@@ -86,7 +86,7 @@ export default function ProductDetailClient({
 
             {product.category && (
               <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
-                <span className="text-gray-500">Kategori</span>
+                <span className="text-gray-500 break-words min-w-0" data-testid="product-detail-category-label">Kategori</span>
                 <Badge variant="outline" className="min-w-0 break-words">{product.category.name}</Badge>
               </div>
             )}
