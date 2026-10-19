@@ -299,7 +299,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     ))}
                   </ul>
                 )}
-                <p className="mt-1 text-xs text-gray-500">Uden valgt lader markeres hardwaren &quot;Ikke prissat&quot; — der gættes aldrig.</p>
+                <p className="mt-1 text-xs text-gray-500 break-words min-w-0" data-testid="ai-project-charger-unpriced">Uden valgt lader markeres hardwaren &quot;Ikke prissat&quot; — der gættes aldrig.</p>
               </>
             )}
           </div>
