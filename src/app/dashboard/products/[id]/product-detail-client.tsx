@@ -71,7 +71,7 @@ export default function ProductDetailClient({
         {/* Product Info */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 break-words min-w-0" data-testid="product-detail-info-title">
               <Package className="w-5 h-5" />
               Produktinformation
             </CardTitle>
