@@ -35,9 +35,9 @@ ok(!row.includes('ai-project-complexity-heading'), 'faktorernes overskrift er et
 ok(view.split(id).length === 2, 'kompleksitetsfaktorrækken findes en gang')
 ok(view.split('data-testid="ai-project-complexity-factor"').length === 2, 'faktorværdien findes en gang')
 ok(view.split(cell).length === 2, 'kompleksitetsfaktorrækkens klasse findes en gang')
-ok(view.split(bare).length === 4, 'de andre rækker bliver')
+ok(view.split(bare).length === 3, 'de andre rækker bliver')
 ok(view.includes('data-testid="ai-project-complexity-factor">×{result.calculation.time.complexity_multiplier}'), 'faktoren bliver')
-ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0">\r\n                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-size-factor-label">'), 'størrelsesfaktorrækken bliver bar')
+ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-time-size-row">\r\n                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-size-factor-label">'), 'størrelsesfaktorrækken kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
