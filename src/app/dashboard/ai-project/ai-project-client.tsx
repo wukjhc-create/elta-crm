@@ -508,7 +508,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <dl className="space-y-2 text-sm">
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-base-time-label">Basis tid</dt>
-                    <dd>{result.calculation.time.base_hours.toFixed(1)} timer</dd>
+                    <dd className="min-w-0 break-words" data-testid="ai-project-base-hours">{result.calculation.time.base_hours.toFixed(1)} timer</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
                     <dt className="text-gray-500 min-w-0 break-words">Kompleksitetsfaktor</dt>
