@@ -32,7 +32,7 @@ ok(view.split(cell).length === 2, 'panelets klasse findes en gang')
 ok(view.includes('data-testid="mail-lightbox-shell"'), 'lysboksen bliver')
 ok(view.includes('aria-label="Luk"'), 'luk bliver')
 ok(view.includes('setLightboxUrl(null)'), 'lukningen bliver')
-ok(view.includes('break-all min-w-0 flex-1">{lightboxName}'), 'navnet bliver')
+ok(view.includes('break-all min-w-0 flex-1 break-words min-w-0" data-testid="mail-lightbox-name">{lightboxName}'), 'navnet bliver')
 ok(view.includes('className="flex items-start justify-between w-full mb-2 px-1 gap-2 break-words min-w-0" data-testid="mail-lightbox-title-row"'), 'titelraekken bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 

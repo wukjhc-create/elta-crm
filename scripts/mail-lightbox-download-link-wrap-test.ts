@@ -38,7 +38,7 @@ ok(view.includes('aria-label="Luk"'), 'luk bliver')
 ok(view.includes('onClick={() => setLightboxUrl(null)}'), 'lukningen bliver')
 ok(view.includes('data-testid="mail-lightbox-close-button"'), 'luk-knappen bliver')
 ok(view.includes('data-testid="mail-lightbox-download-icon"'), 'download-ikonet bliver')
-ok(view.includes('text-sm text-white/80 break-all min-w-0 flex-1">{lightboxName}'), 'navnet bliver')
+ok(view.includes('text-sm text-white/80 break-all min-w-0 flex-1 break-words min-w-0" data-testid="mail-lightbox-name">{lightboxName}'), 'navnet bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 
 if (bad > 0) {

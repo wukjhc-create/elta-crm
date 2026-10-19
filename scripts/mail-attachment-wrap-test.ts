@@ -12,7 +12,7 @@ const src = fs.readFileSync('src/app/dashboard/mail/components/mail-detail.tsx',
 
 eq('galleri ombryder filnavn', src.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), true)
 eq('listen ombryder filnavn', src.includes('break-all min-w-0 flex-1 text-sm text-gray-700'), true)
-eq('lightbox ombryder filnavn', src.includes('break-all min-w-0 flex-1">{lightboxName}'), true)
+eq('lightbox ombryder filnavn', src.includes('break-all min-w-0 flex-1 break-words min-w-0" data-testid="mail-lightbox-name">{lightboxName}'), true)
 eq('download bliver', src.includes('href={att.url}') && src.includes('aria-label="Download"'), true)
 eq('luk har navn', src.includes('aria-label="Luk"') && src.includes('setLightboxUrl(null)'), true)
 eq('stoerrelse bliver', src.includes('formatFileSize(att.size)'), true)

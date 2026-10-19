@@ -803,7 +803,7 @@ export function MailDetail({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 break-words min-w-0" data-testid="mail-lightbox-shell">
           <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center break-words min-w-0" data-testid="mail-lightbox-panel">
             <div className="flex items-start justify-between w-full mb-2 px-1 gap-2 break-words min-w-0" data-testid="mail-lightbox-title-row">
-              <span className="text-sm text-white/80 break-all min-w-0 flex-1">{lightboxName}</span>
+              <span className="text-sm text-white/80 break-all min-w-0 flex-1 break-words min-w-0" data-testid="mail-lightbox-name">{lightboxName}</span>
               <div className="flex items-center gap-2 shrink-0">
                 <a href={lightboxUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 break-words min-w-0" data-testid="mail-lightbox-download-link" title="Download" aria-label="Download">
                   <Download className="w-4 h-4 text-white break-words min-w-0" data-testid="mail-lightbox-download-icon" />
