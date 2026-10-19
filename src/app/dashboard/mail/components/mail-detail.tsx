@@ -93,7 +93,7 @@ function statusBadge(status: EmailLinkStatus) {
   const Icon = c.icon
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${c.cls}`}>
-      <Icon className="w-3 h-3" /> {c.label}
+      <Icon className="w-3 h-3 break-words min-w-0" data-testid="mail-status-icon" /> {c.label}
     </span>
   )
 }
