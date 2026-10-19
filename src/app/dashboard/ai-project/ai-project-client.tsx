@@ -617,7 +617,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               </div>
             }
           >
-            <pre className="bg-gray-50 p-4 rounded-lg text-sm whitespace-pre-wrap font-mono overflow-x-auto">
+            <pre className="bg-gray-50 p-4 rounded-lg text-sm whitespace-pre-wrap font-mono overflow-x-auto break-words min-w-0" data-testid="ai-project-offer-pre">
               {result.offer_text.full_offer_text}
             </pre>
           </CollapsibleSection>
