@@ -187,7 +187,7 @@ export default function ProductsClient({
             updateFilters({ category_id: value })
           }}
         >
-          <SelectTrigger className="w-full sm:w-[200px]" aria-label="Kategori">
+          <SelectTrigger className="w-full sm:w-[200px] break-words min-w-0" aria-label="Kategori">
             <SelectValue placeholder="Alle kategorier" className="break-words min-w-0" />
           </SelectTrigger>
           <SelectContent>
