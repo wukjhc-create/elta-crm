@@ -1204,6 +1204,53 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 fyrretyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `a18ed7fe`. Det lader niogtredivte-hegnet stå. `a18ed7fe` hedder `docs: checkpoint efter c2edaf4a`. Produktspids: `61fad971`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `61fad971` blev afvist før git kørte og er ikke prøvet igen. `c4fb2790` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `a18ed7fe..61fad971`
+
+```
+61fad971 feat(pilot): historikkens indlaesning kan krympe
+c4fb2790 feat(pilot): kundevaelgerens bund kan krympe
+```
+
+Listen er alle commits efter `a18ed7fe` til og med `61fad971`, fra `c4fb2790`. Docs-committen med denne sektion kommer bagefter og står ikke i listen. `c4fb2790` står i listen, fordi den selv er en commit efter `a18ed7fe`.
+
+### Forrige docs-commit
+
+```
+a18ed7fe docs: checkpoint efter c2edaf4a
+```
+
+### Features
+
+G18-456 og G18-457 ombryder kundevælgerens bund og historikkens indlæsning. `Annuller`, `setShowCustomerModal(false)`, den tomme sætning `Ingen tidligere analyser endnu. Kør en analyse ovenfor, så den kan ses her.`, `formatCurrency(analysis.total_price)` og beskrivelsens to linjer er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før src-committen. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter pilotbølgen fra `cb4f0a8f` til `61fad971`, herunder G18-456 og G18-457. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `61fad971`, `c4fb2790`, `a18ed7fe` og `f73938c0`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-458, G18-459, G18-460, G18-461, G18-462, G18-463, G18-464.
+
 ## Checkpoint 2026-10-18 niogtredivte (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `c2edaf4a`. Det lader otteogtredivte-hegnet stå. `c2edaf4a` hedder `feat(pilot): soegeresultatets ladestander kan krympe`. Produktspids: `f73938c0`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `f73938c0` blev afvist før git kørte og er ikke prøvet igen. `b4a3b85a` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
