@@ -12,7 +12,7 @@ const src = fs.readFileSync('src/app/dashboard/pricing/pricing-client.tsx', 'utf
 const start = src.indexOf('data-testid="price-alerts-mobile"')
 const mobile = src.slice(start, src.indexOf('hidden md:block', start))
 eq('mobilkort findes', start > 0, true)
-eq('navn ombrydes', mobile.includes('break-words">{alert.product_name}'), true)
+eq('navn ombrydes', mobile.includes('break-words min-w-0" data-testid="pricing-alert-product-mobile">{alert.product_name}'), true)
 eq('gammel pris bliver', mobile.includes('formatCurrency(alert.old_price)'), true)
 eq('ny pris bliver', mobile.includes('formatCurrency(alert.new_price)'), true)
 eq('aendring bliver', mobile.includes('alert.change_percentage.toFixed(1)'), true)
