@@ -45,6 +45,9 @@ export async function getOfferParties(
   try {
     const { supabase } = await getAuthenticatedClient()
     validateUUID(offerId, 'tilbud ID')
+    // API-2: før kun login — nu offers.view + tilbuds-scope
+    { const { permissionDenied } = await import('@/lib/actions/action-helpers'); const d = await permissionDenied('offers.view'); if (d) return { success: false, error: d } }
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     const { data: offer, error: offerErr } = await supabase
       .from('offers')
@@ -170,6 +173,9 @@ export async function getOfferRecipientCandidates(
   try {
     const { supabase } = await getAuthenticatedClient()
     validateUUID(offerId, 'tilbud ID')
+    // API-2: før kun login — nu offers.view + tilbuds-scope
+    { const { permissionDenied } = await import('@/lib/actions/action-helpers'); const d = await permissionDenied('offers.view'); if (d) return { success: false, error: d } }
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     const { data: offer, error: offerErr } = await supabase
       .from('offers')
@@ -378,6 +384,7 @@ export async function updateOfferParties(
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
     }
     validateUUID(offerId, 'tilbud ID')
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     if (!OFFER_BILLING_MODES.includes(input.billing_mode)) {
       return { success: false, error: 'Ugyldig billing_mode' }

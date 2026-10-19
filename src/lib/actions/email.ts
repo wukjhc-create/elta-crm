@@ -695,6 +695,7 @@ export async function sendOfferEmail(
 ): Promise<SendOfferEmailResult> {
   try {
     const { supabase, userId, hasPermission } = await requireGate('offers.send')
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(input.offer_id); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // Resolve sender name: explicit > profile > fallback
     let senderName = input.sender_name

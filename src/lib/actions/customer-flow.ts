@@ -36,6 +36,7 @@ export async function getCustomerFlow(
   // Kunde-review 2026-10-09 (#1): gate (før ingen) + kundens egen adresse fra databasen (klientens ignoreres); egne/
   // pladsholder-/formular-adresser matches ikke på leads/mails
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
   if (!hasPermission('customers.view') || !/^[0-9a-f-]{36}$/i.test(customerId)) return { steps: [] }
 
   try {
@@ -68,7 +69,7 @@ export async function getCustomerFlow(
         .order('created_at', { ascending: false }),
       supabase
         .from('offers')
-        .select('id, offer_number, status, sent_at, last_reminder_sent, reminder_count, created_at')
+        .select('id, offer_number, status, sent_at, last_reminder_sent, reminder_count, created_at').or(__offerOr)
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false })
         .limit(10),

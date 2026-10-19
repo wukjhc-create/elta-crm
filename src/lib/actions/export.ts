@@ -215,11 +215,12 @@ export async function exportOffers(filters?: {
     const denied = await permissionDenied('offers.view')
     if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
+    const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
 
     const build = () => {
     let query = supabase
       .from('offers')
-      .select('offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, tax_amount, final_amount, valid_until, notes, created_at')
+      .select('offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, tax_amount, final_amount, valid_until, notes, created_at').or(__offerOr)
       .eq('is_proposal', false) // RX-9: AI-forslag er ikke tilbud
       .order('created_at', { ascending: false })
       .order('id')

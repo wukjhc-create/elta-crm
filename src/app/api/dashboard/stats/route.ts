@@ -73,6 +73,7 @@ interface DashboardStats {
 export async function GET() {
   try {
     const supabase = await createClient()
+    const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -123,7 +124,7 @@ export async function GET() {
       safe(supabase.from('service_cases').select('id', { count: 'exact', head: true })
         .not('status', 'in', '("closed","converted")')
         .eq('is_proposal', false)),
-      safe(supabase.from('offers').select('id', { count: 'exact', head: true })
+      safe(supabase.from('offers').select('id', { count: 'exact', head: true }).or(__offerOr)
         .eq('status', 'draft')
         .eq('is_proposal', false)),
       safe(supabase.from('invoices').select('id', { count: 'exact', head: true })

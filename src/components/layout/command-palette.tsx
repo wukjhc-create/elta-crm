@@ -134,13 +134,8 @@ export function CommandPalette() {
           .or(orIlikeContains(['company_name', 'contact_person', 'email', 'phone'], q))
           .limit(5)
           .then(({ data }) => data || []),
-        !may('offers.view') ? Promise.resolve([]) : supabase
-          .from('offers')
-          // kolonnen hedder final_amount ("total" fandtes ikke → tilbudssøgningen fejlede altid og viste intet)
-          .select('id, offer_number, title, status, total:final_amount')
-          .or(orIlikeContains(['title', 'offer_number'], q))
-          .limit(5)
-          .then(({ data }) => data || []),
+        // API-2: serverside med salgs-scope (salg ser kun egne tilbud)
+        !may('offers.view') ? Promise.resolve([]) : import('@/lib/actions/offers').then(({ searchOffersForPalette }) => searchOffersForPalette(q)),
         !may('projects.view') ? Promise.resolve([]) : supabase
           .from('projects')
           .select('id, project_number, name, status')

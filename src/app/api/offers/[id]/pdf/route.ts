@@ -32,9 +32,18 @@ export async function GET(
 
     // Adgang: kræver offers.view (før: kun login — offers-RLS er åben, så fx
     // montør kunne hente tilbuds-PDF'er). 404 så eksistens ikke afsløres.
-    const { hasPermission } = await getAuthenticatedClientWithRole()
+    const authCtx = await getAuthenticatedClientWithRole()
+    const { hasPermission } = authCtx
     if (!hasPermission('offers.view')) {
       return NextResponse.json({ error: 'Tilbud ikke fundet' }, { status: 404 })
+    }
+    // API-2 (Henrik 2026-10-19): salg kun egne tilbud (oprettet / på egne sager)
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: 'Tilbud ikke fundet' }, { status: 404 })
+    {
+      const { getOfferScope, offerInScope } = await import('@/lib/offers/offer-scope')
+      if (!(await offerInScope(authCtx.supabase, id, await getOfferScope(authCtx)))) {
+        return NextResponse.json({ error: 'Tilbud ikke fundet' }, { status: 404 })
+      }
     }
 
     // Get offer with relations
@@ -87,6 +96,8 @@ export async function GET(
       const { data: sig } = await createAdminClient().from('offer_signatures')
         .select('signer_name, signer_email, signer_ip, signed_at, signature_data').eq('offer_id', id).maybeSingle()
       signature = sig as { signer_name: string; signer_email: string; signer_ip: string | null; signed_at: string | null; signature_data: string | null } | null
+      // API-2: IP kun med revisionsadgang (settings.view) — ikke i almindelig salgs PDF
+      if (signature && !hasPermission('settings.view')) signature = { ...signature, signer_ip: null }
     }
 
     // IV2-3: produktbilleder hentes sikkert og indlejres før rendering (renderen henter aldrig selv en URL)

@@ -69,6 +69,7 @@ function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] 
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   const roleCtx = await getAuthenticatedClientWithRole()
+  const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
   const { supabase, userId } = roleCtx
   const canOffers = roleCtx.hasPermission('offers.view')
   // En fejlende forespørgsel giver tomme tal frem for at vælte dashboardet — men markeres (B-10), så siden kan sige det
@@ -106,13 +107,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     headCount(supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', monthStartIso)),
     // PM2-4 (Henrik 2026-10-19): tilbudstal og -værdier kun med offers.view
     canOffers
-      ? Promise.all(OFFER_STATUSES_ALL.map((st) => headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).eq('is_proposal', false).eq('status', st))))
+      ? Promise.all(OFFER_STATUSES_ALL.map((st) => headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).or(__offerOr).eq('is_proposal', false).eq('status', st))))
       : Promise.resolve(OFFER_STATUSES_ALL.map(() => 0)),
-    canOffers ? headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).eq('is_proposal', false)) : Promise.resolve(0),
+    canOffers ? headCount(supabase.from('offers').select('id', { count: 'exact', head: true }).or(__offerOr).eq('is_proposal', false)) : Promise.resolve(0),
     // Rækker hentes side for side — PostgREST giver højst 1.000 pr. kald (N36-rest: tallene stod stille ved 1.000)
     // Rapport-review 2026-10-09 (#2): værdi ekskl. moms efter rabat (final − tax) — total_amount er subtotal før rabat
     canOffers
-      ? allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).in('status', ['sent', 'viewed', 'accepted']).order('id').range(f, t))
+      ? allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').or(__offerOr).eq('is_proposal', false).in('status', ['sent', 'viewed', 'accepted']).order('id').range(f, t))
       : Promise.resolve([] as Array<{ status: string; final_amount: number | null; tax_amount: number | null }>),
     // N36: sager (ikke gamle projekter)
     // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
@@ -237,6 +238,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_ACTIVITY): Promise<RecentActivity[]> {
   const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
+  const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
   // PM3-5 (rettigheds-audit 2026-10-19): sager kun inden for brugerens sags-scope (salg så før firmaets nyeste sager)
   let ownCaseIds: string[] | null = null
   if (!hasPermission('cases.view.all')) {
@@ -263,7 +265,7 @@ export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_
         .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
       !hasPermission('offers.view') ? none : supabase
         .from('offers')
-        .select('id, offer_number, title, status, created_at')
+        .select('id, offer_number, title, status, created_at').or(__offerOr)
         .eq('is_proposal', false)
         .order('created_at', { ascending: false })
         .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
@@ -403,6 +405,7 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
   }[]
 > {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
   if (!hasPermission('offers.view')) return [] // PM2-4: tilbudsdata kun med offers.view
 
   const { data } = await supabase
@@ -418,7 +421,7 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
       created_at,
       customer:customers!offers_customer_id_fkey(company_name)
     `
-    )
+    ).or(__offerOr)
     .in('status', ['sent', 'viewed'])
     .eq('is_proposal', false)
     .order('created_at', { ascending: false })
@@ -450,6 +453,7 @@ export async function getMonthlyOfferStats(): Promise<{
   rejectedCount: number
 }> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
   // PM2-4: tilbudsdata kun med offers.view
   if (!hasPermission('offers.view')) return { sentValue: 0, acceptedValue: 0, sentCount: 0, acceptedCount: 0, rejectedCount: 0 }
 
@@ -462,7 +466,7 @@ export async function getMonthlyOfferStats(): Promise<{
   type Row = { status: string; final_amount: number | null; tax_amount: number | null }
   const byDate = (col: 'sent_at' | 'accepted_at' | 'rejected_at') => allRows<Row>((f, t) => supabase
     .from('offers')
-    .select('id, status, final_amount, tax_amount')
+    .select('id, status, final_amount, tax_amount').or(__offerOr)
     .eq('is_proposal', false)
     .gte(col, firstDayOfMonth)
     .order('id')

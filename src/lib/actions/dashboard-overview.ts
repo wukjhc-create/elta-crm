@@ -175,9 +175,14 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
   // Én auth-/rolleopslag for hele cockpittet (før: ét pr. sektion → 6 ekstra Auth-kald + profilopslag pr. visning)
   let roleCtx: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>
   let supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']
+  let __offerOr = 'id.not.is.null' // API-2: salg kun egne tilbud (sættes efter login)
   try {
     roleCtx = await getAuthenticatedClientWithRole()
     supabase = roleCtx.supabase
+    if (roleCtx.hasPermission('offers.view')) {
+      const { getOfferScope, offerScopeOr } = await import('@/lib/offers/offer-scope')
+      __offerOr = offerScopeOr(await getOfferScope(roleCtx)) ?? 'id.not.is.null'
+    }
   } catch (err) {
     logger.error('getDashboardOverview: not authenticated', { error: err })
     overview.errors.mails = 'auth'
@@ -369,7 +374,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const [countRes, listRes] = await Promise.all([
           supabase
             .from('offers')
-            .select('id', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true }).or(__offerOr)
             .in('status', [...OFFER_FOLLOWUP_STATUSES])
             .eq('is_proposal', false)
             // DB-3 (dashboard-review 2026-10-18): alder regnes fra AFSENDELSEN (sent_at) — en kladde oprettet for 20 dage
@@ -380,7 +385,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             .select(`
               id, offer_number, title, status, created_at,
               customer:customers!offers_customer_id_fkey(company_name)
-            `)
+            `).or(__offerOr)
             .in('status', [...OFFER_FOLLOWUP_STATUSES])
             .eq('is_proposal', false)
             .or(followupAge)
@@ -390,7 +395,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         overview.offers.followupCount = countRes.count || 0
         // N52: kladder der aldrig blev sendt (> 14 dage)
         const staleCutoff = new Date(now - 14 * 86_400_000).toISOString()
-        const { count: staleCount } = await supabase.from('offers').select('id', { count: 'exact', head: true })
+        const { count: staleCount } = await supabase.from('offers').select('id', { count: 'exact', head: true }).or(__offerOr)
           .eq('status', 'draft').eq('is_proposal', false).lt('created_at', staleCutoff)
         overview.offers.staleDraftCount = staleCount || 0
         const rows = (listRes.data || []) as Array<{
@@ -649,7 +654,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         if (!list.length) return
         const ids = list.map((c) => c.id)
         const [offRes, caseRes] = await Promise.all([
-          supabase.from('offers').select('customer_id').in('customer_id', ids),
+          supabase.from('offers').select('customer_id').or(__offerOr).in('customer_id', ids),
           supabase.from('service_cases').select('customer_id').in('customer_id', ids),
         ])
         const handled = new Set<string>([

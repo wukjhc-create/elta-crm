@@ -700,6 +700,7 @@ export async function getRejectionStats(): Promise<ActionResult<RejectionStats>>
     // Sprint Ø2.13: dashboard-KPI (afvisningsrate/tabt omsætning). PM3-3 (rettigheds-audit 2026-10-19): kun med
     // offers.view (dashboard) eller economy.view (rapportsiden) — før fik alle roller tilbudstallene
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
     if (!hasPermission('offers.view') && !hasPermission('economy.view')) {
       return { success: false, error: 'Manglende tilladelse: offers.view' }
     }
@@ -715,7 +716,7 @@ export async function getRejectionStats(): Promise<ActionResult<RejectionStats>>
     const [rejectedRows, acceptedCountResult] = await Promise.all([
       fetchAllRows<RejRow>((from, to) => supabase
         .from('offers')
-        .select('id, rejection_reason, rejected_at, final_amount, tax_amount, currency')
+        .select('id, rejection_reason, rejected_at, final_amount, tax_amount, currency').or(__offerOr)
         .eq('status', 'rejected')
         .eq('is_proposal', false)
         .gte('rejected_at', scopeStart.toISOString())
@@ -723,7 +724,7 @@ export async function getRejectionStats(): Promise<ActionResult<RejectionStats>>
         .range(from, to)),
       supabase
         .from('offers')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true }).or(__offerOr)
         .eq('status', 'accepted')
         .eq('is_proposal', false)
         .gte('accepted_at', scopeStart.toISOString()),
@@ -811,11 +812,12 @@ export async function getRecentRejections(
   try {
     // Sprint Ø2.13: dashboard-delt; PM2-4 (Henrik 2026-10-19): tilbudsdata kun med offers.view (bogholderi så før kunder/beløb)
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
     if (!hasPermission('offers.view')) return { success: true, data: [] }
 
     const { data: offers, error } = await supabase
       .from('offers')
-      .select('id, offer_number, title, customer_id, rejection_reason, rejected_at, final_amount, tax_amount, currency')
+      .select('id, offer_number, title, customer_id, rejection_reason, rejected_at, final_amount, tax_amount, currency').or(__offerOr)
       .eq('status', 'rejected')
       .eq('is_proposal', false)
       .not('rejected_at', 'is', null)

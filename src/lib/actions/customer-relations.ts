@@ -55,11 +55,12 @@ export interface CustomerSentQuote {
 export async function getCustomerOffers(customerId: string): Promise<CustomerOffer[]> {
   validateUUID(customerId, 'customerId')
   const supabase = await clientFor('offers.view')
+  const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
   if (!supabase) return []
 
   const { data, error } = await supabase
     .from('offers')
-    .select('id, offer_number, title, status, final_amount, created_at')
+    .select('id, offer_number, title, status, final_amount, created_at').or(__offerOr)
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false })
 

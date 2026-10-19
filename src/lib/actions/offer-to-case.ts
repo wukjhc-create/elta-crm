@@ -44,6 +44,7 @@ export async function getServiceCaseFromOffer(
   try {
     if (!offerId) return { success: false, error: 'offerId mangler' }
     const { supabase } = await getAuthenticatedClient()
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     const { data, error } = await supabase
       .from('service_cases')
@@ -116,6 +117,7 @@ export async function getOfferConversionPreview(
     if (!hasPermission('offers.view')) {
       return { success: false, error: 'Manglende tilladelse: offers.view' }
     }
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // Cost-free select — final_amount (salgssum) må vises; INGEN kost-kolonner.
     const { data: offer, error: offerErr } = await supabase
@@ -235,6 +237,7 @@ export async function createServiceCaseFromOffer(
     if (!hasPermission('cases.create')) {
       return { success: false, error: 'Manglende tilladelse: cases.create' }
     }
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     const core = await convertOfferToCase(supabase, offerId, userId)
     if (!core.success || !core.data) return { success: false, error: core.error ?? 'Kunne ikke oprette sag' }

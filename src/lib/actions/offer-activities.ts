@@ -19,6 +19,7 @@ export async function getOfferActivities(
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     // PM3-6 (rettigheds-audit 2026-10-19): kun med offers.view (montør/bogholderi kunne læse enhver tilbudshistorik)
     if (!hasPermission('offers.view')) return { success: false, error: 'Manglende tilladelse: offers.view' }
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     const { data, error } = await supabase
       .from('offer_activities')

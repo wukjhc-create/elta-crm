@@ -22,6 +22,9 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
       const scope = await getCaseScope({ supabase, userId, role })
       ownCaseIds = new Set(scope.type === 'specific' ? scope.caseIds : [])
     }
+    // API-2: salg kun egne tilbud
+    const { getOfferScope, offerScopeOr } = await import('@/lib/offers/offer-scope')
+    const offerScopeFilter = hasPermission('offers.view') ? (offerScopeOr(await getOfferScope({ supabase, userId, role })) ?? 'id.not.is.null') : 'id.not.is.null'
     const searchTerm = `%${sanitizeSearchTerm(query.trim().toLowerCase())}%`
     // Leads-review 2026-10-08 (#8): søgningen viste leads/tilbud/projekter uden modul-rettighed (kun RLS) — tom uden
     const none = Promise.resolve({ data: null, count: 0 })
@@ -44,6 +47,7 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
         .from('offers')
         .select('id, offer_number, title, status', { count: 'exact' })
         .or(`offer_number.ilike.${pgQuote(searchTerm)},title.ilike.${pgQuote(searchTerm)}`)
+        .or(offerScopeFilter)
         .limit(5),
       // PM2-12: det gamle projektmodul er ikke montør-afgrænset (getProject) — kun for kontoret
       !(hasPermission('projects.view') && canAllCases) ? none : supabase

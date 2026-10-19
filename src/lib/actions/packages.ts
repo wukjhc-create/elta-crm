@@ -645,6 +645,7 @@ export async function insertPackageIntoOffer(
     const { supabase } = await requireGate('offers.edit')
     validateUUID(packageId, 'pakke ID')
     validateUUID(offerId, 'tilbud ID')
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // 00192: DB-funktionen læser kostkolonner (invoker) → kaldes med admin-klienten. Først tjekkes at brugeren må se
     // tilbuddet via sin egen klient (RLS), så scope bevares.

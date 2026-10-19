@@ -29,6 +29,8 @@ export const PERMISSIONS = {
 
   // Offer permissions
   'offers.view': ['admin', 'serviceleder', 'salg'],
+  // API-2 (Henrik 2026-10-19): alle tilbud — uden den kun egne (oprettet af brugeren / på en sag i brugerens sags-scope)
+  'offers.view.all': ['admin', 'serviceleder'],
   'offers.create': ['admin', 'serviceleder', 'salg'],
   'offers.edit': ['admin', 'serviceleder', 'salg'],
   'offers.send': ['admin', 'serviceleder', 'salg'],

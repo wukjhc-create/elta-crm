@@ -22,9 +22,15 @@ export interface OfferSignatureEvidence {
 
 export async function getOfferSignatureAction(offerId: string): Promise<ActionResult<OfferSignatureEvidence | null>> {
   try {
-    const { hasPermission } = await getAuthenticatedClientWithRole()
+    const ctx = await getAuthenticatedClientWithRole()
+    const { hasPermission } = ctx
     if (!hasPermission('offers.view')) return { success: false, error: 'Manglende tilladelse: offers.view' }
     validateUUID(offerId, 'tilbud ID')
+    // API-2 (Henrik 2026-10-19): kun tilbud i brugerens scope (salg: egne)
+    {
+      const { getOfferScope, offerInScope } = await import('@/lib/offers/offer-scope')
+      if (!(await offerInScope(ctx.supabase, offerId, await getOfferScope(ctx)))) return { success: false, error: 'Tilbud ikke fundet' }
+    }
     const { data, error } = await createAdminClient()
       .from('offer_signatures')
       .select('signer_name, signer_email, signer_ip, signed_at, signature_data')
@@ -34,6 +40,8 @@ export async function getOfferSignatureAction(offerId: string): Promise<ActionRe
     const row = data as OfferSignatureEvidence | null
     // kun et billede-data-URL vises (aldrig vilkårlig tekst som src)
     if (row && row.signature_data && !/^data:image\/png;base64,/.test(row.signature_data)) row.signature_data = null
+    // API-2: IP-adressen kun for revisionsadgang (settings.view = audit-loggens ret) — ikke almindelig salg
+    if (row && !hasPermission('settings.view')) row.signer_ip = null
     return { success: true, data: row }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente underskriften') }

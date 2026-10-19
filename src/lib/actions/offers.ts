@@ -52,6 +52,21 @@ import { rankBy, searchWords } from '@/lib/products/search-rank'
 // Get all offers with optional filtering and pagination
 const OFFER_SORT_COLUMNS = new Set(['title', 'offer_number', 'status', 'final_amount', 'valid_until', 'created_at', 'updated_at'])
 
+/**
+ * API-2 (Henrik 2026-10-19): salg kun egne tilbud (oprettet af dem eller på en sag i deres sags-scope); admin/serviceleder
+ * (offers.view.all) alle. null = adgang; ellers fejltekst ("ikke fundet" — afslører ikke at tilbuddet findes).
+ */
+async function offerScopeDenied(offerId: string): Promise<string | null> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    const { getOfferScope, offerInScope } = await import('@/lib/offers/offer-scope')
+    const scope = await getOfferScope(ctx)
+    return (await offerInScope(ctx.supabase, offerId, scope)) ? null : 'Tilbud ikke fundet'
+  } catch {
+    return 'Ikke logget ind'
+  }
+}
+
 export async function getOffers(filters?: {
   search?: string
   status?: OfferStatus
@@ -130,6 +145,17 @@ export async function getOffers(filters?: {
     if (filters?.customer_id) {
       countQuery = countQuery.eq('customer_id', filters.customer_id)
       dataQuery = dataQuery.eq('customer_id', filters.customer_id)
+    }
+
+    // API-2: salg kun egne tilbud (oprettet / på egne sager); admin/serviceleder alle
+    {
+      const ctx = await getAuthenticatedClientWithRole()
+      const { getOfferScope, offerScopeOr } = await import('@/lib/offers/offer-scope')
+      const scopeOr = offerScopeOr(await getOfferScope(ctx))
+      if (scopeOr) {
+        countQuery = countQuery.or(scopeOr)
+        dataQuery = dataQuery.or(scopeOr)
+      }
     }
 
     if (filters?.mine) {
@@ -217,6 +243,26 @@ async function withLineCost(li: OfferLineItem, hasPermission: (p: Permission) =>
 }
 
 // Get single offer by ID with all relations
+/** API-2: Ctrl+K-søgning i tilbud — serverside med rettighed + salgs-scope (før direkte fra browseren uden scope) */
+export async function searchOffersForPalette(query: string): Promise<Array<{ id: string; offer_number: string | null; title: string; status: string; total: number | null }>> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('offers.view')) return []
+    const q = sanitizeSearchTerm(String(query ?? '').trim()).slice(0, 100)
+    if (!q) return []
+    const { getOfferScope, offerScopeOr } = await import('@/lib/offers/offer-scope')
+    const scopeOr = offerScopeOr(await getOfferScope(ctx))
+    let qb = ctx.supabase.from('offers').select('id, offer_number, title, status, total:final_amount')
+      .eq('is_proposal', false)
+      .or(`title.ilike.${pgQuote(`%${q}%`)},offer_number.ilike.${pgQuote(`%${q}%`)}`)
+    if (scopeOr) qb = qb.or(scopeOr)
+    const { data } = await qb.limit(5)
+    return (data ?? []) as Array<{ id: string; offer_number: string | null; title: string; status: string; total: number | null }>
+  } catch {
+    return []
+  }
+}
+
 export async function getOffer(id: string): Promise<ActionResult<OfferWithRelations>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -224,6 +270,7 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
       return { success: false, error: 'Manglende tilladelse: offers.view' }
     }
     validateUUID(id, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(id); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // 00192: kun offentlige linjekolonner (salg når getOffer); kost flettes ind nedenfor bag offers.view.cost_prices
     const { data: raw, error } = await supabase
@@ -523,6 +570,7 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       return { success: false, error: 'Tilbud ID mangler' }
     }
     validateUUID(id, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(id); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
     { const lock = await offerEditLockReason(supabase, id); if (lock) return { success: false, error: lock } }
@@ -679,6 +727,7 @@ export async function updateOfferField(
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
     }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     if (!ALLOWED_TEXT_FIELDS.includes(field)) {
       return { success: false, error: 'Ugyldigt felt' }
@@ -714,6 +763,7 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
       return { success: false, error: 'Manglende tilladelse: offers.delete' }
     }
     validateUUID(id, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(id); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // Get offer before deleting for audit log
     const { data: offer } = await supabase
@@ -778,6 +828,7 @@ export async function updateOfferStatus(
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
     }
     validateUUID(id, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(id); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // Fetch current status for transition validation
     const { data: current, error: fetchError } = await supabase
@@ -984,6 +1035,7 @@ export async function getOfferLineItems(
       return { success: false, error: 'Manglende tilladelse: offers.view' }
     }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // 00192: kun offentlige linjekolonner; kost flettes ind bag offers.view.cost_prices (før fik salg kosten her)
     const { data, error } = await supabase
@@ -1019,6 +1071,7 @@ export async function createLineItem(
       return { success: false, error: 'Tilbud ID er påkrævet' }
     }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
     { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }
@@ -1108,7 +1161,7 @@ export async function updateLineItem(
     validateUUID(id, 'linje ID')
 
     // Henrik 2026-10-07: kun kladder kan redigeres (linjens EGET tilbud, ikke klientens offer_id)
-    { const lineOffer = await offerIdForLine(supabase, id); const lock = lineOffer ? await offerEditLockReason(supabase, lineOffer) : 'Linjen blev ikke fundet'; if (lock) return { success: false, error: lock } }
+    { const lineOffer = await offerIdForLine(supabase, id); const lock = lineOffer ? await offerEditLockReason(supabase, lineOffer) : 'Linjen blev ikke fundet'; if (lock) return { success: false, error: lock }; const scopeDenied = await offerScopeDenied(lineOffer as string); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     if (offerId) {
       validateUUID(offerId, 'tilbud ID')
@@ -1198,7 +1251,7 @@ export async function deleteLineItem(
     validateUUID(offerId, 'tilbud ID')
 
     // Henrik 2026-10-07: kun kladder kan redigeres (linjens EGET tilbud)
-    { const lineOffer = await offerIdForLine(supabase, id); const lock = lineOffer ? await offerEditLockReason(supabase, lineOffer) : 'Linjen blev ikke fundet'; if (lock) return { success: false, error: lock } }
+    { const lineOffer = await offerIdForLine(supabase, id); const lock = lineOffer ? await offerEditLockReason(supabase, lineOffer) : 'Linjen blev ikke fundet'; if (lock) return { success: false, error: lock }; const scopeDenied = await offerScopeDenied(lineOffer as string); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     const { error } = await supabase
       .from('offer_line_items')
@@ -1290,6 +1343,7 @@ export async function addProductToOffer(
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
     }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
     validateUUID(productId, 'produkt ID')
 
     // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
@@ -1449,6 +1503,7 @@ export async function importCalculationToOffer(
       return { success: false, error: 'Manglende tilladelse: tools.calculations' }
     }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
     validateUUID(calculationId, 'kalkulation ID')
 
     // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
@@ -1560,6 +1615,7 @@ export async function createLineItemFromSupplierProduct(
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
     }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
     validateUUID(supplierProductId, 'leverandør produkt ID')
     // CA-11 (kalkule-review 2026-10-17): samme grænser som createLineItemSchema — negativt antal/rabat over 100 % gav en
     // negativ linje, der trak tilbuddet ned
@@ -2258,6 +2314,7 @@ export async function getOfferSupplierPriceChanges(offerId: string): Promise<Act
     const { hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
     // 00192: kostkolonner — admin-klient bag offers.view.cost_prices
     const admin = createAdminClient()
     const { data: lines, error } = await admin.from('offer_line_items')
@@ -2297,7 +2354,7 @@ export async function refreshLineItemPrice(
     validateUUID(lineItemId, 'linje ID')
 
     // Henrik 2026-10-07: kun kladder kan redigeres
-    { const lineOffer = await offerIdForLine(supabase, lineItemId); const lock = lineOffer ? await offerEditLockReason(supabase, lineOffer) : 'Linjen blev ikke fundet'; if (lock) return { success: false, error: lock } }
+    { const lineOffer = await offerIdForLine(supabase, lineItemId); const lock = lineOffer ? await offerEditLockReason(supabase, lineOffer) : 'Linjen blev ikke fundet'; if (lock) return { success: false, error: lock }; const scopeDenied = await offerScopeDenied(lineOffer as string); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // Get line item with supplier product link (00192: supplier_margin_applied hentes separat via admin-klient)
     const { data: lineItem, error: liError } = await supabase
@@ -2437,6 +2494,7 @@ export async function optimizeOfferPrices(
       return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
     }
     validateUUID(offerId, 'tilbuds ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
     { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }
@@ -2691,6 +2749,9 @@ export async function getOfferConversionSummaryAction(): Promise<OfferConversion
   if (!hasPermission('offers.view')) {
     return { ...empty, message: 'Manglende tilladelse: offers.view' }
   }
+  // API-2: tallene i salgs eget scope
+  const { getOfferScope, offerScopeOr } = await import('@/lib/offers/offer-scope')
+  const scopeOr = offerScopeOr(await getOfferScope(await getAuthenticatedClientWithRole())) ?? 'id.not.is.null'
 
   // ready_count — head count, ingen rækker hentet (O(1), ingen N+1).
   let readyCount = 0
@@ -2698,6 +2759,7 @@ export async function getOfferConversionSummaryAction(): Promise<OfferConversion
     const { count } = await supabase
       .from('offers')
       .select('id', { count: 'exact', head: true })
+      .or(scopeOr)
       .eq('is_proposal', false)
       .is('converted_case_id', null)
       .in('status', CONVERSION_READY_STATUSES)
@@ -2713,6 +2775,7 @@ export async function getOfferConversionSummaryAction(): Promise<OfferConversion
     const { count } = await supabase
       .from('offers')
       .select('id', { count: 'exact', head: true })
+      .or(scopeOr)
       .eq('is_proposal', false)
       .not('converted_case_id', 'is', null)
       .gte('converted_at', since)
@@ -2727,6 +2790,7 @@ export async function getOfferConversionSummaryAction(): Promise<OfferConversion
     const { data } = await supabase
       .from('offers')
       .select('id, offer_number, final_amount, tax_amount, created_at, customer:customers!offers_customer_id_fkey(company_name, contact_person)')
+      .or(scopeOr)
       .eq('is_proposal', false)
       .is('converted_case_id', null)
       .in('status', CONVERSION_READY_STATUSES)
@@ -2780,6 +2844,7 @@ export async function duplicateOfferAction(offerId: string): Promise<ActionResul
       return { success: false, error: 'Manglende tilladelse: offers.create' }
     }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
     const { data: src, error: srcErr } = await supabase
       .from('offers')
@@ -2882,6 +2947,7 @@ export async function createOfferRevisionAction(offerId: string): Promise<Action
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
     }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
     const { createOfferRevision } = await import('@/lib/offers/revisions')
     const res = await createOfferRevision(offerId, userId)
     if (!res.ok) return { success: false, error: res.error }
@@ -2900,6 +2966,7 @@ export async function getOfferRevisionHistoryAction(offerId: string): Promise<Ac
     const { hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('offers.view')) return { success: false, error: 'Manglende tilladelse: offers.view' }
     validateUUID(offerId, 'tilbud ID')
+    { const scopeDenied = await offerScopeDenied(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
     const { getRevisionHistory } = await import('@/lib/offers/revisions')
     return { success: true, data: await getRevisionHistory(offerId) }
   } catch (err) {

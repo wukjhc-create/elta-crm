@@ -100,6 +100,7 @@ export async function applyPackageToDraftOfferAction(input: {
 }): Promise<ActionOutcome<ApplyPackageWithOptionsResult>> {
   try {
     const { supabase } = await requireGate('offers.edit')
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(input.offerId); if (scopeDenied) return { ok: false, message: scopeDenied } } // API-2
     // Kalkule-review 2026-10-08 (#3): kun kladder (servicen skriver med admin-klienten — ingen DB-spærre)
     const lock = await offerEditLockReason(supabase, input.offerId)
     if (lock) return { ok: false, message: lock }
