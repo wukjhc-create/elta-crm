@@ -1147,6 +1147,58 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 enogtredivte (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `59c8fed8`. Det lader tredivte-hegnet stå. `59c8fed8` hedder `docs: checkpoint efter 94bbeb6a`. Produktspids: `bfc023d4`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `bfc023d4` blev afvist før git kørte og er ikke prøvet igen. `d60a20c2` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `59c8fed8..bfc023d4`
+
+```
+bfc023d4 feat(pilot): overskriften naeste skridt ombrydes
+d60a20c2 feat(pilot): betingelsesmaerket paa tilbudstekstkortet ombrydes
+d3abcc74 feat(pilot): inaktiv-maerket paa tilbudstekstkortet ombrydes
+b400d7c1 feat(pilot): datoen under en analyse ombrydes
+48341851 feat(pilot): slette-teksten paa opgavekortet ombrydes
+8a7cc350 feat(pris): statusmaerke paa leverandorvarens skrivebord kan krympe
+e8f1c3f5 feat(pris): statusmaerke paa leverandorvarens mobilkort ombrydes
+```
+
+Listen er alle commits efter `59c8fed8` til og med `bfc023d4`, fra `e8f1c3f5`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commit der ikke stod i et hegn
+
+```
+59c8fed8 docs: checkpoint efter 94bbeb6a
+```
+
+### Features
+
+G18-394 til G18-400 ombryder statusmærket på leverandørvarens mobilkort og skrivebord, slette-teksten på opgavekortet, datoen under en analyse, Inaktiv-mærket, betingelsesmærket og overskriften Næste skridt. Teksterne i de linjer er uændrede. Priser, `storedCostText`, historikkens `line-clamp-2` og `break-words">{reminder.title}` er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter pilot- og prisbølgen fra `cb4f0a8f` til `bfc023d4`, herunder G18-394 til G18-400. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `bfc023d4`, `d60a20c2` og `59c8fed8`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-401, G18-402, G18-403, G18-404, G18-405, G18-406, G18-407.
+
 ## Checkpoint 2026-10-18 tredivte (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `94bbeb6a`. Det lader niogtyvende-hegnet stå. `94bbeb6a` hedder `docs: checkpoint efter b4d64ad0`. Produktspids: `88aa29f3`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `88aa29f3` blev afvist før git kørte og er ikke prøvet igen. `42e12949` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
