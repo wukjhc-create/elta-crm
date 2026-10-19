@@ -1018,12 +1018,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-279 | 4 Pris | DONE. Tilbudstitlen på berørte tilbud kan krympe. | Titlen er uændret. |
 | G18-280 | 4 Pris | DONE. Produktnavnet på prisadvarslens mobilkort kan krympe. | Navnet er uændret. |
 | G18-281 | 4 Pris | DONE. Leverandørnavnet på prisadvarslens mobilkort kan krympe. | Navnet er uændret. |
-| G18-282 | 4 Pris | ÅBEN. Kundenavnet på berørte tilbuds mobilkort kan krympe. | Navnet er uændret. |
+| G18-282 | 4 Pris | DONE. Kundenavnet på berørte tilbuds mobilkort kan krympe. | Navnet er uændret. |
 | G18-283 | 4 Pris | ÅBEN. Tilbudstitlen på berørte tilbuds mobilkort kan krympe. | Titlen er uændret. |
 | G18-284 | 4 Pris | ÅBEN. Produktnavnet på pristendensens mobilkort kan krympe. | Navnet er uændret. |
 | G18-285 | 4 Pris | ÅBEN. Statusfeltet på berørte tilbuds mobilkort ombrydes. | StatusBadge er uændret. |
 | G18-286 | 4 Pris | ÅBEN. Produktnavnet på prisadvarslens skrivebord kan krympe. | Navnet er uændret. |
 | G18-287 | 4 Pris | ÅBEN. Produktnavnet på pristendensens skrivebord kan krympe. | Navnet er uændret. |
+| G18-288 | 4 Pris | ÅBEN. Tærskel-vælgeren på prisovervågning ombrydes. | Værdierne er uændrede. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

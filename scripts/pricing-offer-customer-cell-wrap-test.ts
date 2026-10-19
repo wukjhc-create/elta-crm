@@ -19,7 +19,7 @@ const at = view.indexOf('data-testid="pricing-offer-customer-cell"')
 const row = at >= 0 ? view.slice(at - 80, at + 80) : ''
 ok(row.includes('break-words min-w-0'), 'cellen kan krympe')
 ok(row.includes('{offer.customer_name}'), 'navnet er uændret')
-ok(view.includes('text-xs text-gray-700 break-words">{offer.customer_name}'), 'mobilnavnet bliver')
+ok(view.includes('text-xs text-gray-700 break-words min-w-0" data-testid="pricing-offer-customer-mobile">{offer.customer_name}'), 'mobilnavnet bliver')
 ok(view.includes('formatCurrency(offer.total_amount)'), 'tilbudsbeløbet bliver')
 ok(view.split('{offer.customer_name}').length - 1 === 2, 'to navne')
 ok(!view.includes('truncate'), 'siden klipper ikke')
