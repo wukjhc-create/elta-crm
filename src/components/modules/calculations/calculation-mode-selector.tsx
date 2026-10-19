@@ -52,7 +52,7 @@ export default function CalculationModeSelector({
             )}
           >
             <Icon className={cn('w-6 h-6', isSelected ? 'text-blue-500' : 'text-gray-400')} />
-            <span className="font-medium text-sm">{CALCULATION_MODE_LABELS[mode]}</span>
+            <span className="font-medium text-sm break-words min-w-0 w-full text-center" data-testid="calculation-mode-label">{CALCULATION_MODE_LABELS[mode]}</span>
             <span className="text-xs text-gray-500 text-center break-words min-w-0" data-testid="calculation-mode-description">
               {MODE_DESCRIPTIONS[mode]}
             </span>
