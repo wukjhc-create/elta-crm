@@ -19,7 +19,7 @@ eq('90 dage bliver', mobile.includes('{trend.trend_90_days}%'), true)
 eq('tom tendens bliver', mobile.includes('trend.trend_30_days !== null') && mobile.includes('trend.trend_90_days !== null'), true)
 eq('volatilitet bliver', mobile.includes('volatilityLabels[trend.volatility]'), true)
 eq('antal bliver', mobile.includes('{trend.change_count_30_days}'), true)
-eq('desktop-navn bliver', src.includes('font-medium break-words max-w-[16rem]">{trend.product_name}'), true)
+eq('desktop-navn bliver', src.includes('font-medium break-words max-w-[16rem] min-w-0" data-testid="pricing-trend-product-name">{trend.product_name}'), true)
 eq('tom leverandoer bliver', src.includes('Vælg en leverandør for at se pristendenser'), true)
 eq('ingen truncate', src.includes('truncate'), false)
 
