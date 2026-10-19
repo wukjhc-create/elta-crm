@@ -531,7 +531,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             </div>
 
             {/* Components Table */}
-            <div className="mt-6">
+            <div className="mt-6 break-words min-w-0" data-testid="ai-project-components-section">
               <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-components-heading">Komponenter</h4>
               <ul className="md:hidden space-y-2" data-testid="ai-components-mobile">
                 {result.calculation.components.map((comp, i) => (
