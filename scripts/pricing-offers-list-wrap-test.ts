@@ -22,7 +22,7 @@ ok(row.includes('href={`/dashboard/offers/${offer.offer_id}`}'), 'linket er uæn
 ok(row.includes('{offer.offer_number}'), 'nummeret er uændret')
 ok(row.includes('{formatCurrency(offer.total_amount)}'), 'beløbet er uændret')
 ok(view.includes('text-right font-medium">{formatCurrency(offer.total_amount)}'), 'skrivebordets beløb bliver')
-ok(view.includes('<ul className="md:hidden space-y-2" data-testid="price-trends-mobile">'), 'trendliste er uændret')
+ok(view.includes('<ul className="md:hidden space-y-2 min-w-0" data-testid="price-trends-mobile">'), 'trendliste kan krympe')
 ok(view.split('{offer.offer_number}').length - 1 === 2, 'to numre')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 

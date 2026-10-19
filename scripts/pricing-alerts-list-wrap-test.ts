@@ -21,7 +21,7 @@ ok(row.includes('min-w-0'), 'listen kan krympe')
 ok(row.includes('{alert.product_name}'), 'navnet er uændret')
 ok(row.includes("{isIncrease ? '+' : ''}{alert.change_percentage.toFixed(1)}%"), 'procenten er uændret')
 ok(view.includes('<ul className="md:hidden space-y-2 min-w-0" data-testid="price-offers-mobile">'), 'tilbudslisten kan krympe')
-ok(view.includes('<ul className="md:hidden space-y-2" data-testid="price-trends-mobile">'), 'trendliste er uændret')
+ok(view.includes('<ul className="md:hidden space-y-2 min-w-0" data-testid="price-trends-mobile">'), 'trendliste kan krympe')
 ok(view.includes('formatCurrency(alert.old_price)'), 'gammel pris bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
