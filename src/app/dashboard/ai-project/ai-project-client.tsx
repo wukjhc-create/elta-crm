@@ -486,7 +486,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.subtotal)}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
-                    <dt className="text-gray-500">Margin ({result.calculation.price.margin_percentage}%)</dt>
+                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-margin-label">Margin ({result.calculation.price.margin_percentage}%)</dt>
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.margin_amount)}</dd>
                   </div>
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
