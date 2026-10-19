@@ -21,7 +21,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 120, at + 80) : ''
 ok(row.includes('break-words min-w-0'), 'kategorien ombrydes')
 ok(row.includes('>{product.category}'), 'teksten er uændret')
-ok(view.includes('<Badge variant="secondary" className="text-xs">'), 'skrivebordsmærket bliver')
+ok(view.includes('data-testid="supplier-product-desktop-category"'), 'skrivebordsmærket bliver')
 ok((view.match(/\{product\.category\}/g) ?? []).length === 2, 'to kategorier')
 ok((view.match(/storedCostText\(product\.cost_price\)/g) ?? []).length === 2, 'kostprisen bliver')
 ok((view.match(/storedCostText\(product\.list_price\)/g) ?? []).length === 2, 'listeprisen bliver')

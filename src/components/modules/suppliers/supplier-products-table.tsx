@@ -312,7 +312,7 @@ export function SupplierProductsTable({
                     </TableCell>
                     <TableCell>
                       {product.category && (
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-xs break-words min-w-0 max-w-full" data-testid="supplier-product-desktop-category">
                           {product.category}
                         </Badge>
                       )}
