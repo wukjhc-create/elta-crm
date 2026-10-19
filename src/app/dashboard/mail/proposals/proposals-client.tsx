@@ -193,7 +193,7 @@ export function ProposalsClient() {
                       <span className="px-2 py-0.5 rounded-full bg-gray-100">{c.priority}</span>
                       <span>{formatDate(c.created_at)}</span>
                     </div>
-                    <p className="font-medium text-gray-900 line-clamp-1">{c.title}</p>
+                    <p className="font-medium text-gray-900 break-words min-w-0" data-testid="proposal-case-title">{c.title}</p>
                     {c.customer_name && (
                       <p className="text-sm text-gray-600 mt-1">Kunde: {c.customer_name}</p>
                     )}
