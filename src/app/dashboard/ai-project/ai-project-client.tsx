@@ -535,7 +535,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-components-heading">Komponenter</h4>
               <ul className="md:hidden space-y-2 break-words min-w-0" data-testid="ai-components-mobile">
                 {result.calculation.components.map((comp, i) => (
-                  <li key={i} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm min-w-0">
+                  <li key={i} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm break-words min-w-0" data-testid="ai-project-component-card">
                     <p className="min-w-0 break-words font-medium text-gray-900">{comp.name}</p>
                     <p className="mt-1 tabular-nums font-medium text-gray-900 break-words">{formatCurrency(comp.total)}</p>
                     <p className="mt-1 text-xs tabular-nums text-gray-700 break-words">
