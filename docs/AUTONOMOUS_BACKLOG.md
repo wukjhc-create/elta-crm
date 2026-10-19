@@ -1293,13 +1293,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-554 | 8 Pilot | DONE. Total tid i tidsberegningen kan krympe. | Kun `<dd>{result.calculation.time.total_hours.toFixed(1)} timer</dd>`. Tallet er uændret. |
 | G18-555 | 8 Pilot | DONE. Kompleksitetsfaktoren i tidsberegningen kan krympe. | Kun `<dd>×{result.calculation.time.complexity_multiplier}</dd>`. Faktoren er uændret. |
 | G18-556 | 8 Pilot | DONE. Størrelsesfaktoren i tidsberegningen kan krympe. | Kun `<dd>×{result.calculation.time.size_multiplier}</dd>`. Faktoren er uændret. |
-| G18-557 | 8 Pilot | ÅBEN. Tilgængelighedsfaktoren i tidsberegningen kan krympe. | Kun `<dd>×{result.calculation.time.accessibility_multiplier}</dd>`. Faktoren er uændret. |
+| G18-557 | 8 Pilot | DONE. Tilgængelighedsfaktoren i tidsberegningen kan krympe. | Kun `<dd>×{result.calculation.time.accessibility_multiplier}</dd>`. Faktoren er uændret. |
 | G18-558 | 8 Pilot | ÅBEN. Historikkens pladsholderbjælker kan krympe. | Kun de to `<div className="h-10 bg-gray-200 rounded" />` i AI-projekt. |
 | G18-559 | 8 Pilot | ÅBEN. Ikonrækken ved sektionens fold kan krympe. | Kun den `<div className="flex items-center gap-2">` der omslutter ChevronUp og ChevronDown. De fire hurtig-estimat-rækker med samme klasse er uændrede. |
 | G18-560 | 8 Pilot | ÅBEN. Total-etiketten i prisopbygningen kan krympe. | Kun `<dt>Total</dt>` i AI-projekt. Beløbet er uændret. |
 | G18-561 | 8 Pilot | ÅBEN. Tidsberegningens liste kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Tidsberegning. De tre andre lister med samme klasse er uændrede. |
 | G18-562 | 8 Pilot | ÅBEN. Kundens e-mail i kundevælgeren kan krympe. | Kun `<div className="text-sm text-gray-500 break-words">{customer.email}</div>` i AI-projekt. E-mailen er uændret. |
 | G18-563 | 8 Pilot | ÅBEN. Kundens navn i kundevælgeren kan krympe. | Kun `<div className="font-medium break-words">{customer.name}</div>` i AI-projekt. Navnet er uændret. |
+| G18-564 | 8 Pilot | ÅBEN. Historikkens fejltekst kan krympe. | Kun `data-testid="ai-history-load-error"` i AI-projekt. Fejlteksten er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
