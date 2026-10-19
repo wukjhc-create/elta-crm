@@ -371,7 +371,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
           >
             {offer.offer_number}
           </a>
-          <p className="text-xs text-gray-600 break-words">{offer.offer_title}</p>
+          <p className="text-xs text-gray-600 break-words min-w-0" data-testid="pricing-offer-title-mobile">{offer.offer_title}</p>
           <p className="mt-1 text-xs text-gray-700 break-words min-w-0" data-testid="pricing-offer-customer-mobile">{offer.customer_name}</p>
           <div className="mt-1"><StatusBadge status={offer.status} /></div>
           <p className="mt-1 tabular-nums font-medium break-words">{formatCurrency(offer.total_amount)}</p>

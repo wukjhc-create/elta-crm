@@ -19,7 +19,7 @@ const at = view.indexOf('data-testid="pricing-offer-title"')
 const row = at >= 0 ? view.slice(at - 90, at + 80) : ''
 ok(row.includes('break-words max-w-[16rem] min-w-0'), 'titlen kan krympe')
 ok(row.includes('{offer.offer_title}'), 'titlen er uændret')
-ok(view.includes('text-xs text-gray-600 break-words">{offer.offer_title}'), 'mobil-titlen bliver')
+ok(view.includes('text-xs text-gray-600 break-words min-w-0" data-testid="pricing-offer-title-mobile">{offer.offer_title}'), 'mobil-titlen bliver')
 ok(view.includes('{offer.offer_number}'), 'nummeret bliver')
 ok(view.includes('formatCurrency(offer.total_amount)'), 'tilbudsbeløbet bliver')
 ok(view.split('{offer.offer_title}').length - 1 === 2, 'to titler')

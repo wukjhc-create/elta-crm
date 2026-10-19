@@ -12,7 +12,7 @@ const src = fs.readFileSync('src/app/dashboard/pricing/pricing-client.tsx', 'utf
 const start = src.indexOf('data-testid="price-offers-mobile"')
 const mobile = src.slice(start, src.indexOf('hidden md:block', start))
 eq('mobilkort findes', start > 0, true)
-eq('titel ombrydes', mobile.includes('break-words">{offer.offer_title}'), true)
+eq('titel ombrydes', mobile.includes('break-words min-w-0" data-testid="pricing-offer-title-mobile">{offer.offer_title}'), true)
 eq('beloeb bliver', mobile.includes('formatCurrency(offer.total_amount)'), true)
 eq('tab bliver', mobile.includes("offer.potential_loss > 0 ? '-' : '+'}") && mobile.includes('formatCurrency(Math.abs(offer.potential_loss))'), true)
 eq('linjer bliver', mobile.includes('{offer.affected_items}'), true)
