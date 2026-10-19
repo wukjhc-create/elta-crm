@@ -771,7 +771,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               </div>
             </div>
             <div className="p-4 border-t bg-gray-50 flex flex-wrap justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowCustomerModal(false)}>
+              <Button variant="outline" onClick={() => setShowCustomerModal(false)} className="break-words min-w-0" data-testid="ai-project-customer-cancel">
                 Annuller
               </Button>
             </div>
