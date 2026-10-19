@@ -1155,13 +1155,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-416 | 8 Pilot | DONE. Overskriften Komponenter ombrydes. | Teksten `Komponenter` er uændret. Kun den overskrift. `>Komponenter</h4>` bliver. |
 | G18-417 | 8 Pilot | DONE. Overskriften Bygningsinformation ombrydes. | Teksten `Bygningsinformation` er uændret. Kun den overskrift. `>Bygningsinformation</h4>` bliver. |
 | G18-418 | 8 Pilot | DONE. Overskriften Bemærkninger ombrydes. | Teksten `Bemærkninger` er uændret. Kun den overskrift. |
-| G18-419 | 8 Pilot | ÅBEN. Etiketten Basis tid ombrydes. | Teksten `Basis tid` er uændret. Kun den etiket i AI-projekt. |
+| G18-419 | 8 Pilot | DONE. Etiketten Basis tid ombrydes. | Teksten `Basis tid` er uændret. Kun den etiket i AI-projekt. |
 | G18-420 | 8 Pilot | ÅBEN. Etiketten Total tid ombrydes. | Teksten `Total tid` er uændret. Kun den etiket i AI-projekt. |
 | G18-421 | 8 Pilot | ÅBEN. Etiketten Størrelsesfaktor ombrydes. | Teksten `Størrelsesfaktor` er uændret. Kun den etiket. |
 | G18-422 | 8 Pilot | ÅBEN. Etiketten Materialer ombrydes. | Teksten `Materialer` er uændret. Kun den etiket i AI-projekt. |
 | G18-423 | 8 Pilot | ÅBEN. Etiketten Subtotal ombrydes. | Teksten `Subtotal` er uændret. Kun den etiket i AI-projekt. |
 | G18-424 | 8 Pilot | ÅBEN. Etiketten Risikobuffer ombrydes. | Udtrykket `{result.calculation.price.risk_buffer_percentage}%` er uændret. Kun den etiket. |
 | G18-425 | 8 Pilot | ÅBEN. Etiketten Margin ombrydes. | Udtrykket `{result.calculation.price.margin_percentage}%` er uændret. Kun den etiket. |
+| G18-426 | 8 Pilot | ÅBEN. Etiketten Type ombrydes. | Teksten `Type` er uændret. Kun den etiket i AI-projekt. Værdierne bliver. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
