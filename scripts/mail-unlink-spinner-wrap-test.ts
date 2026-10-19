@@ -1,6 +1,6 @@
 /**
  * Fjern-kobling-spinneren i mail-detaljen kan krympe. Teksten Fjern kobling bliver.
- * Hurtigt-svar-spinneren og indlaesningssspinneren bliver bare.
+ * Hurtigt-svar-spinneren og indlaesnings-spinneren kan krympe.
  *   npx tsx scripts/mail-unlink-spinner-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -32,7 +32,7 @@ ok(!row.includes('\n'), 'linjeskiftet er et andet sted')
 ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'spinneren findes en gang')
 ok(view.split(cell).length === 2, 'spinnerklassen findes en gang')
-ok(view.split(bare).length === 2, 'indlaesnings-spinneren bliver bar')
+ok(view.split(bare).length === 1, 'den bare spinner er vaek')
 ok(view.includes('Fjern kobling'), 'teksten bliver')
 ok(view.includes('title="Fjern kobling"'), 'titlen bliver')
 ok(view.includes('data-testid="mail-unlink-x"'), 'luk-ikonet bliver')
@@ -42,13 +42,14 @@ const replyAt = view.indexOf('{isSendingReply === tpl.text ? <Loader2')
 const bodyAt = view.indexOf('data-testid="mail-body-loading"')
 const unlinkSlice = unlinkAt >= 0 ? view.slice(unlinkAt, unlinkAt + 160) : ''
 const replySlice = replyAt >= 0 ? view.slice(replyAt, replyAt + 160) : ''
-const bodySlice = bodyAt >= 0 ? view.slice(bodyAt, bodyAt + 90) : ''
+const bodySlice = bodyAt >= 0 ? view.slice(bodyAt, bodyAt + 160) : ''
 ok(unlinkSlice.includes(id), 'spinneren er ved fjern kobling')
 ok(!unlinkSlice.includes(bare), 'fjern-kobling-spinneren er ikke bar')
 ok(!replySlice.includes(bare), 'hurtigt-svar-spinneren er ikke bar')
 ok(replySlice.includes('data-testid="mail-quick-reply-spinner"'), 'hurtigt-svar-spinneren kan krympe')
 ok(!replySlice.includes(id), 'fjern-kobling-spinneren er ikke ved hurtigt svar')
-ok(bodySlice.includes(bare), 'indlaesnings-spinneren er stadig bar')
+ok(!bodySlice.includes(bare), 'indlaesnings-spinneren er ikke bar')
+ok(bodySlice.includes('data-testid="mail-body-loading-spinner"'), 'indlaesnings-spinneren kan krympe')
 ok(!bodySlice.includes(id), 'fjern-kobling-spinneren er ikke ved indlaesning')
 ok(view.split('{isUnlinking ? <Loader2').length === 2, 'fjern-markoeren findes en gang')
 const ids = [...view.matchAll(/data-testid="([^"]+)"/g)].map((m) => m[1])

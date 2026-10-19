@@ -683,7 +683,7 @@ export function MailDetail({
           <>
             {/* N85: brødteksten hentes ved åbning — vis forhåndsvisningen imens */}
             {email.body_html === undefined && email.body_text === undefined && (
-              <p className="text-xs text-gray-400 mb-2 flex items-center gap-1 break-words min-w-0" data-testid="mail-body-loading"><Loader2 className="w-3 h-3 animate-spin" /> Henter hele mailen…</p>
+              <p className="text-xs text-gray-400 mb-2 flex items-center gap-1 break-words min-w-0" data-testid="mail-body-loading"><Loader2 className="w-3 h-3 animate-spin break-words min-w-0" data-testid="mail-body-loading-spinner" /> Henter hele mailen…</p>
             )}
             <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans break-words min-w-0" data-testid="mail-body-plain">
               {email.body_text || email.body_preview || '(Tom email)'}

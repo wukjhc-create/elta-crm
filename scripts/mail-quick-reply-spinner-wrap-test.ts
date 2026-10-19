@@ -1,6 +1,6 @@
 /**
  * Hurtigt-svar-spinneren i mail-detaljen kan krympe. Knapteksterne bliver.
- * Indlaesnings-spinneren bliver bar.
+ * Indlaesnings-spinneren kan krympe.
  *   npx tsx scripts/mail-quick-reply-spinner-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -32,7 +32,7 @@ ok(!row.includes('\n'), 'linjeskiftet er et andet sted')
 ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'spinneren findes en gang')
 ok(view.split(cell).length === 2, 'spinnerklassen findes en gang')
-ok(view.split(bare).length === 2, 'indlaesnings-spinneren bliver bar')
+ok(view.split(bare).length === 1, 'den bare spinner er vaek')
 ok(view.includes('Bekræft modtagelse'), 'bekraeft bliver')
 ok(view.includes('Mangler info'), 'mangler-info bliver')
 ok(view.includes('Tak for ordren'), 'tak-for-ordren bliver')
@@ -42,11 +42,12 @@ const replyAt = view.indexOf('{isSendingReply === tpl.text ? <Loader2')
 const bodyAt = view.indexOf('data-testid="mail-body-loading"')
 const unlinkAt = view.indexOf('data-testid="mail-unlink-spinner"')
 const replySlice = replyAt >= 0 ? view.slice(replyAt, replyAt + 160) : ''
-const bodySlice = bodyAt >= 0 ? view.slice(bodyAt, bodyAt + 120) : ''
+const bodySlice = bodyAt >= 0 ? view.slice(bodyAt, bodyAt + 160) : ''
 const unlinkSlice = unlinkAt >= 0 ? view.slice(Math.max(0, unlinkAt - 80), unlinkAt + 40) : ''
 ok(replySlice.includes(id), 'spinneren er ved hurtigt svar')
 ok(!replySlice.includes(bare), 'hurtigt-svar-spinneren er ikke bar')
-ok(bodySlice.includes(bare), 'indlaesnings-spinneren er stadig bar')
+ok(!bodySlice.includes(bare), 'indlaesnings-spinneren er ikke bar')
+ok(bodySlice.includes('data-testid="mail-body-loading-spinner"'), 'indlaesnings-spinneren kan krympe')
 ok(!bodySlice.includes(id), 'hurtigt-svar-spinneren er ikke ved indlaesning')
 ok(unlinkSlice.includes('data-testid="mail-unlink-spinner"'), 'fjern-kobling-spinneren bliver')
 ok(!unlinkSlice.includes(bare), 'fjern-kobling-spinneren er ikke bar')
