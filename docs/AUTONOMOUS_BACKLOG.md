@@ -1003,7 +1003,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-257 | 4 Pris | DONE. Dialogtitlen Rediger produkt ombrydes. | Ordene er uændrede. |
 | G18-263 | 4 Pris | DONE. 30-dages-cellen på pristendensens skrivebord ombrydes. | Procenten er uændret. |
 | G18-269 | 4 Pris | DONE. Påvirkningscellen på prisadvarslens skrivebord ombrydes. | Tællerne er uændrede. |
-| G18-275 | 4 Pris | ÅBEN. Nul-mærket på prisadvarslens påvirkning ombrydes. | Bindestregen er uændret. |
+| G18-275 | 4 Pris | DONE. Nul-mærket på prisadvarslens påvirkning ombrydes. | Bindestregen er uændret. |
 | G18-222 | 4 Pris | DONE. Etiketten Kategori i produktformularen ombrydes. | Ordet er uændret. |
 | G18-228 | 4 Pris | DONE. Etiketten Beskrivelse i produktformularen ombrydes. | Ordet er uændret. |
 | G18-234 | 4 Pris | DONE. Pladsholderen på produktbeskrivelsen ombrydes. | Teksten Produktbeskrivelse... er uændret. |
@@ -1017,6 +1017,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-278 | 4 Pris | ÅBEN. Ændringscellen på prisadvarslens skrivebord ombrydes. | Procenten er uændret. |
 | G18-279 | 4 Pris | ÅBEN. Tilbudstitlen på berørte tilbud kan krympe. | Titlen er uændret. |
 | G18-280 | 4 Pris | ÅBEN. Produktnavnet på prisadvarslens mobilkort kan krympe. | Navnet er uændret. |
+| G18-281 | 4 Pris | ÅBEN. Leverandørnavnet på prisadvarslens mobilkort kan krympe. | Navnet er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

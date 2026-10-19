@@ -29,9 +29,11 @@ for (const id of [
 ok(view.includes('trend.trend_30_days !== null'), '30-dages tjek bliver')
 ok(view.includes('trend.trend_90_days !== null'), '90-dages tjek bliver')
 const affects = view.indexOf('alert.affects_offers === 0 && alert.affects_calculations === 0')
-const affectsRow = affects >= 0 ? view.slice(affects, affects + 180) : ''
-ok(affectsRow.includes('<span className="text-gray-400">-</span>'), 'påvirkningsstregen bliver')
-ok(!affectsRow.includes('break-words'), 'påvirkningsstregen er ikke trendstregen')
+const affectsRow = affects >= 0 ? view.slice(affects, affects + 280) : ''
+ok(affectsRow.includes('data-testid="pricing-alert-affects-zero"'), 'påvirkningsstregen har sit mærke')
+ok(affectsRow.includes('break-words min-w-0'), 'påvirkningsstregen ombrydes')
+ok(affectsRow.includes('>-<'), 'påvirkningsstregen er uændret')
+ok(!affectsRow.includes('pricing-trend-30-missing'), 'påvirkningsstregen er ikke trendstregen')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 
 if (bad > 0) {

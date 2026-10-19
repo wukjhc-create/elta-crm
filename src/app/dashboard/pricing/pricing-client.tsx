@@ -337,7 +337,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
                         </span>
                       )}
                       {alert.affects_offers === 0 && alert.affects_calculations === 0 && (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-400 break-words min-w-0" data-testid="pricing-alert-affects-zero">-</span>
                       )}
                     </div>
                   </td>
