@@ -768,7 +768,7 @@ export function MailDetail({
                   {isBackfilling ? 'Downloader...' : 'Download vedhæftninger nu'}
                 </button>
                 {backfillMsg && (
-                  <p className={`text-sm ${backfillMsg.startsWith('Fejl') ? 'text-red-600' : 'text-green-700'}`}>{backfillMsg}</p>
+                  <p className={`text-sm ${backfillMsg.startsWith('Fejl') ? 'text-red-600' : 'text-green-700'} break-words min-w-0`} data-testid="mail-backfill-msg">{backfillMsg}</p>
                 )}
               </div>
             )}
