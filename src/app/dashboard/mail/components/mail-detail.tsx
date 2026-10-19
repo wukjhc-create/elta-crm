@@ -310,7 +310,7 @@ export function MailDetail({
           <h2 className="text-xl font-bold text-gray-900 break-words min-w-0" data-testid="mail-subject">{email.subject || '(Intet emne)'}</h2>
           <div className="flex items-center gap-2 shrink-0">
             {!email.is_read && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">Ulæst</span>
+              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 break-words min-w-0" data-testid="mail-unread-badge">Ulæst</span>
             )}
             {statusBadge(email.link_status)}
           </div>
