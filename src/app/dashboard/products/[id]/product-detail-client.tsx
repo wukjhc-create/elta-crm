@@ -120,7 +120,7 @@ export default function ProductDetailClient({
 
             {product.cost_price && (
               <div className="flex flex-wrap justify-between gap-x-3 items-center min-w-0">
-                <span className="text-gray-500">Kostpris</span>
+                <span className="text-gray-500 break-words min-w-0" data-testid="product-detail-cost-label">Kostpris</span>
                 <span className="min-w-0 break-words">{formatCurrency(product.cost_price)}</span>
               </div>
             )}

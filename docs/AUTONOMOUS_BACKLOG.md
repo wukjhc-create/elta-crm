@@ -975,7 +975,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-237 | 4 Pris | DONE. Pladsholderen på listeprisfeltet ombrydes. | Tegnene 0,00 og feltets værdi er uændrede. |
 | G18-243 | 4 Pris | DONE. Fejlteksten når produktdetaljen ikke kan hentes ombrydes. | Sætningen er uændret. |
 | G18-249 | 4 Pris | DONE. Etiketten Beskrivelse på produktdetaljen ombrydes. | Ordet er uændret. |
-| G18-255 | 4 Pris | ÅBEN. Etiketten Kostpris på produktdetaljen ombrydes. | Ordet og formatCurrency(product.cost_price) er uændrede. |
+| G18-255 | 4 Pris | DONE. Etiketten Kostpris på produktdetaljen ombrydes. | Ordet og formatCurrency(product.cost_price) er uændrede. |
+| G18-261 | 4 Pris | ÅBEN. Optionen Vælg leverandør på pristendenser ombrydes. | Teksten er uændret. |
 | G18-220 | 4 Pris | DONE. Knappen Annuller i produktformularen ombrydes. | onCancel er uændret. |
 | G18-226 | 4 Pris | DONE. Pladsholderen Vælg kategori i produktformularen ombrydes. | Ordene er uændrede. |
 | G18-232 | 4 Pris | DONE. Etiketten Listepris i produktformularen ombrydes. | Ordene og feltets værdi er uændrede. |
