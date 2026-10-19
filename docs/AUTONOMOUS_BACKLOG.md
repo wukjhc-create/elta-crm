@@ -1234,13 +1234,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-495 | 8 Pilot | DONE. Rækken uden væsentlige risici kan krympe. | Teksten `Ingen væsentlige risici identificeret` er uændret. Kun `<div className="flex items-center gap-2 text-green-600">` i AI-projekt. |
 | G18-496 | 8 Pilot | DONE. Mobillisten af komponenter kan krympe. | Kun `<ul className="md:hidden space-y-2" data-testid="ai-components-mobile">` i AI-projekt. Priserne er uændrede. |
 | G18-497 | 8 Pilot | DONE. Mobilkortet for en komponent kan krympe. | Kun `<li key={i} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm min-w-0">` inde i `ai-components-mobile` i AI-projekt. Priserne er uændrede. |
-| G18-498 | 8 Pilot | ÅBEN. AI-projektets sidehoved kan krympe. | Kun `<div className="mb-8">` i AI-projekt. Overskriften er uændret. |
+| G18-498 | 8 Pilot | DONE. AI-projektets sidehoved kan krympe. | Kun `<div className="mb-8">` i AI-projekt. Overskriften er uændret. |
 | G18-499 | 8 Pilot | ÅBEN. Analysér-knappens række kan krympe. | Kun `<div className="mt-4 flex justify-end">` i AI-projekt. Knappen er uændret. |
 | G18-500 | 8 Pilot | ÅBEN. AI-projektets resultatstak kan krympe. | Kun `<div className="space-y-6">` i AI-projekt. Priserne er uændrede. |
 | G18-501 | 8 Pilot | ÅBEN. Bemærkningsrækken kan krympe. | Kun `<div className="flex items-start gap-2">` i AI-projekt. Advarselsteksten er uændret. |
 | G18-502 | 8 Pilot | ÅBEN. Listen med identificerede risici kan krympe. | Kun `<div className="space-y-3">` i AI-projekt. Risikokortet er uændret. |
 | G18-503 | 8 Pilot | ÅBEN. Knaprækken ved tilbudsteksten kan krympe. | Kun `<div className="flex gap-2">` i AI-projekt. Knappen Kopier er uændret. |
 | G18-504 | 8 Pilot | ÅBEN. Næste skridts række kan krympe. | Kun `<div className="flex items-center justify-between">` i AI-projekt. Knappen Opret tilbud er uændret. |
+| G18-505 | 8 Pilot | ÅBEN. Rækken med valgt ladestander kan krympe. | Kun `<div className="flex items-center justify-between gap-2 text-sm">` i AI-projekt. Prisen er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
