@@ -848,7 +848,7 @@ function CollapsibleSection({
           <h3 className="font-semibold break-words min-w-0" data-testid="ai-project-section-heading">{title}</h3>
           {badge}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 break-words min-w-0" data-testid="ai-project-section-icon-row">
           {actions && <div onClick={(e) => e.stopPropagation()}>{actions}</div>}
           {expanded ? <ChevronUp className="w-5 h-5 break-words min-w-0" data-testid="ai-project-section-chevron-up" /> : <ChevronDown className="w-5 h-5 break-words min-w-0" data-testid="ai-project-section-chevron-down" />}
         </div>
