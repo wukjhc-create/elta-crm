@@ -272,7 +272,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
                 <span className="break-words min-w-0" data-testid="pricing-alert-change-mobile">{isIncrease ? '+' : ''}{alert.change_percentage.toFixed(1)}%</span>
               </span>
             </div>
-            <p className="mt-1 text-xs text-gray-600 break-words">{alert.supplier_name}</p>
+            <p className="mt-1 text-xs text-gray-600 break-words min-w-0" data-testid="pricing-alert-supplier-mobile">{alert.supplier_name}</p>
             <p className="mt-1 text-xs tabular-nums text-gray-500 break-words">Gammel {formatCurrency(alert.old_price)}</p>
             <p className="text-xs tabular-nums font-medium text-gray-900 break-words">Ny {formatCurrency(alert.new_price)}</p>
             <p className="mt-1 text-xs text-gray-600 break-words min-w-0" data-testid="pricing-alert-affects-mobile">

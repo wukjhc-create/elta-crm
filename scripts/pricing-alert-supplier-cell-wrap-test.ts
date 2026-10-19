@@ -19,7 +19,7 @@ const at = view.indexOf('data-testid="pricing-alert-supplier-cell"')
 const row = at >= 0 ? view.slice(at - 90, at + 80) : ''
 ok(row.includes('break-words min-w-0'), 'cellen kan krympe')
 ok(row.includes('{alert.supplier_name}'), 'navnet er uændret')
-ok(view.includes('text-xs text-gray-600 break-words">{alert.supplier_name}'), 'mobilnavnet bliver')
+ok(view.includes('text-xs text-gray-600 break-words min-w-0" data-testid="pricing-alert-supplier-mobile">{alert.supplier_name}'), 'mobilnavnet bliver')
 ok(view.includes('formatCurrency(alert.old_price)'), 'gammel pris bliver')
 ok(view.includes('formatCurrency(alert.new_price)'), 'ny pris bliver')
 ok(view.split('{alert.supplier_name}').length - 1 === 2, 'to navne')
