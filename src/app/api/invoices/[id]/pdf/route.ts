@@ -45,6 +45,13 @@ export async function GET(
       if (!allowed) {
         return NextResponse.json({ error: 'Faktura ikke fundet' }, { status: 404 })
       }
+      // API-1 (API-review 2026-10-19): samme regel som fakturalisten — fakturaen skal også være synlig for brugeren
+      // via RLS (can_view_case_finance: salg kun sager de har OPRETTET). userCanViewCase lukker også salg ind via
+      // assigned_to, så en tildelt sælger kunne hente PDF'en af fakturaer listen skjulte.
+      const { data: visible } = await ctx.supabase.from('invoices').select('id').eq('id', id).maybeSingle()
+      if (!visible) {
+        return NextResponse.json({ error: 'Faktura ikke fundet' }, { status: 404 })
+      }
     }
 
     // Firmaoplysninger (offentlige kolonner) via service-role efter adgangstjekket

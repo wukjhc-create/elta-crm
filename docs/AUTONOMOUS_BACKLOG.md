@@ -214,7 +214,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 ## NEXT-51 (API-route-review 2026-10-19 — alle src/app/api undtagen cron/admin; ingen S1/S2)
 | # | Fund | Status |
 |---|---|---|
-| API-1 | Faktura-PDF: userCanViewCase lukker salg ind via assigned_to, RLS (can_view_case_finance) kun created_by → tildelt sælger kunne hente PDF'er listen skjulte (S3) | DONE (kode) — PDF kræver også at fakturaen er synlig via brugerens RLS-klient |
+| API-1 | Faktura-PDF: userCanViewCase lukker salg ind via assigned_to, RLS (can_view_case_finance) kun created_by → tildelt sælger kunne hente PDF'er listen skjulte (S3) | DONE (kode, U206) — PDF kræver også at fakturaen er synlig via brugerens RLS-klient |
 | API-2 | Tilbuds-PDF/getOffer: salg kan se ALLE tilbud (ingen ejer-scope), inkl. underskrift + IP (S3) | BESLUTNING — skal salg kun se egne tilbud? Ellers: skjul signer_ip for roller uden offers.approve |
 | API-3 | Kontaktformular: globalt rate limit (30/t) kan opbruges af én afsender → rigtige henvendelser 429 (S4) | TODO — pr. IP/afsenderdomæne eller Turnstile (kræver nøgle = BESLUTNING) |
 | API-4 | Kontaktformular kobler på e-mail alene til eksisterende kunde (falske leads på rigtig kunde) (S4) | BESLUTNING — forslag frem for auto-kobling? |

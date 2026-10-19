@@ -21,7 +21,9 @@ export async function GET(
   try {
     const { trackingId } = await params
 
-    if (!trackingId) {
+    // API-5 (API-review 2026-10-19): kun velformede id'er; åbninger dedupliceres (én pr. mail pr. 10 min) og loftes
+    // pr. mail — før kunne enhver med linket (videresendt mail, mailscanner) fylde email_events og forfalske "åbnet"
+    if (!trackingId || trackingId.length > 100 || !/^[A-Za-z0-9_-]+$/.test(trackingId)) {
       return new NextResponse(TRACKING_PIXEL, {
         headers: {
           'Content-Type': 'image/gif',
@@ -44,12 +46,21 @@ export async function GET(
         .eq('tracking_id', trackingId)
         .single()
 
-      if (message) {
-        // Get request metadata
-        const ip = request.headers.get('x-forwarded-for') ||
-                   request.headers.get('x-real-ip') ||
+      const since = new Date(Date.now() - 10 * 60_000).toISOString()
+      const recent = message
+        ? (await supabase.from('email_events').select('id', { count: 'exact', head: true })
+            .eq('message_id', message.id).eq('event_type', 'opened').gte('occurred_at', since)).count ?? 0
+        : 0
+      const total = message && recent === 0
+        ? (await supabase.from('email_events').select('id', { count: 'exact', head: true })
+            .eq('message_id', message.id).eq('event_type', 'opened')).count ?? 0
+        : 0
+      if (message && recent === 0 && total < 50) {
+        // Vercel sætter x-real-ip/x-forwarded-for (første led = klienten); afkortet
+        const ip = request.headers.get('x-real-ip') ||
+                   request.headers.get('x-forwarded-for') ||
                    'unknown'
-        const userAgent = request.headers.get('user-agent') || 'unknown'
+        const userAgent = (request.headers.get('user-agent') || 'unknown').slice(0, 300)
 
         // Log the open event
         await supabase
@@ -57,7 +68,7 @@ export async function GET(
           .insert({
             message_id: message.id,
             event_type: 'opened',
-            ip_address: ip.split(',')[0].trim(),
+            ip_address: ip.split(',')[0].trim().slice(0, 64),
             user_agent: userAgent,
           })
       }

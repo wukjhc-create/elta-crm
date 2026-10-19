@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3130,6 +3130,40 @@ ${m.text()}`) })
         r.ingen_uaendrede_felter = !('email' in ch) && !('company_name' in ch)
         r.ingen_falsk_previous = !json.includes('"previous"')
         out.push({ id: 'U203 LG-10 ægte audit-diff uden personværdier', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · felter=${Object.keys(ch).join(',')}` })
+      }
+
+      // U206 API-1: faktura-PDF følger fakturalistens regel (RLS can_view_case_finance: salg kun sager de har OPRETTET) —
+      // før kunne en sælger der blot var TILDELT en andens sag hente sagens faktura-PDF
+      if (want('U206') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sx = await mkUser('salg')
+        const cs = await c.admin.from('service_cases').insert([
+          { title: `[HARNESS] U206 tildelt ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id, assigned_to: sx.id },
+          { title: `[HARNESS] U206 egen ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: sx.id, assigned_to: sx.id },
+        ]).select('id, title')
+        const caseRows = (cs.data ?? []) as Array<{ id: string; title: string }>
+        for (const x of caseRows) listCaseIds.push(x.id)
+        const assignedCase = caseRows.find((x) => x.title.includes('tildelt'))?.id
+        const ownCase = caseRows.find((x) => x.title.includes('egen'))?.id
+        const inv = assignedCase && ownCase ? await c.admin.from('invoices').insert([
+          { invoice_number: `U206-A-${stamp}`, customer_id: profitCustomerId, case_id: assignedCase, status: 'sent', total_amount: 100, tax_amount: 25, final_amount: 125, due_date: new Date().toISOString().slice(0, 10) },
+          { invoice_number: `U206-B-${stamp}`, customer_id: profitCustomerId, case_id: ownCase, status: 'sent', total_amount: 100, tax_amount: 25, final_amount: 125, due_date: new Date().toISOString().slice(0, 10) },
+        ]).select('id, invoice_number') : null
+        const invRows = (inv?.data ?? []) as Array<{ id: string; invoice_number: string }>
+        const invAssigned = invRows.find((x) => x.invoice_number.startsWith('U206-A'))?.id
+        const invOwn = invRows.find((x) => x.invoice_number.startsWith('U206-B'))?.id
+        r.seed = !!invAssigned && !!invOwn
+        const sp = await login(sx)
+        try {
+          const ra = invAssigned ? await gotoSafe(sp.page, `${base}/api/invoices/${invAssigned}/pdf`, { waitUntil: 'load', timeout: 120_000 }).catch(() => null) : null
+          r.tildelt_andens_sag_404 = ra?.status() === 404
+          const ro = invOwn ? await sp.page.context().request.get(`${base}/api/invoices/${invOwn}/pdf`, { timeout: 180_000 }).catch(() => null) : null
+          r.egen_sag_200 = ro?.status() === 200
+        } finally {
+          await sp.ctx.close().catch(() => {})
+          if (invRows.length) await c.admin.from('invoices').delete().in('id', invRows.map((x) => x.id))
+        }
+        out.push({ id: 'U206 API-1 faktura-PDF = fakturalistens regel', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${inv?.error ? ` · SEED: ${inv.error.message}` : ''}${cs.error ? ` · SEED-sag: ${cs.error.message}` : ''}` })
       }
 
       // U205 DB-3: cockpittets "Tilbud — opfølgning" linker til ?followup=1, og listen viser præcis det tallet tæller
