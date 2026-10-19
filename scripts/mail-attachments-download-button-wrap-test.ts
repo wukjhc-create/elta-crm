@@ -33,7 +33,7 @@ ok(view.split(id).length === 2, 'knappen findes en gang')
 ok(view.split(cell).length === 2, 'knappens klasse findes en gang')
 ok(view.includes('Vedhæftningerne er ikke downloadet endnu.'), 'sætningen bliver')
 ok(view.includes('data-testid="mail-attachments-pending-box"'), 'boksen bliver')
-ok(view.includes('className="mt-6 pt-4 border-t"'), 'afsnittets ramme bliver')
+ok(view.includes('className="mt-6 pt-4 border-t break-words min-w-0" data-testid="mail-attachments-section"'), 'afsnittets ramme bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 ok(view.includes('data-testid="mail-attachments-heading"'), 'overskriften bliver')
 
