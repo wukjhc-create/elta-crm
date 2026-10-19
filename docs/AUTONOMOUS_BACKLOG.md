@@ -971,7 +971,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-220 | 4 Pris | DONE. Knappen Annuller i produktformularen ombrydes. | onCancel er uændret. |
 | G18-226 | 4 Pris | DONE. Pladsholderen Vælg kategori i produktformularen ombrydes. | Ordene er uændrede. |
 | G18-232 | 4 Pris | DONE. Etiketten Listepris i produktformularen ombrydes. | Ordene og feltets værdi er uændrede. |
-| G18-238 | 4 Pris | ÅBEN. Kategorinavnet i produktformularens vælger ombrydes. | {category.name} er uændret. |
+| G18-238 | 4 Pris | DONE. Kategorinavnet i produktformularens vælger ombrydes. | {category.name} er uændret. |
+| G18-244 | 4 Pris | ÅBEN. Knappen Rediger på produktdetaljen ombrydes. | setShowEditDialog er uændret. |
 | G18-221 | 4 Pris | DONE. Gem-knappen i produktformularen ombrydes. | Ordene Gemmer, Opdater og Opret er uændrede. |
 | G18-227 | 4 Pris | DONE. Etiketten Produktnavn i produktformularen ombrydes. | Ordet og stjernen er uændrede. |
 | G18-233 | 4 Pris | DONE. Pladsholderen på produktnavn ombrydes. | Teksten F.eks. JA Solar 400W Panel er uændret. |

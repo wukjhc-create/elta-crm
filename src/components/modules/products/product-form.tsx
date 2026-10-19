@@ -115,7 +115,7 @@ export default function ProductForm({
             <SelectContent>
               {categories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
-                  {category.name}
+                  <span className="break-words min-w-0" data-testid="product-form-category-option">{category.name}</span>
                 </SelectItem>
               ))}
             </SelectContent>
