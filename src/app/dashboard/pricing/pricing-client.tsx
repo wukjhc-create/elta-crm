@@ -474,7 +474,7 @@ function SuppliersTab({ stats, error }: { stats: SupplierPriceStats[]; error: st
                 <span className="text-green-500 break-words min-w-0" data-testid="pricing-movement-decrease">-{stat.average_price_decrease.toFixed(1)}%</span>
               </span>
             </div>
-            <div className="flex h-2 rounded-full overflow-hidden bg-gray-100">
+            <div className="flex h-2 rounded-full overflow-hidden bg-gray-100 min-w-0" data-testid="pricing-movement-bar">
               {stat.average_price_increase > 0 && (
                 <div
                   className="bg-red-400 h-full"
