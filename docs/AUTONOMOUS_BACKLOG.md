@@ -1220,6 +1220,57 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 toogfyrretyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `839ba253`. Det lader enogfyrretyvende-hegnet stå. `839ba253` hedder `docs: checkpoint efter 7d2349d0`. Produktspids: `2e07f8bc`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `2e07f8bc` blev afvist før git kørte og er ikke prøvet igen. `b0a3e94f` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `839ba253..2e07f8bc`
+
+```
+2e07f8bc feat(pilot): opsummeringsgitteret kan krympe
+b0a3e94f feat(pilot): hurtig estimats gitter kan krympe
+37d7f2bd feat(pilot): skrivebordets komponentramme kan krympe
+946d934a feat(pilot): naeste skridt kan krympe
+f718e063 feat(pilot): bemaerkningsboksen kan krympe
+37a35cfa feat(pilot): tilbudsteksten kan krympe
+44da777f feat(pilot): beskrivelsesafsnittet kan krympe
+af3b4962 feat(pilot): ladestanderlisten kan krympe
+9c0d52a6 feat(pilot): hurtig estimat kan krympe
+6367a93c feat(pilot): AI-projektets side kan krympe
+```
+
+Listen er alle commits efter `839ba253` til og med `2e07f8bc`, fra `6367a93c`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+839ba253 docs: checkpoint efter 7d2349d0
+```
+
+### Features
+
+G18-464 til G18-473 lader AI-projektets side, hurtig estimat, ladestanderlisten, beskrivelsesafsnittet, tilbudsteksten, bemærkningsboksen, næste skridt, skrivebordets komponentramme, hurtig estimats gitter og opsummeringsgitteret krympe. `formatCurrency(quickResult.estimatedPrice)`, `formatCurrency(h.cost_price)`, `formatCurrency(result.calculation.price.total_price)`, `formatCurrency(comp.unit_price)`, `formatCurrency(comp.total)` og `result.offer_text.full_offer_text` er uændrede. `hidden md:block border rounded-lg overflow-hidden` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Claude kan se ombrydes-klasserne. Ingen pris, kost, margin, moms eller afsendelse er ændret. `hidden md:block border rounded-lg overflow-hidden` er bevaret.
+
+### Integration
+
+Push ikke til main. Når push er tilladt, push kun `grok-next` og prøv ikke afviste tip igen, herunder `2e07f8bc` og `839ba253`. Flet derefter `origin/main` ind i `grok-next` uden at køre migrationer.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-474, G18-475, G18-476, G18-477, G18-478, G18-479, G18-480.
+
 ## Checkpoint 2026-10-18 enogfyrretyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `7d2349d0`. Det lader fyrretyvende-hegnet stå. `7d2349d0` hedder `docs: checkpoint efter a18ed7fe`. Produktspids: `7f98f318`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `7f98f318` blev afvist før git kørte og er ikke prøvet igen. `f963860e` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
