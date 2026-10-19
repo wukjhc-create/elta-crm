@@ -398,7 +398,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               color="purple"
             />
             <SummaryCard
-              icon={<AlertTriangle className="w-5 h-5" />}
+              icon={<AlertTriangle className="w-5 h-5 break-words min-w-0" data-testid="ai-project-summary-alert" />}
               label="Risikoniveau"
               value={getRiskLabel(result.interpretation.risk_score)}
               sublabel={`${result.risks.length} fundne risici`}
