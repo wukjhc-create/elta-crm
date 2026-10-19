@@ -229,7 +229,7 @@ export function SupplierProductsTable({
                       <p className="text-xs text-gray-500">{product.manufacturer}</p>
                     )}
                   </div>
-                  <Badge variant={product.is_available ? 'default' : 'secondary'}>
+                  <Badge variant={product.is_available ? 'default' : 'secondary'} className="break-words min-w-0 max-w-full" data-testid="supplier-product-mobile-status">
                     {product.is_available ? 'Aktiv' : 'Inaktiv'}
                   </Badge>
                 </div>
