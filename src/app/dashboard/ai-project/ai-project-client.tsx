@@ -691,7 +691,8 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             {recentAnalyses.map((analysis) => (
               <div
                 key={analysis.id}
-                className="flex items-start gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
+                className="flex items-start gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors break-words min-w-0"
+                data-testid="ai-project-history-card"
               >
                 <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
