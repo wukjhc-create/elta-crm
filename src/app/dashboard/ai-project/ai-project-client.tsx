@@ -308,7 +308,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
         )}
 
         {quickError && (
-          <p className="mt-4 text-sm text-red-700 break-words" data-testid="ai-quick-load-error">
+          <p className="mt-4 text-sm text-red-700 break-words min-w-0" data-testid="ai-quick-load-error">
             {quickError}{quickResult ? '. Det forrige estimat bliver.' : '. Det tælles ikke som et estimat.'}
           </p>
         )}
