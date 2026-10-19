@@ -1242,13 +1242,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-503 | 8 Pilot | DONE. Knaprækken ved tilbudsteksten kan krympe. | Kun `<div className="flex gap-2">` i AI-projekt. Knappen Kopier er uændret. |
 | G18-504 | 8 Pilot | DONE. Næste skridts række kan krympe. | Kun `<div className="flex items-center justify-between">` i AI-projekt. Knappen Opret tilbud er uændret. |
 | G18-505 | 8 Pilot | DONE. Rækken med valgt ladestander kan krympe. | Kun `<div className="flex items-center justify-between gap-2 text-sm">` i AI-projekt. Prisen er uændret. |
-| G18-506 | 8 Pilot | ÅBEN. Søgefeltets ramme i kundevaelgeren kan krympe. | Kun `<div className="relative mb-4">` i AI-projekt. Søgefeltet er uændret. |
+| G18-506 | 8 Pilot | DONE. Søgefeltets ramme i kundevaelgeren kan krympe. | Kun `<div className="relative mb-4">` i AI-projekt. Søgefeltet er uændret. |
 | G18-507 | 8 Pilot | ÅBEN. Kundevaelgerens titelrække kan krympe. | Kun `<div className="flex items-center gap-2 min-w-0">` i AI-projekt. Teksten `Vælg kunde` er uændret. |
 | G18-508 | 8 Pilot | ÅBEN. Advarselsikonet kan krympe. | Kun `<AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />` i AI-projekt. Advarselsteksten er uændret. |
 | G18-509 | 8 Pilot | ÅBEN. Kompleksitetsfaktorernes ramme kan krympe. | Kun `<div className="mt-4 pt-4 border-t">` i AI-projekt. Overskriften `Kompleksitetsfaktorer` er uændret. |
 | G18-510 | 8 Pilot | ÅBEN. Kompleksitetsfaktorernes chip-række kan krympe. | Kun `<div className="flex flex-wrap gap-2">` i AI-projekt. Overskriften `Kompleksitetsfaktorer` er uændret. |
 | G18-511 | 8 Pilot | ÅBEN. Historikkens tekstkolonne kan krympe. | Kun `<div className="flex-1 min-w-0">` i AI-projekt. Beskrivelsens `line-clamp-2` er uændret. |
 | G18-512 | 8 Pilot | ÅBEN. Sammenklappelig sektions hoved kan krympe. | Kun `className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"` i AI-projekt. `{title}` er uændret. |
+| G18-513 | 8 Pilot | ÅBEN. Sammenklappelig sektions ramme kan krympe. | Kun `<div className="bg-white border rounded-lg">` i AI-projekt. `{title}` er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
