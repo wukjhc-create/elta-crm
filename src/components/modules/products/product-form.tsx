@@ -117,7 +117,7 @@ export default function ProductForm({
         </div>
 
         <div>
-          <Label htmlFor="unit">Enhed</Label>
+          <Label htmlFor="unit" className="break-words min-w-0" data-testid="product-form-unit-label">Enhed</Label>
           <Select name="unit" defaultValue={product?.unit || 'stk'}>
             <SelectTrigger>
               <SelectValue />
