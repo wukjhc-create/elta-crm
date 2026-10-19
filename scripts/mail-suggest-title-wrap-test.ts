@@ -35,7 +35,7 @@ ok(view.split('data-testid="mail-suggest-box"').length === 2, 'boks-id kollidere
 ok(view.includes('Mulige matches (forslag)'), 'teksten bliver')
 ok(view.includes('<AlertCircle className="w-3.5 h-3.5 break-words min-w-0" data-testid="mail-suggest-icon" />'), 'ikonet bliver')
 ok(view.includes('data-testid="mail-suggest-box"'), 'boksen bliver')
-ok(view.includes('break-words">{detectedCustomer.company_name}'), 'fundet kunde ombrydes stadig')
+ok(view.includes('break-words min-w-0" data-testid="mail-match-name">{detectedCustomer.company_name}'), 'fundet kunde ombrydes stadig')
 ok(view.includes('break-words">{s.company_name}'), 'forslag ombrydes stadig')
 ok(view.includes('Kobl'), 'kobl bliver')
 ok(view.includes('data-testid="mail-reply-msg"'), 'svaret bliver')
