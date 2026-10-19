@@ -644,7 +644,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
 
       {/* Example Descriptions */}
       {!result && (
-        <div className="bg-gray-50 border rounded-lg p-6">
+        <div className="bg-gray-50 border rounded-lg p-6 break-words min-w-0" data-testid="ai-project-examples-section">
           <h3 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-examples-heading">Eksempler på projektbeskrivelser</h3>
           <div className="grid md:grid-cols-2 gap-4 break-words min-w-0" data-testid="ai-project-example-grid">
             {EXAMPLE_DESCRIPTIONS.map((example, i) => (
