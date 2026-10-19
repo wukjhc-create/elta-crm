@@ -853,7 +853,7 @@ function CollapsibleSection({
           {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </div>
       </button>
-      {expanded && <div className="p-4 pt-0 border-t">{children}</div>}
+      {expanded && <div className="p-4 pt-0 border-t break-words min-w-0" data-testid="ai-project-section-body">{children}</div>}
     </div>
   )
 }
