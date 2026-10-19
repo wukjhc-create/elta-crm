@@ -529,7 +529,7 @@ function TrendsTab({
           onChange={(e) => onSupplierChange(e.target.value)}
           data-testid="pricing-trend-supplier-select"
         >
-          <option value="">Vælg leverandør...</option>
+          <option value="" className="break-words min-w-0" data-testid="pricing-trend-supplier-option">Vælg leverandør...</option>
           {suppliers.map((s) => (
             <option key={s.supplier_id} value={s.supplier_id}>{s.supplier_name}</option>
           ))}

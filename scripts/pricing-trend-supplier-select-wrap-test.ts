@@ -17,7 +17,7 @@ ok(formatCurrency(1250).includes('1'), 'beløbsformatet bliver')
 
 const view = readFileSync(join('src', 'app', 'dashboard', 'pricing', 'pricing-client.tsx'), 'utf8')
 const at = view.indexOf('data-testid="pricing-trend-supplier-select"')
-const row = at >= 0 ? view.slice(at - 220, at + 160) : ''
+const row = at >= 0 ? view.slice(at - 220, at + 280) : ''
 ok(row.includes('break-words min-w-0'), 'vaelgeren ombrydes')
 ok(row.includes('value={selectedSupplierId}'), 'vaerdien er uaendret')
 ok(row.includes('onChange={(e) => onSupplierChange(e.target.value)}'), 'skiftet er uaendret')
