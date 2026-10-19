@@ -19,7 +19,7 @@ const at = view.indexOf('data-testid="pricing-trend-price-mobile"')
 const row = at >= 0 ? view.slice(at - 120, at + 80) : ''
 ok(row.includes('tabular-nums font-medium break-words min-w-0'), 'prisen kan krympe')
 ok(row.includes('{formatCurrency(trend.current_price)}'), 'beløbet er uændret')
-ok(view.includes('text-right font-medium">{formatCurrency(trend.current_price)}'), 'skrivebordets pris bliver')
+ok(view.includes('text-right font-medium break-words min-w-0" data-testid="pricing-trend-current-desktop">{formatCurrency(trend.current_price)}'), 'skrivebordets pris bliver')
 ok(view.includes('{trend.trend_30_days}%'), '30 dage bliver')
 ok(view.includes('data-testid="pricing-trend-product-mobile"'), 'produktnavnet bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')

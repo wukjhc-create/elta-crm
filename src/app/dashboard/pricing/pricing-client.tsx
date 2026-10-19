@@ -601,7 +601,7 @@ function TrendsTab({
                     <td className="px-4 py-2.5 break-words min-w-0" data-testid="pricing-trend-product-cell">
                       <div className="font-medium break-words max-w-[16rem] min-w-0" data-testid="pricing-trend-product-name">{trend.product_name}</div>
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(trend.current_price)}</td>
+                    <td className="px-4 py-2.5 text-right font-medium break-words min-w-0" data-testid="pricing-trend-current-desktop">{formatCurrency(trend.current_price)}</td>
                     <td className="px-4 py-2.5 text-right break-words min-w-0" data-testid="pricing-trend-30-cell">
                       {trend.trend_30_days !== null ? (
                         <span className={`break-words min-w-0 inline-flex items-center gap-1 ${trend.trend_30_days > 0 ? 'text-red-600' : trend.trend_30_days < 0 ? 'text-green-600' : 'text-gray-500'}`} data-testid="pricing-trend-30">

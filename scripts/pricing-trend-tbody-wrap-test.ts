@@ -19,7 +19,7 @@ const at = view.indexOf('data-testid="pricing-trend-tbody"')
 const row = at >= 0 ? view.slice(at - 80, at + 2800) : ''
 ok(row.includes('className="min-w-0" data-testid="pricing-trend-tbody"'), 'kroppen kan krympe')
 ok(row.includes('{trend.product_name}'), 'navnet er uændret')
-ok(row.includes('text-right font-medium">{formatCurrency(trend.current_price)}'), 'prisen er uændret')
+ok(row.includes('text-right font-medium break-words min-w-0" data-testid="pricing-trend-current-desktop">{formatCurrency(trend.current_price)}'), 'prisen er uændret')
 ok(view.split('<tbody>').length - 1 === 0, 'ingen upakket tabelkrop')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 

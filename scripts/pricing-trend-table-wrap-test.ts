@@ -20,7 +20,7 @@ const row = at >= 0 ? view.slice(at - 80, at + 2800) : ''
 ok(row.includes('w-full text-sm min-w-0'), 'tabellen kan krympe')
 ok(row.includes('data-testid="pricing-trend-col-product"'), 'produktkolonnen bliver')
 ok(row.includes('{trend.product_name}'), 'navnet er uændret')
-ok(row.includes('text-right font-medium">{formatCurrency(trend.current_price)}'), 'prisen er uændret')
+ok(row.includes('text-right font-medium break-words min-w-0" data-testid="pricing-trend-current-desktop">{formatCurrency(trend.current_price)}'), 'prisen er uændret')
 ok(view.split('<table className="w-full text-sm">').length - 1 === 0, 'ingen upakket tabel')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 

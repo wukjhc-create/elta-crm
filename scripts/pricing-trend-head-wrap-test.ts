@@ -38,7 +38,7 @@ const block = head >= 0 ? view.slice(head - 80, head + 2800) : ''
 ok(block.includes('bg-gray-50 min-w-0'), 'rækken kan krympe')
 ok(block.includes('data-testid="pricing-trend-col-product"'), 'produktkolonnen bliver')
 ok(block.includes('{trend.product_name}'), 'navnet er uændret')
-ok(block.includes('text-right font-medium">{formatCurrency(trend.current_price)}'), 'prisen er uændret')
+ok(block.includes('text-right font-medium break-words min-w-0" data-testid="pricing-trend-current-desktop">{formatCurrency(trend.current_price)}'), 'prisen er uændret')
 ok(view.split('<tr className="border-b bg-gray-50">').length - 1 === 0, 'ingen upakket kolonnerække')
 ok(!view.includes('truncate'), 'siden klipper ikke')
 

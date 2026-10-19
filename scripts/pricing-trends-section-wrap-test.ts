@@ -20,7 +20,7 @@ const row = at >= 0 ? view.slice(at - 80, at + 3600) : ''
 ok(row.includes('space-y-4 min-w-0'), 'afsnittet kan krympe')
 ok(row.includes('{trend.product_name}'), 'navnet er uændret')
 ok(row.includes('{formatCurrency(trend.current_price)}'), 'prisen er uændret')
-ok(view.includes('text-right font-medium">{formatCurrency(trend.current_price)}'), 'skrivebordets pris bliver')
+ok(view.includes('text-right font-medium break-words min-w-0" data-testid="pricing-trend-current-desktop">{formatCurrency(trend.current_price)}'), 'skrivebordets pris bliver')
 ok(view.split('{trend.product_name}').length - 1 === 2, 'to navne')
 ok(!view.includes('className="space-y-4"'), 'kun dette afsnit')
 ok(!view.includes('truncate'), 'siden klipper ikke')

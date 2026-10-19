@@ -19,7 +19,7 @@ const at = view.indexOf('data-testid="pricing-trend-row"')
 const row = at >= 0 ? view.slice(at - 180, at + 700) : ''
 ok(row.includes('min-w-0'), 'raekken kan krympe')
 ok(row.includes('{trend.product_name}'), 'navnet er uændret')
-ok(row.includes('text-right font-medium">{formatCurrency(trend.current_price)}'), 'prisen er uændret')
+ok(row.includes('text-right font-medium break-words min-w-0" data-testid="pricing-trend-current-desktop">{formatCurrency(trend.current_price)}'), 'prisen er uændret')
 ok(view.split('{trend.product_name}').length - 1 === 2, 'to navne')
 ok(view.includes('data-testid="pricing-trend-price-mobile"'), 'mobilprisen bliver')
 ok(!view.includes('truncate'), 'siden klipper ikke')
