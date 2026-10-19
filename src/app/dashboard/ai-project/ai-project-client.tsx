@@ -886,7 +886,7 @@ function RiskCard({ risk }: { risk: RiskFactor }) {
             </div>
           )}
         </div>
-        <Badge variant="secondary" className="text-xs">
+        <Badge variant="secondary" className="text-xs break-words min-w-0" data-testid="ai-project-risk-badge">
           {risk.severity === 'low' && 'Lav'}
           {risk.severity === 'medium' && 'Moderat'}
           {risk.severity === 'high' && 'Høj'}
