@@ -1210,13 +1210,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-471 | 8 Pilot | DONE. Komponenttabellen på skrivebord kan krympe. | `hidden md:block border rounded-lg overflow-hidden` bliver. Priserne er uændrede. Kun rammen. |
 | G18-472 | 8 Pilot | DONE. Gitteret i hurtig estimat kan krympe. | `formatCurrency(quickResult.estimatedPrice)` er uændret. Kun gitteret `grid grid-cols-2 md:grid-cols-4 gap-4 text-sm`. |
 | G18-473 | 8 Pilot | DONE. Opsummeringsgitteret på AI-projekt kan krympe. | `formatCurrency(result.calculation.price.total_price)` er uændret. Kun gitteret `grid grid-cols-1 md:grid-cols-4 gap-4` i AI-projekt. |
-| G18-474 | 8 Pilot | ÅBEN. Bemærkningslisten på AI-projekt kan krympe. | Teksten `{w}` er uændret. Kun listen `text-sm text-yellow-700 mt-1 space-y-1` i AI-projekt. |
+| G18-474 | 8 Pilot | DONE. Bemærkningslisten på AI-projekt kan krympe. | Teksten `{w}` er uændret. Kun listen `text-sm text-yellow-700 mt-1 space-y-1` i AI-projekt. |
 | G18-475 | 8 Pilot | ÅBEN. Ladestander-vælgerens ramme kan krympe. | `data-testid="charger-picker"` og `formatCurrency(charger.cost_price)` er uændrede. Kun rammen `mt-3 rounded-lg border border-dashed p-3`. |
 | G18-476 | 8 Pilot | ÅBEN. Opsummeringskortets tal kan krympe. | `{value}` er uændret. Kun `text-xl font-bold` i SummaryCard på AI-projekt. |
 | G18-477 | 8 Pilot | ÅBEN. Komponenttabellen kan krympe. | `formatCurrency(comp.unit_price)` og `formatCurrency(comp.total)` er uændrede. Kun `w-full text-sm` i AI-projekt. |
 | G18-478 | 8 Pilot | ÅBEN. Komponentnavnet på skrivebord kan krympe. | `{comp.name}` er uændret. Kun cellen `<td className="p-3">{comp.name}</td>`. Priserne er uændrede. |
 | G18-479 | 8 Pilot | ÅBEN. Antal og enhed på skrivebord kan krympe. | `{comp.quantity} {comp.unit}` er uændret. Kun cellen `p-3 text-right` med det udtryk. Priserne er uændrede. |
 | G18-480 | 8 Pilot | ÅBEN. Enhedsprisen på skrivebord kan krympe. | `formatCurrency(comp.unit_price)` er uændret. Kun cellen `<td className="p-3 text-right">{formatCurrency(comp.unit_price)}</td>`. |
+| G18-481 | 8 Pilot | ÅBEN. Komponenttotalen på skrivebord kan krympe. | `formatCurrency(comp.total)` er uændret. Kun cellen `<td className="p-3 text-right font-medium">{formatCurrency(comp.total)}</td>`. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

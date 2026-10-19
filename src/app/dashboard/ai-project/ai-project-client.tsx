@@ -364,7 +364,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
                 <div>
                   <div className="font-medium text-yellow-800 break-words min-w-0" data-testid="ai-project-warnings-heading">Bemærkninger</div>
-                  <ul className="text-sm text-yellow-700 mt-1 space-y-1">
+                  <ul className="text-sm text-yellow-700 mt-1 space-y-1 break-words min-w-0" data-testid="ai-project-warnings-list">
                     {result.warnings.map((w, i) => (
                       <li key={i}>• {w}</li>
                     ))}
