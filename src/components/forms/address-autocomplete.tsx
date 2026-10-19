@@ -61,6 +61,8 @@ export function AddressAutocomplete({
   const [isLoading, setIsLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  // ADDR-1: serveren melder "adresseopslag slået fra" → ingen flere kald; feltet er almindelig fritekst
+  const [lookupOff, setLookupOff] = useState(false)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -78,7 +80,7 @@ export function AddressAutocomplete({
   }, [])
 
   const fetchSuggestions = useCallback(async (query: string) => {
-    if (query.trim().length < MIN_QUERY) {
+    if (lookupOff || query.trim().length < MIN_QUERY) {
       setSuggestions([])
       setShowDropdown(false)
       return
@@ -100,7 +102,8 @@ export function AddressAutocomplete({
         setShowDropdown(false)
         return
       }
-      const json = (await res.json()) as { suggestions?: AddressSuggestion[] }
+      const json = (await res.json()) as { suggestions?: AddressSuggestion[]; enabled?: boolean }
+      if (json.enabled === false) { setLookupOff(true); setSuggestions([]); setShowDropdown(false); return }
       const list = json.suggestions ?? []
       setSuggestions(list)
       setShowDropdown(list.length > 0)
@@ -114,7 +117,7 @@ export function AddressAutocomplete({
     } finally {
       setIsLoading(false)
     }
-  }, [limit])
+  }, [limit, lookupOff])
 
   const handleInputChange = (next: string) => {
     onChange(next)
@@ -175,6 +178,9 @@ export function AddressAutocomplete({
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin pointer-events-none" />
         )}
       </div>
+      {lookupOff && (
+        <p className="mt-1 text-xs text-gray-500" data-testid="address-lookup-off">Adresseforslag er ikke tilgængelige — skriv adressen manuelt.</p>
+      )}
 
       {showDropdown && suggestions.length > 0 && (
         <ul

@@ -20,7 +20,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { searchDanishAddresses } from '@/lib/services/address-lookup'
+import { searchDanishAddresses, isAddressLookupEnabled } from '@/lib/services/address-lookup'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -36,9 +36,12 @@ export async function GET(req: Request) {
   const limitParam = url.searchParams.get('limit')
   const limit = limitParam ? Math.max(1, Math.min(20, parseInt(limitParam, 10) || 8)) : undefined
 
+  // ADDR-1: uden konfigureret udbyder (ADDRESS_LOOKUP_ENABLED=false) — ingen opslag; UI'et skifter til manuel indtastning
+  if (!isAddressLookupEnabled()) return NextResponse.json({ suggestions: [], enabled: false }, { status: 200 })
+
   try {
     const suggestions = await searchDanishAddresses(q, { limit })
-    return NextResponse.json({ suggestions }, {
+    return NextResponse.json({ suggestions, enabled: true }, {
       headers: {
         // Browser-side caching er fint i nogle sekunder — DAWA-data
         // ændrer sig ikke hurtigt nok til at det er problem.
