@@ -33,7 +33,7 @@ export function MailFreshnessSync() {
   }, [router])
 
   if (state === 'syncing') {
-    return <span className="text-xs text-gray-500 inline-flex items-center gap-1" data-testid="mail-freshness"><Loader2 className="w-3 h-3 animate-spin break-words min-w-0" data-testid="mail-freshness-spinner" /> Henter nye mails…</span>
+    return <span className="text-xs text-gray-500 inline-flex items-center gap-1 break-words min-w-0" data-testid="mail-freshness"><Loader2 className="w-3 h-3 animate-spin break-words min-w-0" data-testid="mail-freshness-spinner" /> Henter nye mails…</span>
   }
   if (state === 'done') {
     return <span className="text-xs text-gray-500" data-testid="mail-freshness">Mail opdateret{inserted > 0 ? ` · ${inserted} nye` : ''}</span>

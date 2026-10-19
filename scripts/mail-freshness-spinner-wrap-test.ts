@@ -22,7 +22,7 @@ const row = at >= 0 ? view.slice(at - 62, at + 10) : ''
 const bare = '<Loader2 className="w-3 h-3 animate-spin" />'
 const cell = '<Loader2 className="w-3 h-3 animate-spin break-words min-w-0" data-testid="mail-freshness-spinner" />'
 const marker = 'data-testid="mail-freshness"><Loader2'
-const span = '<span className="text-xs text-gray-500 inline-flex items-center gap-1" data-testid="mail-freshness">'
+const span = '<span className="text-xs text-gray-500 inline-flex items-center gap-1 break-words min-w-0" data-testid="mail-freshness">'
 ok(row.startsWith('<Loader2'), 'det er spinneren')
 ok(row.includes('break-words min-w-0'), 'spinneren kan krympe')
 ok(row.includes('animate-spin'), 'animationen bliver')
