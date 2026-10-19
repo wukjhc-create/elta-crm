@@ -21,7 +21,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 320, at + 10) : ''
 const bare = 'className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"'
 const cell = bare.slice(0, -1) + ' break-words min-w-0" data-testid="mail-archive-button"'
-const readBare = 'className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border-2 transition-colors ${'
+const readBare = 'className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border-2 transition-colors break-words min-w-0 ${'
 ok(row.includes('<button'), 'det er knappen')
 ok(row.includes('hover:bg-gray-50'), 'hover bliver')
 ok(row.includes('break-words min-w-0'), 'knappen kan krympe')

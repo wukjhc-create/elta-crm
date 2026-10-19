@@ -479,11 +479,11 @@ export function MailDetail({
           {/* Read / Unread */}
           <button
             onClick={onToggleRead}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border-2 transition-colors ${
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border-2 transition-colors break-words min-w-0 ${
               email.is_read
                 ? 'border-blue-400 bg-blue-50 text-blue-700 hover:bg-blue-100'
                 : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-            }`}
+            }`} data-testid="mail-mark-read-button"
           >
             {email.is_read ? (
               <><Mail className="w-4 h-4 break-words min-w-0" data-testid="mail-mark-unread-icon" /> Markér som ulæst</>
