@@ -714,7 +714,7 @@ export function MailDetail({
                       <button
                         key={`img-${i}`}
                         onClick={() => { setLightboxUrl(att.url!); setLightboxName(att.filename) }}
-                        className="group relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all bg-gray-100"
+                        className="group relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all bg-gray-100 break-words min-w-0" data-testid="mail-gallery-image-button"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={att.url} alt={att.filename} className="w-full h-full object-cover" />
