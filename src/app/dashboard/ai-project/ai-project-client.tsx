@@ -633,7 +633,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 {creatingOffer ? (
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
                 ) : (
-                  <ArrowRight className="w-4 h-4 mr-2" />
+                  <ArrowRight className="w-4 h-4 mr-2 break-words min-w-0" data-testid="ai-project-offer-arrow" />
                 )}
                 Opret tilbud
               </Button>
