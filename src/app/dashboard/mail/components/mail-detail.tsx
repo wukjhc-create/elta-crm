@@ -471,7 +471,7 @@ export function MailDetail({
               href={`/dashboard/customers/${email.customers.id}?nytilbud=1`}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-emerald-600 text-emerald-700 rounded-md hover:bg-emerald-50 break-words min-w-0" data-testid="mail-create-offer"
             >
-              <FilePlus className="w-4 h-4" />
+              <FilePlus className="w-4 h-4 break-words min-w-0" data-testid="mail-create-offer-icon" />
               Opret tilbud
             </Link>
           )}
