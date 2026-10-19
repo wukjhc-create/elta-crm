@@ -941,7 +941,7 @@ function EmailCasePicker({
             className="text-xs border rounded px-2 py-1 bg-white max-w-[280px] truncate"
             title="Vælg sag"
           >
-            <option value="">— Ingen sag —</option>
+            <option value="" className="break-words min-w-0" data-testid="mail-no-case-option">— Ingen sag —</option>
             {cases.map((c) => {
               const closedTag = c.status === 'closed' ? ' (lukket)' : ''
               return (
