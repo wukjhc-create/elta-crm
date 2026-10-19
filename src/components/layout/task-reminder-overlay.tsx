@@ -280,7 +280,7 @@ function ReminderCard({
               {reminder.customer && (
                 <a
                   href={`/dashboard/customers/${reminder.customer.id}`}
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline break-words"
+                  className="inline-flex flex-wrap items-center gap-1 text-xs text-blue-600 hover:underline break-words min-w-0 max-w-full" data-testid="task-reminder-customer"
                 >
                   {reminder.customer.company_name}
                   <ExternalLink className="w-3 h-3" />
