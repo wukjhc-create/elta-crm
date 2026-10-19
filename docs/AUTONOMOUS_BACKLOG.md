@@ -1214,13 +1214,14 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-475 | 8 Pilot | DONE. Ladestander-vælgerens ramme kan krympe. | `data-testid="charger-picker"` og `formatCurrency(charger.cost_price)` er uændrede. Kun rammen `mt-3 rounded-lg border border-dashed p-3`. |
 | G18-476 | 8 Pilot | DONE. Opsummeringskortets tal kan krympe. | `{value}` er uændret. Kun `text-xl font-bold` i SummaryCard på AI-projekt. |
 | G18-477 | 8 Pilot | DONE. Komponenttabellen kan krympe. | `formatCurrency(comp.unit_price)` og `formatCurrency(comp.total)` er uændrede. Kun `w-full text-sm` i AI-projekt. |
-| G18-478 | 8 Pilot | ÅBEN. Komponentnavnet på skrivebord kan krympe. | `{comp.name}` er uændret. Kun cellen `<td className="p-3">{comp.name}</td>`. Priserne er uændrede. |
+| G18-478 | 8 Pilot | DONE. Komponentnavnet på skrivebord kan krympe. | `{comp.name}` er uændret. Kun cellen `<td className="p-3">{comp.name}</td>`. Priserne er uændrede. |
 | G18-479 | 8 Pilot | ÅBEN. Antal og enhed på skrivebord kan krympe. | `{comp.quantity} {comp.unit}` er uændret. Kun cellen `p-3 text-right` med det udtryk. Priserne er uændrede. |
 | G18-480 | 8 Pilot | ÅBEN. Enhedsprisen på skrivebord kan krympe. | `formatCurrency(comp.unit_price)` er uændret. Kun cellen `<td className="p-3 text-right">{formatCurrency(comp.unit_price)}</td>`. |
 | G18-481 | 8 Pilot | ÅBEN. Komponenttotalen på skrivebord kan krympe. | `formatCurrency(comp.total)` er uændret. Kun cellen `<td className="p-3 text-right font-medium">{formatCurrency(comp.total)}</td>`. |
 | G18-482 | 8 Pilot | ÅBEN. Kolonnen Komponent kan krympe. | Teksten `Komponent` er uændret. Kun `<th className="text-left p-3">Komponent</th>`. Priserne er uændrede. |
 | G18-483 | 8 Pilot | ÅBEN. Opsummeringskortets note kan krympe. | `{sublabel}` er uændret. Kun `text-xs text-gray-400">{sublabel}` i SummaryCard. Historikkens dato er uændret. |
 | G18-484 | 8 Pilot | ÅBEN. Kolonnen Antal kan krympe. | Teksten `Antal` er uændret. Kun `<th className="text-right p-3">Antal</th>`. Priserne er uændrede. |
+| G18-485 | 8 Pilot | ÅBEN. Kolonnen Enhedspris kan krympe. | Teksten `Enhedspris` er uændret. Kun `<th className="text-right p-3">Enhedspris</th>` i AI-projekt. Priserne er uændrede. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
