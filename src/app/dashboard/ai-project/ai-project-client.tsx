@@ -331,7 +331,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               </div>
               <div className="flex items-center gap-2">
                 <Banknote className="w-4 h-4 text-purple-500" />
-                <span className="font-semibold">{formatCurrency(quickResult.estimatedPrice)}</span>
+                <span className="font-semibold break-words min-w-0" data-testid="ai-project-quick-price">{formatCurrency(quickResult.estimatedPrice)}</span>
               </div>
             </div>
           </div>
