@@ -620,7 +620,7 @@ function TrendsTab({
                         <span className="text-gray-400 break-words min-w-0" data-testid="pricing-trend-90-missing">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-4 py-2.5 text-center break-words min-w-0" data-testid="pricing-trend-volatility-cell">
                       <span className={`break-words min-w-0 text-xs font-medium px-2 py-0.5 rounded-full ${volatilityStyles[trend.volatility]}`} data-testid="pricing-volatility">
                         {volatilityLabels[trend.volatility]}
                       </span>
