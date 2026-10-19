@@ -93,6 +93,8 @@ export default function ProductForm({
           defaultValue={product?.description || ''}
           placeholder="Produktbeskrivelse..."
           rows={3}
+          className="break-words min-w-0"
+          data-testid="product-form-description"
         />
       </div>
 
