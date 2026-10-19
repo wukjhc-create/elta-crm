@@ -814,7 +814,7 @@ export function MailDetail({
               </div>
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={lightboxUrl} alt={lightboxName} className="max-w-full max-h-[80vh] rounded-lg shadow-2xl object-contain" />
+            <img src={lightboxUrl} alt={lightboxName} className="max-w-full max-h-[80vh] rounded-lg shadow-2xl object-contain break-words min-w-0" data-testid="mail-lightbox-photo" />
           </div>
         </div>
       )}
