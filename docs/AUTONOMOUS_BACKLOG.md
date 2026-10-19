@@ -1615,6 +1615,130 @@ Synk-datoen ombrydes. Kaldet er stadig `formatDateUtil(stat.last_sync_at)`. Etik
 
 G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-160, G18-161, G18-162, G18-163, G18-164, G18-165.
 
+## Checkpoint 2026-10-18 fireogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `9d888c0b`. Det omskriver ikke listerne ovenfor. Produktspids: `44858657`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `44858657` blev afvist før git kørte og er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `9d888c0b..44858657`
+
+```
+44858657 feat(pris): taerskelvaelger ombrydes
+0cf926cc feat(pris): skrivebords-trendnavn kan krympe
+b9cced96 feat(pris): skrivebords-produktnavn kan krympe
+1ce6a187 feat(pris): mobil-statusfelt ombrydes
+522b4afc feat(pris): mobil-trendnavn kan krympe
+e17fd377 feat(pris): mobil-tilbudstitel kan krympe
+444f9f8c feat(pris): mobil-kundenavn kan krympe
+70925e74 feat(pris): mobil-leverandoernavn kan krympe
+8592d5ed feat(pris): mobil-produktnavn kan krympe
+c66b70d3 feat(pris): tilbudstitel kan krympe
+1dfa747e feat(pris): aendringscelle ombrydes
+518cd83c feat(pris): leverandoercelle kan krympe
+e53a4ed6 feat(pris): kundecelle kan krympe
+240cec01 feat(pris): nul-maerke ombrydes
+83c33712 feat(pris): mobil-varenummer ombrydes
+623d39a1 feat(pris): tilbudscelle ombrydes
+67b26455 feat(pris): mobil-alvorlighed ombrydes
+7942e74d feat(pris): linjecelle ombrydes
+60a806cd feat(pris): volatilitets-celle ombrydes
+64091122 feat(pris): paavirkningscelle ombrydes
+6f70f086 feat(pris): advarsels-varenummer ombrydes
+3b10c854 feat(pris): tilbudsstatus-celle ombrydes
+a4985512 feat(pris): advarsels-produktcelle ombrydes
+b24673cb feat(pris): alvorlighedsmaerke ombrydes
+e1e99436 feat(pris): 90-dages-celle ombrydes
+69075fa6 feat(pris): 30-dages-celle ombrydes
+021680c7 feat(pris): trend-produktcelle ombrydes
+c62450de feat(pris): leverandoer-option ombrydes
+fa8d3a8e feat(pris): leverandoervaelger ombrydes
+19c8c643 feat(pris): volatilitets-linje ombrydes
+9d356dc5 feat(pris): tilbage-knap ombrydes
+45e180cb feat(pris): dialogtitel ombrydes
+d884e2e3 feat(pris): avance-etiket paa detaljen ombrydes
+f3ebc877 feat(pris): kostpris-etiket paa detaljen ombrydes
+6dbb2d7d feat(pris): listepris-etiket paa detaljen ombrydes
+330793cc feat(pris): enhed-etiket paa detaljen ombrydes
+f3afbb3f feat(pris): kategori-etiket paa detaljen ombrydes
+faf93d38 feat(pris): status-etiket paa detaljen ombrydes
+876760a1 feat(pris): specifikationer ombrydes
+5e27c20c feat(pris): beskrivelse-etiket paa detaljen ombrydes
+8ac66042 feat(pris): prisoverskrift ombrydes
+5cc44f4d feat(pris): detalje-beskrivelse ombrydes
+59334730 feat(pris): produktinformation ombrydes
+d6096465 feat(pris): detalje-slet ombrydes
+bbb8ed0b feat(pris): detalje-rediger ombrydes
+70e7c704 feat(pris): detalje-fejl ombrydes
+da0465f1 feat(pris): sku-linje paa detaljen ombrydes
+96baa1dd feat(pris): produktnavn paa detaljen ombrydes
+48bfe72a feat(pris): formularens enhedsvaelger ombrydes
+c8f775a0 feat(pris): formularens kategori-vaelger ombrydes
+4c616ac0 feat(pris): formularens kategorinavn ombrydes
+2b31782e feat(pris): listepris-pladsholder ombrydes
+f30da9fd feat(pris): kostpris-pladsholder ombrydes
+e1fe48d2 feat(pris): sku-pladsholder ombrydes
+8fa842a1 feat(pris): beskrivelse-pladsholder ombrydes
+3195370a feat(pris): produktnavn-pladsholder ombrydes
+fc137ff3 feat(pris): listepris-etiket ombrydes
+bc92e526 feat(pris): kostpris-etiket ombrydes
+571c98b3 feat(pris): enhedsnavn ombrydes
+5720d8fd feat(pris): sku-etiket ombrydes
+688e5c5d feat(pris): beskrivelse-etiket ombrydes
+3495cca6 feat(pris): produktnavn-etiket ombrydes
+436aa622 feat(pris): vaelg-kategori ombrydes
+e325204a feat(pris): enhed-etiket ombrydes
+fe5c0d0a feat(pris): aktiv-etiket ombrydes
+bbd5c993 feat(pris): kategorifejl i formularen ombrydes
+149d3931 feat(pris): kategori-etiket i formularen ombrydes
+8f2af7a4 feat(pris): gem-knap ombrydes
+5ed0baca feat(pris): annuller ombrydes
+074fd307 feat(pris): kategori-etiket ombrydes
+f4c9345f feat(pris): kategorinavn ombrydes
+d5a34ddd feat(pris): soegeetiket ombrydes
+0bfa834b feat(pris): kategori-pladsholder ombrydes
+6fb0821d feat(pris): soegefelt ombrydes
+40dc8157 feat(pris): mobil-slet ombrydes
+c0b939df feat(pris): mobil-rediger ombrydes
+aed9f5aa feat(pris): alle-kategorier ombrydes
+22863ffa feat(pris): slet-menu ombrydes
+cb4f0a8f feat(pris): rediger-menu ombrydes
+```
+
+Listen er alle commits efter `9d888c0b` til og med `44858657`, fra `cb4f0a8f`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commit der ikke stod i et hegn
+
+```
+9d888c0b docs: checkpoint efter ffc0fffb
+```
+
+### Features
+
+Katalog, produktformular, produktdetalje og prisovervågning kan ombrydes på mobil og skrivebord. Ord, numre, SKU, statusser, procenter og `formatCurrency` er uændrede. G18-287 lader produktnavnet på pristendensens skrivebord krympe. `{trend.product_name}` og `formatCurrency(trend.current_price)` er uændrede. G18-288 lader tærskel-vælgeren ombrydes. Værdierne 2, 5, 10 og 20 og `setThreshold` er uændrede. Periode-vælgeren er uændret. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil. Pris-testene kalder `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log, ikke skrevet om. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter katalog-, formular-, detalje- og prisbølgen fra `cb4f0a8f` til `44858657`, herunder G18-287 og G18-288. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-15, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-289, G18-290, G18-291, G18-292, G18-293, G18-294.
+
 ## Checkpoint 2026-10-18 treogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `ffc0fffb`. Det omskriver ikke listerne ovenfor. Produktspids: `03376da4`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `03376da4` blev afvist før git kørte og er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
