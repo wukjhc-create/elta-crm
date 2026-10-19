@@ -36,7 +36,7 @@ ok(view.includes('Hop til Chat'), 'teksten bliver')
 ok(view.includes('data-testid="mail-opgave-arrow"'), 'opgavepilen bliver')
 ok(view.includes('data-testid="mail-kunde-arrow"'), 'kundepilen bliver')
 ok(view.includes('data-testid="mail-portal-link"'), 'portallinket bliver')
-ok(view.includes('<Link2 className="w-3 h-3" />'), 'kobl-ikonet bliver')
+ok(view.includes('<Link2 className="w-3 h-3 break-words min-w-0" data-testid="mail-other-kobl-icon" />'), 'kobl-ikonet bliver')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
 ok(view.includes('data-testid="mail-create-offer"'), 'opret-tilbud bliver')
 
