@@ -1129,6 +1129,63 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 niogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister commits efter `b4d64ad0`. Det lader otteogtyvende-hegnet stå. `b4d64ad0` hedder `docs: checkpoint efter e3479705`. Produktspids: `b028b391`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `b028b391` blev afvist før git kørte og er ikke prøvet igen. `03b7eeed` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `b4d64ad0..b028b391`
+
+```
+b028b391 feat(pilot): ansvarlig paa opgavekortet ombrydes
+03b7eeed feat(pris): opdateret-celle paa leverandorvarens skrivebord kan krympe
+c115025d feat(pris): opdateret-linje paa leverandorvarens mobilkort ombrydes
+6b4cc11b feat(pilot): eksempeltitel i AI-projekt ombrydes
+bcccb7b2 feat(pilot): tilbudsnummer i opgavepaamindelse ombrydes
+deae6830 feat(pilot): titel paa tilbudstekstkortet ombrydes
+07b88ee7 feat(pilot): navn paa kalkulationstypen ombrydes
+e3121cde feat(pilot): opgavetitel paa braettet ombrydes
+cd65875e feat(pris): varenummer paa leverandorvarens skrivebord kan krympe
+b18aea53 feat(pris): varenummer paa leverandorvarens mobilkort ombrydes
+7b2c0d72 feat(pilot): eksempeltekst i AI-projekt ombrydes
+2013e3dc feat(pilot): besked i opgavepaamindelse ombrydes
+```
+
+Listen er alle commits efter `b4d64ad0` til og med `b028b391`, fra `2013e3dc`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Docs-commit der ikke stod i et hegn
+
+```
+b4d64ad0 docs: checkpoint efter e3479705
+```
+
+### Features
+
+G18-371 til G18-382 ombryder påmindelsesbesked, eksempeltekst, mobil- og skrivebordsvarenummer, opgavetitel, kalkulationstype, tilbudsteksttitel, tilbudsnummer, eksempeltitel, opdateret-linje, opdateret-celle og ansvarlig. Teksterne i de linjer er uændrede. Priser, `storedCostText`, historikkens `line-clamp-2` og `break-words">{reminder.title}` er uændrede. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede fil og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Når `grok-next` må ses: kost-gates og `formatCurrency(product.list_price)` først. Derefter pilot- og prisbølgen fra `cb4f0a8f` til `b028b391`, herunder G18-371 til G18-382. Ingen af dem poster, sender eller opfinder en pris. `vat-guard.ts`, cron, storage og migrationer 00221–00262 er urørte.
+
+### Integration
+
+1. Merge ikke til main.
+2. Når push er tilladt: push kun `grok-next`. Prøv ikke de afviste tip igen, herunder `b028b391`, `03b7eeed` og `b4d64ad0`.
+3. Merge `origin/main` ind i `grok-next` og løs konflikten uden at køre migrationer.
+4. Claude reviewer kost-gate og listepris først.
+5. Først derefter merge til main.
+
+### Stadig åben kø (15)
+
+G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-383, G18-384, G18-385, G18-386, G18-387, G18-388, G18-389.
+
 ## Checkpoint 2026-10-18 otteogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister commits efter `e3479705`. Det lader syvogtyvende-hegnet stå. `e3479705` hedder `docs: checkpoint efter 96f90a04`. Produktspids: `688fa934`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `688fa934` blev afvist før git kørte og er ikke prøvet igen. `39e41351` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
