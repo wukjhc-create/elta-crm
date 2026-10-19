@@ -30,7 +30,7 @@ ok(view.split(id).length === 2, 'spinneren findes en gang')
 ok(view.split(cell).length === 2, 'spinnerklassen findes en gang')
 ok(!view.includes('className="w-6 h-6 animate-spin text-gray-400"'), 'den bare spinner er vaek')
 ok(view.includes('className="flex items-center justify-center py-8 break-words min-w-0" data-testid="ai-project-customer-loading"'), 'foraeldre-diven bliver')
-ok(view.includes('<Loader2 className="w-5 h-5 animate-spin mr-2" />'), 'analyser-spinneren bliver')
+ok(view.includes('<Loader2 className="w-5 h-5 animate-spin mr-2 break-words min-w-0" data-testid="ai-project-analyze-spinner" />'), 'analyser-spinneren bliver')
 ok(view.includes('formatCurrency(result.calculation.price.total_price)'), 'totalprisen bliver')
 
 if (bad > 0) {

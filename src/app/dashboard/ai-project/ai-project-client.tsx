@@ -341,7 +341,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           <Button onClick={handleAnalyze} disabled={analyzing || !description.trim()} size="lg" className="break-words min-w-0" data-testid="ai-project-analyze">
             {analyzing ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                <Loader2 className="w-5 h-5 animate-spin mr-2 break-words min-w-0" data-testid="ai-project-analyze-spinner" />
                 <span className="break-words min-w-0" data-testid="ai-project-analyzing">Analyserer...</span>
               </>
             ) : (
