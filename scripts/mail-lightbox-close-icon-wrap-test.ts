@@ -37,7 +37,7 @@ ok(view.includes('data-testid="mail-lightbox-download-icon"'), 'download-ikonet 
 ok(view.includes('aria-label="Luk"'), 'luk bliver')
 ok(view.includes('aria-label="Download"'), 'download-etiketten bliver')
 ok(view.includes('setLightboxUrl(null)'), 'lukningen bliver')
-ok(view.includes('className="p-1.5 rounded-full bg-white/10 hover:bg-white/20"'), 'luk-knappen bliver')
+ok(view.includes('onClick={() => setLightboxUrl(null)} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 break-words min-w-0" data-testid="mail-lightbox-close-button"'), 'luk-knappen bliver')
 ok(view.includes('href={lightboxUrl}'), 'linket bliver')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 
