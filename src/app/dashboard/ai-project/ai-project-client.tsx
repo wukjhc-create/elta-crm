@@ -228,7 +228,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
   )
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto break-words min-w-0" data-testid="ai-project-page">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold flex flex-wrap items-center gap-2 break-words min-w-0" data-testid="ai-project-page-title">
