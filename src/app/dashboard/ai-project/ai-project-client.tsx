@@ -342,7 +342,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             {analyzing ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                Analyserer...
+                <span className="break-words min-w-0" data-testid="ai-project-analyzing">Analyserer...</span>
               </>
             ) : (
               <>

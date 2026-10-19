@@ -18,7 +18,7 @@ ok(formatCurrency(1250).includes('1'), 'beløbsformatet bliver')
 const view = readFileSync('src/app/dashboard/ai-project/ai-project-client.tsx', 'utf8')
 const id = 'data-testid="ai-project-analyze"'
 const at = view.indexOf(id)
-const row = at >= 0 ? view.slice(at - 80, at + 360) : ''
+const row = at >= 0 ? view.slice(at - 80, at + 440) : ''
 const exact = (src: string) => src.split(/\r?\n/).filter((line) => line.trim() === 'Analyser projekt').length
 ok(row.includes('break-words min-w-0'), 'knappen ombrydes')
 ok(exact(row) === 1, 'teksten er uændret')
