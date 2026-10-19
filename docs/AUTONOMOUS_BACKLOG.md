@@ -1430,6 +1430,52 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 enogfirsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint lister produktcommits efter `243cbb02`. Det lader firsindstyvende-hegnet stå. `243cbb02` hedder `docs: checkpoint efter 96d7b13e`. Produktspids: `147d1d48`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `147d1d48` blev afvist før git kørte og er ikke prøvet igen. `595e4916`, `d962a6b5`, `ef8d4ac3` og `589d6ede` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `589d6ede..147d1d48`
+
+```
+147d1d48 feat(pilot): hurtigsvar-raekken i mail-detaljen kan krympe
+595e4916 feat(pilot): hurtigsvar-rammen i mail-detaljen kan krympe
+d962a6b5 feat(pilot): ikonet paa hurtigsvar i mail-detaljen kan krympe
+ef8d4ac3 feat(pilot): hurtigsvar-knapperne i mail-detaljen kan krympe
+589d6ede feat(pilot): overskriften Hurtigt svar i mail-detaljen kan krympe
+```
+
+Listen er alle produktcommits efter `243cbb02` til og med `147d1d48`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+243cbb02 docs: checkpoint efter 96d7b13e
+```
+
+### Features
+
+G18-685, G18-686, G18-687, G18-688 og G18-689 lader kun overskriften Hurtigt svar, hurtigsvar-knapperne, ikonet, rammen og rækken i mail-detaljen krympe. `Hurtigt svar` bliver. `Bekræft modtagelse` bliver. `Mangler info` bliver. `Tak for ordren` bliver. `data-testid="mail-quick-reply-label"` bliver. `data-testid="mail-quick-reply-button"` bliver. `data-testid="mail-quick-reply-icon"` bliver. `data-testid="mail-quick-reply-frame"` bliver. `data-testid="mail-quick-reply-row"` bliver. `>Ulæst</span>` bliver. `formatDate(email.received_at)` bliver. `href={lightboxUrl}` bliver. Filnavnets `line-clamp-2` bliver. `formatCurrency` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+Hver produkt-commit har et `scripts/*-test.ts`, der læser den shippede mail-detalje og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. G18-685: `scripts/mail-quick-reply-label-wrap-test.ts`. G18-686: `scripts/mail-quick-reply-button-wrap-test.ts`. G18-687: `scripts/mail-quick-reply-icon-wrap-test.ts`. G18-688: `scripts/mail-quick-reply-frame-wrap-test.ts`. G18-689: `scripts/mail-quick-reply-row-wrap-test.ts`. Samme G18-686-commit opdaterede svarknap-låsen i overskrifts-testen. Samme G18-687-commit opdaterede ikon-låsen i knap-testen. Samme G18-688-commit opdaterede ramme-låsen i ikon-testen. Samme G18-689-commit opdaterede række-låsen i ramme-testen. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 før hver src-commit. Resultaterne er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `147d1d48`, herunder G18-289 til G18-689. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. Når push er tilladt, push kun `grok-next` og prøv ikke afviste tip igen, herunder `147d1d48`, `595e4916`, `d962a6b5`, `ef8d4ac3`, `589d6ede`, `243cbb02`, `96d7b13e`, `86bdae57`, `a0e89a8c`, `6ee2b78f`, `0302ec0b`, `44f955fe`, `68fc429b`, `823ee048`, `990eeb0f`, `69d1e2e4`, `00e217ed`, `4ce9acc7`, `d4cd92bb`, `251d3c0c`, `ed9b0086`, `8a254f56`, `400a5180`, `b1fa1bd5`, `55612992`, `9a367f09`, `4a5b1b4e`, `be33e396`, `2e1e110a`, `13c764e4`, `5224acd7`, `da9fbb1d`, `66dbd689`, `bab91e58`, `87fa4b82`, `9b80b5b4` og de ældre tip i checkpointet før dette. Flet derefter `origin/main` ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-690, G18-597.
+
 ## Checkpoint 2026-10-18 firsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint lister produktcommits efter `44f955fe`. Det lader nioghalvfjerdsindstyvende-hegnet stå. `44f955fe` hedder `docs: checkpoint efter 68fc429b`. Produktspids: `96d7b13e`. Start: `80ab0dab`. `origin/grok-next` er stadig `80ab0dab`. Push af `96d7b13e` blev afvist før git kørte og er ikke prøvet igen. `86bdae57`, `a0e89a8c`, `6ee2b78f` og `0302ec0b` er ikke prøvet igen. De lokale tip er ikke pushet. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
