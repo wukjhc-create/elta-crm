@@ -947,12 +947,13 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-208 | 4 Pris | DONE. Dialogen Rediger produkt ombrydes. | Ordene er uændret. |
 | G18-209 | 4 Pris | DONE. Bindestregen for en manglende kategori ombrydes. | Bindestregen er uændret. |
 | G18-210 | 4 Pris | DONE. Menupunktet Rediger i kataloget ombrydes. | setEditingProduct er uændret. |
-| G18-211 | 4 Pris | ÅBEN. Menupunktet Slet i kataloget ombrydes. | handleDelete er uændret. |
+| G18-211 | 4 Pris | DONE. Menupunktet Slet i kataloget ombrydes. | handleDelete er uændret. |
 | G18-212 | 4 Pris | ÅBEN. Valget Alle kategorier ombrydes. | value all er uændret. |
 | G18-213 | 4 Pris | ÅBEN. Mobilknappen Rediger i kataloget ombrydes. | Ordet er uændret. |
 | G18-214 | 4 Pris | ÅBEN. Mobilknappen Slet i kataloget ombrydes. | Ordet er uændret. |
 | G18-215 | 4 Pris | ÅBEN. Søgefeltets pladsholder ombrydes. | Teksten Søg efter produkter... er uændret. |
 | G18-216 | 4 Pris | ÅBEN. Pladsholderen Alle kategorier i kategori-vælgeren ombrydes. | Ordene er uændrede. |
+| G18-217 | 4 Pris | ÅBEN. Søgefeltets etiket ombrydes. | Teksten Søg efter produkter er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

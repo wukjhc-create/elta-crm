@@ -337,7 +337,8 @@ export default function ProductsClient({
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => handleDelete(product)}
-                          className="text-red-600"
+                          className="text-red-600 break-words min-w-0"
+                          data-testid="product-menu-delete"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           Slet
