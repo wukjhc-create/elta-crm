@@ -175,7 +175,7 @@ export function MessagesList({
                   </span>
                 </div>
 
-                <p className={`text-sm line-clamp-2 ${isUnread ? 'font-medium' : ''}`}>
+                <p className={`text-sm break-words min-w-0 ${isUnread ? 'font-medium' : ''}`} data-testid="message-list-subject">
                   {message.subject}
                 </p>
 

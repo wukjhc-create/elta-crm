@@ -21,7 +21,7 @@ eq('soegning har et navn', page.includes('aria-label="Søg i beskeder"'), true)
 eq('soegning kan ryddes', page.includes('onClearSearch={clearSearch}') && page.includes('searching={search.trim().length > 0}'), true)
 eq('overskriften ombrydes', page.includes('flex flex-wrap items-center justify-between gap-2 mb-4'), true)
 eq('afsender ombrydes', src.includes('break-words min-w-0') && src.includes("message.from_name"), true)
-eq('emne viser to linjer', src.includes('text-sm line-clamp-2'), true)
+eq('emnet ombrydes', src.includes('data-testid="message-list-subject"') && src.includes('{message.subject}'), true)
 eq('forhaandsvisning er stadig kort', src.includes('message.body.substring(0, 100)'), true)
 
 console.log(fail ? `\n${fail} fejl` : '\nmessages-empty-test OK')
