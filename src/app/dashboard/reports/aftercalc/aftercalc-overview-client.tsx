@@ -226,7 +226,7 @@ export function AftercalcOverviewClient() {
                           DB-afvigelse: {varianceText(r.db_variance, r.db_variance_pct_points)}
                         </p>
                         <p className="text-xs text-gray-600 break-words min-w-0" data-testid="aftercalc-mobile-status">{SERVICE_CASE_STATUS_LABELS[r.status as ServiceCaseStatus] ?? r.status}</p>
-                        <p className="text-xs text-gray-600 break-words" data-testid="aftercalc-invoiced-state">{invoicedStateLabel(r.invoiced_state)}</p>
+                        <p className="text-xs text-gray-600 break-words min-w-0" data-testid="aftercalc-invoiced-state">{invoicedStateLabel(r.invoiced_state)}</p>
                       </article>
                     ))}
                   </div>
