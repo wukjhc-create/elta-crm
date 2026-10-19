@@ -96,7 +96,7 @@ export function AftercalcOverviewClient() {
       </div>
 
       <div className="rounded-lg ring-1 ring-gray-200 bg-white p-4 break-words min-w-0" data-testid="aftercalc-overview-filter-card">
-        <button type="button" onClick={toggle} className="w-full flex items-center justify-between text-left" data-testid="aftercalc-overview-toggle" aria-expanded={open}>
+        <button type="button" onClick={toggle} className="w-full flex items-center justify-between text-left break-words min-w-0" data-testid="aftercalc-overview-toggle" aria-expanded={open}>
           <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
             <Scale className="w-4 h-4 text-gray-500" />
             Sager
