@@ -955,7 +955,7 @@ function EmailCasePicker({
         )}
         {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 break-words min-w-0" data-testid="mail-case-saving" />}
         {feedback && (
-          <span className={`text-xs ${feedback.startsWith('Fejl') ? 'text-red-600' : 'text-green-700'}`}>
+          <span className={`text-xs ${feedback.startsWith('Fejl') ? 'text-red-600' : 'text-green-700'} break-words min-w-0`} data-testid="mail-case-feedback">
             {feedback}
           </span>
         )}
