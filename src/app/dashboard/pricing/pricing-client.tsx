@@ -422,7 +422,7 @@ function AffectedOffersTab({ offers, error }: { offers: AffectedOffer[]; error: 
                     {offer.affected_items}
                   </span>
                 </td>
-                <td className="px-4 py-2.5 text-right">
+                <td className="px-4 py-2.5 text-right break-words min-w-0" data-testid="pricing-offer-loss-desktop">
                   <span className={`font-medium ${offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'}`}>
                     {offer.potential_loss > 0 ? '-' : '+'}{formatCurrency(Math.abs(offer.potential_loss))}
                   </span>
