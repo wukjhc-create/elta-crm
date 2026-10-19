@@ -69,6 +69,8 @@ export default function ProductForm({
             defaultValue={product?.name}
             required
             placeholder="F.eks. JA Solar 400W Panel"
+            className="break-words min-w-0"
+            data-testid="product-form-name"
           />
         </div>
 
