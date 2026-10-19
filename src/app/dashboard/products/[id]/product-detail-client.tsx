@@ -57,7 +57,7 @@ export default function ProductDetailClient({
     <div className="space-y-6">
       {/* Actions */}
       <div className="flex gap-2">
-        <Button variant="outline" onClick={() => setShowEditDialog(true)}>
+        <Button variant="outline" onClick={() => setShowEditDialog(true)} className="break-words min-w-0" data-testid="product-detail-edit">
           <Pencil className="w-4 h-4 mr-2" />
           Rediger
         </Button>
