@@ -194,7 +194,7 @@ export default function ProductsClient({
             <SelectItem value="all"><span className="break-words min-w-0" data-testid="product-category-all">Alle kategorier</span></SelectItem>
             {categories.map((category) => (
               <SelectItem key={category.id} value={category.id}>
-                {category.name}
+                <span className="break-words min-w-0" data-testid="product-category-option">{category.name}</span>
               </SelectItem>
             ))}
           </SelectContent>

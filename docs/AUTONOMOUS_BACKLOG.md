@@ -955,7 +955,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-216 | 4 Pris | DONE. Pladsholderen Alle kategorier i kategori-vælgeren ombrydes. | Ordene er uændrede. |
 | G18-217 | 4 Pris | DONE. Søgefeltets etiket ombrydes. | Teksten Søg efter produkter er uændret. Etiketten sidder på søgefeltet. |
 | G18-223 | 4 Pris | ÅBEN. Fejlteksten i produktformularen når kategorierne ikke kan hentes ombrydes. | Sætningen er uændret. |
-| G18-218 | 4 Pris | ÅBEN. Kategorinavnet i kategori-vælgeren ombrydes. | {category.name} er uændret. |
+| G18-218 | 4 Pris | DONE. Kategorinavnet i kategori-vælgeren ombrydes. | {category.name} er uændret. |
+| G18-224 | 4 Pris | ÅBEN. Etiketten Aktiv i produktformularen ombrydes. | Ordet er uændret. |
 | G18-219 | 4 Pris | ÅBEN. Kategori-vælgerens etiket ombrydes. | aria-label Kategori er uændret. |
 | G18-220 | 4 Pris | ÅBEN. Knappen Annuller i produktformularen ombrydes. | onCancel er uændret. |
 | G18-221 | 4 Pris | ÅBEN. Gem-knappen i produktformularen ombrydes. | Ordene Gemmer, Opdater og Opret er uændrede. |
