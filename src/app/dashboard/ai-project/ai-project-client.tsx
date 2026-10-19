@@ -429,7 +429,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-building-age-label">Alder</dt>
                     <dd className="font-medium min-w-0 break-words">{result.interpretation.building_age_years ? `~${result.interpretation.building_age_years} år` : 'Ukendt'}</dd>
                   </div>
-                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-building-complexity-row">
                     <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-building-complexity-label">Kompleksitet</dt>
                     <dd className="font-medium min-w-0 break-words">{getComplexityLabel(result.interpretation.complexity_score)}</dd>
                   </div>

@@ -35,9 +35,9 @@ ok(!row.includes('formatCurrency'), 'priserne er et andet sted')
 ok(!row.includes('ai-project-building-list'), 'bygningslisten er et andet sted')
 ok(view.split(id).length === 2, 'aldersrækken findes en gang')
 ok(view.split(cell).length === 2, 'aldersrækkens klasse findes en gang')
-ok(view.split(bare).length === 7, 'de andre rækker bliver')
+ok(view.split(bare).length === 6, 'de andre rækker bliver')
 ok(view.includes('font-medium min-w-0 break-words">{result.interpretation.building_age_years'), 'alderen bliver')
-ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0">\r\n                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-building-complexity-label">'), 'kompleksitetsrækken bliver bar')
+ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 min-w-0 break-words" data-testid="ai-project-building-complexity-row">\r\n                    <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-building-complexity-label">'), 'kompleksitetsrækken kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
