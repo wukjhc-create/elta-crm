@@ -483,7 +483,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                     <dt className="text-gray-500 min-w-0 break-words">Arbejdsløn ({result.calculation.time.total_hours.toFixed(1)}t × {result.calculation.price.hourly_rate} kr)</dt>
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.labor_cost)}</dd>
                   </div>
-                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2">
+                  <div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 break-words" data-testid="ai-project-subtotal-row">
                     <dt className="text-gray-500 break-words min-w-0" data-testid="ai-project-subtotal-label">Subtotal</dt>
                     <dd className="min-w-0 break-words">{formatCurrency(result.calculation.price.subtotal)}</dd>
                   </div>
