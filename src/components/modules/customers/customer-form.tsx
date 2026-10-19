@@ -293,9 +293,9 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
                   {...register('billing_city')}
                   id="billing_city"
                   type="text"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-gray-50"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isLoading}
-                  readOnly
+                  /* ADDR-1: byen kan altid skrives manuelt (før skrivebeskyttet — uden adresseopslag kunne den ikke udfyldes) */
                 />
               </div>
 
@@ -402,9 +402,9 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
                   {...register('shipping_city')}
                   id="shipping_city"
                   type="text"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-gray-50"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isLoading}
-                  readOnly
+                  /* ADDR-1: byen kan altid skrives manuelt (før skrivebeskyttet — uden adresseopslag kunne den ikke udfyldes) */
                 />
               </div>
 

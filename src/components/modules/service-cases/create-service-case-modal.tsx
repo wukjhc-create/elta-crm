@@ -182,7 +182,8 @@ export function CreateServiceCaseModal({ onClose, onCreated, defaultCustomer }: 
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">By</label>
-              <input value={city} readOnly className="w-full px-3 py-2 border rounded-md bg-gray-50" />
+              {/* ADDR-1: byen kan altid skrives manuelt (før skrivebeskyttet) */}
+              <input value={city} onChange={(e) => setCity(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Etage/dør</label>

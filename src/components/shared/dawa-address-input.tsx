@@ -9,6 +9,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { MapPin, Loader2 } from 'lucide-react'
 import type { AddressSuggestion } from '@/lib/address/provider'
+import { resolveSelectedAddress } from '@/lib/address/client-resolve'
 
 export interface DawaAddress {
   address: string
@@ -89,11 +90,15 @@ export function DawaAddressInput({
     debounceRef.current = setTimeout(() => fetchSuggestions(val), 250)
   }
 
-  const selectSuggestion = (s: AddressSuggestion) => {
-    const street = `${s.street} ${s.houseNumber ?? ''}`.trim()
-    setInput(s.label)
+  const selectSuggestion = async (picked: AddressSuggestion) => {
     setSuggestions([])
     setShowDropdown(false)
+    setInput(picked.label)
+    // ADDR-1: forslaget slås op via id (præcise felter); fejl → forslagets egne felter
+    setIsLoading(true)
+    const s = await resolveSelectedAddress(picked).finally(() => setIsLoading(false))
+    const street = `${s.street} ${s.houseNumber ?? ''}`.trim()
+    setInput(s.label)
     onSelect({
       address: street,
       postal_code: s.postalCode,

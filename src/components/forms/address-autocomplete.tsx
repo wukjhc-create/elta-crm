@@ -24,6 +24,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, MapPin } from 'lucide-react'
 import type { AddressSuggestion } from '@/lib/services/address-lookup'
+import { resolveSelectedAddress } from '@/lib/address/client-resolve'
 
 const DEBOUNCE_MS = 250
 const MIN_QUERY = 3
@@ -125,11 +126,14 @@ export function AddressAutocomplete({
     debounceRef.current = setTimeout(() => fetchSuggestions(next), DEBOUNCE_MS)
   }
 
-  const handleSelect = (s: AddressSuggestion) => {
+  const handleSelect = async (s: AddressSuggestion) => {
     setSuggestions([])
     setShowDropdown(false)
     setHighlightedIndex(-1)
-    onSelect(s)
+    // ADDR-1: forslaget slås op via id (præcise felter); fejl → forslagets egne felter
+    setIsLoading(true)
+    const full = await resolveSelectedAddress(s).finally(() => setIsLoading(false))
+    onSelect(full)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

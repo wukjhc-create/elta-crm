@@ -42,3 +42,71 @@ Kilderne er officielle: dataforsyningen.dk, confluence.kds.dk og datafordeler.dk
 - **A:** Adressevælgeren som autocomplete-udbyder. Token-strengen er i dag fri, og registrering kommer senere.
 - **B:** Postnummer → by via Datafordeleren-API-nøgle. Det kræver oprettelse af et IT-system på portal.datafordeler.dk med MitID Erhverv. Alternativet er en importeret DAR-postnummerfil.
 - **C:** Tidspunkt for aktivering (staging først).
+
+## Implementering (Henrik 2026-10-19: A + B godkendt, C = staging først)
+
+### Kode
+
+| Område | Fil |
+|---|---|
+| Udbyder `adressevaelger` (serverside) | `src/lib/address/providers/adressevaelger.ts` |
+| Registrering af udbyderen | `src/lib/address/provider.ts` |
+| Konvertering UTM32 → WGS84 | `src/lib/address/utm32.ts` |
+| Postnummer → by | `src/lib/address/postcodes.ts` med datasættet `src/lib/address/data/dk-postcodes.json` |
+| API-ruter (alle kræver login) | `/api/address/search`, `/api/address/resolve`, `/api/address/postcode` |
+| Klient | `AddressAutocomplete` og `DawaAddressInput` slår det valgte forslag op via id (`lib/address/client-resolve.ts`) |
+
+**Udbyderen `adressevaelger`:**
+- Flow: søgning → valg → opslag via id → normalisering → UTM32 omregnes til WGS84 på serveren.
+- Rettelser af udbyderens kendte fejl:
+  - Komma uden mellemrum rettes.
+  - Ved 0 fund prøves en "oe/ae/aa → ø/æ/å"-variant (brugeren vælger selv blandt forslagene).
+- Kræver `ADDRESS_LOOKUP_TOKEN`. Uden token er funktionen slået fra.
+
+**Postnummer → by:**
+- Datasættet er importeret fra det officielle DAR via `scripts/import-dk-postcodes.ts` (1.089 gældende postnumre, kildeversion 2026-10-14). Metadata: kilde, version, hentetidspunkt og licens (CC BY 4.0, Klimadatastyrelsen).
+- Kilden er Datafordeleren DAR REST `postnummer`, som er anonym. Den udfases 15/1-2027, hvorefter importen køres med `--from-file` på en DAR-fildownload.
+- Opdatering er sikker: importen validerer og nægter at fjerne mere end 5 % af postnumrene uden `--allow-shrink`.
+- Storkundepostnumre (fx 0800, 1092) findes ikke i DAR. De giver intet autofyld, og byen skrives manuelt.
+
+### Fejlhåndtering
+
+- Udbyderfejl, timeout og ukendte postnumre giver tomme svar.
+- Adressefeltet er altid fritekst.
+- Kunde- og sagsoprettelse afhænger aldrig af opslaget.
+
+### Test
+
+**Unit:** `scripts/address-provider-test.ts`, 29 cases, uden netværk.
+
+**Integration mod den rigtige Adressevælger:** `scripts/address-provider-integration.ts` med et tilfældigt token pr. kørsel. Dækker:
+- æ/ø/å
+- etage/dør
+- komma
+- oe → ø
+- intet fund
+- timeout
+- opslag af enhed og husnummer (koordinater)
+- postnummer
+
+**UI på staging-build:**
+- `UI_ADDRESS_LOOKUP=1 npm run harness:ui-batches -- U212` (slået til):
+  - forslag → valg → vej/postnr./by udfyldt
+  - 4583 → Sjællands Odde
+  - 0000 → intet autofyld
+  - fritekst er stadig mulig
+- U211 (slået fra): note vises og ingen eksterne kald.
+
+### Aktivering (forslag — kræver Henriks godkendelse)
+
+1. Generér et projekt-token på mindst 32 tegn, fx:
+   `node -e "console.log('elta-crm-' + require('crypto').randomBytes(24).toString('hex'))"`
+2. Vercel, miljøet **Preview/staging**:
+   - `ADDRESS_LOOKUP_ENABLED=true`
+   - `ADDRESS_LOOKUP_PROVIDER=adressevaelger`
+   - `ADDRESS_LOOKUP_TOKEN=<token>` (kun server; aldrig `NEXT_PUBLIC_`)
+3. Henrik tester på staging. Derefter samme tre variabler i **Production**.
+
+**Indtil da forbliver prod på `ADDRESS_LOOKUP_ENABLED=false`.**
+
+**Når KDS åbner brugerregistrering:** registrér projektet og udskift `ADDRESS_LOOKUP_TOKEN`. Ingen kodeændring.

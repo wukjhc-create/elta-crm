@@ -304,6 +304,16 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     // Mere heap KUN til testserveren (ændrer ikke next.config for andre).
     NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3584`.trim() }
   for (const k of NEUTRALIZE) env[k] = ''
+  // ADDR-1 (Henrik 2026-10-19): adresseopslag kun i staging-test-tilstand (UI_ADDRESS_LOOKUP=1) — token tilfældigt pr. kørsel
+  // (KDS har endnu ingen brugerregistrering); ellers eksplicit slået fra som i prod
+  if (process.env.UI_ADDRESS_LOOKUP === '1') {
+    env.ADDRESS_LOOKUP_ENABLED = 'true'
+    env.ADDRESS_LOOKUP_PROVIDER = 'adressevaelger'
+    env.ADDRESS_LOOKUP_TOKEN = `elta-crm-staging-${(await import('crypto')).randomBytes(16).toString('hex')}`
+  } else {
+    env.ADDRESS_LOOKUP_ENABLED = 'false'
+    env.ADDRESS_LOOKUP_TOKEN = ''
+  }
   // Lokal, tilfældig CRON_SECRET pr. kørsel (aldrig den rigtige): de interne PDF-ruter (besigtigelse/fuldmagt) kræver den
   // fail-closed — uden den kunne besigtigelse/fuldmagt-PDF aldrig dannes i testen (U189). Ingen cron kører lokalt.
   env.CRON_SECRET = `harness-local-${(await import('crypto')).randomBytes(24).toString('hex')}`
@@ -3115,7 +3125,7 @@ ${m.text()}`) })
 
       // U211 ADDR-1 (Henrik 2026-10-19): adresseopslag er slået fra (DAWA 410 Gone, ingen udbyder konfigureret) — feltet er
       // fritekst med en note, og der kaldes ikke DAWA fra browseren
-      if (want('U211') && profitCustomerId) {
+      if (want('U211') && profitCustomerId && process.env.UI_ADDRESS_LOOKUP !== '1') {
         const r: Record<string, boolean> = {}
         const dawaCalls: string[] = []
         a.page.on('request', (req) => { if (/dataforsyningen\.dk/.test(req.url())) dawaCalls.push(req.url()) })
@@ -3129,8 +3139,47 @@ ${m.text()}`) })
         r.note_vist = (await a.page.getByTestId('address-lookup-off').count()) > 0
         r.fritekst_bevaret = ((await f.inputValue().catch(() => '')) ?? '') === 'Testvej 12'
         r.ingen_dawa_fra_browser = dawaCalls.length === 0
+        // ADDR-1: byen kan skrives manuelt (før skrivebeskyttet → uden opslag kunne den slet ikke udfyldes)
+        await a.page.locator('#billing_city').fill('Testby').catch(() => {})
+        r.by_kan_skrives = ((await a.page.locator('#billing_city').inputValue().catch(() => '')) ?? '') === 'Testby'
         await a.page.keyboard.press('Escape').catch(() => {})
         out.push({ id: 'U211 ADDR-1 adresseopslag slået fra, manuel indtastning virker', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U212 ADDR-1 (staging-test, UI_ADDRESS_LOOKUP=1): Adressevælger-forslag → valg → opslag udfylder vej/postnr./by;
+      // postnummer → by fra DAR-datasættet; ukendt postnummer udfylder intet; manuel tekst er stadig mulig
+      if (want('U212') && profitCustomerId && process.env.UI_ADDRESS_LOOKUP === '1') {
+        const r: Record<string, boolean> = {}
+        await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /Rediger/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        const f = a.page.locator('#billing_address')
+        await f.waitFor({ timeout: 30_000 }).catch(() => {})
+        await f.fill('').catch(() => {})
+        await f.type('Ålekistevej 12, 2720', { delay: 40 }).catch(() => {})
+        const opt = a.page.getByRole('button', { name: /Ålekistevej 12, 2720 Vanløse/ }).first()
+        await opt.waitFor({ timeout: 20_000 }).catch(() => {})
+        r.forslag_vist = (await opt.count()) > 0
+        r.ingen_slaaet_fra_note = (await a.page.getByTestId('address-lookup-off').count()) === 0
+        await opt.click({ timeout: 10_000 }).catch(() => {})
+        await a.page.waitForTimeout(2500)
+        r.vej_udfyldt = /Ålekistevej 12/.test((await f.inputValue().catch(() => '')) ?? '')
+        r.postnr_udfyldt = ((await a.page.locator('#billing_postal_code').inputValue().catch(() => '')) ?? '') === '2720'
+        r.by_udfyldt = ((await a.page.locator('#billing_city').inputValue().catch(() => '')) ?? '') === 'Vanløse'
+        const pc = a.page.locator('#billing_postal_code')
+        const city = a.page.locator('#billing_city')
+        await city.fill('').catch(() => {})
+        await pc.fill('4583').catch(() => {})
+        await a.page.waitForTimeout(2000)
+        r.postnr_til_by = ((await city.inputValue().catch(() => '')) ?? '') === 'Sjællands Odde'
+        await city.fill('Min by').catch(() => {})
+        await pc.fill('0000').catch(() => {})
+        await a.page.waitForTimeout(2000)
+        const cityAfterUnknown = (await city.inputValue().catch(() => '')) ?? ''
+        r.ukendt_postnr_ingen_autofyld = cityAfterUnknown === 'Min by'
+        await f.fill('Fritekstvej 1').catch(() => {})
+        r.manuel_tekst_mulig = ((await f.inputValue().catch(() => '')) ?? '') === 'Fritekstvej 1'
+        await a.page.keyboard.press('Escape').catch(() => {})
+        out.push({ id: 'U212 ADDR-1 Adressevælger + DAR-postnumre (staging)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · by efter 0000="${cityAfterUnknown}"` })
       }
 
       // U203 LG-10: kunderedigering logger kun ÆNDREDE felter, og personfelter uden værdier (før: alle felter som

@@ -10,6 +10,8 @@
  * Bevidst IKKE 'use server'.
  */
 
+import { createAdressevaelgerProvider } from '@/lib/address/providers/adressevaelger'
+
 export interface AddressSuggestion {
   /** Mennesker-læsbar adresse — fx "Odinsvej 10, 4100 Ringsted". */
   label: string
@@ -27,6 +29,12 @@ export interface AddressSuggestion {
   dawaId?: string
   /** Udbyderens id for adgangsadressen (bygningsniveau). */
   adgangsadresseId?: string
+  /** ADDR-1: udbyderens id for forslaget (bruges til opslag ved valg) */
+  id?: string
+  /** 'adresse' = enhed (etage/dør), 'husnummer' = adgangsadresse */
+  kind?: 'adresse' | 'husnummer'
+  /** false = foreløbigt søgeforslag (felterne fra titlen); true = slået op via id */
+  resolved?: boolean
 }
 
 export interface PostcodeInfo {
@@ -47,6 +55,8 @@ export interface AddressSearchProvider {
   readonly enabled: boolean
   searchAddresses(query: string, options?: AddressSearchOptions): Promise<AddressSuggestion[]>
   lookupPostcode(postcode: string): Promise<PostcodeInfo | null>
+  /** Opslag af et valgt forslag (id fra søgningen) → fulde, normaliserede felter. */
+  resolveAddress?(id: string, kind: 'adresse' | 'husnummer'): Promise<AddressSuggestion | null>
   /** Udbyderens rå svar → vores stabile form (null hvis ufuldstændigt). */
   normalizeAddress(raw: unknown): AddressSuggestion | null
 }
@@ -60,8 +70,17 @@ export const disabledAddressProvider: AddressSearchProvider = {
   normalizeAddress() { return null },
 }
 
-/** Registrerede udbydere. Ingen aktiv endnu — tilføjes når ADDR-1-research er besluttet. */
-const PROVIDERS: Record<string, () => AddressSearchProvider> = {}
+/**
+ * Registrerede udbydere. ADDR-1 beslutning A (Henrik 2026-10-19): 'adressevaelger' (kræver ADDRESS_LOOKUP_TOKEN).
+ * Uden token → slået fra (ingen gættede tokens).
+ */
+const PROVIDERS: Record<string, () => AddressSearchProvider | null> = {
+  adressevaelger: () => {
+    const token = String(process.env.ADDRESS_LOOKUP_TOKEN ?? '').trim()
+    if (token.length < 10) return null
+    return createAdressevaelgerProvider(token)
+  },
+}
 
 let warned = false
 
@@ -77,7 +96,15 @@ export function getAddressProvider(): AddressSearchProvider {
     }
     return disabledAddressProvider
   }
-  return make()
+  const provider = make()
+  if (!provider) {
+    if (!warned) {
+      warned = true
+      console.warn(`[address-lookup] udbyder "${key}" mangler konfiguration (ADDRESS_LOOKUP_TOKEN) — adresseopslag forbliver slået fra`)
+    }
+    return disabledAddressProvider
+  }
+  return provider
 }
 
 export const ADDRESS_LOOKUP_MIN_QUERY_LENGTH = 3

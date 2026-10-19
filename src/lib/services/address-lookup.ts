@@ -41,16 +41,31 @@ export async function searchDanishAddresses(query: string, options: SearchOption
   }
 }
 
-/** Postnummer → by (kun fra en konfigureret udbyder; aldrig gæt). null ved slået fra/ukendt/fejl. */
+/** Er postnummer → by aktivt? Samme flag som adresseforslag (PROD forbliver slået fra indtil staging er godkendt). */
+export function isPostcodeLookupEnabled(): boolean {
+  return process.env.ADDRESS_LOOKUP_ENABLED === 'true'
+}
+
+/**
+ * Postnummer → by fra det importerede officielle DAR-datasæt (beslutning B — intet runtime-API). null ved slået fra,
+ * ugyldigt eller ukendt postnummer (brugeren skriver byen selv; intet gæt).
+ */
 export async function lookupPostcode(postcode: string | null | undefined): Promise<PostcodeInfo | null> {
   const nr = String(postcode ?? '').trim()
-  if (!/^\d{4}$/.test(nr)) return null
+  if (!/^\d{4}$/.test(nr) || !isPostcodeLookupEnabled()) return null
+  const { cityForPostcodeLocal } = await import('@/lib/address/postcodes')
+  const city = cityForPostcodeLocal(nr)
+  return city ? { postalCode: nr, city } : null
+}
+
+/** Valgt forslag (id + type fra søgningen) → fulde felter via udbyderens opslag. null ved slået fra/fejl/ukendt. */
+export async function resolveAddressSuggestion(id: string, kind: 'adresse' | 'husnummer'): Promise<AddressSuggestion | null> {
   const provider = getAddressProvider()
-  if (!provider.enabled) return null
+  if (!provider.enabled || !provider.resolveAddress) return null
   try {
-    return await provider.lookupPostcode(nr)
+    return await provider.resolveAddress(id, kind)
   } catch (err) {
-    logger.warn('Postnummeropslag fejlede', { metadata: { provider: provider.name }, error: err })
+    logger.warn('Adresseopslag (id) fejlede', { metadata: { provider: provider.name }, error: err })
     return null
   }
 }
