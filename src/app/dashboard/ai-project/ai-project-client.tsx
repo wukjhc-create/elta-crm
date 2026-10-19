@@ -252,7 +252,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
         />
 
         {eltaComponents && (
-          <div className="mt-3 rounded-lg border border-dashed p-3" data-testid="charger-picker">
+          <div className="mt-3 rounded-lg border border-dashed p-3 break-words min-w-0" data-testid="charger-picker">
             <label className="block text-sm font-medium mb-1 break-words min-w-0" data-testid="ai-project-charger-label">Ladestander (kun hvis opgaven indeholder en elbillader)</label>
             {charger ? (
               <div className="flex items-center justify-between gap-2 text-sm">
