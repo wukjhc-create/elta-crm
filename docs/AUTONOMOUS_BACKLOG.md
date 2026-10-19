@@ -961,7 +961,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-218 | 4 Pris | DONE. Kategorinavnet i kategori-vælgeren ombrydes. | {category.name} er uændret. |
 | G18-224 | 4 Pris | DONE. Etiketten Aktiv i produktformularen ombrydes. | Ordet er uændret. |
 | G18-230 | 4 Pris | DONE. Enhedsnavnet i produktformularen ombrydes. | {unit.label} er uændret. |
-| G18-236 | 4 Pris | ÅBEN. Pladsholderen på kostprisfeltet ombrydes. | Tegnene 0,00 og feltets værdi er uændrede. |
+| G18-236 | 4 Pris | DONE. Pladsholderen på kostprisfeltet ombrydes. | Tegnene 0,00 og feltets værdi er uændrede. |
+| G18-242 | 4 Pris | ÅBEN. SKU-linjen på produktdetaljen ombrydes. | {productResult.data.sku} er uændret. |
 | G18-219 | 4 Pris | DONE. Kategori-vælgerens etiket ombrydes. | aria-label Kategori er uændret. |
 | G18-225 | 4 Pris | DONE. Etiketten Enhed i produktformularen ombrydes. | Ordet er uændret. |
 | G18-231 | 4 Pris | DONE. Etiketten Kostpris i produktformularen ombrydes. | Ordene og feltets værdi er uændrede. |

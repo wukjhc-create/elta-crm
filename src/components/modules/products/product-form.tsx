@@ -150,6 +150,8 @@ export default function ProductForm({
             min="0"
             defaultValue={product?.cost_price || ''}
             placeholder="0,00"
+            className="break-words min-w-0"
+            data-testid="product-form-cost"
           />
         </div>
 
