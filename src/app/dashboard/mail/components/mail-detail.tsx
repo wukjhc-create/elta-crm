@@ -699,7 +699,7 @@ export function MailDetail({
           <div className="mt-6 pt-4 border-t">
             <div className="flex items-center gap-2 mb-3">
               <Paperclip className="w-5 h-5 text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-700">
+              <h3 className="text-sm font-semibold text-gray-700 break-words min-w-0" data-testid="mail-attachments-heading">
                 Vedhæftede filer
                 {realAttachments.length > 0 && <span className="text-gray-400 font-normal ml-1">({realAttachments.length})</span>}
               </h3>
