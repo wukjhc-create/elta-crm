@@ -1,5 +1,5 @@
 /**
- * Prisopbygningens kolonne kan krympe. Tidsberegningens kolonne og beloebene bliver.
+ * Prisopbygningens kolonne kan krympe. Beloebene bliver. Tidskolonnen har sit eget wrap.
  *   npx tsx scripts/ai-project-price-column-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -31,7 +31,8 @@ ok(!row.includes('Materialer'), 'materialer er et andet sted')
 ok(view.split(id).length === 2, 'priskolonnen findes en gang')
 ok(view.split(cell).length === 2, 'priskolonens klasse findes en gang')
 ok(!view.includes('<div>\r\n                <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-price-heading">'), 'den bare priskolonne er vaek')
-ok(view.includes('<div>\r\n                <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-time-heading">'), 'tidskolonnen bliver bar')
+ok(view.includes('<div className="break-words min-w-0" data-testid="ai-project-time-column">\r\n                <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-time-heading">'), 'tidskolonnen kan krympe')
+ok(!view.includes('<div>\r\n                <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-time-heading">'), 'den bare tidskolonne er vaek')
 ok(view.includes('text-green-600 break-words">{formatCurrency(result.calculation.price.total_price)}'), 'totalprisen bliver')
 ok(view.includes('data-testid="ai-project-price-total-label">Total</dt>'), 'totaletiketten bliver')
 

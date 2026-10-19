@@ -503,7 +503,7 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               </div>
 
               {/* Time Breakdown */}
-              <div>
+              <div className="break-words min-w-0" data-testid="ai-project-time-column">
                 <h4 className="font-medium mb-3 break-words min-w-0" data-testid="ai-project-time-heading">Tidsberegning</h4>
                 <dl className="space-y-2 text-sm break-words min-w-0" data-testid="ai-project-time-list">
                   <div className="flex flex-wrap justify-between gap-x-3 min-w-0">

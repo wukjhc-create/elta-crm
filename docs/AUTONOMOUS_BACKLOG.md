@@ -1303,7 +1303,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-564 | 8 Pilot | DONE. Historikkens fejltekst kan krympe. | Kun `data-testid="ai-history-load-error"` i AI-projekt. Fejlteksten er uændret. |
 | G18-565 | 8 Pilot | DONE. Hurtig-estimatets fejltekst kan krympe. | Kun `data-testid="ai-quick-load-error"` i AI-projekt. Fejlteksten er uændret. |
 | G18-566 | 8 Pilot | DONE. Prisopbygningens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Prisopbygning. Tidsberegningens kolonne og beløbene er uændrede. |
-| G18-567 | 8 Pilot | ÅBEN. Tidsberegningens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Tidsberegning. Prisopbygningens kolonne og tallene er uændrede. |
+| G18-567 | 8 Pilot | DONE. Tidsberegningens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Tidsberegning. Prisopbygningens kolonne og tallene er uændrede. |
+| G18-574 | 8 Pilot | ÅBEN. Prisopbygningens liste kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Prisopbygning. Bygningslisten, elpunktlisten og tidsberegningens liste er uændrede. |
 | G18-568 | 8 Pilot | ÅBEN. Totalrækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">` der omslutter totaletiketten i prisopbygningen. Tidsberegningens totalrække og beløbet er uændrede. |
 | G18-569 | 8 Pilot | ÅBEN. Totalrækken i tidsberegningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">` der omslutter etiketten Total tid. Prisopbygningens totalrække og timetallet er uændrede. |
 | G18-570 | 8 Pilot | ÅBEN. Subtotalrækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2">` der omslutter etiketten Subtotal. Totalrækkerne og beløbet er uændrede. |
