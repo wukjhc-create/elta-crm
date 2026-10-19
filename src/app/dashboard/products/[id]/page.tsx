@@ -46,7 +46,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">{productResult.data.name}</h1>
+          <h1 className="text-2xl font-bold break-words min-w-0" data-testid="product-detail-name">{productResult.data.name}</h1>
           {productResult.data.sku && (
             <p className="text-gray-500">SKU: {productResult.data.sku}</p>
           )}
