@@ -1746,6 +1746,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogsyvoghalvtredsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `6ba193f0`. Det lader tohundredeogseksoghalvtredsindstyvende-hegnet stå. `6ba193f0` hedder `feat(offers): tilbud ude-maerket kan krympe`. `5d892a39` hedder `feat(mail): venteteksten kan krympe`. `origin/grok-next` er `6ba193f0`. Push af `6ba193f0` lykkedes. `5d892a39` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `5d892a39..6ba193f0`
+
+```
+6ba193f0 feat(offers): tilbud ude-maerket kan krympe
+5d892a39 feat(mail): venteteksten kan krympe
+```
+
+Listen er skiftets commits fra `5d892a39` til og med `6ba193f0`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+ec70e3fc docs: checkpoint efter 5d892a39
+```
+
+### Features
+
+G18-992 lader tilbud ude-mærket krympe. Tallet og statusserne bliver. G18-597 lader teksten om manglende vedhæftninger krympe. Download-knappen bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/offers-out-count-wrap-test.ts` læser den shippede tilbudsliste, kalder `countOffersOut` fra `src/lib/offers/validity` og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. Den kørte med `npx tsx` og exiterede 0. `scripts/mail-pending-text-wrap-test.ts` er testen for venteteksten og havde allerede exit 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `6ba193f0`. `5d892a39` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d2b2521e`, tilbudslistens tælle-mærke i `589fad7b`, varenavnet i `943b355a`, mobilproducenten i `3d5409f1`, konverteringsteksten i `b0111850`, note-svaret i `a2532b6e`, salgstragtens indledning i `9f007f5f`, callback-svaret i `cbb55c21`, skrivebordsproducenten i `b488225a`, filikonet i `0490e08a`, fillisten i `512ef9cd`, billedgitteret i `ffbeb5f9`, download-ikonet i `848c7e72`, papirclipsen i `96f3195a`, venteteksten i `5d892a39`, og tilbud ude-mærket i `6ba193f0`. `ec70e3fc` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `6ba193f0`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-991, G18-993, G18-994, G18-995, G18-996, G18-997, G18-998, G18-999, G18-1000, G18-1001, G18-1002, G18-1003, G18-1004, G18-1005, G18-1006.
+
 ## Checkpoint 2026-10-18 tohundredeogseksoghalvtredsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `5d892a39`. Det lader tohundredeogfemoghalvtredsindstyvende-hegnet stå. `5d892a39` hedder `feat(mail): venteteksten kan krympe`. `96f3195a` hedder `feat(mail): papirclipsen kan krympe`. `origin/grok-next` er `5d892a39`. Push af `5d892a39` lykkedes. `96f3195a` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
