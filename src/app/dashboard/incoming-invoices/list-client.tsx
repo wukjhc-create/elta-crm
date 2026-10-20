@@ -415,7 +415,7 @@ function DueMarks({ dueDate, todayIso, withLabel = false }: { dueDate: string | 
   const b = incomingDueBadge(dueDate, todayIso)
   const cfg = INCOMING_DUE_BADGE_CONFIG[b]
   return (
-    <span className="inline-flex flex-col gap-0.5">
+    <span className="inline-flex flex-col gap-0.5 break-words min-w-0">
       <span>{withLabel ? `Forfald ${fmtDate(dueDate)}` : fmtDate(dueDate)}</span>
       {b !== 'ok' && (
         <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ${cfg.cls}`}>{cfg.label}</span>
