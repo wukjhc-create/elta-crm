@@ -62,6 +62,7 @@ import { formatCurrency } from '@/lib/utils/format'
 
 interface CalculationsClientProps {
   initialCalculations: PaginatedResponse<CalculationWithRelations> | null
+  loadError?: string | null
   initialFilters: {
     search: string
     calculation_type: string
@@ -71,6 +72,7 @@ interface CalculationsClientProps {
 
 export default function CalculationsClient({
   initialCalculations,
+  loadError = null,
   initialFilters,
 }: CalculationsClientProps) {
   const router = useRouter()
@@ -172,7 +174,9 @@ export default function CalculationsClient({
         <div>
           <h1 className="text-2xl font-bold">Kalkulationer</h1>
           <p className="text-gray-500">
-            {total} {total === 1 ? 'kalkulation' : 'kalkulationer'}
+            {loadError
+              ? 'Antallet kunne ikke hentes. Det tælles ikke som 0 kalkulationer.'
+              : `${total} ${total === 1 ? 'kalkulation' : 'kalkulationer'}`}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -259,7 +263,11 @@ export default function CalculationsClient({
       </div>
 
       {/* Calculations Table */}
-      {calculations.length === 0 ? (
+      {loadError ? (
+        <p className="text-sm text-red-700 py-8 text-center" data-testid="calculations-load-error">
+          {loadError}. Det tælles ikke som ingen kalkulationer.
+        </p>
+      ) : calculations.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border">
           <Calculator className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
