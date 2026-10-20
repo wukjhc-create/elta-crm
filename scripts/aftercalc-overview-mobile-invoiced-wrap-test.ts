@@ -21,7 +21,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 57, at + 10) : ''
 const bare = 'className="text-xs text-gray-600 break-words"'
 const cell = 'className="text-xs text-gray-600 break-words min-w-0" data-testid="aftercalc-invoiced-state"'
-const desktop = 'className="text-[11px] text-gray-500 break-words" data-testid="aftercalc-invoiced-state"'
+const desktop = 'className="text-[11px] text-gray-500 break-words min-w-0" data-testid="aftercalc-invoiced-state"'
 ok(row.startsWith('<p'), 'det er mobilkortets faktureringstilstand')
 ok(row.includes('break-words min-w-0'), 'faktureringstilstanden kan krympe')
 ok(row.includes('text-xs text-gray-600'), 'tekstklassen bliver')
@@ -31,7 +31,7 @@ ok(!row.includes('\n'), 'linjeskiftet er et andet sted')
 ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(cell).length === 2, 'mobilklassen findes en gang')
 ok(view.split(id).length === 3, 'statussen findes paa kort og i tabel')
-ok(view.split(desktop).length === 2, 'skrivebordsraekken bliver')
+ok(view.split(desktop).length === 2, 'skrivebordsraekken kan krympe')
 ok(view.split(bare).length === 1, 'den bare klasse er vaek')
 ok((view.match(/invoicedStateLabel\(r\.invoiced_state\)/g) ?? []).length === 2, 'teksten bruges to steder')
 ok(view.includes('<p className="text-xs text-gray-600 break-words min-w-0" data-testid="aftercalc-variance-filter">'), 'afvigelsesfilteret kan krympe')
