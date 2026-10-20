@@ -82,7 +82,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
             </div>
             <div className="break-words min-w-0">
               <div className="text-gray-500 break-words min-w-0" data-testid="invoice-control-label-overcharge">Overpris i alt</div>
-              <div className={`font-medium break-words ${res.control.controlledLines > 0 && res.control.overchargeAmount > 0 ? 'text-red-700' : ''}`} data-testid="invoice-control-overcharge">
+              <div className={`font-medium break-words min-w-0 ${res.control.controlledLines > 0 && res.control.overchargeAmount > 0 ? 'text-red-700' : ''}`} data-testid="invoice-control-overcharge">
                 {res.control.controlledLines > 0 ? kr(res.control.overchargeAmount) : '—'}
               </div>
               {res.control.controlledLines === 0 && (
