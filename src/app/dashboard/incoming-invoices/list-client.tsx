@@ -315,7 +315,7 @@ export function IncomingInvoicesListClient({
 
       <div className="hidden md:block border rounded overflow-hidden bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-xs text-gray-600">
+          <thead className="bg-gray-50 text-left text-xs text-gray-600 break-words min-w-0">
             <tr>
               <th className="px-3 py-2 break-words min-w-0">Leverandør</th>
               <th className="px-3 py-2 break-words min-w-0">Faktura nr</th>
