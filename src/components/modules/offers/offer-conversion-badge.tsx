@@ -15,8 +15,7 @@
 import Link from 'next/link'
 import { Briefcase, ArrowRight, AlertTriangle, CircleDot } from 'lucide-react'
 import type { OfferStatus } from '@/types/offers.types'
-
-const CONVERTIBLE: ReadonlySet<OfferStatus> = new Set(['sent', 'viewed', 'accepted'])
+import { offerConversionLabel } from '@/lib/offers/conversion-label'
 
 export function OfferConversionBadge({
   status,
@@ -27,8 +26,10 @@ export function OfferConversionBadge({
   convertedCaseId: string | null
   convertedCase?: { id: string; case_number: string } | null
 }) {
-  // Konverteret + sagen findes → grøn link.
-  if (convertedCaseId && convertedCase) {
+  const label = offerConversionLabel(status, convertedCaseId, Boolean(convertedCase))
+
+  // Konverteret + sagen findes → grøn link. Sagsnummeret bliver synligt.
+  if (convertedCaseId && convertedCase && label) {
     return (
       <Link
         href={`/dashboard/orders/${convertedCase.case_number}`}
@@ -37,6 +38,7 @@ export function OfferConversionBadge({
         title="Åbn sagen"
       >
         <Briefcase className="w-3 h-3" />
+        <span className="sr-only">{label}</span>
         {convertedCase.case_number}
         <ArrowRight className="w-3 h-3" />
       </Link>
@@ -44,24 +46,24 @@ export function OfferConversionBadge({
   }
 
   // Forward-link sat, men sagen findes ikke (slettet) → pæn advarsel.
-  if (convertedCaseId && !convertedCase) {
+  if (label === 'Sag mangler') {
     return (
       <span
         className="inline-flex items-center gap-1 rounded-full bg-amber-50 ring-1 ring-amber-200 px-2 py-0.5 text-xs font-medium text-amber-700"
         title="Tilbuddet er markeret som konverteret, men sagen kan ikke findes (måske slettet)."
       >
         <AlertTriangle className="w-3 h-3" />
-        Sag mangler
+        {label}
       </span>
     )
   }
 
   // Klar til konvertering.
-  if (CONVERTIBLE.has(status)) {
+  if (label === 'Klar til sag') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 ring-1 ring-blue-200 px-2 py-0.5 text-xs font-medium text-blue-700">
         <CircleDot className="w-3 h-3" />
-        Klar til sag
+        {label}
       </span>
     )
   }
