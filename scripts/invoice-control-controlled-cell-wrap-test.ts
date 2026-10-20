@@ -34,15 +34,15 @@ ok(between.indexOf(id, 1) === -1, 'det er den naermeste celle')
 ok(between.includes(marker), 'det er kontrollerede linjer')
 ok(!between.includes('overchargeAmount'), 'beloebet er et andet sted')
 ok(!between.includes('invoice-control-label-overcharge'), 'overpriscellen er et andet sted')
-ok(view.split(id).length === 2, 'cellen findes en gang')
-ok(view.split(bare).length === 3, 'de andre celler bliver bare')
+ok(view.split(id).length === 3, 'cellerne kan krympe')
+ok(view.split(bare).length === 2, 'leverandoercellen bliver bar')
 ok(view.includes('kr(res.control.overchargeAmount)'), 'overprisbeloebet bliver')
 ok(view.includes('{res.control.controlledLines} / {res.control.totalLines}'), 'daekningen bliver')
 
 const overMarker = 'data-testid="invoice-control-label-overcharge"'
 const overAt = view.indexOf(overMarker)
-const overCell = overAt >= 0 ? view.lastIndexOf(bare, overAt) : -1
-ok(overCell >= 0 && view.slice(overCell, overAt).includes(bare), 'overpriscellen bliver bar')
+const overCell = overAt >= 0 ? view.lastIndexOf(id, overAt) : -1
+ok(overCell >= 0 && view.slice(overCell, overAt).startsWith(id), 'overpriscellen kan krympe')
 const supMarker = 'data-testid="invoice-control-label-supplier"'
 const supAt = view.indexOf(supMarker)
 const supCell = supAt >= 0 ? view.lastIndexOf(bare, supAt) : -1

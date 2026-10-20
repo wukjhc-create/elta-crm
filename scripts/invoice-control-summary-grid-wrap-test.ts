@@ -37,7 +37,7 @@ ok(!between.includes('overchargeAmount'), 'beloebet er et andet sted')
 ok(view.split(id).length === 2, 'gitteret findes en gang')
 ok(view.split(oldId).length === 1, 'det bare gitter er vaek')
 ok(!view.includes(oldId), 'ingen bart gitter bliver')
-ok(view.split('<div className="min-w-0">').length === 3, 'de andre celler bliver bare')
+ok(view.split('<div className="min-w-0">').length === 2, 'leverandoercellen bliver bar')
 ok(view.includes('kr(res.control.overchargeAmount)'), 'overprisbeloebet bliver')
 ok(view.includes('{res.control.controlledLines} / {res.control.totalLines}'), 'daekningen bliver')
 

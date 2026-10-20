@@ -13,7 +13,7 @@ const start = src.indexOf('grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-3 br
 const end = src.indexOf('invoice-control-lines-mobile', start)
 const grid = src.slice(start, end)
 eq('gitteret findes', start > 0 && end > start, true)
-eq('celle kan krympe', grid.split('className="min-w-0"').length === 3, true)
+eq('celle kan krympe', grid.split('className="min-w-0"').length === 2, true)
 eq('daekning ombrydes', grid.includes('font-medium break-words">{res.control.controlledLines}'), true)
 eq('overpris ombrydes', grid.includes('font-medium break-words ${'), true)
 eq('overpris-testid bliver', grid.includes('data-testid="invoice-control-overcharge"'), true)
