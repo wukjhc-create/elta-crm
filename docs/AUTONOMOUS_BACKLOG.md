@@ -1683,6 +1683,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogfireoghalvfemsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `c75c2894`. Det lader hundredeogtreoghalvfemsindstyvende-hegnet stå. `c75c2894` hedder `feat(invoice): teksten ingen log-poster paa fakturadetaljen kan krympe`. `86485a91` hedder `feat(invoice): teksten ingen fil paa fakturadetaljen kan krympe`. `origin/grok-next` er `c75c2894`. Push af `c75c2894` lykkedes. `86485a91` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `86485a91..c75c2894`
+
+```
+c75c2894 feat(invoice): teksten ingen log-poster paa fakturadetaljen kan krympe
+86485a91 feat(invoice): teksten ingen fil paa fakturadetaljen kan krympe
+```
+
+Listen er skiftets commits fra `86485a91` til og med `c75c2894`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+a46a9fce docs: checkpoint efter 86485a91
+```
+
+### Features
+
+G18-942 lader kun teksten ingen log-poster på fakturadetaljen krympe. Teksten bliver. G18-941 lader kun teksten ingen fil på fakturadetaljen krympe. Teksten bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-empty-audit-wrap-test.ts` og `scripts/incoming-invoice-detail-empty-file-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for den tomme fil exiterede 0 sammen med det commit, der ændrede den tomme historik. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `c75c2894`. `86485a91` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `c75c2894`, herunder G18-748 til G18-942. `a46a9fce` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `c75c2894`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-943, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogtreoghalvfemsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `86485a91`. Det lader hundredeogtooghalvfemsindstyvende-hegnet stå. `86485a91` hedder `feat(invoice): teksten ingen fil paa fakturadetaljen kan krympe`. `e723422e` hedder `feat(invoice): teksten ingen linjer paa fakturadetaljen kan krympe`. `origin/grok-next` er `86485a91`. Push af `86485a91` lykkedes. `e723422e` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
