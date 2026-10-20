@@ -4789,6 +4789,24 @@ ${m.text()}`) })
         r.montoer_ser_afvist = (await m.page.getByTestId('my-hours-rejected').count()) > 0
         // PL-5: begrundelsen står synligt (ikke kun hover) — læsbar på mobil
         r.montoer_ser_begrundelse = ((await m.page.getByTestId('my-hours-rejection-reason').first().textContent().catch(() => '')) ?? '').includes('Forkert sag')
+        // MB2-6: den afviste række linker til sagens Planlægning (sagsnr.)
+        r.mine_timer_link_til_sag = ((await m.page.getByTestId('my-hours-entry').first().getAttribute('href').catch(() => '')) ?? '').includes(encodeURIComponent(caseNo))
+        // MB2-3: på telefonbredde kan montøren åbne rettelsen med store felter/knapper (gemmer ikke — resten af testen godkender)
+        try {
+          await m.page.setViewportSize({ width: 375, height: 812 })
+          await gotoSafe(m.page, `${base}/dashboard/orders/${encodeURIComponent(caseNo)}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const fixBtn = m.page.getByTestId('time-log-fix-mobile').first()
+          await fixBtn.waitFor({ timeout: 45_000 }).catch(() => {})
+          await fixBtn.click({ timeout: 30_000 }).catch(() => {})
+          const save = m.page.getByTestId('time-log-fix-save').first()
+          await save.waitFor({ timeout: 30_000 }).catch(() => {})
+          const box = await save.boundingBox().catch(() => null)
+          r.mobil_rettelse_stor_knap = !!box && box.height >= 40
+          const startBox = await m.page.getByTestId('time-log-fix-start').first().boundingBox().catch(() => null)
+          r.mobil_rettelse_felt_hoejde = !!startBox && startBox.height >= 34
+        } finally {
+          await m.page.setViewportSize({ width: 1280, height: 800 }).catch(() => {})
+        }
         await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         // admin: godkend fra fanen Afvist
         await gotoSafe(a.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })

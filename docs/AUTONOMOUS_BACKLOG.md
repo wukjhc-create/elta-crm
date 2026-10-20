@@ -246,8 +246,8 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | MB2-1 | Opgavesiden: "udført"-cirkel 20×20 px, status-select ~22 px (S3) | DONE (kode) — udført-knap 44 px tryk-flade, status-select højere på telefon |
 | MB2-2 | Timeformular på sagen: dato/tid-felter klippes på telefon (grid-cols-2 + w-1/2) (S3) | DONE (kode, U62) — én kolonne på telefon, højere felter |
-| MB2-3 | Ret afvist time: små felter/knapper; sats-select ~24 px (S3) | TODO |
-| MB2-4 | Sagsfaner: ~9 faner, kun ~3 synlige; aktiv fane fra deeplink rulles ikke frem (S3) | TODO |
+| MB2-3 | Ret afvist time: små felter/knapper; sats-select ~24 px (S3) | DONE (kode, U62 mobil 375 px) — felter/knapper 44 px på telefon; samme server-regler som desktop (updateTimeLog: egne, faktureret/godkendt låst, afvist → afventer via trigger 00185, audit) |
+| MB2-4 | Sagsfaner: ~9 faner, kun ~3 synlige; aktiv fane fra deeplink rulles ikke frem (S3) | DONE (kode) — aktiv fane rulles frem i fanelinjen; fanepanel p-3 på telefon |
 | MB2-5 | Dokumentliste: Åbn/Slet ~30 px side om side (S3) | DONE (kode, U43) — Åbn/Slet 44 px på telefon med afstand |
 | MB2-6 | "Mine timer": rækker ikke klikbare, kun 12 vist (S3) | DONE (kode) — afviste først, rækken linker til sagens Planlægning (sagsnr.), "+N flere" |
 | MB2-7 | Lange ord/URL'er i noter/beskrivelse sprænger bredden (S4) | DONE (kode) — noter og arbejdsordrebeskrivelse brydes (overflow-wrap) |

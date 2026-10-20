@@ -80,10 +80,14 @@ COMMIT;
 
 | | |
 |---|---|
-| Ændring af eksisterende data | Ingen (funktion) |
-| Risiko | Lav. Påvirker kun nye fakturaer oprettet mellem kl. 00 og 02. |
-| Rollback | 00198-funktionen genskabes |
-| Afhængighed | Ingen. Funktionens ACL bevares (REVOKE FROM PUBLIC, anon, authenticated som i 00198). |
+| Formål | Forfaldsdatoen på en faktura oprettet fra et tilbud følger den danske kalender, som resten af appen (rebaseDueDateOnSend, copenhagen-time) |
+| Skema | Ingen tabel-, kolonne- eller grant-ændringer. Kun `CREATE OR REPLACE FUNCTION create_invoice_from_offer` med samme signatur og returtype |
+| Ændring af eksisterende data | Ingen (eksisterende fakturaer røres ikke) |
+| Forretningsadfærd | Kunden får de aftalte betalingsdage (fx 14) også for fakturaer oprettet mellem kl. 00 og 02 dansk tid. Ingen anden ændring |
+| Risiko | Lav. Påvirker kun nye fakturaer oprettet mellem kl. 00 og 02. Funktionen bruges i dag kun via tilbud→faktura (DF-1 automatik er ikke live) |
+| Staging-test | 1) `harness:migrate-staging -- 00265`. 2) Kald funktionen på et testtilbud; `due_date` = dansk dato + betalingsdage. 3) Prod-fn-acl/db-audit: ACL uændret (ingen EXECUTE for PUBLIC/anon/authenticated). 4) UI-regression U15/U29/U31 (faktura) |
+| Rollback | 00198-funktionens krop genskabes (CREATE OR REPLACE) |
+| Afhængigheder/rækkefølge | Ingen. Kan køres før eller efter 00263/00264. Kode er allerede kompatibel (rebaseDueDateOnSend regner fra dansk dato) |
 
 ## Bemærk
 

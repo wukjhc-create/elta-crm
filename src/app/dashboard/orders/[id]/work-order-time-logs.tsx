@@ -553,7 +553,7 @@ export function WorkOrderTimeLogs({
                           value={l.pay_rate_type ?? 'normal'}
                           onChange={(e) => onChangeRateType(l.id, e.target.value as PayRateType)}
                           disabled={isWorking}
-                          className={`text-[11px] border rounded px-1 py-0.5 bg-white ${
+                          className={`text-[11px] border rounded px-1 py-2 sm:py-0.5 bg-white ${
                             l.pay_rate_type !== 'normal' ? 'text-amber-800 bg-amber-50' : 'text-gray-600'
                           }`}
                         >
@@ -632,12 +632,12 @@ export function WorkOrderTimeLogs({
                         )}
                         {fixId === l.id && (
                           <div className="mt-2 flex flex-wrap items-end gap-2 text-gray-800" data-testid="time-log-fix-form">
-                            <label className="flex flex-col">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-1 py-0.5" /></label>
-                            <label className="flex flex-col">Start<input type="time" value={fixStart} onChange={(e) => setFixStart(e.target.value)} className="border rounded px-1 py-0.5" data-testid="time-log-fix-start" /></label>
-                            <label className="flex flex-col">Slut<input type="time" value={fixEnd} onChange={(e) => setFixEnd(e.target.value)} className="border rounded px-1 py-0.5" data-testid="time-log-fix-end" /></label>
-                            <label className="flex flex-col flex-1 min-w-[10rem]">Beskrivelse<input value={fixDesc} onChange={(e) => setFixDesc(e.target.value)} className="border rounded px-1 py-0.5" /></label>
-                            <button type="button" onClick={() => saveFix(l)} disabled={isWorking} className="px-2 py-1 rounded bg-emerald-600 text-white disabled:opacity-50" data-testid="time-log-fix-save">Gem — send til godkendelse</button>
-                            <button type="button" onClick={() => setFixId(null)} className="px-2 py-1 rounded border">Annullér</button>
+                            <label className="flex flex-col w-full sm:w-auto">Dato<input type="date" value={fixDate} onChange={(e) => setFixDate(e.target.value)} className="border rounded px-2 py-2 sm:px-1 sm:py-0.5" /></label>
+                            <label className="flex flex-col flex-1 sm:flex-none">Start<input type="time" value={fixStart} onChange={(e) => setFixStart(e.target.value)} className="border rounded px-2 py-2 sm:px-1 sm:py-0.5" data-testid="time-log-fix-start" /></label>
+                            <label className="flex flex-col flex-1 sm:flex-none">Slut<input type="time" value={fixEnd} onChange={(e) => setFixEnd(e.target.value)} className="border rounded px-2 py-2 sm:px-1 sm:py-0.5" data-testid="time-log-fix-end" /></label>
+                            <label className="flex flex-col flex-1 min-w-[10rem] w-full sm:w-auto">Beskrivelse<input value={fixDesc} onChange={(e) => setFixDesc(e.target.value)} className="border rounded px-2 py-2 sm:px-1 sm:py-0.5" /></label>
+                            <button type="button" onClick={() => saveFix(l)} disabled={isWorking} className="flex-1 sm:flex-none min-h-11 sm:min-h-0 px-2 py-1 rounded bg-emerald-600 text-white disabled:opacity-50" data-testid="time-log-fix-save">Gem — send til godkendelse</button>
+                            <button type="button" onClick={() => setFixId(null)} className="flex-1 sm:flex-none min-h-11 sm:min-h-0 px-2 py-1 rounded border">Annullér</button>
                           </div>
                         )}
                       </td>

@@ -3,7 +3,7 @@
 import { CaseWarningNotes } from './case-warning-notes'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Pencil } from 'lucide-react'
 import { EditSiteInfoDialog } from '@/components/modules/orders/edit-site-info-dialog'
 import { EditServiceCasePartiesDialog } from '@/components/modules/orders/edit-service-case-parties-dialog'
@@ -136,6 +136,10 @@ export function OrderDetailClient({
   const [active, setActiveState] = useState<TabId>(
     TABS.some((t) => t.id === tabParam) && isTabVisible(tabParam as string) ? (tabParam as TabId) : 'overblik'
   )
+  // MB2-4 (mobil-review 2026-10-20): den aktive fane rulles frem i den vandrette fanelinje (deeplink ?tab=… på telefon)
+  useEffect(() => {
+    try { document.querySelector('[data-case-tab-active="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }) } catch { /* ignore */ }
+  }, [active])
   // W-13 (pilot-review 2026-10-15): fanen skrives i URL'en (refresh/tilbage/del-link lander på samme fane)
   const setActive = (t: TabId) => {
     setActiveState(t)
@@ -249,6 +253,7 @@ export function OrderDetailClient({
           {TABS.filter((t) => isTabVisible(t.id)).map((t) => (
             <button
               key={t.id}
+              data-case-tab-active={active === t.id ? 'true' : undefined}
               onClick={() => setActive(t.id)}
               className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition ${
                 active === t.id
@@ -271,7 +276,7 @@ export function OrderDetailClient({
           ))}
         </div>
 
-        <div className="p-5">
+        <div className="p-3 md:p-5">
           {active === 'overblik' && (
             <OverblikTab
               canEditCase={canEditCase}
