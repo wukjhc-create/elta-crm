@@ -86,7 +86,7 @@ export function AftercalcOverviewClient() {
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
 
   return (
-    <div className="p-4 md:p-6 space-y-4" data-testid="aftercalc-overview">
+    <div className="p-4 md:p-6 space-y-4 break-words min-w-0" data-testid="aftercalc-overview">
       <div className="flex flex-wrap items-start justify-between gap-3 break-words min-w-0" data-testid="aftercalc-overview-heading-row">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 break-words min-w-0" data-testid="aftercalc-overview-title">Efterkalkulation</h1>
