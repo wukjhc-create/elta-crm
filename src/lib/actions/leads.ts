@@ -353,11 +353,15 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
     }
 
     // Get old lead data for activity logging
-    const { data: oldLead } = await supabase
+    const { data: oldLead, error: oldErr } = await supabase
       .from('leads')
       .select('*')
       .eq('id', id)
       .maybeSingle()
+    if (oldErr) {
+      logger.error('updateLead read failed', { error: oldErr, entityId: id })
+      return { success: false, error: 'Kunne ikke læse leadet. Det er ikke ændret.' }
+    }
 
     const { id: leadId, ...updateData } = validated.data
 
@@ -480,11 +484,15 @@ export async function deleteLead(id: string): Promise<ActionResult> {
     validateUUID(id, 'lead ID')
 
     // Get lead name before deleting for audit log
-    const { data: lead } = await supabase
+    const { data: lead, error: leadErr } = await supabase
       .from('leads')
       .select('company_name')
       .eq('id', id)
       .maybeSingle()
+    if (leadErr) {
+      logger.error('deleteLead read failed', { error: leadErr, entityId: id })
+      return { success: false, error: 'Kunne ikke læse leadet. Det er ikke slettet.' }
+    }
 
     const { error } = await supabase.from('leads').delete().eq('id', id)
 
