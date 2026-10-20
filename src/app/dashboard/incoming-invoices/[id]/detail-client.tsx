@@ -532,7 +532,7 @@ export function IncomingInvoiceDetailClient({
                   return (
                     <tr key={l.id} className={`border-t ${l.converted_at ? 'bg-gray-50' : ''}`}>
                       <td className="px-2 py-1">{l.line_number}</td>
-                      <td className="px-2 py-1">{l.description ?? '—'}</td>
+                      <td className="px-2 py-1 break-words min-w-0">{l.description ?? '—'}</td>
                       <td className="px-2 py-1 text-right">{l.quantity ?? '—'}</td>
                       <td className="px-2 py-1">{l.unit ?? '—'}</td>
                       <td className="px-2 py-1 text-right">{fmtAmount(l.unit_price, inv.currency)}</td>

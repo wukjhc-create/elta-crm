@@ -29,7 +29,7 @@ const unit = '<p className="break-words min-w-0">Stk-pris {fmtAmount(l.unit_pric
 ok(view.includes(unit), 'stykprisen bliver')
 ok(view.split(unit).length === 2, 'stykprisen er en')
 
-const desc = '<td className="px-2 py-1">{l.description ?? \'—\'}</td>'
+const desc = '<td className="px-2 py-1 break-words min-w-0">{l.description ?? \'—\'}</td>'
 ok(view.includes(desc), 'beskrivelsescellen bliver')
 ok(view.split(desc).length === 2, 'beskrivelsescellen er en')
 
