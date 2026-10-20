@@ -778,7 +778,7 @@ function IbanValue({ invoiceId, masked, canReveal }: { invoiceId: string; masked
   if (!masked) return <span className="font-mono break-words min-w-0">—</span>
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="font-mono" data-testid="iban-value">{full ?? masked}</span>
+      <span className="font-mono break-words min-w-0" data-testid="iban-value">{full ?? masked}</span>
       {canReveal && (
         <button
           type="button"

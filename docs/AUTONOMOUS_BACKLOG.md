@@ -1683,7 +1683,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-949 | 2 Faktura | DONE. Rækken i fakturadetaljens felt kan krympe. | Kun `<div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 py-1 text-sm border-b last:border-b-0">` i `detail-client.tsx`. Indholdet er uændret. |
 | G18-950 | 2 Faktura | DONE. Etiketten i fakturadetaljens felt kan krympe. | Kun `<span className="text-gray-500 shrink-0">{label}</span>` i `detail-client.tsx`. Etiketten er uændret. `shrink-0` bliver. |
 | G18-951 | 2 Faktura | DONE. Den tomme IBAN-streg på fakturadetaljen kan krympe. | Kun `<span className="font-mono">—</span>` i `detail-client.tsx`. Stregen er uændret. |
-| G18-952 | 2 Faktura | ÅBEN. IBAN-værdien på fakturadetaljen kan krympe. | Kun `<span className="font-mono" data-testid="iban-value">{full ?? masked}</span>` i `detail-client.tsx`. Værdien er uændret. |
+| G18-952 | 2 Faktura | DONE. IBAN-værdien på fakturadetaljen kan krympe. | Kun `<span className="font-mono" data-testid="iban-value">{full ?? masked}</span>` i `detail-client.tsx`. Værdien er uændret. |
+| G18-953 | 2 Faktura | ÅBEN. Rammen om IBAN-værdien på fakturadetaljen kan krympe. | Kun `<span className="inline-flex items-center gap-2">` i `detail-client.tsx`. Indholdet er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

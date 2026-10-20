@@ -26,7 +26,7 @@ ok(after.includes('—'), 'stregen bliver')
 ok(view.split(bare).length === 1, 'den bare streg er vaek')
 ok(!view.includes(bare), 'den bare streg er vaek')
 ok(view.includes('<span className="text-gray-500 shrink-0 break-words min-w-0">{label}</span>'), 'etiketten bliver')
-ok(view.includes('<span className="font-mono" data-testid="iban-value">{full ?? masked}</span>'), 'iban-vaerdien bliver')
+ok(view.includes('<span className="font-mono break-words min-w-0" data-testid="iban-value">{full ?? masked}</span>'), 'iban-vaerdien bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
