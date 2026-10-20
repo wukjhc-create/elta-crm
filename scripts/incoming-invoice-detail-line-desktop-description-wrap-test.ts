@@ -29,7 +29,7 @@ const total = '<td className="px-2 py-1 text-right font-medium break-words min-w
 ok(view.includes(total), 'skrivebordstotalen bliver')
 ok(view.split(total).length === 2, 'skrivebordstotalen er en')
 
-const unit = '<td className="px-2 py-1 text-right">{fmtAmount(l.unit_price, inv.currency)}</td>'
+const unit = '<td className="px-2 py-1 text-right break-words min-w-0">{fmtAmount(l.unit_price, inv.currency)}</td>'
 ok(view.includes(unit), 'stykpriscellen bliver')
 ok(view.split(unit).length === 2, 'stykpriscellen er en')
 
