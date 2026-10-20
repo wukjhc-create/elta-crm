@@ -21,7 +21,7 @@ const at = view.indexOf(id)
 const row = at >= 0 ? view.slice(at - 133, at + 10) : ''
 const bare = 'className="font-medium text-blue-700 hover:underline break-words"'
 const cell = 'className="font-medium text-blue-700 hover:underline break-words min-w-0" data-testid="aftercalc-mobile-case-link"'
-const desktop = 'className="text-blue-700 hover:underline break-words"'
+const desktop = 'className="text-blue-700 hover:underline break-words min-w-0"'
 ok(row.startsWith('<Link'), 'det er sagslinket')
 ok(row.includes('break-words min-w-0'), 'sagslinket kan krympe')
 ok(row.includes('font-medium text-blue-700 hover:underline'), 'linkklassen bliver')
@@ -33,7 +33,7 @@ ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'sagslinket findes en gang')
 ok(view.split(cell).length === 2, 'klassen findes en gang')
 ok(view.split(bare).length === 1, 'den bare klasse er vaek')
-ok(view.split(desktop).length === 2, 'skrivebordslinket bliver')
+ok(view.split(desktop).length === 2, 'skrivebordslinket kan krympe')
 ok(view.includes("{r.case_number || 'Sag'}"), 'sagsnummeret bliver')
 ok(view.includes('>Ansvarlig:'), 'ansvarlig-linjen bliver')
 ok(view.split('tabular-nums text-gray-900 break-words').length - 1 === 4, 'mobilens fire beloeb bliver')

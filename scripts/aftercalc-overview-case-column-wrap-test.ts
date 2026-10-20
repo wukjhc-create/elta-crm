@@ -1,5 +1,5 @@
 /**
- * Kolonnen Sag paa efterkalkulationens skrivebord kan krympe. Linket bliver.
+ * Kolonnen Sag paa efterkalkulationens skrivebord kan krympe. Linket kan krympe.
  *   npx tsx scripts/aftercalc-overview-case-column-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -32,7 +32,7 @@ ok(view.split('<th className="px-2 py-1.5 text-left">Sag</th>').length === 1, 'd
 ok(view.includes('<th className="px-2 py-1.5 text-left break-words min-w-0">Kunde</th>'), 'kundekolonnen kan krympe')
 ok(view.includes('<th className="px-2 py-1.5 text-right break-words min-w-0">Tilbudt omsætning</th>'), 'tilbudt-omsaetning-kolonnen kan krympe')
 ok(view.includes('<th className="px-2 py-1.5 text-right break-words min-w-0">Faktisk DB %</th>'), 'faktisk-db-kolonnen kan krympe')
-ok(view.includes('<Link href={`/dashboard/orders/${r.case_id}?tab=oekonomi`} className="text-blue-700 hover:underline break-words">'), 'linket bliver')
+ok(view.includes('<Link href={`/dashboard/orders/${r.case_id}?tab=oekonomi`} className="text-blue-700 hover:underline break-words min-w-0">'), 'linket kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 const db = '>Faktisk DB</dt>'
 const dat = view.indexOf(db)
