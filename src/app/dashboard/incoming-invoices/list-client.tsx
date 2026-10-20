@@ -237,7 +237,7 @@ export function IncomingInvoicesListClient({
 
       {/* Sprint Ø9.1 — forfaldsfilter (intern indkøb, kun godkendte) */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-gray-500">Forfald:</span>
+        <span className="text-xs text-gray-500 break-words min-w-0">Forfald:</span>
         <button
           type="button"
           aria-pressed={!due}
