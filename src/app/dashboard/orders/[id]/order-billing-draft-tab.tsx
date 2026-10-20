@@ -1580,9 +1580,9 @@ export function BillingStandardMode({
 
   if (loadError || !data) {
     return (
-      <div className="bg-red-50 ring-1 ring-red-200 rounded-lg p-4 text-sm text-red-900 flex items-center gap-2">
-        <AlertCircle className="w-4 h-4" />
-        {loadError ?? 'Ingen data'}
+      <div className="bg-red-50 ring-1 ring-red-200 rounded-lg p-4 text-sm text-red-900 flex items-start gap-2 break-words" data-testid="billing-unbilled-load-error">
+        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+        <span>{loadError ?? 'Kunne ikke hente ufakturerede poster'}. Det tælles ikke som 0 poster.</span>
       </div>
     )
   }
