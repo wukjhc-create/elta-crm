@@ -1197,11 +1197,12 @@ export async function getGraphSyncState(): Promise<GraphSyncState | null> {
 export async function getAllGraphSyncStates(): Promise<GraphSyncState[]> {
   if (await gateDenied('inbox.view')) return [] // PM3-9
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('graph_sync_state')
     .select('*')
     .order('mailbox')
-  return (data || []) as GraphSyncState[]
+  if (error) throw new Error('Kunne ikke hente postkasser')
+  return (data ?? []) as GraphSyncState[]
 }
 
 /**
