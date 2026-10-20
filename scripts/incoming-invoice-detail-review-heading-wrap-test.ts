@@ -25,7 +25,7 @@ ok(view.split(wrapped).length === 2, 'overskriften kan krympe')
 ok(after.includes('Faktura kræver manuel gennemgang'), 'saetningen bliver')
 ok(view.split(bare).length === 1, 'den bare overskrift er vaek')
 ok(!view.includes(bare), 'den bare overskrift er vaek')
-ok(view.includes('<p className="text-sm text-amber-800 mt-1">'), 'konfidenslinjen bliver')
+ok(view.includes('<p className="text-sm text-amber-800 mt-1 break-words min-w-0">'), 'konfidenslinjen bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

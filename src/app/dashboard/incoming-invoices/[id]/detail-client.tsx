@@ -280,7 +280,7 @@ export function IncomingInvoiceDetailClient({
       {review && !terminal && (
         <div className="rounded-md bg-amber-50 ring-1 ring-amber-300 px-4 py-3">
           <div className="font-medium text-amber-900 break-words min-w-0">Faktura kræver manuel gennemgang</div>
-          <p className="text-sm text-amber-800 mt-1">
+          <p className="text-sm text-amber-800 mt-1 break-words min-w-0">
             Konfidens er under 70 %. Tjek alle felter omhyggeligt før godkendelse.
           </p>
         </div>
