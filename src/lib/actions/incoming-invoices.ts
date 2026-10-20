@@ -844,7 +844,11 @@ export async function editIncomingInvoiceHeaderAction(
     .select('id, status, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat')
     .eq('id', invoiceId)
     .maybeSingle()
-  if (readErr || !cur) return { ok: false, message: 'Faktura ikke fundet' }
+  if (readErr) {
+    logger.error('editIncomingInvoiceHeaderAction read failed', { error: readErr })
+    return { ok: false, message: 'Kunne ikke læse fakturaen. Det tælles ikke som at den ikke findes.' }
+  }
+  if (!cur) return { ok: false, message: 'Faktura ikke fundet' }
   if (LOCKED_INVOICE_STATUSES.includes(cur.status as string)) {
     return { ok: false, message: `Fakturaen er ${cur.status} — fakturahovedet kan ikke rettes` }
   }
