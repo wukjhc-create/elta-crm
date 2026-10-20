@@ -231,7 +231,7 @@ export function IncomingInvoiceDetailClient({
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div className="min-w-0">
           <Link href="/dashboard/incoming-invoices" className="text-xs text-emerald-700 hover:underline">← Indgående fakturaer</Link>
-          <h1 className="text-2xl font-semibold mt-1 flex flex-wrap items-start gap-2">
+          <h1 className="text-2xl font-semibold mt-1 flex flex-wrap items-start gap-2 break-words min-w-0">
             <span className="break-words min-w-0">{detail.supplier?.name ?? inv.supplier_name_extracted ?? 'Ukendt leverandør'}</span>
             {isTestInvoice && (
               <span className="text-[11px] uppercase tracking-wide bg-amber-200 text-amber-900 px-2 py-0.5 rounded break-words min-w-0">
