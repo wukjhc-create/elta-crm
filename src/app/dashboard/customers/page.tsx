@@ -39,7 +39,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
   const origin = params.origin === 'auto' ? ('auto' as const) : undefined
-  const autoCreatedCount = await countAutoCreatedCustomersAction()
+  // PF3-7 (performance-review 2026-10-20): tællingen hentes samtidig med listen (før først, så listen ventede)
+  const autoCreatedCountP = countAutoCreatedCustomersAction().catch(() => 0)
 
   // Sprint Ø4.9 — betalingsfilter + GLOBAL sortering + tællere via SQL-view.
   const paymentFilter = parsePaymentFilter(params.payment)
@@ -93,6 +94,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
       </div>
     )
   }
+
+  const autoCreatedCount = await autoCreatedCountP
 
   return (
     <CustomersPageClient

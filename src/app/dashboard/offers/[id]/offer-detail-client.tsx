@@ -1,7 +1,8 @@
 'use client'
 
 import { toNumberDa } from '@/lib/utils/danish-number'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useVisiblePolling } from '@/lib/hooks/use-visible-polling'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -226,21 +227,19 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   }, [offer.id])
 
   // Fetch unread portal message count
-  useEffect(() => {
+  const loadUnread = useCallback(async () => {
     if (!offer.customer_id) return
-    async function loadUnread() {
-      const result = await getUnreadPortalMessageCount(
-        offer.customer_id ?? undefined,
-        offer.id,
-      )
-      if (result.success && result.data !== undefined) {
-        setUnreadChatCount(result.data)
-      }
+    const result = await getUnreadPortalMessageCount(
+      offer.customer_id ?? undefined,
+      offer.id,
+    )
+    if (result.success && result.data !== undefined) {
+      setUnreadChatCount(result.data)
     }
-    loadUnread()
-    const interval = setInterval(loadUnread, 30000) // poll every 30s
-    return () => clearInterval(interval)
   }, [offer.customer_id, offer.id])
+  useEffect(() => { void loadUnread() }, [loadUnread])
+  // PF3-8 (performance-review 2026-10-20): poll kun når fanen er synlig (server actions køres én ad gangen)
+  useVisiblePolling(() => { void loadUnread() }, 30000)
 
   const handleDelete = async () => {
     const ok = await confirm({
