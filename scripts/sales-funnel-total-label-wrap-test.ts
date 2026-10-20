@@ -28,7 +28,8 @@ ok(table.split(wrapped).length === 2, 'totaloverskriften er en')
 ok(!table.includes(bare), 'totaloverskriften er ikke bar')
 ok(table.includes('kr(t.accepted_value)'), 'beloebet bliver')
 ok(table.includes('data-testid="funnel-month-rates"'), 'satserne bliver')
-ok(table.includes('<td className="py-2">I alt</td>'), 'skrivebordets total bliver')
+ok(table.includes('<td className="py-2 break-words min-w-0">I alt</td>'), 'skrivebordets total bliver')
+ok(!table.includes('<td className="py-2">I alt</td>'), 'skrivebordets total er ikke bar')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

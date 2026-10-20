@@ -72,7 +72,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
               </tr>
             ))}
             <tr className="font-semibold bg-gray-50 break-words min-w-0">
-              <td className="py-2">I alt</td>
+              <td className="py-2 break-words min-w-0">I alt</td>
               <td className="py-2 text-right tabular-nums">{t.new_customers}</td>
               <td className="py-2 text-right tabular-nums">{t.offers_created}</td>
               <td className="py-2 text-right tabular-nums">{t.offers_sent}</td>
