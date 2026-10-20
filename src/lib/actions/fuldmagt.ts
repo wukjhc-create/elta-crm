@@ -219,18 +219,24 @@ export async function getPortalFuldmagter(
     // en ANDEN kundes kort (fx partnerens). B2C er uændret.
     type DocRow = NonNullable<typeof ownDocs>[number]
     let linkedDocs: DocRow[] = []
-    const { data: signerCases } = await supabase
+    let linkedFailed = false
+    const { data: signerCases, error: signerErr } = await supabase
       .from('service_cases')
       .select('id')
       .or(`end_customer_id.eq.${tokenCustomerId},site_customer_id.eq.${tokenCustomerId}`)
-    const visCaseIds = ((signerCases ?? []) as Array<{ id: string }>).map((c) => c.id)
-    if (visCaseIds.length > 0) {
-      const { data: ld } = await supabase
-        .from('customer_documents')
-        .select('*')
-        .in('service_case_id', visCaseIds)
-        .eq('document_type', 'contract')
-      linkedDocs = (ld ?? []) as DocRow[]
+    if (signerErr) {
+      linkedFailed = true
+    } else {
+      const visCaseIds = ((signerCases ?? []) as Array<{ id: string }>).map((c) => c.id)
+      if (visCaseIds.length > 0) {
+        const { data: ld, error: ldErr } = await supabase
+          .from('customer_documents')
+          .select('*')
+          .in('service_case_id', visCaseIds)
+          .eq('document_type', 'contract')
+        if (ldErr) linkedFailed = true
+        else linkedDocs = (ld ?? []) as DocRow[]
+      }
     }
 
     // Merge + dedupe på id
@@ -251,11 +257,15 @@ export async function getPortalFuldmagter(
       new Set(fuldmagtDocs.map((d) => d.service_case_id as string | null).filter((v): v is string => !!v)),
     )
     const signerByCaseId = new Map<string, string | null>()
+    let signerLookupFailed = false
     if (docCaseIds.length > 0) {
-      const { data: cases } = await supabase
+      const { data: cases, error: casesErr } = await supabase
         .from('service_cases')
         .select('id, end_customer_id, site_customer_id, customer_id')
         .in('id', docCaseIds)
+      if (casesErr) {
+        signerLookupFailed = true
+      }
       const caseRows = (cases ?? []) as Array<{
         id: string
         end_customer_id: string | null
@@ -268,6 +278,7 @@ export async function getPortalFuldmagter(
     }
     const isIntendedSigner = (doc: DocRow): boolean => {
       const scId = doc.service_case_id as string | null
+      if (scId && signerLookupFailed) return false
       if (scId && signerByCaseId.has(scId)) {
         return signerByCaseId.get(scId) === tokenCustomerId
       }
@@ -317,6 +328,13 @@ export async function getPortalFuldmagter(
       }
     })
 
+    if (linkedFailed || signerLookupFailed) {
+      return {
+        success: false,
+        error: 'Kunne ikke hente alle fuldmagter.',
+        data: fuldmagter,
+      }
+    }
     return { success: true, data: fuldmagter }
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
