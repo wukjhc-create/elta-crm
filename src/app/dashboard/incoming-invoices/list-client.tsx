@@ -318,7 +318,7 @@ export function IncomingInvoicesListClient({
           <thead className="bg-gray-50 text-left text-xs text-gray-600">
             <tr>
               <th className="px-3 py-2 break-words min-w-0">Leverandør</th>
-              <th className="px-3 py-2">Faktura nr</th>
+              <th className="px-3 py-2 break-words min-w-0">Faktura nr</th>
               <th className="px-3 py-2 text-right break-words min-w-0">Beløb</th>
               <th className="px-3 py-2">Faktura dato</th>
               <th className="px-3 py-2">Forfald</th>
