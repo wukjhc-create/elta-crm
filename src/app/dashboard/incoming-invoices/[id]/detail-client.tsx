@@ -382,7 +382,7 @@ export function IncomingInvoiceDetailClient({
                       )}
                     </Link>
                   ) : detail.case_failed ? (
-                    <span className="text-red-800" data-testid="incoming-invoice-case-error">Sagen kunne ikke hentes. Det tælles ikke som ikke matchet.</span>
+                    <span className="text-red-800 break-words min-w-0" data-testid="incoming-invoice-case-error">Sagen kunne ikke hentes. Det tælles ikke som ikke matchet.</span>
                   ) : (
                     <span className="text-amber-700">Ikke matchet</span>
                   )}
