@@ -230,10 +230,10 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | # | Fund | Status |
 |---|---|---|
 | FIN3-1 | Avance-prioritet: tilbudslinjen lader enhver avanceregel (inkl. leverandør-standard) slå kundeaftalen; kalkia/sagsmateriale/DB-funktion omvendt (S2, latent) | TODO |
-| FIN3-2 | Tilbudsnumre låser, når højeste tilbud er en revision (-R2 → NaN → 0001 findes); UTC-år ved nytår (S2 på staging) | TODO |
+| FIN3-2 | Tilbudsnumre låser, når højeste tilbud er en revision (-R2 → NaN → 0001 findes); UTC-år ved nytår (S2 på staging) | DONE (kode, offer-number-test 6 + harness:concurrency C4) — revisioner udelades, numerisk maksimum, dansk år |
 | FIN3-3 | Revision af et allerede konverteret sendt tilbud opretter en sag nr. 2 (S2 når flaget er tændt) | TODO |
 | FIN3-4 | Rapport: faktureret pr. periode klampes ≥ 0 (kreditnota i anden måned) ≠ tragt/bogføring (S3) | TODO |
-| FIN3-5 | "Klar til fakturering"/faktureringsstatus prissætter fastprissager med linjepriser (S3) | TODO |
+| FIN3-5 | "Klar til fakturering"/faktureringsstatus prissætter fastprissager med linjepriser (S3) | DELVIS (kode, U216) — cockpit/sagsliste: fastprissag = kontraktens restbeløb (eller ude ved ingen rest); sagens faktureringsstatus (service-case-economy) = TODO |
 | FIN3-6 | Skift af satstype beholder auto-udfyldt overtidssats (S4) | TODO |
 | FIN3-7 | Udestående/lønsomhed/sagsøkonomi/afvisninger blander valutaer (S4) | TODO |
 | FIN3-8 | Sagens indkøbsoversigt: revised_sum=0-reference, ignorerer regningssager; .limit(50) (S4) | TODO |
@@ -276,7 +276,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PF3-3 | Kalender: backlog/uden-tid hentes efter Promise.all, serielle bidder, O(n²) spread (S3) | DONE (kode, U96/U117/U30) — backlog/uden-tid i kalenderens Promise.all; bidder parallelt; push i stedet for O(n²) spread |
 | PF3-4 | Opgavesiden: getActiveProfiles for montør + ufiltreret realtime (S3) | DELVIS (kode, U174/U175/U201) — profillisten hentes ikke for montør uden opret-ret; realtime-filter pr. bruger = TODO |
 | PF3-5 | Thumbnails henter fulde billeder uden lazy (S3) | DELVIS (kode) — loading="lazy" decoding="async"; rigtige thumbnails (transform) = TODO |
-| PF3-6 | Planlægning-fanen: ~7 serielle actions (S3) | TODO |
+| PF3-6 | Planlægning-fanen: ~7 serielle actions (S3) | DONE (kode, U62/U96/U21/U73) — getCasePlanningBundleAction: ét kald (5 dele parallelt på serveren) |
 | PF3-7 | Kundeliste: betalingsview tælles 6 gange; auto-tal før listen (S4) | DELVIS (kode, U136/U195/U199) — auto-tal hentes parallelt med listen; 5 tællinger → én RPC = BLOCKED_APPROVAL [MIGRATION] |
 | PF3-8 | Chat/tilbud poller i skjult fane (S4) | DONE (kode, U7/U47) — kundechat og tilbudsdetalje poller kun synlig fane |
 | PF3-9 | Kalender månedsvisning: påmindelser efter Promise.all (S4) | DONE (kode, U30) — påmindelser i samme Promise.all |

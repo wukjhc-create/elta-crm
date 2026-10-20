@@ -9,17 +9,34 @@
 
 import { retryOnUniqueViolation, type UniqueViolationResult } from '@/lib/utils/retry'
 
-export async function nextOfferNumber(client: any, year = new Date().getFullYear()): Promise<string> {
-  const prefix = `TILBUD-${year}-`
+/** FIN3-2: højeste løbenummer blandt rene numre (TILBUD-ÅÅÅÅ-NNNN) — revisioner (…-R2) og andre suffikser tæller ikke. */
+export function maxOfferSequence(numbers: Array<string | null | undefined>, year: number | string): number {
+  const re = new RegExp(`^TILBUD-${year}-(\\d+)$`)
+  let max = 0
+  for (const v of numbers) {
+    const m = re.exec(String(v ?? ''))
+    if (m) max = Math.max(max, parseInt(m[1], 10))
+  }
+  return max
+}
+
+export async function nextOfferNumber(client: any, year?: number): Promise<string> {
+  // FIN3-2 (finans-review 2026-10-20): dansk år (UTC-året gav forrige års præfiks kl. 00–01 nytårsnat)
+  const { copenhagenParts } = await import('@/lib/utils/copenhagen-time')
+  const y = year ?? Number(copenhagenParts(new Date()).date.slice(0, 4))
+  const prefix = `TILBUD-${y}-`
+  // FIN3-2: revisioner (TILBUD-ÅÅÅÅ-0042-R2) sorterede som tekst-maksimum → parseInt('R2') = NaN → næste nummer 0001
+  // (findes) → alle 10 genforsøg samme nummer → ingen nye tilbud. Nu: revisioner udelades og det NUMERISKE maksimum
+  // af de højeste rene numre bruges (tekstsortering holder for 4 cifre; flere cifre fanges af de 50 højeste)
   const { data } = await client
     .from('offers')
     .select('offer_number')
     .like('offer_number', `${prefix}%`)
+    .not('offer_number', 'like', '%-R%')
     .order('offer_number', { ascending: false })
-    .limit(1)
-  const last = (data?.[0]?.offer_number as string | undefined) ?? null
-  const n = last ? parseInt(last.split('-').pop() || '0', 10) : 0
-  return `${prefix}${((Number.isNaN(n) ? 0 : n) + 1).toString().padStart(4, '0')}`
+    .limit(50)
+  const n = maxOfferSequence(((data ?? []) as Array<{ offer_number: string | null }>).map((r) => r.offer_number), y)
+  return `${prefix}${(n + 1).toString().padStart(4, '0')}`
 }
 
 /**

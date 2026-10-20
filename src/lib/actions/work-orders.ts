@@ -87,6 +87,24 @@ export async function getWorkOrderCapabilitiesAction(): Promise<{ canStart: bool
 // Read
 // =====================================================
 
+/**
+ * PF3-6 (performance-review 2026-10-20): Planlægning-fanen i ÉT kald — før 5 server actions fra browseren, der køres
+ * én ad gangen (rettigheder/arbejdsordrer/medarbejdere/timer/kost). Hver del gater og scoper selv som før; her kører
+ * de parallelt på serveren.
+ */
+export async function getCasePlanningBundleAction(caseId: string, opts: { withCost?: boolean } = {}) {
+  const { getEmployeesForOrderSelect } = await import('@/lib/actions/service-cases')
+  const { listTimeLogsForCase, getCaseLaborCostTotal } = await import('@/lib/actions/time-logs')
+  const [caps, workOrders, employees, logs, cost] = await Promise.all([
+    getWorkOrderCapabilitiesAction(),
+    listWorkOrdersForCase(caseId),
+    getEmployeesForOrderSelect(),
+    listTimeLogsForCase(caseId),
+    opts.withCost ? getCaseLaborCostTotal(caseId) : Promise.resolve(null),
+  ])
+  return { caps, workOrders, employees, logs, cost }
+}
+
 export async function listWorkOrdersForCase(
   caseId: string
 ): Promise<ActionResult<WorkOrderWithEmployee[]>> {

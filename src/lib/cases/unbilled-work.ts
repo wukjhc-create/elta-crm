@@ -2,6 +2,7 @@
  * N51/DB-15k: fakturerbart arbejde uden faktura pr. sag — ÉN definition for cockpittets "Klar til fakturering" og
  * sagslistens filter (?unbilled=1): billable + invoice_line_id IS NULL; timer kun afsluttede og godkendte (TT-10);
  * materialer og øvrige omkostninger. Salgsværdi (ingen kost). Pagineret (PostgREST max 1000 rækker).
+ * FIN3-5: fastprissager tæller med kontraktens restbeløb (ikke linjernes salgspris).
  * Bevidst IKKE 'use server' — kalderen gater (invoices.create).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -28,5 +29,37 @@ export async function unbilledWorkByCase(supabase: SupabaseClient): Promise<Map<
   }
   for (const m of matRows as Array<{ case_id: string; total_sales_price: number | string | null }>) add(m.case_id, m.total_sales_price)
   for (const o of othRows as Array<{ case_id: string; total_sales_price: number | string | null }>) add(o.case_id, o.total_sales_price)
+
+  // FIN3-5 (finans-review 2 2026-10-20): på en FASTPRIS-sag faktureres linjerne ikke enkeltvis — slutfakturaen dækker
+  // dem via kontraktlinjen. "Klar til fakturering" er dér kontraktens restbeløb (effektiv kontraktsum − netto faktureret
+  // ekskl. moms), ikke linjernes salgspris. Ingen rest (≤ 0,50) → sagen er ikke klar til fakturering.
+  const ids = Array.from(agg.keys())
+  if (ids.length) {
+    const { selectInChunks } = await import('@/lib/supabase/in-chunks')
+    const { effectiveContractSum } = await import('@/lib/cases/expected-revenue')
+    const { netInvoicedExVat } = await import('@/lib/invoices/net-invoiced')
+    const cases = await selectInChunks<{ id: string; billing_model: string | null; contract_sum: number | string | null; revised_sum: number | string | null }>(
+      ids, (chunk) => supabase.from('service_cases').select('id, billing_model, contract_sum, revised_sum').in('id', chunk))
+    const fixed = cases.filter((c) => c.billing_model === 'fixed_price')
+    if (fixed.length) {
+      const invRows = await selectInChunks<{ case_id: string; total_amount: number | string | null; status: string | null; invoice_type: string | null; voided_at: string | null; currency: string | null }>(
+        fixed.map((c) => c.id), (chunk) => supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at, currency').in('case_id', chunk))
+      const byCase = new Map<string, typeof invRows>()
+      for (const r of invRows) {
+        if (r.currency && r.currency.toUpperCase() !== 'DKK') continue
+        const arr = byCase.get(r.case_id)
+        if (arr) arr.push(r)
+        else byCase.set(r.case_id, [r])
+      }
+      for (const c of fixed) {
+        const ref = effectiveContractSum({ contractSum: c.contract_sum, revisedSum: c.revised_sum, billingModel: c.billing_model })
+        if (ref == null) continue
+        const remainder = Math.round((ref - netInvoicedExVat(byCase.get(c.id) ?? [])) * 100) / 100
+        const cur = agg.get(c.id)!
+        if (remainder > 0.5) agg.set(c.id, { lines: cur.lines, sale: remainder })
+        else agg.delete(c.id)
+      }
+    }
+  }
   return agg
 }

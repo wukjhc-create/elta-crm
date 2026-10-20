@@ -7,15 +7,13 @@ import { useRouter } from 'next/navigation'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
 import {
-  listWorkOrdersForCase,
   createWorkOrderForCase,
   changeWorkOrderStatus,
-  getWorkOrderCapabilitiesAction,
+  getCasePlanningBundleAction,
   deletePlannedWorkOrder,
   type WorkOrderWithEmployee,
 } from '@/lib/actions/work-orders'
-import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
-import { getCaseLaborCostTotal, listTimeLogsForCase, type TimeLogWithEmployee } from '@/lib/actions/time-logs'
+import { type TimeLogWithEmployee } from '@/lib/actions/time-logs'
 import type { WorkOrderStatus } from '@/types/workforce.types'
 import { WorkOrderTimeLogs } from './work-order-time-logs'
 import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
@@ -43,7 +41,7 @@ const STATUS_COLORS: Record<WorkOrderStatus, string> = {
   cancelled: 'bg-gray-200 text-gray-700',
 }
 
-type WorkOrderCaps = Awaited<ReturnType<typeof getWorkOrderCapabilitiesAction>>
+type WorkOrderCaps = Awaited<ReturnType<typeof getCasePlanningBundleAction>>['caps']
 const NO_CAPS: WorkOrderCaps = { canStart: false, canComplete: false, canCancel: false, canDelete: false, canReopen: false }
 
 const NEXT_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
@@ -81,7 +79,6 @@ export function OrderPlanningTab({
 
   const [workOrders, setWorkOrders] = useState<WorkOrderWithEmployee[] | null>(null)
   const [caps, setCaps] = useState<WorkOrderCaps>(NO_CAPS)
-  useEffect(() => { getWorkOrderCapabilitiesAction().then(setCaps).catch(() => setCaps(NO_CAPS)) }, [])
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   // M-9: sagens timer + medarbejderlisten deles med alle arbejdsordre-rækker (null = ikke hentet → rækken henter selv)
   const [caseLogs, setCaseLogs] = useState<TimeLogWithEmployee[] | null>(null)
@@ -124,13 +121,15 @@ export function OrderPlanningTab({
   const [formDescription, setFormDescription] = useState('')
 
   const reload = async () => {
-    const [woRes, empRes, logsRes, costRes] = await Promise.all([
-      listWorkOrdersForCase(caseId),
-      getEmployeesForOrderSelect(),
-      listTimeLogsForCase(caseId),
-      // D50: aggregeret kost fra serveren (rækkerne har ingen kost uden løn-adgang)
-      canSeeCost ? getCaseLaborCostTotal(caseId) : Promise.resolve(null),
-    ])
+    // PF3-6: ét kald i stedet for fem serielle (rettigheder, arbejdsordrer, medarbejdere, timer, kost)
+    // D50: aggregeret kost fra serveren (rækkerne har ingen kost uden løn-adgang)
+    const bundle = await getCasePlanningBundleAction(caseId, { withCost: canSeeCost }).catch(() => null)
+    if (!bundle) { setError('Kunne ikke hente arbejdsordrer'); return }
+    setCaps(bundle.caps ?? NO_CAPS)
+    const woRes = bundle.workOrders
+    const empRes = bundle.employees
+    const logsRes = bundle.logs
+    const costRes = bundle.cost
     if (woRes.success && woRes.data) setWorkOrders(woRes.data)
     else setError(woRes.error || 'Kunne ikke hente arbejdsordrer')
     if (empRes.success && empRes.data) { setEmployees(empRes.data); setSharedEmployees(empRes.data) }
