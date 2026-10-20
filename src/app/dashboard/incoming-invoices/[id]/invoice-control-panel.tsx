@@ -58,7 +58,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
   const headerCls = header?.tone === 'bad' ? 'text-red-700' : header?.tone === 'warn' ? 'text-amber-800' : 'text-gray-600'
 
   return (
-    <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4" data-testid="invoice-control-panel">
+    <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4 break-words min-w-0" data-testid="invoice-control-panel">
       <div className="flex flex-wrap items-start justify-between gap-2 mb-3 break-words min-w-0">
         <h3 className="text-sm font-semibold break-words min-w-0">Fakturakontrol</h3>
         {v && <span className={`text-xs px-2 py-1 rounded border break-words min-w-0 ${v.cls}`} data-testid="invoice-control-verdict">{v.label}</span>}
