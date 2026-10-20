@@ -74,7 +74,8 @@ export function measureCoverage(invoices: CoverageInvoice[], productsBySupplier:
         : l.unit_price
       const prodUnit = stored?.unit ?? (m.supplierProductId ? productById.get(m.supplierProductId)?.unit ?? null : null)
       return {
-        lineNumber: l.line_number, description: l.description ?? '', quantity: l.quantity, unitPrice: billedUnit,
+        // FIN2-3: AO-kreditlinje (negativ total, positivt antal) kontrolleres som kredit
+        lineNumber: l.line_number, description: l.description ?? '', quantity: qty > 0 && Number(l.total_price) < 0 ? -qty : l.quantity, unitPrice: billedUnit,
         unit: l.unit ?? null, expectedUnit: prodUnit ?? null,
         expectedUnitPrice: expected ?? null,
         expectedMissingReason: stored || m.supplierProductId ? 'produkt uden kostpris' : 'intet produktmatch',

@@ -13,6 +13,7 @@
  *  - "Betalt": en manuelt markeret betalt faktura har amount_paid = 0 — status 'paid' tæller som fuldt betalt.
  * Alle steder der viser faktureret/rest/udestående på en sag skal bruge summarizeCaseInvoices.
  */
+import { roundMoney } from '@/lib/utils/money-round'
 export type InvoiceAmountRow = {
   total_amount: number | string | null
   status: string | null
@@ -51,7 +52,8 @@ const num = (v: number | string | null | undefined) => {
   const n = Number(v ?? 0)
   return Number.isFinite(n) ? n : 0
 }
-const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 
 export function summarizeCaseInvoices(rows: CaseInvoiceRow[]): CaseInvoiceSummary {
   let invEx = 0, credEx = 0, invIncl = 0, credIncl = 0, paid = 0, issued = 0, voided = 0

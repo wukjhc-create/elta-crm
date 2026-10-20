@@ -68,6 +68,23 @@ COMMIT;
 | Rollback | 00214-viewet genskabes |
 | Afhængighed | Ingen. CSV-kolonnerne er uændrede. |
 
+## 00265: forfaldsdato på faktura fra tilbud i dansk dato (FIN2-10)
+
+**Problem:**
+- `create_invoice_from_offer` (00198) beregner forfaldet fra `CURRENT_DATE`, som er UTC.
+- En faktura oprettet kl. 00–02 dansk tid får derfor forfald én dag for tidligt.
+- `rebaseDueDateOnSend` regner betalingsbetingelserne ud fra den danske dato, så kunden får 13 dage i stedet for 14.
+- Fejlen rammer først, når DF-1 (automatisk fakturering) er live.
+
+**SQL (skitse):** i `create_invoice_from_offer` erstattes `CURRENT_DATE` med `(now() AT TIME ZONE 'Europe/Copenhagen')::date`. Resten af funktionen er uændret (CREATE OR REPLACE ud fra 00198).
+
+| | |
+|---|---|
+| Ændring af eksisterende data | Ingen (funktion) |
+| Risiko | Lav. Påvirker kun nye fakturaer oprettet mellem kl. 00 og 02. |
+| Rollback | 00198-funktionen genskabes |
+| Afhængighed | Ingen. Funktionens ACL bevares (REVOKE FROM PUBLIC, anon, authenticated som i 00198). |
+
 ## Bemærk
 
 Begge er rene CREATE OR REPLACE. Ingen tabelændringer og ingen grants.

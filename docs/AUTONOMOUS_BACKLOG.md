@@ -226,6 +226,21 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | FC-10 | Fakturaårsserie i UTC (1/1 00–01 dansk tid → forrige år) (S4) | BLOCKED_APPROVAL [MIGRATION 00263] (= TZ-5) |
 | FC-11 | Fakturakontrollens dækningstal sammenligner listepris med dagens kost (uden enhed/historik) (S4) | DONE (kode, delvis) — faktureret enhedspris (total/antal) + enhedstjek som loaderen (coverage-billed-unit-test 3, invoice-pipeline 10/10). Rest: prishistorik (costPriceAtDate) i dækningstallet |
 
+## NEXT-54 (finans-review 2026-10-20)
+| # | Fund | Status |
+|---|---|---|
+| FIN2-1 | Leverandørfaktura > 1.000 linjer afkortes i detalje, fordelings-preview og konvertering (kost når aldrig sagen) (S2) | DONE (kode) — alle linjer side for side (fetchAllRows) i detalje, preview og konvertering |
+| FIN2-2 | Standardfaktura oprettet EFTER fastpris-slutfaktura kan aldrig krediteres ("fratrukket på slutfaktura") (S3) | DONE (kode) — kun slutfakturaer oprettet EFTER standardfakturaen blokerer (før- og efter-tjek) |
+| FIN2-3 | Priskontrol vender fortegn på AO-kreditlinjer (negativ total, positivt antal) (S3) | DONE (kode, invoice-control-test) — negativ total + positivt antal kontrolleres som kredit (loader + dækning) |
+| FIN2-4 | Standardkladde fra sag fakturerer materialer/øvrige uden salgspris til 0 kr og låser dem (S3) | DONE (kode) — materialer/øvrige uden salgspris springes over (missing_sale_price), som slutfakturaen |
+| FIN2-5 | Dashboardets "Betalt denne måned" uden betalingsrækker (FC-5) — andet tal end oversigten (S3) | DONE (kode) — dashboardet sender månedens betalingsrækker med (som oversigten) |
+| FIN2-6 | Betalingsdato = behandlingstid, ikke bankdato (S4) | TODO |
+| FIN2-7 | Bankmatch: creditedOriginals uden valuta-/typefilter (S4) | DONE (kode) — kun DKK og aldrig kreditnotaer i creditedOriginals |
+| FIN2-8 | "Markér som sendt" springer total ≤ 0-værnet over (S4) | DONE (kode) — draft→sent afviser ikke-kredit med total ≤ 0 |
+| FIN2-9 | Momsafrunding i TS (halv øre ned) ≠ SQL/e-conomic (S4) | DONE (kode, money-round-test 9 + alle faktura-tests) — fælles roundMoney (halv øre væk fra nul) i 10 fakturahjælpere |
+| FIN2-10 | create_invoice_from_offer: CURRENT_DATE (UTC) → forfald én dag for kort 00–02 (S4) | BLOCKED_APPROVAL [MIGRATION] — forslag 00265 i docs/runbooks/next53-migrations-proposal.md |
+| FIN2-11 | "Rate N" tæller forskud/kladder/krediterede (S4) | DONE (kode) — kun ikke-annullerede rater tæller |
+
 ## NEXT-53 (mobil + performance-review 2026-10-20 — montørflows og varme sider)
 | # | Fund | Status |
 |---|---|---|

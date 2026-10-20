@@ -292,7 +292,7 @@ export async function setInvoiceStatus(
 
   const { data: current, error: readErr } = await supabase
     .from('invoices')
-    .select('id, status, created_at, due_date')
+    .select('id, status, created_at, due_date, invoice_type, final_amount') // FIN2-8: total-værn
     .eq('id', invoiceId)
     .maybeSingle()
 
@@ -312,6 +312,15 @@ export async function setInvoiceStatus(
 
   if (!ALLOWED_TRANSITIONS[cur].includes(next)) {
     throw new Error(`setInvoiceStatus: cannot transition ${cur} → ${next}`)
+  }
+
+  // FIN2-8 (finans-review 2026-10-20): samme værn som mail-afsendelsen (IV2-5) — en standardfaktura med total ≤ 0 kan ikke
+  // markeres som sendt (den ville virke som en skjult kreditnota uden kreditnotaens værn)
+  if (cur === 'draft' && next === 'sent') {
+    const c = current as { invoice_type?: string | null; final_amount?: number | string | null }
+    if (c.invoice_type !== 'credit' && !(Number(c.final_amount) > 0)) {
+      throw new Error('Fakturaens total er 0 kr eller negativ — ret linjerne (eller opret en kreditnota) før den markeres som sendt')
+    }
   }
 
   const patch: Partial<InvoiceRow> = { status: next }

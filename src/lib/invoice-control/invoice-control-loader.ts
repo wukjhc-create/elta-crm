@@ -96,7 +96,10 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     const billedUnit = l.total_price != null && Number.isFinite(Number(l.total_price)) && qty !== 0 && Number.isFinite(qty)
       ? Math.abs(Number(l.total_price) / qty)
       : l.unit_price
-    return { lineNumber: l.line_number, description: l.description ?? '', quantity: l.quantity, unitPrice: billedUnit, expectedUnitPrice: expected,
+    // FIN2-3 (finans-review 2026-10-20): AO-kreditlinjer har negativ TOTAL og positivt antal (IV-6) — som kredit (negativt
+    // antal) til kontrollen, ellers blev en kredit til højere pris end aftalt (gevinst) meldt som merbetaling
+    const signedQty = qty > 0 && Number(l.total_price) < 0 ? -qty : l.quantity
+    return { lineNumber: l.line_number, description: l.description ?? '', quantity: signedQty, unitPrice: billedUnit, expectedUnitPrice: expected,
       unit: l.unit ?? null, expectedUnit: prodUnit,
       expectedMissingReason: st || m.supplierProductId ? 'produkt uden kostpris' : inv.supplier_id ? 'intet produktmatch' : 'leverandør ukendt' }
   }))

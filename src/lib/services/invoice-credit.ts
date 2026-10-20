@@ -29,8 +29,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { roundMoney } from '@/lib/utils/money-round'
 
-const r2 = (n: number) => Math.round(n * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 
 // =====================================================
 // getCreditedAmountForInvoice
@@ -330,7 +332,7 @@ export async function createCreditNoteForInvoice(
   const { data: orig, error: origErr } = await supabase
     .from('invoices')
     .select(
-      'id, invoice_number, invoice_type, status, customer_id, case_id, currency, total_amount, tax_amount, final_amount, voided_at'
+      'id, invoice_number, invoice_type, status, customer_id, case_id, currency, total_amount, tax_amount, final_amount, voided_at, created_at'
     )
     .eq('id', input.invoice_id)
     .maybeSingle()
@@ -349,6 +351,7 @@ export async function createCreditNoteForInvoice(
     tax_amount: number | string
     final_amount: number | string
     voided_at: string | null
+    created_at?: string | null
   }
 
   // ---- Status / type-gates ----
@@ -380,7 +383,12 @@ export async function createCreditNoteForInvoice(
       .neq('id', original.id)
       .or('invoice_type.eq.final,is_final_invoice.eq.true')
       .is('voided_at', null)
-    if (isStandardOnCase) finalsQuery = finalsQuery.in('amount_basis', ['contract_sum', 'revised_sum'])
+    // FIN2-2 (finans-review 2026-10-20): en standardfaktura OPRETTET EFTER slutfakturaen (fx ekstraarbejde) er ikke fratrukket
+    // på den og skal kunne krediteres — kun slutfakturaer oprettet senere end originalen tæller
+    if (isStandardOnCase) {
+      finalsQuery = finalsQuery.in('amount_basis', ['contract_sum', 'revised_sum'])
+      if (original.created_at) finalsQuery = finalsQuery.gt('created_at', original.created_at)
+    }
     const { data: finals } = await finalsQuery.limit(1)
     const fin = (finals ?? [])[0] as { invoice_number: string | null; status: string } | undefined
     if (fin) {
@@ -618,7 +626,10 @@ export async function createCreditNoteForInvoice(
     let finalsNow = supabase.from('invoices').select('id', { count: 'exact', head: true })
       .eq('case_id', original.case_id).neq('id', original.id)
       .or('invoice_type.eq.final,is_final_invoice.eq.true').is('voided_at', null)
-    if (isStandardOnCase) finalsNow = finalsNow.in('amount_basis', ['contract_sum', 'revised_sum'])
+    if (isStandardOnCase) {
+      finalsNow = finalsNow.in('amount_basis', ['contract_sum', 'revised_sum'])
+      if (original.created_at) finalsNow = finalsNow.gt('created_at', original.created_at) // FIN2-2
+    }
     const { count: finCount } = await finalsNow
     if ((finCount ?? 0) > 0) {
       await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)

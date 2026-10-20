@@ -28,11 +28,13 @@ import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { CONTRACT_PRIOR_TYPES, contractTypeLabel, planContractRemainder, type ContractRemainderPlan } from '@/lib/invoices/contract-remainder'
 import { finalInvoicePlanKind } from '@/lib/invoices/billing-model'
+import { roundMoney } from '@/lib/utils/money-round'
 
 export type InvoiceType = 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
 export type AmountBasis = 'contract_sum' | 'revised_sum' | 'lines'
 
-const r2 = (n: number) => Math.round(n * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 const VAT_RATE = 0.25
 
 // =====================================================
@@ -145,7 +147,7 @@ export async function createStageInvoiceForCase(
   // 3. Procent-sum-gate
   const { data: existingStages } = await supabase
     .from('invoices')
-    .select('id, billing_percentage, status, total_amount')
+    .select('id, billing_percentage, status, total_amount, invoice_type, voided_at')
     .eq('case_id', input.case_id)
     .in('invoice_type', ['deposit', 'progress'])
     .neq('status', 'rejected' as never)              // status enum is draft/sent/paid; rejected is incoming-only
@@ -193,10 +195,10 @@ export async function createStageInvoiceForCase(
     (input.invoice_type === 'deposit'
       ? 'Forskud'
       : (() => {
+          // FIN2-11 (finans-review 2026-10-20): kun rigtige rater (ikke forskud, ikke annullerede) — før blev første rate
+          // efter et forskud kaldt "Rate 2"
           const progressCount = (existingStages ?? []).filter(
-            // billing_percentage is set on percent-progress; standard's
-            // own progress (lines-mode) might have NULL — count both.
-            () => true
+            (r) => (r as { invoice_type?: string }).invoice_type === 'progress' && !(r as { voided_at?: string | null }).voided_at
           ).length
           return `Rate ${progressCount + 1}`
         })())

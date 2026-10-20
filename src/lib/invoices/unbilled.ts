@@ -8,6 +8,7 @@
  * fallback) — før talte timer uden salgssnapshot som 0 kr, så "ufaktureret" afveg fra det der blev faktureret.
  */
 import { priceTimeLog } from './time-log-price'
+import { roundMoney } from '@/lib/utils/money-round'
 
 export interface UnbilledRowsInput {
   timeLogs: Array<{
@@ -33,7 +34,8 @@ export interface UnbilledSummary {
   openTimer: boolean
 }
 
-const r2 = (n: number) => Math.round(n * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 
 export function summarizeUnbilled(input: UnbilledRowsInput): UnbilledSummary {
   let timeLogs = 0, materials = 0, otherCosts = 0, sale = 0, billed = 0, openTimer = false

@@ -94,6 +94,7 @@ const SKIP_REASON_LABEL: Record<string, string> = {
   already_billed: 'allerede faktureret',
   belongs_to_different_case: 'hører til en anden sag',
   missing_employee_rate: 'medarbejderen mangler timepris',
+  missing_sale_price: 'mangler salgspris (sæt salgsprisen på materialet/omkostningen først)',
   not_billable: 'markeret som ikke-fakturerbar',
   not_found: 'findes ikke længere',
   open_timer: 'tiden er ikke afsluttet',

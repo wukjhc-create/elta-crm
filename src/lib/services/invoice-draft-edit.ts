@@ -12,9 +12,11 @@
  *    procent af kontraktsum) → kun BESKRIVELSE kan rettes (før: vilkårlig pris, fx kredit −1.000 → −50.000);
  *    slutfakturaens fradragslinjer ("Fradrag: …") kan hverken rettes eller slettes (før: forskud faktureret to gange)
  */
+import { roundMoney } from '@/lib/utils/money-round'
 type Admin = { from: (t: string) => any }
 
-const r2 = (n: number) => Math.round(n * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 
 export interface DraftLinePatch { description?: string; unit_price?: number; quantity?: number }
 export interface DraftEditResult { ok: boolean; message: string; totals?: { total_amount: number; tax_amount: number; final_amount: number } }

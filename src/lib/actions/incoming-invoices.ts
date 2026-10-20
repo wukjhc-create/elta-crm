@@ -227,12 +227,16 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
     invoice.file_url = null
   }
 
+  // FIN2-1: alle linjer side for side (PostgREST-loft 1.000)
+  const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
   const [linesRes, supplierRes, woRes, caseRes, auditRes] = await Promise.all([
-    supabase
+    fetchAllRows((from, to) => supabase
       .from('incoming_invoice_lines')
       .select('*')
       .eq('incoming_invoice_id', id)
-      .order('line_number', { ascending: true }),
+      .order('line_number', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)).then((data) => ({ data, error: null }), (error: unknown) => ({ data: null, error })),
     invoice.supplier_id
       ? supabase
           .from('suppliers')
@@ -1312,11 +1316,15 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     if (s?.name) supplierName = s.name as string
   }
 
-  const { data: lineRows } = await supabase
+  // FIN2-1: alle linjer side for side (PostgREST-loft 1.000)
+  const { fetchAllRows: fetchAllLines } = await import('@/lib/supabase/fetch-all')
+  const lineRows = await fetchAllLines((from, to) => supabase
     .from('incoming_invoice_lines')
     .select('id, line_number, description, quantity, unit, unit_price, total_price, supplier_product_id, converted_at, converted_case_material_id, converted_case_other_cost_id')
     .eq('incoming_invoice_id', id)
     .order('line_number', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to)).catch(() => [] as Array<Record<string, unknown>>)
 
   const rows = (lineRows ?? []) as Array<Record<string, unknown>>
   const lines: ConversionPreviewLine[] = rows.map((l) => {

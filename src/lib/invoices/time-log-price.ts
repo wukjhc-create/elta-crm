@@ -8,6 +8,7 @@
  *   2. Ellers live employees.hourly_rate (> 0).
  *   3. Ellers fallback-sats (markeres, så UI/advarsler kan vise det).
  */
+import { roundMoney } from '@/lib/utils/money-round'
 
 export const DEFAULT_FALLBACK_HOURLY_RATE = 650
 
@@ -31,7 +32,8 @@ const num = (v: number | string | null | undefined): number | null => {
   const n = Number(v)
   return Number.isFinite(n) ? n : null
 }
-const r2 = (n: number) => Math.round(n * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 
 export function priceTimeLog(
   input: TimeLogPriceInput,

@@ -10,6 +10,7 @@
  *   - restbeløb 0 → "allerede fuldt faktureret"; negativt → overfakturering (kreditér i stedet) — begge blokerer
  *   - afrunding: øre (2 decimaler) pr. beløb og på summen
  */
+import { roundMoney } from '@/lib/utils/money-round'
 
 export interface PriorInvoiceInput {
   id: string
@@ -27,7 +28,8 @@ export type ContractRemainderPlan =
   | { ok: true; basis: number; deductions: ContractDeduction[]; deducted: number; remainder: number }
   | { ok: false; code: 'no_basis' | 'draft_prior' | 'fully_invoiced' | 'overbilled'; message: string; basis: number; deducted: number; remainder: number }
 
-const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 
 /** Fakturaer der tæller som "tidligere faktureret" på en kontraktsag */
 export const CONTRACT_PRIOR_TYPES = ['deposit', 'progress', 'standard'] as const

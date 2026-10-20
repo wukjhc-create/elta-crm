@@ -3,8 +3,10 @@
  *   - fradrag på slutfaktura = beløb − krediteret (aldrig negativt)
  *   - procent der tæller mod 100 %-loftet = procent × ikke-krediteret andel
  */
+import { roundMoney } from '@/lib/utils/money-round'
 
-const r2 = (n: number) => Math.round(n * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 
 export function netStageAmount(totalAmount: number | string | null, creditedAmount: number | null | undefined): number {
   return Math.max(0, r2(Number(totalAmount ?? 0) - Number(creditedAmount ?? 0)))

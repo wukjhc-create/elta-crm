@@ -1837,7 +1837,21 @@ export async function getInvoiceDashboardAction(
   const list = invRes.data ?? []
   // B-2 (Henrik 2026-10-16): fælles beregning med fakturaoverblikket (lib/invoices/invoice-totals) — åbent beløb efter
   // indbetalinger og ikke-annullerede kreditnotaer, kun DKK summeres
-  const totals = computeInvoiceTotals(list as InvoiceTotalsRow[], todayMs)
+  // FIN2-5 (finans-review 2026-10-20): "Betalt denne måned" = månedens faktiske indbetalinger (FC-5) — som oversigten;
+  // før talte hele fakturabeløbet i betalingsmåneden og delbetalinger på åbne fakturaer slet ikke
+  let monthPayments: InvoicePaymentRow[] | undefined
+  try {
+    const monthStart = copenhagenLocalToIso(`${copenhagenParts(new Date(todayMs)).date.slice(0, 7)}-01`, '00:00')
+    monthPayments = await fetchAllRows<InvoicePaymentRow>((from, to) => supabase
+      .from('invoice_payments')
+      .select('id, invoice_id, amount, recorded_at')
+      .gte('recorded_at', monthStart)
+      .order('id')
+      .range(from, to))
+  } catch (err) {
+    logger.warn('getInvoiceDashboardAction: betalinger kunne ikke hentes', { error: err })
+  }
+  const totals = computeInvoiceTotals(list as InvoiceTotalsRow[], todayMs, monthPayments)
   const byId = new Map(list.map((r) => [r.id as string, r]))
   const overdueRaw = totals.overdue.map((o) => ({ ...byId.get(o.id)!, _days: o.days, _open: o.open }))
 

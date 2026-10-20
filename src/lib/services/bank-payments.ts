@@ -446,8 +446,10 @@ async function findByAmount(amount: number): Promise<InvoiceRow[]> {
     }
     const ids = Array.from(credited.keys())
     for (let i = 0; i < ids.length; i += 200) {
+      // FIN2-7 (finans-review 2026-10-20): samme regler som de øvrige kandidater (FC-8) — kun DKK, aldrig kreditnotaer
       const { data: originals } = await supabase.from('invoices').select('*').in('id', ids.slice(i, i + 200))
         .neq('payment_status', 'paid').eq('status', 'sent').is('voided_at', null)
+        .or('currency.is.null,currency.eq.DKK').or('invoice_type.is.null,invoice_type.neq.credit')
       creditedOriginals = creditedOriginals.concat((originals ?? []) as InvoiceRow[])
     }
   } catch {

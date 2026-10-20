@@ -30,6 +30,7 @@ import { logger } from '@/lib/utils/logger'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { selectInChunks } from '@/lib/supabase/in-chunks'
+import { roundMoney } from '@/lib/utils/money-round'
 
 export interface CaseInvoiceSelection {
   time_log_ids?: string[]
@@ -53,6 +54,8 @@ export type SkipReason =
   /** Henrik 2026-10-07: afviste timer faktureres aldrig */
   | 'rejected'
   | 'missing_employee_rate'
+  /** FIN2-4: materiale/omkostning uden salgspris (fx konverteret fra leverandørfaktura) faktureres ikke til 0 kr */
+  | 'missing_sale_price'
   | 'not_approved'
   | 'not_found'
   | 'belongs_to_different_case'
@@ -88,7 +91,8 @@ export interface CreateInvoiceDraftResult {
   } | null
 }
 
-const r2 = (n: number) => Math.round(n * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 
 export async function createInvoiceDraftFromCase(
   caseId: string,
@@ -406,6 +410,12 @@ export async function createInvoiceDraftFromCase(
         continue
       }
 
+      // FIN2-4 (finans-review 2026-10-20): som slutfakturaen (F-2) — ingen 0-kr-linje der låser materialet (kunden
+      // ville aldrig blive faktureret, og rækken frigives ikke ved delkreditering)
+      if (!(Number(m.unit_sales_price) > 0)) {
+        skipped.push({ kind: 'case_material', source_id: id, reason: 'missing_sale_price', detail: 'materialet har ingen salgspris' })
+        continue
+      }
       position += 1
       const qty = Number(m.quantity)
       const unitPrice = Number(m.unit_sales_price)
@@ -492,6 +502,11 @@ export async function createInvoiceDraftFromCase(
         continue
       }
 
+      // FIN2-4: ingen 0-kr-linje (se materialer)
+      if (!(Number(o.unit_sales_price) > 0)) {
+        skipped.push({ kind: 'case_other_cost', source_id: id, reason: 'missing_sale_price', detail: 'omkostningen har ingen salgspris' })
+        continue
+      }
       position += 1
       const qty = Number(o.quantity)
       const unitPrice = Number(o.unit_sales_price)

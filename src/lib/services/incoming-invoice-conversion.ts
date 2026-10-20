@@ -140,14 +140,31 @@ async function runLineConversion(
   }
 
   // Load all invoice lines (we need the snapshots + already-converted state)
-  const { data: lineRows, error: linesErr } = await supabase
-    .from('incoming_invoice_lines')
-    .select(`
-      id, line_number, description, quantity, unit, unit_price, total_price,
-      supplier_product_id,
-      converted_case_material_id, converted_case_other_cost_id, converted_at
-    `)
-    .eq('incoming_invoice_id', invoice.id)
+  // FIN2-1 (finans-review 2026-10-20): ALLE linjer side for side — PostgREST giver højst 1.000, så kosten for linje
+  // 1.001+ nåede aldrig sagen, og en plan med en sådan linje blev afvist som "ukendt"
+  type ConvLineRow = {
+    id: string; line_number: number | null; description: string | null; quantity: number | string | null; unit: string | null
+    unit_price: number | string | null; total_price: number | string | null; supplier_product_id: string | null
+    converted_case_material_id: string | null; converted_case_other_cost_id: string | null; converted_at: string | null
+  }
+  let lineRows: ConvLineRow[] | null = null
+  let linesErr: unknown = null
+  try {
+    const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+    lineRows = await fetchAllRows<ConvLineRow>((from, to) => supabase
+      .from('incoming_invoice_lines')
+      .select(`
+        id, line_number, description, quantity, unit, unit_price, total_price,
+        supplier_product_id,
+        converted_case_material_id, converted_case_other_cost_id, converted_at
+      `)
+      .eq('incoming_invoice_id', invoice.id)
+      .order('line_number', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to))
+  } catch (e) {
+    linesErr = e
+  }
   if (linesErr) {
     logger.error('runLineConversion: line read failed', { error: linesErr, entityId: invoice.id })
     return { ok: false, message: 'Kunne ikke læse fakturalinjer', perLine, conversionFatal: false }

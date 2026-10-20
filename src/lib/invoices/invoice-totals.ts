@@ -8,6 +8,7 @@
  * Ren funktion (ingen DB) — kalderen henter rækkerne pagineret (fetchAllRows).
  */
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { roundMoney } from '@/lib/utils/money-round'
 
 export interface InvoiceTotalsRow {
   id: string
@@ -35,7 +36,8 @@ export interface InvoiceTotals {
   overdue: Array<{ id: string; days: number; open: number }>
 }
 
-const r2 = (n: number) => Math.round(n * 100) / 100
+// FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
+const r2 = roundMoney
 
 /** Dansk kalenderdage fra forfaldsdato (YYYY-MM-DD) til nu; > 0 = forfalden */
 function daysOverdue(dueIso: string, nowMs: number): number {
