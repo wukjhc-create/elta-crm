@@ -479,7 +479,7 @@ function PortalMessagesCard({ overview }: { overview: DashboardOverview }) {
       title="Kundebeskeder (portal)"
       icon={<Mail className="h-4 w-4" />}
       tone={unreadCount > 0 ? 'amber' : 'green'}
-      href="/dashboard/customers"
+      href="/dashboard/customers?portalUnread=1"
       headline={unreadCount}
       headlineLabel="ulæste fra kunder"
       error={err}

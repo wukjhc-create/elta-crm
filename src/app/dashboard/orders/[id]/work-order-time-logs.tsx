@@ -253,6 +253,7 @@ export function WorkOrderTimeLogs({
     const res = await safeAction(updateTimeLog(l.id, { date: fixDate, start_clock: fixStart, end_clock: fixEnd || undefined, description: fixDesc }))
     setIsWorking(false)
     if (!res.success) { setError(humanizeErrorText(res.error) || 'Kunne ikke rette timeregistreringen'); return }
+    setAbsenceNotice(res.data?.absence_warning ?? null)
     setFixId(null)
     await reload()
     onChange?.()

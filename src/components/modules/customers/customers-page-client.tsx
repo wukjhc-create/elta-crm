@@ -34,6 +34,8 @@ interface Filters {
   is_active?: boolean
   /** N74: kun automatisk oprettede fra mail */
   origin?: 'auto'
+  /** DB-15e: kun kunder med ulæste portalbeskeder (fra cockpittet) */
+  portalUnread?: boolean
 }
 
 interface SortData {
@@ -211,6 +213,19 @@ export function CustomersPageClient({
                 Søg
               </button>
             </div>
+
+            {/* DB-15e: aktivt filter fra cockpittets portalkort — kan fjernes */}
+            {filters.portalUnread && (
+              <button
+                type="button"
+                onClick={() => updateURL({ portalUnread: undefined, page: '1' })}
+                className="px-3 py-2 text-sm rounded-md ring-1 whitespace-nowrap bg-amber-600 text-white ring-amber-600"
+                data-testid="customers-filter-portal-unread"
+                title="Fjern filteret"
+              >
+                Ulæste portalbeskeder ×
+              </button>
+            )}
 
             {/* N74: automatisk oprettede kunder (fra mail) — til gennemgang/oprydning */}
             {(autoCreatedCount > 0 || filters.origin === 'auto') && (

@@ -201,6 +201,8 @@ interface PaymentListInput {
   paysort?: PaymentSortKey
   /** N74: kun automatisk oprettede (fra mail) */
   origin?: 'auto'
+  /** DB-15e: kun disse kunder (fx ulæste portalbeskeder). Tom liste = nul resultater. */
+  customerIds?: string[]
 }
 
 export interface CustomersWithPaymentState {
@@ -254,6 +256,8 @@ export async function getCustomersWithPaymentState(
       if (searchFilter) out = out.or(searchFilter)
       if (input?.is_active !== undefined) out = out.eq('is_active', input.is_active)
       if (input?.origin === 'auto') out = out.or(AUTO_CREATED_FILTER)
+      // DB-15e: id-whitelist (tom → ingen rækker; PostgREST tager ikke en tom in-liste)
+      if (input?.customerIds !== undefined) out = input.customerIds.length ? out.in('id', input.customerIds) : out.is('id', null)
       if (withPaymentFilter) {
         if (payment === 'overdue') out = out.gt('overdue_count', 0)
         else if (payment === 'outstanding') out = out.gt('outstanding_total', 0)

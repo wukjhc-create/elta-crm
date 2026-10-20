@@ -491,7 +491,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-15b | /api/dashboard/stats "Åbne cases" uden sags-scope (salg ser firmaets tal) (S3) | DONE (kode) — samme sags-scope som cockpittet (DB-1) (U49/U13) |
 | DB-15c | Tilbuds-kr-værdier på dashboardet summerer alle valutaer (rapporten kun DKK) (S3) | DONE (kode) — summer kun DKK (offerExVatDkk), som rapporten |
 | DB-15d | Overskredne opgaver: overdueCount = listens 5 (S4) | DONE (kode) — count: exact; kortet viser "N overskredne" og "+N flere" |
-| DB-15e | Portalbeskeder: headline loftet ved 500; link uden filter (S4) | DELVIS (kode) — tallet = count af alle ulæste (ikke listens 500); kundeliste-filter for ulæste portalbeskeder = TODO |
+| DB-15e | Portalbeskeder: headline loftet ved 500; link uden filter (S4) | DONE (kode) — tallet = count af alle ulæste (ikke listens 500); kundeliste-filter ?portalUnread=1 (kortet linker dertil; fjernbart filter) → DONE (kode, U217) |
 | DB-15f | Webhenvendelser: kort 90 dage/uden lead, link alle (S4) | DONE (kode, U215) — link ?filter=webform&days=90; maillisten filtrerer på ?days med chip + "Vis alle" (lead-udelukkelse vises fortsat i listen) |
 | DB-15g | Mails kræver svar: kort 14 dage/tråde, link alle (S4) | DONE (kode, U215) — headline-link ?days=14; "ældre"-linket uden vindue |
 | DB-15h | Opfølgningsrækkernes alder fra created_at (tal/filter fra sent_at) (S4) | DONE (kode) — alder fra sent_at (fallback created_at) (U205) |
@@ -2016,7 +2016,7 @@ Ingen penge-forkert regression i FIN3-ændringerne. Fund:
 | R3-5 | Sagsmateriale: varens avance 0 gav salg til kostpris efter FIN3-1 | DONE (kode) — avance ≤ 0 = ikke sat (som før) |
 | R3-6 | Fakturabinding af timer tjekker ikke pay_rate_type/sale_amount (kapløb med satsskift) (S4) | DONE (kode, U32/U48) — bindingen kræver det læste sale_amount |
 | R3-11 | Medarbejderlistens "Mangler timepris"-mærke læste højst 1.000 medarbejdere (.limit(1000)) — fundet via U11 der fejlede 2× | DONE (kode, U11) — fetchAllRows; U11 rammer præcis den seedede række |
-| R3-7 | Fraværsadvarsel mangler ved flytning af time/timer-start; godkender-roller uden for 00228 ser ikke mærket (S4) | TODO |
+| R3-7 | Fraværsadvarsel mangler ved flytning af time/timer-start; godkender-roller uden for 00228 ser ikke mærket (S4) | DELVIS (kode, U155/U163) — advarsel også når en rettelse flytter tiden til en fraværsdag; godkendere (time_logs.approve = admin/serviceleder) er inden for 00228's læseroller; timer-start = TODO |
 | R3-8 | Sagsmaterialesøgningen: ~4 opslag pr. hit (supplierLinePricing pr. række) (S4, perf) | TODO |
 | R3-9 | FIN3-4: kreditnota uden sent_at falder ud af perioderne (S4, plausibel) | AFVIST (verificeret) — kreditnotaer oprettes som kladde og udstedes via samme afsendelse/setInvoiceStatus, der altid sætter sent_at |
 | R3-10 | Tilbudsnumre > 9.999 pr. år sorteres som tekst (S4) | TODO (ikke pilot-relevant) |

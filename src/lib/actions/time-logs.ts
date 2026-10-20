@@ -426,7 +426,7 @@ export interface UpdateTimeLogInput {
 export async function updateTimeLog(
   timeLogId: string,
   input: UpdateTimeLogInput
-): Promise<ActionResult<TimeLogRow>> {
+): Promise<ActionResult<TimeLogRow & { absence_warning?: string | null }>> {
   try {
     const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     // Sprint 7E — accept enten edit.all eller edit.own (med scope-tjek).
@@ -655,7 +655,19 @@ export async function updateTimeLog(
       revalidatePath(`/dashboard/orders/${wo.case_id}`)
     }
 
-    return { success: true, data: stripOneTimeLogPrice(data as unknown as TimeLogRow, hasPermission) }
+    // R3-7 (finans-review 3 2026-10-20): flyttes registreringen til en ANDEN dag med fravær, advares brugeren (som ved
+    // oprettelse — FIN3-11). Gemt er den uanset.
+    let absence_warning: string | null = null
+    if (input.date && patch.start_time !== undefined) {
+      try {
+        const { loadAbsencesFor, absenceTimeLogWarning } = await import('@/lib/time-logs/absence-days')
+        const hit = (await loadAbsencesFor(supabase, [cur.employee_id as string], input.date, input.date))[0]
+        if (hit) absence_warning = absenceTimeLogWarning(hit)
+      } catch (e) {
+        logger.warn('updateTimeLog absence check failed', { error: e })
+      }
+    }
+    return { success: true, data: { ...stripOneTimeLogPrice(data as unknown as TimeLogRow, hasPermission), absence_warning } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

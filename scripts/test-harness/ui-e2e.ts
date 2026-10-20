@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3529,6 +3529,44 @@ ${m.text()}`) })
           if (invId) await c.admin.from('invoices').delete().eq('id', invId)
         }
         out.push({ id: 'U216 FIN3-5/R3-2 fastpris i klar til fakturering (rest, ekstraarbejde)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U217 DB-15e (2026-10-20): cockpittets "Kundebeskeder (portal)" linker til kundelisten med kun kunder med ulæste
+      // portalbeskeder (?portalUnread=1); filteret vises og kan fjernes; en kunde uden ulæste står ikke på listen
+      if (want('U217')) {
+        const r: Record<string, boolean> = {}
+        const tag = `U217-${stamp}`
+        const nc = await c.admin.from('customers').insert([
+          { customer_number: `UI-E2E-PU-${stamp}`, company_name: `[HARNESS] ${tag} ulæst`, contact_person: 'P', email: `pu-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+          { customer_number: `UI-E2E-PL-${stamp}`, company_name: `[HARNESS] ${tag} læst`, contact_person: 'P', email: `pl-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+        ]).select('id, company_name')
+        const custs = (nc.data ?? []) as Array<{ id: string; company_name: string }>
+        const unreadId = custs.find((x) => x.company_name.endsWith('ulæst'))?.id ?? null
+        const readId = custs.find((x) => x.company_name.endsWith(' læst'))?.id ?? null
+        const pm = unreadId && readId ? await c.admin.from('portal_messages').insert([
+          { customer_id: unreadId, sender_type: 'customer', sender_name: 'Kunde', message: `Ulæst ${stamp}`, created_at: '2019-01-01T09:00:00Z' },
+          { customer_id: readId, sender_type: 'customer', sender_name: 'Kunde', message: `Læst ${stamp}`, created_at: '2019-01-01T09:00:00Z', read_at: new Date().toISOString() },
+        ]).select('id') : null
+        const pmIds = ((pm?.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        r.seed = custs.length === 2 && pmIds.length === 2
+        try {
+          await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const cardLink = a.page.locator('a[href="/dashboard/customers?portalUnread=1"]')
+          r.kort_linker_filtreret = (await cardLink.count()) > 0
+          await gotoSafe(a.page, `${base}/dashboard/customers?portalUnread=1&search=${encodeURIComponent(tag)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByText(`[HARNESS] ${tag} ulæst`).first().waitFor({ timeout: 45_000 }).catch(() => {})
+          r.ulaest_kunde_vist = (await a.page.getByText(`[HARNESS] ${tag} ulæst`).count()) > 0
+          r.laest_kunde_skjult = (await a.page.getByText(`[HARNESS] ${tag} læst`).count()) === 0
+          r.filter_chip_vist = (await a.page.getByTestId('customers-filter-portal-unread').count()) === 1
+          await a.page.getByTestId('customers-filter-portal-unread').click({ timeout: 15_000 }).catch(() => {})
+          await a.page.waitForURL((u) => !u.searchParams.has('portalUnread'), { timeout: 30_000 }).catch(() => {})
+          await a.page.getByText(`[HARNESS] ${tag} læst`).first().waitFor({ timeout: 45_000 }).catch(() => {})
+          r.filter_fjernet_viser_begge = (await a.page.getByText(`[HARNESS] ${tag} læst`).count()) > 0
+        } finally {
+          if (pmIds.length) await c.admin.from('portal_messages').delete().in('id', pmIds)
+          if (custs.length) await c.admin.from('customers').delete().in('id', custs.map((x) => x.id))
+        }
+        out.push({ id: 'U217 DB-15e kundeliste: kun ulæste portalbeskeder', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U214 DB-15k: "Klar til fakturering" linker til sagslisten med kun sager med ufaktureret arbejde (?unbilled=1)

@@ -24,6 +24,7 @@ interface PageProps {
     payment?: string
     paysort?: string
     origin?: string
+    portalUnread?: string
   }>
 }
 
@@ -41,6 +42,15 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const origin = params.origin === 'auto' ? ('auto' as const) : undefined
   // PF3-7 (performance-review 2026-10-20): tællingen hentes samtidig med listen (før først, så listen ventede)
   const autoCreatedCountP = countAutoCreatedCustomersAction().catch(() => 0)
+  // DB-15e (dashboard-review 2026-10-19): cockpittets "Kundebeskeder (portal)" linker hertil — kun kunder med ulæste
+  // portalbeskeder (samme rettighed som kortet: customers.edit)
+  let portalUnreadIds: string[] | undefined
+  const portalUnread = params.portalUnread === '1' && (await pageHasPermission('customers.edit'))
+  if (portalUnread) {
+    const { createClient } = await import('@/lib/supabase/server')
+    const { unreadPortalCustomerIds } = await import('@/lib/portal/unread-customers')
+    portalUnreadIds = await unreadPortalCustomerIds(await createClient()).catch(() => [])
+  }
 
   // Sprint Ø4.9 — betalingsfilter + GLOBAL sortering + tællere via SQL-view.
   const paymentFilter = parsePaymentFilter(params.payment)
@@ -61,6 +71,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     // i SQL via v_customers_with_payment_summary. Ingen limit 20000, ingen N+1.
     const res = await getCustomersWithPaymentState({
       page, pageSize, search, is_active, sortBy, sortOrder, payment: paymentFilter, paysort: paymentSort, origin,
+      customerIds: portalUnreadIds,
     })
     if (res.success && res.data) {
       customers = res.data.data
@@ -75,7 +86,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     }
   } else {
     // Uden fakturaadgang: kundelisten fungerer som før (ingen betalingsdata).
-    const res = await getCustomers({ page, pageSize, search, is_active, sortBy, sortOrder, origin })
+    const res = await getCustomers({ page, pageSize, search, is_active, sortBy, sortOrder, origin, customerIds: portalUnreadIds })
     if (res.success && res.data) {
       customers = res.data.data
       total = res.data.total
@@ -101,7 +112,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     <CustomersPageClient
       customers={customers}
       pagination={{ currentPage: resPage, totalPages, totalItems: total, pageSize: resPageSize }}
-      filters={{ search, is_active, origin }}
+      filters={{ search, is_active, origin, portalUnread }}
       autoCreatedCount={autoCreatedCount}
       sort={{ sortBy, sortOrder }}
       paymentBadges={paymentBadges}
