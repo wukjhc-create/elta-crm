@@ -108,7 +108,7 @@ export function AftercalcOverviewClient() {
         {open && (
           <div className="mt-3 space-y-3 break-words min-w-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm break-words min-w-0">
-              <label className="block min-w-0">
+              <label className="block break-words min-w-0">
                 <span className="text-xs text-gray-500 break-words min-w-0">Fra dato</span>
                 <input type="date" value={filters.from ?? ''} onChange={(e) => setFilter({ from: e.target.value || null })} className="mt-0.5 w-full break-words min-w-0 max-w-full rounded border border-gray-300 px-2 py-1" />
               </label>
