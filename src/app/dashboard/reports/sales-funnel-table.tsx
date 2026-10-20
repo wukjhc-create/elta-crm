@@ -46,7 +46,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
           <p className="text-xs text-gray-700 break-words min-w-0">Accepteret værdi {kr(t.accepted_value)} · faktureret {kr(t.invoiced_ex_vat)}</p>
         </article>
       </div>
-      <div className="hidden md:block overflow-x-auto">
+      <div className="hidden md:block overflow-x-auto break-words min-w-0">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left">

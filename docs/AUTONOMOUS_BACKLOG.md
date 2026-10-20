@@ -1751,7 +1751,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-1017 | 6 Salg | DONE. Beløbslisten i salgstragtens månedskort kan krympe. | Kun dl med klassen mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0 i sales-funnel-table.tsx. Tilføj kun break-words. Beløbene er uændrede. |
 | G18-1018 | 6 Salg | DONE. Totallinjen i salgstragtens mobilkort kan krympe. | Kun p med klassen text-xs text-gray-700 mt-1 break-words i sales-funnel-table.tsx. Tilføj kun min-w-0. Beløbene er uændrede. |
 | G18-1019 | 6 Salg | DONE. Beløbslinjen i salgstragtens totalkort kan krympe. | Kun p med klassen text-xs text-gray-700 break-words i sales-funnel-table.tsx. Tilføj kun min-w-0. Beløbene er uændrede. |
-| G18-1020 | 6 Salg | ÅBEN. Skrivebordslisten i salgstragten kan krympe. | Kun div med klassen hidden md:block overflow-x-auto i sales-funnel-table.tsx. Tabellen og beløb er uændrede. |
+| G18-1020 | 6 Salg | DONE. Skrivebordslisten i salgstragten kan krympe. | Kun div med klassen hidden md:block overflow-x-auto i sales-funnel-table.tsx. Tabellen og beløb er uændrede. |
 | G18-1021 | 6 Salg | ÅBEN. Tabellen i salgstragten kan krympe. | Kun table med klassen w-full text-sm i sales-funnel-table.tsx. Kolonner og beløb er uændrede. |
 | G18-1022 | 8 Pilot | ÅBEN. Listepriscellen på leverandørvarens skrivebord kan krympe. | Kun TableCell med klassen text-right font-mono text-sm der omslutter storedCostText af list_price i supplier-products-table.tsx. Kostpris, salgspris og lagret tekst er uændrede. |
 | G18-1023 | 6 Salg | ÅBEN. Mærket Klar til sag kan krympe. | Kun span med klassen inline-flex items-center gap-1 rounded-full bg-blue-50 ring-1 ring-blue-200 px-2 py-0.5 text-xs font-medium text-blue-700 i offer-conversion-badge.tsx. Teksten er uændret. |
@@ -1765,6 +1765,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-1031 | 6 Salg | ÅBEN. Kolonnen Faktureret i salgstragten kan krympe. | Kun th med klassen pb-2 font-medium text-gray-500 text-right der viser Faktureret i sales-funnel-table.tsx. De andre kolonner er uændrede. |
 | G18-1032 | 6 Salg | ÅBEN. Kolonnerækken i salgstragten kan krympe. | Kun tr med klassen border-b text-left i sales-funnel-table.tsx. Kolonnerne er uændrede. |
 | G18-1033 | 6 Salg | ÅBEN. Totalrækken i salgstragtens skrivebord kan krympe. | Kun tr med klassen font-semibold bg-gray-50 i sales-funnel-table.tsx. Tallene er uændrede. |
+| G18-1034 | 6 Salg | ÅBEN. Tabelhovedet i salgstragten kan krympe. | Kun thead lige over kolonnerækken i sales-funnel-table.tsx. Kolonnerne er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
