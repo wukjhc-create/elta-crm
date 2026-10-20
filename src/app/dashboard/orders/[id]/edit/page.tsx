@@ -21,6 +21,22 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function isKnownCaseMiss(error: string): boolean {
+  return error === 'Serviceopgave ikke fundet'
+    || error === 'Sagen er ikke tildelt dig'
+    || error.startsWith('Manglende tilladelse')
+}
+
+function OrderEditLoadError({ message }: { message: string }) {
+  return (
+    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+      <p className="text-sm text-red-700" data-testid="order-edit-load-error">
+        {message}. Det tælles ikke som at sagen ikke findes.
+      </p>
+    </div>
+  )
+}
+
 export default async function EditOrderPage({
   params,
 }: {
@@ -37,15 +53,18 @@ export default async function EditOrderPage({
   if (!UUID_RE.test(id)) {
     try {
       const { supabase } = await getAuthenticatedClient()
-      const { data: row } = await supabase
+      const { data: row, error } = await supabase
         .from('service_cases')
         .select('id')
         .eq('case_number', id)
         .maybeSingle()
+      if (error) {
+        return <OrderEditLoadError message="Kunne ikke slå sagsnummeret op" />
+      }
       if (row) resolvedId = row.id as string
       else notFound()
     } catch {
-      notFound()
+      return <OrderEditLoadError message="Kunne ikke slå sagsnummeret op" />
     }
   }
 
@@ -57,6 +76,9 @@ export default async function EditOrderPage({
   ])
 
   if (!caseRes.success || !caseRes.data) {
+    if (!caseRes.success && caseRes.error && !isKnownCaseMiss(caseRes.error)) {
+      return <OrderEditLoadError message={caseRes.error} />
+    }
     notFound()
   }
 

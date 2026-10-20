@@ -14,6 +14,22 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function isKnownCaseMiss(error: string): boolean {
+  return error === 'Serviceopgave ikke fundet'
+    || error === 'Sagen er ikke tildelt dig'
+    || error.startsWith('Manglende tilladelse')
+}
+
+function OrderDetailLoadError({ message }: { message: string }) {
+  return (
+    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+      <p className="text-sm text-red-700" data-testid="order-detail-load-error">
+        {message}. Det tælles ikke som at sagen ikke findes.
+      </p>
+    </div>
+  )
+}
+
 export default async function OrderDetailPage({
   params,
 }: {
@@ -27,20 +43,26 @@ export default async function OrderDetailPage({
   if (!UUID_RE.test(id)) {
     try {
       const { supabase } = await getAuthenticatedClient()
-      const { data: row } = await supabase
+      const { data: row, error } = await supabase
         .from('service_cases')
         .select('id')
         .eq('case_number', id)
         .maybeSingle()
+      if (error) {
+        return <OrderDetailLoadError message="Kunne ikke slå sagsnummeret op" />
+      }
       if (row) resolvedId = row.id as string
       else notFound()
     } catch {
-      notFound()
+      return <OrderDetailLoadError message="Kunne ikke slå sagsnummeret op" />
     }
   }
 
   const result = await getServiceCase(resolvedId)
   if (!result.success || !result.data) {
+    if (!result.success && result.error && !isKnownCaseMiss(result.error)) {
+      return <OrderDetailLoadError message={result.error} />
+    }
     notFound()
   }
   const sag = result.data

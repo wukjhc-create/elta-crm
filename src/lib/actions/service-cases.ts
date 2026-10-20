@@ -218,7 +218,11 @@ export async function getServiceCase(id: string): Promise<ActionResult<ServiceCa
       .single()
 
     if (error) {
-      return { success: false, error: 'Serviceopgave ikke fundet' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Serviceopgave ikke fundet' }
+      }
+      logger.error('Error fetching service case', { error })
+      return { success: false, error: 'Kunne ikke hente sagen.' }
     }
 
     // D46: internt budget og lav-DB-markering kun for economy.cost_prices
