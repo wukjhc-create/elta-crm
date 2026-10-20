@@ -32,7 +32,7 @@ const num = '<td className="px-2 py-1 break-words min-w-0">{l.line_number}</td>'
 ok(view.includes(num), 'linjenummercellen bliver')
 ok(view.split(num).length === 2, 'linjenummercellen er en')
 
-const enhed = '<th className="px-2 py-1">Enhed</th>'
+const enhed = '<th className="px-2 py-1 break-words min-w-0">Enhed</th>'
 ok(view.includes(enhed), 'enhedskolonnen bliver')
 ok(view.split(enhed).length === 2, 'enhedskolonnen er en')
 
