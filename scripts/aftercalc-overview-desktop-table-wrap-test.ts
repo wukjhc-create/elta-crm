@@ -29,7 +29,7 @@ ok(!row.includes('\n'), 'linjeskiftet er et andet sted')
 ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'tabellen findes en gang')
 ok(view.split('<table className="w-full text-sm">').length === 1, 'den bare tabel er vaek')
-ok(view.includes('<thead className="bg-gray-50 text-xs text-gray-600">'), 'tabelhovedet bliver')
+ok(view.includes('<thead className="bg-gray-50 text-xs text-gray-600 break-words min-w-0">'), 'tabelhovedet kan krympe')
 ok(view.includes('<th className="px-2 py-1.5 text-right break-words min-w-0">DB-afvigelse</th>'), 'afvigelseskolonnen kan stadig krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 
