@@ -501,7 +501,7 @@ export function IncomingInvoiceDetailClient({
                   <p className="text-gray-600 mt-1 break-words min-w-0">{l.quantity ?? '—'} {l.unit ?? ''}</p>
                   <p>Stk-pris {fmtAmount(l.unit_price, inv.currency)}</p>
                   <p className="font-medium break-words min-w-0">Total {fmtAmount(l.total_price, inv.currency)}</p>
-                  <p className="mt-1 text-gray-700">
+                  <p className="mt-1 text-gray-700 break-words min-w-0">
                     {convertedAs === 'material' ? 'Materiale' : convertedAs === 'other_cost' ? 'Øvrig' : skippedExplicit ? 'Sprunget over' : 'Ikke konverteret'}
                   </p>
                 </article>

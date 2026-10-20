@@ -25,7 +25,7 @@ ok(view.split(wrapped).length === 2, 'totalen er en')
 ok(!view.includes('break-words break-words'), 'et break-words')
 ok(view.includes('fmtAmount(l.total_price, inv.currency)'), 'totalbelobet bliver')
 
-const conv = 'className="mt-1 text-gray-700"'
+const conv = 'className="mt-1 text-gray-700 break-words min-w-0"'
 ok(view.includes(conv), 'konverteringen bliver')
 ok(view.split(conv).length === 2, 'konverteringen er en')
 
