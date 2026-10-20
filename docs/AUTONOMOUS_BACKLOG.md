@@ -224,7 +224,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | FC-8 | Bankmatch/registerPayment tjekker ikke valuta (EUR-faktura matches af kr-betaling) (S4) | DONE (kode) — bankmatch kun mod DKK-fakturaer (alle 4 opslag); manuel registrering uændret |
 | FC-9 | allocate_invoice_number afkorter ved > 9999 (dubletnumre) (S4) | BLOCKED_APPROVAL [MIGRATION] |
 | FC-10 | Fakturaårsserie i UTC (1/1 00–01 dansk tid → forrige år) (S4) | BLOCKED_APPROVAL [MIGRATION] (= TZ-5) |
-| FC-11 | Fakturakontrollens dækningstal sammenligner listepris med dagens kost (uden enhed/historik) (S4) | TODO |
+| FC-11 | Fakturakontrollens dækningstal sammenligner listepris med dagens kost (uden enhed/historik) (S4) | DONE (kode, delvis) — faktureret enhedspris (total/antal) + enhedstjek som loaderen (coverage-billed-unit-test 3, invoice-pipeline 10/10). Rest: prishistorik (costPriceAtDate) i dækningstallet |
 
 ## NEXT-52 (dead-end-review 2026-10-19 — knapper/faner serveren afviser)
 | # | Fund | Status |

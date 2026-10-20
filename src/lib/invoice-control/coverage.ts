@@ -12,6 +12,9 @@ import { matchLines, type LineMatchMethod, type ProductRef } from '@/lib/invoice
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface CoverageLine {
+  /** FC-11: linjetotal (efter rabat) og enhed — som kontrollens loader (IV-4) */
+  total_price?: number | null
+  unit?: string | null
   line_number: number
   description: string | null
   quantity: number | null
@@ -63,8 +66,16 @@ export function measureCoverage(invoices: CoverageInvoice[], productsBySupplier:
       if (stored) r.byMethod.stored++
       else if (m.method) r.byMethod[m.method]++
       if (stored || m.supplierProductId) r.matchedLines++
+      // FC-11 (finans-review 2026-10-20): den FAKTISK fakturerede enhedspris (total / antal, efter rabat) og enhedstjek —
+      // samme regel som kontrollens loader (IV-4); før listeprisen → falske afvigelser i pilot-sundhedens dækningstal
+      const qty = Number(l.quantity)
+      const billedUnit = l.total_price != null && Number.isFinite(Number(l.total_price)) && qty !== 0 && Number.isFinite(qty)
+        ? Math.abs(Number(l.total_price) / qty)
+        : l.unit_price
+      const prodUnit = stored?.unit ?? (m.supplierProductId ? productById.get(m.supplierProductId)?.unit ?? null : null)
       return {
-        lineNumber: l.line_number, description: l.description ?? '', quantity: l.quantity, unitPrice: l.unit_price,
+        lineNumber: l.line_number, description: l.description ?? '', quantity: l.quantity, unitPrice: billedUnit,
+        unit: l.unit ?? null, expectedUnit: prodUnit ?? null,
         expectedUnitPrice: expected ?? null,
         expectedMissingReason: stored || m.supplierProductId ? 'produkt uden kostpris' : 'intet produktmatch',
       }
@@ -87,7 +98,7 @@ export async function loadAndMeasureCoverage(admin: any): Promise<CoverageReport
   const invs = await fetchAllRows<{ id: string; supplier_id: string | null }>((from, to) => admin.from('incoming_invoices')
     .select('id, supplier_id').neq('status', 'cancelled').order('id').range(from, to))
   const lines = await fetchAllRows<CoverageLine & { id: string; incoming_invoice_id: string }>((from, to) => admin.from('incoming_invoice_lines')
-    .select('id, incoming_invoice_id, line_number, description, quantity, unit_price, supplier_product_id, raw_line').order('id').range(from, to))
+    .select('id, incoming_invoice_id, line_number, description, quantity, unit_price, total_price, unit, supplier_product_id, raw_line').order('id').range(from, to))
   const linesByInvoice = new Map<string, CoverageLine[]>()
   for (const l of lines) {
     const list = linesByInvoice.get(l.incoming_invoice_id)
@@ -105,8 +116,8 @@ export async function loadAndMeasureCoverage(admin: any): Promise<CoverageReport
     for (let k = 0; k < codes.length; k += 200) {
       const chunk = codes.slice(k, k + 200)
       const [a, b] = await Promise.all([
-        admin.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', supplierId).in('supplier_sku', chunk),
-        admin.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', supplierId).in('ean', chunk),
+        admin.from('supplier_products').select('id, supplier_sku, ean, cost_price, unit').eq('supplier_id', supplierId).in('supplier_sku', chunk),
+        admin.from('supplier_products').select('id, supplier_sku, ean, cost_price, unit').eq('supplier_id', supplierId).in('ean', chunk),
       ])
       found.push(...((a.data ?? []) as ProductRef[]), ...((b.data ?? []) as ProductRef[]))
     }
@@ -115,7 +126,7 @@ export async function loadAndMeasureCoverage(admin: any): Promise<CoverageReport
   const storedIds = [...new Set(invoices.flatMap((i) => i.lines.map((l) => l.supplier_product_id)).filter(Boolean) as string[])]
   const stored: ProductRef[] = []
   for (let k = 0; k < storedIds.length; k += 200) {
-    const { data } = await admin.from('supplier_products').select('id, supplier_sku, ean, cost_price').in('id', storedIds.slice(k, k + 200))
+    const { data } = await admin.from('supplier_products').select('id, supplier_sku, ean, cost_price, unit').in('id', storedIds.slice(k, k + 200))
     stored.push(...((data ?? []) as ProductRef[]))
   }
   return measureCoverage(invoices, productsBySupplier, new Map(stored.map((p) => [p.id, p])))

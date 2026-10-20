@@ -22,7 +22,7 @@ export interface LineMatch {
   method: LineMatchMethod | null
   expectedUnitCost: number | null
 }
-export interface ProductRef { id: string; supplier_sku: string | null; ean: string | null; cost_price: number | null }
+export interface ProductRef { id: string; supplier_sku: string | null; ean: string | null; cost_price: number | null; unit?: string | null }
 
 const norm = (s: string | null | undefined) => (s ?? '').trim().toUpperCase().replace(/\s+/g, '')
 
