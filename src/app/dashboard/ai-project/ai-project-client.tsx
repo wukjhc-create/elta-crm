@@ -68,6 +68,9 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
     complexityScore: number
     riskScore: number
   } | null>(null)
+  const [quickError, setQuickError] = useState<string | null>(null)
+  const quickReq = useRef(0)
+  const quickText = useRef<string | null>(null)
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     interpretation: true,
     calculation: true,
@@ -107,12 +110,28 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
     setDescription(value)
 
     if (value.length > 20) {
-      const quickRes = await quickAnalyzeProject(value)
+      const term = value
+      const id = ++quickReq.current
+      if (quickText.current !== term) {
+        setQuickResult(null)
+        setQuickError(null)
+      }
+      const quickRes = await quickAnalyzeProject(term)
+      if (quickReq.current !== id) return
       if (quickRes.success && quickRes.data) {
         setQuickResult(quickRes.data)
+        quickText.current = term
+        setQuickError(null)
+      } else if (quickText.current === term) {
+        setQuickError(quickRes.error || 'Hurtig analyse fejlede')
+      } else {
+        setQuickResult(null)
+        setQuickError(quickRes.error || 'Hurtig analyse fejlede')
       }
     } else {
+      quickReq.current += 1
       setQuickResult(null)
+      setQuickError(null)
     }
   }, [])
 
@@ -302,6 +321,11 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
           </div>
         )}
 
+        {quickError && (
+          <p className="mt-4 text-sm text-red-700 break-words" data-testid="ai-quick-load-error">
+            {quickError}{quickResult ? '. Det forrige estimat bliver.' : '. Det tælles ikke som et estimat.'}
+          </p>
+        )}
         {/* Quick Preview */}
         {quickResult && (
           <div className="mt-4 p-4 bg-purple-50 rounded-lg">
