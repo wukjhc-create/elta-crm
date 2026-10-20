@@ -376,7 +376,20 @@ export function AuditLogClient() {
                       {entry.changes && Object.keys(entry.changes).length > 0 && (
                         <div>
                           <h4 className="text-xs font-medium text-gray-500 mb-2">Ændringer</h4>
-                          <div className="rounded border overflow-hidden">
+                          <ul className="md:hidden space-y-2" data-testid="audit-changes-mobile">
+                            {Object.entries(entry.changes).map(([field, change]) => (
+                              <li key={field} className="rounded ring-1 ring-gray-200 bg-white p-3 text-sm">
+                                <p className="font-medium text-gray-900 break-words">{field}</p>
+                                <p className="mt-1 text-xs text-red-600 break-words">
+                                  Før <code className="bg-red-50 px-1 py-0.5 rounded">{String(change.old ?? '—')}</code>
+                                </p>
+                                <p className="text-xs text-green-600 break-words">
+                                  Efter <code className="bg-green-50 px-1 py-0.5 rounded">{String(change.new ?? '—')}</code>
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="hidden md:block rounded border overflow-hidden">
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="bg-gray-100">
