@@ -526,7 +526,28 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
       {/* Sprint 6D-4 — predecessor panel for final invoice */}
       {inv.is_final_invoice && detail.predecessors.length > 0 && (
         <Panel title={`Tidligere fakturaer fratrukket (${detail.predecessors.length})`}>
-          <div className="overflow-x-auto">
+          <ul className="md:hidden space-y-2" data-testid="invoice-predecessors-mobile">
+            {detail.predecessors.map((p) => (
+              <li key={p.invoice_id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <Link
+                    href={`/dashboard/invoices/${p.invoice_id}`}
+                    className="font-mono text-emerald-700 hover:underline break-all"
+                  >
+                    {p.invoice_number}
+                  </Link>
+                  <span className="shrink-0 text-xs text-gray-600">{p.status}</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-700">{PRED_TYPE_LABEL[p.invoice_type] ?? p.invoice_type}</p>
+                <p className="text-xs text-gray-700 break-words">{p.stage_label ?? '—'}</p>
+                <p className="mt-1 tabular-nums font-medium text-red-700">−{fmtKr(p.deduction_amount, inv.currency)}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="md:hidden mt-2 text-right text-xs font-bold text-red-700">
+            Total fradrag −{fmtKr(detail.predecessors.reduce((s, p) => s + p.deduction_amount, 0), inv.currency)}
+          </p>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
