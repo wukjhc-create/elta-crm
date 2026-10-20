@@ -396,7 +396,7 @@ export function IncomingInvoiceDetailClient({
                         setShowCasePicker(true)
                       }}
                       disabled={busy || casePickerBusy || clearingCase}
-                      className="text-[11px] px-2 py-0.5 rounded ring-1 ring-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
+                      className="text-[11px] px-2 py-0.5 rounded ring-1 ring-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 break-words min-w-0"
                     >
                       {detail.case || inv.matched_case_id ? 'Skift sag' : 'Match til sag'}
                     </button>
