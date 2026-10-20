@@ -109,19 +109,18 @@ export function PlanWorkOrderDialog({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, submitting, onClose])
 
-  const filteredCases = useMemo(() => {
+  const caseMatches = useMemo(() => {
     if (!cases) return []
     const q = caseSearch.trim().toLowerCase()
-    if (!q) return cases.slice(0, 30)
-    return cases
-      .filter(
-        (c) =>
-          c.case_number.toLowerCase().includes(q) ||
-          c.title.toLowerCase().includes(q) ||
-          (c.customer_name ?? '').toLowerCase().includes(q)
-      )
-      .slice(0, 30)
+    if (!q) return cases
+    return cases.filter(
+      (c) =>
+        c.case_number.toLowerCase().includes(q) ||
+        c.title.toLowerCase().includes(q) ||
+        (c.customer_name ?? '').toLowerCase().includes(q)
+    )
   }, [cases, caseSearch])
+  const filteredCases = caseMatches.slice(0, 30)
 
   const selectedCase = useMemo(
     () => cases?.find((c) => c.id === selectedCaseId) ?? null,
@@ -255,6 +254,7 @@ export function PlanWorkOrderDialog({
                   ) : filteredCases.length === 0 ? (
                     <div className="p-3 text-xs text-gray-500">Ingen åbne sager matcher</div>
                   ) : (
+                    <>
                     <ul className="divide-y divide-gray-100">
                       {filteredCases.map((c) => (
                         <li key={c.id}>
@@ -281,6 +281,12 @@ export function PlanWorkOrderDialog({
                         </li>
                       ))}
                     </ul>
+                    {caseMatches.length > filteredCases.length && (
+                      <p className="px-2 py-1.5 text-[11px] text-gray-500 border-t">
+                        Viser {filteredCases.length} af {caseMatches.length}. Søg for at finde resten.
+                      </p>
+                    )}
+                    </>
                   )}
                 </div>
               </>
