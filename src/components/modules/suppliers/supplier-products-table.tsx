@@ -317,7 +317,7 @@ export function SupplierProductsTable({
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
+                    <TableCell className="text-right font-mono text-sm break-words min-w-0">
                       {storedCostText(product.cost_price)}
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">
