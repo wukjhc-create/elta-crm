@@ -29,7 +29,7 @@ const materiale = '<span className="text-[10px] uppercase tracking-wide bg-blue-
 ok(view.includes(materiale), 'materialemaerket bliver')
 ok(view.split(materiale).length === 2, 'materialemaerket er et')
 
-const ikke = '<span className="text-[10px] text-gray-500">Ikke konverteret</span>'
+const ikke = '<span className="text-[10px] text-gray-500 break-words min-w-0">Ikke konverteret</span>'
 ok(view.includes(ikke), 'ikke-konverteret bliver')
 ok(view.split(ikke).length === 2, 'ikke-konverteret er et')
 

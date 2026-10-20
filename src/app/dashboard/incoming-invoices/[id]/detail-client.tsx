@@ -551,7 +551,7 @@ export function IncomingInvoiceDetailClient({
                             Sprunget over
                           </span>
                         ) : (
-                          <span className="text-[10px] text-gray-500">Ikke konverteret</span>
+                          <span className="text-[10px] text-gray-500 break-words min-w-0">Ikke konverteret</span>
                         )}
                       </td>
                     </tr>
