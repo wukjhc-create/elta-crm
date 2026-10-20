@@ -76,7 +76,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
         <>
           {header && <p className={`text-xs mb-3 break-words min-w-0 ${headerCls}`} data-testid="invoice-control-header">{header.text}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-3 break-words min-w-0">
-            <div className="min-w-0">
+            <div className="break-words min-w-0">
               <div className="text-gray-500 break-words min-w-0" data-testid="invoice-control-label-controlled">Kontrollerede linjer</div>
               <div className="font-medium break-words">{res.control.controlledLines} / {res.control.totalLines} ({res.control.coveragePct} %)</div>
             </div>
