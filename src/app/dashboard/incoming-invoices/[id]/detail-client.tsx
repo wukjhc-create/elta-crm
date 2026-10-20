@@ -664,7 +664,7 @@ export function IncomingInvoiceDetailClient({
               <div key={a.id} className={`text-xs rounded p-2 ring-1 ${
                 a.ok ? 'bg-gray-50 ring-gray-200' : 'bg-red-50 ring-red-200'
               }`}>
-                <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5">
+                <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 break-words min-w-0">
                   <span className="font-medium break-words min-w-0">
                     {incomingInvoiceAuditActionLabel(a.action)} {a.actor_name && <span className="text-gray-500 break-words min-w-0">· {a.actor_name}</span>}
                   </span>
