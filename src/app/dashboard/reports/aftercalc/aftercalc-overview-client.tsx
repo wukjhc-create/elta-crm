@@ -242,7 +242,7 @@ export function AftercalcOverviewClient() {
                           <th className="px-2 py-1.5 text-right">Tilbudt DB %</th>
                           <th className="px-2 py-1.5 text-right">Faktisk DB %</th>
                           <th className="px-2 py-1.5 text-right">DB-afvigelse</th>
-                          <th className="px-2 py-1.5 text-left">Status</th>
+                          <th className="px-2 py-1.5 text-left break-words min-w-0">Status</th>
                           <th className="px-2 py-1.5 text-left">Datakvalitet</th>
                         </tr>
                       </thead>
