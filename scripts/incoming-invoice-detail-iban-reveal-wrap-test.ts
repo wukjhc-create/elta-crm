@@ -1,6 +1,6 @@
 /**
  * Vis-knappen ved IBAN paa fakturadetaljen kan krympe.
- * Knappen er uaendret. Ret fakturahoved er uaendret.
+ * Knappen er uaendret. Ret fakturahoved kan ogsaa krympe.
  *   npx tsx scripts/incoming-invoice-detail-iban-reveal-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -28,9 +28,9 @@ ok(!revealBefore.includes(bareClass), 'den bare vis-knap er vaek')
 ok(!revealBefore.includes('break-words break-words'), 'et break-words')
 ok(view.includes('<span className="inline-flex items-center gap-2 break-words min-w-0">'), 'rammen bliver')
 const editAt = view.indexOf('data-testid="header-edit-open"')
-const editBefore = editAt < 0 ? '' : view.slice(editAt - 120, editAt)
-ok(editBefore.includes('className="text-xs text-emerald-700 hover:underline"'), 'ret-knappen bliver')
-ok(!editBefore.includes('break-words'), 'ret-knappen er bar')
+const editBefore = editAt < 0 ? '' : view.slice(editAt - 200, editAt)
+ok(editBefore.includes('className="text-xs text-emerald-700 hover:underline break-words min-w-0"'), 'ret-knappen bliver')
+ok(!editBefore.includes('break-words break-words'), 'ret-knappen har et break-words')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
