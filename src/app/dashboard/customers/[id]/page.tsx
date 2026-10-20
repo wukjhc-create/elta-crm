@@ -10,6 +10,7 @@ import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import { getCustomerPaymentHealthAction } from '@/lib/actions/invoices'
 import { getCustomerTasks, getActiveProfiles, getCustomerTaskAbilitiesAction } from '@/lib/actions/customer-tasks'
 import { getCustomerNotes } from '@/lib/actions/customer-notes'
+import { getCustomerMailbox, getUnlinkedCustomerEmailCountAction } from '@/lib/actions/customer-mailbox'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,8 +45,14 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
   if (!customerResult.success || !customerResult.data) {
     notFound()
   }
-  // leads matches også på kundens e-mail → efter kunden
-  const leads = await getCustomerLeads(id, customerResult.data.email).catch(() => null)
+  // leads og mail-tidslinjen matches også på kundens e-mail → efter kunden (samtidig)
+  // PF3-1 del 3: mail-tidslinjen (postkassen + "ukoblede mails"-tallet) hentes her i stedet for 2 klientkald i kø
+  const [leads, mailbox] = await Promise.all([
+    getCustomerLeads(id, customerResult.data.email).catch(() => null),
+    getCustomerMailbox(id, customerResult.data.email).catch(() => null),
+  ])
+  const unlinkedMails = mailbox?.canReply ? await getUnlinkedCustomerEmailCountAction(id).catch(() => 0) : 0
+  const initialMailbox = mailbox ? { ...mailbox, unlinked: unlinkedMails } : undefined
   const initialActivity = offers && sentQuotes && serviceCases && leads ? { offers, leads, sentQuotes, serviceCases } : undefined
 
   return (
@@ -59,6 +66,7 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
       initialPaymentHealth={paymentHealth ?? undefined}
       initialTasks={tasks && profiles && taskAbilities ? { tasks, profiles, abilities: taskAbilities } : undefined}
       initialNotes={notes ?? undefined}
+      initialMailbox={initialMailbox}
     />
   )
 }

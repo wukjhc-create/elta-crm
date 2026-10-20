@@ -59,7 +59,7 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       .from('offers')
       .select(
         // Sprint 12A — laes parti-roller saa de kan kopieres til sagen.
-        'id, offer_number, title, description, scope, status, customer_id, final_amount, tax_amount, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode, billing_model'
+        'id, offer_number, title, description, scope, status, customer_id, final_amount, tax_amount, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode, billing_model, created_by'
       )
       .eq('id', offerId)
       .maybeSingle()
@@ -121,6 +121,19 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       city: (useShipping ? sc?.shipping_city : sc?.billing_city)?.trim() || null,
     }
 
+    // DE2-9 (Henrik 2026-10-20: GODKENDT): sagen får tilbuddets sælger som ansvarlig — også når en anden (fx serviceleder)
+    // konverterer; ellers mistede sælgeren adgangen til sin egen ordre ("Åbn sag" → 404). Kun en aktiv profil; ellers den
+    // der konverterer (som før). created_by = den der konverterer. Tildelingen auditeres nedenfor.
+    const offerSeller = ((offer as { created_by?: string | null }).created_by ?? null) as string | null
+    let assignee = userId
+    if (offerSeller && offerSeller !== userId) {
+      // profiles-RLS viser kun egen profil → sælgerens aktiv-status læses med service-role (kun is_active for ét kendt id;
+      // intet returneres til brugeren)
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const { data: sellerProf } = await createAdminClient().from('profiles').select('id, is_active').eq('id', offerSeller).maybeSingle()
+      if (sellerProf && (sellerProf as { is_active: boolean | null }).is_active !== false) assignee = offerSeller
+    }
+
     const insertPayload = {
       source_offer_id: offer.id as string,
       ...siteAddress,
@@ -147,7 +160,7 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       priority: 'medium' as const,
       source: 'manual' as const,
       created_by: userId,
-      assigned_to: userId,
+      assigned_to: assignee,
     }
 
     const { data: sag, error: insertErr } = await supabase
@@ -169,6 +182,23 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
 
     const caseId = sag.id as string
     const offerNumber = (offer.offer_number as string | null) ?? null
+
+    // DE2-9: tildelingen auditeres (hvem konverterede, hvem blev ansvarlig, og hvorfor)
+    try {
+      const { insertAuditRow } = await import('@/lib/audit/insert-audit-row')
+      await insertAuditRow({
+        user_id: userId,
+        entity_type: 'service_case',
+        entity_id: caseId,
+        action: 'case_assigned_from_offer',
+        action_description: assignee === userId
+          ? `Sag oprettet fra tilbud ${offerNumber ?? ''} — ansvarlig: den der konverterede`
+          : `Sag oprettet fra tilbud ${offerNumber ?? ''} — ansvarlig: tilbuddets sælger (konverteret af en anden)`,
+        changes: { assigned_to: assignee, converted_by: userId, offer_created_by: offerSeller, offer_id: offer.id },
+      })
+    } catch (auditErr) {
+      logger.warn('convertOfferToCase: audit af tildeling fejlede', { error: auditErr, entityId: caseId })
+    }
 
     // 4. Kobl tilbuddets dokumenter til sagen (kun ikke-allerede-koblede).
     let documentCount = 0

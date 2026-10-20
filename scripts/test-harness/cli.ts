@@ -2261,13 +2261,26 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
-  if (SUB === 'table-policies') {
-    // READ-ONLY: RLS-politikker + grants for én tabel på staging (fx: table-policies lead_activities)
-    const t = String(process.argv[3] ?? '').replace(/[^a-z0-9_]/g, '')
-    if (!t) { log('angiv tabel'); return }
-    for (const r of await stagingSql(`SELECT policyname, cmd, roles::text, qual, with_check FROM pg_policies WHERE schemaname='public' AND tablename='${t}' ORDER BY cmd, policyname`)) log(`policy ${JSON.stringify(r)}`)
-    log(`rls: ${JSON.stringify(await stagingSql(`SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = 'public.${t}'::regclass`))}`)
-    log(`grants: ${JSON.stringify(await stagingSql(`SELECT grantee, string_agg(privilege_type, ',' ORDER BY privilege_type) p FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='${t}' GROUP BY grantee ORDER BY grantee`))}`)
+  if (SUB === 'audit-insert-probe') {
+    // STAGING: prøver præcis DE2-9's audit-række (samme kolonner) og sletter den igen — viser evt. fejl
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const sc = ((await admin.from('service_cases').select('id').limit(1)).data as Array<{ id: string }>)[0]
+    const { data, error } = await admin.from('audit_logs').insert({ user_id: owner, entity_type: 'service_case', entity_id: sc.id, action: 'case_assigned_from_offer',
+      action_description: 'harness-probe', changes: { assigned_to: owner } }).select('id')
+    log(`insert: ${error ? `FEJL ${error.code} ${error.message}` : 'ok'}`)
+    const id = (data as Array<{ id: string }> | null)?.[0]?.id
+    if (id) await admin.from('audit_logs').delete().eq('id', id)
+    return
+  }
+  if (SUB === 'u219-probe') {
+    // READ-ONLY diagnose: seneste U219-sager (tildeling/oprettet af) + audit-rækker
+    const rows = await stagingSql(`SELECT o.offer_number, (o.created_by = sc.assigned_to) ansvarlig_er_saelger, (sc.created_by = sc.assigned_to) ansvarlig_er_konverterer, sc.created_at::text,
+        (SELECT count(*)::int FROM audit_logs a WHERE a.entity_id = sc.id AND a.action = 'case_assigned_from_offer') audit_n
+      FROM offers o JOIN service_cases sc ON sc.source_offer_id = o.id WHERE o.offer_number LIKE 'U219-%' ORDER BY sc.created_at DESC LIMIT 6`)
+    for (const r of rows) log(JSON.stringify(r))
+    log(`audit seneste time: ${JSON.stringify(await stagingSql(`SELECT created_at::text, (changes ? 'assigned_to') har_assigned, (changes->>'assigned_to') = (changes->>'offer_created_by') ansvarlig_er_saelger, (changes->>'converted_by') = (changes->>'assigned_to') ansvarlig_er_konverterer, jsonb_typeof(changes) t FROM audit_logs WHERE action = 'case_assigned_from_offer' AND created_at > now() - interval '1 hour' ORDER BY created_at`))}`)
+    log(`triggers: ${JSON.stringify(await stagingSql(`SELECT tgname, pg_get_triggerdef(oid) d FROM pg_trigger WHERE tgrelid = 'public.service_cases'::regclass AND NOT tgisinternal`)).slice(0, 1500)}`)
+    log(`audit_logs checks: ${JSON.stringify(await stagingSql(`SELECT conname, pg_get_constraintdef(oid) d FROM pg_constraint WHERE conrelid = 'public.audit_logs'::regclass AND contype = 'c'`)).slice(0, 900)}`)
     return
   }
   if (SUB === 'profiles-is-active') {

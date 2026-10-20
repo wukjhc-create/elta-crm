@@ -35,14 +35,17 @@ import { sanitizeEmailHtml } from '@/lib/utils/sanitize-email-html'
 interface CustomerEmailTimelineProps {
   customerId: string
   customerEmail: string
+  /** PF3-1: hentet på serveren — så springes første hentning over */
+  initial?: { emails: CustomerMailboxEmail[]; unreadCount: number; conversations: CustomerConversation[]; canReply: boolean; unlinked: number }
 }
 
-export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEmailTimelineProps) {
+export function CustomerEmailTimeline({ customerId, customerEmail, initial }: CustomerEmailTimelineProps) {
   const toast = useToast()
-  const [emails, setEmails] = useState<CustomerMailboxEmail[]>([])
-  const [conversations, setConversations] = useState<CustomerConversation[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [emails, setEmails] = useState<CustomerMailboxEmail[]>(initial?.emails ?? [])
+  const [conversations, setConversations] = useState<CustomerConversation[]>(initial?.conversations ?? [])
+  const [unreadCount, setUnreadCount] = useState(initial?.unreadCount ?? 0)
+  const [loading, setLoading] = useState(!initial)
+  const skipFirst = useRef(!!initial)
   const [expanded, setExpanded] = useState(false)
   const [viewMode, setViewMode] = useState<'threads' | 'flat'>('threads')
 
@@ -57,11 +60,11 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
   // Compose state
   const [showCompose, setShowCompose] = useState(false)
   // D28: bogholderi læser kun (mails koblet til kunden) — ingen ny mail/svar
-  const [canReply, setCanReply] = useState(false)
+  const [canReply, setCanReply] = useState(initial?.canReply ?? false)
   // N80: pladsholder fra mail-automatikken (@elta-crm.local) — ingen afsendelse/søgning på adressen
   const noRealEmail = (customerEmail ?? '').toLowerCase().endsWith('@elta-crm.local')
   // N24a: tidligere mails fra kundens adresse, der ikke er koblet til kunden
-  const [unlinked, setUnlinked] = useState(0)
+  const [unlinked, setUnlinked] = useState(initial?.unlinked ?? 0)
   const [linking, setLinking] = useState(false)
   const linkOld = async () => {
     setLinking(true)
@@ -89,7 +92,10 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
     if (result.canReply) setUnlinked(await getUnlinkedCustomerEmailCountAction(customerId))
   }
 
-  useEffect(() => { load() }, [customerId, customerEmail])
+  useEffect(() => {
+    if (skipFirst.current) { skipFirst.current = false; return }
+    load()
+  }, [customerId, customerEmail])
 
   const handleView = async (email: CustomerMailboxEmail) => {
     if (viewingId === email.id) {

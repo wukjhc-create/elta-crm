@@ -82,9 +82,10 @@ interface CustomerDetailClientProps {
   initialPaymentHealth?: ComponentProps<typeof CustomerPaymentBadge>['initial']
   initialTasks?: ComponentProps<typeof CustomerTasks>['initial']
   initialNotes?: ComponentProps<typeof CustomerNotesTimeline>['initial']
+  initialMailbox?: ComponentProps<typeof CustomerEmailTimeline>['initial']
 }
 
-export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false, initialActivity, initialPaymentHealth, initialTasks, initialNotes }: CustomerDetailClientProps) {
+export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false, initialActivity, initialPaymentHealth, initialTasks, initialNotes, initialMailbox }: CustomerDetailClientProps) {
   const router = useRouter()
   // M-10 (mobil-review 2026-10-14): kun handlinger brugeren har ret til (bogholderi/salg fik knapper der altid fejlede)
   const { role } = useUserRole()
@@ -707,7 +708,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             </div>
 
             {/* Email Timeline */}
-            <CustomerEmailTimeline customerId={customer.id} customerEmail={customer.email} />
+            <CustomerEmailTimeline customerId={customer.id} customerEmail={customer.email} initial={initialMailbox} />
 
             {/* Tasks */}
             <CustomerTasks customerId={customer.id} initial={initialTasks} />

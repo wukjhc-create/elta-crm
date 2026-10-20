@@ -271,7 +271,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | MB2-10 | Kalender: I dag/dato/visning-knapper ~30 px (S4) | DONE (kode, U30/U160) — I dag/dato/visning højere på telefon |
 | MB2-11 | Underskrift: navnefeltet autoudfylder montørens navn (S4) | DONE (kode) — autoComplete off, autoCapitalize words |
 | MB2-12 | "Mine job"-header klemt (S4) | DONE (kode, U174) — flex-wrap, kortere label |
-| PF3-1 | Kundesiden: ~13 serielle server-actions ved åbning (S3) | DELVIS (kode, U166/U173/U199/U52) — aktivitetsoversigt (4) + betalingsmærke + opgaver (3) + noter (1) hentes på serveren parallelt med kunden (9 klientkald i kø fjernet; U142/U175/U196); mail-tidslinjen (2) henter stadig selv |
+| PF3-1 | Kundesiden: ~13 serielle server-actions ved åbning (S3) | DONE (kode, U166/U173/U199/U52/U61/U65/U142) — aktivitetsoversigt (4) + betalingsmærke + opgaver (3) + noter (1) hentes på serveren parallelt med kunden (9 klientkald i kø fjernet; U142/U175/U196); mail-tidslinjen (postkasse + ukoblede-tal) også på serveren (del 3) — alle ~13 klientkald i kø fjernet |
 | PF3-2 | getWorkOrderScope henter ALLE montørens arbejdsordre-id'er pr. tidsregistrering/fane (S3) | DONE (kode, montør-gruppen U11/U21/U34/U44/U48/U62/U63/U66/U67/U71/U73/U117) — getWorkOrderEmployeeScope + filter på assigned_employee_id i databasen / opslag af den ene arbejdsordre (5 kald) |
 | PF3-3 | Kalender: backlog/uden-tid hentes efter Promise.all, serielle bidder, O(n²) spread (S3) | DONE (kode, U96/U117/U30) — backlog/uden-tid i kalenderens Promise.all; bidder parallelt; push i stedet for O(n²) spread |
 | PF3-4 | Opgavesiden: getActiveProfiles for montør + ufiltreret realtime (S3) | DONE (kode, U174/U175/U201) — profillisten hentes ikke for montør uden opret-ret. Realtime: bevidst UDEN kolonnefilter — Realtime anvender RLS på postgres_changes (montøren modtager kun synlige rækker), og et assigned_to-filter ville misse en opgave der flyttes VÆK fra brugeren (listen blev stående forældet); hændelser debounces allerede (1,5 s) |
@@ -2060,7 +2060,7 @@ Ingen pilot-blokerende fund. Fund:
 | DE2-6 | Sagsdokumenter "Fra mail"-link for salg/bogholderi → ingen adgang | DONE (kode) — mærke uden link |
 | DE2-7 | Sagens Mails-fane: links til mail-modulet for salg/bogholderi | DONE (kode) |
 | DE2-8 | Kundens Status: Besigtigelse-trin klikbart uden effekt for salg/bogholderi | DONE (kode) |
-| DE2-9 | Tilbud "Åbn sag" for sælger når en anden konverterede (plausibel) | BESLUTNING — skal sælgeren tildeles sagen ved manuel konvertering? |
+| DE2-9 | Tilbud "Åbn sag" for sælger når en anden konverterede (plausibel) | DONE (kode, U219, Henrik 2026-10-20 GODKENDT) — ny sag får tilbuddets sælger som ansvarlig (aktiv profil; ellers den der konverterer), created_by = konverterer, auditeret (case_assigned_from_offer); eksisterende sag (samtidig konvertering) røres ikke |
 
 ### Regressions-baseline 2026-10-20 (ren ui-full)
 
