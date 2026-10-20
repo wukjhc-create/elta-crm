@@ -23,6 +23,15 @@ export default async function KalkiaNodeDetailPage({ params }: PageProps) {
   ])
 
   if (!nodeResult.success || !nodeResult.data) {
+    if (!nodeResult.success && nodeResult.error && nodeResult.error !== 'Noden blev ikke fundet') {
+      return (
+        <div className="p-6">
+          <p className="text-sm text-red-700" data-testid="kalkia-node-detail-load-error">
+            {nodeResult.error}. Det tælles ikke som at noden mangler.
+          </p>
+        </div>
+      )
+    }
     notFound()
   }
 
