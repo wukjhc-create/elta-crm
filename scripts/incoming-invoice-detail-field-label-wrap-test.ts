@@ -27,7 +27,7 @@ ok(wrapped.includes('shrink-0'), 'shrink-0 bliver')
 ok(view.split(bare).length === 1, 'den bare etiket er vaek')
 ok(!view.includes(bare), 'den bare etiket er vaek')
 ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 py-1 text-sm border-b last:border-b-0 break-words min-w-0">'), 'raekken bliver')
-ok(view.includes('<span className="font-mono">—</span>'), 'iban-stregen bliver')
+ok(view.includes('<span className="font-mono break-words min-w-0">—</span>'), 'iban-stregen bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

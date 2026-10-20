@@ -775,7 +775,7 @@ function IbanValue({ invoiceId, masked, canReveal }: { invoiceId: string; masked
     document.addEventListener('visibilitychange', onVis)
     return () => { window.removeEventListener('blur', hide); document.removeEventListener('visibilitychange', onVis) }
   }, [])
-  if (!masked) return <span className="font-mono">—</span>
+  if (!masked) return <span className="font-mono break-words min-w-0">—</span>
   return (
     <span className="inline-flex items-center gap-2">
       <span className="font-mono" data-testid="iban-value">{full ?? masked}</span>
