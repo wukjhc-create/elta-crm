@@ -142,8 +142,9 @@ export function CustomersPageClient({
 
   // Ø4.6 — sortering er nu GLOBAL (server-leveret rækkefølge); ingen
   // side-lokal re-sort. Kunderne vises i den modtagne orden.
-  const countFor = (key: PaymentFilterKey): number | undefined =>
+  const countFor = (key: PaymentFilterKey): number | null | undefined =>
     key === 'all' || !paymentCounts ? undefined : paymentCounts[key]
+  const paymentCountsFailed = !!paymentCounts && Object.values(paymentCounts).some((n) => n == null)
 
   const paymentEmptyText =
     paymentFilter !== 'all' ? PAYMENT_EMPTY_TEXT[paymentFilter] : undefined
@@ -274,12 +275,17 @@ export function CustomersPageClient({
                     {f.label}
                     {c !== undefined && (
                       <span className={`ml-1.5 ${paymentFilter === f.key ? 'text-emerald-100' : 'text-gray-400'}`}>
-                        {c}
+                        {c == null ? '—' : c}
                       </span>
                     )}
                   </button>
                 )
               })}
+              {paymentCountsFailed && (
+                <p className="w-full text-xs text-red-700" data-testid="customer-payment-counts-error">
+                  Et betalingstal kunne ikke hentes. Det tælles ikke som 0.
+                </p>
+              )}
               <div className="ml-auto flex items-center gap-1.5">
                 <label className="text-xs text-gray-500">Sortér:</label>
                 <select
