@@ -1707,6 +1707,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogattende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `7a3d631f`. Det lader tohundredeogsyttenende-hegnet stå. `7a3d631f` hedder `feat(invoice): stykprisen kan krympe`. `39ac7d1d` hedder `feat(invoice): beskrivelsen kan krympe`. `origin/grok-next` er `7a3d631f`. Push af `7a3d631f` lykkedes. `39ac7d1d` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `39ac7d1d..7a3d631f`
+
+```
+7a3d631f feat(invoice): stykprisen kan krympe
+39ac7d1d feat(invoice): beskrivelsen kan krympe
+```
+
+Listen er skiftets commits fra `39ac7d1d` til og med `7a3d631f`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+26369b2d docs: checkpoint efter 39ac7d1d
+```
+
+### Features
+
+G18-966 lader kun stykprisen på fakturalinjens mobilkort krympe. Beløbet bliver. Skrivebordstotalen bliver. G18-965 lader kun beskrivelsen på fakturalinjens mobilkort krympe. Beskrivelsen bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-line-unit-price-wrap-test.ts` og `scripts/incoming-invoice-detail-line-description-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for beskrivelsen exiterede 0 sammen med det commit, der ændrede stykprisen. `scripts/incoming-invoice-lines-mobile-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `7a3d631f`. `39ac7d1d` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `7a3d631f`, herunder G18-748 til G18-966. `26369b2d` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `7a3d631f`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-967, G18-597.
+
 ## Checkpoint 2026-10-18 tohundredeogsyttenende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `39ac7d1d`. Det lader tohundredeogsekstende-hegnet stå. `39ac7d1d` hedder `feat(invoice): beskrivelsen kan krympe`. `306c7f22` hedder `feat(invoice): linjekortet kan krympe`. `origin/grok-next` er `39ac7d1d`. Push af `39ac7d1d` lykkedes. `306c7f22` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
