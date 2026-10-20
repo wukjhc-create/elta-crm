@@ -249,7 +249,7 @@ export function AftercalcOverviewClient() {
                       <tbody className="divide-y divide-gray-100 break-words min-w-0">
                         {data.rows.map((r) => (
                           <tr key={r.case_id} data-testid="aftercalc-overview-row" data-quality={r.data_quality}>
-                            <td className="px-2 py-1.5">
+                            <td className="px-2 py-1.5 break-words min-w-0">
                               <Link href={`/dashboard/orders/${r.case_id}?tab=oekonomi`} className="text-blue-700 hover:underline break-words">
                                 {r.case_number || 'Sag'}
                               </Link>

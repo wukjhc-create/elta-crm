@@ -30,7 +30,7 @@ ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'tabelkroppen findes en gang')
 ok(view.split('<tbody className="divide-y divide-gray-100">').length === 1, 'den bare tabelkrop er vaek')
 ok(view.includes('<div className="hidden md:block overflow-x-auto break-words min-w-0">'), 'tabelrullen kan stadig krympe')
-ok(view.includes('<td className="px-2 py-1.5">'), 'sagscellen bliver')
+ok(view.includes('<td className="px-2 py-1.5 break-words min-w-0">'), 'sagscellen kan krympe')
 ok(view.includes('{kr(r.quoted_revenue)}'), 'tilbudt beloeb bliver')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 
