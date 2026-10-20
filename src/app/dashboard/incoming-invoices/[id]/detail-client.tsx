@@ -252,7 +252,7 @@ export function IncomingInvoiceDetailClient({
               size="sm"
               onClick={deleteTestInvoice}
               disabled={busy || deletingTest}
-              className="border-amber-300 text-amber-900 hover:bg-amber-50"
+              className="border-amber-300 text-amber-900 hover:bg-amber-50 break-words min-w-0"
             >
               {deletingTest ? 'Sletter…' : 'Slet test-faktura'}
             </Button>

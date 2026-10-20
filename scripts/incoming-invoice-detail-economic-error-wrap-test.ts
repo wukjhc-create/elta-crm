@@ -28,7 +28,7 @@ ok(after.includes('Bogføring er deaktiveret.'), 'forklaringen bliver')
 ok(view.split(bare).length === 1, 'den bare ramme er vaek')
 ok(!view.includes(bare), 'den bare ramme er vaek')
 ok(view.includes('className="rounded-md ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 break-words min-w-0"'), 'opsaetningsrammen bliver')
-ok(view.includes('className="border-amber-300 text-amber-900 hover:bg-amber-50"'), 'sletteknappen bliver')
+ok(view.includes('className="border-amber-300 text-amber-900 hover:bg-amber-50 break-words min-w-0"'), 'sletteknappen bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
