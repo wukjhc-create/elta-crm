@@ -230,7 +230,7 @@ export function IncomingInvoiceDetailClient({
     <div className="p-4 md:p-6 space-y-4 max-w-6xl break-words min-w-0">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div className="min-w-0">
-          <Link href="/dashboard/incoming-invoices" className="text-xs text-emerald-700 hover:underline">← Indgående fakturaer</Link>
+          <Link href="/dashboard/incoming-invoices" className="text-xs text-emerald-700 hover:underline break-words min-w-0">← Indgående fakturaer</Link>
           <h1 className="text-2xl font-semibold mt-1 flex flex-wrap items-start gap-2 break-words min-w-0">
             <span className="break-words min-w-0">{detail.supplier?.name ?? inv.supplier_name_extracted ?? 'Ukendt leverandør'}</span>
             {isTestInvoice && (

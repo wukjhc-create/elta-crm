@@ -1,6 +1,6 @@
 /**
  * Knappen Ret fakturahoved paa fakturadetaljen kan krympe.
- * Knappen er uaendret. Linket tilbage er uaendret.
+ * Knappen er uaendret. Linket tilbage kan ogsaa krympe.
  *   npx tsx scripts/incoming-invoice-detail-header-edit-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -37,8 +37,8 @@ const linkAt = view.indexOf('href="/dashboard/incoming-invoices"')
 const lineStart = linkAt < 0 ? 0 : view.lastIndexOf('\n', linkAt) + 1
 const lineEnd = linkAt < 0 ? 0 : view.indexOf('\n', linkAt)
 const linkLine = linkAt < 0 ? '' : view.slice(lineStart, lineEnd).replace(/\r$/, '')
-ok(linkLine.includes(bareClass), 'tilbage-linket bliver')
-ok(!linkLine.includes('break-words'), 'tilbage-linket er bar')
+ok(linkLine.includes(wrappedClass), 'tilbage-linket bliver')
+ok(!linkLine.includes('break-words break-words'), 'tilbage-linket har et break-words')
 ok(linkLine.includes('← Indgående fakturaer'), 'linkteksten bliver')
 
 if (bad > 0) {
