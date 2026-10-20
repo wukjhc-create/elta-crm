@@ -16,6 +16,7 @@ import { resolveTarget } from './resolve-target'
 import { lookupReply } from './lookup-reply'
 import { noteSavedReply } from './note-reply'
 import { callbackSavedReply } from './callback-reply'
+import { reminderSavedReply } from './reminder-reply'
 import { getCaseScope } from '@/lib/auth/case-scope'
 import { copenhagenParts, copenhagenLocalToIso, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { escapeLike } from '@/lib/validations/postgrest-filter'
@@ -225,7 +226,7 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
       taskId,
       text: cmd.intent === 'callback'
         ? callbackSavedReply(title, fmtWhen(due), fmtWhen(reminderAt))
-        : `⏰ ${title} — ${fmtWhen(due)} (påmindelse ${fmtWhen(reminderAt)}). Ligger i CRM.`,
+        : reminderSavedReply(title, fmtWhen(due), fmtWhen(reminderAt)),
       buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId! }],
     }
   }

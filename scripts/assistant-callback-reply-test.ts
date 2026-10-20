@@ -23,7 +23,7 @@ ok(!reply.includes('webhook'), 'svaret naevner ingen webhook')
 
 const run = readFileSync('src/lib/assistant/run-command.ts', 'utf8')
 ok(run.split('callbackSavedReply(title, fmtWhen(due), fmtWhen(reminderAt))').length === 2, 'kun callback-svaret bruger funktionen')
-ok(run.includes('`⏰ ${title} — ${fmtWhen(due)} (påmindelse ${fmtWhen(reminderAt)}). Ligger i CRM.`'), 'paamindelsen er uaendret')
+ok(run.includes('reminderSavedReply(title, fmtWhen(due), fmtWhen(reminderAt))'), 'paamindelsen siger at kunden ikke er kontaktet')
 ok(run.includes("await admin.from('customer_tasks').insert({"), 'insert bliver')
 ok(run.includes('customer_id: target.customerId,'), 'kunde-id bliver')
 ok(run.includes('service_case_id: target.kind === \'case\' ? target.id : null,'), 'sag-id bliver')
