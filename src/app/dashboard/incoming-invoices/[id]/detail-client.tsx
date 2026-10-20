@@ -375,7 +375,7 @@ export function IncomingInvoiceDetailClient({
                       href={`/dashboard/orders/${detail.case.case_number}`}
                       className="text-emerald-700 hover:underline break-words"
                     >
-                      <span className="font-mono text-xs">{detail.case.case_number}</span>
+                      <span className="font-mono text-xs break-words min-w-0">{detail.case.case_number}</span>
                       <span className="ml-2 break-words min-w-0">{detail.case.project_name || detail.case.title}</span>
                       {detail.case.customer_name && (
                         <span className="text-gray-500 ml-1 break-words min-w-0">· {detail.case.customer_name}</span>

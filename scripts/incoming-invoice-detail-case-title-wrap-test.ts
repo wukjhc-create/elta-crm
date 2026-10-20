@@ -26,7 +26,7 @@ ok(after.includes('{detail.case.project_name || detail.case.title}'), 'navnet bl
 ok(view.split(bare).length === 1, 'det bare sagsnavn er vaek')
 ok(!view.includes(bare), 'det bare sagsnavn er vaek')
 ok(view.includes('<span className="text-gray-400 break-words min-w-0">({detail.supplier.code ?? \'—\'})</span>'), 'leverandoerkoden bliver')
-ok(view.includes('<span className="font-mono text-xs">{detail.case.case_number}</span>'), 'sagsnummeret bliver')
+ok(view.includes('<span className="font-mono text-xs break-words min-w-0">{detail.case.case_number}</span>'), 'sagsnummeret bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
