@@ -40,6 +40,7 @@ import { formatCurrency, formatTimeMinutes } from '@/lib/utils/format'
 interface PackageDetailClientProps {
   initialPackage: PackageType & { items: PackageItem[] }
   categories: PackageCategory[]
+  categoriesError?: string | null
   components: {
     id: string
     code: string
@@ -56,13 +57,18 @@ interface PackageDetailClientProps {
     list_price: number
     category_name: string
   }[]
+  componentsError?: string | null
+  productsError?: string | null
 }
 
 export default function PackageDetailClient({
   initialPackage,
   categories,
+  categoriesError = null,
   components,
   products,
+  componentsError = null,
+  productsError = null,
 }: PackageDetailClientProps) {
   const router = useRouter()
   const { success, error: showError } = useToast()
@@ -282,6 +288,11 @@ export default function PackageDetailClient({
                     </option>
                   ))}
                 </select>
+                {categoriesError && (
+                  <p className="text-xs text-red-700" data-testid="package-categories-load-error">
+                    {categoriesError}. Det tælles ikke som ingen kategori.
+                  </p>
+                )}
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Status</label>
@@ -607,6 +618,8 @@ export default function PackageDetailClient({
         <AddItemDialog
           components={components}
           products={products}
+          componentsError={componentsError}
+          productsError={productsError}
           onClose={() => setShowAddItem(false)}
           onAdd={handleAddItem}
         />
@@ -619,11 +632,15 @@ export default function PackageDetailClient({
 function AddItemDialog({
   components,
   products,
+  componentsError = null,
+  productsError = null,
   onClose,
   onAdd,
 }: {
   components: PackageDetailClientProps['components']
   products: PackageDetailClientProps['products']
+  componentsError?: string | null
+  productsError?: string | null
   onClose: () => void
   onAdd: (item: Partial<PackageItem>) => void
 }) {
@@ -718,6 +735,11 @@ function AddItemDialog({
             <>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Komponent *</label>
+                {componentsError && (
+                  <p className="text-xs text-red-700" data-testid="package-components-load-error">
+                    {componentsError}. Det tælles ikke som ingen komponenter.
+                  </p>
+                )}
                 <select
                   value={selectedComponent}
                   onChange={(e) => {
@@ -762,6 +784,11 @@ function AddItemDialog({
           {tab === 'product' && (
             <div className="space-y-1">
               <label className="text-sm font-medium">Produkt *</label>
+              {productsError && (
+                <p className="text-xs text-red-700" data-testid="package-products-load-error">
+                  {productsError}. Det tælles ikke som ingen produkter.
+                </p>
+              )}
               <select
                 value={selectedProduct}
                 onChange={(e) => {
