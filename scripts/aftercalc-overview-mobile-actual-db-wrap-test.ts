@@ -38,7 +38,7 @@ ok(view.split('tabular-nums text-gray-900 break-words').length - 1 === 4, 'mobil
 ok(view.includes('<td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{pct(r.actual_db_pct)}</td>'), 'skrivebordsprocenten bliver')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 ok(view.includes('<dt className="text-gray-500 break-words min-w-0">Faktisk DB</dt>'), 'etiketten kan stadig krympe')
-ok(view.includes('mt-2 text-sm tabular-nums break-words ${'), 'afvigelsen er et andet sted')
+ok(view.includes('mt-2 text-sm tabular-nums break-words min-w-0 ${'), 'afvigelsen kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
