@@ -21,13 +21,13 @@ ok(rates.win_rate === 50, 'vinder-satsen bliver')
 
 const wrapped = '<article key={m.month} className="rounded ring-1 ring-gray-200 p-3 text-sm break-words min-w-0">'
 const bare = '<article key={m.month} className="rounded ring-1 ring-gray-200 p-3 text-sm">'
-const total = '<article className="rounded bg-gray-50 ring-1 ring-gray-200 p-3 text-sm">'
+const total = '<article className="rounded bg-gray-50 ring-1 ring-gray-200 p-3 text-sm break-words min-w-0">'
 const table = readFileSync('src/app/dashboard/reports/sales-funnel-table.tsx', 'utf8')
 
 ok(table.includes(wrapped), 'maanedskortet kan krympe')
 ok(table.split(wrapped).length === 2, 'maanedskortet er et')
 ok(!table.includes(bare), 'maanedskortet er ikke bart')
-ok(table.includes(total), 'totalkortet bliver')
+ok(table.includes(total), 'totalkortet kan krympe')
 ok(table.includes('<p className="font-medium text-gray-900 break-words min-w-0">{monthLabel(m.month)}</p>'), 'maanedens navn bliver')
 ok(table.includes('data-testid="funnel-month-rates"'), 'satserne bliver')
 ok(table.includes('kr(m.accepted_value)'), 'beloebet bliver')
