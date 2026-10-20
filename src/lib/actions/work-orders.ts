@@ -440,16 +440,16 @@ export async function changeWorkOrderStatus(
       .select('id, status, case_id, completed_at')
       .eq('id', workOrderId)
       .maybeSingle()
-    if (readErr || !cur) {
-      return { success: false, error: 'Arbejdsordre ikke fundet' }
-    }
+    if (readErr) return { success: false, error: 'Kunne ikke hente arbejdsordre' }
+    if (!cur) return { success: false, error: 'Arbejdsordre ikke fundet' }
 
     if (cur.status === next) {
-      const { data: row } = await supabase
+      const { data: row, error: rowErr } = await supabase
         .from('work_orders')
         .select('*')
         .eq('id', workOrderId)
         .single()
+      if (rowErr || !row) return { success: false, error: 'Kunne ikke hente arbejdsordre' }
       return { success: true, data: hideLowProfit(row as WorkOrderRow, lowProfitVisible(hasPermission)) }
     }
 
