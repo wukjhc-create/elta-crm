@@ -435,7 +435,7 @@ export function IncomingInvoiceDetailClient({
             <Row label="Duplikat af"
               value={
                 <span className="inline-flex flex-wrap items-center gap-2">
-                  <Link href={`/dashboard/incoming-invoices/${inv.duplicate_of_id}`} className="text-red-700 hover:underline">
+                  <Link href={`/dashboard/incoming-invoices/${inv.duplicate_of_id}`} className="text-red-700 hover:underline break-words min-w-0">
                     Åbn originalen
                   </Link>
                   <span className="text-xs text-gray-500">Status og bogføring er uændret.</span>
