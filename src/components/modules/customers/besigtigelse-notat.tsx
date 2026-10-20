@@ -375,6 +375,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
   >([])
   const [serviceCaseId, setServiceCaseId] = useState<string>(lockCase && lockedCaseId ? lockedCaseId : '')
   const [loadingCases, setLoadingCases] = useState(!lockCase)
+  const [casesError, setCasesError] = useState<string | null>(null)
   const [caseSummary, setCaseSummary] = useState<{
     signerName: string | null
     signerCompany: string | null
@@ -396,10 +397,17 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
     if (lockCase) return
     let active = true
     setLoadingCases(true)
+    setCasesError(null)
     listCustomerServiceCasesForBesigtigelse(customer.id)
       .then((res) => {
         if (!active) return
-        const cases = res.success && res.data ? res.data : []
+        if (!res.success) {
+          setServiceCases([])
+          setCasesError(res.error || 'Kunne ikke hente sager')
+          return
+        }
+        const cases = res.data ?? []
+        setCasesError(null)
         setServiceCases(cases)
         if (cases.length === 1) setServiceCaseId(cases[0].id) // auto-vælg eneste sag
       })
@@ -744,6 +752,10 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
             caseSummaryBox || <p className="text-sm text-gray-400">Henter sagens parter…</p>
           ) : loadingCases ? (
             <p className="text-sm text-gray-400">Henter sager…</p>
+          ) : casesError ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" data-testid="besigtigelse-cases-load-error">
+              {casesError}. Det tælles ikke som ingen sager.
+            </div>
           ) : serviceCases.length === 0 ? (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
               Denne kunde har ingen sager endnu. Opret en sag på kundekortet, før du gemmer en besigtigelse.
