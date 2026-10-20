@@ -220,7 +220,7 @@ export function SupplierProductsTable({
           {/* Kost vises fordi getSupplierProducts allerede kraever products.view.cost_prices. */}
           <div className="md:hidden space-y-3" data-testid="supplier-products-mobile">
             {products.map((product) => (
-              <article key={product.id} className="rounded-lg border bg-white p-3 space-y-2 text-sm">
+              <article key={product.id} className="rounded-lg border bg-white p-3 space-y-2 text-sm break-words min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-mono text-xs text-gray-500 break-all min-w-0" data-testid="supplier-product-mobile-sku">{product.supplier_sku}</p>
