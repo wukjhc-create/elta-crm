@@ -96,6 +96,26 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
     )
   }
 
+  // Grok (portal): en fejlet første hentning er ikke "ingen besigtigelser planlagt"
+  if (loadError && bookings.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border shadow-sm p-6" data-testid="portal-besigtigelse-load-error">
+        <div className="flex items-center gap-2 mb-3">
+          <CalendarCheck className="w-5 h-5 text-blue-600" />
+          <h2 className="text-lg font-semibold">Besigtigelse</h2>
+        </div>
+        <p className="text-sm text-red-700">{loadError}. Det tælles ikke som ingen besigtigelser.</p>
+        <button
+          type="button"
+          onClick={loadBookings}
+          className="mt-3 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800"
+        >
+          Prøv igen
+        </button>
+      </div>
+    )
+  }
+
   if (bookings.length === 0) {
     return (
       <div className="bg-white rounded-xl border shadow-sm">
