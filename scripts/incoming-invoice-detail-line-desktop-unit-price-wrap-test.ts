@@ -33,7 +33,7 @@ const total = '<td className="px-2 py-1 text-right font-medium break-words min-w
 ok(view.includes(total), 'skrivebordstotalen bliver')
 ok(view.split(total).length === 2, 'skrivebordstotalen er en')
 
-const qty = '<td className="px-2 py-1 text-right">{l.quantity ?? \'—\'}</td>'
+const qty = '<td className="px-2 py-1 text-right break-words min-w-0">{l.quantity ?? \'—\'}</td>'
 ok(view.includes(qty), 'antalcellen bliver')
 ok(view.split(qty).length === 2, 'antalcellen er en')
 
