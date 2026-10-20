@@ -1657,6 +1657,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogotteogtresindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `56cb8756`. Det lader hundredeogsyvogtresindstyvende-hegnet stå. `56cb8756` hedder `feat(invoice): knappen match til sag kan krympe`. `d0b6d7c3` hedder `feat(invoice): knapraekken ved sagen kan krympe`. `origin/grok-next` er `56cb8756`. Push af `56cb8756` lykkedes. `d0b6d7c3` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `d0b6d7c3..56cb8756`
+
+```
+56cb8756 feat(invoice): knappen match til sag kan krympe
+d0b6d7c3 feat(invoice): knapraekken ved sagen kan krympe
+```
+
+Listen er skiftets commits fra `d0b6d7c3` til og med `56cb8756`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+14bbeec4 docs: checkpoint efter d0b6d7c3
+```
+
+### Features
+
+G18-916 lader kun knappen Match til sag på fakturadetaljen krympe. Knapteksten bliver. G18-915 lader kun knaprækken ved sagen krympe. Knapteksterne bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-case-match-wrap-test.ts` og `scripts/incoming-invoice-detail-case-actions-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for knaprækken exiterede 0 sammen med det commit, der ændrede match-knappen. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `56cb8756`. `d0b6d7c3` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `56cb8756`, herunder G18-748 til G18-916. `14bbeec4` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `56cb8756`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-917, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogsyvogtresindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `d0b6d7c3`. Det lader hundredeogseksogtresindstyvende-hegnet stå. `d0b6d7c3` hedder `feat(invoice): knapraekken ved sagen kan krympe`. `1e3f6c97` hedder `feat(invoice): sagsraekken paa fakturadetaljen kan krympe`. `origin/grok-next` er `d0b6d7c3`. Push af `d0b6d7c3` lykkedes. `1e3f6c97` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
