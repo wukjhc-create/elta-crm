@@ -36,6 +36,12 @@ export function formatDateLongDK(date: string | Date | null | undefined): string
   return format(danishWallClock(date), 'd. MMMM yyyy', { locale: da })
 }
 
+/** Kort dato i dansk tid: "15. okt. 2026". Rene datoer bruges som de er. */
+export function formatDateDK(date: string | Date | null | undefined): string {
+  if (!date) return ''
+  return format(danishWallClock(date), 'd. MMM yyyy', { locale: da })
+}
+
 /**
  * Format relative time in Danish: "2 timer siden"
  */
@@ -69,7 +75,7 @@ export function formatSmartDate(date: string | Date | null | undefined): string 
   if (diffDays >= 0 && diffDays < 7) {
     return formatDistanceToNow(dateObj, { addSuffix: true, locale: da })
   }
-  return format(danishWallClock(date), 'd. MMM yyyy', { locale: da })
+  return formatDateDK(date)
 }
 
 // =====================================================
