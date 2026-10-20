@@ -29,7 +29,7 @@ const desc = '<p className="font-medium text-gray-900 break-words min-w-0">{l.li
 ok(view.includes(desc), 'beskrivelsen bliver')
 ok(view.split(desc).length === 2, 'beskrivelsen er en')
 
-const desktop = '<td className="px-2 py-1 text-right font-medium">{fmtAmount(l.total_price, inv.currency)}</td>'
+const desktop = '<td className="px-2 py-1 text-right font-medium break-words min-w-0">{fmtAmount(l.total_price, inv.currency)}</td>'
 ok(view.includes(desktop), 'skrivebordstotalen bliver')
 ok(view.split(desktop).length === 2, 'skrivebordstotalen er en')
 

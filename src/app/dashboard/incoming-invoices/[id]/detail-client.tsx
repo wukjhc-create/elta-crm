@@ -536,7 +536,7 @@ export function IncomingInvoiceDetailClient({
                       <td className="px-2 py-1 text-right">{l.quantity ?? '—'}</td>
                       <td className="px-2 py-1">{l.unit ?? '—'}</td>
                       <td className="px-2 py-1 text-right">{fmtAmount(l.unit_price, inv.currency)}</td>
-                      <td className="px-2 py-1 text-right font-medium">{fmtAmount(l.total_price, inv.currency)}</td>
+                      <td className="px-2 py-1 text-right font-medium break-words min-w-0">{fmtAmount(l.total_price, inv.currency)}</td>
                       <td className="px-2 py-1">
                         {convertedAs === 'material' ? (
                           <span className="text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
