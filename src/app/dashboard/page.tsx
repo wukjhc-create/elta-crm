@@ -98,9 +98,11 @@ export default async function DashboardPage() {
   ])
 
   const companySettings = settingsResult.success && settingsResult.data ? settingsResult.data : null
+  const rejectionStatsError = !rejectionStatsResult.success
   const rejectionStats = rejectionStatsResult.success && rejectionStatsResult.data
     ? rejectionStatsResult.data
     : null
+  const recentRejectionsError = !recentRejectionsResult.success
   const recentRejections = recentRejectionsResult.success && recentRejectionsResult.data
     ? recentRejectionsResult.data
     : []
@@ -248,9 +250,11 @@ export default async function DashboardPage() {
       {canViewOffers && <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <StatCard
           title="Afviste tilbud"
-          value={rejectionStats?.totalRejected ?? 0}
+          value={rejectionStatsError ? '—' : (rejectionStats?.totalRejected ?? 0)}
           subtitle={
-            rejectionStats && rejectionStats.totalRejected > 0
+            rejectionStatsError
+              ? 'Kunne ikke hente afvisninger. Det tælles ikke som 0.'
+              : rejectionStats && rejectionStats.totalRejected > 0
               ? `${rejectionStats.rejectionRate.toFixed(1)}% afvisningsrate (90 dage)`
               : 'Ingen afviste tilbud i scope'
           }
@@ -360,7 +364,11 @@ export default async function DashboardPage() {
                 </Link>
               )}
             </div>
-            {recentRejections.length === 0 ? (
+            {recentRejectionsError ? (
+              <p className="text-sm text-red-700" data-testid="dashboard-rejections-load-error">
+                {recentRejectionsResult.error ?? 'Kunne ikke hente afviste tilbud'}. Det tælles ikke som ingen afvisninger.
+              </p>
+            ) : recentRejections.length === 0 ? (
               <p className="text-sm text-gray-500 italic">Ingen afviste tilbud endnu.</p>
             ) : (
               <ul className="divide-y">
