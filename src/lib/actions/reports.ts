@@ -187,6 +187,19 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
         .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
     ])
 
+    if (
+      acceptedOffersResult.error ||
+      pendingOffersResult.error ||
+      acceptedCountResult.error ||
+      rejectedCountResult.error ||
+      allOffersResult.error ||
+      activeProjectsResult.error ||
+      monthEntriesResult.error ||
+      topCustomerResult.error
+    ) {
+      return { success: false, error: 'Kunne ikke hente nøgletal' }
+    }
+
     // Calculate revenue
     // Rapport-review 2026-10-09 (#2): omsætning/værdi EKSKL. moms (final − tax) — som salgstragten og contract_sum;
     // dashboardet brugte subtotal før rabat, rapporterne beløb inkl. moms → tre forskellige tal for samme tilbud
