@@ -226,6 +226,32 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | FC-10 | Fakturaårsserie i UTC (1/1 00–01 dansk tid → forrige år) (S4) | BLOCKED_APPROVAL [MIGRATION 00263] (= TZ-5) |
 | FC-11 | Fakturakontrollens dækningstal sammenligner listepris med dagens kost (uden enhed/historik) (S4) | DONE (kode, delvis) — faktureret enhedspris (total/antal) + enhedstjek som loaderen (coverage-billed-unit-test 3, invoice-pipeline 10/10). Rest: prishistorik (costPriceAtDate) i dækningstallet |
 
+## NEXT-53 (mobil + performance-review 2026-10-20 — montørflows og varme sider)
+| # | Fund | Status |
+|---|---|---|
+| MB2-1 | Opgavesiden: "udført"-cirkel 20×20 px, status-select ~22 px (S3) | TODO |
+| MB2-2 | Timeformular på sagen: dato/tid-felter klippes på telefon (grid-cols-2 + w-1/2) (S3) | TODO |
+| MB2-3 | Ret afvist time: små felter/knapper; sats-select ~24 px (S3) | TODO |
+| MB2-4 | Sagsfaner: ~9 faner, kun ~3 synlige; aktiv fane fra deeplink rulles ikke frem (S3) | TODO |
+| MB2-5 | Dokumentliste: Åbn/Slet ~30 px side om side (S3) | TODO |
+| MB2-6 | "Mine timer": rækker ikke klikbare, kun 12 vist (S3) | TODO |
+| MB2-7 | Lange ord/URL'er i noter/beskrivelse sprænger bredden (S4) | TODO |
+| MB2-8 | Note-redigering: små Gem/Annullér (S4) | TODO |
+| MB2-9 | Afleveringsfotos: ét foto pr. valg, fanen genindlæses efter hvert (S4) | TODO |
+| MB2-10 | Kalender: I dag/dato/visning-knapper ~30 px (S4) | TODO |
+| MB2-11 | Underskrift: navnefeltet autoudfylder montørens navn (S4) | TODO |
+| MB2-12 | "Mine job"-header klemt (S4) | TODO |
+| PF3-1 | Kundesiden: ~13 serielle server-actions ved åbning (S3) | TODO |
+| PF3-2 | getWorkOrderScope henter ALLE montørens arbejdsordre-id'er pr. tidsregistrering/fane (S3) | TODO |
+| PF3-3 | Kalender: backlog/uden-tid hentes efter Promise.all, serielle bidder, O(n²) spread (S3) | TODO |
+| PF3-4 | Opgavesiden: getActiveProfiles for montør + ufiltreret realtime (S3) | TODO |
+| PF3-5 | Thumbnails henter fulde billeder uden lazy (S3) | TODO |
+| PF3-6 | Planlægning-fanen: ~7 serielle actions (S3) | TODO |
+| PF3-7 | Kundeliste: betalingsview tælles 6 gange; auto-tal før listen (S4) | TODO |
+| PF3-8 | Chat/tilbud poller i skjult fane (S4) | TODO |
+| PF3-9 | Kalender månedsvisning: påmindelser efter Promise.all (S4) | TODO |
+| PF3-10 | Sagsliste select('*') for 50–500 rækker (S4) | TODO |
+
 ## NEXT-52 (dead-end-review 2026-10-19 — knapper/faner serveren afviser)
 | # | Fund | Status |
 |---|---|---|
@@ -435,9 +461,9 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-15b | /api/dashboard/stats "Åbne cases" uden sags-scope (salg ser firmaets tal) (S3) | DONE (kode) — samme sags-scope som cockpittet (DB-1) (U49/U13) |
 | DB-15c | Tilbuds-kr-værdier på dashboardet summerer alle valutaer (rapporten kun DKK) (S3) | DONE (kode) — summer kun DKK (offerExVatDkk), som rapporten |
 | DB-15d | Overskredne opgaver: overdueCount = listens 5 (S4) | DONE (kode) — count: exact; kortet viser "N overskredne" og "+N flere" |
-| DB-15e | Portalbeskeder: headline loftet ved 500; link uden filter (S4) | TODO |
-| DB-15f | Webhenvendelser: kort 90 dage/uden lead, link alle (S4) | TODO |
-| DB-15g | Mails kræver svar: kort 14 dage/tråde, link alle (S4) | TODO |
+| DB-15e | Portalbeskeder: headline loftet ved 500; link uden filter (S4) | DELVIS (kode) — tallet = count af alle ulæste (ikke listens 500); kundeliste-filter for ulæste portalbeskeder = TODO |
+| DB-15f | Webhenvendelser: kort 90 dage/uden lead, link alle (S4) | DONE (kode, U215) — link ?filter=webform&days=90; maillisten filtrerer på ?days med chip + "Vis alle" (lead-udelukkelse vises fortsat i listen) |
+| DB-15g | Mails kræver svar: kort 14 dage/tråde, link alle (S4) | DONE (kode, U215) — headline-link ?days=14; "ældre"-linket uden vindue |
 | DB-15h | Opfølgningsrækkernes alder fra created_at (tal/filter fra sent_at) (S4) | DONE (kode) — alder fra sent_at (fallback created_at) (U205) |
 | DB-15i | Gamle kladder > 14 dage: link viser alle kladder (S4) | DONE (kode, U213) — ?staleDays=14 (kladder ældre end 14 dage) med filterchip |
 | DB-15j | Leads-opfølgning: link viser alle åbne leads (S4) | DONE (kode, U213) — ?staleDays=7 på leads (åbne, uændret i 7 dage) med note |

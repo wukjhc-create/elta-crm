@@ -603,7 +603,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const ctx = roleCtx
         if (!ctx.hasPermission('customers.edit')) return
         overview.portal.allowed = true // DB-8
-        const { data } = await supabase.from('portal_messages').select('customer_id, created_at, customer:customers(company_name)')
+        // DB-15e (dashboard-review 2026-10-19): tallet er alle ulæste (count), listen grupperes af de 500 ældste
+        const { data, count: unreadTotal } = await supabase.from('portal_messages').select('customer_id, created_at, customer:customers(company_name)', { count: 'exact' })
           .eq('sender_type', 'customer').is('read_at', null).order('created_at', { ascending: true }).limit(500)
         const rows = (data ?? []) as Array<{ customer_id: string; created_at: string; customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>
         const byCustomer = new Map<string, { id: string; name: string; unread: number; oldestDays: number }>()
@@ -613,7 +614,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           cur.unread += 1
           byCustomer.set(m.customer_id, cur)
         }
-        overview.portal = { unreadCount: rows.length, customers: Array.from(byCustomer.values()).slice(0, TOP_N) }
+        overview.portal = { allowed: true, unreadCount: unreadTotal ?? rows.length, customers: Array.from(byCustomer.values()).slice(0, TOP_N) }
       } catch (err) {
         logger.error('getDashboardOverview: portal failed', { error: err })
         overview.errors.portal = err instanceof Error ? err.message : 'failed'

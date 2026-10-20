@@ -104,7 +104,7 @@ function MailsCard({ overview }: { overview: DashboardOverview }) {
       title="Mails kræver svar"
       icon={<Mail className="h-4 w-4" />}
       tone={requiresResponseCount > 0 ? 'amber' : 'green'}
-      href={MAIL_HREF}
+      href={`${MAIL_HREF}&days=14`}
       headline={requiresResponseCount}
       headlineLabel="ubesvarede tråde (seneste 14 dage)"
       error={err}
@@ -347,7 +347,7 @@ function WebInquiriesCard({ overview }: { overview: DashboardOverview }) {
       title="Henvendelser fra hjemmesiden"
       icon={<Mail className="h-4 w-4" />}
       tone={count > 0 ? 'red' : 'green'}
-      href="/dashboard/mail?filter=webform"
+      href="/dashboard/mail?filter=webform&days=90"
       headline={count}
       headlineLabel={count > 0 ? 'uden kunde eller lead (90 dage)' : 'henvendelser at følge op'}
       error={err}

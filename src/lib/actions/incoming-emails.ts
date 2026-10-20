@@ -64,6 +64,8 @@ export async function getIncomingEmails(options?: {
   search?: string
   page?: number
   pageSize?: number
+  /** DB-15f/g: kun mails modtaget de seneste N dage (cockpittets kort: webhenvendelser 90, kræver svar 14) */
+  sinceDays?: number
 }): Promise<{ data: IncomingEmailWithCustomer[]; count: number; error?: string }> {
   // LC-9 (review 2026-10-17): app-gate som sidens (inbox.view) — RLS lader salg læse hele kontakt@/ordre@ (leverandør-nettopriser)
   { const denied = await gateDenied('inbox.view'); if (denied) return { data: [], count: 0, error: denied } }
@@ -117,6 +119,11 @@ export async function getIncomingEmails(options?: {
       q = q.neq('link_status', 'ignored')
     }
     // ('requires_response' afgrænses af id-sættet nedenfor)
+
+    // DB-15f/g: tidsvindue som kortet der linker hertil
+    if (options?.sinceDays && Number.isInteger(options.sinceDays) && options.sinceDays > 0 && options.sinceDays <= 365) {
+      q = q.gte('received_at', new Date(Date.now() - options.sinceDays * 86_400_000).toISOString())
+    }
 
     // Apply read/unread filter
     if (readFilter === 'unread') {

@@ -171,6 +171,9 @@ export function MailClient() {
   // URL-driven state
   const currentFilter = (searchParams.get('filter') as FilterTab) || 'all'
   const currentPage = parseInt(searchParams.get('page') || '1')
+  // DB-15f/g: ?days=N fra cockpittets kort (samme tidsvindue som tallet)
+  const sinceDaysRaw = parseInt(searchParams.get('days') || '', 10)
+  const sinceDays = Number.isInteger(sinceDaysRaw) && sinceDaysRaw > 0 && sinceDaysRaw <= 365 ? sinceDaysRaw : undefined
   // Sprint 8E noise-cleanup: ?debug=1 viser 'Ignorerede'-tab + tillader
   // direkte navigation til ignored-filter. Uden debug skjules tabben helt.
   const isDebugMode = searchParams.get('debug') === '1' || showDebug
@@ -195,6 +198,7 @@ export function MailClient() {
           search: search || undefined,
           page: currentPage,
           pageSize: 25,
+          sinceDays,
         }),
         getIncomingEmailStats(),
         getGraphSyncState(),
@@ -247,7 +251,7 @@ export function MailClient() {
     } finally {
       setIsLoading(false)
     }
-  }, [currentFilter, readFilter, sortOrder, search, currentPage])
+  }, [currentFilter, readFilter, sortOrder, search, currentPage, sinceDays])
 
   useEffect(() => {
     loadEmails()
@@ -327,6 +331,7 @@ export function MailClient() {
           search: search || undefined,
           page: currentPage,
           pageSize: 25,
+          sinceDays,
         }),
         getIncomingEmailStats(),
         getGraphSyncState(),
@@ -1160,6 +1165,16 @@ export function MailClient() {
           )
         })}
       </div>
+
+      {sinceDays && (
+        <div className="flex items-center gap-2 text-sm" data-testid="mail-days-chip">
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 rounded-full">Kun de seneste {sinceDays} dage</span>
+          <button type="button" className="text-xs text-blue-700 hover:underline"
+            onClick={() => { const p = new URLSearchParams(searchParams.toString()); p.delete('days'); p.delete('page'); router.push(`/dashboard/mail?${p.toString()}`) }}>
+            Vis alle
+          </button>
+        </div>
+      )}
 
       {/* N63: ryd op i uidentificerede — arkivér de viste (ikke-destruktivt; kan gendannes under "Arkiveret") */}
       {currentFilter === 'unidentified' && emails.length > 0 && (
