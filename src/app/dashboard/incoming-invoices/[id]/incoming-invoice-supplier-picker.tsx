@@ -23,11 +23,17 @@ export function IncomingInvoiceSupplierPicker({ invoiceId }: { invoiceId: string
   const [busy, setBusy] = useState(false)
   const [alsoSameDomain, setAlsoSameDomain] = useState(true)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
     void getIncomingInvoiceSupplierContextAction(invoiceId).then((r) => {
-      if (!alive || !r.success || !r.data) return
+      if (!alive) return
+      if (!r.success || !r.data) {
+        setLoadError(r.error || 'Kunne ikke hente leverandører. Det tælles ikke som ingen.')
+        return
+      }
+      setLoadError(null)
       setCtx(r.data)
       setChoice(r.data.supplierId ?? '')
       setName(r.data.suggestedName ?? '')
@@ -35,6 +41,9 @@ export function IncomingInvoiceSupplierPicker({ invoiceId }: { invoiceId: string
     return () => { alive = false }
   }, [invoiceId])
 
+  if (loadError) {
+    return <p className="text-sm text-red-800" data-testid="invoice-supplier-load-error">{loadError}</p>
+  }
   if (!ctx || ctx.locked) return null
 
   const save = async () => {
