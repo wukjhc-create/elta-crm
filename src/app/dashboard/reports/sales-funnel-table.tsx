@@ -4,7 +4,7 @@
  * N53: salgstragt pr. måned — nye kunder → tilbud → sendt → accepteret → faktureret (salgsværdier, ingen kost).
  */
 import { TrendingUp } from 'lucide-react'
-import type { SalesFunnel } from '@/lib/reports/sales-funnel'
+import { funnelMonthRates, type SalesFunnel } from '@/lib/reports/sales-funnel'
 
 const kr = (n: number) => new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 0 }).format(n)
 const monthLabel = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString('da-DK', { month: 'short', year: '2-digit', timeZone: 'UTC' })
@@ -38,7 +38,8 @@ export function SalesFunnelTable({ data }: { data: SalesFunnel | null }) {
           <tbody>
             {data.months.map((m) => (
               <tr key={m.month} className="border-b last:border-b-0" data-testid="funnel-row" data-month={m.month}>
-                <td className="py-2 text-gray-900">{monthLabel(m.month)}</td>
+                {/* Grok eb73e7b7: månedens sendt-/vinderrate (samme regel som totalen; 0 i nævneren = ukendt) */}
+                <td className="py-2 text-gray-900">{monthLabel(m.month)}<div className="text-[11px] font-normal text-gray-600" data-testid="funnel-month-rates">Sendt {pct(funnelMonthRates(m).sent_rate)} · vundet {pct(funnelMonthRates(m).win_rate)}</div></td>
                 <td className="py-2 text-right tabular-nums">{m.new_customers}</td>
                 <td className="py-2 text-right tabular-nums">{m.offers_created}</td>
                 <td className="py-2 text-right tabular-nums">{m.offers_sent}</td>

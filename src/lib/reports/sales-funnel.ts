@@ -29,6 +29,14 @@ export interface SalesFunnel {
 }
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+
+/** Samme rate som totalen: sendt/oprettet og accepteret/sendt. 0 i nævneren er ukendt, ikke 0 %. */
+export function funnelMonthRates(month: Pick<FunnelMonth, 'offers_created' | 'offers_sent' | 'offers_accepted'>): { sent_rate: number | null; win_rate: number | null } {
+  return {
+    sent_rate: month.offers_created > 0 ? r2((month.offers_sent / month.offers_created) * 100) : null,
+    win_rate: month.offers_sent > 0 ? r2((month.offers_accepted / month.offers_sent) * 100) : null,
+  }
+}
 const monthOf = (iso: string) => copenhagenParts(iso).date.slice(0, 7)
 
 /** De seneste `count` måneder til og med `now`s måned (ældste først). */
