@@ -36,7 +36,7 @@ ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.p
 ok(view.includes('setFilter({ page: (data.page ?? 1) - 1 }, true)'), 'forrige side bliver')
 ok(view.includes('setFilter({ page: (data.page ?? 1) + 1 }, true)'), 'naeste side bliver')
 ok(view.includes('<div className="mt-3 space-y-3 break-words min-w-0">'), 'filterindholdet kan stadig krympe')
-ok(view.includes('<dd className="tabular-nums text-gray-900 break-words">{kr(r.quoted_revenue)}</dd>'), 'tilbudt mobilbeloeb er stadig uden min-w-0')
+ok(view.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.quoted_revenue)}</dd>'), 'tilbudt mobilbeloeb kan krympe')
 ok(view.split('tabular-nums text-gray-900 break-words').length - 1 === 4, 'mobilens fire beloeb bliver')
 
 if (bad > 0) {
