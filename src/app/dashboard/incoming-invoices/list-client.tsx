@@ -208,7 +208,7 @@ export function IncomingInvoicesListClient({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 break-words min-w-0">
         {FILTERS.map((f) => {
           const count = countFor(counts, f.key, countsError != null)
           const active = filter === f.key
