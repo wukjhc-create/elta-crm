@@ -1627,6 +1627,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogotteogtredivte (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `d086a020`. Det lader hundredeogsyvogtredivte-hegnet stå. `d086a020` hedder `feat(invoice): henter-linjen paa fakturalistens mobiliste kan krympe`. `0efffb50` hedder `feat(invoice): aabn-raekken paa fakturalistens mobilkort kan krympe`. `origin/grok-next` er `d086a020`. Push af `d086a020` lykkedes. `0efffb50` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `0efffb50..d086a020`
+
+```
+d086a020 feat(invoice): henter-linjen paa fakturalistens mobiliste kan krympe
+0efffb50 feat(invoice): aabn-raekken paa fakturalistens mobilkort kan krympe
+```
+
+Listen er skiftets commits fra `0efffb50` til og med `d086a020`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+dddf7265 docs: checkpoint efter 0efffb50
+```
+
+### Features
+
+G18-886 lader kun Henter-linjen på fakturalistens mobiliste krympe. Teksten bliver. Skrivebordets celle bliver. G18-885 lader kun Åbn-rækken på fakturalistens mobilkort krympe. Knappen bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-mobile-loading-wrap-test.ts` og `scripts/incoming-invoice-mobile-open-row-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for Åbn-rækken exiterede 0 sammen med det commit, der ændrede Henter-linjen. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `d086a020`. `0efffb50` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d086a020`, herunder G18-748 til G18-886. `dddf7265` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `d086a020`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-887, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogsyvogtredivte (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `0efffb50`. Det lader hundredeogseksogtredivte-hegnet stå. `0efffb50` hedder `feat(invoice): aabn-raekken paa fakturalistens mobilkort kan krympe`. `a919157f` hedder `feat(invoice): konfidenslinjen paa fakturalistens mobilkort kan krympe`. `origin/grok-next` er `0efffb50`. Push af `0efffb50` lykkedes. `a919157f` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
