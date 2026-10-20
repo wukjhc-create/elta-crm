@@ -59,7 +59,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
               <th className="pb-2 font-medium text-gray-500 text-right break-words min-w-0">Faktureret</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="break-words min-w-0">
             {data.months.map((m) => (
               <tr key={m.month} className="border-b last:border-b-0" data-testid="funnel-row" data-month={m.month}>
                 <td className="py-2 text-gray-900 break-words min-w-0">{monthLabel(m.month)}<div className="text-[11px] font-normal text-gray-600 break-words" data-testid="funnel-month-rates">Sendt {pct(funnelMonthRates(m).sent_rate)} · vundet {pct(funnelMonthRates(m).win_rate)}</div></td>
