@@ -439,7 +439,11 @@ function ExpandedInvoices({
     return <div className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Henter fakturaer…</div>
   }
   if (expansion.error || !d) {
-    return <p className="text-xs text-red-600">{expansion.error || 'Ingen data'}</p>
+    return (
+      <p className="text-xs text-red-700 break-words" data-testid="purchase-ops-expand-error">
+        {expansion.error || 'Kunne ikke hente fakturaerne'}. Det tælles ikke som 0 linjer.
+      </p>
+    )
   }
   if (d.unconverted_line_count === 0 || d.invoices.length === 0) {
     return (
