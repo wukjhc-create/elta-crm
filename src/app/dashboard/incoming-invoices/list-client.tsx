@@ -396,7 +396,7 @@ function DuplicateBadge() {
 
 function NotInvoiceBadge() {
   return (
-    <span className="inline-block text-[10px] bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded" data-testid="invoice-not-invoice-badge"
+    <span className="inline-block text-[10px] bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded break-words min-w-0" data-testid="invoice-not-invoice-badge"
       title="Privat afsender (fx gmail/hotmail), ingen leverandør og intet beløb — sandsynligvis en kundemail, ikke en leverandørfaktura">
       Ikke en faktura?
     </span>
