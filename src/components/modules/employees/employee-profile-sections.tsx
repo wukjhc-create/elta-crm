@@ -44,6 +44,37 @@ function Card({ icon, title, children }: { icon: React.ReactNode; title: string;
     </div>
   )
 }
+function FetchNote({ message }: { message: string }) {
+  return <p className="text-sm text-red-700">{message}. Det tælles ikke som en tom liste.</p>
+}
+
+function useEmployeeRead<T>(
+  employeeId: string,
+  read: (id: string) => Promise<{ success: boolean; data?: T; error?: string }>,
+  fallback: string,
+) {
+  const [value, setValue] = useState<T | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => {
+    let alive = true
+    setLoaded(false)
+    setError(null)
+    setValue(null)
+    read(employeeId).then((r) => {
+      if (!alive) return
+      if (r.success && r.data !== undefined) setValue(r.data)
+      else if (!r.success) setError(r.error ?? fallback)
+    }).catch(() => {
+      if (alive) setError(fallback)
+    }).finally(() => {
+      if (alive) setLoaded(true)
+    })
+    return () => { alive = false }
+  }, [employeeId, read, fallback])
+  return { value, error, loaded }
+}
+
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3 py-1 text-sm border-b last:border-b-0">
@@ -55,16 +86,14 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
 
 // ---------------- Badges ----------------
 export function EmployeeProfileBadges({ employeeId, employeeActive }: { employeeId: string; employeeActive: boolean }) {
-  const [login, setLogin] = useState<EmployeeLoginStatus | null>(null)
-  const [certs, setCerts] = useState<EmployeeCertificate[]>([])
-  const [equip, setEquip] = useState<EmployeeEquipment[]>([])
-  const [ot, setOt] = useState<EmployeeOvertimeRate[]>([])
-  useEffect(() => {
-    getEmployeeLoginStatus(employeeId).then((r) => r.success && r.data && setLogin(r.data))
-    listCertificates(employeeId).then((r) => r.success && r.data && setCerts(r.data))
-    listEquipment(employeeId).then((r) => r.success && r.data && setEquip(r.data))
-    listEmployeeOvertimeRates(employeeId).then((r) => r.success && r.data && setOt(r.data))
-  }, [employeeId])
+  const loginRead = useEmployeeRead(employeeId, getEmployeeLoginStatus, 'Kunne ikke tjekke login')
+  const certRead = useEmployeeRead(employeeId, listCertificates, 'Kunne ikke tjekke certifikater')
+  const equipRead = useEmployeeRead(employeeId, listEquipment, 'Kunne ikke tjekke udstyr')
+  const otRead = useEmployeeRead(employeeId, listEmployeeOvertimeRates, 'Kunne ikke tjekke satser')
+  const login = loginRead.value
+  const certs = certRead.value ?? []
+  const equip = equipRead.value ?? []
+  const ot = otRead.value ?? []
 
   const certWarn = certs.some((c) => !c.archived && ['expiring', 'expired'].includes(certificateStatus(c.expires_date)))
   const issued = equip.some((e) => e.status === 'udleveret')
@@ -81,7 +110,10 @@ export function EmployeeProfileBadges({ employeeId, employeeActive }: { employee
   return (
     <div className="flex flex-wrap gap-2 pt-3 border-t">
       {!employeeActive && <B tone="warn"><AlertTriangle className="w-3.5 h-3.5" />Medarbejder inaktiv</B>}
-      {login?.has_login ? <B tone="ok"><ShieldCheck className="w-3.5 h-3.5" />Har login</B> : <B tone="muted"><ShieldOff className="w-3.5 h-3.5" />Intet login</B>}
+      {loginRead.error ? <B tone="warn"><AlertTriangle className="w-3.5 h-3.5" />Login kunne ikke tjekkes</B> : login?.has_login ? <B tone="ok"><ShieldCheck className="w-3.5 h-3.5" />Har login</B> : <B tone="muted"><ShieldOff className="w-3.5 h-3.5" />Intet login</B>}
+      {certRead.error && <B tone="warn"><Award className="w-3.5 h-3.5" />Certifikater kunne ikke tjekkes</B>}
+      {equipRead.error && <B tone="warn"><Wrench className="w-3.5 h-3.5" />Udstyr kunne ikke tjekkes</B>}
+      {otRead.error && <B tone="warn"><Clock className="w-3.5 h-3.5" />Satser kunne ikke tjekkes</B>}
       {loginDeact && <B tone="warn"><ShieldOff className="w-3.5 h-3.5" />Login deaktiveret</B>}
       {certWarn && <B tone="warn"><Award className="w-3.5 h-3.5" />Certifikat udløber</B>}
       {issued && <B tone="info"><Wrench className="w-3.5 h-3.5" />Udstyr udleveret</B>}
@@ -92,12 +124,10 @@ export function EmployeeProfileBadges({ employeeId, employeeActive }: { employee
 
 // ---------------- Login (read-only) ----------------
 export function EmployeeLoginSummary({ employeeId }: { employeeId: string }) {
-  const [s, setS] = useState<EmployeeLoginStatus | null>(null)
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => { getEmployeeLoginStatus(employeeId).then((r) => { if (r.success && r.data) setS(r.data); setLoaded(true) }) }, [employeeId])
+  const { value: s, error, loaded } = useEmployeeRead(employeeId, getEmployeeLoginStatus, 'Kunne ikke tjekke login')
   return (
     <Card icon={<KeyRound className="w-4 h-4" />} title="Login & adgang">
-      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : !s?.has_login ? (
+      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : error ? <FetchNote message={error} /> : !s?.has_login ? (
         <p className="text-sm text-gray-500">Ingen login knyttet. Knyt/inviter på Rediger medarbejder-siden.</p>
       ) : (
         <>
@@ -119,12 +149,11 @@ export function EmployeeLoginSummary({ employeeId }: { employeeId: string }) {
 
 // ---------------- Overtidssatser (read-only) ----------------
 export function EmployeeOvertimeRatesView({ employeeId }: { employeeId: string }) {
-  const [rates, setRates] = useState<EmployeeOvertimeRate[]>([])
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => { listEmployeeOvertimeRates(employeeId).then((r) => { if (r.success && r.data) setRates(r.data); setLoaded(true) }) }, [employeeId])
+  const read = useEmployeeRead(employeeId, listEmployeeOvertimeRates, 'Kunne ikke hente satser')
+  const rates = read.value ?? []
   return (
     <Card icon={<Clock className="w-4 h-4" />} title="Overtidssatser">
-      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : rates.length === 0 ? (
+      {!read.loaded ? <p className="text-sm text-gray-400">Henter…</p> : read.error ? <FetchNote message={read.error} /> : rates.length === 0 ? (
         <p className="text-sm text-gray-500">Ingen satser. Oprettes/redigeres på Rediger medarbejder-siden.</p>
       ) : (
         <table className="w-full text-sm">
@@ -152,13 +181,12 @@ export function EmployeeOvertimeRatesView({ employeeId }: { employeeId: string }
 
 // ---------------- Udstyr (read-only) ----------------
 export function EmployeeEquipmentView({ employeeId }: { employeeId: string }) {
-  const [items, setItems] = useState<EmployeeEquipment[]>([])
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => { listEquipment(employeeId).then((r) => { if (r.success && r.data) setItems(r.data); setLoaded(true) }) }, [employeeId])
+  const read = useEmployeeRead(employeeId, listEquipment, 'Kunne ikke hente udstyr')
+  const items = read.value ?? []
   const statusTone = (s: string) => s === 'udleveret' ? 'text-emerald-700' : s === 'returneret' ? 'text-gray-500' : 'text-red-700'
   return (
     <Card icon={<Wrench className="w-4 h-4" />} title="Udstyr">
-      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : items.length === 0 ? (
+      {!read.loaded ? <p className="text-sm text-gray-400">Henter…</p> : read.error ? <FetchNote message={read.error} /> : items.length === 0 ? (
         <p className="text-sm text-gray-500">Intet udstyr registreret.</p>
       ) : (
         <div className="overflow-x-auto"><table className="w-full text-sm">
@@ -186,13 +214,12 @@ export function EmployeeEquipmentView({ employeeId }: { employeeId: string }) {
 
 // ---------------- Certifikater (read-only m. udløbs-fremhævning) ----------------
 export function EmployeeCertificatesView({ employeeId }: { employeeId: string }) {
-  const [items, setItems] = useState<EmployeeCertificate[]>([])
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => { listCertificates(employeeId).then((r) => { if (r.success && r.data) setItems(r.data); setLoaded(true) }) }, [employeeId])
+  const read = useEmployeeRead(employeeId, listCertificates, 'Kunne ikke hente certifikater')
+  const items = read.value ?? []
   const active = items.filter((c) => !c.archived)
   return (
     <Card icon={<Award className="w-4 h-4" />} title="Certifikater & kompetencer">
-      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : active.length === 0 ? (
+      {!read.loaded ? <p className="text-sm text-gray-400">Henter…</p> : read.error ? <FetchNote message={read.error} /> : active.length === 0 ? (
         <p className="text-sm text-gray-500">Ingen certifikater registreret.</p>
       ) : (
         <div className="space-y-1.5">
@@ -223,12 +250,11 @@ export function EmployeeCertificatesView({ employeeId }: { employeeId: string })
 
 // ---------------- Historik (read-only) ----------------
 export function EmployeeHistoryView({ employeeId }: { employeeId: string }) {
-  const [events, setEvents] = useState<EmployeeEvent[]>([])
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => { listEmployeeEvents(employeeId).then((r) => { if (r.success && r.data) setEvents(r.data); setLoaded(true) }) }, [employeeId])
+  const read = useEmployeeRead(employeeId, listEmployeeEvents, 'Kunne ikke hente historik')
+  const events = read.value ?? []
   return (
     <Card icon={<History className="w-4 h-4" />} title="Historik">
-      {!loaded ? <p className="text-sm text-gray-400">Henter…</p> : events.length === 0 ? (
+      {!read.loaded ? <p className="text-sm text-gray-400">Henter…</p> : read.error ? <FetchNote message={read.error} /> : events.length === 0 ? (
         <p className="text-sm text-gray-500">Ingen registrerede hændelser endnu.</p>
       ) : (
         <ul className="space-y-2">
