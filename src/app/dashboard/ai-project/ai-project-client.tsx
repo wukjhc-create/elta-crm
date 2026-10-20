@@ -78,16 +78,26 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
   const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [recentAnalyses, setRecentAnalyses] = useState<{ id: string; description: string; total_price: number; created_at: string }[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [historyTry, setHistoryTry] = useState(0)
+  const [customerLoadError, setCustomerLoadError] = useState<string | null>(null)
 
   // Load recent analyses on mount
   useEffect(() => {
-    async function loadHistory() {
-      const res = await listAnalyses({ limit: 10 })
-      if (res.success && res.data) setRecentAnalyses(res.data)
-      setLoadingHistory(false)
-    }
-    loadHistory()
-  }, [])
+    let alive = true
+    setLoadingHistory(true)
+    setHistoryError(null)
+    listAnalyses({ limit: 10 }).then((res) => {
+      if (!alive) return
+      if (res.success) setRecentAnalyses(res.data ?? [])
+      else setHistoryError(res.error ?? 'Kunne ikke hente analyser')
+    }).catch(() => {
+      if (alive) setHistoryError('Kunne ikke hente analyser')
+    }).finally(() => {
+      if (alive) setLoadingHistory(false)
+    })
+    return () => { alive = false }
+  }, [historyTry])
 
   // Quick analyze as user types (debounced)
   const handleDescriptionChange = useCallback(async (value: string) => {
@@ -113,24 +123,28 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
     setAnalyzing(true)
     setResult(null)
 
-    const res = await analyzeProjectDescription({
-      description,
-      options: {
-        hourly_rate: 450,
-        margin_percentage: 25,
-        risk_buffer_percentage: 5,
-        charger_product_id: eltaComponents ? charger?.id ?? null : null,
-      },
-    })
+    try {
+      const res = await analyzeProjectDescription({
+        description,
+        options: {
+          hourly_rate: 450,
+          margin_percentage: 25,
+          risk_buffer_percentage: 5,
+          charger_product_id: eltaComponents ? charger?.id ?? null : null,
+        },
+      })
 
-    if (res.success && res.data) {
-      setResult(res.data)
-      toast.success('Analyse fuldført', `Estimeret pris: ${formatCurrency(res.data.calculation.price.total_price)}`)
-    } else {
-      toast.error('Analyse fejlede', res.error)
+      if (res.success && res.data) {
+        setResult(res.data)
+        toast.success('Analyse fuldført', `Estimeret pris: ${formatCurrency(res.data.calculation.price.total_price)}`)
+      } else {
+        toast.error('Analyse fejlede', res.error)
+      }
+    } catch {
+      toast.error('Analyse fejlede', 'Kunne ikke køre analysen')
+    } finally {
+      setAnalyzing(false)
     }
-
-    setAnalyzing(false)
   }
 
   const toggleSection = (section: string) => {
@@ -152,15 +166,21 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
 
   const loadCustomers = async () => {
     setLoadingCustomers(true)
-    const res = await getCustomers({ pageSize: 100 })
-    if (res.success && res.data) {
-      setCustomers(res.data.data.map((c) => ({
-        id: c.id,
-        name: c.company_name || c.contact_person,
-        email: c.email,
-      })))
+    setCustomerLoadError(null)
+    try {
+      const res = await getCustomers({ pageSize: 100 })
+      if (res.success && res.data) {
+        setCustomers(res.data.data.map((c) => ({
+          id: c.id,
+          name: c.company_name || c.contact_person,
+          email: c.email,
+        })))
+      } else setCustomerLoadError(res.error ?? 'Kunne ikke hente kunder')
+    } catch {
+      setCustomerLoadError('Kunne ikke hente kunder')
+    } finally {
+      setLoadingCustomers(false)
     }
-    setLoadingCustomers(false)
   }
 
   const handleSelectCustomer = async (customerId: string) => {
@@ -612,6 +632,13 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             <div className="h-10 bg-gray-200 rounded" />
             <div className="h-10 bg-gray-200 rounded" />
           </div>
+        ) : historyError ? (
+          <p className="text-sm text-red-700 text-center py-4" data-testid="ai-history-load-error">
+            {historyError}. Det tælles ikke som ingen analyser.{' '}
+            <button type="button" onClick={() => setHistoryTry((n) => n + 1)} className="min-h-[44px] px-2 font-medium underline">
+              Prøv igen
+            </button>
+          </p>
         ) : recentAnalyses.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-4">
             Ingen tidligere analyser endnu
@@ -673,6 +700,13 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                 {loadingCustomers ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                  </div>
+                ) : customerLoadError ? (
+                  <div className="text-center py-8 text-sm text-red-700" data-testid="ai-customer-load-error">
+                    {customerLoadError}. Det tælles ikke som ingen kunder.
+                    <button type="button" onClick={() => void loadCustomers()} className="block mx-auto mt-2 min-h-[44px] px-3 font-medium underline">
+                      Prøv igen
+                    </button>
                   </div>
                 ) : filteredCustomers.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
