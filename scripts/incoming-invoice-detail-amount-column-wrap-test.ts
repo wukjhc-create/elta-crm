@@ -26,7 +26,7 @@ ok(!view.includes('break-words break-words'), 'et break-words')
 ok(view.includes('fmtAmount(inv.amount_incl_vat, inv.currency)'), 'beloebet bliver')
 ok(view.includes('incl. moms'), 'moms-teksten bliver')
 
-const note = '<span className="text-xs text-gray-500">Status og bogføring er uændret.</span>'
+const note = '<span className="text-xs text-gray-500 break-words min-w-0">Status og bogføring er uændret.</span>'
 ok(view.includes(note), 'duplikatteksten bliver')
 ok(view.split(note).length === 2, 'duplikatteksten er en')
 
