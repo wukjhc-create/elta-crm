@@ -48,6 +48,7 @@ import { calculateDBPercentage } from '@/lib/logic/pricing'
 
 interface MaterialsCatalogClientProps {
   initialMaterials: Material[]
+  loadError?: string | null
 }
 
 interface MaterialFormData {
@@ -66,7 +67,7 @@ interface MaterialFormData {
 
 const unitOptions = ['stk', 'm', 'm²', 'm³', 'kg', 'l', 'rulle', 'pakke', 'sæt']
 
-export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogClientProps) {
+export function MaterialsCatalogClient({ initialMaterials, loadError = null }: MaterialsCatalogClientProps) {
   const toast = useToast()
   const [materials, setMaterials] = useState<Material[]>(initialMaterials)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -646,7 +647,11 @@ export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogCli
           )
         })}
 
-        {filteredMaterials.length === 0 && !showCreateForm && (
+        {loadError ? (
+          <p className="text-sm text-red-700 py-8 text-center" data-testid="materials-catalog-load-error">
+            {loadError}. Det tælles ikke som ingen materialer.
+          </p>
+        ) : filteredMaterials.length === 0 && !showCreateForm && (
           <Card className="py-12 text-center text-gray-500">
             <Package className="w-12 h-12 mx-auto mb-4 opacity-30" />
             <p>{searchQuery ? 'Ingen materialer matcher søgningen' : 'Ingen materialer i kataloget'}</p>
