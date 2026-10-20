@@ -313,7 +313,7 @@ export function IncomingInvoicesListClient({
         })}
       </div>
 
-      <div className="hidden md:block border rounded overflow-hidden bg-white">
+      <div className="hidden md:block border rounded overflow-hidden bg-white break-words min-w-0">
         <table className="w-full text-sm break-words min-w-0">
           <thead className="bg-gray-50 text-left text-xs text-gray-600 break-words min-w-0">
             <tr>
