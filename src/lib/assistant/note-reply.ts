@@ -4,5 +4,6 @@
  */
 export function noteSavedReply(label: string, stored: string): string {
   const quote = stored.slice(0, 120)
-  return `📝 Note gemt på ${label}. "${quote}"`
+  const cut = stored.length > 120 ? '…' : ''
+  return `📝 Note gemt på ${label}. "${quote}${cut}"`
 }
