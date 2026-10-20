@@ -365,6 +365,8 @@ async function findByReference(refRaw: string | null): Promise<InvoiceRow[]> {
       .in('invoice_number', Array.from(new Set(numberMatches)))
       .neq('payment_status', 'paid')
       .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
+      // FC-8 (finans-review 2026-10-20): bankbetalinger er kroner — kun DKK-fakturaer kan matches (EUR 1.000 ≠ 1.000 kr)
+      .or('currency.is.null,currency.eq.DKK')
     if (data && data.length > 0) return data as InvoiceRow[]
   }
 
@@ -382,6 +384,8 @@ async function findByReference(refRaw: string | null): Promise<InvoiceRow[]> {
       .not('payment_reference', 'is', null)
       .neq('payment_status', 'paid')
       .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
+      // FC-8 (finans-review 2026-10-20): bankbetalinger er kroner — kun DKK-fakturaer kan matches (EUR 1.000 ≠ 1.000 kr)
+      .or('currency.is.null,currency.eq.DKK')
       .order('id')
       .range(from, to))
   } catch {
@@ -404,6 +408,8 @@ async function findByAmount(amount: number): Promise<InvoiceRow[]> {
     .neq('payment_status', 'paid')
     // Økonomi-review 2026-10-08 (#3): kun udstedte, ikke-annullerede almindelige fakturaer kan modtage betaling
     .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
+      // FC-8 (finans-review 2026-10-20): bankbetalinger er kroner — kun DKK-fakturaer kan matches (EUR 1.000 ≠ 1.000 kr)
+      .or('currency.is.null,currency.eq.DKK')
     .limit(50)
   const full = (data ?? []) as InvoiceRow[]
   // A-13 (review 2026-10-16): restbetaling efter delbetaling — sammenlign også med restbeløbet (final − betalt) på
@@ -416,6 +422,8 @@ async function findByAmount(amount: number): Promise<InvoiceRow[]> {
       .select('*')
       .eq('payment_status', 'partial')
       .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
+      // FC-8 (finans-review 2026-10-20): bankbetalinger er kroner — kun DKK-fakturaer kan matches (EUR 1.000 ≠ 1.000 kr)
+      .or('currency.is.null,currency.eq.DKK')
       .order('id')
       .range(from, to))
   } catch {

@@ -45,7 +45,16 @@ function daysOverdue(dueIso: string, nowMs: number): number {
   return Math.round((b - a) / 86_400_000)
 }
 
-export function computeInvoiceTotals(rows: InvoiceTotalsRow[], nowMs: number): InvoiceTotals {
+/** FC-5: én registreret indbetaling (invoice_payments) */
+export interface InvoicePaymentRow { invoice_id: string; amount: number | string | null; recorded_at: string }
+
+/**
+ * @param payments FC-5 (finans-review 2026-10-20): indbetalinger (mindst denne måneds). Når de gives, er "betalt denne
+ *   måned" = summen af faktiske indbetalinger registreret i den danske kalendermåned (delbetalinger med; en betaling
+ *   28/9 tæller i september, ikke i fakturaens paid_at-måned). Fakturaer markeret betalt uden betalingsrække (ældre,
+ *   amount_paid = 0) tæller med beløbet efter kreditnotaer i paid_at-måneden.
+ */
+export function computeInvoiceTotals(rows: InvoiceTotalsRow[], nowMs: number, payments?: InvoicePaymentRow[]): InvoiceTotals {
   const ym = copenhagenParts(new Date(nowMs)).date.slice(0, 7)
   const credited = new Map<string, number>()
   for (const r of rows) {
@@ -75,10 +84,22 @@ export function computeInvoiceTotals(rows: InvoiceTotalsRow[], nowMs: number): I
       }
     } else if (r.status === 'paid' && r.paid_at && copenhagenParts(String(r.paid_at)).date.slice(0, 7) === ym) {
       if (!dkk) { t.otherCurrencyCount += 1; continue }
+      // FC-5: med betalingsrækker tælles indbetalingerne nedenfor; kun uden registreret indbetaling bruges fakturabeløbet
+      if (payments && Number(r.amount_paid ?? 0) > 0) continue
       // FIN-6 (finance-review 2026-10-17): faktisk indbetalt (før final_amount — en krediteret del talte med som betalt);
       // uden registreret indbetaling (ældre manuelt markerede) = beløb efter kreditnotaer
       const paid = Number(r.amount_paid ?? 0)
       t.paidThisMonth += paid > 0 ? paid : Math.max(0, r2(Number(r.final_amount ?? 0) - (credited.get(r.id) ?? 0)))
+    }
+  }
+  if (payments) {
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    for (const p of payments) {
+      if (!p.recorded_at || copenhagenParts(String(p.recorded_at)).date.slice(0, 7) !== ym) continue
+      const inv = byId.get(p.invoice_id)
+      if (!inv || inv.invoice_type === 'credit' || inv.voided_at) continue
+      if (inv.currency && inv.currency.toUpperCase() !== 'DKK') continue
+      t.paidThisMonth += Number(p.amount ?? 0)
     }
   }
   t.sentUnpaid = r2(t.sentUnpaid)

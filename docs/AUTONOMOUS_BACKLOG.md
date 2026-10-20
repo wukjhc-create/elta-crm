@@ -214,14 +214,14 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 ## NEXT-53 (finans-review 2026-10-20 — faktura/betaling/e-conomic/efterkalkule)
 | # | Fund | Status |
 |---|---|---|
-| FC-1 | Fuldt krediteret faktura / kreditnota kan markeres betalt serverside (stale fane) → sagens "Betalt" for høj (S3) | TODO |
-| FC-2 | Samtidige eksporter: dublet-debitor OG fakturaen bogføres på den forældreløse debitor (= EC-6) (S3) | TODO |
-| FC-3 | Leverandørfaktura med linjer men uden nettobeløb kan bogføres uden afstemning (S3) | TODO |
-| FC-4 | Sagens økonomi tæller afviste/annullerede leverandørfakturaer med; .limit(50) (S3) | TODO |
-| FC-5 | "Betalt denne måned"/likviditet lægger hele amount_paid på paid_at-måneden; delbetalinger tælles ikke (S3) | TODO |
-| FC-6 | Kundekortets fakturatal: .limit(500), valuta blandet, forfalden ved 0,01 kr (S4) | TODO |
+| FC-1 | Fuldt krediteret faktura / kreditnota kan markeres betalt serverside (stale fane) → sagens "Betalt" for høj (S3) | DONE (kode) — markInvoicePaid afviser annulleret faktura, kreditnota og kladde serverside (U29 regression) |
+| FC-2 | Samtidige eksporter: dublet-debitor OG fakturaen bogføres på den forældreløse debitor (= EC-6) (S3) | DONE (kode, ikke end-to-end-testet — kræver e-conomic-sandbox) — krav før POST via midlertidig markør i external_customer_id; taber afviser ("oprettes allerede"), forældet krav (> 10 min) overtages, fejl frigiver kravet; linket sættes kun på eget krav |
+| FC-3 | Leverandørfaktura med linjer men uden nettobeløb kan bogføres uden afstemning (S3) | DONE (kode) — linjer uden nettobeløb giver missing_net_amount (economic-supplier-draft-test +1) |
+| FC-4 | Sagens økonomi tæller afviste/annullerede leverandørfakturaer med; .limit(50) (S3) | DONE (kode) — afviste/annullerede tæller ikke i beløb/ufordelt; alle fakturaer (fetchAllRows) (U28/U47) |
+| FC-5 | "Betalt denne måned"/likviditet lægger hele amount_paid på paid_at-måneden; delbetalinger tælles ikke (S3) | DONE (kode) — "betalt denne måned" og likviditetsgrafen = faktiske indbetalinger (invoice_payments.recorded_at, dansk måned, DKK); ældre uden betalingsrække via paid_at (invoice-totals-test +2, U99/U76) |
+| FC-6 | Kundekortets fakturatal: .limit(500), valuta blandet, forfalden ved 0,01 kr (S4) | DONE (kode) — fetchAllRows, kun DKK i beløbene, forfalden ≥ 0,50 kr |
 | FC-7 | v_customer_payment_summary: valuta blandet, forfalden > 0, betalt = final_amount (S4) | BLOCKED_APPROVAL [MIGRATION] |
-| FC-8 | Bankmatch/registerPayment tjekker ikke valuta (EUR-faktura matches af kr-betaling) (S4) | TODO |
+| FC-8 | Bankmatch/registerPayment tjekker ikke valuta (EUR-faktura matches af kr-betaling) (S4) | DONE (kode) — bankmatch kun mod DKK-fakturaer (alle 4 opslag); manuel registrering uændret |
 | FC-9 | allocate_invoice_number afkorter ved > 9999 (dubletnumre) (S4) | BLOCKED_APPROVAL [MIGRATION] |
 | FC-10 | Fakturaårsserie i UTC (1/1 00–01 dansk tid → forrige år) (S4) | BLOCKED_APPROVAL [MIGRATION] (= TZ-5) |
 | FC-11 | Fakturakontrollens dækningstal sammenligner listepris med dagens kost (uden enhed/historik) (S4) | TODO |
@@ -549,7 +549,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | EC-3 | Leverandør-"Bogfør": kill switch/manglende konto meldt som "allerede bogført" (S2) | DONE (kode) |
 | EC-4 | Kreditnotaer når aldrig e-conomic og markeres ingen steder (S2) | DONE (kode) — regnskabs-widgeten tæller kreditnotaer på eksporterede fakturaer ("skal krediteres manuelt i e-conomic"); forhåndsvisningsteksten rettet |
 | EC-5 | Skrivninger efter lykket eksport fejltjekkes ikke → mulig dobbelt bogføring (S2, plausibel) | DONE (kode, ikke end-to-end-testet — kræver e-conomic-sandbox) — linket fejltjekkes og bindes til kravet (+1 genforsøg, ellers kritisk helbredslog); et forældet krav med succes-log genskaber linket i stedet for at poste igen; debitor-link kun når kunden ikke er koblet |
-| EC-6 | Samtidige eksporter kan oprette to debitorer (S3) | TODO |
+| EC-6 | Samtidige eksporter kan oprette to debitorer (S3) | DONE (kode) — se FC-2 |
 | EC-7 | Samtidige betalingsregistreringer kan poste to gange (S3) | DELVIS — EC-1 fjerner den automatiske vej; manuel claim = TODO |
 | EC-8 | Moms kontrolleres ikke før bogføring (S3) | DELVIS (kode) — momsfri/omvendt betalingspligt kan ikke bogføres automatisk (unit-test, U37); sammenligning af e-conomics momsbeløb før /book kræver sandbox |
 | EC-9 | /supplier-invoices/drafts og cash-book-endpoints findes formentlig ikke (S3, plausibel) | TODO — kræver e-conomic-sandbox |

@@ -22,6 +22,9 @@ eq('differencelinje er info, ikke fejl', [partial.canPost, partial.issues.map((i
 const noLinesNoNet = buildEconomicSupplierInvoiceDraft({ ...base, lines: [], invoice: { ...base.invoice, amount_excl_vat: null, vat_amount: null } })
 eq('ingen linjer + kun inkl. moms → afvises (før: 1250 bogført som omkostning)', [noLinesNoNet.canPost, noLinesNoNet.issues.map((i) => i.code)], [false, ['missing_net_amount']])
 
+// FC-3 (2026-10-20): udlæste linjer men intet nettobeløb (kun inkl. moms) → kan ikke afstemmes → afvises
+const linesNoNet = buildEconomicSupplierInvoiceDraft({ ...base, invoice: { ...base.invoice, amount_excl_vat: null, vat_amount: null } })
+eq('linjer + kun inkl. moms → afvises (før: linjerne bogført uafstemt)', [linesNoNet.canPost, linesNoNet.issues.some((i) => i.code === 'missing_net_amount')], [false, true])
 const derived = buildEconomicSupplierInvoiceDraft({ ...base, lines: [], invoice: { ...base.invoice, amount_excl_vat: null } })
 eq('netto udledt af inkl. − moms', [derived.canPost, derived.economicNet, derived.issues.map((i) => i.code)], [true, 1000, ['net_derived', 'single_line']])
 

@@ -279,6 +279,32 @@ export async function createCustomerInEconomic(
     return { ok: true, status: 'skipped', externalId: cust.external_customer_id }
   }
 
+  // EC-6 (e-conomic-review): to samtidige eksporter så begge "ingen debitor" og oprettede hver sin i e-conomic (EC-5
+  // forhindrede kun, at linket blev overskrevet). Nu et krav FØR POST: en midlertidig markør i external_customer_id (uden
+  // external_provider → læses overalt som "ikke koblet"). Kun den der får kravet opretter; et krav ældre end 10 min
+  // (afbrudt kørsel) kan overtages. Fejler oprettelsen, frigives kravet.
+  const CLAIM_PREFIX = 'pending:'
+  const current = (cust.external_customer_id as string | null) ?? null
+  const claimMarker = `${CLAIM_PREFIX}${Date.now()}:${Math.random().toString(36).slice(2, 10)}`
+  let claimed = false
+  if (!current || current.startsWith(CLAIM_PREFIX)) {
+    const staleClaim = !!current && Number(current.slice(CLAIM_PREFIX.length).split(':')[0]) < Date.now() - 10 * 60_000
+    if (current && !staleClaim) {
+      await logAttempt({ entity_type: 'customer', entity_id: customerId, action: 'create', status: 'skipped', error_message: 'debitor oprettes allerede (samtidig eksport)' })
+      return { ok: false, status: 'failed', error: 'Debitoren oprettes allerede i e-conomic — prøv igen om et øjeblik' }
+    }
+    const claimQ = supabase.from('customers').update({ external_customer_id: claimMarker }).eq('id', customerId)
+    const { data: claimRows, error: claimErr } = await (current ? claimQ.eq('external_customer_id', current) : claimQ.is('external_customer_id', null)).select('id')
+    claimed = !claimErr && (claimRows ?? []).length === 1
+    if (!claimed) {
+      await logAttempt({ entity_type: 'customer', entity_id: customerId, action: 'create', status: 'skipped', error_message: 'debitor oprettes allerede (krav ikke opnået)' })
+      return { ok: false, status: 'failed', error: 'Debitoren oprettes allerede i e-conomic — prøv igen om et øjeblik' }
+    }
+  }
+  const releaseClaim = async () => {
+    if (claimed) await supabase.from('customers').update({ external_customer_id: null }).eq('id', customerId).eq('external_customer_id', claimMarker)
+  }
+
   const cfg = ready.config || {}
   const body = {
     name: cust.company_name || cust.contact_person || 'Unknown',
@@ -299,9 +325,10 @@ export async function createCustomerInEconomic(
   const res = await economicFetch<{ customerNumber: number }>(ready, '/customers', {
     method: 'POST',
     body,
-  })
+  }).catch(async (err: unknown) => { await releaseClaim(); throw err })
 
   if (!res.ok || !res.data?.customerNumber) {
+    await releaseClaim()
     await logAttempt({
       entity_type: 'customer',
       entity_id: customerId,
@@ -315,11 +342,11 @@ export async function createCustomerInEconomic(
 
   const externalId = String(res.data.customerNumber)
   // EC-5: fejltjek + kun når kunden ikke er koblet imens (ellers overskrev en samtidig kørsel den anden debitor)
-  const { error: custLinkErr } = await supabase
+  const linkQ = supabase
     .from('customers')
     .update({ external_customer_id: externalId, external_provider: PROVIDER })
     .eq('id', customerId)
-    .is('external_customer_id', null)
+  const { error: custLinkErr } = await (claimed ? linkQ.eq('external_customer_id', claimMarker) : linkQ.is('external_customer_id', null))
   if (custLinkErr) {
     logger.error('e-conomic: debitor oprettet, men linket kunne ikke gemmes', { entityId: customerId, metadata: { externalId }, error: custLinkErr })
   }

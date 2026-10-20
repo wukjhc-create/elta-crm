@@ -4,7 +4,7 @@
  * Sprint 6B-2 + 6B-3 — server actions for outgoing invoices.
  */
 
-import { computeInvoiceTotals, type InvoiceTotals, type InvoiceTotalsRow } from '@/lib/invoices/invoice-totals'
+import { computeInvoiceTotals, type InvoiceTotals, type InvoiceTotalsRow, type InvoicePaymentRow } from '@/lib/invoices/invoice-totals'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { revalidatePath } from 'next/cache'
 import {
@@ -1772,7 +1772,16 @@ export async function getInvoiceOverviewTotalsAction(nowIso?: string): Promise<{
       .select('id, invoice_type, status, final_amount, amount_paid, credit_of_invoice_id, currency, paid_at, due_date, voided_at')
       .order('id')
       .range(from, to))
-    return { ok: true, totals: computeInvoiceTotals(rows, (nowIso ? new Date(nowIso) : new Date()).getTime()) }
+    // FC-5: denne måneds faktiske indbetalinger (dansk kalendermåned)
+    const nowD = nowIso ? new Date(nowIso) : new Date()
+    const monthStart = copenhagenLocalToIso(`${copenhagenParts(nowD).date.slice(0, 7)}-01`, '00:00')
+    const payments = await fetchAllRows<InvoicePaymentRow>((from, to) => supabase
+      .from('invoice_payments')
+      .select('id, invoice_id, amount, recorded_at')
+      .gte('recorded_at', monthStart)
+      .order('id')
+      .range(from, to))
+    return { ok: true, totals: computeInvoiceTotals(rows, nowD.getTime(), payments) }
   } catch (err) {
     logger.error('getInvoiceOverviewTotalsAction failed', { error: err })
     return { ok: false, message: 'Kunne ikke beregne nøgletal' }
@@ -1981,6 +1990,24 @@ export async function getInvoiceLiquidityChartAction(
   const ym = (s: unknown): string | null => (s ? copenhagenParts(String(s)).date.slice(0, 7) : null)
   let hasData = false
 
+  // FC-5: faktiske indbetalinger i vinduet (DKK, ikke kreditnota/annulleret) pr. dansk kalendermåned
+  {
+    type PayRow = { amount: number | string | null; recorded_at: string; invoice: { currency: string | null; invoice_type: string | null; voided_at: string | null } | Array<{ currency: string | null; invoice_type: string | null; voided_at: string | null }> | null }
+    const pays = await fetchAllRows<PayRow>((from, to) => supabase
+      .from('invoice_payments')
+      .select('id, amount, recorded_at, invoice:invoices!inner(currency, invoice_type, voided_at)')
+      .gte('recorded_at', sinceIso)
+      .order('id')
+      .range(from, to)).catch(() => [] as PayRow[])
+    for (const p of pays) {
+      const inv = Array.isArray(p.invoice) ? p.invoice[0] : p.invoice
+      if (!inv || inv.invoice_type === 'credit' || inv.voided_at) continue
+      if (String(inv.currency ?? 'DKK').toUpperCase() !== 'DKK') continue
+      const m = buckets.get(ym(p.recorded_at) ?? '')
+      if (m) { m.paid_total += Number(p.amount ?? 0); hasData = true }
+    }
+  }
+
   for (const r of data ?? []) {
     // DB-11 (dashboard-review 2026-10-18): grafen viser DKK — fakturaer i anden valuta blev før lagt sammen som kroner
     if (String((r as { currency?: string | null }).currency ?? 'DKK').toUpperCase() !== 'DKK') continue
@@ -1993,12 +2020,11 @@ export async function getInvoiceLiquidityChartAction(
       const m = buckets.get(ym(r.sent_at) ?? '')
       if (m) { m.invoiced_total += amount; hasData = true }
     }
-    // Betalt — paid_at i måneden
-    if (active && r.status === 'paid' && r.paid_at) {
+    // Betalt — FC-5: fakturaer markeret betalt UDEN registreret indbetaling (ældre) tælles i paid_at-måneden; alle
+    // andre tælles via de faktiske indbetalinger nedenfor (i den måned pengene kom ind — også delbetalinger)
+    if (active && r.status === 'paid' && r.paid_at && Number((r as { amount_paid?: number | string | null }).amount_paid ?? 0) <= 0) {
       const m = buckets.get(ym(r.paid_at) ?? '')
-      // FIN-6 (finance-review 2026-10-17): faktisk indbetalt, når det er registreret (krediteret del er ikke betalt)
-      const paid = Number((r as { amount_paid?: number | string | null }).amount_paid ?? 0)
-      if (m) { m.paid_total += paid > 0 ? paid : amount; hasData = true }
+      if (m) { m.paid_total += amount; hasData = true }
     }
     // Kladder — created_at i måneden (vises separat)
     if (r.status === 'draft' && !r.voided_at) {
@@ -2091,14 +2117,16 @@ export async function getCustomerInvoiceOverviewAction(
     }
   }
 
-  const { data: rows, error } = await supabase
+  // FC-6 (finans-review 2026-10-20): alle kundens fakturaer (før .limit(500) → for lave tal for store partnerkunder)
+  const { data: rows, error } = await fetchAllRows<Record<string, unknown> & { id: string }>((from, to) => supabase
     .from('invoices')
     .select(
       'id, invoice_number, invoice_type, status, payment_status, final_amount, amount_paid, currency, created_at, sent_at, paid_at, due_date, voided_at, last_reminder_at, case_id'
     )
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false })
-    .limit(500)
+    .order('id')
+    .range(from, to)).then((d) => ({ data: d, error: null }), (e: unknown) => ({ data: null, error: e }))
 
   if (error) {
     logger.error('getCustomerInvoiceOverviewAction: query failed', { entityId: customerId, error })
@@ -2131,10 +2159,12 @@ export async function getCustomerInvoiceOverviewAction(
     const active = !r.voided_at && !isCredit
     const amount = Number(r.final_amount ?? 0)
     const open = active ? openAmount({ id: r.id as string, final_amount: r.final_amount as number | null, amount_paid: (r as { amount_paid?: number | null }).amount_paid ?? null }, credited) : 0
+    // FC-6: beløb summeres kun i DKK (en EUR-faktura lagt sammen som kroner gav forkerte tal)
+    const dkk = String((r as { currency?: string | null }).currency ?? 'DKK').toUpperCase() === 'DKK'
     if (r.status === 'draft' && !r.voided_at) draftCount += 1
-    if (active && r.status === 'sent') outstanding += open
+    if (active && dkk && r.status === 'sent') outstanding += open
     // FIN-6: faktisk indbetalt; uden registreret indbetaling = beløb efter kreditnotaer
-    if (active && r.status === 'paid') {
+    if (active && dkk && r.status === 'paid') {
       const paid = Number((r as { amount_paid?: number | string | null }).amount_paid ?? 0)
       paidTotal += paid > 0 ? paid : Math.max(0, Math.round((amount - (credited.get(r.id as string) ?? 0)) * 100) / 100)
     }
@@ -2147,11 +2177,11 @@ export async function getCustomerInvoiceOverviewAction(
     let daysOverdue: number | null = null
     if (r.due_date && r.status === 'sent' && active) {
       const days = calendarDaysSince(String(r.due_date), todayMs)
-      if (days > 0 && open > 0) {
+      // FC-6: samme grænse som rykkerne/overblikket (FIN-11) — en øre-rest er ikke forfalden
+      if (days > 0 && open >= 0.5) {
         isOverdue = true
         daysOverdue = days
-        overdueCount += 1
-        overdueTotal += open
+        if (dkk) { overdueCount += 1; overdueTotal += open }
       }
     }
     return {

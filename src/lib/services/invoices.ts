@@ -739,6 +739,16 @@ export async function markInvoicePaid(
   const supabase0 = createAdminClient()
   const { data: cur0 } = await supabase0.from('invoices').select('*').eq('id', invoiceId).maybeSingle()
   if (!cur0) throw new Error(`markInvoicePaid: invoice ${invoiceId} not found`)
+  // FC-1 (finans-review 2026-10-20): før kun skjult i UI'et — en fuldt krediteret (annulleret) faktura eller en kreditnota
+  // kunne markeres betalt fra en forældet fane, og sagens "Betalt" talte beløbet med som modtaget
+  {
+    const c = cur0 as { voided_at?: string | null; invoice_type?: string | null; status?: string }
+    if (c.voided_at || c.invoice_type === 'credit' || c.status === 'draft') {
+      throw new Error(c.invoice_type === 'credit'
+        ? 'En kreditnota kan ikke markeres betalt'
+        : c.voided_at ? 'Fakturaen er krediteret (annulleret) og kan ikke markeres betalt' : 'En kladde kan ikke markeres betalt')
+    }
+  }
   const outstanding = round2((await outstandingByInvoice(supabase0, [cur0 as InvoiceRow])).get(invoiceId) ?? 0)
   let recordedAmount = 0
   if ((cur0 as InvoiceRow).status === 'sent' && outstanding > 0.005) {

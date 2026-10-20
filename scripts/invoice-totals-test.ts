@@ -64,5 +64,31 @@ ok(t.overdue.length === 600 && t.overdue[0].days >= t.overdue[t.overdue.length -
   ok(t11.overdueCount === 0 && t11.overdue.length === 0, 'FIN-11: 0,01 kr rest tælles ikke som forfalden', String(t11.overdueCount))
 }
 
+// FC-5 (2026-10-20): "betalt denne måned" = faktiske indbetalinger i den danske kalendermåned (delbetalinger med)
+{
+  const rows: InvoiceTotalsRow[] = [
+    // betalt 49.000 i sept + 1.000 i okt; paid_at i okt → kun 1.000 hører til oktober
+    { id: 'p1', invoice_type: 'standard', status: 'paid', final_amount: 50000, amount_paid: 50000, currency: 'DKK', paid_at: '2026-10-02T09:00:00Z' },
+    // delbetaling på en stadig sendt faktura → tæller i oktober
+    { id: 'p2', invoice_type: 'standard', status: 'sent', final_amount: 8000, amount_paid: 3000, currency: 'DKK', due_date: '2026-11-01' },
+    // ældre manuelt markeret betalt uden betalingsrække → fakturabeløbet i paid_at-måneden
+    { id: 'p3', invoice_type: 'standard', status: 'paid', final_amount: 2500, amount_paid: 0, currency: 'DKK', paid_at: '2026-10-05T09:00:00Z' },
+    // EUR-faktura — ikke kroner
+    { id: 'p4', invoice_type: 'standard', status: 'sent', final_amount: 1000, amount_paid: 1000, currency: 'EUR' },
+  ]
+  const payments = [
+    { invoice_id: 'p1', amount: 49000, recorded_at: '2026-09-28T10:00:00Z' },
+    { invoice_id: 'p1', amount: 1000, recorded_at: '2026-10-02T09:00:00Z' },
+    { invoice_id: 'p2', amount: 3000, recorded_at: '2026-10-10T09:00:00Z' },
+    { invoice_id: 'p4', amount: 1000, recorded_at: '2026-10-11T09:00:00Z' },
+    // 1/10 kl. 00:30 dansk tid = 30/9 22:30 UTC → oktober
+    { invoice_id: 'p2', amount: 0, recorded_at: '2026-09-30T22:30:00Z' },
+  ]
+  const t = computeInvoiceTotals(rows, now, payments)
+  ok(t.paidThisMonth === 6500, 'FC-5: 1.000 (okt-del) + 3.000 (delbetaling) + 2.500 (ældre uden række); sept-del og EUR ikke med', String(t.paidThisMonth))
+  const legacy = computeInvoiceTotals(rows, now)
+  ok(legacy.paidThisMonth === 52500, 'uden betalingsrækker: gammel regel (bagudkompatibel)', String(legacy.paidThisMonth))
+}
+
 console.log(bad ? `\n${bad} FAIL` : '\nALL PASS')
 process.exit(bad ? 1 : 0)

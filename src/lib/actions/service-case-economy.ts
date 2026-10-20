@@ -231,7 +231,8 @@ export async function getServiceCaseEconomy(
         .from('invoices')
         .select('id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at')
         .eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data, error: null })),
-      supabase
+      // FC-4 (finans-review 2026-10-20): alle sagens leverandørfakturaer (før .limit(50) → totaler for lave på store sager)
+      fetchAllRows((f, t) => supabase
         .from('incoming_invoices')
         .select(`
           id, status, amount_incl_vat, invoice_number, invoice_date,
@@ -246,7 +247,8 @@ export async function getServiceCaseEconomy(
         `)
         .eq('matched_case_id', caseId)
         .order('invoice_date', { ascending: false, nullsFirst: false })
-        .limit(50),
+        .order('id')
+        .range(f, t)).then((data) => ({ data, error: null })),
     ])
 
     // ---- Labor rollup ----
@@ -408,9 +410,12 @@ export async function getServiceCaseEconomy(
       if (inv.status === 'awaiting_approval') si_awaiting += 1
       else if (inv.status === 'approved' || inv.status === 'posted') si_approved += 1
       else if (inv.status === 'rejected' || inv.status === 'cancelled') si_rejected += 1
-      si_total_incl_vat += Number(inv.amount_incl_vat ?? 0)
+      // FC-4: afviste/annullerede fakturaer (fx en afvist dublet) tæller ikke i beløb eller "ufordelt" — som
+      // getServiceCaseUnconvertedSupplierLinesAction (SI_DEAD_STATUSES)
+      const deadInvoice = inv.status === 'rejected' || inv.status === 'cancelled'
+      if (!deadInvoice) si_total_incl_vat += Number(inv.amount_incl_vat ?? 0)
 
-      const lines = Array.isArray(inv.lines) ? inv.lines : []
+      const lines = deadInvoice ? [] : (Array.isArray(inv.lines) ? inv.lines : [])
       let convertedLinesOnInvoice = 0
       let unconvertedLinesOnInvoice = 0
       for (const ln of lines) {

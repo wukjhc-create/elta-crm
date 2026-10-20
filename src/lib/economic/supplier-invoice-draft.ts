@@ -160,7 +160,11 @@ export function buildEconomicSupplierInvoiceDraft(input: SupplierDraftInput): Su
       })
       issues.push({ code: 'single_line', severity: 'info', message: 'Ingen udlæste linjer — fakturaen bogføres som én linje' })
     }
-  } else if (invoiceNet != null) {
+  } else if (invoiceNet == null) {
+    // FC-3 (finans-review 2026-10-20): med udlæste linjer men uden nettobeløb kunne linjerne bogføres uafstemt (fx 800 kr
+    // af en 1.000 kr-faktura, fragt ikke udlæst) — samme regel som uden linjer: beløb ekskl. moms skal kendes
+    issues.push({ code: 'missing_net_amount', severity: 'error', message: 'Beløb ekskl. moms mangler — linjerne kan ikke afstemmes mod fakturaen. Udfyld beløb ekskl. moms (eller moms) på fakturahovedet' })
+  } else {
     const sum = r2(lines.reduce((s, l) => s + l.amount, 0))
     const diff = r2(invoiceNet - sum)
     if (Math.abs(diff) >= 0.005) {
