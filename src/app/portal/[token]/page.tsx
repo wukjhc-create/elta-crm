@@ -51,12 +51,18 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
     <PortalDashboard
       token={token}
       session={session}
-      offers={offersResult.data || []}
-      messages={messagesResult.data || []}
-      documents={documentsResult.data || []}
-      serviceCases={serviceCasesResult.data || []}
-      invoices={invoicesResult.data || []}
-      fuldmagter={fuldmagterResult.data || []}
+      offers={offersResult.success ? offersResult.data || [] : []}
+      offersError={offersResult.success ? null : offersResult.error || 'Kunne ikke hente tilbud'}
+      messages={messagesResult.success ? messagesResult.data || [] : []}
+      messagesError={messagesResult.success ? null : messagesResult.error || 'Kunne ikke hente beskeder'}
+      documents={documentsResult.success ? documentsResult.data || [] : []}
+      documentsError={documentsResult.success ? null : documentsResult.error || 'Kunne ikke hente dokumenter'}
+      serviceCases={serviceCasesResult.success ? serviceCasesResult.data || [] : []}
+      serviceCasesError={serviceCasesResult.success ? null : serviceCasesResult.error || 'Kunne ikke hente serviceopgaver'}
+      invoices={invoicesResult.success ? invoicesResult.data || [] : []}
+      invoicesError={invoicesResult.success ? null : invoicesResult.error || 'Kunne ikke hente fakturaer'}
+      fuldmagter={fuldmagterResult.success ? fuldmagterResult.data || [] : []}
+      fuldmagterError={fuldmagterResult.success ? null : fuldmagterResult.error || 'Kunne ikke hente dokumenter'}
       companySettings={companySettings}
     />
   )

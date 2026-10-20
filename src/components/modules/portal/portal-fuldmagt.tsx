@@ -11,11 +11,22 @@ import { humanizeErrorText } from '@/lib/auth/permission-text'
 interface PortalFuldmagtProps {
   token: string
   fuldmagter: FuldmagtData[]
+  fuldmagterError?: string | null
 }
 
-export function PortalFuldmagtSection({ token, fuldmagter }: PortalFuldmagtProps) {
+export function PortalFuldmagtSection({ token, fuldmagter, fuldmagterError = null }: PortalFuldmagtProps) {
   const pending = fuldmagter.filter((f) => f.status === 'pending')
   const signed = fuldmagter.filter((f) => f.status === 'signed')
+
+  if (fuldmagterError && fuldmagter.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border shadow-sm p-6">
+        <p className="text-sm text-red-700" data-testid="portal-fuldmagt-load-error">
+          {fuldmagterError}. Det tælles ikke som ingen fuldmagter.
+        </p>
+      </div>
+    )
+  }
 
   if (fuldmagter.length === 0) return null
 
