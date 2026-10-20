@@ -300,7 +300,7 @@ export function IncomingInvoicesListClient({
                 <span>Faktura {fmtDate(r.invoice_date)}</span>
                 <DueMarks dueDate={r.due_date} todayIso={todayIso} withLabel />
               </div>
-              <p className="mt-2 text-xs">
+              <p className="mt-2 text-xs break-words min-w-0">
                 <Confidence row={r} />
               </p>
               <div className="mt-3">
