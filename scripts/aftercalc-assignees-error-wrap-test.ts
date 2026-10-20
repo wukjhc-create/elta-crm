@@ -20,7 +20,7 @@ ok(!row.includes('truncate'), 'fejlen klippes ikke')
 ok(view.includes('Ansvarlige kunne ikke hentes. Det tælles ikke som ingen.'), 'sætningen er uændret')
 ok(!view.includes('setAssignees([])'), 'en fejl rydder ikke listen')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet er uændret')
-ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Forrige'), 'Forrige er høj nok')
+ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40 break-words min-w-0">Forrige'), 'Forrige er høj nok')
 ok(view.includes('data-testid="aftercalc-overview-error"'), 'sagsfejlen er uændret')
 
 if (bad > 0) {

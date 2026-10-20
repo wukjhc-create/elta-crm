@@ -35,7 +35,7 @@ ok(view.includes('<td className={`px-2 py-1.5 text-right tabular-nums break-word
 ok(view.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{pct(r.actual_db_pct)}</dd>'), 'faktisk db kan krympe')
 ok(view.split('tabular-nums text-gray-900 break-words').length - 1 === 4, 'mobilens fire beloeb bliver')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
-ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Forrige'), 'Forrige bliver 44 px')
+ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40 break-words min-w-0">Forrige'), 'Forrige bliver 44 px')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

@@ -19,7 +19,7 @@ ok(err.includes('break-words min-w-0'), 'fejlteksten ombrydes')
 ok(err.includes('>{error}</p>'), 'fejludtrykket er uændret')
 ok(!err.includes('truncate'), 'fejlteksten klippes ikke')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet er uændret')
-ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Forrige'), 'Forrige er høj nok')
+ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40 break-words min-w-0">Forrige'), 'Forrige er høj nok')
 ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Næste'), 'Næste er høj nok')
 
 if (bad > 0) {

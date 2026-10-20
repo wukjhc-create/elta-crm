@@ -39,7 +39,7 @@ ok(view.includes('Ingen sager matcher filtrene.'), 'filtertom er uændret')
 ok(view.includes('>Fra dato</span>'), 'fra-dato bliver')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 ok(view.includes('Tilbudt mod faktisk dækningsbidrag pr. sag. Beløb er ekskl. moms.'), 'beloebsteksten bliver')
-ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Forrige'), 'Forrige bliver')
+ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40 break-words min-w-0">Forrige'), 'Forrige bliver')
 const ids = [...view.matchAll(/data-testid="([^"]+)"/g)].map((m) => m[1])
 const collisions = [...new Set(ids)].filter((name) => {
   const q = `data-testid="${name}"`

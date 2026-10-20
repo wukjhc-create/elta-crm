@@ -21,7 +21,7 @@ ok(row.includes('<Loader2 className="w-4 h-4 animate-spin break-words min-w-0" d
 ok(!row.includes('truncate'), 'venteteksten klippes ikke')
 ok(view.includes('{loading && !data &&'), 'den vises kun mens der hentes')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet er uændret')
-ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Forrige'), 'Forrige er høj nok')
+ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40 break-words min-w-0">Forrige'), 'Forrige er høj nok')
 ok(view.includes('data-testid="aftercalc-overview-error"'), 'fejlteksten er uændret')
 
 if (bad > 0) {
