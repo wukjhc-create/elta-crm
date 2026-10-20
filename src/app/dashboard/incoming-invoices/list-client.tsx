@@ -348,7 +348,7 @@ export function IncomingInvoicesListClient({
                     {isTest && <TestBadge />}
                   </div>
                 </td>
-                <td className="px-3 py-2 font-mono text-xs">{r.invoice_number ?? '—'}</td>
+                <td className="px-3 py-2 font-mono text-xs break-words min-w-0">{r.invoice_number ?? '—'}</td>
                 <td className="px-3 py-2 text-right font-medium break-words min-w-0">{fmtAmount(r.amount_incl_vat, r.currency)}</td>
                 <td className="px-3 py-2 text-xs">{fmtDate(r.invoice_date)}</td>
                 <td className="px-3 py-2 text-xs">
