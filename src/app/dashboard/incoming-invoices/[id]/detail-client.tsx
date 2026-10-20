@@ -585,7 +585,7 @@ export function IncomingInvoiceDetailClient({
           </div>
         ) : (
           <div className="space-y-2">
-            <p className="text-xs text-gray-400">Ingen fil tilknyttet (kilde: {incomingInvoiceSourceLabel(inv.source)}).</p>
+            <p className="text-xs text-gray-400 break-words min-w-0">Ingen fil tilknyttet (kilde: {incomingInvoiceSourceLabel(inv.source)}).</p>
             {!terminal && <AttachInvoiceFile invoiceId={inv.id} />}
           </div>
         )}

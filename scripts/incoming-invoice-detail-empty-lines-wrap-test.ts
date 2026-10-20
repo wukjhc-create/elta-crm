@@ -26,7 +26,7 @@ ok(after.includes('Ingen linjer ekstraheret. Uden linjer er der ikke noget at ko
 ok(view.split(bare).length === 1, 'de bare tomme linjer er vaek')
 ok(!view.includes(bare), 'de bare tomme linjer er vaek')
 ok(view.includes('<span className="w-12 shrink-0 text-right font-mono break-words min-w-0">{score.toFixed(2)}</span>'), 'signalscoren bliver')
-ok(view.includes('<p className="text-xs text-gray-400">Ingen fil tilknyttet (kilde: {incomingInvoiceSourceLabel(inv.source)}).</p>'), 'tom fil bliver')
+ok(view.includes('<p className="text-xs text-gray-400 break-words min-w-0">Ingen fil tilknyttet (kilde: {incomingInvoiceSourceLabel(inv.source)}).</p>'), 'tom fil bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
