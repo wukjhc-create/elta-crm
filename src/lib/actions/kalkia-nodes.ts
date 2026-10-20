@@ -341,12 +341,13 @@ export async function deleteKalkiaNode(id: string): Promise<ActionResult> {
     validateUUID(id, 'node ID')
 
     // Check for children
-    const { count } = await supabase
+    const { count, error: childError } = await supabase
       .from('kalkia_nodes')
       .select('*', { count: 'exact', head: true })
       .eq('parent_id', id)
 
-    if (count && count > 0) {
+    if (childError) return { success: false, error: 'Kunne ikke tælle undernoder. Det tælles ikke som 0.' }
+    if ((count ?? 0) > 0) {
       return { success: false, error: 'Kan ikke slette en node med underliggende noder' }
     }
 
