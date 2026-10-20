@@ -309,7 +309,7 @@ function UnbilledCard({ overview }: { overview: DashboardOverview }) {
       title="Klar til fakturering"
       icon={<FileText className="h-4 w-4" />}
       tone={caseCount > 0 ? 'amber' : 'green'}
-      href="/dashboard/orders"
+      href="/dashboard/orders?unbilled=1"
       headline={caseCount}
       headlineLabel={caseCount > 0 ? `sager · ${kr(saleTotal)} ufaktureret` : 'sager med ufaktureret arbejde'}
       error={err}

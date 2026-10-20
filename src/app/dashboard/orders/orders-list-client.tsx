@@ -37,6 +37,8 @@ interface FiltersState {
   priority?: string
   type?: ServiceCaseType
   billing?: CaseBillingFilter
+  /** DB-15k: kun sager med ufaktureret arbejde (cockpittets "Klar til fakturering") */
+  unbilled?: boolean
 }
 
 interface EmployeeOption {
@@ -189,7 +191,12 @@ export function OrdersListClient({
           </div>
         )}
 
-        {(filters.search || filters.status || filters.type || filters.billing) && (
+        {filters.unbilled && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 mb-1 bg-amber-100 rounded-full text-sm" data-testid="orders-unbilled-chip">
+            Med ufaktureret arbejde
+          </span>
+        )}
+        {(filters.search || filters.status || filters.type || filters.billing || filters.unbilled) && (
           <button
             className="text-xs text-emerald-700 hover:underline pb-2"
             onClick={() => startTransition(() => router.push('/dashboard/orders'))}

@@ -27,6 +27,7 @@ interface PageProps {
     priority?: ServiceCasePriority
     type?: ServiceCaseType
     billing?: string
+    unbilled?: string
   }>
 }
 
@@ -62,6 +63,16 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       return data ?? []
     } catch { return [] }
   })()
+  // DB-15k: cockpittets "Klar til fakturering" — sager med fakturerbart arbejde uden faktura (samme definition, kun med
+  // invoices.create; største salgsværdi først)
+  const unbilledOnly = params.unbilled === '1' && (await pageHasPermission('invoices.create'))
+  let unbilledIds: string[] | undefined
+  if (unbilledOnly) {
+    const { supabase } = await getAuthenticatedClient()
+    const { unbilledWorkByCase } = await import('@/lib/cases/unbilled-work')
+    const agg = await unbilledWorkByCase(supabase)
+    unbilledIds = [...agg.entries()].sort((a, b) => b[1].sale - a[1].sale).map(([id]) => id)
+  }
   const [statsRes, casesResult, employeeRows] = await Promise.all([
     canViewAll ? getServiceCaseStats() : Promise.resolve(null),
     getServiceCases({
@@ -71,6 +82,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       status: params.status,
       priority: params.priority,
       type: params.type, // N9c: filteret blev aldrig sendt videre
+      onlyCaseIds: unbilledIds,
     }),
     employeesPromise,
   ])
@@ -167,6 +179,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         priority: params.priority,
         type: params.type,
         billing: billingFilter,
+        unbilled: unbilledOnly,
       }}
     />
   )

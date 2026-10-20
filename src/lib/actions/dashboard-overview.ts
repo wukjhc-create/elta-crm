@@ -438,30 +438,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const ctx = roleCtx
         if (!ctx.hasPermission('invoices.create')) return
         overview.unbilled.allowed = true // DB-8
-        // pagineret (PostgREST afkortede .limit(2000) til 1000 → for lav salgsværdi/antal sager ved mange linjer)
-        const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
-        const [tlRows, matRows, othRows] = await Promise.all([
-          fetchAllRows((f, t) => supabase.from('time_logs').select('id, sale_amount, work_order:work_orders!inner(case_id)')
-            // TT-10: kun godkendte timer er klar til fakturering (afventende springes over af fakturaen)
-            .eq('billable', true).is('invoice_line_id', null).not('end_time', 'is', null).eq('approval_status', 'approved').order('id').range(f, t)),
-          fetchAllRows((f, t) => supabase.from('case_materials').select('id, case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).order('id').range(f, t)),
-          fetchAllRows((f, t) => supabase.from('case_other_costs').select('id, case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).order('id').range(f, t)),
-        ])
-        const tl = { data: tlRows }, mat = { data: matRows }, oth = { data: othRows }
-        const agg = new Map<string, { lines: number; sale: number }>()
-        const add = (caseId: string | null | undefined, sale: unknown) => {
-          if (!caseId) return
-          const cur = agg.get(caseId) ?? { lines: 0, sale: 0 }
-          cur.lines += 1
-          cur.sale += Number(sale ?? 0) || 0
-          agg.set(caseId, cur)
-        }
-        for (const t of (tl.data ?? []) as Array<{ sale_amount: number | string | null; work_order: { case_id: string | null } | Array<{ case_id: string | null }> | null }>) {
-          const wo = Array.isArray(t.work_order) ? t.work_order[0] : t.work_order
-          add(wo?.case_id, t.sale_amount)
-        }
-        for (const m of (mat.data ?? []) as Array<{ case_id: string; total_sales_price: number | string | null }>) add(m.case_id, m.total_sales_price)
-        for (const o of (oth.data ?? []) as Array<{ case_id: string; total_sales_price: number | string | null }>) add(o.case_id, o.total_sales_price)
+        // DB-15k: fælles definition med sagslistens filter (?unbilled=1)
+        const { unbilledWorkByCase } = await import('@/lib/cases/unbilled-work')
+        const agg = await unbilledWorkByCase(supabase)
         if (!agg.size) return
         // i bidder af 200 (én .in() med alle sager sprænger URL-længden ved vækst → tomt kort)
         const aggIds = Array.from(agg.keys())

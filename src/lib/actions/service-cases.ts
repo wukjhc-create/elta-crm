@@ -68,6 +68,8 @@ export async function getServiceCases(filters?: {
   pageSize?: number
   /** Staging-model B: vis kun is_proposal=true. Default vises kun is_proposal=false. */
   proposalsOnly?: boolean
+  /** DB-15k: kun disse sager (fx sager med ufaktureret arbejde); højst 300 id'er */
+  onlyCaseIds?: string[]
 }): Promise<ActionResult<PaginatedResponse<ServiceCaseWithRelations>>> {
   try {
     const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
@@ -114,6 +116,7 @@ export async function getServiceCases(filters?: {
     // scope-id'er sprængte URL-grænsen ~350 → tom sagsliste for en montør efter 1–2 års sager)
     const applyFilters = (q: any): any => {
       q = q.eq('is_proposal', filters?.proposalsOnly === true)
+      if (filters?.onlyCaseIds) q = q.in('id', filters.onlyCaseIds.length ? filters.onlyCaseIds.slice(0, 300) : ['00000000-0000-0000-0000-000000000000'])
       if (filters?.status === 'active') {
         q = q.not('status', 'in', '("closed","converted")')
       } else if (filters?.status) {

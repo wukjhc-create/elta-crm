@@ -441,7 +441,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-15h | Opfølgningsrækkernes alder fra created_at (tal/filter fra sent_at) (S4) | DONE (kode) — alder fra sent_at (fallback created_at) (U205) |
 | DB-15i | Gamle kladder > 14 dage: link viser alle kladder (S4) | DONE (kode, U213) — ?staleDays=14 (kladder ældre end 14 dage) med filterchip |
 | DB-15j | Leads-opfølgning: link viser alle åbne leads (S4) | DONE (kode, U213) — ?staleDays=7 på leads (åbne, uændret i 7 dage) med note |
-| DB-15k | Klar til fakturering: link uden filter (S4) | TODO |
+| DB-15k | Klar til fakturering: link uden filter (S4) | DONE (kode, U214) — fælles definition lib/cases/unbilled-work.ts; cockpit linker til /dashboard/orders?unbilled=1 (kun med invoices.create) med filterchip |
 | DB-15l | "Aktive sager"-tal ekskl. lukket/konverteret, link viser alle (S4) | DONE (kode, U213) — sagslistens status "Aktive (ikke lukket)" (?status=active); kortene linker dertil |
 | DB-15m | Klar til lukning: uden sags-scope + tavs .slice(0,200) (S4) | DONE (kode) — kun cases.close (ser alle); loftet på 200 kandidater nævnes nu |
 | DB-15n | Afviste/tabt (90 dage) linker til alle afviste (S4) | DONE (kode, U213) — ?rejectedDays=90 (afvist inden for 90 dage) med filterchip |
@@ -550,7 +550,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | EC-4 | Kreditnotaer når aldrig e-conomic og markeres ingen steder (S2) | DONE (kode) — regnskabs-widgeten tæller kreditnotaer på eksporterede fakturaer ("skal krediteres manuelt i e-conomic"); forhåndsvisningsteksten rettet |
 | EC-5 | Skrivninger efter lykket eksport fejltjekkes ikke → mulig dobbelt bogføring (S2, plausibel) | DONE (kode, ikke end-to-end-testet — kræver e-conomic-sandbox) — linket fejltjekkes og bindes til kravet (+1 genforsøg, ellers kritisk helbredslog); et forældet krav med succes-log genskaber linket i stedet for at poste igen; debitor-link kun når kunden ikke er koblet |
 | EC-6 | Samtidige eksporter kan oprette to debitorer (S3) | DONE (kode) — se FC-2 |
-| EC-7 | Samtidige betalingsregistreringer kan poste to gange (S3) | DELVIS — EC-1 fjerner den automatiske vej; manuel claim = TODO |
+| EC-7 | Samtidige betalingsregistreringer kan poste to gange (S3) | DONE (verificeret 2026-10-20) — EC-1 fjerner den automatiske e-conomic-vej; "Markér betalt" har claim på updated_at (RC-2), bankmatch claimer transaktionen (matched_invoice_id IS NULL); amount_paid = sum af betalingsrækker |
 | EC-8 | Moms kontrolleres ikke før bogføring (S3) | DELVIS (kode) — momsfri/omvendt betalingspligt kan ikke bogføres automatisk (unit-test, U37); sammenligning af e-conomics momsbeløb før /book kræver sandbox |
 | EC-9 | /supplier-invoices/drafts og cash-book-endpoints findes formentlig ikke (S3, plausibel) | TODO — kræver e-conomic-sandbox |
 | EC-10 | Fejlet eksport efter afsendelse usynlig for brugeren (S3) | TODO (afhænger af EC-2) |
@@ -874,10 +874,10 @@ Proces: prod-migration først når kompatibel kode er pushet (CODE → TEST → 
 | S-5 (S3) | Auto "Følg op: intet svar"-opgave uden due_date (vises ikke) og lukkes ikke ved accept/afvisning | DONE — due_date sættes; lukkes ved accept/afvisning (portal + manuel status, lib/offers/follow-up-tasks.ts). UI U170 |
 | S-6 (S3) | Send på mail: statusskift uden CAS, aktivitet, audit, webhook og revalidering | DONE (kode) — kun kladde→sendt (CAS), fejl logges, statusaktivitet + offer.sent-webhook, liste/dashboard revalideres. Ikke UI-testet: kræver afsendelse (ingen live mail) — gates grønne |
 | S-7 (S3) | Manuel mail→kunde-kobling kan fejle tavst (0 rækker) og kobler ikke resten af tråden | DONE — 0 rækker → fejl; trådens øvrige mails uden kunde kobles med. UI U171 |
-| S-8 (S3) | Indbakke viser tom liste/0-tællere ved DB-fejl | DELVIS — listefejl vises som fejlbanner, baggrundsopdatering tømmer ikke listen ved fejl. Tællere (stats) = TODO |
+| S-8 (S3) | Indbakke viser tom liste/0-tællere ved DB-fejl | DELVIS — listefejl vises som fejlbanner, baggrundsopdatering tømmer ikke listen ved fejl. Tællere: DONE — getIncomingEmailStats melder failed, klienten beholder forrige tal |
 | S-9 (S3) | createCustomerFromEmail kun gated på inbox.view (opretter kunder/leads); quickCreateCustomerFromEmail død men kaldbar | DONE — kræver også customers.create; død action fjernet. UI U68/U52 |
 | S-10 (S4) | Lead-tidslinje viser engelske statuskoder | DONE — nye aktiviteter med danske navne, gamle oversættes ved visning. UI U27 |
-| S-11 (S4) | Accept/afvis-notifikationsmail linker til listen, mangler tilbudsnr./kunde | DELVIS — linker direkte til tilbuddet; tilbudsnr./kunde i teksten = TODO |
+| S-11 (S4) | Accept/afvis-notifikationsmail linker til listen, mangler tilbudsnr./kunde | DONE — linker direkte til tilbuddet; tilbudsnr./kunde i teksten løst under X-8 |
 | S-12 (S4) | Dashboard henter alle mail-leads med fulde custom_fields | DONE — kun JSON-stien source_email_id hentes. UI U68/U53/U70 |
 
 ## NEXT-16 (pilot-review-bølge 2026-10-15 aften — "hvad irriterer brugerne i morgen?")
