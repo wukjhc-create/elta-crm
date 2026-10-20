@@ -405,7 +405,7 @@ export function IncomingInvoiceDetailClient({
                         type="button"
                         onClick={clearCase}
                         disabled={busy || casePickerBusy || clearingCase}
-                        className="text-[11px] px-2 py-0.5 rounded ring-1 ring-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50"
+                        className="text-[11px] px-2 py-0.5 rounded ring-1 ring-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 break-words min-w-0"
                       >
                         {clearingCase ? '…' : 'Fjern sag'}
                       </button>

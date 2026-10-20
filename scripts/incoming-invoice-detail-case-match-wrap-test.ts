@@ -27,7 +27,7 @@ ok(after.includes('Match til sag'), 'match-teksten bliver')
 ok(view.split(bare).length === 1, 'den bare match-knap er vaek')
 ok(!view.includes(bare), 'den bare match-knap er vaek')
 ok(view.includes('className="flex items-center gap-1.5 shrink-0 break-words min-w-0"'), 'sagsknapperne bliver')
-ok(view.includes('className="text-[11px] px-2 py-0.5 rounded ring-1 ring-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50"'), 'fjern-knappen bliver')
+ok(view.includes('className="text-[11px] px-2 py-0.5 rounded ring-1 ring-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 break-words min-w-0"'), 'fjern-knappen bliver')
 ok(after.includes('Fjern sag'), 'fjern-teksten bliver')
 ok(after.includes('…'), 'venteteksten bliver')
 
