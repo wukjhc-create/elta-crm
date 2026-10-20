@@ -2261,6 +2261,14 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'ao-supplier-probe') {
+    // READ-ONLY: hvilke leverandører har koden AO på staging (navn-præfiks, oprettet, antal varer/importer/sync-referencer)
+    log(JSON.stringify(await stagingSql(`SELECT left(s.name, 12) navn_start, (s.name LIKE '[HARNESS]%') harness, s.created_at::date::text oprettet,
+      (SELECT count(*)::int FROM supplier_products p WHERE p.supplier_id = s.id) varer,
+      (SELECT count(*)::int FROM import_batches b WHERE b.supplier_id = s.id) importer
+      FROM suppliers s WHERE upper(s.code) = 'AO'`)))
+    return
+  }
   if (SUB === 'audit-insert-probe') {
     // STAGING: prøver præcis DE2-9's audit-række (samme kolonner) og sletter den igen — viser evt. fejl
     const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id

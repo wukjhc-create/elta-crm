@@ -1100,10 +1100,25 @@ ${m.text()}`) })
       // U17 AO-prisfil-import (ISO-8859-1). Kræver en leverandør med kode 'AO' (AO-konfiguration vælges på koden).
       if (want('U17')) {
         const r: Record<string, boolean> = {}
-        const existingAo = (await c.admin.from('suppliers').select('id').ilike('code', 'AO').maybeSingle()).data as { id?: string } | null
+        let existingAo = (await c.admin.from('suppliers').select('id, name, created_at').ilike('code', 'AO').maybeSingle()).data as { id?: string; name?: string | null; created_at?: string | null } | null
         let note = ''
-        if (existingAo?.id) note = 'staging har allerede en AO-leverandør — springer over for ikke at røre dens data'
-        else {
+        // Test-pålidelighed (2026-10-20): en AO-leverandør fra en AFBRUDT harness-kørsel (oprydningen i den globale finally
+        // nåede aldrig at køre) blokerede U17 for altid. Kun en [HARNESS]-rest ældre end 1 time ryddes; en rigtig
+        // AO-leverandør røres stadig aldrig.
+        if (existingAo?.id && String(existingAo.name ?? '').startsWith('[HARNESS]') && existingAo.created_at && Date.now() - Date.parse(existingAo.created_at) > 3600_000) {
+          const staleId = existingAo.id
+          const { data: ps } = await c.admin.from('supplier_products').select('id').eq('supplier_id', staleId)
+          const pids = ((ps ?? []) as Array<{ id: string }>).map((x) => x.id)
+          if (pids.length) await c.admin.from('price_history').delete().in('supplier_product_id', pids)
+          await c.admin.from('supplier_products').delete().eq('supplier_id', staleId)
+          await c.admin.from('import_batches').delete().eq('supplier_id', staleId)
+          await c.admin.from('supplier_settings').delete().eq('supplier_id', staleId)
+          const del = await c.admin.from('suppliers').delete().eq('id', staleId)
+          if (!del.error) existingAo = null
+          else note = `gammel harness-AO kunne ikke ryddes: ${del.error.message.slice(0, 80)}`
+        }
+        if (existingAo?.id && !note) note = 'staging har allerede en AO-leverandør — springer over for ikke at røre dens data'
+        if (!existingAo?.id && !note) {
           const ins = await c.admin.from('suppliers').insert([{ name: `[HARNESS] AO ${stamp}`, code: 'AO' }]).select('id')
           aoSupplierId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
           const sku = `HAO${String(stamp).slice(-7)}`

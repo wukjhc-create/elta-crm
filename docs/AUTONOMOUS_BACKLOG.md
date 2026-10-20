@@ -2070,4 +2070,4 @@ Ingen pilot-blokerende fund. Fund:
   har en AO-leverandør (den rører ikke eksisterende leverandørdata). Ikke en app-regression.
 - Forberedelse: port 3217 fri, ingen gamle harness-processer, 626 forældede @harness.test-brugere slettet (cleanup-users,
   > 3 t, ikke pilot-personaer), gamle resultatfiler arkiveret (`archive-2026-10-20`). src frosset under hele kørslen.
-- Næste baseline-kandidat: når U17 får en isoleret AO-testleverandør (TODO, test-pålidelighed).
+- U17 rettet samme aften (test-pålidelighed): staging-AO-leverandøren var en **[HARNESS]-rest fra 2026-10-18** (afbrudt kørsel → global oprydning kørte aldrig). U17 rydder nu kun en [HARNESS]-rest > 1 t og springer stadig over for en rigtig AO-leverandør; U17 PASS (U16/U18 PASS), ingen rest bagefter. Forventet næste baseline: 189/189.
