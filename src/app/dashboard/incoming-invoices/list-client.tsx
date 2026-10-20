@@ -358,7 +358,7 @@ export function IncomingInvoicesListClient({
                 <td className="px-3 py-2 text-right text-xs break-words min-w-0">
                   <Confidence row={r} />
                 </td>
-                <td className="px-3 py-2 text-right">
+                <td className="px-3 py-2 text-right break-words min-w-0">
                   <Link href={`/dashboard/incoming-invoices/${r.id}`}>
                     <Button size="sm" variant="outline" aria-label={openInvoiceLabel(r)}>Åbn</Button>
                   </Link>
