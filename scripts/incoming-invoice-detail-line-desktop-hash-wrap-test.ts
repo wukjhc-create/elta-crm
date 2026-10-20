@@ -32,13 +32,14 @@ const enhed = '<td className="px-2 py-1 break-words min-w-0">{l.unit ?? \'—\'}
 ok(view.includes(enhed), 'enhedscellen bliver')
 ok(view.split(enhed).length === 2, 'enhedscellen er en')
 
-const descHead = '<th className="px-2 py-1">Beskrivelse</th>'
+const descHead = '<th className="px-2 py-1 break-words min-w-0">Beskrivelse</th>'
 ok(view.includes(descHead), 'beskrivelseskolonnen bliver')
 ok(view.split(descHead).length === 2, 'beskrivelseskolonnen er en')
 
 const preview = readFileSync('src/app/dashboard/incoming-invoices/[id]/conversion-preview-panel.tsx', 'utf8')
-ok(preview.includes(descHead), 'konverteringspanelets beskrivelse bliver')
-ok(preview.split(descHead).length === 2, 'konverteringspanelets beskrivelse er en')
+const previewHead = '<th className="px-2 py-1">Beskrivelse</th>'
+ok(preview.includes(previewHead), 'konverteringspanelets beskrivelse bliver')
+ok(preview.split(previewHead).length === 2, 'konverteringspanelets beskrivelse er en')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
