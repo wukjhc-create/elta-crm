@@ -128,7 +128,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
                   const m = res.matches.find((x) => x.lineNumber === l.lineNumber)
                   const bad = l.verdict === 'overcharge'
                   return (
-                    <tr key={l.lineNumber} className={`border-t ${bad ? 'bg-red-50' : ''}`}>
+                    <tr key={l.lineNumber} className={`border-t break-words min-w-0 ${bad ? 'bg-red-50' : ''}`}>
                       <td className="py-1 break-words min-w-0" data-testid="invoice-control-desktop-line-number">{l.lineNumber}</td>
                       <td className="break-words min-w-0" data-testid="invoice-control-desktop-description">{l.description}<ChargeMark description={l.description} /></td>
                       <td className="break-words min-w-0" data-testid="invoice-control-desktop-match">{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : <span className="text-gray-400">{l.reason ?? 'ingen'}</span>}</td>
