@@ -38,7 +38,7 @@ ok(view.split('data-testid="aftercalc-mobile-case-link"').length === 2, 'mobilko
 ok(view.includes('{kr(r.quoted_revenue)}'), 'tilbudt beloeb bliver')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 ok(view.includes('<div className="mt-3 space-y-3 break-words min-w-0">'), 'filterindholdet kan krympe')
-ok(view.includes('<td className="px-2 py-1.5" title={r.warning_codes.map((c: DataQualityCode) => DATA_QUALITY_LABELS[c]).join(\', \')}>'), 'datakvalitetscellen bliver')
+ok(view.includes('<td className="px-2 py-1.5 break-words min-w-0" title={r.warning_codes.map((c: DataQualityCode) => DATA_QUALITY_LABELS[c]).join(\', \')}>'), 'datakvalitetscellen kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
