@@ -79,16 +79,30 @@ export function CustomerImportDialog({ onClose }: { onClose: () => void }) {
 
           {preview && !result && (
             <>
-              <div className="grid grid-cols-3 gap-3 text-center text-sm" data-testid="customer-import-counts">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center text-sm" data-testid="customer-import-counts">
                 <div className="rounded-md bg-emerald-50 ring-1 ring-emerald-200 p-2"><div className="text-xl font-semibold text-emerald-800" data-testid="import-count-new">{preview.counts.new}</div>nye</div>
                 <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 p-2"><div className="text-xl font-semibold text-amber-800" data-testid="import-count-duplicate">{preview.counts.duplicate}</div>findes allerede</div>
                 <div className="rounded-md bg-red-50 ring-1 ring-red-200 p-2"><div className="text-xl font-semibold text-red-800" data-testid="import-count-invalid">{preview.counts.invalid}</div>ugyldige</div>
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 break-words">
                 Kolonner: {Object.entries(preview.mapped).map(([f, h]) => `${h} → ${FIELD_LABEL[f] ?? f}`).join(' · ')}
                 {preview.unmapped.length > 0 && <> · ignoreres: {preview.unmapped.join(', ')}</>}
               </p>
-              <div className="max-h-64 overflow-y-auto ring-1 ring-gray-200 rounded-md">
+              <ul className="md:hidden max-h-64 overflow-y-auto space-y-2" data-testid="customer-import-mobile">
+                {preview.rows.map((r) => (
+                  <li key={r.line} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 break-words font-medium">{r.company_name || '—'}</p>
+                      <p className="shrink-0 text-xs tabular-nums text-gray-500">Linje {r.line}</p>
+                    </div>
+                    <p className="mt-1 break-all text-xs text-gray-600">{r.email || '—'}</p>
+                    <p className={`mt-1 text-xs ${r.status === 'new' ? 'text-emerald-700' : r.status === 'duplicate' ? 'text-amber-700' : 'text-red-700'}`}>
+                      {r.status === 'new' ? 'Ny' : r.reason}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden md:block max-h-64 overflow-y-auto ring-1 ring-gray-200 rounded-md">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 text-gray-500 sticky top-0">
                     <tr><th className="px-2 py-1 text-left">Linje</th><th className="px-2 py-1 text-left">Firmanavn</th><th className="px-2 py-1 text-left">E-mail</th><th className="px-2 py-1 text-left">Status</th></tr>
