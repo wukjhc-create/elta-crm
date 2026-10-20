@@ -35,7 +35,7 @@ export function OrderTasksTab({ caseId, canComplete = false }: { caseId: string;
   const load = () => {
     getServiceCaseTasks(caseId)
       .then((rows) => setTasks(rows))
-      .catch(() => { setError('Kunne ikke hente opgaver'); setTasks([]) })
+      .catch(() => { setError('Kunne ikke hente opgaver. Det tælles ikke som ingen opgaver.'); setTasks([]) })
   }
   useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [caseId])
 

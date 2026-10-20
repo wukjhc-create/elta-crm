@@ -159,7 +159,7 @@ export async function getServiceCaseTasks(
     }
     supabase = ctx.supabase
   } catch {
-    return []
+    throw new Error('Kunne ikke hente opgaver')
   }
 
   const { data, error } = await supabase
@@ -170,7 +170,7 @@ export async function getServiceCaseTasks(
 
   if (error) {
     logger.error('Failed to fetch service case tasks', { error, entityId: caseId })
-    return []
+    throw new Error('Kunne ikke hente opgaver')
   }
 
   return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
