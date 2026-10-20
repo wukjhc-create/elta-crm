@@ -323,6 +323,7 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
         <div className="flex gap-2">
           <input ref={fileInputRef} type="file" onChange={handleFileSelect} accept={ALLOWED_TYPES.join(',')} multiple className="hidden" />
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || isSending}
             className="px-3 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -333,18 +334,21 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
           </button>
 
           <textarea
+            aria-label="Besked"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Skriv en besked..."
             rows={1}
-            className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+            className="flex-1 min-w-0 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             disabled={isSending}
           />
           <button
+            type="button"
+            aria-label="Send besked"
             onClick={handleSend}
             disabled={isSending || isUploading || (!newMessage.trim() && pendingAttachments.length === 0)}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           </button>
