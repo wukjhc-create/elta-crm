@@ -26,7 +26,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useToast } from '@/components/ui/toast'
 import { formatCurrency } from '@/lib/utils/format'
 import { getCustomersForSelect } from '@/lib/actions/offers'
 import { createOfferFromCalculation } from '@/lib/actions/kalkia-calculations'
@@ -63,7 +62,6 @@ export function CreateOfferModal({
   onSuccess,
 }: CreateOfferModalProps) {
   const router = useRouter()
-  const toast = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [loadingCustomers, setLoadingCustomers] = useState(false)
@@ -77,24 +75,28 @@ export function CreateOfferModal({
   const [validUntil, setValidUntil] = useState('')
   const [termsAndConditions, setTermsAndConditions] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [customerLoadError, setCustomerLoadError] = useState<string | null>(null)
+  const [customerTry, setCustomerTry] = useState(0)
 
-  // Load customers
   useEffect(() => {
-    const loadCustomers = async () => {
-      setLoadingCustomers(true)
-      try {
-        const result = await getCustomersForSelect()
-        if (result.success && result.data) {
-          setCustomers(result.data)
-        }
-      } catch {
-        toast.error('Kunne ikke hente kunder')
-      } finally {
-        setLoadingCustomers(false)
-      }
-    }
+    if (!open) return
+    let alive = true
+    setLoadingCustomers(true)
+    setCustomerLoadError(null)
+    getCustomersForSelect().then((result) => {
+      if (!alive) return
+      if (result.success) setCustomers(result.data ?? [])
+      else setCustomerLoadError(result.error ?? 'Kunne ikke hente kunder')
+    }).catch(() => {
+      if (alive) setCustomerLoadError('Kunne ikke hente kunder')
+    }).finally(() => {
+      if (alive) setLoadingCustomers(false)
+    })
+    return () => { alive = false }
+  }, [open, customerTry])
+
+  useEffect(() => {
     if (open) {
-      loadCustomers()
       // Set default title from calculation name
       setTitle(calculationName || 'Nyt tilbud')
       // Set default valid until to 30 days from now
@@ -231,6 +233,17 @@ export function CreateOfferModal({
                         <div className="p-4 text-center text-gray-500">
                           <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
                           Henter kunder...
+                        </div>
+                      ) : customerLoadError ? (
+                        <div className="p-4 text-center text-sm text-red-700" data-testid="calc-offer-customer-load-error">
+                          {customerLoadError}. Det tælles ikke som ingen kunder.
+                          <button
+                            type="button"
+                            onClick={() => setCustomerTry((n) => n + 1)}
+                            className="block mx-auto mt-2 min-h-[44px] px-3 font-medium underline"
+                          >
+                            Prøv igen
+                          </button>
                         </div>
                       ) : filteredCustomers.length === 0 ? (
                         <div className="p-4 text-center text-gray-500 text-sm">
