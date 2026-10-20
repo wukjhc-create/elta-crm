@@ -41,7 +41,7 @@ ok(view.split(bare).length === 1, 'det bare beloeb er vaek')
 ok(!view.includes(bare), 'det bare beloeb er vaek')
 ok(view.includes("const fmtAmount = (n: number | null, ccy = 'DKK')"), 'formateringen bliver')
 ok(view.includes("style: 'currency'"), 'valutaformatet bliver')
-ok(view.includes('<td className="px-3 py-2 text-right font-medium">{fmtAmount(r.amount_incl_vat, r.currency)}</td>'), 'skrivebordsbeloebet bliver')
+ok(view.includes('<td className="px-3 py-2 text-right font-medium break-words min-w-0">{fmtAmount(r.amount_incl_vat, r.currency)}</td>'), 'skrivebordsbeloebet kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

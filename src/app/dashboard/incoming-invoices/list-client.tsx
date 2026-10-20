@@ -349,7 +349,7 @@ export function IncomingInvoicesListClient({
                   </div>
                 </td>
                 <td className="px-3 py-2 font-mono text-xs">{r.invoice_number ?? '—'}</td>
-                <td className="px-3 py-2 text-right font-medium">{fmtAmount(r.amount_incl_vat, r.currency)}</td>
+                <td className="px-3 py-2 text-right font-medium break-words min-w-0">{fmtAmount(r.amount_incl_vat, r.currency)}</td>
                 <td className="px-3 py-2 text-xs">{fmtDate(r.invoice_date)}</td>
                 <td className="px-3 py-2 text-xs">
                   <DueMarks dueDate={r.due_date} todayIso={todayIso} />
