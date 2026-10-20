@@ -1559,6 +1559,53 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogtrettende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `1224850e`. Det lader hundredeogtolvte-hegnet stå. `1224850e` hedder `feat(profit): sortering-etikettens ramme paa efterkalkulation kan krympe`. `3e6c3e59` hedder `feat(profit): afvigelse-etikettens ramme paa efterkalkulation kan krympe`. `b02e16c7` hedder `feat(profit): status-etikettens ramme paa efterkalkulation kan krympe`. `082acf4f` hedder `feat(profit): fra-dato-etikettens ramme paa efterkalkulation kan krympe`. `origin/grok-next` er `1224850e`. Push af `1224850e` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `082acf4f..1224850e`
+
+```
+1224850e feat(profit): sortering-etikettens ramme paa efterkalkulation kan krympe
+3e6c3e59 feat(profit): afvigelse-etikettens ramme paa efterkalkulation kan krympe
+b02e16c7 feat(profit): status-etikettens ramme paa efterkalkulation kan krympe
+bae553a7 feat(profit): ansvarlig-etikettens ramme paa efterkalkulation kan krympe
+1e2ce0c2 feat(profit): til-dato-etikettens ramme paa efterkalkulation kan krympe
+082acf4f feat(profit): fra-dato-etikettens ramme paa efterkalkulation kan krympe
+```
+
+Listen er skiftets commits fra `082acf4f` til og med `1224850e`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+3f4e45ce docs: checkpoint efter 000c1d3e
+```
+
+### Features
+
+G18-813 lader kun fra-dato-etikettens ramme krympe. G18-814 lader kun til-dato-etikettens ramme krympe. G18-815 lader kun ansvarlig-etikettens ramme krympe. G18-816 lader kun status-etikettens ramme krympe. G18-817 lader kun afvigelse-etikettens ramme krympe. G18-818 lader kun sortering-etikettens ramme krympe. De andre rammer blev, indtil deres eget commit. Beløbene bliver. `kr()`, `pct()` og `varianceText()` bliver. Beløb, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/aftercalc-overview-from-label-frame-wrap-test.ts`, `scripts/aftercalc-overview-to-label-frame-wrap-test.ts`, `scripts/aftercalc-overview-assignee-label-frame-wrap-test.ts`, `scripts/aftercalc-overview-status-label-frame-wrap-test.ts`, `scripts/aftercalc-overview-variance-label-frame-wrap-test.ts` og `scripts/aftercalc-overview-sort-label-frame-wrap-test.ts` læser den shippede efterkalkulation og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetestene for penge, sideantal og de elementer, der netop blev låst, exiterede 0 sammen med det commit, der ændrede elementet. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for hvert produktcommit i hegnet. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `1224850e`, herunder G18-748 til G18-818. `3f4e45ce` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `1224850e`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-819, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogtolvte (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `000c1d3e`. Det lader hundredeogellevte-hegnet stå. `000c1d3e` hedder `feat(profit): sortering-feltet paa efterkalkulation kan krympe`. `21bb0368` hedder `feat(profit): afvigelse-feltet paa efterkalkulation kan krympe`. `008f5982` hedder `feat(profit): status-feltet paa efterkalkulation kan krympe`. `d2c0cca9` hedder `feat(profit): til-dato-feltet paa efterkalkulation kan krympe`. `origin/grok-next` er `000c1d3e`. Push af `000c1d3e` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
