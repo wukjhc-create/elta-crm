@@ -127,11 +127,15 @@ export async function getOffers(filters?: {
       // Udvid søgningen til også at matche kundenavn + kundenummer. PostgREST kan ikke
       // filtrere embedded relationer i .or(), så vi slår matchende kunde-id'er op først
       // og føjer dem til OR'en som customer_id.in.(...) (base-tabel-kolonne).
-      const { data: matchingCustomers } = await supabase
+      const { data: matchingCustomers, error: customerSearchError } = await supabase
         .from('customers')
         .select('id')
         .or(`company_name.ilike.${pgQuote(`%${sanitized}%`)},customer_number.ilike.${pgQuote(`%${sanitized}%`)}`)
         .limit(100)
+      if (customerSearchError) {
+        logger.error('getOffers customer search failed', { error: customerSearchError })
+        return { success: false, error: 'Kunne ikke søge i kunder. Det tælles ikke som ingen tilbud.' }
+      }
 
       const orParts = [`title.ilike.${pgQuote(`%${sanitized}%`)}`, `offer_number.ilike.${pgQuote(`%${sanitized}%`)}`]
       if (matchingCustomers && matchingCustomers.length > 0) {
