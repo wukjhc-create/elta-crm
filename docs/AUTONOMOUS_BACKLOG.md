@@ -1719,6 +1719,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogtredivte (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `5f4e4d66`. Det lader tohundredeogniogtyvende-hegnet stå. `5f4e4d66` hedder `feat(invoice): konverteringskolonnen kan krympe`. `bd8263d9` hedder `feat(invoice): totalkolonnen kan krympe`. `origin/grok-next` er `5f4e4d66`. Push af `5f4e4d66` lykkedes. `bd8263d9` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `bd8263d9..5f4e4d66`
+
+```
+5f4e4d66 feat(invoice): konverteringskolonnen kan krympe
+bd8263d9 feat(invoice): totalkolonnen kan krympe
+```
+
+Listen er skiftets commits fra `bd8263d9` til og med `5f4e4d66`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+7c2f602c docs: checkpoint efter bd8263d9
+```
+
+### Features
+
+G18-978 lader kun kolonnen Konvertering på fakturalinjens skrivebord krympe. Overskriften bliver. Totalkolonnen bliver. G18-977 lader kun kolonnen Total på fakturalinjens skrivebord krympe. Overskriften bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-line-desktop-conv-head-wrap-test.ts` og `scripts/incoming-invoice-detail-line-desktop-total-head-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for totalkolonnen exiterede 0 sammen med det commit, der ændrede konverteringskolonnen. `scripts/incoming-invoice-detail-line-desktop-stk-head-wrap-test.ts` og `scripts/invoice-line-conversion-text-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `5f4e4d66`. `bd8263d9` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `5f4e4d66`, herunder G18-748 til G18-978. `7c2f602c` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `5f4e4d66`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-979, G18-597.
+
 ## Checkpoint 2026-10-18 tohundredeogniogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `bd8263d9`. Det lader tohundredeogotteogtyvende-hegnet stå. `bd8263d9` hedder `feat(invoice): totalkolonnen kan krympe`. `4b9cc4ed` hedder `feat(invoice): stkpriskolonnen kan krympe`. `origin/grok-next` er `bd8263d9`. Push af `bd8263d9` lykkedes. `4b9cc4ed` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
