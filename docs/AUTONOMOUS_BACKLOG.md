@@ -1601,6 +1601,52 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogsyvogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `f49ba55a`. Det lader hundredeogseksogtyvende-hegnet stå. `f49ba55a` hedder `feat(invoice): leverandoernavnet paa fakturalistens skrivebord kan krympe`. `4410c062` hedder `feat(invoice): forfaldsraekken paa fakturalisten kan krympe`. `7ae2cddd` hedder `feat(invoice): forfaldsetiketten paa fakturalisten kan krympe`. `44ad0db5` hedder `feat(invoice): indledningen paa fakturalisten kan krympe`. `8f9c557f` hedder `feat(invoice): overskriften paa fakturalisten kan krympe`. `origin/grok-next` er `f49ba55a`. Push af `f49ba55a` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `8f9c557f..f49ba55a`
+
+```
+f49ba55a feat(invoice): leverandoernavnet paa fakturalistens skrivebord kan krympe
+4410c062 feat(invoice): forfaldsraekken paa fakturalisten kan krympe
+7ae2cddd feat(invoice): forfaldsetiketten paa fakturalisten kan krympe
+44ad0db5 feat(invoice): indledningen paa fakturalisten kan krympe
+8f9c557f feat(invoice): overskriften paa fakturalisten kan krympe
+```
+
+Listen er skiftets commits fra `8f9c557f` til og med `f49ba55a`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+be31fbe1 docs: checkpoint efter 0a1b3448
+```
+
+### Features
+
+G18-860 lader kun leverandørnavnet på fakturalistens skrivebord krympe. Mobilnavnet kan stadig krympe. G18-859 lader kun forfaldsfilterets række krympe. Knapperne bliver. G18-858 lader kun etiketten Forfald krympe. Teksten bliver. G18-857 lader kun indledningen krympe. Sætningen om bogføring bliver. G18-856 lader kun overskriften krympe. Teksten bliver. `fmtAmount` bliver. Beløb, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-desktop-name-wrap-test.ts`, `scripts/incoming-invoice-due-row-wrap-test.ts`, `scripts/incoming-invoice-due-label-wrap-test.ts`, `scripts/incoming-invoice-intro-wrap-test.ts` og `scripts/incoming-invoice-heading-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetestene for mobilisten og mobilbeløbet exiterede 0 sammen med det commit, der ændrede navnet. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for de fem produktcommits. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `f49ba55a`, herunder G18-748 til G18-860. `be31fbe1` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `f49ba55a`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-861, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogseksogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `0a1b3448`. Det lader hundredeogfemogtyvende-hegnet stå. `0a1b3448` hedder `feat(invoice): forfaldshinten paa fakturalisten kan krympe`. `2328b573` hedder `feat(invoice): listefejlen paa fakturalisten kan krympe`. `5c0fd3f6` hedder `feat(invoice): afsenderfejlen paa fakturalisten kan krympe`. `origin/grok-next` er `0a1b3448`. Push af `0a1b3448` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
