@@ -1595,7 +1595,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-861 | 2 Faktura | DONE. Beløbet på fakturalistens skrivebord kan krympe. | Kun den `<td className="px-3 py-2 text-right font-medium">` med `fmtAmount` i `list-client.tsx`. `fmtAmount` er uændret. |
 | G18-862 | 2 Faktura | DONE. Fakturanummeret på fakturalistens skrivebord kan krympe. | Kun den `<td className="px-3 py-2 font-mono text-xs">` med `r.invoice_number` i `list-client.tsx`. Nummeret er uændret. |
 | G18-863 | 2 Faktura | DONE. Fakturadatoen på fakturalistens skrivebord kan krympe. | Kun den `<td className="px-3 py-2 text-xs">` med `fmtDate(r.invoice_date)` i `list-client.tsx`. Datoen er uændret. |
-| G18-864 | 2 Faktura | ÅBEN. Forfaldscellen på fakturalistens skrivebord kan krympe. | Kun den `<td className="px-3 py-2 text-xs">` der omslutter `DueMarks` uden `withLabel` i `list-client.tsx`. Markeringen er uændret. |
+| G18-864 | 2 Faktura | DONE. Forfaldscellen på fakturalistens skrivebord kan krympe. | Kun den `<td className="px-3 py-2 text-xs">` der omslutter `DueMarks` uden `withLabel` i `list-client.tsx`. Markeringen er uændret. |
+| G18-865 | 2 Faktura | ÅBEN. Statuscellen på fakturalistens skrivebord kan krympe. | Kun den `<td className="px-3 py-2"><StatusBadge row={r} /></td>` i `list-client.tsx`. Mærket er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
