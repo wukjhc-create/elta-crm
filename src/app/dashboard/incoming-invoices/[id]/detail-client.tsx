@@ -425,7 +425,7 @@ export function IncomingInvoiceDetailClient({
                   {detail.workOrder.title}
                 </Link>
               ) : (
-                <span className="text-gray-700">{detail.workOrder.title}</span>
+                <span className="text-gray-700 break-words min-w-0">{detail.workOrder.title}</span>
               )
             ) : detail.work_order_failed ? (
               <span className="text-red-800 break-words min-w-0" data-testid="incoming-invoice-work-order-error">Arbejdsordren kunne ikke hentes. Det tælles ikke som ingen.</span>
