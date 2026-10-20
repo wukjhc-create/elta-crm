@@ -303,7 +303,7 @@ export function IncomingInvoicesListClient({
               <p className="mt-2 text-xs break-words min-w-0">
                 <Confidence row={r} />
               </p>
-              <div className="mt-3">
+              <div className="mt-3 break-words min-w-0">
                 <Link href={`/dashboard/incoming-invoices/${r.id}`}>
                   <Button size="sm" variant="outline" aria-label={openInvoiceLabel(r)}>Åbn</Button>
                 </Link>
