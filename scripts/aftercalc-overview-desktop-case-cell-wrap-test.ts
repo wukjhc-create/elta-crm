@@ -32,7 +32,7 @@ ok(view.split('<td className="px-2 py-1.5">').length === 1, 'den bare sagscelle 
 ok(view.includes('tab=oekonomi'), 'sagslinket bliver')
 ok(view.includes('{r.case_number || \'Sag\'}'), 'sagsnummeret bliver')
 ok(view.includes('title={r.warning_codes.map((c: DataQualityCode) => DATA_QUALITY_LABELS[c]).join(\', \')}'), 'datakvalitetscellen bliver')
-ok(view.includes('<tr>'), 'kolonneraekken bliver')
+ok(view.includes('<tr className="break-words min-w-0">'), 'kolonneraekken kan krympe')
 ok(view.includes('{kr(r.quoted_revenue)}'), 'tilbudt beloeb bliver')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 

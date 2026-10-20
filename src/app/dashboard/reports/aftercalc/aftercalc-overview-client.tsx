@@ -233,7 +233,7 @@ export function AftercalcOverviewClient() {
                   <div className="hidden md:block overflow-x-auto break-words min-w-0">
                     <table className="w-full text-sm break-words min-w-0">
                       <thead className="bg-gray-50 text-xs text-gray-600 break-words min-w-0">
-                        <tr>
+                        <tr className="break-words min-w-0">
                           <th className="px-2 py-1.5 text-left break-words min-w-0">Sag</th>
                           <th className="px-2 py-1.5 text-left break-words min-w-0">Kunde</th>
                           <th className="px-2 py-1.5 text-left break-words min-w-0">Ansvarlig</th>
