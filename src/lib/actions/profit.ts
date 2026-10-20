@@ -30,8 +30,19 @@ async function resolveHourlyCost(supabase: Awaited<ReturnType<typeof getAuthenti
   // Aggregat over aktive medarbejdere — service-role (employee_compensation er admin-only), kun gennemsnittet returneres.
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const col = basis === 'internal_cost_rate' ? 'internal_cost_rate' : 'real_hourly_cost'
-  const { data } = await createAdminClient().from('employee_compensation').select(`${col}, employees!inner(active)`).eq('employees.active', true)
-  const values = ((data ?? []) as Array<Record<string, unknown>>).map((r) => Number(r[col] ?? 0)).filter((v) => v > 0)
+  // FIN3-10 (finans-review 2 2026-10-20): samme grundlag som tidstriggeren — reel timekost, ellers medarbejderens
+  // cost_rate (COALESCE). Før talte medarbejdere uden employee_compensation-række slet ikke med.
+  const adminDb = createAdminClient()
+  const [{ data: emps }, { data: comp }] = await Promise.all([
+    adminDb.from('employees').select('id, cost_rate').eq('active', true),
+    adminDb.from('employee_compensation').select(`employee_id, ${col}`),
+  ])
+  const compBy = new Map(((comp ?? []) as Array<Record<string, unknown>>).map((r) => [r.employee_id as string, Number(r[col] ?? 0)]))
+  const values = ((emps ?? []) as Array<{ id: string; cost_rate: number | string | null }>).map((e) => {
+    const c = compBy.get(e.id) ?? 0
+    if (c > 0) return c
+    return basis === 'real_hourly_cost' ? Number(e.cost_rate ?? 0) : 0
+  }).filter((v) => v > 0)
   if (!values.length) return { cost: null, source: basis === 'internal_cost_rate' ? 'intern kostpris ikke sat' : 'reel timekost ikke sat' }
   const avg = Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 100) / 100
   return { cost: avg, source: `${basis === 'internal_cost_rate' ? 'intern kostpris' : 'reel timekost'} (gns. af ${values.length} medarbejdere)` }
@@ -125,7 +136,7 @@ export async function fillMissingOfferLineCosts(offerId: string): Promise<Action
     if (!ctx.hasPermission('offers.edit')) return { success: false, error: 'Manglende tilladelse: offers.edit' }
     if (!ctx.hasPermission(OFFER_COST_PERMISSION)) return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
     const { supabase } = ctx
-    const { data: offer } = await supabase.from('offers').select('id, status').eq('id', offerId).maybeSingle()
+    const { data: offer } = await supabase.from('offers').select('id, status, customer_id').eq('id', offerId).maybeSingle()
     if (!offer) return { success: false, error: 'Tilbud ikke fundet' }
     if (offer.status !== 'draft') return { success: false, error: 'Kun kladder kan opdateres' }
     // 00192: kostkolonner — admin-klient bag offers.view.cost_prices (kun læsninger; opdateringen sker med bruger-klienten)
@@ -137,8 +148,21 @@ export async function fillMissingOfferLineCosts(offerId: string): Promise<Action
     const spIds = Array.from(new Set(missing.map((i) => i.supplier_product_id as string | null).filter((x): x is string => !!x)))
     const spCost = new Map<string, number>()
     if (spIds.length) {
-      const { data: sps } = await admin.from('supplier_products').select('id, cost_price').in('id', spIds)
-      for (const p of sps ?? []) if (Number(p.cost_price ?? 0) > 0) spCost.set(p.id as string, Number(p.cost_price))
+      const { data: sps } = await admin.from('supplier_products').select('id, cost_price, supplier_id').in('id', spIds)
+      // FIN3-9 (finans-review 2 2026-10-20): kundens effektive kost (aftalerabat / kundespecifik produktpris) — ikke den
+      // rå leverandørkost (DB blev undervurderet med aftalerabatten pr. enhed)
+      const { supplierLinePricing } = await import('@/lib/offers/supplier-line-pricing')
+      const customerId = (offer as { customer_id?: string | null }).customer_id ?? null
+      for (const p of sps ?? []) {
+        const raw = Number(p.cost_price ?? 0)
+        if (!(raw > 0)) continue
+        let eff = raw
+        if (customerId && p.supplier_id) {
+          eff = await supplierLinePricing({ supplierId: p.supplier_id as string, supplierProductId: p.id as string, customerId, costPrice: raw, productMargin: null, customMargin: 0 })
+            .then((r) => (r.effectiveCost > 0 ? r.effectiveCost : raw)).catch(() => raw)
+        }
+        spCost.set(p.id as string, Math.round(eff * 100) / 100)
+      }
     }
     const hourly = missing.some((i) => isLabourUnit(i.unit as string | null)) ? await resolveHourlyCost(supabase) : { cost: null, source: '—' }
     let filled = 0

@@ -229,7 +229,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 ## NEXT-55 (finans-review 2 2026-10-20 — tilbud→sag→faktura, sagsøkonomi, tid→kost, priser)
 | # | Fund | Status |
 |---|---|---|
-| FIN3-1 | Avance-prioritet: tilbudslinjen lader enhver avanceregel (inkl. leverandør-standard) slå kundeaftalen; kalkia/sagsmateriale/DB-funktion omvendt (S2, latent) | TODO |
+| FIN3-1 | Avance-prioritet: tilbudslinjen lader enhver avanceregel (inkl. leverandør-standard) slå kundeaftalen; kalkia/sagsmateriale/DB-funktion omvendt (S2, latent) | DELVIS (tilbudsstien: produkt-/kunderegel → aftale → generel regel; supplier-line-pricing-check) — kalkia/sagsmateriale/DB-funktion TODO |
 | FIN3-2 | Tilbudsnumre låser, når højeste tilbud er en revision (-R2 → NaN → 0001 findes); UTC-år ved nytår (S2 på staging) | DONE (kode, offer-number-test 6 + harness:concurrency C4) — revisioner udelades, numerisk maksimum, dansk år |
 | FIN3-3 | Revision af et allerede konverteret sendt tilbud opretter en sag nr. 2 (S2 når flaget er tændt) | DONE (kode, offer-revisions-check +1) — revision afvises, når et tilbud i kæden har en sag (converted_case_id/source_offer_id) |
 | FIN3-4 | Rapport: faktureret pr. periode klampes ≥ 0 (kreditnota i anden måned) ≠ tragt/bogføring (S3) | DONE (kode, U88/U91/U100) — kreditnota trækkes i sin måned, også under 0 (afstemmelig med tragt/bogføring) |
@@ -237,8 +237,8 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | FIN3-6 | Skift af satstype beholder auto-udfyldt overtidssats (S4) | TODO |
 | FIN3-7 | Udestående/lønsomhed/sagsøkonomi/afvisninger blander valutaer (S4) | TODO |
 | FIN3-8 | Sagens indkøbsoversigt: revised_sum=0-reference, ignorerer regningssager; .limit(50) (S4) | TODO |
-| FIN3-9 | "Udfyld manglende kost" bruger rå leverandørkost (ignorerer kundeaftale) (S4) | TODO |
-| FIN3-10 | Profitanalysens timekost uden employees.cost_rate (≠ triggeren) (S4) | TODO |
+| FIN3-9 | "Udfyld manglende kost" bruger rå leverandørkost (ignorerer kundeaftale) (S4) | DONE (kode; kundens effektive kost via supplierLinePricing) |
+| FIN3-10 | Profitanalysens timekost uden employees.cost_rate (≠ triggeren) (S4) | DONE (kode; samme COALESCE som triggeren) |
 | FIN3-11 | Timer på en fraværsdag uden advarsel (S4) | TODO |
 
 ## NEXT-54 (finans-review 2026-10-20)

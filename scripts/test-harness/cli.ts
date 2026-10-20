@@ -2286,6 +2286,11 @@ async function main() {
       if (agrId) await admin.from('customer_supplier_prices').update({ valid_to: null }).eq('id', agrId)
       const p2 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
       check('gyldig kundeaftale giver 10 % rabat på kosten', p2.effectiveCost === 90, `kost ${p2.effectiveCost}`)
+      // FIN3-1: kundeaftalens avance (15 %) går foran en kategori-/leverandørregel (40 %)
+      if (agrId) await admin.from('customer_supplier_prices').update({ custom_margin_percentage: 15 }).eq('id', agrId)
+      const p2b = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
+      check('kundeaftalens avance (15 %) slår kategoriregel (40 %) — FIN3-1', p2b.marginPercentage === 15, `avance ${p2b.marginPercentage}`)
+      if (agrId) await admin.from('customer_supplier_prices').update({ custom_margin_percentage: null }).eq('id', agrId)
       // GP-2: produktspecifik kundepris går foran leverandøraftalen
       const cpp = await admin.from('customer_product_prices').insert({ customer_id: cust, supplier_product_id: prod, custom_cost_price: 70, is_active: true, created_by: owner }).select('id').single()
       cppId = (cpp.data as { id: string } | null)?.id ?? null

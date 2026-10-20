@@ -59,18 +59,28 @@ export async function supplierLinePricing(input: {
   const discountPct = Number(productPrice ? productPrice.custom_discount_percentage ?? 0 : agreement?.discount_percentage ?? 0)
   const effectiveCost = discountPct > 0 ? baseCost * (1 - discountPct / 100) : baseCost
 
-  const rule = (marginData as Array<{ margin_percentage: number; fixed_markup: number | null; round_to: number | null }> | null)?.[0]
+  const rule = (marginData as Array<{ margin_percentage: number; fixed_markup: number | null; round_to: number | null; rule_type?: string | null }> | null)?.[0]
+  // FIN3-1 (finans-review 2 2026-10-20): fælles forrang — produkt-/kunderegel → kundeaftalens avance → kategori-/
+  // leverandørregel → produktets avance → standard. Før slog ENHVER regel (også leverandørens standardregel) aftalen,
+  // mens kalkia/sagsmateriale/DB-funktionen brugte aftalen → kunden fik et dyrere tilbud end aftalt.
+  const specificRule = !!rule && (rule.rule_type === 'product' || rule.rule_type === 'customer')
+  const agreementMargin = agreement?.custom_margin_percentage !== null && agreement?.custom_margin_percentage !== undefined
+    ? Number(agreement.custom_margin_percentage) : null
   let marginPercentage: number
   let fixedMarkup = 0
   let roundTo: number | undefined
   if (input.customMargin !== undefined && input.customMargin !== null) {
     marginPercentage = input.customMargin
+  } else if (rule && specificRule) {
+    marginPercentage = Number(rule.margin_percentage)
+    fixedMarkup = Number(rule.fixed_markup ?? 0)
+    roundTo = rule.round_to ?? undefined
+  } else if (agreementMargin !== null) {
+    marginPercentage = agreementMargin
   } else if (rule) {
     marginPercentage = Number(rule.margin_percentage)
     fixedMarkup = Number(rule.fixed_markup ?? 0)
     roundTo = rule.round_to ?? undefined
-  } else if (agreement?.custom_margin_percentage !== null && agreement?.custom_margin_percentage !== undefined) {
-    marginPercentage = Number(agreement.custom_margin_percentage)
   } else {
     // OF-4 (review 2026-10-17): firmaets standard-produktavance (calculation_settings), ikke en fast 20 % — samme som
     // leverandørsøgningen viste
