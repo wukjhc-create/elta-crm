@@ -1670,6 +1670,49 @@ export function BillingStandardMode({
         {data.time_logs.length === 0 ? (
           <Empty>Ingen ufakturerede timer på sagen.</Empty>
         ) : (
+          <>
+          <ul className="md:hidden space-y-2 p-2" data-testid="billing-time-mobile">
+            {data.time_logs.map((t) => {
+              const checked = selectedTimeLogs.has(t.id)
+              return (
+                <li key={t.id} className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${!t.has_rate ? 'bg-amber-50/40' : ''}`}>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSet(selectedTimeLogs, setSelectedTimeLogs, t.id)}
+                      disabled={submitting}
+                      aria-label="Vælg tid"
+                      className="mt-1"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-gray-900 break-words">{t.employee_name ?? '—'}</p>
+                        <p className="shrink-0 tabular-nums font-medium">{fmtKr(t.total_sales_price)}</p>
+                      </div>
+                      <p className="text-xs text-gray-600">{fmtDate(t.date)}</p>
+                      {t.description && (
+                        <p className="text-[11px] text-gray-500 break-words">{t.description}</p>
+                      )}
+                      {!t.has_rate && (
+                        <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                          Mangler timesats
+                        </span>
+                      )}
+                      <p className="mt-1 text-xs tabular-nums text-gray-700">
+                        {t.hours.toLocaleString('da-DK', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                        timer · {t.hourly_rate == null ? '—' : fmtKr(t.hourly_rate)}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          <div className="hidden md:block">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-left text-gray-600">
               <tr>
@@ -1737,6 +1780,8 @@ export function BillingStandardMode({
               })}
             </tbody>
           </table>
+          </div>
+          </>
         )}
       </Section>
 
