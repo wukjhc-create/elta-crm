@@ -37,7 +37,7 @@ ok(view.split(bare).length === 1, 'det bare tabelhoved er vaek')
 ok(!view.includes(bare), 'det bare tabelhoved er vaek')
 ok(view.includes('kr(res.control.overchargeAmount)'), 'overprisbeloebet bliver')
 ok(view.includes('<table className="w-full text-xs break-words min-w-0">'), 'tabellen kan stadig krympe')
-ok(view.includes('<tbody>'), 'tabelkroppen bliver')
+ok(view.includes('<tbody className="break-words min-w-0">'), 'tabelkroppen kan krympe')
 ok(view.includes('>#<'), 'nummertegnet bliver')
 ok(view.includes('Det tælles ikke som 0 kr.'), 'nul-linjen bliver')
 
