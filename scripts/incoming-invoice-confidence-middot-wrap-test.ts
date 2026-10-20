@@ -24,7 +24,7 @@ ok(view.split(wrapped).length === 2, 'skilletegnet kan krympe')
 ok(after.startsWith('>·<'), 'tegnet bliver')
 ok(view.split(bare).length === 1, 'det bare skilletegn er vaek')
 ok(!view.includes(bare), 'det bare skilletegn er vaek')
-ok(view.includes('<span className="text-gray-500">parse</span>'), 'ordet parse bliver')
+ok(view.includes('<span className="text-gray-500 break-words min-w-0">parse</span>'), 'ordet parse bliver')
 ok(view.includes('<span className="text-gray-500">match</span>'), 'ordet match bliver')
 
 if (bad > 0) {
