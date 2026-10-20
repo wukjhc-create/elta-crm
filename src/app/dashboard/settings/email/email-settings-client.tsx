@@ -97,13 +97,17 @@ export function EmailSettingsClient({
     click_rate: number
   } | null>(null)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
+  const [statsFailed, setStatsFailed] = useState(false)
 
   const loadStats = async (days?: number) => {
     setIsLoadingStats(true)
+    setStatsFailed(false)
     try {
       const stats = await getEmailStats({ days: days || 30 })
       setEmailStats(stats)
     } catch {
+      setEmailStats(null)
+      setStatsFailed(true)
       toast?.error('Fejl', 'Kunne ikke hente statistik')
     } finally {
       setIsLoadingStats(false)
@@ -563,8 +567,14 @@ export function EmailSettingsClient({
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>Vælg en tidsperiode for at se statistik</p>
+                  {statsFailed ? (
+                    <p className="text-sm text-red-700 break-words" data-testid="email-stats-load-error">Mailstatistik kunne ikke hentes. Det tælles ikke som 0 sendte.</p>
+                  ) : (
+                    <>
+                      <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>Vælg en tidsperiode for at se statistik</p>
+                    </>
+                  )}
                 </div>
               )}
             </CardContent>
