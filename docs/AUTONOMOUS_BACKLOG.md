@@ -770,7 +770,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-19 | 4 Pris | DONE null kost på leverandørvaren siger "Ingen lagret pris". 0 kr forbliver 0 kr. | Listepris og salgspris uændret. |
 | G18-40 | 4 Pris | DONE null salgspris siger "Ingen lagret pris". | Ingen opfundet salgspris. 0 kr forbliver 0 kr. |
 | G18-47 | 8 Pilot | DONE. Producentnavnet på leverandørvarens mobilkort ombrydes. | Priser, varenummer og status er uændret. |
-| G18-20 | 6 Salg | ÅBEN. Ren konverteringstekst på en fil der ikke er leads-page-client eller lead-detail. | Ikke `follow-up.ts`. |
+| G18-20 | 6 Salg | DONE. Ren konverteringstekst på tilbudsmærket. | Ikke leads-page-client, lead-detail eller follow-up. |
 | G18-21 | 7 Assistent | ÅBEN. Note-svaret citerer de første 120 tegn af den gemte tekst. | Insert og afsendelse uændret. |
 | G18-22 | 3 Ledelse | DONE oversigten siger Negativ DB, Positiv DB eller Alle. | `selectOverviewPage` uændret. |
 | G18-31 | 5 Plan | DONE dagsoverskriften formateres i Europe/Copenhagen. | Opgavelisten og datostrengen er uændret. |
@@ -1726,6 +1726,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-992 | 6 Salg | ÅBEN. Tilbud ude-mærket kan krympe. | Kun mærket offers-out-count i offers-page-client.tsx. Tallet og statusserne er uændrede. |
 | G18-993 | 8 Pilot | ÅBEN. Navnecellen på leverandørvarens skrivebord kan krympe. | Kun den TableCell der omslutter product.supplier_name på skrivebordet. Navnet, priser og status er uændrede. |
 | G18-994 | 8 Pilot | ÅBEN. Mobilkortet for en leverandørvare kan krympe. | Kun article med klassen rounded-lg border bg-white p-3 space-y-2 text-sm i supplier-products-table.tsx. Priser, navn og status er uændrede. |
+| G18-995 | 6 Salg | ÅBEN. Konverteringsmærkets skjulte tekst kan krympe. | Kun span med klassen sr-only i offer-conversion-badge.tsx. Sagsnummeret og linket er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
