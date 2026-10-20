@@ -218,7 +218,7 @@ export function AftercalcOverviewClient() {
                             <dd className="tabular-nums text-gray-900 break-words">{pct(r.quoted_db_pct)}</dd>
                           </div>
                           <div className="min-w-0">
-                            <dt className="text-gray-500">Faktisk DB</dt>
+                            <dt className="text-gray-500 break-words min-w-0">Faktisk DB</dt>
                             <dd className="tabular-nums text-gray-900 break-words">{pct(r.actual_db_pct)}</dd>
                           </div>
                         </dl>
