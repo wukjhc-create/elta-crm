@@ -35,7 +35,7 @@ ok(view.includes('tab=oekonomi'), 'oekonomi-fanen bliver')
 ok(view.includes('{kr(r.quoted_revenue)}'), 'tilbudt beloeb bliver')
 ok(view.includes('<tr className="break-words min-w-0">'), 'kolonneraekken kan stadig krympe')
 ok(view.includes('<td className="px-2 py-1.5 break-words min-w-0">'), 'sagscellen kan stadig krympe')
-ok(view.includes('<div className="mt-1 text-[11px] text-amber-900 break-words max-w-[12rem]">'), 'advarselsteksten er stadig uden min-w-0')
+ok(view.includes('<div className="mt-1 text-[11px] text-amber-900 break-words max-w-[12rem] min-w-0">'), 'advarselsteksten kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 
 if (bad > 0) {

@@ -270,7 +270,7 @@ export function AftercalcOverviewClient() {
                                 {r.data_quality === 'warning' ? 'Advarsel' : 'OK'}
                               </span>
                               {r.warning_codes.length > 0 && (
-                                <div className="mt-1 text-[11px] text-amber-900 break-words max-w-[12rem]">
+                                <div className="mt-1 text-[11px] text-amber-900 break-words max-w-[12rem] min-w-0">
                                   {r.warning_codes.map((c: DataQualityCode) => DATA_QUALITY_LABELS[c]).join(', ')}
                                 </div>
                               )}

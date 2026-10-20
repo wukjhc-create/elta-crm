@@ -26,7 +26,7 @@ eq('desktop-rækken beholder testid og datakvalitet', src.includes('data-testid=
 eq('desktop-titel ombrydes', src.includes('text-[11px] text-gray-500 break-words max-w-[16rem] min-w-0">{r.title}'), true)
 eq('desktop-titel klippes ikke', src.includes('truncate max-w-[16rem]'), false)
 const table = src.slice(tableStart)
-eq('desktop-advarsel staar som tekst', table.includes('text-[11px] text-amber-900 break-words max-w-[12rem]'), true)
+eq('desktop-advarsel kan krympe', table.includes('text-[11px] text-amber-900 break-words max-w-[12rem] min-w-0'), true)
 eq('desktop-titel-attribut bliver', table.includes('title={r.warning_codes.map'), true)
 eq('sagsnummer ombrydes', mobile.includes('hover:underline break-words') && table.includes('hover:underline break-words'), true)
 eq('filtre stables paa mobil', src.includes('grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm'), true)
