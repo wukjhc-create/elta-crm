@@ -125,11 +125,13 @@ export function CompletionChecklist({
                       ref={(el) => { fileInputRefs.current[item.key] = el }}
                       type="file"
                       accept="image/*"
+                      multiple
                       className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) handleFileSelect(item.key, file)
+                      onChange={async (e) => {
+                        // MB2-9: flere fotos pr. valg (uploades ét ad gangen)
+                        const files = Array.from(e.target.files ?? [])
                         e.target.value = ''
+                        for (const f of files) await handleFileSelect(item.key, f)
                       }}
                     />
                     <button
@@ -216,11 +218,13 @@ export function CompletionChecklist({
                           ref={(el) => { fileInputRefs.current[item.key] = el }}
                           type="file"
                           accept="image/*"
+                          multiple
                           className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) handleFileSelect(item.key, file)
+                          onChange={async (e) => {
+                            // MB2-9: flere fotos pr. valg
+                            const files = Array.from(e.target.files ?? [])
                             e.target.value = ''
+                            for (const f of files) await handleFileSelect(item.key, f)
                           }}
                         />
                         <button

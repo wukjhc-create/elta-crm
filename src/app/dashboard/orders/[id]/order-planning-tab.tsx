@@ -545,7 +545,7 @@ function WorkOrderRow({
           </div>
           <div className="text-sm font-medium text-gray-900 truncate">{wo.title}</div>
           {wo.description && (
-            <div className="text-sm text-gray-600 whitespace-pre-wrap">{wo.description}</div>
+            <div className="text-sm text-gray-600 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{wo.description}</div>
           )}
           <div className="text-xs text-gray-500">
             Medarbejder:{' '}

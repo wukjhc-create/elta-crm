@@ -2388,7 +2388,8 @@ ${m.text()}`) })
             await s.page.getByText(own).first().waitFor({ timeout: 60_000 }).catch(() => {})
             r[`${k}_ser_egen`] = (await s.page.getByText(own).count()) > 0
             r[`${k}_ser_ikke_andres`] = (await s.page.getByText(other).count()) === 0 && (await s.page.getByText(`admin-andres ${stamp}`).count()) === 0
-            r[`${k}_ingen_opret_knap`] = (await s.page.getByRole('button', { name: /Ny opgave|Opret opgave/ }).count()) === 0
+            // PM2-5 (Henrik 2026-10-19): salg og bogholderi MÅ oprette generelle opgaver (tasks.create) — knappen vises
+            r[`${k}_kan_oprette`] = (await s.page.getByRole('button', { name: /Ny opgave|Opret opgave/ }).count()) > 0
             await s.ctx.close().catch(() => {})
           }
         } finally {

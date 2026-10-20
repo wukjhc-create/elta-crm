@@ -47,36 +47,39 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
       customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>
     if (!list.length) return { success: true, data: { items: [], total: 0 } }
 
-    const wos: unknown[] = []
-    for (let k = 0; k < list.length; k += 200) {
-      // PF2-8 (performance-review 2026-10-17): 1:N — hver bid side for side (200 sager × 6 ordrer > 1.000-loftet gav
-      // falsk "Ingen arbejdsordre")
-      const chunkIds = list.slice(k, k + 200).map((c) => c.id)
-      const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
-      let data: unknown[]
-      try {
-        data = await fetchAllRows((f, t) => supabase
+    // PF2-8: 1:N — hver bid side for side (200 sager × 6 ordrer > 1.000-loftet gav falsk "Ingen arbejdsordre").
+    // PF3-3 (performance-review 2026-10-20): bidderne og medarbejderopslaget hentes parallelt (før én ad gangen)
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const chunks: string[][] = []
+    for (let k = 0; k < list.length; k += 200) chunks.push(list.slice(k, k + 200).map((c) => c.id))
+    let wos: unknown[] = []
+    let activeEmps: unknown[] | null = null
+    try {
+      const [parts, empRes] = await Promise.all([
+        Promise.all(chunks.map((chunkIds) => fetchAllRows((f, t) => supabase
           .from('work_orders')
           .select('id, case_id, status, scheduled_date, assigned_employee_id')
           .in('case_id', chunkIds)
           .order('id')
-          .range(f, t))
-      } catch (woErr) {
-        logger.error('getPlanningBacklogAction: work_orders failed', { error: woErr })
-        return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
-      }
-      wos.push(...(data ?? []))
+          .range(f, t)))),
+        // X4: en planlagt arbejdsordre hos en DEAKTIVERET/fratrådt medarbejder mangler reelt en medarbejder
+        // admin-klient bag gaten work_orders.plan: kun id + fratrædelsesdato; RLS må ikke få ALLE ordrer til at se ufordelte ud
+        createAdminClient().from('employees').select('id, termination_date').eq('active', true),
+      ])
+      wos = parts.flat()
+      activeEmps = (empRes.data ?? []) as unknown[]
+    } catch (woErr) {
+      logger.error('getPlanningBacklogAction: work_orders failed', { error: woErr })
+      return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
     }
-    // X4: en planlagt arbejdsordre hos en DEAKTIVERET/fratrådt medarbejder mangler reelt en medarbejder
-    // admin-klient bag gaten work_orders.plan: kun id + fratrædelsesdato; RLS må ikke få ALLE ordrer til at se ufordelte ud
-    const { createAdminClient } = await import('@/lib/supabase/admin')
-    const { data: activeEmps } = await createAdminClient().from('employees').select('id, termination_date').eq('active', true)
     const today = copenhagenParts(new Date()).date
     const activeIds = new Set(((activeEmps ?? []) as Array<{ id: string; termination_date: string | null }>)
       .filter((e) => !e.termination_date || e.termination_date >= today).map((e) => e.id))
     const byCase = new Map<string, Array<{ status: string; scheduled_date: string | null; assigned_employee_id: string | null }>>()
     for (const w of wos as Array<{ case_id: string; status: string; scheduled_date: string | null; assigned_employee_id: string | null }>) {
-      byCase.set(w.case_id, [...(byCase.get(w.case_id) ?? []), w])
+      const arr = byCase.get(w.case_id)
+      if (arr) arr.push(w) // PF3-3: push i stedet for kopi pr. række (O(n²))
+      else byCase.set(w.case_id, [w])
     }
 
     const items: PlanningBacklogItem[] = []
@@ -104,16 +107,24 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
  */
 async function workOrdersWithTime(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'], ids: string[]): Promise<Set<string> | null> {
   const out = new Set<string>()
-  for (let i = 0; i < ids.length; i += 100) {
-    const chunk = ids.slice(i, i + 100)
+  // PF3-3: bidderne parallelt (hver bid stadig side for side)
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100))
+  const results = await Promise.all(chunks.map(async (chunk) => {
+    const found: string[] = []
     for (let from = 0; from < 100_000; from += 1000) {
       const { data, error } = await supabase.from('time_logs').select('id, work_order_id').in('work_order_id', chunk)
         // Planlægnings-review 2026-10-09 (#6): afviste timer tæller aldrig (00202) — et job med kun afviste timer er "uden tid"
         .neq('approval_status', 'rejected').order('id').range(from, from + 999)
       if (error) { logger.error('workOrdersWithTime: time_logs failed', { error }); return null }
-      for (const l of (data ?? []) as Array<{ work_order_id: string }>) out.add(l.work_order_id)
+      for (const l of (data ?? []) as Array<{ work_order_id: string }>) found.push(l.work_order_id)
       if (!data || data.length < 1000) break
     }
+    return found
+  }))
+  for (const r of results) {
+    if (r === null) return null
+    for (const id of r) out.add(id)
   }
   return out
 }

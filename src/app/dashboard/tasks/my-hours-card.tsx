@@ -45,8 +45,11 @@ export async function MyHoursCard() {
         <p className="text-sm text-gray-500">Ingen timer registreret i denne uge.</p>
       ) : (
         <ul className="divide-y text-sm">
-          {week.entries.slice(0, 12).map((e) => (
-            <li key={e.id} className="py-1.5">
+          {/* MB2-6 (mobil-review 2026-10-20): afviste først, rækken linker til sagens timer, intet skjules tavst */}
+          {[...week.entries].sort((a, b) => Number(b.approval_status === 'rejected') - Number(a.approval_status === 'rejected')).slice(0, 12).map((e) => (
+            <li key={e.id}>
+              <Link href={e.case_number ? `/dashboard/orders/${encodeURIComponent(e.case_number)}?tab=planlaegning` : '/dashboard/tasks'}
+                className="block py-2.5 -mx-1 px-1 rounded hover:bg-gray-50" data-testid="my-hours-entry">
               <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 w-20 shrink-0">{dayLabel(e.date)} {e.clock}</span>
               <span className="truncate">
@@ -71,8 +74,12 @@ export async function MyHoursCard() {
               {e.end_time && e.approval_status === 'rejected' && e.rejection_reason && (
                 <p className="mt-0.5 ml-[5.5rem] text-xs text-red-700" data-testid="my-hours-rejection-reason">Begrundelse: {e.rejection_reason}</p>
               )}
+              </Link>
             </li>
           ))}
+          {week.entries.length > 12 && (
+            <li className="py-1.5 text-xs text-gray-500" data-testid="my-hours-more">+ {week.entries.length - 12} flere registreringer denne uge</li>
+          )}
         </ul>
       )}
       <div className="mt-2 text-right">

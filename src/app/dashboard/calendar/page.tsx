@@ -112,19 +112,20 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   // Q-4 (review 2026-10-16): montøren (ikke planlægger) hentes ÉN gang med åbne job uden for perioden; perioden og
   // "åbne andre steder" deles i JS (før to fulde opslag efter hinanden)
   const canPlan = await pageHasPermission('work_orders.plan')
-  const [woAllRes, employees, absencesRes] = await Promise.all([
+  // PF3-3 (performance-review 2026-10-20): planlægningspanelerne hentes samtidig med kalenderdata (før bagefter)
+  const [woAllRes, employees, absencesRes, backlog, noTime] = await Promise.all([
     listWorkOrdersByDateRange(rangeStart, rangeEnd, canPlan ? undefined : { includeOpenOutsideRange: true }),
     listCalendarEmployeesAction(),
     // 00228: fravær i perioden (RLS: montør ser kun egne)
     listAbsencesAction(rangeStart, rangeEnd),
+    // N48: sager der mangler planlægning / N62: overståede job uden registreret tid (kun planlæggere)
+    canPlan ? getPlanningBacklogAction() : Promise.resolve(null),
+    canPlan ? getJobsWithoutTimeAction() : Promise.resolve(null),
   ])
 
   const inRange = (w: { scheduled_date: string | null }) => !!w.scheduled_date && w.scheduled_date.slice(0, 10) >= rangeStart && w.scheduled_date.slice(0, 10) <= rangeEnd
   const workOrdersRes = woAllRes.success && woAllRes.data && !canPlan ? { ...woAllRes, data: woAllRes.data.filter(inRange) } : woAllRes
   const workOrders = workOrdersRes.success && workOrdersRes.data ? workOrdersRes.data : []
-  // N48: sager der mangler planlægning (kun planlæggere)
-  // N62: overståede job uden registreret tid (kun planlæggere)
-  const [backlog, noTime] = canPlan ? await Promise.all([getPlanningBacklogAction(), getJobsWithoutTimeAction()]) : [null, null]
   // Fokus E 2026-10-15: montørens uafsluttede job fra tidligere dage/uden dato forsvandt fra kalenderen → banner til Mine job
   let openElsewhere = 0
   if (!canPlan) {

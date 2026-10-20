@@ -125,8 +125,11 @@ export function TasksPageClient({
     return () => clearTimeout(t)
   }, [search])
   useEffect(() => {
+    // PF3-4 (performance-review 2026-10-20): profillisten bruges kun af ansvarlig-filteret/opgavedialogen — montøren (egne
+    // opgaver, uden opret-ret) bruger den aldrig, og kaldet stod først i køen (server actions køres én ad gangen)
+    if (isMontor && !canManage) return
     getActiveProfiles().then(setProfiles).catch(() => {})
-  }, [])
+  }, [isMontor, canManage])
   // PF-7 (performance-review 2026-10-16): udførte hentes kun, når de vises (eller filtreres frem); antallet til knappen
   // er en HEAD-count (før hentedes op til 1.000 opgaver inkl. alle udførte og blev skjult i browseren)
   const [doneCount, setDoneCount] = useState(0)

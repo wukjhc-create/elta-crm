@@ -249,17 +249,17 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | MB2-3 | Ret afvist time: små felter/knapper; sats-select ~24 px (S3) | TODO |
 | MB2-4 | Sagsfaner: ~9 faner, kun ~3 synlige; aktiv fane fra deeplink rulles ikke frem (S3) | TODO |
 | MB2-5 | Dokumentliste: Åbn/Slet ~30 px side om side (S3) | DONE (kode, U43) — Åbn/Slet 44 px på telefon med afstand |
-| MB2-6 | "Mine timer": rækker ikke klikbare, kun 12 vist (S3) | TODO |
-| MB2-7 | Lange ord/URL'er i noter/beskrivelse sprænger bredden (S4) | DELVIS (kode) — noter brydes (overflow-wrap); arbejdsordrebeskrivelse = TODO |
+| MB2-6 | "Mine timer": rækker ikke klikbare, kun 12 vist (S3) | DONE (kode) — afviste først, rækken linker til sagens Planlægning (sagsnr.), "+N flere" |
+| MB2-7 | Lange ord/URL'er i noter/beskrivelse sprænger bredden (S4) | DONE (kode) — noter og arbejdsordrebeskrivelse brydes (overflow-wrap) |
 | MB2-8 | Note-redigering: små Gem/Annullér (S4) | DONE (kode) — Gem/Annullér 44 px på telefon |
-| MB2-9 | Afleveringsfotos: ét foto pr. valg, fanen genindlæses efter hvert (S4) | TODO |
+| MB2-9 | Afleveringsfotos: ét foto pr. valg, fanen genindlæses efter hvert (S4) | DONE (kode) — flere fotos pr. valg (uploades ét ad gangen) |
 | MB2-10 | Kalender: I dag/dato/visning-knapper ~30 px (S4) | DONE (kode, U30/U160) — I dag/dato/visning højere på telefon |
 | MB2-11 | Underskrift: navnefeltet autoudfylder montørens navn (S4) | DONE (kode) — autoComplete off, autoCapitalize words |
 | MB2-12 | "Mine job"-header klemt (S4) | DONE (kode, U174) — flex-wrap, kortere label |
 | PF3-1 | Kundesiden: ~13 serielle server-actions ved åbning (S3) | TODO |
 | PF3-2 | getWorkOrderScope henter ALLE montørens arbejdsordre-id'er pr. tidsregistrering/fane (S3) | DONE (kode, montør-gruppen U11/U21/U34/U44/U48/U62/U63/U66/U67/U71/U73/U117) — getWorkOrderEmployeeScope + filter på assigned_employee_id i databasen / opslag af den ene arbejdsordre (5 kald) |
-| PF3-3 | Kalender: backlog/uden-tid hentes efter Promise.all, serielle bidder, O(n²) spread (S3) | TODO |
-| PF3-4 | Opgavesiden: getActiveProfiles for montør + ufiltreret realtime (S3) | TODO |
+| PF3-3 | Kalender: backlog/uden-tid hentes efter Promise.all, serielle bidder, O(n²) spread (S3) | DONE (kode, U96/U117/U30) — backlog/uden-tid i kalenderens Promise.all; bidder parallelt; push i stedet for O(n²) spread |
+| PF3-4 | Opgavesiden: getActiveProfiles for montør + ufiltreret realtime (S3) | DELVIS (kode, U174/U175/U201) — profillisten hentes ikke for montør uden opret-ret; realtime-filter pr. bruger = TODO |
 | PF3-5 | Thumbnails henter fulde billeder uden lazy (S3) | DELVIS (kode) — loading="lazy" decoding="async"; rigtige thumbnails (transform) = TODO |
 | PF3-6 | Planlægning-fanen: ~7 serielle actions (S3) | TODO |
 | PF3-7 | Kundeliste: betalingsview tælles 6 gange; auto-tal før listen (S4) | TODO |
