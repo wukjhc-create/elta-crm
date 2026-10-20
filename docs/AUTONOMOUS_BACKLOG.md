@@ -1753,6 +1753,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogfireogtresindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `0a8375de`. Det lader tohundredeogtreogtresindstyvende-hegnet stå. `0a8375de` hedder `feat(suppliers): navnerammen kan krympe`. `2bb9ca63` hedder `feat(assistant): påmindelsen siger kunden ikke er kontaktet`. `origin/grok-next` er `0a8375de`. Push af `0a8375de` lykkedes. `2bb9ca63` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `2bb9ca63..0a8375de`
+
+```
+0a8375de feat(suppliers): navnerammen kan krympe
+2bb9ca63 feat(assistant): påmindelsen siger kunden ikke er kontaktet
+```
+
+Listen er skiftets commits fra `2bb9ca63` til og med `0a8375de`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+9e5db2be docs: checkpoint efter 2bb9ca63
+```
+
+### Features
+
+G18-999 lader navnerammen på leverandørvarens skrivebord krympe. Producent, priser og mobilkortet bliver. G18-998 lader påmindelses-svaret sige at kunden ikke er kontaktet. Insert og afsendelse bliver. Ingen webhook. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic.
+
+### Tests
+
+`scripts/supplier-product-desktop-name-frame-wrap-test.ts` læser `src/components/modules/suppliers/supplier-products-table.tsx` og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. Den kørte med `npx tsx` og exiterede 0. `scripts/assistant-reminder-reply-test.ts` er testen for påmindelses-svaret og havde allerede exit 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `0a8375de`. `2bb9ca63` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d2b2521e`, tilbudslistens tælle-mærke i `589fad7b`, varenavnet i `943b355a`, mobilproducenten i `3d5409f1`, konverteringsteksten i `b0111850`, note-svaret i `a2532b6e`, salgstragtens indledning i `9f007f5f`, callback-svaret i `cbb55c21`, skrivebordsproducenten i `b488225a`, filikonet i `0490e08a`, fillisten i `512ef9cd`, billedgitteret i `ffbeb5f9`, download-ikonet i `848c7e72`, papirclipsen i `96f3195a`, venteteksten i `5d892a39`, tilbud ude-mærket i `6ba193f0`, navnecellen i `ba10bb6a`, mobilkortet i `e15fbf18`, den skjulte konverteringstekst i `b580e012`, note-forkortelsen i `b516c654`, salgstragtens overskrift i `41e5e1de`, påmindelses-svaret i `2bb9ca63`, og navnerammen i `0a8375de`. `9e5db2be` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `0a8375de`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-991, G18-1000, G18-1001, G18-1002, G18-1003, G18-1004, G18-1005, G18-1006, G18-1007, G18-1008, G18-1009, G18-1010, G18-1011, G18-1012, G18-1013.
+
 ## Checkpoint 2026-10-18 tohundredeogtreogtresindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `2bb9ca63`. Det lader tohundredeogtoogtresindstyvende-hegnet stå. `2bb9ca63` hedder `feat(assistant): påmindelsen siger kunden ikke er kontaktet`. `41e5e1de` hedder `feat(reports): salgstragtens overskrift kan krympe`. `origin/grok-next` er `2bb9ca63`. Push af `2bb9ca63` lykkedes. `41e5e1de` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
