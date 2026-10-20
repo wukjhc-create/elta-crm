@@ -1040,7 +1040,37 @@ function CreditStatusPanel({
 
         {/* Eksisterende kreditnotaer */}
         {hasCredits && (
-          <div className="rounded ring-1 ring-gray-200 overflow-x-auto">
+          <>
+          <ul className="md:hidden space-y-2" data-testid="invoice-credits-mobile">
+            {summary.existing_credit_notes.map((c) => (
+              <li key={c.id} className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${c.status === 'draft' ? 'bg-yellow-50/40' : ''}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-mono text-gray-900 break-all">{c.invoice_number}</p>
+                  <span
+                    className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                      c.status === 'draft'
+                        ? 'bg-yellow-100 text-yellow-900'
+                        : c.status === 'sent'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-emerald-100 text-emerald-800'
+                    }`}
+                  >
+                    {c.status}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-gray-700 break-words">{c.credit_reason ?? '—'}</p>
+                <p className="mt-1 tabular-nums font-medium text-red-700">{fmtKrLocal(c.final_amount)}</p>
+                <Link
+                  href={`/dashboard/invoices/${c.id}`}
+                  className="mt-2 inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900"
+                  aria-label="Åbn kreditnota"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Åbn
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block rounded ring-1 ring-gray-200 overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
@@ -1089,6 +1119,7 @@ function CreditStatusPanel({
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {/* Bottom messaging + action */}
