@@ -26,7 +26,7 @@ ok(!view.includes('break-words break-words'), 'et break-words')
 ok(view.includes('{l.quantity ?? \'—\'}'), 'antallet bliver')
 ok(view.includes('{l.unit ?? \'\'}'), 'enheden bliver')
 
-const total = '<p className="font-medium">Total {fmtAmount(l.total_price, inv.currency)}</p>'
+const total = '<p className="font-medium break-words min-w-0">Total {fmtAmount(l.total_price, inv.currency)}</p>'
 ok(view.includes(total), 'totalen bliver')
 ok(view.split(total).length === 2, 'totalen er en')
 
