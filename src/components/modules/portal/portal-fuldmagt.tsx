@@ -236,10 +236,11 @@ function FuldmagtForm({ token, fuldmagt }: { token: string; fuldmagt: FuldmagtDa
       <div className="space-y-5">
         {/* Fødselsdato / CVR */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="fuldmagt-cvr" className="block text-sm font-medium text-gray-700 mb-1">
             Fødselsdato eller CVR nr. <span className="text-red-500">*</span>
           </label>
           <input
+            id="fuldmagt-cvr"
             type="text"
             inputMode="numeric"
             value={foedselsdatoCvr}
@@ -282,10 +283,11 @@ function FuldmagtForm({ token, fuldmagt }: { token: string; fuldmagt: FuldmagtDa
 
         {/* Signer name */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="fuldmagt-name" className="block text-sm font-medium text-gray-700 mb-1">
             Dit fulde navn <span className="text-red-500">*</span>
           </label>
           <input
+            id="fuldmagt-name"
             type="text"
             value={signerName}
             onChange={(e) => setSignerName(e.target.value)}
@@ -296,7 +298,7 @@ function FuldmagtForm({ token, fuldmagt }: { token: string; fuldmagt: FuldmagtDa
         {/* Signature */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-gray-700">
+            <label id="fuldmagt-sign-label" className="text-sm font-medium text-gray-700">
               Underskrift <span className="text-red-500">*</span>
             </label>
             <button type="button" onClick={clearSig}
@@ -305,7 +307,7 @@ function FuldmagtForm({ token, fuldmagt }: { token: string; fuldmagt: FuldmagtDa
             </button>
           </div>
           <div className="border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-white">
-            <canvas ref={canvasRef} width={500} height={180}
+            <canvas ref={canvasRef} aria-labelledby="fuldmagt-sign-label" width={500} height={180}
               className="w-full touch-none cursor-crosshair"
               onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
               onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />
