@@ -139,7 +139,7 @@ export function AftercalcOverviewClient() {
                 </select>
               </label>
               <label className="block min-w-0">
-                <span className="text-xs text-gray-500">Sortering</span>
+                <span className="text-xs text-gray-500 break-words min-w-0">Sortering</span>
                 <select value={(filters.sort ?? 'worst_db') as AftercalcSort} onChange={(e) => setFilter({ sort: e.target.value as AftercalcSort })} className="mt-0.5 w-full min-w-0 max-w-full rounded border border-gray-300 px-2 py-1">
                   {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
