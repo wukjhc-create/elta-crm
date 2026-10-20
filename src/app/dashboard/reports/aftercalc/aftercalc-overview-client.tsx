@@ -123,7 +123,7 @@ export function AftercalcOverviewClient() {
                   {assignees.map((a) => <option key={a.id} value={a.id}>{a.full_name || 'Uden navn'}</option>)}
                 </select>
               </label>
-              <label className="block min-w-0">
+              <label className="block break-words min-w-0">
                 <span className="text-xs text-gray-500 break-words min-w-0">Status</span>
                 <select value={filters.status ?? ''} onChange={(e) => setFilter({ status: e.target.value || null })} className="mt-0.5 w-full break-words min-w-0 max-w-full rounded border border-gray-300 px-2 py-1">
                   <option value="">Alle undtagen konverterede</option>
