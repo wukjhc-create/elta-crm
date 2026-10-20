@@ -159,9 +159,9 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
   if (!summary) {
     return (
       <div className={`border rounded-lg p-6 bg-white ${className}`}>
-        <div className="text-center py-4 text-gray-500">
-          Kunne ikke hente leverandørstatus
-        </div>
+        <p className="text-sm text-red-700 break-words py-4" data-testid="supplier-health-load-error">
+          Kunne ikke hente leverandørstatus. Det tælles ikke som 0 leverandører.
+        </p>
       </div>
     )
   }
