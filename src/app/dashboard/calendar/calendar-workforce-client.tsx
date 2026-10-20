@@ -267,7 +267,7 @@ export function CalendarWorkforceClient({
               <button
                 key={v}
                 onClick={() => updateParam({ view: v })}
-                className={`px-3 py-1.5 text-sm font-medium transition ${
+                className={`px-3 py-2.5 sm:py-1.5 text-sm font-medium transition ${
                   view === v
                     ? 'bg-emerald-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -309,7 +309,7 @@ export function CalendarWorkforceClient({
         </button>
         <button
           onClick={() => updateParam({ date: todayKey() })}
-          className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50"
+          className="px-3 py-2.5 sm:py-1.5 text-sm border rounded-lg hover:bg-gray-50"
         >
           I dag
         </button>
@@ -319,7 +319,7 @@ export function CalendarWorkforceClient({
           onChange={(e) => {
             if (e.target.value) updateParam({ date: e.target.value })
           }}
-          className="px-2 py-1 border rounded text-sm"
+          className="px-2 py-2 sm:py-1 border rounded text-sm"
         />
         <button
           onClick={() => updateParam({ date: stepForward() })}

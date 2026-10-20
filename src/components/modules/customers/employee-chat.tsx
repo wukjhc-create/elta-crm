@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useVisiblePolling } from '@/lib/hooks/use-visible-polling'
 import { useRouter } from 'next/navigation'
 import {
   X,
@@ -104,10 +105,10 @@ export function EmployeeChat({
   // CRM side stays in sync without the operator having to hit refresh.
   useEffect(() => {
     loadMessages()
-    const interval = setInterval(() => loadMessages(true), 15000)
-    return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId, offerId])
+  // PF3-8: poll kun når fanen er synlig (blokerede ellers brugerens egne gem — server actions køres én ad gangen)
+  useVisiblePolling(() => { loadMessages(true) }, 15000)
 
   // Scroll to bottom only when the message list actually grows. Avoids
   // jumpy auto-scroll on every poll-driven re-render when nothing

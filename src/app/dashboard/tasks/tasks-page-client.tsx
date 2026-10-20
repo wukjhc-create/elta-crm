@@ -711,7 +711,7 @@ function TaskRow({
       <div>
         <button
           onClick={onComplete}
-          className="shrink-0"
+          className="shrink-0 -m-2 p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center"
           aria-label={isDone ? 'Genåbn opgave' : 'Marker som udført'}
         >
           {isDone ? (
@@ -775,7 +775,7 @@ function TaskRow({
         <select
           value={task.status}
           onChange={(e) => onStatusChange(e.target.value as TaskStatus)}
-          className={`text-xs font-medium rounded px-2 py-0.5 border-0 cursor-pointer ${statusCfg.bgColor} ${statusCfg.color}`}
+          className={`text-xs font-medium rounded px-2 py-2 sm:py-0.5 border-0 cursor-pointer ${statusCfg.bgColor} ${statusCfg.color}`}
         >
           {Object.entries(TASK_STATUS_CONFIG).map(([key, cfg]) => (
             <option key={key} value={key}>{cfg.label}</option>

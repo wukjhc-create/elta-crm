@@ -1757,7 +1757,7 @@ export async function registerPayment(
   amount: number,
   reference?: string | null,
   /** A-12/EC-1: e-conomic-postering KUN ved eksplicit syncEconomic=true (standard = kun CRM-status) */
-  options: { syncEconomic?: boolean } = {}
+  options: { syncEconomic?: boolean; paidAt?: string | null } = {}
 ): Promise<RegisterPaymentResult> {
   const amt = Number(amount)
   if (!(amt > 0) || !Number.isFinite(amt)) {
@@ -1765,6 +1765,10 @@ export async function registerPayment(
   }
 
   const supabase = createAdminClient()
+  // FIN2-6 (finans-review 2026-10-20): betalingsdatoen er bankens dato (når den kendes) — ikke behandlingstidspunktet.
+  // Ugyldig eller fremtidig dato → nu.
+  const paidAtMs = options.paidAt ? Date.parse(options.paidAt) : NaN
+  const paidAtIso = Number.isFinite(paidAtMs) && paidAtMs <= Date.now() ? new Date(paidAtMs).toISOString() : new Date().toISOString()
 
   const { data: inv, error: readErr } = await supabase
     .from('invoices')
@@ -1790,6 +1794,7 @@ export async function registerPayment(
     invoice_id: invoiceId,
     amount: amt,
     reference: reference ?? null,
+    recorded_at: paidAtIso,
   })
   if (insErr) {
     logger.error('registerPayment: payment insert failed', {
@@ -1833,7 +1838,7 @@ export async function registerPayment(
 
   if (nextPaymentStatus === 'paid' && inv.status !== 'paid') {
     patch.status = 'paid'
-    patch.paid_at = new Date().toISOString()
+    patch.paid_at = paidAtIso // FIN2-6
   }
 
   const { error: updErr } = await supabase

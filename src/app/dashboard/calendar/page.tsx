@@ -81,16 +81,17 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     // OPRETTEDE, inkl. alle udførte — ældre måneder blev tomme og datamængden voksede med hver besigtigelse)
     const windowFrom = addDays(todayKey(), -365)
     const windowTo = addDays(todayKey(), 366)
-    const [allTasks, assistantTasks] = await Promise.all([
+    // PF3-9: påmindelserne hentes samtidig (før efter de to opgavekald)
+    const [allTasks, assistantTasks, mine] = await Promise.all([
       getAllTasks({ search: 'besigtigelse', dueFrom: windowFrom, dueTo: windowTo, throwOnError: true }).catch(() => { tasksLoadError = true; return [] }),
       getAllTasks({ autoRules: ASSISTANT_RULES, throwOnError: true }).catch(() => { tasksLoadError = true; return [] }),
+      getMyPersonalReminders().catch(() => ({ available: false, reminders: [] })),
     ])
     const besigtigelser = allTasks.filter((t) =>
       t.title.toLowerCase().includes('besigtigelse')
     )
     const seen = new Set(besigtigelser.map((t) => t.id))
     // Mine personlige påmindelser (00197; tom hvor tabellen ikke findes)
-    const mine = await getMyPersonalReminders().catch(() => ({ available: false, reminders: [] }))
     const personalReminders = mine.reminders.map((r) => ({ id: r.id, title: r.title, due_at: r.due_at, status: r.status }))
     return <CalendarPageClient tasks={[...besigtigelser, ...assistantTasks.filter((t) => !seen.has(t.id))]} personalReminders={personalReminders} loadError={tasksLoadError} windowFrom={windowFrom} windowTo={windowTo} />
   }

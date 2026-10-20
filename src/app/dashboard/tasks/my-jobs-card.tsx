@@ -47,12 +47,12 @@ export async function MyJobsCard() {
 
   return (
     <section className="bg-white rounded-lg border p-4 sm:p-5 mb-6" data-testid="my-jobs-card">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
         <CalendarCheck className="w-5 h-5 text-emerald-700" />
         <h2 className="font-semibold">Mine job</h2>
         <Link href="/dashboard/calendar" className="ml-auto inline-flex items-center min-h-11 sm:min-h-0 px-2 sm:px-0 text-sm sm:text-xs text-emerald-700 hover:underline">Kalender</Link>
         {/* fokus E 2026-10-15: egne job som kalenderfil (heldagsbegivenheder) */}
-        <a href="/api/calendar/my-jobs" className="inline-flex items-center min-h-11 sm:min-h-0 px-2 sm:px-0 text-sm sm:text-xs text-emerald-700 hover:underline" data-testid="my-jobs-ics" download>Til telefonens kalender</a>
+        <a href="/api/calendar/my-jobs" className="inline-flex items-center min-h-11 sm:min-h-0 px-2 sm:px-0 text-sm sm:text-xs text-emerald-700 hover:underline" data-testid="my-jobs-ics" download>Telefonkalender</a>
       </div>
       {doneWithoutTime.length > 0 && (
         <div className="mb-4" data-testid="my-jobs-no-time">

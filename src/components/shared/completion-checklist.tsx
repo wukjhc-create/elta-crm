@@ -157,7 +157,7 @@ export function CompletionChecklist({
                       {/* M-1 (pilot-review 2026-10-15): tryk på fotoet åbner det — før slettede et tryk fotoet uden
                           bekræftelse (skraldespanden var kun synlig ved hover, som ikke findes på telefon) */}
                       <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
-                        <img src={att.file_url} alt={att.file_name} className="w-full h-full object-cover" />
+                        <img src={att.file_url} alt={att.file_name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       </a>
                       {onDeleteAttachment && !disabled && (att as { deletable_by_me?: boolean }).deletable_by_me !== false && (
                         <button
@@ -239,7 +239,7 @@ export function CompletionChecklist({
                     <div className="mt-2 ml-8 flex gap-2 flex-wrap">
                       {itemAttachments.map((att) => (
                         <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer" className="relative block w-16 h-16 rounded-md overflow-hidden border">
-                          <img src={att.file_url} alt={att.file_name} className="w-full h-full object-cover" />
+                          <img src={att.file_url} alt={att.file_name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         </a>
                       ))}
                     </div>

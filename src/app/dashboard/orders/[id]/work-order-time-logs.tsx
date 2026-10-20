@@ -367,7 +367,7 @@ export function WorkOrderTimeLogs({
           onSubmit={onSubmit}
           className="bg-emerald-50/50 ring-1 ring-emerald-200 rounded p-3 space-y-2"
         >
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
             <Field label="Dato">
               <input
                 type="date"
@@ -375,7 +375,7 @@ export function WorkOrderTimeLogs({
                 onChange={(e) => setDate(e.target.value)}
                 disabled={isWorking}
                 required
-                className="w-full px-2 py-1 border rounded text-sm"
+                className="w-full px-2 py-2 sm:py-1 border rounded text-sm"
               />
             </Field>
 
@@ -385,7 +385,7 @@ export function WorkOrderTimeLogs({
                 onChange={(e) => setEmployeeId(e.target.value)}
                 disabled={isWorking}
                 required
-                className="w-full px-2 py-1 border rounded text-sm bg-white"
+                className="w-full px-2 py-2 sm:py-1 border rounded text-sm bg-white"
               >
                 <option value="">— vælg —</option>
                 {employees.map((e) => (
@@ -400,7 +400,7 @@ export function WorkOrderTimeLogs({
                 value={startClock}
                 onChange={(e) => setStartClock(e.target.value)}
                 disabled={isWorking}
-                className="w-full px-2 py-1 border rounded text-sm"
+                className="w-full px-2 py-2 sm:py-1 border rounded text-sm"
               />
             </Field>
 
@@ -415,7 +415,7 @@ export function WorkOrderTimeLogs({
                   }}
                   disabled={isWorking}
                   placeholder="HH:mm"
-                  className="w-1/2 px-2 py-1 border rounded text-sm"
+                  className="w-1/2 px-2 py-2 sm:py-1 border rounded text-sm"
                 />
                 <input
                   type="text"
@@ -427,7 +427,7 @@ export function WorkOrderTimeLogs({
                   }}
                   disabled={isWorking}
                   placeholder="t"
-                  className="w-1/2 px-2 py-1 border rounded text-sm"
+                  className="w-1/2 px-2 py-2 sm:py-1 border rounded text-sm"
                 />
               </div>
             </Field>
@@ -439,7 +439,7 @@ export function WorkOrderTimeLogs({
                 value={payRateType}
                 onChange={(e) => setPayRateType(e.target.value as PayRateType)}
                 disabled={isWorking}
-                className="w-full px-2 py-1 border rounded text-sm bg-white"
+                className="w-full px-2 py-2 sm:py-1 border rounded text-sm bg-white"
               >
                 {PAY_RATE_TYPE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -453,7 +453,7 @@ export function WorkOrderTimeLogs({
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isWorking}
                 placeholder="Hvad blev der lavet?"
-                className="w-full px-2 py-1 border rounded text-sm"
+                className="w-full px-2 py-2 sm:py-1 border rounded text-sm"
               />
             </Field>
           </div>

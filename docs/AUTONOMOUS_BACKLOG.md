@@ -234,7 +234,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | FIN2-3 | Priskontrol vender fortegn på AO-kreditlinjer (negativ total, positivt antal) (S3) | DONE (kode, invoice-control-test) — negativ total + positivt antal kontrolleres som kredit (loader + dækning) |
 | FIN2-4 | Standardkladde fra sag fakturerer materialer/øvrige uden salgspris til 0 kr og låser dem (S3) | DONE (kode) — materialer/øvrige uden salgspris springes over (missing_sale_price), som slutfakturaen |
 | FIN2-5 | Dashboardets "Betalt denne måned" uden betalingsrækker (FC-5) — andet tal end oversigten (S3) | DONE (kode) — dashboardet sender månedens betalingsrækker med (som oversigten) |
-| FIN2-6 | Betalingsdato = behandlingstid, ikke bankdato (S4) | TODO |
+| FIN2-6 | Betalingsdato = behandlingstid, ikke bankdato (S4) | DONE (kode, bank-auto-match-check) — registerPayment tager paidAt (bankdato kl. 12 dansk tid) til recorded_at og paid_at; fremtidig/ugyldig → nu |
 | FIN2-7 | Bankmatch: creditedOriginals uden valuta-/typefilter (S4) | DONE (kode) — kun DKK og aldrig kreditnotaer i creditedOriginals |
 | FIN2-8 | "Markér som sendt" springer total ≤ 0-værnet over (S4) | DONE (kode) — draft→sent afviser ikke-kredit med total ≤ 0 |
 | FIN2-9 | Momsafrunding i TS (halv øre ned) ≠ SQL/e-conomic (S4) | DONE (kode, money-round-test 9 + alle faktura-tests) — fælles roundMoney (halv øre væk fra nul) i 10 fakturahjælpere |
@@ -244,27 +244,27 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 ## NEXT-53 (mobil + performance-review 2026-10-20 — montørflows og varme sider)
 | # | Fund | Status |
 |---|---|---|
-| MB2-1 | Opgavesiden: "udført"-cirkel 20×20 px, status-select ~22 px (S3) | TODO |
-| MB2-2 | Timeformular på sagen: dato/tid-felter klippes på telefon (grid-cols-2 + w-1/2) (S3) | TODO |
+| MB2-1 | Opgavesiden: "udført"-cirkel 20×20 px, status-select ~22 px (S3) | DONE (kode) — udført-knap 44 px tryk-flade, status-select højere på telefon |
+| MB2-2 | Timeformular på sagen: dato/tid-felter klippes på telefon (grid-cols-2 + w-1/2) (S3) | DONE (kode, U62) — én kolonne på telefon, højere felter |
 | MB2-3 | Ret afvist time: små felter/knapper; sats-select ~24 px (S3) | TODO |
 | MB2-4 | Sagsfaner: ~9 faner, kun ~3 synlige; aktiv fane fra deeplink rulles ikke frem (S3) | TODO |
-| MB2-5 | Dokumentliste: Åbn/Slet ~30 px side om side (S3) | TODO |
+| MB2-5 | Dokumentliste: Åbn/Slet ~30 px side om side (S3) | DONE (kode, U43) — Åbn/Slet 44 px på telefon med afstand |
 | MB2-6 | "Mine timer": rækker ikke klikbare, kun 12 vist (S3) | TODO |
-| MB2-7 | Lange ord/URL'er i noter/beskrivelse sprænger bredden (S4) | TODO |
-| MB2-8 | Note-redigering: små Gem/Annullér (S4) | TODO |
+| MB2-7 | Lange ord/URL'er i noter/beskrivelse sprænger bredden (S4) | DELVIS (kode) — noter brydes (overflow-wrap); arbejdsordrebeskrivelse = TODO |
+| MB2-8 | Note-redigering: små Gem/Annullér (S4) | DONE (kode) — Gem/Annullér 44 px på telefon |
 | MB2-9 | Afleveringsfotos: ét foto pr. valg, fanen genindlæses efter hvert (S4) | TODO |
-| MB2-10 | Kalender: I dag/dato/visning-knapper ~30 px (S4) | TODO |
-| MB2-11 | Underskrift: navnefeltet autoudfylder montørens navn (S4) | TODO |
-| MB2-12 | "Mine job"-header klemt (S4) | TODO |
+| MB2-10 | Kalender: I dag/dato/visning-knapper ~30 px (S4) | DONE (kode, U30/U160) — I dag/dato/visning højere på telefon |
+| MB2-11 | Underskrift: navnefeltet autoudfylder montørens navn (S4) | DONE (kode) — autoComplete off, autoCapitalize words |
+| MB2-12 | "Mine job"-header klemt (S4) | DONE (kode, U174) — flex-wrap, kortere label |
 | PF3-1 | Kundesiden: ~13 serielle server-actions ved åbning (S3) | TODO |
 | PF3-2 | getWorkOrderScope henter ALLE montørens arbejdsordre-id'er pr. tidsregistrering/fane (S3) | TODO |
 | PF3-3 | Kalender: backlog/uden-tid hentes efter Promise.all, serielle bidder, O(n²) spread (S3) | TODO |
 | PF3-4 | Opgavesiden: getActiveProfiles for montør + ufiltreret realtime (S3) | TODO |
-| PF3-5 | Thumbnails henter fulde billeder uden lazy (S3) | TODO |
+| PF3-5 | Thumbnails henter fulde billeder uden lazy (S3) | DELVIS (kode) — loading="lazy" decoding="async"; rigtige thumbnails (transform) = TODO |
 | PF3-6 | Planlægning-fanen: ~7 serielle actions (S3) | TODO |
 | PF3-7 | Kundeliste: betalingsview tælles 6 gange; auto-tal før listen (S4) | TODO |
-| PF3-8 | Chat/tilbud poller i skjult fane (S4) | TODO |
-| PF3-9 | Kalender månedsvisning: påmindelser efter Promise.all (S4) | TODO |
+| PF3-8 | Chat/tilbud poller i skjult fane (S4) | DELVIS (kode) — kundechatten poller kun synlig fane; tilbudsdetaljen = TODO |
+| PF3-9 | Kalender månedsvisning: påmindelser efter Promise.all (S4) | DONE (kode, U30) — påmindelser i samme Promise.all |
 | PF3-10 | Sagsliste select('*') for 50–500 rækker (S4) | TODO |
 
 ## NEXT-52 (dead-end-review 2026-10-19 — knapper/faner serveren afviser)

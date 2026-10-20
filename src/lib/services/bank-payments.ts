@@ -550,7 +550,10 @@ async function applyMatch(
   let payment: Awaited<ReturnType<typeof registerPayment>>
   try {
     // EC-1/A-12: bankmatch ændrer kun CRM-status — ingen automatisk betalingspostering i e-conomic
-    payment = await registerPayment(invoice.id, tx.amount, tx.reference_text || tx.sender_name || undefined, { syncEconomic: false })
+    // FIN2-6: bankdatoen (dansk middag) som betalingsdato — en betaling 30/9 importeret 2/10 hører til september
+    const { copenhagenLocalToIso } = await import('@/lib/utils/copenhagen-time')
+    const bankDate = typeof tx.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(tx.date) ? copenhagenLocalToIso(tx.date.slice(0, 10), '12:00') : null
+    payment = await registerPayment(invoice.id, tx.amount, tx.reference_text || tx.sender_name || undefined, { syncEconomic: false, paidAt: bankDate })
   } catch (err) {
     // frigiv kravet, så transaktionen kan matches igen (før stod den "matched" uden registreret betaling)
     await supabase.from('bank_transactions')

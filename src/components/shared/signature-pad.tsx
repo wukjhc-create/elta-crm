@@ -161,6 +161,9 @@ export function SignaturePad({
           value={name}
           onChange={(e) => { setName(e.target.value); onNameChange(e.target.value) }}
           placeholder="Fulde navn"
+          autoComplete="off"
+          autoCapitalize="words"
+          enterKeyHint="done"
           className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
           disabled={disabled}
         />

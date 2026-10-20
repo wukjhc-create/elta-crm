@@ -180,21 +180,21 @@ export function OrderNotesTab({
                       className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
                     <div className="flex items-center gap-2">
                       <select value={editKind} onChange={(e) => setEditKind(e.target.value as CaseNoteKind)} disabled={rowBusy}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-sm">
+                        className="rounded-md border border-gray-300 px-2 py-2 sm:py-1 text-sm">
                         {CASE_NOTE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k] ?? k}</option>)}
                       </select>
                       <button onClick={() => handleSaveEdit(n.id)} disabled={rowBusy || !editContent.trim()}
-                        className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+                        className="inline-flex items-center justify-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 min-h-11 sm:min-h-0 flex-1 sm:flex-none text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
                         {rowBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Gem
                       </button>
                       <button onClick={() => setEditingId(null)} disabled={rowBusy}
-                        className="inline-flex items-center gap-1 rounded-md ring-1 ring-gray-300 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-100">
+                        className="inline-flex items-center justify-center gap-1 rounded-md ring-1 ring-gray-300 px-2.5 py-1.5 min-h-11 sm:min-h-0 flex-1 sm:flex-none text-xs text-gray-600 hover:bg-gray-100">
                         <X className="w-3.5 h-3.5" /> Annullér
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">{n.content}</div>
+                  <div className="text-sm text-gray-800 mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{n.content}</div>
                 )}
               </div>
             </div>

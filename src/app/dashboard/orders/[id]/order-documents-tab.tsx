@@ -229,7 +229,7 @@ function DocumentRow({ doc, fromMail, onDelete }: { doc: CaseDocument; fromMail:
         }`}>
           {isImg ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={doc.file_url} alt={doc.file_name} className="w-full h-full object-cover rounded-lg" />
+            <img src={doc.file_url} alt={doc.file_name} loading="lazy" decoding="async" className="w-full h-full object-cover rounded-lg" />
           ) : (
             <FileText className={`w-5 h-5 ${fromMail ? 'text-blue-600' : 'text-gray-600'}`} />
           )}
@@ -260,7 +260,7 @@ function DocumentRow({ doc, fromMail, onDelete }: { doc: CaseDocument; fromMail:
           href={doc.file_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform"
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 min-h-11 sm:min-h-0 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform"
         >
           <Download className="w-3.5 h-3.5" /> Åbn
         </a>
@@ -269,7 +269,7 @@ function DocumentRow({ doc, fromMail, onDelete }: { doc: CaseDocument; fromMail:
         <button
           type="button"
           onClick={() => onDelete(doc)}
-          className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100"
+          className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 min-h-11 sm:min-h-0 ml-2 sm:ml-0 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100"
           aria-label={`Slet ${doc.file_name}`}
           data-testid="case-document-delete"
         >
