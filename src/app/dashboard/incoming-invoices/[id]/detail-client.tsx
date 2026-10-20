@@ -458,7 +458,7 @@ export function IncomingInvoiceDetailClient({
                   <div className="flex-1 h-2 bg-gray-100 rounded overflow-hidden">
                     <div className={`h-2 ${score > 0 ? 'bg-emerald-500' : 'bg-gray-200'}`} style={{ width: `${Math.min(100, score * 100)}%` }} />
                   </div>
-                  <span className="w-12 shrink-0 text-right font-mono">{score.toFixed(2)}</span>
+                  <span className="w-12 shrink-0 text-right font-mono break-words min-w-0">{score.toFixed(2)}</span>
                 </div>
               )
             })}

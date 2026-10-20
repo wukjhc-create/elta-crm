@@ -26,7 +26,7 @@ ok(after.includes('{inv.payment_reference ?? \'—\'}'), 'referencen bliver')
 ok(view.split(bare).length === 1, 'den bare betalingsreference er vaek')
 ok(!view.includes(bare), 'den bare betalingsreference er vaek')
 ok(view.includes('<span className="font-mono break-words min-w-0">{inv.invoice_number ?? \'—\'}</span>'), 'fakturanummeret bliver')
-ok(view.includes('<span className="w-12 shrink-0 text-right font-mono">{score.toFixed(2)}</span>'), 'signalscoren bliver')
+ok(view.includes('<span className="w-12 shrink-0 text-right font-mono break-words min-w-0">{score.toFixed(2)}</span>'), 'signalscoren bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
