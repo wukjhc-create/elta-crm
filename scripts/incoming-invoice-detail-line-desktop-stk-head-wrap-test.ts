@@ -36,7 +36,7 @@ const priceCell = '<td className="px-2 py-1 text-right break-words min-w-0">{fmt
 ok(view.includes(priceCell), 'stkpriscellen bliver')
 ok(view.split(priceCell).length === 2, 'stkpriscellen er en')
 
-const total = '<th className="px-2 py-1 text-right">Total</th>'
+const total = '<th className="px-2 py-1 text-right break-words min-w-0">Total</th>'
 ok(view.includes(total), 'totalkolonnen bliver')
 ok(view.split(total).length === 2, 'totalkolonnen er en')
 
