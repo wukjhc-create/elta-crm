@@ -25,7 +25,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
       <p className="text-xs text-gray-500 mb-4 break-words min-w-0">
         Sendt-rate {pct(t.sent_rate)} af oprettede tilbud · vinderrate {pct(t.win_rate)} af sendte. Accepteret værdi og faktureret er ekskl. moms (kreditnotaer trukket fra; faktura i udstedelsesmåneden).
       </p>
-      <div className="md:hidden space-y-2" data-testid="sales-funnel-mobile">
+      <div className="md:hidden space-y-2 break-words min-w-0" data-testid="sales-funnel-mobile">
         {data.months.map((m) => (
           <article key={m.month} className="rounded ring-1 ring-gray-200 p-3 text-sm break-words min-w-0">
             <p className="font-medium text-gray-900 break-words min-w-0">{monthLabel(m.month)}</p>
