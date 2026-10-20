@@ -26,7 +26,7 @@ ok(after.includes('Math.min(100, Number(breakdown.total ?? 0) * 100)'), 'bredden
 ok(view.split(bare).length === 1, 'den bare blaa bjaelke er vaek')
 ok(!view.includes(bare), 'den bare blaa bjaelke er vaek')
 ok(view.includes('className="w-12 shrink-0 text-right font-mono font-medium break-words min-w-0"'), 'totalscoren bliver')
-ok(view.includes('className="w-28 sm:w-44 shrink-0 font-medium"'), 'totalordet bliver')
+ok(view.includes('className="w-28 sm:w-44 shrink-0 font-medium break-words min-w-0"'), 'totalordet bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
