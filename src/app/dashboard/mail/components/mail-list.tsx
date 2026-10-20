@@ -112,7 +112,7 @@ function formatDate(iso: string) {
   if (diff < 60_000) return 'Lige nu'
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)} min`
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}t`
-  return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })
+  return d.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short' })
 }
 
 // =====================================================
