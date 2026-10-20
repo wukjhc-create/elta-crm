@@ -26,7 +26,7 @@ ok(after.includes('· {a.actor_name}'), 'navnet bliver')
 ok(view.split(bare).length === 1, 'den bare afsender er vaek')
 ok(!view.includes(bare), 'den bare afsender er vaek')
 ok(view.includes('<p className="text-xs text-gray-400 break-words min-w-0">Ingen log-poster endnu. De vises her, når fakturaen ændres.</p>'), 'tom historik bliver')
-ok(view.includes('<span className="text-gray-500 shrink-0">{fmtDate(a.created_at)} {a.created_at.slice(11, 19)}</span>'), 'tidspunktet bliver')
+ok(view.includes('<span className="text-gray-500 shrink-0 break-words min-w-0">{fmtDate(a.created_at)} {a.created_at.slice(11, 19)}</span>'), 'tidspunktet bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
