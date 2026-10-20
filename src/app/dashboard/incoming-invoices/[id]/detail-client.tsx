@@ -496,7 +496,7 @@ export function IncomingInvoiceDetailClient({
                 : null
               const skippedExplicit = l.converted_at && !convertedAs
               return (
-                <article key={l.id} className="rounded ring-1 ring-gray-200 p-2 text-xs">
+                <article key={l.id} className="rounded ring-1 ring-gray-200 p-2 text-xs break-words min-w-0">
                   <p className="font-medium text-gray-900 break-words">{l.line_number}. {l.description ?? '—'}</p>
                   <p className="text-gray-600 mt-1 break-words min-w-0">{l.quantity ?? '—'} {l.unit ?? ''}</p>
                   <p>Stk-pris {fmtAmount(l.unit_price, inv.currency)}</p>

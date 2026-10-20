@@ -36,7 +36,7 @@ const qty = '<p className="text-gray-600 mt-1 break-words min-w-0">{l.quantity ?
 ok(view.includes(qty), 'antallet bliver')
 ok(view.split(qty).length === 2, 'antallet er et')
 
-const card = '<article key={l.id} className="rounded ring-1 ring-gray-200 p-2 text-xs">'
+const card = '<article key={l.id} className="rounded ring-1 ring-gray-200 p-2 text-xs break-words min-w-0">'
 ok(view.includes(card), 'kortet bliver')
 ok(view.split(card).length === 2, 'kortet er et')
 
