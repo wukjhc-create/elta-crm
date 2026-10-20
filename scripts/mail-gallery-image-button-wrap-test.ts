@@ -31,7 +31,7 @@ ok(view.split(id).length === 2, 'knappen findes en gang')
 ok(view.split(cell).length === 2, 'knappens klasse findes en gang')
 ok(view.includes('text-[11px] text-white line-clamp-2 break-all">{att.filename}'), 'filnavnet bliver')
 ok(view.includes('data-testid="mail-gallery-size"'), 'billedteksten bliver')
-ok(view.includes('className="grid grid-cols-3 gap-2"'), 'galleriet bliver')
+ok(view.includes('className="grid grid-cols-3 gap-2 break-words min-w-0"'), 'galleriet ombrydes')
 ok(view.includes('className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 break-words min-w-0" data-testid="mail-gallery-caption-bar"'), 'bjaelken bliver')
 ok(view.includes('data-testid="mail-attachments-stack"'), 'stakken bliver')
 

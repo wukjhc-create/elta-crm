@@ -708,7 +708,7 @@ export function MailDetail({
               <div className="space-y-3 break-words min-w-0" data-testid="mail-attachments-stack">
                 {/* Image gallery */}
                 {imageAttachments.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 gap-2 break-words min-w-0">
                     {imageAttachments.map((att, i) => (
                       <button
                         key={`img-${i}`}
