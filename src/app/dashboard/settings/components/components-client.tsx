@@ -26,10 +26,17 @@ import type { Component, ComponentCategory } from '@/lib/actions/components'
 
 interface ComponentsClientProps {
   components: Component[]
+  loadError?: string | null
   categories: ComponentCategory[]
+  categoriesError?: string | null
 }
 
-export default function ComponentsClient({ components, categories }: ComponentsClientProps) {
+export default function ComponentsClient({
+  components,
+  loadError = null,
+  categories,
+  categoriesError = null,
+}: ComponentsClientProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
@@ -60,7 +67,9 @@ export default function ComponentsClient({ components, categories }: ComponentsC
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Komponenter</h1>
         <p className="text-gray-600 mt-1">
-          Administrer el-komponenter, tidsnormer, varianter og materialer ({filteredComponents.length} af {components.length})
+          {loadError
+            ? 'Antallet kunne ikke hentes. Det tælles ikke som 0 komponenter.'
+            : `Administrer el-komponenter, tidsnormer, varianter og materialer (${filteredComponents.length} af ${components.length})`}
         </p>
       </div>
 
@@ -92,8 +101,18 @@ export default function ComponentsClient({ components, categories }: ComponentsC
         </Select>
       </div>
 
+      {categoriesError && (
+        <p className="text-sm text-red-700" data-testid="component-categories-load-error">
+          {categoriesError}. Det tælles ikke som ingen kategorier.
+        </p>
+      )}
+
       {/* Components List */}
-      {Object.keys(groupedComponents).length === 0 ? (
+      {loadError ? (
+        <p className="text-sm text-red-700 py-8 text-center" data-testid="components-load-error">
+          {loadError}. Det tælles ikke som ingen komponenter.
+        </p>
+      ) : Object.keys(groupedComponents).length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-gray-500">
             <Zap className="w-12 h-12 mx-auto mb-4 opacity-50" />

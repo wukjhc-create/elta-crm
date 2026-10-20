@@ -17,7 +17,9 @@ export default async function ComponentsPage() {
   return (
     <ComponentsClient
       components={componentsResult.success && componentsResult.data ? componentsResult.data : []}
+      loadError={componentsResult.success ? null : componentsResult.error || 'Kunne ikke hente komponenter'}
       categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
+      categoriesError={categoriesResult.success ? null : categoriesResult.error || 'Kunne ikke hente kategorier'}
     />
   )
 }
