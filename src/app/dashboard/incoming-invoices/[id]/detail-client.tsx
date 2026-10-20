@@ -739,7 +739,7 @@ function AlertCircleIcon() {
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4 break-words min-w-0">
-      <h3 className="text-sm font-semibold mb-3">{title}</h3>
+      <h3 className="text-sm font-semibold mb-3 break-words min-w-0">{title}</h3>
       {children}
     </div>
   )
