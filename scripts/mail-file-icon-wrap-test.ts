@@ -27,8 +27,8 @@ ok(!mail.includes(bare), 'mail-ikonet er ikke bart')
 ok(mail.includes('shrink-0 break-words min-w-0'), 'shrink-0 bliver')
 ok(mail.includes('data-testid="mail-file-name"'), 'filnavnet bliver')
 ok(mail.includes('<Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0 break-words min-w-0" />'), 'download-ikonet ombrydes')
-ok(lead.includes(bare), 'lead-ikonet bliver')
-ok(!lead.includes(wrapped), 'lead-ikonet er ikke mailets')
+ok(lead.includes(wrapped), 'lead-ikonet kan krympe')
+ok(!lead.includes(bare), 'lead-ikonet er ikke bart')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
