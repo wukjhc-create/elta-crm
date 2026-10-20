@@ -34,7 +34,7 @@ export function OfferConversionBadge({
       <Link
         href={`/dashboard/orders/${convertedCase.case_number}`}
         onClick={(e) => e.stopPropagation()}
-        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 ring-1 ring-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 ring-1 ring-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 break-words min-w-0"
         title="Åbn sagen"
       >
         <Briefcase className="w-3 h-3" />
