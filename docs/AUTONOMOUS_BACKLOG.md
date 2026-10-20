@@ -1328,7 +1328,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-585 | 8 Pilot | DONE. Størrelsesrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Størrelse. De andre rækker med samme klasse er uændrede. |
 | G18-590 | 8 Pilot | DONE. Størrelsesfaktorrækken i tidsberegningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Størrelsesfaktor. De andre rækker med samme klasse og faktoren er uændrede. |
 | G18-595 | 8 Pilot | DONE. Overskriften Vedhæftede filer kan krympe. | Kun `<h3 className="text-sm font-semibold text-gray-700">` i mail-detaljen. Antallet og filnavnets `line-clamp-2` er uændrede. |
-| G18-602 | 8 Pilot | ÅBEN. Papirclipsen ved Vedhæftede filer kan krympe. | Kun `<Paperclip className="w-5 h-5 text-gray-500" />` i mail-detaljen. Overskriften er uændret. |
+| G18-602 | 8 Pilot | DONE. Papirclipsen ved Vedhæftede filer kan krympe. | Kun Paperclip med klassen w-5 h-5 text-gray-500 i mail-detaljen. Overskriften er uændret. |
 | G18-572 | 8 Pilot | DONE. Bygningsinformationens liste kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Bygningsinformation. Prislisten, elpunktlisten og tidsberegningens liste er uændrede. |
 | G18-579 | 8 Pilot | DONE. Bygningsinformationens kolonne kan krympe. | Kun den `<div>` der omslutter overskriften Bygningsinformation. Elpunktkolonnen og listen er uændrede. |
 | G18-586 | 8 Pilot | DONE. Aldersrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Alder. De andre rækker med samme klasse er uændrede. |
@@ -1735,6 +1735,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-1001 | 6 Salg | ÅBEN. Månedens navn i salgstragtens mobilkort kan krympe. | Kun p med klassen font-medium text-gray-900 der viser monthLabel. Satser og beløb er uændrede. |
 | G18-1002 | 6 Salg | ÅBEN. Månedskortet i salgstragten kan krympe. | Kun article med klassen rounded ring-1 ring-gray-200 p-3 text-sm i sales-funnel-table.tsx. Månedens navn, satser og beløb er uændrede. |
 | G18-1003 | 6 Salg | ÅBEN. Salgstragtens ikon kan krympe. | Kun TrendingUp med klassen w-5 h-5 text-gray-400 i sales-funnel-table.tsx. Overskriften og satserne er uændrede. |
+| G18-1004 | 6 Salg | ÅBEN. Totaloverskriften i salgstragtens mobilkort kan krympe. | Kun p med klassen font-semibold der viser I alt i sales-funnel-table.tsx. Beløb og satser er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
