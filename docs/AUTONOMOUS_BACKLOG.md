@@ -759,7 +759,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-99 | 5 Plan | DONE klokken under kommende besigtigelser ombrydes. | Kundens navn og booking-sætningen er uændret. |
 | G18-101 | 5 Plan | DONE linket "Gå til kundekort" på den valgte dag ombrydes. | Adressen er uændret. |
 | G18-104 | 5 Plan | DONE "Bekræftet af kunden" på den valgte dag ombrydes. | Bekræftelsesbetingelsen er uændret. |
-| G18-13 | 6 Salg | ÅBEN. Tilbud ude: filter- eller tælle-mærke på en fil der ikke er offer-detail-client. | Kun eksisterende statusser. |
+| G18-13 | 6 Salg | DONE. Tilbud ude: tælle-mærke på tilbudslisten. | Kun sendt og set via den eksisterende gyldighedsregel. Ingen ny status. |
 | G18-14 | 5 Plan | DONE dagsoverskriften viser antal hentede opgaver. Tom dag siger stadig ingen besigtigelser. | Ingen ny query. Påmindelser tælles ikke her. |
 | G18-37 | 4 Pris | DONE null listepris siger "Ingen lagret pris". | Kost er G18-19. 0 kr forbliver 0 kr. Ingen opfundet pris. |
 | G18-46 | 8 Pilot | ÅBEN. Leverandørvarens navn på skrivebordet ombrydes i stedet for `line-clamp-1`. | Priser og status er uændret. |
@@ -1723,6 +1723,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-989 | 2 Faktura | DONE. Tabellen på fakturalinjens skrivebord kan krympe. | Kun `<table className="w-full text-xs">` lige foran tabelhovedet i den indgående fakturas `detail-client.tsx`. Andre tabeller er uændrede. |
 | G18-990 | 2 Faktura | DONE. Rullen på fakturalinjens skrivebord kan krympe. | Kun `<div className="hidden md:block overflow-x-auto">` lige foran tabellen i den indgående fakturas `detail-client.tsx`. Andre ruller er uændrede. |
 | G18-991 | 2 Faktura | ÅBEN. Mobilisten på fakturalinjerne kan krympe. | Kun `<div className="md:hidden space-y-2" data-testid="incoming-invoice-lines-mobile">` i den indgående fakturas `detail-client.tsx`. Kortene er uændrede. |
+| G18-992 | 6 Salg | ÅBEN. Tilbud ude-mærket kan krympe. | Kun mærket offers-out-count i offers-page-client.tsx. Tallet og statusserne er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

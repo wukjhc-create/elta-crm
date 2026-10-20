@@ -15,3 +15,15 @@ export function isOfferExpired(validUntil: string | null | undefined, now: Date 
 export function canCustomerRespond(status: string | null | undefined, validUntil: string | null | undefined, now: Date = new Date()): boolean {
   return (status === 'sent' || status === 'viewed') && !isOfferExpired(validUntil, now)
 }
+
+/** Tilbud ude i den viste liste: sendt eller set, og stadig inden for gyldig til. Ingen ny status. */
+export function countOffersOut(
+  offers: ReadonlyArray<{ status?: string | null; valid_until?: string | null }>,
+  now: Date = new Date(),
+): number {
+  let n = 0
+  for (const offer of offers) {
+    if (canCustomerRespond(offer.status, offer.valid_until, now)) n += 1
+  }
+  return n
+}
