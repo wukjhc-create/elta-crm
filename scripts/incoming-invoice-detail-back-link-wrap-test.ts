@@ -1,6 +1,6 @@
 /**
  * Linket Indgaaende fakturaer paa fakturadetaljen kan krympe.
- * Linket er uaendret. Sidehovedets raekke er uaendret.
+ * Linket er uaendret. Sidehovedets raekke kan ogsaa krympe.
  *   npx tsx scripts/incoming-invoice-detail-back-link-wrap-test.ts
  */
 import { readFileSync } from 'node:fs'
@@ -34,11 +34,14 @@ const editBefore = editAt < 0 ? '' : view.slice(editAt - 200, editAt)
 ok(editBefore.includes(wrappedClass), 'ret-knappen bliver')
 ok(editBefore.includes('Ret fakturahoved') || view.slice(editAt, editAt + 200).includes('Ret fakturahoved'), 'ret-teksten bliver')
 
-const headerClass = 'className="flex items-start justify-between flex-wrap gap-3"'
+const headerClass = 'className="flex items-start justify-between flex-wrap gap-3 break-words min-w-0"'
+const bareHeader = 'className="flex items-start justify-between flex-wrap gap-3"'
 ok(view.includes(headerClass), 'sidehovedet bliver')
+ok(!view.includes(bareHeader), 'det bare sidehoved er vaek')
 ok(view.split(headerClass).length === 2, 'sidehovedet er et')
 const other = readFileSync('src/app/dashboard/invoices/[id]/detail-client.tsx', 'utf8')
-ok(other.includes(headerClass), 'udgaaende sidehoved bliver')
+ok(other.includes(bareHeader), 'udgaaende sidehoved bliver')
+ok(!other.includes(headerClass), 'udgaaende sidehoved er bar')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
