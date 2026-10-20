@@ -688,18 +688,21 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
             <div className="h-10 bg-gray-200 rounded" />
             <div className="h-10 bg-gray-200 rounded" />
           </div>
-        ) : historyError ? (
-          <p className="text-sm text-red-700 text-center py-4" data-testid="ai-history-load-error">
-            {historyError}. Det tælles ikke som ingen analyser.{' '}
-            <button type="button" onClick={() => setHistoryTry((n) => n + 1)} className="min-h-[44px] px-2 font-medium underline">
-              Prøv igen
-            </button>
-          </p>
-        ) : recentAnalyses.length === 0 ? (
+        ) : (
+          <>
+          {historyError && (
+            <p className="text-sm text-red-700 break-words text-center py-4" data-testid="ai-history-load-error">
+              {historyError}{recentAnalyses.length === 0 ? '. Det tælles ikke som ingen analyser.' : '. De tidligere analyser bliver.'}{' '}
+              <button type="button" onClick={() => setHistoryTry((n) => n + 1)} className="min-h-[44px] px-2 font-medium underline">
+                Prøv igen
+              </button>
+            </p>
+          )}
+          {!historyError && recentAnalyses.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-4">
             Ingen tidligere analyser endnu
           </p>
-        ) : (
+        ) : recentAnalyses.length > 0 ? (
           <div className="space-y-2">
             {recentAnalyses.map((analysis) => (
               <div
@@ -725,6 +728,8 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
               </div>
             ))}
           </div>
+        ) : null}
+          </>
         )}
       </div>
 
