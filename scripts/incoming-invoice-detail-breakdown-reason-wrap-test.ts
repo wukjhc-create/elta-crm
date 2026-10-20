@@ -26,7 +26,7 @@ ok(after.includes('{r}'), 'aarsagsteksten bliver')
 ok(view.split(bare).length === 1, 'den bare aarsagskode er vaek')
 ok(!view.includes(bare), 'den bare aarsagskode er vaek')
 ok(view.includes('className="w-28 sm:w-44 shrink-0 font-medium break-words min-w-0"'), 'totalordet bliver')
-ok(view.includes('className="text-xs text-red-800" data-testid="incoming-invoice-lines-error"'), 'linjefejlen bliver')
+ok(view.includes('className="text-xs text-red-800 break-words min-w-0" data-testid="incoming-invoice-lines-error"'), 'linjefejlen bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
