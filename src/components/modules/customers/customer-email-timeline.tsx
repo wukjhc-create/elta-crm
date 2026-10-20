@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
 import {
   Mail,
   MailOpen,
@@ -31,6 +29,17 @@ import {
 } from '@/lib/actions/customer-mailbox'
 import { useToast } from '@/components/ui/toast'
 import { sanitizeEmailHtml } from '@/lib/utils/sanitize-email-html'
+
+function fmtMailTime(s: string, month: 'short' | 'long' = 'short'): string {
+  return new Date(s).toLocaleString('da-DK', {
+    timeZone: 'Europe/Copenhagen',
+    day: 'numeric',
+    month,
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 interface CustomerEmailTimelineProps {
   customerId: string
@@ -288,7 +297,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail, initial }: Cu
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {conv.messageCount > 1 && (
                           <span className="text-[10px] font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
                             {conv.messageCount}
@@ -308,8 +317,8 @@ export function CustomerEmailTimeline({ customerId, customerEmail, initial }: Cu
                             {latestMsg.service_case.case_number}
                           </a>
                         )}
-                        <span className="text-xs text-gray-400 ml-auto whitespace-nowrap">
-                          {format(new Date(conv.latestAt), 'd. MMM yyyy HH:mm', { locale: da })}
+                        <span className="text-xs text-gray-400 sm:ml-auto whitespace-nowrap">
+                          {fmtMailTime(conv.latestAt)}
                         </span>
                       </div>
 
@@ -352,7 +361,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail, initial }: Cu
                                   {msgIsIncoming ? msg.sender_name || msg.sender_email : `Til: ${msg.to_email || customerEmail}`}
                                 </span>
                                 <span className="text-xs text-gray-400">
-                                  {format(new Date(msg.received_at), 'd. MMM yyyy HH:mm', { locale: da })}
+                                  {fmtMailTime(msg.received_at)}
                                 </span>
                               </div>
                               {msgIsIncoming && canReply && (
@@ -445,7 +454,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail, initial }: Cu
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {/* Direction label */}
                         <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
                           isIncoming
@@ -460,8 +469,8 @@ export function CustomerEmailTimeline({ customerId, customerEmail, initial }: Cu
                         {email.has_attachments && (
                           <Paperclip className="w-3 h-3 text-gray-400" />
                         )}
-                        <span className="text-xs text-gray-400 ml-auto whitespace-nowrap">
-                          {format(new Date(email.received_at), 'd. MMM yyyy HH:mm', { locale: da })}
+                        <span className="text-xs text-gray-400 sm:ml-auto whitespace-nowrap">
+                          {fmtMailTime(email.received_at)}
                         </span>
                       </div>
 
@@ -495,7 +504,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail, initial }: Cu
                           <p className="text-xs text-gray-500 mt-0.5">
                             {isIncoming ? 'Fra' : 'Til'}: {viewingEmail.sender_name || viewingEmail.sender_email}
                             {' — '}
-                            {format(new Date(viewingEmail.received_at), 'd. MMMM yyyy HH:mm', { locale: da })}
+                            {fmtMailTime(viewingEmail.received_at, 'long')}
                           </p>
                         </div>
                         {isIncoming && canReply && (
