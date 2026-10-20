@@ -64,7 +64,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
               <tr key={m.month} className="border-b last:border-b-0" data-testid="funnel-row" data-month={m.month}>
                 <td className="py-2 text-gray-900 break-words min-w-0">{monthLabel(m.month)}<div className="text-[11px] font-normal text-gray-600 break-words" data-testid="funnel-month-rates">Sendt {pct(funnelMonthRates(m).sent_rate)} · vundet {pct(funnelMonthRates(m).win_rate)}</div></td>
                 <td className="py-2 text-right tabular-nums break-words min-w-0">{m.new_customers}</td>
-                <td className="py-2 text-right tabular-nums">{m.offers_created}</td>
+                <td className="py-2 text-right tabular-nums break-words min-w-0">{m.offers_created}</td>
                 <td className="py-2 text-right tabular-nums">{m.offers_sent}</td>
                 <td className="py-2 text-right tabular-nums">{m.offers_accepted}</td>
                 <td className="py-2 text-right tabular-nums">{m.accepted_value ? kr(m.accepted_value) : '—'}</td>
