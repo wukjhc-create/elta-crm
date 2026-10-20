@@ -28,9 +28,9 @@ ok(!view.includes('break-words break-words'), 'et break-words')
 
 const at = view.indexOf(wrapped)
 const win = view.slice(at, at + 220)
-ok(win.includes('<tr>'), 'kolonneraekken bliver')
+ok(win.includes('<tr className="break-words min-w-0">'), 'kolonneraekken kan krympe')
 ok(win.includes('>#</th>'), 'kolonnen # bliver')
-ok(!win.includes('<tr className'), 'kolonneraekken har ingen klasse')
+ok(!win.includes('<tr>'), 'den bare kolonneraekke er vaek')
 
 const approve = readFileSync('src/app/dashboard/incoming-invoices/[id]/approve-preview-dialog.tsx', 'utf8')
 ok(approve.includes(bare), 'godkendelsesdialogen bliver')

@@ -511,7 +511,7 @@ export function IncomingInvoiceDetailClient({
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-left text-gray-600 break-words min-w-0">
-                <tr>
+                <tr className="break-words min-w-0">
                   <th className="px-2 py-1 break-words min-w-0">#</th>
                   <th className="px-2 py-1 break-words min-w-0">Beskrivelse</th>
                   <th className="px-2 py-1 text-right break-words min-w-0">Antal</th>
