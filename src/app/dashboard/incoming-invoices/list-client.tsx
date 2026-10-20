@@ -429,7 +429,7 @@ function Confidence({ row }: { row: IncomingInvoiceListItem }) {
     <>
       <span className="text-gray-500 break-words min-w-0">parse</span> {fmtPct(row.parse_confidence)}
       <span className="text-gray-400 mx-1 break-words min-w-0">·</span>
-      <span className="text-gray-500">match</span> {fmtPct(row.match_confidence)}
+      <span className="text-gray-500 break-words min-w-0">match</span> {fmtPct(row.match_confidence)}
     </>
   )
 }

@@ -16,15 +16,16 @@ ok(formatDate('2026-06-02').includes('2026'), 'datoen bliver')
 ok(formatCurrency(1250).includes('1'), 'beloebsformatet bliver')
 
 const view = readFileSync('src/app/dashboard/incoming-invoices/list-client.tsx', 'utf8')
-const wrapped = 'className="text-gray-500 break-words min-w-0"'
+const wrappedParse = '<span className="text-gray-500 break-words min-w-0">parse</span>'
 const bareParse = '<span className="text-gray-500">parse</span>'
-const bareMatch = '<span className="text-gray-500">match</span>'
-const classAt = view.indexOf(wrapped)
-const after = classAt < 0 ? '' : view.slice(classAt + wrapped.length, classAt + wrapped.length + 40).replace(/\s+/g, '')
-ok(view.split(wrapped).length === 2, 'ordet parse kan krympe')
+const wrappedMatch = '<span className="text-gray-500 break-words min-w-0">match</span>'
+const classMarker = 'className="text-gray-500 break-words min-w-0"'
+const classAt = view.indexOf(classMarker)
+const after = classAt < 0 ? '' : view.slice(classAt + classMarker.length, classAt + classMarker.length + 40).replace(/\s+/g, '')
+ok(view.split(wrappedParse).length === 2, 'ordet parse kan krympe')
 ok(after.startsWith('>parse<'), 'ordet parse bliver')
 ok(!view.includes(bareParse), 'den bare parse-etiket er vaek')
-ok(view.split(bareMatch).length === 2, 'ordet match bliver')
+ok(view.split(wrappedMatch).length === 2, 'ordet match bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

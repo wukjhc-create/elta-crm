@@ -1632,7 +1632,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-898 | 2 Faktura | DONE. Mærket Kræver gennemgang på fakturalisten kan krympe. | Kun `className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800"` i `list-client.tsx`. Teksten er uændret. |
 | G18-899 | 2 Faktura | DONE. Skilletegnet i konfidensen på fakturalisten kan krympe. | Kun `className="text-gray-400 mx-1"` i `list-client.tsx`. Tegnet er uændret. |
 | G18-900 | 2 Faktura | DONE. Ordet parse i konfidensen på fakturalisten kan krympe. | Kun `<span className="text-gray-500">parse</span>` i `list-client.tsx`. Ordet match med samme klasse er uændret. |
-| G18-901 | 2 Faktura | ÅBEN. Ordet match i konfidensen på fakturalisten kan krympe. | Kun `<span className="text-gray-500">match</span>` i `list-client.tsx`. Ordet parse er uændret. |
+| G18-901 | 2 Faktura | DONE. Ordet match i konfidensen på fakturalisten kan krympe. | Kun `<span className="text-gray-500">match</span>` i `list-client.tsx`. Ordet parse er uændret. |
+| G18-902 | 2 Faktura | ÅBEN. Fakturadetaljens side kan krympe. | Kun `className="p-4 md:p-6 space-y-4 max-w-6xl"` i `detail-client.tsx`. Indholdet er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
