@@ -59,11 +59,15 @@ interface EmployeeOption {
 
 export function NewOrderForm({
   customers: initialCustomers,
+  customersError = null,
   profiles,
+  profilesError = null,
   employees,
 }: {
   customers: CustomerOption[]
+  customersError?: string | null
   profiles: ProfileOption[]
+  profilesError?: string | null
   employees: EmployeeOption[]
 }) {
   const router = useRouter()
@@ -373,6 +377,12 @@ export function NewOrderForm({
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-gray-700">Kunde</legend>
 
+        {customersError && (
+          <p className="text-sm text-red-700" data-testid="order-customers-load-error">
+            {customersError}. Det tælles ikke som ingen kunder.
+          </p>
+        )}
+
         {renderCustomerSelectWithCreate({
           label: 'Kunde',
           fieldName: 'customer_id',
@@ -552,6 +562,11 @@ export function NewOrderForm({
                 </option>
               ))}
             </select>
+            {profilesError && (
+              <p className="text-sm text-red-700" data-testid="order-profiles-load-error">
+                {profilesError}. Det tælles ikke som ingen brugere.
+              </p>
+            )}
           </Field>
 
           <Field label="Formand (på pladsen)">

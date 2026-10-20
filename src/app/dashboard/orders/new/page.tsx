@@ -50,7 +50,9 @@ export default async function NewOrderPage() {
 
       <NewOrderForm
         customers={customers}
+        customersError={customersRes.success ? null : (customersRes.error ?? 'Kunne ikke hente kunder')}
         profiles={profiles}
+        profilesError={profilesRes.success ? null : (profilesRes.error ?? 'Kunne ikke hente brugere')}
         employees={employees}
       />
     </div>

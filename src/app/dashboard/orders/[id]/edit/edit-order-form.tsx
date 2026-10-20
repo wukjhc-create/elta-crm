@@ -45,12 +45,16 @@ const dateOnly = (v: string | null) => (v ? v.slice(0, 10) : '')
 export function EditOrderForm({
   sag,
   customers,
+  customersError = null,
   profiles,
+  profilesError = null,
   employees,
 }: {
   sag: ServiceCaseWithRelations
   customers: CustomerOption[]
+  customersError?: string | null
   profiles: ProfileOption[]
+  profilesError?: string | null
   employees: EmployeeOption[]
 }) {
   const router = useRouter()
@@ -249,6 +253,12 @@ export function EditOrderForm({
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-gray-700">Kunde</legend>
 
+        {customersError && (
+          <p className="text-sm text-red-700" data-testid="order-customers-load-error">
+            {customersError}. Det tælles ikke som ingen kunder.
+          </p>
+        )}
+
         <Field label="Kunde" error={errors.customer_id?.message}>
           <select
             {...register('customer_id')}
@@ -324,6 +334,11 @@ export function EditOrderForm({
                 </option>
               ))}
             </select>
+            {profilesError && (
+              <p className="text-sm text-red-700" data-testid="order-profiles-load-error">
+                {profilesError}. Det tælles ikke som ingen brugere.
+              </p>
+            )}
           </Field>
 
           <Field label="Formand (på pladsen)">
