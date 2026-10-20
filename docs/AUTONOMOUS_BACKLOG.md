@@ -1736,11 +1736,12 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-1002 | 6 Salg | ÅBEN. Månedskortet i salgstragten kan krympe. | Kun article med klassen rounded ring-1 ring-gray-200 p-3 text-sm i sales-funnel-table.tsx. Månedens navn, satser og beløb er uændrede. |
 | G18-1003 | 6 Salg | ÅBEN. Salgstragtens ikon kan krympe. | Kun TrendingUp med klassen w-5 h-5 text-gray-400 i sales-funnel-table.tsx. Overskriften og satserne er uændrede. |
 | G18-1004 | 6 Salg | ÅBEN. Totaloverskriften i salgstragtens mobilkort kan krympe. | Kun p med klassen font-semibold der viser I alt i sales-funnel-table.tsx. Beløb og satser er uændrede. |
+| G18-1005 | 6 Salg | ÅBEN. Totalkortet i salgstragten kan krympe. | Kun article med klassen rounded bg-gray-50 ring-1 ring-gray-200 p-3 text-sm i sales-funnel-table.tsx. Beløb og satser er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
 | G18-592 | 8 Pilot | DONE. Elpunktrækken kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter `getPointTypeName`. De andre rækker med samme klasse og punktantallet er uændrede. |
-| G18-597 | 8 Pilot | ÅBEN. Teksten om manglende vedhæftninger kan krympe. | Kun `<p className="text-sm text-amber-800">` i mail-detaljen. Download-knappen er uændret. |
+| G18-597 | 8 Pilot | DONE. Teksten om manglende vedhæftninger kan krympe. | Kun p med klassen text-sm text-amber-800 i mail-detaljen. Download-knappen er uændret. |
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 

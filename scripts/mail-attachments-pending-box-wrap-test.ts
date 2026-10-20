@@ -19,7 +19,7 @@ ok(formatCurrency(1250).includes('1'), 'beloebsformatet bliver')
 const view = readFileSync('src/app/dashboard/mail/components/mail-detail.tsx', 'utf8')
 const id = 'data-testid="mail-attachments-pending-box"'
 const at = view.indexOf(id)
-const row = at >= 0 ? view.slice(at - 100, at + 160) : ''
+const row = at >= 0 ? view.slice(at - 100, at + 180) : ''
 const cell = 'className="bg-amber-50 border border-amber-200 rounded-md p-3 space-y-2 break-words min-w-0" data-testid="mail-attachments-pending-box"'
 ok(row.includes('<div'), 'det er boksen')
 ok(row.includes('bg-amber-50 border border-amber-200 rounded-md p-3 space-y-2 break-words min-w-0'), 'boksen kan krympe')

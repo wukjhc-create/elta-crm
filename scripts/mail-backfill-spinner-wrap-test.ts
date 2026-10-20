@@ -60,7 +60,7 @@ ok(view.includes('data-testid="mail-ignore-spinner"'), 'ignorer-spinneren bliver
 ok(view.includes('data-testid="mail-restore-spinner"'), 'relevant-spinneren bliver')
 ok(view.includes('data-testid="mail-archive-spinner"'), 'arkiv-spinneren bliver')
 ok(view.includes('data-testid="mail-opret-sag-spinner"'), 'opret-sag-spinneren kan krympe')
-ok(view.includes('<p className="text-sm text-amber-800">'), 'venteteksten bliver')
+ok(view.includes('<p className="text-sm text-amber-800 break-words min-w-0">'), 'venteteksten kan krympe')
 ok(view.includes('Vedhæftningerne er ikke downloadet endnu.'), 'saetningen bliver')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
 ok(view.includes('data-testid="mail-create-offer"'), 'opret-tilbud bliver')
