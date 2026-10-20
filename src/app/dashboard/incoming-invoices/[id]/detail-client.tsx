@@ -420,7 +420,7 @@ export function IncomingInvoiceDetailClient({
               detail.case ? (
                 <Link
                   href={`/dashboard/orders/${detail.case.case_number}?tab=planlaegning`}
-                  className="text-gray-700 hover:underline"
+                  className="text-gray-700 hover:underline break-words min-w-0"
                 >
                   {detail.workOrder.title}
                 </Link>

@@ -1649,7 +1649,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-915 | 2 Faktura | DONE. Knaprækken ved sagen kan krympe. | Kun `<div className="flex items-center gap-1.5 shrink-0">` i `detail-client.tsx`. Knapperne er uændrede. |
 | G18-916 | 2 Faktura | DONE. Knappen Match til sag kan krympe. | Kun `className="text-[11px] px-2 py-0.5 rounded ring-1 ring-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"` i `detail-client.tsx`. Teksten er uændret. |
 | G18-917 | 2 Faktura | DONE. Knappen Fjern sag kan krympe. | Kun `className="text-[11px] px-2 py-0.5 rounded ring-1 ring-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50"` i `detail-client.tsx`. Teksten er uændret. |
-| G18-918 | 2 Faktura | ÅBEN. Arbejdsordrelinket kan krympe. | Kun `className="text-gray-700 hover:underline"` i `detail-client.tsx`. Titlen er uændret. |
+| G18-918 | 2 Faktura | DONE. Arbejdsordrelinket kan krympe. | Kun `className="text-gray-700 hover:underline"` i `detail-client.tsx`. Titlen er uændret. |
+| G18-919 | 2 Faktura | ÅBEN. Linket Åbn originalen kan krympe. | Kun `className="text-red-700 hover:underline"` i `detail-client.tsx`. Teksten er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
