@@ -92,8 +92,12 @@ export async function getServiceCases(filters?: {
       }
     }
 
+    // PF3-10 (performance-review 2026-10-20): kun listens kolonner — ikke beskrivelse, underskrift (data-URL), tjekliste,
+    // adgangsnoter m.m. for 50–500 rækker
     const LIST_SELECT = `
-        *,
+        id, case_number, customer_id, title, status, priority, source, assigned_to, created_by, created_at, updated_at, closed_at,
+        address, postal_code, city, project_name, type, reference, requisition, formand_id, planned_hours, contract_sum,
+        revised_sum, start_date, end_date, low_profit, source_offer_id, is_proposal, billing_model,
         customer:customers!service_cases_customer_id_fkey(id, company_name, contact_person, email, phone),
         assignee:profiles!service_cases_assigned_to_fkey(id, full_name)
       `

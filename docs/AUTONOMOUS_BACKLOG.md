@@ -265,7 +265,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | PF3-7 | Kundeliste: betalingsview tælles 6 gange; auto-tal før listen (S4) | TODO |
 | PF3-8 | Chat/tilbud poller i skjult fane (S4) | DELVIS (kode) — kundechatten poller kun synlig fane; tilbudsdetaljen = TODO |
 | PF3-9 | Kalender månedsvisning: påmindelser efter Promise.all (S4) | DONE (kode, U30) — påmindelser i samme Promise.all |
-| PF3-10 | Sagsliste select('*') for 50–500 rækker (S4) | TODO |
+| PF3-10 | Sagsliste select('*') for 50–500 rækker (S4) | DONE (kode, U13/U178/U202/U214/U70) — eksplicit kolonneliste (uden beskrivelse, underskrift, tjekliste, noter) |
 
 ## NEXT-52 (dead-end-review 2026-10-19 — knapper/faner serveren afviser)
 | # | Fund | Status |
