@@ -36,7 +36,7 @@ const totalCell = '<td className="px-2 py-1 text-right font-medium break-words m
 ok(view.includes(totalCell), 'totalcellen bliver')
 ok(view.split(totalCell).length === 2, 'totalcellen er en')
 
-const conv = '<th className="px-2 py-1">Konvertering</th>'
+const conv = '<th className="px-2 py-1 break-words min-w-0">Konvertering</th>'
 ok(view.includes(conv), 'konverteringskolonnen bliver')
 ok(view.split(conv).length === 2, 'konverteringskolonnen er en')
 
