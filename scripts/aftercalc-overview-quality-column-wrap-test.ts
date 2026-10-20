@@ -32,7 +32,7 @@ ok(view.split(id).length === 2, 'kolonnen findes en gang')
 ok(view.split('<th className="px-2 py-1.5 text-left">Datakvalitet</th>').length === 1, 'den bare kolonne er vaek')
 ok(view.includes("<td className=\"px-2 py-1.5\" title={r.warning_codes.map((c: DataQualityCode) => DATA_QUALITY_LABELS[c]).join(', ')}>"), 'cellen bliver')
 ok(view.includes("{r.data_quality === 'warning' ? 'Advarsel' : 'OK'}"), 'maerket bliver')
-ok(view.includes('<th className="px-2 py-1.5 text-right">Tilbudt omsætning</th>'), 'tilbudt-omsaetning-kolonnen bliver')
+ok(view.includes('<th className="px-2 py-1.5 text-right break-words min-w-0">Tilbudt omsætning</th>'), 'tilbudt-omsaetning-kolonnen kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 const status = '>Status</th>'
 const sat = view.indexOf(status)

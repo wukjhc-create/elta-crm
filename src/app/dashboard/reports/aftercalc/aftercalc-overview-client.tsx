@@ -237,7 +237,7 @@ export function AftercalcOverviewClient() {
                           <th className="px-2 py-1.5 text-left break-words min-w-0">Sag</th>
                           <th className="px-2 py-1.5 text-left break-words min-w-0">Kunde</th>
                           <th className="px-2 py-1.5 text-left break-words min-w-0">Ansvarlig</th>
-                          <th className="px-2 py-1.5 text-right">Tilbudt omsætning</th>
+                          <th className="px-2 py-1.5 text-right break-words min-w-0">Tilbudt omsætning</th>
                           <th className="px-2 py-1.5 text-right">Faktisk omsætning</th>
                           <th className="px-2 py-1.5 text-right">Tilbudt DB %</th>
                           <th className="px-2 py-1.5 text-right">Faktisk DB %</th>
