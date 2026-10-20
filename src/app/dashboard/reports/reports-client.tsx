@@ -488,7 +488,20 @@ function TeamTable({ data }: { data: TeamProductivity[] }) {
 // Phase 12A — Rejection Analytics Section
 // =====================================================
 
-function RejectionAnalyticsSection({ stats }: { stats: RejectionStats | null }) {
+function RejectionAnalyticsSection({ stats, error }: { stats: RejectionStats | null; error: boolean }) {
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg border p-6">
+        <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <XCircle className="w-5 h-5 text-gray-400" />
+          Afvisningsårsager
+        </h3>
+        <p className="text-sm text-red-700 py-8 text-center" data-testid="report-rejection-load-error">
+          Kunne ikke hente afvisninger. Det tælles ikke som ingen afvisninger.
+        </p>
+      </div>
+    )
+  }
   if (!stats || stats.totalRejected === 0) {
     return (
       <div className="bg-white rounded-lg border p-6">
@@ -586,6 +599,7 @@ export default function ReportsClient({ exports: allowedExports }: { exports?: P
   const [customers, setCustomers] = useState<RevenueByCustomer[]>([])
   const [team, setTeam] = useState<TeamProductivity[]>([])
   const [rejections, setRejections] = useState<RejectionStats | null>(null)
+  const [rejectionsError, setRejectionsError] = useState(false)
   const [funnel, setFunnel] = useState<SalesFunnel | null>(null)
   const [funnelError, setFunnelError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -617,7 +631,8 @@ export default function ReportsClient({ exports: allowedExports }: { exports?: P
       }
       if (rejectionsRes.status === 'fulfilled' && rejectionsRes.value.success) {
         setRejections(rejectionsRes.value.data || null)
-      }
+        setRejectionsError(false)
+      } else setRejectionsError(true)
       if (funnelRes.status === 'fulfilled' && funnelRes.value.success) {
         setFunnel(funnelRes.value.data || null)
         setFunnelError(false)
@@ -695,7 +710,7 @@ export default function ReportsClient({ exports: allowedExports }: { exports?: P
       </div>
 
       {/* Phase 12A — Afvisningsårsager */}
-      <RejectionAnalyticsSection stats={rejections} />
+      <RejectionAnalyticsSection stats={rejections} error={rejectionsError} />
 
       {/* Project Profitability */}
       {/* N53: salgstragt pr. måned */}
