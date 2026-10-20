@@ -205,7 +205,7 @@ export function AftercalcOverviewClient() {
                           </p>
                         )}
                         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0">
-                          <div className="min-w-0">
+                          <div className="break-words min-w-0">
                             <dt className="text-gray-500 break-words min-w-0">Tilbudt omsætning</dt>
                             <dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.quoted_revenue)}</dd>
                           </div>
