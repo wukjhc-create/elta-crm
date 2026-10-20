@@ -27,7 +27,7 @@ ok(view.split(bare).length === 1, 'den bare signalscore er vaek')
 ok(!view.includes(bare), 'den bare signalscore er vaek')
 ok(view.includes('shrink-0'), 'shrink-0 bliver')
 ok(view.includes('<span className="font-mono break-words min-w-0">{inv.payment_reference ?? \'—\'}</span>'), 'betalingsreferencen bliver')
-ok(view.includes('<p className="text-xs text-gray-400">Ingen linjer ekstraheret. Uden linjer er der ikke noget at kontrollere. Tjek bilaget nedenfor.</p>'), 'tomme linjer bliver')
+ok(view.includes('<p className="text-xs text-gray-400 break-words min-w-0">Ingen linjer ekstraheret. Uden linjer er der ikke noget at kontrollere. Tjek bilaget nedenfor.</p>'), 'tomme linjer bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
