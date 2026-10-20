@@ -1805,6 +1805,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 trehundredeogsyttenende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `22c6a974`. Det lader trehundredeogsekstende-hegnet stå. `22c6a974` hedder `feat(reports): totalen for accepteret værdi i salgstragten kan krympe`. `9d8bccda` hedder `feat(reports): totalen for accepterede tilbud i salgstragten kan krympe`. `origin/grok-next` er `22c6a974`. Push af `22c6a974` lykkedes. `9d8bccda` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag. `origin/main` er `d4323c50`. Det er en docs-commit efter `32955433` med godkendelsespakke, Kalkia-eksempler der ikke er aktiveret, og read-only scripts. Den rører ikke salgstragten, leverandørvarens tabel eller `vat-guard.ts` i `2d979a03`.
+
+### Alle commits `9d8bccda..22c6a974`
+
+```
+22c6a974 feat(reports): totalen for accepteret værdi i salgstragten kan krympe
+9d8bccda feat(reports): totalen for accepterede tilbud i salgstragten kan krympe
+```
+
+Listen er skiftets commits fra `9d8bccda` til og med `22c6a974`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+f9ac2b56 docs: checkpoint efter 9d8bccda
+```
+
+### Features
+
+G18-1051 lader totalen for accepteret værdi i salgstragtens skrivebord krympe. Beløbet bliver. G18-1050 lader totalen for accepterede tilbud krympe. Tallet bliver. Månedsmatekken, satser og beløb bliver. Ingen opfundne priser. Ingen e-conomic.
+
+### Tests
+
+`scripts/sales-funnel-total-accepted-value-cell-wrap-test.ts` læser `sales-funnel-table.tsx`, kalder `formatDate('2026-06-02')` fra `src/lib/utils`, `formatCurrency(1250)` fra `src/lib/utils/format` og `funnelMonthRates`. Den kørte med `npx tsx` og exiterede 0. `scripts/sales-funnel-total-offers-accepted-cell-wrap-test.ts` exiterede 0. `scripts/sales-funnel-money-wrap-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `22c6a974`. `9d8bccda` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d2b2521e`, tilbudslistens tælle-mærke i `589fad7b`, varenavnet i `943b355a`, mobilproducenten i `3d5409f1`, konverteringsteksten i `b0111850`, note-svaret i `a2532b6e`, salgstragtens indledning i `9f007f5f`, callback-svaret i `cbb55c21`, skrivebordsproducenten i `b488225a`, filikonet i `0490e08a`, fillisten i `512ef9cd`, billedgitteret i `ffbeb5f9`, download-ikonet i `848c7e72`, papirclipsen i `96f3195a`, venteteksten i `5d892a39`, tilbud ude-mærket i `6ba193f0`, navnecellen i `ba10bb6a`, mobilkortet i `e15fbf18`, den skjulte konverteringstekst i `b580e012`, note-forkortelsen i `b516c654`, salgstragtens overskrift i `41e5e1de`, påmindelses-svaret i `2bb9ca63`, navnerammen i `0a8375de`, lead-filikonet i `97956a42`, månedens navn i `c3748e23`, månedskortet i `239291a6`, salgstragtens ikon i `987d5ffb`, totaloverskriften i `62285490`, totalkortet i `0a9c3738`, mobilisten i `84bf276c`, kategoricellen i `c0b80883`, statuscellen i `5b5cde69`, konverteringslinket i `441dc1d3`, advarslen Sag mangler i `e7e9d790`, fejlteksten i `c35eca40`, kolonnen Måned i `326a18e1`, kostcellen i `eb55c16d`, lead-download-ikonet i `5a04820d`, månedens satser i `dfec3bf7`, salgstragtens ramme i `285acf97`, beløbslisten i `2cb0e328`, totallinjen i `7e53b41d`, beløbslinjen i `e7aef71e`, skrivebordslisten i `925bc233`, tabellen i `af28eb04`, listepriscellen i `ac0192f1`, mærket Klar til sag i `107a9af0`, salgspriscellen i `6288ae25`, månedscellen i `7d83beb8`, kolonnen Nye kunder i `fa2fb2ce`, kolonnen Tilbud oprettet i `85dc29eb`, kolonnen Sendt i `94a65036`, kolonnen Accepteret i `1dc1fa5b`, kolonnen Accepteret værdi i `7afc5b2a`, kolonnen Faktureret i `2ff87eb3`, kolonnerækken i `980c0871`, totalrækken i `aa921dd0`, tabelhovedet i `e4f11635`, tabelkroppen i `3037308a`, kolonnen Listepris i `c2652fc0`, kolonnen Salgspris i `670659cb`, kolonnen Status i `7f6da03d`, nye-kunder-cellen i `3a1dc8fc`, cellen Tilbud oprettet i `5500108d`, cellen Sendt i `3a7b9c73`, cellen Accepteret i `d9cac61b`, cellen Accepteret værdi i `613cf908`, cellen Faktureret i `8a6858c1`, cellen I alt i `0258362f`, månedsrækken i `e5b15fd2`, totalen for nye kunder i `fdb10240`, totalen for oprettede tilbud i `e7b0f072`, totalen for sendte tilbud i `cc48eee8`, totalen for accepterede tilbud i `9d8bccda`, og totalen for accepteret værdi i `22c6a974`. `f9ac2b56` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `22c6a974`. Flet `origin/main` (`d4323c50`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-991, G18-1052, G18-1053, G18-1054, G18-1055, G18-1056, G18-1057, G18-1058, G18-1059, G18-1060, G18-1061, G18-1062, G18-1063, G18-1064, G18-1065.
+
 ## Checkpoint 2026-10-18 trehundredeogsekstende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `9d8bccda`. Det lader trehundredeogfemtende-hegnet stå. `9d8bccda` hedder `feat(reports): totalen for accepterede tilbud i salgstragten kan krympe`. `cc48eee8` hedder `feat(reports): totalen for sendte tilbud i salgstragten kan krympe`. `origin/grok-next` er `9d8bccda`. Push af `9d8bccda` lykkedes. `cc48eee8` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag. `origin/main` er `d4323c50`. Det er en docs-commit efter `32955433` med godkendelsespakke, Kalkia-eksempler der ikke er aktiveret, og read-only scripts. Den rører ikke salgstragten, leverandørvarens tabel eller `vat-guard.ts` i `2d979a03`.
