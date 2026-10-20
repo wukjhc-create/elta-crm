@@ -149,11 +149,15 @@ export async function getEmployeeAction(id: string, opts: { includeCompensation?
   if (!hasPermission('employees.view')) return null
   const canSeePayroll = !!opts.includeCompensation && hasPermission('employees.payroll.view')
 
-  const { data: emp } = await supabase
+  const { data: emp, error } = await supabase
     .from('employees')
     .select('*')
     .eq('id', id)
     .maybeSingle()
+  if (error) {
+    logger.error('getEmployeeAction failed', { error })
+    throw new Error('Kunne ikke hente medarbejderen')
+  }
   if (!emp) return null
 
   let comp = null
