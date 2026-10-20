@@ -22,7 +22,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
         <TrendingUp className="w-5 h-5 text-gray-400" />
         Salgstragt
       </h3>
-      <p className="text-xs text-gray-500 mb-4">
+      <p className="text-xs text-gray-500 mb-4 break-words min-w-0">
         Sendt-rate {pct(t.sent_rate)} af oprettede tilbud · vinderrate {pct(t.win_rate)} af sendte. Accepteret værdi og faktureret er ekskl. moms (kreditnotaer trukket fra; faktura i udstedelsesmåneden).
       </p>
       <div className="md:hidden space-y-2" data-testid="sales-funnel-mobile">
