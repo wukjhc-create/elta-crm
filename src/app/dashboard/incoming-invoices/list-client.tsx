@@ -283,7 +283,7 @@ export function IncomingInvoicesListClient({
           const isTest = isTestRow(r)
           return (
             <div key={r.id} className={`p-4 ${isTest ? 'bg-amber-50/40' : ''}`}>
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start justify-between gap-2 break-words min-w-0">
                 <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline break-words min-w-0">
                   {r.supplier_name || 'Leverandør mangler'}
                 </Link>
