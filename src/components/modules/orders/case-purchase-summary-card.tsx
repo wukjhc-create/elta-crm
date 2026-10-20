@@ -45,7 +45,9 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-400 py-3"><Loader2 className="w-4 h-4 animate-spin" /> Henter…</div>
       ) : error || !data ? (
-        <p className="text-sm text-gray-400 py-2">{error || 'Ingen data'}</p>
+        <p className="text-sm text-red-700 break-words py-2" data-testid="purchase-summary-load-error">
+          {error || 'Kunne ikke hente indkøbsoverblik'}. Det tælles ikke som 0 kr.
+        </p>
       ) : data.converted_line_count === 0 ? (
         <p className="text-sm text-gray-400 py-2">Ingen leverandørfaktura-linjer konverteret til denne sag endnu.</p>
       ) : (
