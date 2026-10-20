@@ -728,7 +728,7 @@ export function MailDetail({
 
                 {/* File download list */}
                 {fileAttachments.length > 0 && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 break-words min-w-0">
                     {fileAttachments.map((att, i) => {
                       const isPdf = att.contentType === 'application/pdf'
                       const Icon = isPdf ? FileText : Paperclip

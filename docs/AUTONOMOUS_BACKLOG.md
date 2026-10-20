@@ -1312,7 +1312,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-568 | 8 Pilot | DONE. Totalrækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">` der omslutter totaletiketten i prisopbygningen. Tidsberegningens totalrække og beløbet er uændrede. |
 | G18-575 | 8 Pilot | DONE. Materialerækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Materialer. De andre rækker med samme klasse og beløbet er uændrede. |
 | G18-582 | 8 Pilot | DONE. Kundevælgerens indhold kan krympe. | Kun `<div className="p-4">` i kundevælgeren. Søgefeltet og listen er uændrede. |
-| G18-598 | 8 Pilot | ÅBEN. Listen med mailens filer kan krympe. | Kun `<div className="space-y-1.5">` i mail-detaljen. Filnavnet og filstørrelsen er uændrede. |
+| G18-598 | 8 Pilot | DONE. Listen med mailens filer kan krympe. | Kun div med space-y-1.5 i mail-detaljen. Filnavnet og filstørrelsen er uændrede. |
 | G18-569 | 8 Pilot | DONE. Totalrækken i tidsberegningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0 border-t pt-2 font-bold">` der omslutter etiketten Total tid. Prisopbygningens totalrække og timetallet er uændrede. |
 | G18-576 | 8 Pilot | DONE. Arbejdslønrækken i prisopbygningen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Arbejdsløn. De andre rækker med samme klasse og beløbet er uændrede. |
 | G18-583 | 8 Pilot | DONE. Kalkulationsgitteret kan krympe. | Kun det `<div className="grid grid-cols-1 md:grid-cols-2 gap-6">` der omslutter Prisopbygning. Fortolkningsgitteret er uændret. |
@@ -1732,6 +1732,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-998 | 7 Assistent | ÅBEN. Påmindelses-svaret siger at kunden ikke er kontaktet. | Kun reminder-teksten. Insert og afsendelse er uændrede. Ingen webhook. |
 | G18-999 | 8 Pilot | ÅBEN. Navnerammen på leverandørvarens skrivebord kan krympe. | Kun div uden klasse lige før product.supplier_name i skrivebordstabellen. Producent, priser og mobilkort er uændrede. |
 | G18-1000 | 8 Pilot | ÅBEN. Filikonet på lead-detaljen kan krympe. | Kun Icon med klassen w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0 i lead-detail-client.tsx. Mail-detaljen er uændret. |
+| G18-1001 | 6 Salg | ÅBEN. Månedens navn i salgstragtens mobilkort kan krympe. | Kun p med klassen font-medium text-gray-900 der viser monthLabel. Satser og beløb er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
