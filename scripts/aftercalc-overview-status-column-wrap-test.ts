@@ -35,7 +35,7 @@ ok(view.split('<th className="px-2 py-1.5 text-left">Status</th>').length === 1,
 ok(view.includes('<th className="px-2 py-1.5 text-left break-words min-w-0">Datakvalitet</th>'), 'datakvalitet-kolonnen kan krympe')
 ok(view.includes('<td className="px-2 py-1.5 text-gray-700 break-words min-w-0">{SERVICE_CASE_STATUS_LABELS[r.status as ServiceCaseStatus] ?? r.status}'), 'sagsstatus bliver')
 ok(view.includes('data-testid="aftercalc-mobile-status"'), 'mobilstatus bliver')
-ok(view.includes('<th className="px-2 py-1.5 text-right">DB-afvigelse</th>'), 'afvigelseskolonnen bliver')
+ok(view.includes('<th className="px-2 py-1.5 text-right break-words min-w-0">DB-afvigelse</th>'), 'afvigelseskolonnen kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 const ans = '>Ansvarlig</th>'
 const aat = view.indexOf(ans)

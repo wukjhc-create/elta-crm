@@ -31,7 +31,7 @@ ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'kolonnen findes en gang')
 ok(view.split('<th className="px-2 py-1.5 text-right">Faktisk DB %</th>').length === 1, 'den bare kolonne er vaek')
 ok(view.includes('<td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{pct(r.actual_db_pct)}</td>'), 'procenten bliver')
-ok(view.includes('<th className="px-2 py-1.5 text-right">DB-afvigelse</th>'), 'afvigelseskolonnen bliver')
+ok(view.includes('<th className="px-2 py-1.5 text-right break-words min-w-0">DB-afvigelse</th>'), 'afvigelseskolonnen kan krympe')
 ok(view.includes('<dt className="text-gray-500 break-words min-w-0">Faktisk DB</dt>'), 'mobil-etiketten kan stadig krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 const quoted = '>Tilbudt DB %</th>'
