@@ -31,8 +31,8 @@ ok(!view.includes('break-words break-words'), 'et break-words')
 
 const at = view.indexOf(thead)
 const before = view.slice(Math.max(0, at - 220), at)
-ok(before.includes('<div className="hidden md:block overflow-x-auto">'), 'rullen bliver')
-ok(!before.includes('overflow-x-auto break-words'), 'rullen har ikke wrap')
+ok(before.includes('<div className="hidden md:block overflow-x-auto break-words min-w-0">'), 'rullen kan krympe')
+ok(!before.includes('<div className="hidden md:block overflow-x-auto">'), 'den bare rulle er vaek')
 
 const approve = readFileSync('src/app/dashboard/incoming-invoices/[id]/approve-preview-dialog.tsx', 'utf8')
 ok(approve.includes(bare), 'godkendelsesdialogen bliver')
