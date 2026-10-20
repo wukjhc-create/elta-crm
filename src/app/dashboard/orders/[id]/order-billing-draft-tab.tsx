@@ -395,15 +395,16 @@ function StageInvoicesOverview({
 
   useEffect(() => {
     let cancelled = false
-    setError(null)
     listStageInvoicesForCaseAction(caseId).then((res) => {
       if (cancelled) return
       if (!res.ok) {
         setError(res.message ?? 'Kunne ikke hente stage-fakturaer')
-        setRows([])
         return
       }
+      setError(null)
       setRows(res.data ?? [])
+    }).catch(() => {
+      if (!cancelled) setError('Kunne ikke hente stage-fakturaer')
     })
     return () => {
       cancelled = true
@@ -411,14 +412,14 @@ function StageInvoicesOverview({
   }, [caseId, reloadKey])
 
   if (rows === null && !error) return null
-  if (error) {
+  if (!rows || rows.length === 0) {
+    if (!error) return null
     return (
-      <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 flex items-center gap-2">
-        <AlertCircle className="w-3.5 h-3.5" /> {error}
+      <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 flex items-center gap-2" data-testid="stage-invoices-load-error">
+        <AlertCircle className="w-3.5 h-3.5" /> {error}. Det tælles ikke som ingen stage-fakturaer.
       </div>
     )
   }
-  if (!rows || rows.length === 0) return null
 
   const cumulativePct = rows
     .filter((r) => r.invoice_type !== 'final')
@@ -428,6 +429,11 @@ function StageInvoicesOverview({
 
   return (
     <div className="rounded-lg ring-1 ring-gray-200 bg-white p-3">
+      {error && (
+        <div className="mb-2 rounded ring-1 ring-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 flex items-center gap-2" data-testid="stage-invoices-load-error">
+          <AlertCircle className="w-3.5 h-3.5" /> {error}. Det tælles ikke som ingen stage-fakturaer.
+        </div>
+      )}
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
           <FileText className="w-4 h-4 text-gray-500" />
