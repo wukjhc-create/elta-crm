@@ -91,7 +91,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
             </div>
             <div className="break-words min-w-0">
               <div className="text-gray-500 break-words min-w-0" data-testid="invoice-control-label-supplier">Leverandør</div>
-              <div className="font-medium break-words">{res.hasSupplier ? 'Kendt' : 'Ukendt — kan ikke matche katalog'}</div>
+              <div className="font-medium break-words min-w-0">{res.hasSupplier ? 'Kendt' : 'Ukendt — kan ikke matche katalog'}</div>
             </div>
           </div>
           {review && (
