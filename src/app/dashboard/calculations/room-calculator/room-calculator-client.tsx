@@ -868,7 +868,20 @@ export function RoomCalculatorClient() {
             <div className="px-4 py-3 border-b">
               <h4 className="font-semibold text-sm">Scenarie-analyse</h4>
             </div>
-            <div className="overflow-x-auto">
+            <ul className="md:hidden space-y-2 p-3" data-testid="room-scenarios-mobile">
+              {profitSim.scenarios.map((s, i) => (
+                <li key={i} className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${s.name === 'Standard margin' ? 'bg-blue-50' : ''}`}>
+                  <p className="font-medium text-gray-900 break-words">{s.name}</p>
+                  <p className="mt-1 text-xs text-gray-700">Margin {s.margin_percentage}% · rabat {s.discount_percentage}%</p>
+                  <p className="text-xs tabular-nums text-gray-700">Salgspris {formatCurrency(s.net_price)}</p>
+                  <p className="text-xs tabular-nums font-medium text-gray-900">Slutpris inkl. moms {formatCurrency(s.final_amount)}</p>
+                  <p className={`text-xs tabular-nums ${s.db_amount < 0 ? 'text-red-600' : 'text-gray-800'}`}>DB {formatCurrency(s.db_amount)}</p>
+                  <p className={`text-xs tabular-nums ${getDBTextColor(s.db_percentage)}`}>DB% {s.db_percentage.toFixed(1)}%</p>
+                  <p className="text-xs tabular-nums text-gray-700">DB/time {formatCurrency(s.db_per_hour)}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-gray-500 border-b bg-gray-50">
