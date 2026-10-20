@@ -1696,6 +1696,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogsyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `5c7a3612`. Det lader tohundredeogsjette-hegnet stå. `5c7a3612` hedder `feat(invoice): knappen ret fakturahoved kan krympe`. `2510eb9a` hedder `feat(invoice): vis-knappen ved iban kan krympe`. `origin/grok-next` er `5c7a3612`. Push af `5c7a3612` lykkedes. `2510eb9a` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `2510eb9a..5c7a3612`
+
+```
+5c7a3612 feat(invoice): knappen ret fakturahoved kan krympe
+2510eb9a feat(invoice): vis-knappen ved iban kan krympe
+```
+
+Listen er skiftets commits fra `2510eb9a` til og med `5c7a3612`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+ae8fb3c6 docs: checkpoint efter 2510eb9a
+```
+
+### Features
+
+G18-955 lader kun knappen Ret fakturahoved på fakturadetaljen krympe. Knappen bliver. G18-954 lader kun Vis-knappen ved IBAN på fakturadetaljen krympe. Knappen bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-header-edit-wrap-test.ts` og `scripts/incoming-invoice-detail-iban-reveal-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for Vis-knappen exiterede 0 sammen med det commit, der ændrede Ret fakturahoved. `scripts/invoice-detail-related-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `5c7a3612`. `2510eb9a` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `5c7a3612`, herunder G18-748 til G18-955. `ae8fb3c6` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `5c7a3612`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-956, G18-597.
+
 ## Checkpoint 2026-10-18 tohundredeogsjette (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `2510eb9a`. Det lader tohundredeogfemte-hegnet stå. `2510eb9a` hedder `feat(invoice): vis-knappen ved iban kan krympe`. `5966a89c` hedder `feat(invoice): rammen om iban-vaerdien kan krympe`. `origin/grok-next` er `2510eb9a`. Push af `2510eb9a` lykkedes. `5966a89c` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
