@@ -1678,7 +1678,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-944 | 2 Faktura | DONE. Tidspunktet i revisionsloggen kan krympe. | Kun `<span className="text-gray-500 shrink-0">{fmtDate(a.created_at)} {a.created_at.slice(11, 19)}</span>` i `detail-client.tsx`. Tidspunktet er uændret. `shrink-0` bliver. |
 | G18-945 | 2 Faktura | DONE. Rækken i revisionsloggen kan krympe. | Kun `<div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5">` i `detail-client.tsx`. Indholdet er uændret. |
 | G18-946 | 2 Faktura | DONE. Beskeden i revisionsloggen kan krympe. | Kun `<div className="mt-0.5 text-gray-700 break-words">{a.message}</div>` i `detail-client.tsx`. Beskeden er uændret. `break-words` bliver. Tilføj kun ` min-w-0`. |
-| G18-947 | 2 Faktura | ÅBEN. Panelet på fakturadetaljen kan krympe. | Kun `<div className="bg-white rounded-lg ring-1 ring-gray-200 p-4">` i `detail-client.tsx`. Indholdet er uændret. |
+| G18-947 | 2 Faktura | DONE. Panelet på fakturadetaljen kan krympe. | Kun `<div className="bg-white rounded-lg ring-1 ring-gray-200 p-4">` i `detail-client.tsx`. Indholdet er uændret. |
+| G18-948 | 2 Faktura | ÅBEN. Overskriften i panelet på fakturadetaljen kan krympe. | Kun `<h3 className="text-sm font-semibold mb-3">{title}</h3>` i `detail-client.tsx`. Titlen er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
