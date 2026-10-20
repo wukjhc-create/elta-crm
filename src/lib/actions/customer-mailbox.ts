@@ -599,11 +599,13 @@ export async function linkUnlinkedCustomerEmailsAction(customerId: string): Prom
   const denied = await gateDenied('customers.edit')
   if (denied) return { success: false, error: denied }
   const supabase = await createClient()
-  const { data: cust } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+  const { data: cust, error: custError } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+  if (custError) return { success: false, error: 'Kunne ikke læse kundens mail. Det tælles ikke som ingen adresse.' }
   const email = (cust as { email?: string | null } | null)?.email
   if (!email) return { success: false, error: 'Kunden har ingen mailadresse' }
   const { linkUnlinkedEmailsFromAddress } = await import('@/lib/mail/retro-link')
   const linked = await linkUnlinkedEmailsFromAddress(supabase, customerId, email)
+  if (linked == null) return { success: false, error: 'Kunne ikke koble mails. Det tælles ikke som 0.' }
   revalidatePath(`/dashboard/customers/${customerId}`)
   return { success: true, linked }
 }
