@@ -6,6 +6,7 @@
  * CRUD operations + sync trigger + manual link for incoming emails.
  */
 
+import { cityForPostcodeLocal } from '@/lib/address/postcodes'
 import { redactEmail, redactSubject } from '@/lib/utils/log-redact'
 import { leadSourceEmailIds } from '@/lib/leads/source-email'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
@@ -2176,7 +2177,9 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
         source_email_id: e.id,
         ...(parsed.address ? { address: parsed.address } : {}),
         ...(parsed.postalCode ? { postal_code: parsed.postalCode } : {}),
-        ...(parsed.city ? { city: parsed.city } : {}),
+        // LD-6 (2026-10-20): formularen havde postnr. men ingen by → byen fra det officielle postnummerdatasæt (lokalt,
+        // intet gæt; ukendt postnr. → ingen by)
+        ...((parsed.city || cityForPostcodeLocal(parsed.postalCode)) ? { city: parsed.city || cityForPostcodeLocal(parsed.postalCode) } : {}),
       },
     }).select('id').single()
     if (error || !lead) {

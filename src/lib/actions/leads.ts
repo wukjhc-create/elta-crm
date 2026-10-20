@@ -1,5 +1,6 @@
 'use server'
 
+import { cityForPostcodeLocal } from '@/lib/address/postcodes'
 import { phoneDigitsPattern } from '@/lib/utils/phone-search'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
@@ -742,7 +743,9 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
           // N78: adresse fra webhenvendelsen (lead.custom_fields)
           billing_address: typeof cf.address === 'string' ? cf.address : null,
           billing_postal_code: typeof cf.postal_code === 'string' ? cf.postal_code : null,
-          billing_city: typeof cf.city === 'string' ? cf.city : null,
+          // LD-6: ældre leads med postnr. uden by → byen fra det officielle postnummerdatasæt (intet gæt)
+          billing_city: typeof cf.city === 'string' && cf.city ? cf.city
+            : typeof cf.postal_code === 'string' ? cityForPostcodeLocal(cf.postal_code) : null,
           billing_country: 'Danmark', shipping_country: 'Danmark', tags: [], is_active: true, created_by: userId,
           custom_fields: { source: 'lead', lead_id: leadId },
         }),

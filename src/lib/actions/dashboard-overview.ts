@@ -498,11 +498,13 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         if (shown.length) {
           const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
           const { escapeLike } = await import('@/lib/validations/postgrest-filter')
+          const { cityForPostcodeLocal } = await import('@/lib/address/postcodes')
           const { data: bodies } = await supabase.from('incoming_emails').select('id, body_text, body_html').in('id', shown.map((r) => r.id))
           // Q-3: kundeopslag pr. henvendelse kører samtidig (før N+1 efter hinanden)
           await Promise.all(((bodies ?? []) as Array<{ id: string; body_text: string | null; body_html: string | null }>).map(async (b) => {
             const p = parseCustomerFromEmail(b.body_text, b.body_html, null)
-            contactById.set(b.id, [p.name, p.city || p.postalCode].filter(Boolean).join(' · ') || null)
+            // LD-6: by fra det officielle postnummerdatasæt, når formularen kun har postnr. (som lead/kunde)
+            contactById.set(b.id, [p.name, p.city || cityForPostcodeLocal(p.postalCode) || p.postalCode].filter(Boolean).join(' · ') || null)
             const em = (p.email ?? '').trim().toLowerCase()
             if (em.includes('@')) {
               const { data: cust } = await supabase.from('customers').select('id, company_name').eq('is_active', true).ilike('email', escapeLike(em)).limit(1).maybeSingle()
