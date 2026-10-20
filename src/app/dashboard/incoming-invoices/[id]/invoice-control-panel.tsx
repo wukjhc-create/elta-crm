@@ -131,7 +131,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
                     <tr key={l.lineNumber} className={`border-t break-words min-w-0 ${bad ? 'bg-red-50' : ''}`}>
                       <td className="py-1 break-words min-w-0" data-testid="invoice-control-desktop-line-number">{l.lineNumber}</td>
                       <td className="break-words min-w-0" data-testid="invoice-control-desktop-description">{l.description}<ChargeMark description={l.description} /></td>
-                      <td className="break-words min-w-0" data-testid="invoice-control-desktop-match">{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : <span className="text-gray-400">{l.reason ?? 'ingen'}</span>}</td>
+                      <td className="break-words min-w-0" data-testid="invoice-control-desktop-match">{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : <span className="text-gray-400 break-words min-w-0">{l.reason ?? 'ingen'}</span>}</td>
                       <td className="text-right break-words min-w-0" data-testid="invoice-control-desktop-expected">{m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</td>
                       <td className="text-right break-words min-w-0" data-testid="invoice-control-desktop-deviation">{l.varianceAmount != null && l.verdict !== 'not_controllable' ? `${kr(l.varianceAmount)}${l.variancePct != null ? ` (${l.variancePct} %)` : ''}` : '—'}</td>
                       <td className={`pl-4 break-words min-w-0 ${bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : ''}`} data-testid="invoice-control-desktop-verdict">{LINE[l.verdict] ?? l.verdict}</td>
