@@ -1761,6 +1761,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogtreoghalvfjerdsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `c0b80883`. Det lader tohundredeogtooghalvfjerdsindstyvende-hegnet stå. `c0b80883` hedder `feat(suppliers): kategoricellen kan krympe`. `84bf276c` hedder `feat(reports): mobilisten kan krympe`. `origin/grok-next` er `c0b80883`. Push af `c0b80883` lykkedes. `84bf276c` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `84bf276c..c0b80883`
+
+```
+c0b80883 feat(suppliers): kategoricellen kan krympe
+84bf276c feat(reports): mobilisten kan krympe
+```
+
+Listen er skiftets commits fra `84bf276c` til og med `c0b80883`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+a574a5ff docs: checkpoint efter 84bf276c
+```
+
+### Features
+
+G18-1007 lader kategoricellen på leverandørvarens skrivebord krympe. Mærket, priser og status bliver. G18-1006 lader mobilisten i salgstragten krympe. Kortene bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic.
+
+### Tests
+
+`scripts/supplier-product-desktop-category-cell-wrap-test.ts` læser `supplier-products-table.tsx` og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. Den kørte med `npx tsx` og exiterede 0. `scripts/supplier-product-desktop-name-cell-wrap-test.ts` blev opdateret kun på kategoricellens entydighed og exiterede 0. `scripts/sales-funnel-mobile-list-wrap-test.ts` er testen for mobilisten og havde allerede exit 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `c0b80883`. `84bf276c` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d2b2521e`, tilbudslistens tælle-mærke i `589fad7b`, varenavnet i `943b355a`, mobilproducenten i `3d5409f1`, konverteringsteksten i `b0111850`, note-svaret i `a2532b6e`, salgstragtens indledning i `9f007f5f`, callback-svaret i `cbb55c21`, skrivebordsproducenten i `b488225a`, filikonet i `0490e08a`, fillisten i `512ef9cd`, billedgitteret i `ffbeb5f9`, download-ikonet i `848c7e72`, papirclipsen i `96f3195a`, venteteksten i `5d892a39`, tilbud ude-mærket i `6ba193f0`, navnecellen i `ba10bb6a`, mobilkortet i `e15fbf18`, den skjulte konverteringstekst i `b580e012`, note-forkortelsen i `b516c654`, salgstragtens overskrift i `41e5e1de`, påmindelses-svaret i `2bb9ca63`, navnerammen i `0a8375de`, lead-filikonet i `97956a42`, månedens navn i `c3748e23`, månedskortet i `239291a6`, salgstragtens ikon i `987d5ffb`, totaloverskriften i `62285490`, totalkortet i `0a9c3738`, mobilisten i `84bf276c`, og kategoricellen i `c0b80883`. `a574a5ff` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `c0b80883`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-991, G18-1008, G18-1009, G18-1010, G18-1011, G18-1012, G18-1013, G18-1014, G18-1015, G18-1016, G18-1017, G18-1018, G18-1019, G18-1020, G18-1021.
+
 ## Checkpoint 2026-10-18 tohundredeogtooghalvfjerdsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `84bf276c`. Det lader tohundredeogenoghalvfjerdsindstyvende-hegnet stå. `84bf276c` hedder `feat(reports): mobilisten kan krympe`. `0a9c3738` hedder `feat(reports): totalkortet kan krympe`. `origin/grok-next` er `84bf276c`. Push af `84bf276c` lykkedes. `0a9c3738` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
