@@ -157,10 +157,14 @@ export async function listWorkOrdersForCase(
 
     let employeeMap = new Map<string, { id: string; name: string; email: string | null }>()
     if (employeeIds.length > 0) {
-      const { data: emps } = await supabase
+      const { data: emps, error: empError } = await supabase
         .from('employees')
         .select('id, name, email')
         .in('id', employeeIds)
+      if (empError) {
+        logger.error('listWorkOrdersForCase employees failed', { error: empError })
+        return { success: false, error: 'Kunne ikke hente medarbejdere. Det tælles ikke som ingen tildelt.' }
+      }
       employeeMap = new Map(
         (emps || []).map((e: any) => [
           e.id as string,
