@@ -28,7 +28,7 @@ ok(after.includes('className="text-xs text-emerald-700 hover:underline"'), 'knap
 ok(view.split(bare).length === 1, 'den bare ret-raekke er vaek')
 ok(!view.includes(bare), 'den bare ret-raekke er vaek')
 ok(view.includes('className="flex flex-wrap items-center justify-end gap-3 break-words min-w-0"'), 'handlingsraekken bliver')
-ok(view.includes('className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between w-full text-left"'), 'sagsraekken bliver')
+ok(view.includes('className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between w-full text-left break-words min-w-0"'), 'sagsraekken bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

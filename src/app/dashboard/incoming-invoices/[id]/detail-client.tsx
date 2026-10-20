@@ -368,7 +368,7 @@ export function IncomingInvoiceDetailClient({
           <Row label="Vælg leverandør" value={<IncomingInvoiceSupplierPicker invoiceId={inv.id} />} />
           <Row label="Tilknyttet sag"
             value={
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between w-full text-left">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between w-full text-left break-words min-w-0">
                 <div className="min-w-0">
                   {detail.case ? (
                     <Link
