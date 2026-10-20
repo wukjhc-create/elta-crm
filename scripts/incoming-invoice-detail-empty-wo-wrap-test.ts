@@ -26,7 +26,7 @@ ok(after.includes('Ingen specifik WO'), 'teksten bliver')
 ok(view.split(bare).length === 1, 'den bare ingen-wo er vaek')
 ok(!view.includes(bare), 'den bare ingen-wo er vaek')
 ok(view.includes('<span className="text-gray-700 break-words min-w-0">{detail.workOrder.title}</span>'), 'arbejdsordretitlen bliver')
-ok(view.includes('<span className="text-gray-500 ml-1">· {detail.case.customer_name}</span>'), 'kundenavnet bliver')
+ok(view.includes('<span className="text-gray-500 ml-1 break-words min-w-0">· {detail.case.customer_name}</span>'), 'kundenavnet bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
