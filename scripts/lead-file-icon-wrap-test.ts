@@ -26,7 +26,7 @@ ok(lead.split(wrapped).length === 2, 'filikonet er et')
 ok(!lead.includes(bare), 'filikonet er ikke bart')
 ok(lead.includes('shrink-0 break-words min-w-0'), 'shrink-0 bliver')
 ok(lead.includes('{att.filename}'), 'filnavnet bliver')
-ok(lead.includes('<Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0" />'), 'download-ikonet bliver')
+ok(lead.includes('<Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0 break-words min-w-0" />'), 'download-ikonet kan krympe')
 ok(mail.includes(wrapped), 'mail-ikonet bliver')
 ok(mail.split(wrapped).length === 2, 'mail-ikonet er et')
 

@@ -312,7 +312,7 @@ export function LeadDetailClient({ lead, activities, activitiesError = null }: L
                           <Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0 break-words min-w-0" />
                           <span className="break-all min-w-0 flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium">{att.filename}</span>
                           {sizeStr && <span className="text-xs text-gray-400 shrink-0">{sizeStr}</span>}
-                          <Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0" />
+                          <Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0 break-words min-w-0" />
                         </a>
                       )
                     })}
