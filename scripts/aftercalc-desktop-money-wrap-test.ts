@@ -28,7 +28,7 @@ for (const call of ['{kr(r.quoted_revenue)}', '{kr(r.actual_revenue)}', '{pct(r.
 }
 ok(mobile.split('tabular-nums text-gray-900 break-words').length - 1 === 4, 'mobilens fire beløb er uændret')
 ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.quoted_revenue)}</dd>'), 'tilbudt mobilbeloeb kan krympe')
-ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words">{kr(r.actual_revenue)}</dd>'), 'faktisk mobilbeloeb bliver')
+ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.actual_revenue)}</dd>'), 'faktisk mobilbeloeb kan krympe')
 ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words">{pct(r.quoted_db_pct)}</dd>'), 'tilbudt db bliver')
 ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words">{pct(r.actual_db_pct)}</dd>'), 'faktisk db bliver')
 ok(desk.includes('varianceText(r.db_variance, r.db_variance_pct_points)'), 'afvigelsesteksten bliver')
