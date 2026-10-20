@@ -22,6 +22,7 @@ interface PageProps {
     sortOrder?: 'asc' | 'desc'
     view?: 'table' | 'kanban'
     mine?: string
+    staleDays?: string
   }>
 }
 
@@ -44,7 +45,11 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   // S-4 (pilot-review 2026-10-15): tavlen henter ÅBNE leads for sig (før fyldte vundne/tabte de 500 pladser, så ældre
   // åbne leads forsvandt) + vundne/tabte fra de seneste 90 dage til de lukkede kolonner
   const OPEN: LeadStatus[] = ['new', 'contacted', 'qualified', 'proposal', 'negotiation']
-  const kanbanSplit = isKanban && !status
+  // DB-15j: cockpittets "Leads — opfølgning" (åbne leads uden ændring i N dage) — samme definition som tallet
+  const staleN = params.staleDays ? parseInt(params.staleDays, 10) : NaN
+  const staleDays = Number.isFinite(staleN) && staleN >= 1 && staleN <= 365 ? staleN : undefined
+  const updatedBefore = staleDays ? new Date(Date.now() - staleDays * 86_400_000).toISOString() : undefined
+  const kanbanSplit = isKanban && !status && !staleDays
   let closedNote: string | null = null
   // PF-10 (performance-review 2026-10-16): åbne og lukkede leads hentes samtidig (før efter hinanden)
   const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
@@ -54,7 +59,8 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       pageSize,
       search,
       status,
-      statuses: kanbanSplit ? OPEN : undefined,
+      statuses: kanbanSplit || (staleDays && !status) ? OPEN : undefined,
+      updatedBefore,
       source,
       sortBy,
       sortOrder,
@@ -98,6 +104,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       sort={{ sortBy, sortOrder }}
       initialView={isKanban ? 'kanban' : 'table'}
       closedNote={[openNote, closedNote].filter(Boolean).join(' ') || null}
+      filterNote={staleDays ? `Viser åbne leads uden ændringer i ${staleDays}+ dage (fra "Leads — opfølgning").` : null}
     />
   )
 }

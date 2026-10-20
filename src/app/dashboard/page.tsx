@@ -211,7 +211,7 @@ export default async function DashboardPage() {
           icon={FolderKanban}
           iconColor="text-orange-600"
           iconBgColor="bg-orange-100"
-          href="/dashboard/orders"
+          href="/dashboard/orders?status=active"
         />
       </div>
 
@@ -257,7 +257,7 @@ export default async function DashboardPage() {
           icon={XCircle}
           iconColor="text-red-600"
           iconBgColor="bg-red-100"
-          href={canViewOffers ? "/dashboard/offers?status=rejected" : undefined}
+          href={canViewOffers ? "/dashboard/offers?status=rejected&rejectedDays=90" : undefined /* DB-15n: kortene tæller 90 dage */}
           trend={
             rejectionStats && rejectionStats.trend.prev30Days > 0
               ? {
@@ -276,7 +276,7 @@ export default async function DashboardPage() {
           icon={TrendingDown}
           iconColor="text-amber-600"
           iconBgColor="bg-amber-100"
-          href={canViewOffers ? "/dashboard/offers?status=rejected" : undefined}
+          href={canViewOffers ? "/dashboard/offers?status=rejected&rejectedDays=90" : undefined /* DB-15n: kortene tæller 90 dage */}
         />
       </div>}
 

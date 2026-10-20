@@ -25,6 +25,8 @@ export async function getLeads(filters?: {
   statuses?: LeadStatus[]
   /** S-4: kun leads opdateret efter dette tidspunkt (ISO) — lukkede kolonner viser de seneste */
   updatedSince?: string
+  /** DB-15j: kun leads der ikke er opdateret siden dette tidspunkt (ISO) — cockpittets "leads uden opfølgning" */
+  updatedBefore?: string
   source?: string
   assigned_to?: string
   sortBy?: string
@@ -72,6 +74,10 @@ export async function getLeads(filters?: {
     } else if (filters?.statuses?.length) {
       countQuery = countQuery.in('status', filters.statuses)
       dataQuery = dataQuery.in('status', filters.statuses)
+    }
+    if (filters?.updatedBefore && !Number.isNaN(Date.parse(filters.updatedBefore))) {
+      countQuery = countQuery.lt('updated_at', filters.updatedBefore)
+      dataQuery = dataQuery.lt('updated_at', filters.updatedBefore)
     }
     if (filters?.updatedSince && !Number.isNaN(Date.parse(filters.updatedSince))) {
       countQuery = countQuery.gte('updated_at', filters.updatedSince)

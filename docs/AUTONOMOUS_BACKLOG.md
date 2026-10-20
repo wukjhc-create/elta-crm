@@ -211,6 +211,21 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DF-12 | RPC'er bruger CURRENT_DATE (UTC) | BLOCKED_APPROVAL [MIGRATION] |
 | HT-2 | U13 `admin_fakturer_paa_sag=nej` i grund-kørslen (også før DF-ændringerne, 07:40); PASS når U13 vælges eksplicit → tilstandsafhængig (afregningsform NULL efter 00232? ventetekst?) | DONE — skærmbillede viste fanen med "Slutfaktura": waitFor kastede under navigationen og optællingen skete før indlæsning → poll i op til 90 s |
 
+## NEXT-53 (finans-review 2026-10-20 — faktura/betaling/e-conomic/efterkalkule)
+| # | Fund | Status |
+|---|---|---|
+| FC-1 | Fuldt krediteret faktura / kreditnota kan markeres betalt serverside (stale fane) → sagens "Betalt" for høj (S3) | TODO |
+| FC-2 | Samtidige eksporter: dublet-debitor OG fakturaen bogføres på den forældreløse debitor (= EC-6) (S3) | TODO |
+| FC-3 | Leverandørfaktura med linjer men uden nettobeløb kan bogføres uden afstemning (S3) | TODO |
+| FC-4 | Sagens økonomi tæller afviste/annullerede leverandørfakturaer med; .limit(50) (S3) | TODO |
+| FC-5 | "Betalt denne måned"/likviditet lægger hele amount_paid på paid_at-måneden; delbetalinger tælles ikke (S3) | TODO |
+| FC-6 | Kundekortets fakturatal: .limit(500), valuta blandet, forfalden ved 0,01 kr (S4) | TODO |
+| FC-7 | v_customer_payment_summary: valuta blandet, forfalden > 0, betalt = final_amount (S4) | BLOCKED_APPROVAL [MIGRATION] |
+| FC-8 | Bankmatch/registerPayment tjekker ikke valuta (EUR-faktura matches af kr-betaling) (S4) | TODO |
+| FC-9 | allocate_invoice_number afkorter ved > 9999 (dubletnumre) (S4) | BLOCKED_APPROVAL [MIGRATION] |
+| FC-10 | Fakturaårsserie i UTC (1/1 00–01 dansk tid → forrige år) (S4) | BLOCKED_APPROVAL [MIGRATION] (= TZ-5) |
+| FC-11 | Fakturakontrollens dækningstal sammenligner listepris med dagens kost (uden enhed/historik) (S4) | TODO |
+
 ## NEXT-52 (dead-end-review 2026-10-19 — knapper/faner serveren afviser)
 | # | Fund | Status |
 |---|---|---|
@@ -419,17 +434,17 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | DB-15a | "Kommende besigtigelser" headline = listens .limit(5) — aldrig over 5 (S3) | DONE (kode) — count: 'exact' på samme scoped forespørgsel; "Viser 5 af N" (U193/U70) |
 | DB-15b | /api/dashboard/stats "Åbne cases" uden sags-scope (salg ser firmaets tal) (S3) | DONE (kode) — samme sags-scope som cockpittet (DB-1) (U49/U13) |
 | DB-15c | Tilbuds-kr-værdier på dashboardet summerer alle valutaer (rapporten kun DKK) (S3) | DONE (kode) — summer kun DKK (offerExVatDkk), som rapporten |
-| DB-15d | Overskredne opgaver: overdueCount = listens 5 (S4) | TODO |
+| DB-15d | Overskredne opgaver: overdueCount = listens 5 (S4) | DONE (kode) — count: exact; kortet viser "N overskredne" og "+N flere" |
 | DB-15e | Portalbeskeder: headline loftet ved 500; link uden filter (S4) | TODO |
 | DB-15f | Webhenvendelser: kort 90 dage/uden lead, link alle (S4) | TODO |
 | DB-15g | Mails kræver svar: kort 14 dage/tråde, link alle (S4) | TODO |
 | DB-15h | Opfølgningsrækkernes alder fra created_at (tal/filter fra sent_at) (S4) | DONE (kode) — alder fra sent_at (fallback created_at) (U205) |
-| DB-15i | Gamle kladder > 14 dage: link viser alle kladder (S4) | TODO |
-| DB-15j | Leads-opfølgning: link viser alle åbne leads (S4) | TODO |
+| DB-15i | Gamle kladder > 14 dage: link viser alle kladder (S4) | DONE (kode, U213) — ?staleDays=14 (kladder ældre end 14 dage) med filterchip |
+| DB-15j | Leads-opfølgning: link viser alle åbne leads (S4) | DONE (kode, U213) — ?staleDays=7 på leads (åbne, uændret i 7 dage) med note |
 | DB-15k | Klar til fakturering: link uden filter (S4) | TODO |
-| DB-15l | "Aktive sager"-tal ekskl. lukket/konverteret, link viser alle (S4) | TODO |
-| DB-15m | Klar til lukning: uden sags-scope + tavs .slice(0,200) (S4) | TODO |
-| DB-15n | Afviste/tabt (90 dage) linker til alle afviste (S4) | TODO |
+| DB-15l | "Aktive sager"-tal ekskl. lukket/konverteret, link viser alle (S4) | DONE (kode, U213) — sagslistens status "Aktive (ikke lukket)" (?status=active); kortene linker dertil |
+| DB-15m | Klar til lukning: uden sags-scope + tavs .slice(0,200) (S4) | DONE (kode) — kun cases.close (ser alle); loftet på 200 kandidater nævnes nu |
+| DB-15n | Afviste/tabt (90 dage) linker til alle afviste (S4) | DONE (kode, U213) — ?rejectedDays=90 (afvist inden for 90 dage) med filterchip |
 | DB-15o | Diverse kort-links uden matchende filter (afventende, aktive kunder, ulæste kundemails, kladder, footers) (S4) | DELVIS (kode) — aktive kunder (?is_active=true), kladder (?status=draft), opgave-footer → /dashboard/tasks. Afventende (sendt+set) og ulæste kundemails kræver nye listefiltre = TODO |
 | IV-1 | Fakturanummer-regex fanger label-ord → ægte fakturaer annulleres som dubletter (S2) | DONE (kode) — fakturanummer kræver et ciffer; invoice-parser-test +4 |
 | IV-2 | Ugyldig dato → parse-opdatering fejler → kan godkendes uden gennemgang (S2) | DONE — kun gyldige kalenderdatoer (ugyldig → null); fejlet parse-opdatering → parse_status=failed + manuel gennemgang (cli invoice-parse-failure-check) |
@@ -650,7 +665,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | LF-1 | Godkendt leverandørfaktura uden sag kan aldrig fordeles (sag kan ikke sættes efter godkendelse) (S2) | DONE (209701b2) — sag kan sættes på godkendt/bogført faktura uden fordelte linjer (betinget på status, dansk fejl); UI viser knappen; U28 udvidet |
 | LF-2 | Udenlandsk valuta fordeles som DKK (1.000 EUR → 1.000 kr kost) (S2) | DONE (dc8491e7) — kun DKK kan fordeles |
-| LF-3 | Linjerabat ignoreres ved fordeling (listepris i stedet for total) — forhåndsvisning ≠ resultat (S2) | TODO — unit_cost = |total| DONE (dc8491e7) — totalen (efter rabat) / antal vinder over listeprisen; unit invoice-line-snapshot +3 |
+| LF-3 | Linjerabat ignoreres ved fordeling (listepris i stedet for total) — forhåndsvisning ≠ resultat (S2) | DONE (dc8491e7) — totalen (efter rabat) / antal vinder over listeprisen; unit invoice-line-snapshot +3 |
 | LF-4 | Forhåndsvisning viser kreditlinjer anderledes end det der oprettes | DONE (dc8491e7) — forhåndsvisning bruger lineSnapshot |
 | LF-5 | Materialer fra kreditnota (negativ kost) kan ikke redigeres | DONE (cbc712d8) — negativ kost tilladt for source=supplier_invoice (materialer + øvrige, server + dialog) |
 | LF-6 | Linjer kan fordeles til en lukket sag | DONE (dc8491e7) — lukket sag afvises |

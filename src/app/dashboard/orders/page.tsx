@@ -23,7 +23,7 @@ interface PageProps {
   searchParams: Promise<{
     page?: string
     search?: string
-    status?: ServiceCaseStatus
+    status?: ServiceCaseStatus | 'active'
     priority?: ServiceCasePriority
     type?: ServiceCaseType
     billing?: string

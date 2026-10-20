@@ -83,6 +83,10 @@ export async function getOffers(filters?: {
   mine?: boolean
   /** DB-3: kun tilbud der skal følges op (samme definition som cockpittets tal) */
   followup?: boolean
+  /** DB-15i: kun kladder oprettet for mere end N dage siden (cockpittets "gamle kladder") */
+  staleDraftDays?: number
+  /** DB-15n: kun afviste inden for de seneste N dage (dashboardets afvist/tabt-kort) */
+  rejectedWithinDays?: number
 }): Promise<ActionResult<PaginatedResponse<OfferWithRelations>>> {
   try {
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
@@ -161,6 +165,18 @@ export async function getOffers(filters?: {
     if (filters?.mine) {
       countQuery = countQuery.eq('created_by', userId)
       dataQuery = dataQuery.eq('created_by', userId)
+    }
+
+    // DB-15i/n: samme definitioner som dashboardkortene (linket viser præcis det tallet tæller)
+    if (filters?.staleDraftDays && filters.staleDraftDays > 0) {
+      const cutoff = new Date(Date.now() - filters.staleDraftDays * 86_400_000).toISOString()
+      countQuery = countQuery.eq('status', 'draft').lt('created_at', cutoff)
+      dataQuery = dataQuery.eq('status', 'draft').lt('created_at', cutoff)
+    }
+    if (filters?.rejectedWithinDays && filters.rejectedWithinDays > 0) {
+      const since = new Date(Date.now() - filters.rejectedWithinDays * 86_400_000).toISOString()
+      countQuery = countQuery.eq('status', 'rejected').gte('rejected_at', since)
+      dataQuery = dataQuery.eq('status', 'rejected').gte('rejected_at', since)
     }
 
     if (filters?.followup) {

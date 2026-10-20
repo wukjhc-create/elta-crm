@@ -33,7 +33,7 @@ interface PaginationState {
 
 interface FiltersState {
   search?: string
-  status?: ServiceCaseStatus
+  status?: ServiceCaseStatus | 'active'
   priority?: string
   type?: ServiceCaseType
   billing?: CaseBillingFilter
@@ -149,6 +149,8 @@ export function OrdersListClient({
             onChange={(e) => updateParam('status', e.target.value || null)}
           >
             <option value="">Alle{statusCounts?.total != null ? ` (${statusCounts.total})` : ''}</option>
+            {/* DB-15l: samme definition som dashboardets "aktive sager" (ikke lukket/konverteret) */}
+            <option value="active">Aktive (ikke lukket)</option>
             {SERVICE_CASE_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {SERVICE_CASE_STATUS_LABELS[s]}{statusCounts?.[s] != null ? ` (${statusCounts[s]})` : ''}

@@ -154,6 +154,7 @@ const TASKS_HREF = '/dashboard/tasks'
 
 function TasksCard({ overview }: { overview: DashboardOverview }) {
   const { openCount, autoCount, overdue } = overview.tasks
+  const overdueTotal = overview.tasks.overdueCount ?? overdue.length // DB-15d
   const err = overview.errors.tasks
   return (
     <Card
@@ -162,7 +163,7 @@ function TasksCard({ overview }: { overview: DashboardOverview }) {
       tone={overdue.length > 0 ? 'red' : openCount > 0 ? 'amber' : 'green'}
       href={TASKS_HREF}
       headline={openCount}
-      headlineLabel={`åbne · ${autoCount} auto-genererede`}
+      headlineLabel={`åbne · ${autoCount} auto-genererede${overdueTotal > 0 ? ` · ${overdueTotal} overskredne` : ''}`}
       error={err}
     >
       {overdue.length === 0 ? (
@@ -195,6 +196,7 @@ function TasksCard({ overview }: { overview: DashboardOverview }) {
               </Link>
             </li>
           ))}
+          {overdueTotal > overdue.length && <li className="py-1.5 text-gray-500" data-testid="cockpit-overdue-more">+{overdueTotal - overdue.length} flere overskredne</li>}
         </ul>
       )}
     </Card>
@@ -213,7 +215,7 @@ function CasesCard({ overview }: { overview: DashboardOverview }) {
       title="Sager kræver handling"
       icon={<Wrench className="h-4 w-4" />}
       tone={newCases > 0 || pending > 0 ? 'amber' : 'green'}
-      href="/dashboard/orders"
+      href="/dashboard/orders?status=active"
       headline={total}
       headlineLabel="aktive i alt"
       error={err}
@@ -225,7 +227,7 @@ function CasesCard({ overview }: { overview: DashboardOverview }) {
       </div>
       {readyToClose > 0 && (
         <p className="mt-2 text-xs text-emerald-800" data-testid="cockpit-ready-to-close">
-          {readyToClose} sag{readyToClose === 1 ? '' : 'er'} klar til lukning (alle job udført, alt faktureret)
+          {readyToClose} sag{readyToClose === 1 ? '' : 'er'} klar til lukning (alle job udført, alt faktureret){overview.cases.readyToCloseCapped ? ' — af de 200 nyeste kandidater' : ''}
         </p>
       )}
       {timesPendingApproval > 0 && (
@@ -255,7 +257,7 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
       error={err}
     >
       {staleDraftCount > 0 && (
-        <Link href="/dashboard/offers?status=draft" className="block text-xs text-amber-800 hover:underline mb-1" data-testid="cockpit-stale-drafts">
+        <Link href="/dashboard/offers?staleDays=14" className="block text-xs text-amber-800 hover:underline mb-1" data-testid="cockpit-stale-drafts">
           {staleDraftCount} kladde{staleDraftCount === 1 ? '' : 'r'} ældre end 14 dage — aldrig sendt →
         </Link>
       )}
@@ -394,7 +396,7 @@ function StaleLeadsCard({ overview }: { overview: DashboardOverview }) {
       title="Leads — opfølgning"
       icon={<ListChecks className="h-4 w-4" />}
       tone="amber"
-      href="/dashboard/leads"
+      href="/dashboard/leads?staleDays=7"
       headline={count}
       headlineLabel="åbne leads uden ændring i 7 dage"
       error={overview.errors.staleLeads}

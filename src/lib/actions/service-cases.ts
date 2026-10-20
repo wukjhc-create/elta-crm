@@ -59,7 +59,8 @@ function stripCaseMoney<T extends { contract_sum?: number | null; revised_sum?: 
 
 export async function getServiceCases(filters?: {
   search?: string
-  status?: ServiceCaseStatus
+  /** DB-15l: 'active' = ikke lukket/konverteret (som dashboardets "aktive sager") */
+  status?: ServiceCaseStatus | 'active'
   priority?: ServiceCasePriority
   /** N9c: sagstype (ordrelistens filter sendte den aldrig videre) */
   type?: ServiceCaseType
@@ -113,7 +114,9 @@ export async function getServiceCases(filters?: {
     // scope-id'er sprængte URL-grænsen ~350 → tom sagsliste for en montør efter 1–2 års sager)
     const applyFilters = (q: any): any => {
       q = q.eq('is_proposal', filters?.proposalsOnly === true)
-      if (filters?.status) {
+      if (filters?.status === 'active') {
+        q = q.not('status', 'in', '("closed","converted")')
+      } else if (filters?.status) {
         q = q.eq('status', filters.status)
       }
       if (filters?.priority) {

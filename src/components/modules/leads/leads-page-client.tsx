@@ -38,9 +38,11 @@ interface LeadsPageClientProps {
   initialView?: 'table' | 'kanban'
   /** S-4/R-10: besked om lukkede leads på tavlen (loft/fejl) */
   closedNote?: string | null
+  /** DB-15j: aktivt cockpit-filter (fx leads uden opfølgning) — vises i begge visninger */
+  filterNote?: string | null
 }
 
-export function LeadsPageClient({ leads, pagination, filters, sort, initialView, closedNote = null }: LeadsPageClientProps) {
+export function LeadsPageClient({ leads, pagination, filters, sort, initialView, closedNote = null, filterNote = null }: LeadsPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
@@ -270,6 +272,9 @@ export function LeadsPageClient({ leads, pagination, filters, sort, initialView,
           )}
         </div>
 
+        {filterNote && (
+          <div className="mb-3 rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900" data-testid="leads-filter-note">{filterNote}</div>
+        )}
         {viewMode === 'table' ? (
           <>
             <LeadsTable

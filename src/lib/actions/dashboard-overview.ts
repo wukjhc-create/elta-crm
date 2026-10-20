@@ -81,6 +81,8 @@ export interface DashboardOverview {
     total: number
     /** N27: sager hvor alle job er udført og intet er ufaktureret (kun for cases.close; ellers 0). */
     readyToClose: number
+    /** DB-15m: true når kandidaterne er loftet (kun de 200 nyeste vurderet) */
+    readyToCloseCapped?: boolean
     /** N28: afsluttede timeregistreringer der afventer godkendelse (kun for time_logs.approve; ellers 0). */
     timesPendingApproval: number
   }
@@ -254,7 +256,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             .select(`
               id, title, customer_id, due_date, priority, auto_generated,
               customer:customers(company_name)
-            `)
+            `, { count: 'exact' })
             .neq('status', 'done')
             .not('due_date', 'is', null)
             .lt('due_date', nowIso), sc)!
@@ -285,7 +287,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             daysOverdue: r.due_date ? daysBetween(r.due_date, now) : 0,
           }
         })
-        overview.tasks.overdueCount = overview.tasks.overdue.length
+        overview.tasks.overdueCount = overdueRes.count ?? overview.tasks.overdue.length // DB-15d: alle (før listens 5)
       } catch (err) {
         logger.error('getDashboardOverview: tasks failed', { error: err })
         overview.errors.tasks = err instanceof Error ? err.message : 'failed'
@@ -346,7 +348,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             agg.set(w.case_id, a)
           }
           // nyeste sager først (ids er sorteret efter oprettelse); loft 200 kandidater til den samlede vurdering
-          const candidates = ids.filter((id) => { const a = agg.get(id); return !!a && a.done > 0 && a.open === 0 }).slice(0, 200)
+          const allCandidates = ids.filter((id) => { const a = agg.get(id); return !!a && a.done > 0 && a.open === 0 })
+          const candidates = allCandidates.slice(0, 200)
+          overview.cases.readyToCloseCapped = allCandidates.length > 200 // DB-15m: loftet siges højt
           if (candidates.length && roleCtx.hasPermission('cases.close')) {
             // R-10: samlet vurdering (5 forespørgsler) i stedet for ≈5 pr. kandidat
             const { batchCaseCloseReadiness } = await import('@/lib/cases/close-readiness-batch')
