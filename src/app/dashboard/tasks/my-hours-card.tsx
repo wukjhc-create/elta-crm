@@ -44,6 +44,7 @@ export async function MyHoursCard() {
       {week.entries.length === 0 ? (
         <p className="text-sm text-gray-500">Ingen timer registreret i denne uge.</p>
       ) : (
+        <>
         <ul className="divide-y text-sm">
           {/* MB2-6 (mobil-review 2026-10-20): afviste først, rækken linker til sagens timer, intet skjules tavst */}
           {[...week.entries].sort((a, b) => Number(b.approval_status === 'rejected') - Number(a.approval_status === 'rejected')).slice(0, 12).map((e) => (
@@ -81,6 +82,12 @@ export async function MyHoursCard() {
             <li className="py-1.5 text-xs text-gray-500" data-testid="my-hours-more">+ {week.entries.length - 12} flere registreringer denne uge</li>
           )}
         </ul>
+        {week.entries.length > 12 && (
+          <p className="mt-2 text-xs text-gray-600 break-words" data-testid="my-hours-capped">
+            Viser 12 af {week.entries.length} registreringer. De øvrige {week.entries.length - 12} er ikke med i listen.
+          </p>
+        )}
+        </>
       )}
       <div className="mt-2 text-right">
         <Link href="/dashboard/calendar" className="text-xs text-emerald-700 hover:underline">Kalender</Link>
