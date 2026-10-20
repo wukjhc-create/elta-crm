@@ -521,7 +521,7 @@ export function IncomingInvoiceDetailClient({
                   <th className="px-2 py-1 break-words min-w-0">Konvertering</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="break-words min-w-0">
                 {detail.lines.map((l) => {
                   const convertedAs = l.converted_case_material_id
                     ? 'material'
