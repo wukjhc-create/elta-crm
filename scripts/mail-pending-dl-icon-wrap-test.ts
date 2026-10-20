@@ -36,7 +36,7 @@ ok(view.split(bare).length === 1, 'det bare ikon er vaek')
 ok(view.includes('Download vedhæftninger nu'), 'teksten bliver')
 ok(view.includes('data-testid="mail-attachments-download-button"'), 'knappen bliver')
 ok(view.includes('data-testid="mail-lightbox-download-icon"'), 'lightbox-ikonet bliver')
-ok(view.includes('<Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0" />'), 'listeikonet bliver')
+ok(view.includes('<Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0 break-words min-w-0" />'), 'listeikonet ombrydes')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
 ok(view.includes('data-testid="mail-create-offer"'), 'opret-tilbud bliver')
 
