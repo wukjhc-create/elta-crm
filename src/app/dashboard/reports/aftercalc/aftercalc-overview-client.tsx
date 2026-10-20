@@ -148,7 +148,7 @@ export function AftercalcOverviewClient() {
             {assigneesError && (
               <p className="text-sm text-red-800 break-words min-w-0" data-testid="aftercalc-assignees-error">{assigneesError}</p>
             )}
-            <label className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
+            <label className="flex items-center gap-2 text-sm text-gray-700 break-words min-w-0">
               <input type="checkbox" checked={filters.missingCostOnly === true} onChange={(e) => setFilter({ missingCostOnly: e.target.checked })} />
               <span className="break-words min-w-0" data-testid="aftercalc-missing-cost-label">Kun manglende kostdata</span>
             </label>
