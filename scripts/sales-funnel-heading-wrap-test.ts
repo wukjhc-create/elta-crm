@@ -27,7 +27,7 @@ ok(table.includes(wrapped), 'overskriften kan krympe')
 ok(table.split(wrapped).length === 2, 'overskriften er en')
 ok(!table.includes(bare), 'overskriften er ikke bar')
 ok(table.includes('Salgstragt'), 'teksten bliver')
-ok(table.includes('<TrendingUp className="w-5 h-5 text-gray-400" />'), 'ikonet bliver')
+ok(table.includes('<TrendingUp className="w-5 h-5 text-gray-400 break-words min-w-0" />'), 'ikonet kan krympe')
 ok(table.includes('<p className="text-xs text-gray-500 mb-4 break-words min-w-0">'), 'indledningen bliver')
 ok(table.includes('funnelMonthRates(m)'), 'maanedens satser bliver')
 
