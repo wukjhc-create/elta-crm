@@ -1789,6 +1789,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 trehundredeogførste (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `3037308a`. Det lader trehundrede-hegnet stå. `3037308a` hedder `feat(reports): tabelkroppen i salgstragten kan krympe`. `e4f11635` hedder `feat(reports): tabelhovedet i salgstragten kan krympe`. `origin/grok-next` er `3037308a`. Push af `3037308a` lykkedes. `e4f11635` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag. `origin/main` er `32955433`. Claudes sikkerhed, økonomi, rettigheder og adresser dér er urørt. `vat-guard.ts` i `2d979a03` er urørt.
+
+### Alle commits `e4f11635..3037308a`
+
+```
+3037308a feat(reports): tabelkroppen i salgstragten kan krympe
+e4f11635 feat(reports): tabelhovedet i salgstragten kan krympe
+```
+
+Listen er skiftets commits fra `e4f11635` til og med `3037308a`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+ddbcc141 docs: checkpoint efter e4f11635
+```
+
+### Features
+
+G18-1035 lader tabelkroppen i salgstragten krympe. Rækkerne bliver. G18-1034 lader tabelhovedet krympe. Kolonnerne bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic.
+
+### Tests
+
+`scripts/sales-funnel-tbody-wrap-test.ts` læser `sales-funnel-table.tsx`, kalder `formatDate('2026-06-02')` fra `src/lib/utils`, `formatCurrency(1250)` fra `src/lib/utils/format` og `funnelMonthRates`. Den kørte med `npx tsx` og exiterede 0. `scripts/sales-funnel-thead-wrap-test.ts` exiterede 0. `scripts/sales-funnel-total-row-wrap-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `3037308a`. `e4f11635` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d2b2521e`, tilbudslistens tælle-mærke i `589fad7b`, varenavnet i `943b355a`, mobilproducenten i `3d5409f1`, konverteringsteksten i `b0111850`, note-svaret i `a2532b6e`, salgstragtens indledning i `9f007f5f`, callback-svaret i `cbb55c21`, skrivebordsproducenten i `b488225a`, filikonet i `0490e08a`, fillisten i `512ef9cd`, billedgitteret i `ffbeb5f9`, download-ikonet i `848c7e72`, papirclipsen i `96f3195a`, venteteksten i `5d892a39`, tilbud ude-mærket i `6ba193f0`, navnecellen i `ba10bb6a`, mobilkortet i `e15fbf18`, den skjulte konverteringstekst i `b580e012`, note-forkortelsen i `b516c654`, salgstragtens overskrift i `41e5e1de`, påmindelses-svaret i `2bb9ca63`, navnerammen i `0a8375de`, lead-filikonet i `97956a42`, månedens navn i `c3748e23`, månedskortet i `239291a6`, salgstragtens ikon i `987d5ffb`, totaloverskriften i `62285490`, totalkortet i `0a9c3738`, mobilisten i `84bf276c`, kategoricellen i `c0b80883`, statuscellen i `5b5cde69`, konverteringslinket i `441dc1d3`, advarslen Sag mangler i `e7e9d790`, fejlteksten i `c35eca40`, kolonnen Måned i `326a18e1`, kostcellen i `eb55c16d`, lead-download-ikonet i `5a04820d`, månedens satser i `dfec3bf7`, salgstragtens ramme i `285acf97`, beløbslisten i `2cb0e328`, totallinjen i `7e53b41d`, beløbslinjen i `e7aef71e`, skrivebordslisten i `925bc233`, tabellen i `af28eb04`, listepriscellen i `ac0192f1`, mærket Klar til sag i `107a9af0`, salgspriscellen i `6288ae25`, månedscellen i `7d83beb8`, kolonnen Nye kunder i `fa2fb2ce`, kolonnen Tilbud oprettet i `85dc29eb`, kolonnen Sendt i `94a65036`, kolonnen Accepteret i `1dc1fa5b`, kolonnen Accepteret værdi i `7afc5b2a`, kolonnen Faktureret i `2ff87eb3`, kolonnerækken i `980c0871`, totalrækken i `aa921dd0`, tabelhovedet i `e4f11635`, og tabelkroppen i `3037308a`. `ddbcc141` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `3037308a`. Flet `origin/main` (`32955433`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-991, G18-1036, G18-1037, G18-1038, G18-1039, G18-1040, G18-1041, G18-1042, G18-1043, G18-1044, G18-1045, G18-1046, G18-1047, G18-1048, G18-1049.
+
 ## Checkpoint 2026-10-18 trehundrede (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `e4f11635`. Det lader tohundredeognioghalvfemsindstyvende-hegnet stå. `e4f11635` hedder `feat(reports): tabelhovedet i salgstragten kan krympe`. `aa921dd0` hedder `feat(reports): totalrækken i salgstragten kan krympe`. `origin/grok-next` er `e4f11635`. Push af `e4f11635` lykkedes. `aa921dd0` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag. `origin/main` er `32955433`. Claudes sikkerhed, økonomi, rettigheder og adresser dér er urørt. `vat-guard.ts` i `2d979a03` er urørt.
