@@ -360,7 +360,7 @@ export function IncomingInvoiceDetailClient({
         <Panel title="Match resultat">
           <Row label="Leverandør"
             value={detail.supplier ? (
-              <span>{detail.supplier.name} <span className="text-gray-400">({detail.supplier.code ?? '—'})</span></span>
+              <span>{detail.supplier.name} <span className="text-gray-400 break-words min-w-0">({detail.supplier.code ?? '—'})</span></span>
             ) : detail.supplier_failed ? (
               <span className="text-red-800 break-words min-w-0" data-testid="incoming-invoice-supplier-error">Leverandøren kunne ikke hentes. Det tælles ikke som ikke matchet.</span>
             ) : <span className="text-amber-700">Ikke matchet</span>}
