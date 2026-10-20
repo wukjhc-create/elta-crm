@@ -1646,6 +1646,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogsyvoghalvtredsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `bdc199ff`. Det lader hundredeogseksoghalvtredsindstyvende-hegnet stå. `bdc199ff` hedder `feat(invoice): overskriften om manuel gennemgang kan krympe`. `7ae4f648` hedder `feat(invoice): overskriften paa fakturadetaljen kan krympe`. `origin/grok-next` er `bdc199ff`. Push af `bdc199ff` lykkedes. `7ae4f648` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `7ae4f648..bdc199ff`
+
+```
+bdc199ff feat(invoice): overskriften om manuel gennemgang kan krympe
+7ae4f648 feat(invoice): overskriften paa fakturadetaljen kan krympe
+```
+
+Listen er skiftets commits fra `7ae4f648` til og med `bdc199ff`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+e6add6cf docs: checkpoint efter 7ae4f648
+```
+
+### Features
+
+G18-905 lader kun overskriften om manuel gennemgang på fakturadetaljen krympe. Sætningen bliver. G18-904 lader kun overskriften på fakturadetaljen krympe. Leverandørnavnet bliver. TEST-mærket bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-review-heading-wrap-test.ts` og `scripts/incoming-invoice-detail-heading-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for fakturadetaljens overskrift exiterede 0 sammen med det commit, der ændrede gennemgangsoverskriften. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `bdc199ff`. `7ae4f648` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `bdc199ff`, herunder G18-748 til G18-905. `e6add6cf` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `bdc199ff`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-906, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogseksoghalvtredsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `7ae4f648`. Det lader hundredeogfemoghalvtredsindstyvende-hegnet stå. `7ae4f648` hedder `feat(invoice): overskriften paa fakturadetaljen kan krympe`. `6f354265` hedder `feat(invoice): testmaerket paa fakturadetaljen kan krympe`. `origin/grok-next` er `7ae4f648`. Push af `7ae4f648` lykkedes. `6f354265` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
