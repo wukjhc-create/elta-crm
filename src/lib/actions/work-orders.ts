@@ -558,11 +558,12 @@ export async function deletePlannedWorkOrder(
       return { success: false, error: 'Manglende tilladelse: work_orders.delete' }
     }
 
-    const { data: wo } = await supabase
+    const { data: wo, error: woError } = await supabase
       .from('work_orders')
       .select('id, status, case_id')
       .eq('id', workOrderId)
       .maybeSingle()
+    if (woError) return { success: false, error: 'Kunne ikke læse arbejdsordren. Det tælles ikke som at den ikke findes.' }
     if (!wo) return { success: false, error: 'Arbejdsordre ikke fundet' }
     if (wo.status !== 'planned') {
       return {
@@ -572,10 +573,13 @@ export async function deletePlannedWorkOrder(
     }
 
     // Refuse delete if any time logs already exist (FK is RESTRICT anyway)
-    const { count } = await supabase
+    const { count, error: countError } = await supabase
       .from('time_logs')
       .select('id', { count: 'exact', head: true })
       .eq('work_order_id', workOrderId)
+    if (countError) {
+      return { success: false, error: 'Kunne ikke tælle timeregistreringer. Det tælles ikke som 0.' }
+    }
     if ((count ?? 0) > 0) {
       return {
         success: false,
