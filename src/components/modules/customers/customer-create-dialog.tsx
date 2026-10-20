@@ -249,6 +249,7 @@ export function CustomerCreateDialog({
             <button
               type="button"
               onClick={() => setType('private')}
+              aria-pressed={type === 'private'}
               disabled={saving}
               className={`flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded border transition ${
                 type === 'private'
@@ -262,6 +263,7 @@ export function CustomerCreateDialog({
             <button
               type="button"
               onClick={() => setType('business')}
+              aria-pressed={type === 'business'}
               disabled={saving}
               className={`flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded border transition ${
                 type === 'business'
@@ -275,8 +277,9 @@ export function CustomerCreateDialog({
           </div>
 
           {/* Navn / firmanavn */}
-          <Field label={isPrivate ? 'Fulde navn *' : 'Firmanavn *'}>
+          <Field htmlFor="customer-create-name" label={isPrivate ? 'Fulde navn *' : 'Firmanavn *'}>
             <input
+              id="customer-create-name"
               type="text"
               value={primaryName}
               onChange={(e) => setPrimaryName(e.target.value)}
@@ -290,8 +293,9 @@ export function CustomerCreateDialog({
 
           {/* Kontaktperson (kun erhverv) */}
           {!isPrivate && (
-            <Field label="Kontaktperson *">
+            <Field htmlFor="customer-create-contact" label="Kontaktperson *">
               <input
+                id="customer-create-contact"
                 type="text"
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
@@ -305,8 +309,9 @@ export function CustomerCreateDialog({
 
           {/* CVR (kun erhverv) */}
           {!isPrivate && (
-            <Field label="CVR-nummer">
+            <Field htmlFor="customer-create-vat" label="CVR-nummer">
               <input
+                id="customer-create-vat"
                 type="text"
                 value={vatNumber}
                 onChange={(e) => setVatNumber(e.target.value)}
@@ -320,8 +325,9 @@ export function CustomerCreateDialog({
 
           {/* Email + telefon */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Email *">
+            <Field htmlFor="customer-create-email" label="Email *">
               <input
+                id="customer-create-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -330,8 +336,9 @@ export function CustomerCreateDialog({
                 className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </Field>
-            <Field label="Telefon">
+            <Field htmlFor="customer-create-phone" label="Telefon">
               <input
+                id="customer-create-phone"
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -346,8 +353,9 @@ export function CustomerCreateDialog({
           {/* Full-mode: Mobil + Website */}
           {isFullMode && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Mobil">
+              <Field htmlFor="customer-create-mobile" label="Mobil">
                 <input
+                  id="customer-create-mobile"
                   type="tel"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
@@ -358,8 +366,9 @@ export function CustomerCreateDialog({
                 />
               </Field>
               {!isPrivate && (
-                <Field label="Hjemmeside">
+                <Field htmlFor="customer-create-website" label="Hjemmeside">
                   <input
+                    id="customer-create-website"
                     type="url"
                     value={website}
                     onChange={(e) => setWebsite(e.target.value)}
@@ -374,8 +383,9 @@ export function CustomerCreateDialog({
           )}
 
           {/* Adresse */}
-          <Field label={isFullMode ? 'Faktureringsadresse' : 'Adresse'}>
+          <Field htmlFor="customer-create-address" label={isFullMode ? 'Faktureringsadresse' : 'Adresse'}>
             <AddressAutocomplete
+              id="customer-create-address"
               value={address}
               onChange={setAddress}
               onSelect={handleAddressSelect}
@@ -385,8 +395,9 @@ export function CustomerCreateDialog({
           </Field>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field label="Postnr">
+            <Field htmlFor="customer-create-postal" label="Postnr">
               <input
+                id="customer-create-postal"
                 type="text"
                 value={postalCode}
                 onChange={(e) => setPostalCode(e.target.value)}
@@ -396,8 +407,9 @@ export function CustomerCreateDialog({
               />
             </Field>
             <div className="sm:col-span-2">
-              <Field label="By">
+              <Field htmlFor="customer-create-city" label="By">
                 <input
+                  id="customer-create-city"
                   type="text"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
@@ -424,8 +436,9 @@ export function CustomerCreateDialog({
                   Kopiér fra faktureringsadresse
                 </button>
               </div>
-              <Field label="Adresse">
+              <Field htmlFor="customer-create-ship-address" label="Adresse">
                 <AddressAutocomplete
+                  id="customer-create-ship-address"
                   value={shippingAddress}
                   onChange={setShippingAddress}
                   onSelect={handleShippingAddressSelect}
@@ -434,8 +447,9 @@ export function CustomerCreateDialog({
                 />
               </Field>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label="Postnr">
+                <Field htmlFor="customer-create-ship-postal" label="Postnr">
                   <input
+                    id="customer-create-ship-postal"
                     type="text"
                     value={shippingPostalCode}
                     onChange={(e) => setShippingPostalCode(e.target.value)}
@@ -445,8 +459,9 @@ export function CustomerCreateDialog({
                   />
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="By">
+                  <Field htmlFor="customer-create-ship-city" label="By">
                     <input
+                      id="customer-create-ship-city"
                       type="text"
                       value={shippingCity}
                       onChange={(e) => setShippingCity(e.target.value)}
@@ -462,8 +477,9 @@ export function CustomerCreateDialog({
 
           {/* Full-mode: Noter */}
           {isFullMode && (
-            <Field label="Interne noter">
+            <Field htmlFor="customer-create-notes" label="Interne noter">
               <textarea
+                id="customer-create-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
@@ -512,10 +528,10 @@ export function CustomerCreateDialog({
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label htmlFor={htmlFor} className="text-sm font-medium text-gray-700">{label}</label>
       {children}
     </div>
   )
