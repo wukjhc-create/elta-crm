@@ -158,9 +158,9 @@ function OrderEconomyTabContent({
 
   if (error || !data) {
     return (
-      <div className="bg-red-50 ring-1 ring-red-200 rounded-lg p-4 text-sm text-red-900 flex items-center gap-2">
-        <AlertTriangle className="w-4 h-4" />
-        {error ?? 'Ingen data'}
+      <div className="bg-red-50 ring-1 ring-red-200 rounded-lg p-4 text-sm text-red-900 flex items-start gap-2 break-words" data-testid="case-economy-load-error">
+        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+        <span>{error ?? 'Kunne ikke beregne økonomi'}. Det tælles ikke som 0 kr.</span>
       </div>
     )
   }
