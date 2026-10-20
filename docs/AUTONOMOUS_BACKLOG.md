@@ -1764,6 +1764,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogseksoghalvfjerdsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `e7e9d790`. Det lader tohundredeogfemoghalvfjerdsindstyvende-hegnet stå. `e7e9d790` hedder `feat(offers): advarslen Sag mangler kan krympe`. `441dc1d3` hedder `feat(offers): konverteringslinket kan krympe`. `origin/grok-next` er `e7e9d790`. Push af `e7e9d790` lykkedes. `441dc1d3` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `441dc1d3..e7e9d790`
+
+```
+e7e9d790 feat(offers): advarslen Sag mangler kan krympe
+441dc1d3 feat(offers): konverteringslinket kan krympe
+```
+
+Listen er skiftets commits fra `441dc1d3` til og med `e7e9d790`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+1ea0d871 docs: checkpoint efter 441dc1d3
+```
+
+### Features
+
+G18-1010 lader advarslen Sag mangler krympe. Teksten og titlen bliver. G18-1009 lader konverteringslinket krympe. Sagsnummeret og href bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic.
+
+### Tests
+
+`scripts/offer-conversion-missing-case-wrap-test.ts` læser `offer-conversion-badge.tsx`, kalder `offerConversionLabel` fra `src/lib/offers/conversion-label` og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. Den kørte med `npx tsx` og exiterede 0. `scripts/offer-conversion-link-wrap-test.ts` blev opdateret kun på advarslens klasse og exiterede 0. `scripts/offer-conversion-sr-only-wrap-test.ts` og `scripts/offer-conversion-label-test.ts` exiterede 0. `scripts/offer-conversion-link-wrap-test.ts` er testen for konverteringslinket og havde allerede exit 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `e7e9d790`. `441dc1d3` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d2b2521e`, tilbudslistens tælle-mærke i `589fad7b`, varenavnet i `943b355a`, mobilproducenten i `3d5409f1`, konverteringsteksten i `b0111850`, note-svaret i `a2532b6e`, salgstragtens indledning i `9f007f5f`, callback-svaret i `cbb55c21`, skrivebordsproducenten i `b488225a`, filikonet i `0490e08a`, fillisten i `512ef9cd`, billedgitteret i `ffbeb5f9`, download-ikonet i `848c7e72`, papirclipsen i `96f3195a`, venteteksten i `5d892a39`, tilbud ude-mærket i `6ba193f0`, navnecellen i `ba10bb6a`, mobilkortet i `e15fbf18`, den skjulte konverteringstekst i `b580e012`, note-forkortelsen i `b516c654`, salgstragtens overskrift i `41e5e1de`, påmindelses-svaret i `2bb9ca63`, navnerammen i `0a8375de`, lead-filikonet i `97956a42`, månedens navn i `c3748e23`, månedskortet i `239291a6`, salgstragtens ikon i `987d5ffb`, totaloverskriften i `62285490`, totalkortet i `0a9c3738`, mobilisten i `84bf276c`, kategoricellen i `c0b80883`, statuscellen i `5b5cde69`, konverteringslinket i `441dc1d3`, og advarslen Sag mangler i `e7e9d790`. `1ea0d871` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `e7e9d790`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-991, G18-1011, G18-1012, G18-1013, G18-1014, G18-1015, G18-1016, G18-1017, G18-1018, G18-1019, G18-1020, G18-1021, G18-1022, G18-1023, G18-1024.
+
 ## Checkpoint 2026-10-18 tohundredeogfemoghalvfjerdsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `441dc1d3`. Det lader tohundredeogfireoghalvfjerdsindstyvende-hegnet stå. `441dc1d3` hedder `feat(offers): konverteringslinket kan krympe`. `5b5cde69` hedder `feat(suppliers): statuscellen kan krympe`. `origin/grok-next` er `441dc1d3`. Push af `441dc1d3` lykkedes. `5b5cde69` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
