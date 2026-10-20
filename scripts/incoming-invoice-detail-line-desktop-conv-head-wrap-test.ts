@@ -32,13 +32,15 @@ const stk = '<th className="px-2 py-1 text-right break-words min-w-0">Stk-pris</
 ok(view.includes(stk), 'stkpriskolonnen bliver')
 ok(view.split(stk).length === 2, 'stkpriskolonnen er en')
 
-const antal = '<th className="px-2 py-1 text-right">Antal</th>'
+const antal = '<th className="px-2 py-1 text-right break-words min-w-0">Antal</th>'
 ok(view.includes(antal), 'antalkolonnen bliver')
 ok(view.split(antal).length === 2, 'antalkolonnen er en')
 
 const preview = readFileSync('src/app/dashboard/incoming-invoices/[id]/conversion-preview-panel.tsx', 'utf8')
-ok(preview.includes(antal), 'konverteringspanelets antal bliver')
-ok(preview.split(antal).length === 2, 'konverteringspanelets antal er en')
+const previewAntal = '<th className="px-2 py-1 text-right">Antal</th>'
+ok(preview.includes(previewAntal), 'konverteringspanelets antal bliver')
+ok(preview.split(previewAntal).length === 2, 'konverteringspanelets antal er en')
+ok(!preview.includes(antal), 'konverteringspanelets antal er ikke pakket')
 ok(!preview.includes(wrapped), 'konverteringspanelet er ikke pakket')
 
 if (bad > 0) {

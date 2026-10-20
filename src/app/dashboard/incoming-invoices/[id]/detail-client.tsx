@@ -514,7 +514,7 @@ export function IncomingInvoiceDetailClient({
                 <tr>
                   <th className="px-2 py-1 break-words min-w-0">#</th>
                   <th className="px-2 py-1 break-words min-w-0">Beskrivelse</th>
-                  <th className="px-2 py-1 text-right">Antal</th>
+                  <th className="px-2 py-1 text-right break-words min-w-0">Antal</th>
                   <th className="px-2 py-1 break-words min-w-0">Enhed</th>
                   <th className="px-2 py-1 text-right break-words min-w-0">Stk-pris</th>
                   <th className="px-2 py-1 text-right break-words min-w-0">Total</th>
