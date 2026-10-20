@@ -28,14 +28,19 @@ export async function nextOfferNumber(client: any, year?: number): Promise<strin
   // FIN3-2: revisioner (TILBUD-ÅÅÅÅ-0042-R2) sorterede som tekst-maksimum → parseInt('R2') = NaN → næste nummer 0001
   // (findes) → alle 10 genforsøg samme nummer → ingen nye tilbud. Nu: revisioner udelades og det NUMERISKE maksimum
   // af de højeste rene numre bruges (tekstsortering holder for 4 cifre; flere cifre fanges af de 50 højeste)
-  const { data } = await client
+  // R3-10 (finans-review 3): + de 50 senest oprettede — efter 9.999 tilbud på et år sorterer "…-10000" som tekst UNDER
+  // "…-9999", så den rene tekstsortering alene ville give samme nummer igen (unik-fejl ved hvert forsøg)
+  const base = () => client
     .from('offers')
     .select('offer_number')
     .like('offer_number', `${prefix}%`)
     .not('offer_number', 'like', '%-R%')
-    .order('offer_number', { ascending: false })
-    .limit(50)
-  const n = maxOfferSequence(((data ?? []) as Array<{ offer_number: string | null }>).map((r) => r.offer_number), y)
+  const [byText, byCreated] = await Promise.all([
+    base().order('offer_number', { ascending: false }).limit(50),
+    base().order('created_at', { ascending: false }).limit(50),
+  ])
+  const rows = [...((byText.data ?? []) as Array<{ offer_number: string | null }>), ...((byCreated.data ?? []) as Array<{ offer_number: string | null }>)]
+  const n = maxOfferSequence(rows.map((r) => r.offer_number), y)
   return `${prefix}${(n + 1).toString().padStart(4, '0')}`
 }
 
