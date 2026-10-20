@@ -27,7 +27,7 @@ ok(after.includes(sentence), 'saetningen bliver')
 ok(view.split(bare).length === 1, 'den bare sagsfejl er vaek')
 ok(!view.includes(bare), 'den bare sagsfejl er vaek')
 ok(view.includes('className="text-red-800 break-words min-w-0" data-testid="incoming-invoice-supplier-error"'), 'leverandoerfejlen bliver')
-ok(view.includes('className="text-red-800" data-testid="incoming-invoice-work-order-error"'), 'arbejdsordrefejlen bliver')
+ok(view.includes('className="text-red-800 break-words min-w-0" data-testid="incoming-invoice-work-order-error"'), 'arbejdsordrefejlen bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
