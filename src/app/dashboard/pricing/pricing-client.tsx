@@ -52,10 +52,7 @@ export function PricingDashboardClient() {
         getPriceAlertSummary(),
       ])
       if (alertsRes.success) setAlerts(alertsRes.data ?? [])
-      else {
-        setAlerts([])
-        setAlertsError(alertsRes.error ?? 'Kunne ikke hente prisadvarsler')
-      }
+      else setAlertsError(alertsRes.error ?? 'Kunne ikke hente prisadvarsler')
       if (summaryRes.success) setSummary(summaryRes.data ?? null)
       else setAlertsError((prev) => prev ?? summaryRes.error ?? 'Kunne ikke hente prisadvarsler')
     } catch {
@@ -245,11 +242,13 @@ export function PricingDashboardClient() {
 // =====================================================
 
 function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; isLoading: boolean; error: string | null }) {
-  if (isLoading) return <LoadingState />
-  if (error) return <LoadFailed message={error} />
+  if (isLoading && alerts.length === 0) return <LoadingState />
+  if (error && alerts.length === 0) return <LoadFailed message={error} />
   if (alerts.length === 0) return <EmptyState message="Ingen prisadvarsler i den valgte periode" />
 
   return (
+    <div className="space-y-3">
+      {error && <LoadFailed message={error} />}
     <div className="bg-white rounded-lg border overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -317,6 +316,7 @@ function AlertsTab({ alerts, isLoading, error }: { alerts: PriceChangeAlert[]; i
           </tbody>
         </table>
       </div>
+    </div>
     </div>
   )
 }
