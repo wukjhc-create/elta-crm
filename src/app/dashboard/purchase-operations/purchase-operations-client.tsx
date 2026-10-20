@@ -219,7 +219,7 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
       <div className="bg-white rounded-lg border p-4 space-y-3">
         <div className="flex flex-wrap gap-1.5">
           {REASON_FILTERS.map((f) => (
-            <button key={f.value} onClick={() => setParams({ reason: f.value })}
+            <button key={f.value} type="button" aria-pressed={reason === f.value} onClick={() => setParams({ reason: f.value })}
               className={`text-xs px-2.5 py-1 rounded-full ring-1 ${reason === f.value ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-600 ring-gray-300 hover:bg-gray-50'}`}>
               {f.label}
             </button>
@@ -228,24 +228,25 @@ export function PurchaseOperationsClient({ canConvert = false }: { canConvert?: 
         <div className="flex flex-wrap items-center gap-3">
           <form
             onSubmit={(e) => { e.preventDefault(); setParams({ q: searchInput.trim() || null }) }}
-            className="flex items-center gap-2 flex-1 min-w-[220px]"
+            className="flex flex-wrap items-center gap-2 flex-1 min-w-[220px]"
           >
-            <div className="relative flex-1">
+            <div className="relative flex-1 min-w-[12rem]">
               <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Søg sag, kunde, leverandør, fakturanr…"
+                aria-label="Søg indkøb"
                 className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
               />
             </div>
-            <button type="submit" className="text-sm px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700">Søg</button>
+            <button type="submit" className="text-sm px-3 min-h-[44px] rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700">Søg</button>
             {q && <button type="button" onClick={() => setParams({ q: null })} className="text-xs text-gray-500 hover:underline">Ryd</button>}
           </form>
 
           {data && data.supplier_options.length > 0 && (
-            <select value={supplier} onChange={(e) => setParams({ supplier: e.target.value || null })}
-              className="text-sm rounded-md border border-gray-300 px-2 py-1.5 max-w-[200px]">
+            <select value={supplier} aria-label="Leverandør" onChange={(e) => setParams({ supplier: e.target.value || null })}
+              className="text-sm rounded-md border border-gray-300 px-2 py-1.5 w-full sm:w-auto sm:max-w-[200px]">
               <option value="">Alle leverandører</option>
               {data.supplier_options.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
