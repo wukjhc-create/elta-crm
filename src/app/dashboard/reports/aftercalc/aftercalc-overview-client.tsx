@@ -230,7 +230,7 @@ export function AftercalcOverviewClient() {
                       </article>
                     ))}
                   </div>
-                  <div className="hidden md:block overflow-x-auto">
+                  <div className="hidden md:block overflow-x-auto break-words min-w-0">
                     <table className="w-full text-sm break-words min-w-0">
                       <thead className="bg-gray-50 text-xs text-gray-600 break-words min-w-0">
                         <tr>

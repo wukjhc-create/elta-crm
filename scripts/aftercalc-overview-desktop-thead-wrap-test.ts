@@ -30,7 +30,7 @@ ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'tabelhovedet findes en gang')
 ok(view.split('<thead className="bg-gray-50 text-xs text-gray-600">').length === 1, 'det bare tabelhoved er vaek')
 ok(view.includes('<table className="w-full text-sm break-words min-w-0">'), 'tabellen kan stadig krympe')
-ok(view.includes('<div className="hidden md:block overflow-x-auto">'), 'tabelrullen bliver')
+ok(view.includes('<div className="hidden md:block overflow-x-auto break-words min-w-0">'), 'tabelrullen kan krympe')
 ok(view.includes('<th className="px-2 py-1.5 text-right break-words min-w-0">DB-afvigelse</th>'), 'afvigelseskolonnen kan stadig krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 
