@@ -782,7 +782,7 @@ function IbanValue({ invoiceId, masked, canReveal }: { invoiceId: string; masked
       {canReveal && (
         <button
           type="button"
-          className="text-xs text-emerald-700 hover:underline"
+          className="text-xs text-emerald-700 hover:underline break-words min-w-0"
           data-testid="iban-reveal"
           aria-label={full ? 'Skjul IBAN' : 'Vis IBAN'}
           onClick={async () => {
