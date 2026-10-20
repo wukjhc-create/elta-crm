@@ -739,9 +739,9 @@ function BillingPercentMode({
   }
   if (loadError) {
     return (
-      <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 flex items-center gap-2">
-        <AlertCircle className="w-4 h-4" />
-        {loadError}
+      <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 flex items-start gap-2 break-words" data-testid="billing-percent-load-error">
+        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+        <span>{loadError}. Det tælles ikke som 0 kr.</span>
       </div>
     )
   }
@@ -1042,8 +1042,8 @@ function BillingFinalMode({
   }
   if (loadError) {
     return (
-      <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-        {loadError}
+      <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 break-words" data-testid="billing-final-load-error">
+        {loadError}. Det tælles ikke som 0 kr i fradrag.
       </div>
     )
   }
