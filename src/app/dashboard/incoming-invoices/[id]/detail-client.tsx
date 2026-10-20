@@ -346,7 +346,7 @@ export function IncomingInvoiceDetailClient({
           ) : (<>
           <Row label="Leverandør (navn)"  value={inv.supplier_name_extracted ?? '—'} />
           <Row label="CVR/VAT"            value={inv.supplier_vat_number ?? '—'} />
-          <Row label="Faktura nr"         value={<span className="font-mono">{inv.invoice_number ?? '—'}</span>} />
+          <Row label="Faktura nr"         value={<span className="font-mono break-words min-w-0">{inv.invoice_number ?? '—'}</span>} />
           <Row label="Faktura dato"       value={fmtDate(inv.invoice_date)} />
           <Row label="Forfald"            value={fmtDate(inv.due_date)} />
           <Row label="Beløb ekskl moms"   value={fmtAmount(inv.amount_excl_vat, inv.currency)} />

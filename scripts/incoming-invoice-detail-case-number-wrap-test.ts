@@ -26,7 +26,7 @@ ok(after.includes('{detail.case.case_number}'), 'nummeret bliver')
 ok(view.split(bare).length === 1, 'det bare sagsnummer er vaek')
 ok(!view.includes(bare), 'det bare sagsnummer er vaek')
 ok(view.includes('<span className="ml-2 break-words min-w-0">{detail.case.project_name || detail.case.title}</span>'), 'sagsnavnet bliver')
-ok(view.includes('<span className="font-mono">{inv.invoice_number ?? \'—\'}</span>'), 'fakturanummeret bliver')
+ok(view.includes('<span className="font-mono break-words min-w-0">{inv.invoice_number ?? \'—\'}</span>'), 'fakturanummeret bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
