@@ -385,7 +385,7 @@ function countFor(c: CountMap, k: FilterKey, failed: boolean): number | null {
 function DuplicateBadge() {
   return (
     <span
-      className="inline-block text-[10px] uppercase tracking-wide bg-red-100 text-red-800 px-1.5 py-0.5 rounded"
+      className="inline-block text-[10px] uppercase tracking-wide bg-red-100 text-red-800 px-1.5 py-0.5 rounded break-words min-w-0"
       data-testid="invoice-duplicate-badge"
       title="Samme fil eller samme leverandør og fakturanummer findes allerede. Status og bogføring er uændret."
     >
