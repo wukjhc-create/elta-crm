@@ -71,6 +71,7 @@ export function MaterialsAdmin() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
             placeholder="Søg i material name eller slug…"
+            aria-label="Søg i materialenavn eller slug"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -310,6 +311,7 @@ function BindDialog({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Søg i supplier_products (navn eller SKU)…"
+              aria-label="Søg leverandørprodukt til binding"
               className="pl-9"
               autoFocus
             />
