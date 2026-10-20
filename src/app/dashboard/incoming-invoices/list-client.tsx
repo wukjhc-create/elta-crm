@@ -296,7 +296,7 @@ export function IncomingInvoicesListClient({
                 <span className="font-mono text-xs text-gray-700 break-all">{r.invoice_number ?? '—'}</span>
               </div>
               <p className="font-medium text-gray-900 mt-2 break-words min-w-0">{fmtAmount(r.amount_incl_vat, r.currency)}</p>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 break-words min-w-0">
                 <span>Faktura {fmtDate(r.invoice_date)}</span>
                 <DueMarks dueDate={r.due_date} todayIso={todayIso} withLabel />
               </div>
