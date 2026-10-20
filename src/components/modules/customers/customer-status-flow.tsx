@@ -148,7 +148,7 @@ export function CustomerStatusFlow({ customerId, customerEmail, onNavigateTab, c
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
               {lastEmailDate
-                ? `Sidste kontakt: ${new Date(lastEmailDate).toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                ? `Sidste kontakt: ${new Date(lastEmailDate).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })}`
                 : 'Ingen email-korrespondance endnu'}
             </p>
           </div>
@@ -208,7 +208,7 @@ export function CustomerStatusFlow({ customerId, customerEmail, onNavigateTab, c
                 {/* Date */}
                 {step.date && (
                   <p className="text-[10px] text-gray-300 mt-0.5">
-                    {new Date(step.date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}
+                    {new Date(step.date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short' })}
                   </p>
                 )}
               </div>
@@ -263,7 +263,7 @@ export function CustomerStatusFlow({ customerId, customerEmail, onNavigateTab, c
                       )}
                       {step.date && (
                         <p className="text-xs text-gray-400">
-                          {new Date(step.date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {new Date(step.date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short', year: 'numeric' })}
                         </p>
                       )}
                     </div>
