@@ -14,6 +14,7 @@ export default async function RoomTypesPage() {
   return (
     <RoomTypesClient
       initialRoomTypes={result.success && result.data ? result.data : []}
+      loadError={result.success ? null : result.error || 'Kunne ikke hente rumtyper'}
     />
   )
 }

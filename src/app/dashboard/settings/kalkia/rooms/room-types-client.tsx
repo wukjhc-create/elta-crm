@@ -41,6 +41,7 @@ import { useToast } from '@/components/ui/toast'
 
 interface RoomTypesClientProps {
   initialRoomTypes: RoomType[]
+  loadError?: string | null
 }
 
 const roomIcons: Record<string, React.ElementType> = {
@@ -73,7 +74,7 @@ const iconOptions = Object.keys(roomIcons)
 const colorOptions = Object.keys(roomColors)
 const ipRatingOptions = ['IP20', 'IP44', 'IP65', 'IP67']
 
-export function RoomTypesClient({ initialRoomTypes }: RoomTypesClientProps) {
+export function RoomTypesClient({ initialRoomTypes, loadError = null }: RoomTypesClientProps) {
   const toast = useToast()
   const [roomTypes, setRoomTypes] = useState<RoomType[]>(initialRoomTypes)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -473,7 +474,11 @@ export function RoomTypesClient({ initialRoomTypes }: RoomTypesClientProps) {
           )
         })}
 
-        {roomTypes.length === 0 && !showCreateForm && (
+        {loadError ? (
+          <p className="text-sm text-red-700 py-8 text-center" data-testid="room-types-load-error">
+            {loadError}. Det tælles ikke som ingen rumtyper.
+          </p>
+        ) : roomTypes.length === 0 && !showCreateForm && (
           <Card className="py-12 text-center text-gray-500">
             <Home className="w-12 h-12 mx-auto mb-4 opacity-30" />
             <p>Ingen rumtyper konfigureret</p>
