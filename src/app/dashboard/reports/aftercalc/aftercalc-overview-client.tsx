@@ -284,7 +284,7 @@ export function AftercalcOverviewClient() {
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-pager-row">
                   <span className="break-words min-w-0" data-testid="aftercalc-view-count">{data.total} sager i visningen. Beregnet på {data.query_ms} ms.</span>
-                  <div className="flex items-center gap-2" data-testid="aftercalc-pager">
+                  <div className="flex items-center gap-2 break-words min-w-0" data-testid="aftercalc-pager">
                     <button type="button" disabled={(data.page ?? 1) <= 1} onClick={() => setFilter({ page: (data.page ?? 1) - 1 }, true)} className="min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Forrige</button>
                     <span className="break-words min-w-0" data-testid="aftercalc-page-label">Side {data.page} af {pages}</span>
                     <button type="button" disabled={(data.page ?? 1) >= pages} onClick={() => setFilter({ page: (data.page ?? 1) + 1 }, true)} className="min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Næste</button>

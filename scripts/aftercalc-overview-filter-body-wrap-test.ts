@@ -36,7 +36,7 @@ ok(view.includes('>Til dato</span>'), 'til-dato bliver')
 ok(view.includes('{kr(r.quoted_revenue)}'), 'tilbudt beloeb bliver')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 ok(view.includes('<tr key={r.case_id} data-testid="aftercalc-overview-row" data-quality={r.data_quality} className="break-words min-w-0">'), 'dataraekken kan stadig krympe')
-ok(view.includes('<div className="flex items-center gap-2" data-testid="aftercalc-pager">'), 'sidestyringen er stadig uden min-w-0')
+ok(view.includes('<div className="flex items-center gap-2 break-words min-w-0" data-testid="aftercalc-pager">'), 'sidestyringen kan krympe')
 ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Forrige'), 'Forrige bliver 44 px')
 
 if (bad > 0) {
