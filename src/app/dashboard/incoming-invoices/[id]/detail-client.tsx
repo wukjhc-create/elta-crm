@@ -531,7 +531,7 @@ export function IncomingInvoiceDetailClient({
                   const skippedExplicit = l.converted_at && !convertedAs
                   return (
                     <tr key={l.id} className={`border-t ${l.converted_at ? 'bg-gray-50' : ''}`}>
-                      <td className="px-2 py-1">{l.line_number}</td>
+                      <td className="px-2 py-1 break-words min-w-0">{l.line_number}</td>
                       <td className="px-2 py-1 break-words min-w-0">{l.description ?? '—'}</td>
                       <td className="px-2 py-1 text-right break-words min-w-0">{l.quantity ?? '—'}</td>
                       <td className="px-2 py-1 break-words min-w-0">{l.unit ?? '—'}</td>

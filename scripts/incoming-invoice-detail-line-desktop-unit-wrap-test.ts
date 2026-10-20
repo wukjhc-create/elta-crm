@@ -33,7 +33,7 @@ const desc = '<td className="px-2 py-1 break-words min-w-0">{l.description ?? \'
 ok(view.includes(desc), 'beskrivelsescellen bliver')
 ok(view.split(desc).length === 2, 'beskrivelsescellen er en')
 
-const num = '<td className="px-2 py-1">{l.line_number}</td>'
+const num = '<td className="px-2 py-1 break-words min-w-0">{l.line_number}</td>'
 ok(view.includes(num), 'linjenummercellen bliver')
 ok(view.split(num).length === 2, 'linjenummercellen er en')
 
