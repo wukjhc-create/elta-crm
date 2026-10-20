@@ -29,7 +29,7 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const admin = createAdminClient()
 
-  const [{ data: company }, { data: montorProfiles }, { data: employees }, { data: billed }] = await Promise.all([
+  const [companyRes, montorRes, employeeRes, billedRes] = await Promise.all([
     admin.from('company_settings').select('company_name, company_vat_number, bank_reg_no, bank_account').limit(1).maybeSingle(),
     // Pilot-review 2026-10-14 (P-4): kun aktive logins (en deaktiveret montør gav falsk alarm)
     admin.from('profiles').select('id').eq('role', 'montør').eq('is_active', true),
@@ -39,21 +39,28 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
       .is('external_invoice_id', null).not('customer_id', 'is', null).order('id').range(from, to)).then((data) => ({ data })),
   ])
 
+  const company = companyRes.data
+  const montorProfiles = montorRes.data
+  const employees = employeeRes.data
+  const billed = billedRes.data
   const cs = company as { company_name?: string | null; company_vat_number?: string | null; bank_reg_no?: string | null; bank_account?: string | null } | null
   const bank = invoiceBankInfo(cs)
 
+  const montorLookupFailed = Boolean(montorRes.error || employeeRes.error)
   const linked = new Set(((employees ?? []) as Array<{ profile_id: string }>).map((e) => e.profile_id))
   const montorIds = ((montorProfiles ?? []) as Array<{ id: string }>).map((p) => p.id)
   const unlinkedMontors = montorIds.filter((id) => !linked.has(id)).length
 
   const billedIds = [...new Set(((billed ?? []) as Array<{ customer_id: string }>).map((b) => b.customer_id))]
   let unlinkedCustomers = 0
+  let customerLinkFailed = false
   for (let i = 0; i < billedIds.length; i += 200) {
-    const { count } = await admin
+    const { count, error } = await admin
       .from('customers')
       .select('id', { count: 'exact', head: true })
       .in('id', billedIds.slice(i, i + 200))
       .or('external_provider.is.null,external_provider.neq.economic,external_customer_id.is.null')
+    if (error) { customerLinkFailed = true; break }
     unlinkedCustomers += count ?? 0
   }
 
@@ -94,8 +101,10 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
     {
       key: 'montors',
       label: 'Montør-logins koblet til medarbejder',
-      ok: unlinkedMontors === 0,
-      detail: unlinkedMontors === 0
+      ok: !montorLookupFailed && unlinkedMontors === 0,
+      detail: montorLookupFailed
+        ? 'Kunne ikke tælle montør-logins. Det tælles ikke som 0.'
+        : unlinkedMontors === 0
         ? `${montorIds.length} montør-login(s), alle koblet`
         : `${unlinkedMontors} af ${montorIds.length} montør-login(s) er ikke koblet — de ser ingen job og kan ikke registrere tid`,
       fixHint: 'Medarbejdere → Rediger → Login → "Knyt eksisterende bruger"',
@@ -104,8 +113,10 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
     {
       key: 'economic_customers',
       label: 'Fakturerede kunder koblet til e-conomic',
-      ok: unlinkedCustomers === 0,
-      detail: unlinkedCustomers === 0
+      ok: !customerLinkFailed && unlinkedCustomers === 0,
+      detail: customerLinkFailed
+        ? 'Kunne ikke tælle kunder uden e-conomic. Det tælles ikke som 0.'
+        : unlinkedCustomers === 0
         ? 'alle kunder med sendte fakturaer er koblet'
         : `${unlinkedCustomers} kunde(r) med sendte fakturaer er ikke koblet — ville blive oprettet som nye debitorer ved eksport`,
       fixHint: 'Kundekort → Fakturaer → e-conomic-kundenr. (findes kunden allerede i e-conomic)',
@@ -145,7 +156,8 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
     // N74/N80: aktive kunder uden rigtig e-mail (pladsholder fra mail-automatikken) — kan ikke modtage tilbud/faktura
     admin.from('customers').select('id', { count: 'exact', head: true }).eq('is_active', true).ilike('email', '%@elta-crm.local'),
   ])
-  const webIds = ((webInquiries.data ?? []) as Array<{ id: string }>).map((w) => w.id)
+  const webFailed = Boolean(webInquiries.error)
+  const webIds = webFailed ? [] : ((webInquiries.data ?? []) as Array<{ id: string }>).map((w) => w.id)
   let openWeb = 0
   if (webIds.length) {
     const withLead = await leadSourceEmailIds(admin)
@@ -154,70 +166,75 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
   // Frisk = mindst én vare opdateret inden for 60 dage (eksistens-tjek stopper ved første match: ~50–80 ms i prod;
   // "seneste updated_at" sorterede 322k LM-varer og tog 4 s)
   const staleSuppliers: string[] = []
+  let pricesFailed = Boolean(aoFresh.error)
   const freshCutoff = new Date(Date.now() - 60 * 86_400_000).toISOString()
-  for (const sp of (aoFresh.data ?? []) as Array<{ id: string; code: string }>) {
-    const [{ count: total }, { data: fresh }] = await Promise.all([
-      admin.from('supplier_products').select('id', { count: 'estimated', head: true }).eq('supplier_id', sp.id),
-      admin.from('supplier_products').select('id').eq('supplier_id', sp.id).gt('updated_at', freshCutoff).limit(1),
-    ])
-    if ((total ?? 0) > 0 && (fresh ?? []).length === 0) staleSuppliers.push(sp.code)
+  if (!aoFresh.error) {
+    for (const sp of (aoFresh.data ?? []) as Array<{ id: string; code: string }>) {
+      const [totalRes, freshRes] = await Promise.all([
+        admin.from('supplier_products').select('id', { count: 'estimated', head: true }).eq('supplier_id', sp.id),
+        admin.from('supplier_products').select('id').eq('supplier_id', sp.id).gt('updated_at', freshCutoff).limit(1),
+      ])
+      if (totalRes.error || freshRes.error) { pricesFailed = true; continue }
+      if ((totalRes.count ?? 0) > 0 && (freshRes.data ?? []).length === 0) staleSuppliers.push(sp.code)
+    }
   }
-  const newWithWork = ((newCases.data ?? []) as Array<{ work_orders: Array<{ status: string }> | null }>)
+  const casesFailed = Boolean(newCases.error)
+  const newWithWork = casesFailed ? 0 : ((newCases.data ?? []) as Array<{ work_orders: Array<{ status: string }> | null }>)
     .filter((c) => (c.work_orders ?? []).some((w) => w.status === 'in_progress' || w.status === 'done')).length
   items.push(
     {
       key: 'portal_unread',
       label: 'Kundebeskeder fra portalen besvaret',
-      ok: (portalUnread.count ?? 0) === 0,
-      detail: (portalUnread.count ?? 0) === 0 ? 'ingen ulæste kundebeskeder' : `${portalUnread.count} ulæste kundebesked(er) — kunder venter på svar`,
+      ok: !portalUnread.error && (portalUnread.count ?? 0) === 0,
+      detail: portalUnread.error ? 'Kunne ikke tælle kundebeskeder. Det tælles ikke som 0.' : (portalUnread.count ?? 0) === 0 ? 'ingen ulæste kundebeskeder' : `${portalUnread.count} ulæste kundebesked(er) — kunder venter på svar`,
       fixHint: 'Dashboard → "Kundebeskeder (portal)" → åbn kundens chat',
       href: '/dashboard',
     },
     {
       key: 'invoice_attachments',
       label: 'Mail-leverandørfakturaer har bilag',
-      ok: (mailInvoicesNoFile.count ?? 0) === 0,
-      detail: (mailInvoicesNoFile.count ?? 0) === 0 ? 'alle mail-fakturaer har bilag' : `${mailInvoicesNoFile.count} mail-faktura(er) uden bilag — kan ikke læses/kontrolleres`,
+      ok: !mailInvoicesNoFile.error && (mailInvoicesNoFile.count ?? 0) === 0,
+      detail: mailInvoicesNoFile.error ? 'Kunne ikke tælle mail-fakturaer. Det tælles ikke som 0.' : (mailInvoicesNoFile.count ?? 0) === 0 ? 'alle mail-fakturaer har bilag' : `${mailInvoicesNoFile.count} mail-faktura(er) uden bilag — kan ikke læses/kontrolleres`,
       fixHint: 'Vercel-env INVOICE_ATTACHMENT_FETCH_ENABLED=true (henter automatisk) — eller "Vedhæft PDF fra mailen" på fakturaen',
       href: '/dashboard/incoming-invoices',
     },
     {
       key: 'supplier_prices',
       label: 'Leverandørpriser opdateret (< 60 dage)',
-      ok: staleSuppliers.length === 0,
-      detail: staleSuppliers.length === 0 ? 'alle aktive leverandørers priser er friske' : `forældede prislister: ${staleSuppliers.join(', ')} — tilbud kan få forkerte kostpriser`,
+      ok: !pricesFailed && staleSuppliers.length === 0,
+      detail: pricesFailed ? 'Kunne ikke tjekke leverandørpriser. Det tælles ikke som friske.' : staleSuppliers.length === 0 ? 'alle aktive leverandørers priser er friske' : `forældede prislister: ${staleSuppliers.join(', ')} — tilbud kan få forkerte kostpriser`,
       fixHint: 'Indstillinger → Leverandører → Importér prisfil (eller aktivér synkronisering)',
       href: '/dashboard/settings/suppliers',
     },
     {
       key: 'invoice_suppliers',
       label: 'Leverandørfakturaer har leverandør',
-      ok: (invoicesNoSupplier.count ?? 0) === 0,
-      detail: (invoicesNoSupplier.count ?? 0) === 0 ? 'alle åbne leverandørfakturaer er koblet' : `${invoicesNoSupplier.count} åben(e) leverandørfaktura(er) uden leverandør`,
+      ok: !invoicesNoSupplier.error && (invoicesNoSupplier.count ?? 0) === 0,
+      detail: invoicesNoSupplier.error ? 'Kunne ikke tælle leverandørfakturaer. Det tælles ikke som 0.' : (invoicesNoSupplier.count ?? 0) === 0 ? 'alle åbne leverandørfakturaer er koblet' : `${invoicesNoSupplier.count} åben(e) leverandørfaktura(er) uden leverandør`,
       fixHint: 'Leverandørfaktura → "Vælg leverandør" / "Opret ny" (kobler også de øvrige fra samme afsender); privat afsender → filteret "Ikke en faktura?"',
       href: '/dashboard/incoming-invoices',
     },
     {
       key: 'web_inquiries',
       label: 'Webhenvendelser fulgt op (90 dage)',
-      ok: openWeb === 0,
-      detail: openWeb === 0 ? 'alle henvendelser fra hjemmesiden har kunde eller lead' : `${openWeb} henvendelse(r) fra hjemmesiden uden kunde eller lead`,
+      ok: !webFailed && openWeb === 0,
+      detail: webFailed ? 'Kunne ikke tælle henvendelser. Det tælles ikke som 0.' : openWeb === 0 ? 'alle henvendelser fra hjemmesiden har kunde eller lead' : `${openWeb} henvendelse(r) fra hjemmesiden uden kunde eller lead`,
       fixHint: 'Dashboard → "Henvendelser fra hjemmesiden" → "Opret lead"',
       href: '/dashboard',
     },
     {
       key: 'customer_emails',
       label: 'Aktive kunder har en rigtig e-mail',
-      ok: (placeholderCustomers.count ?? 0) === 0,
-      detail: (placeholderCustomers.count ?? 0) === 0 ? 'alle aktive kunder har e-mail' : `${placeholderCustomers.count} aktiv(e) kunde(r) oprettet fra mail uden e-mail — kan ikke modtage tilbud/faktura`,
+      ok: !placeholderCustomers.error && (placeholderCustomers.count ?? 0) === 0,
+      detail: placeholderCustomers.error ? 'Kunne ikke tælle kunder uden e-mail. Det tælles ikke som 0.' : (placeholderCustomers.count ?? 0) === 0 ? 'alle aktive kunder har e-mail' : `${placeholderCustomers.count} aktiv(e) kunde(r) oprettet fra mail uden e-mail — kan ikke modtage tilbud/faktura`,
       fixHint: 'Kunder → "Oprettet fra mail" → ret e-mail eller deaktivér (leverandører/dubletter)',
       href: '/dashboard/customers?origin=auto',
     },
     {
       key: 'case_status',
       label: 'Sagsstatus følger arbejdet',
-      ok: newWithWork === 0,
-      detail: newWithWork === 0 ? 'ingen sager står som Ny med igangværende arbejde' : `${newWithWork} sag(er) står som Ny, men har startet/udført arbejde`,
+      ok: !casesFailed && newWithWork === 0,
+      detail: casesFailed ? 'Kunne ikke tælle sager. Det tælles ikke som 0.' : newWithWork === 0 ? 'ingen sager står som Ny med igangværende arbejde' : `${newWithWork} sag(er) står som Ny, men har startet/udført arbejde`,
       fixHint: 'Åbn sagen → "Sæt til I gang"',
       href: '/dashboard/orders',
     },
