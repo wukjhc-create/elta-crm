@@ -1663,7 +1663,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-929 | 2 Faktura | DONE. Fejlen om sag på fakturadetaljen kan krympe. | Kun `<span className="text-red-800" data-testid="incoming-invoice-case-error">` i `detail-client.tsx`. Teksten er uændret. |
 | G18-930 | 2 Faktura | DONE. Fejlen om arbejdsordre på fakturadetaljen kan krympe. | Kun `<span className="text-red-800" data-testid="incoming-invoice-work-order-error">` i `detail-client.tsx`. Teksten er uændret. |
 | G18-931 | 2 Faktura | DONE. Arbejdsordretitlen uden sag på fakturadetaljen kan krympe. | Kun `<span className="text-gray-700">{detail.workOrder.title}</span>` i `detail-client.tsx`. Titlen er uændret. |
-| G18-932 | 2 Faktura | ÅBEN. Teksten Ingen specifik WO på fakturadetaljen kan krympe. | Kun `<span className="text-gray-400">Ingen specifik WO</span>` i `detail-client.tsx`. Teksten er uændret. |
+| G18-932 | 2 Faktura | DONE. Teksten Ingen specifik WO på fakturadetaljen kan krympe. | Kun `<span className="text-gray-400">Ingen specifik WO</span>` i `detail-client.tsx`. Teksten er uændret. |
+| G18-933 | 2 Faktura | ÅBEN. Kundenavnet ved sagen på fakturadetaljen kan krympe. | Kun `<span className="text-gray-500 ml-1">· {detail.case.customer_name}</span>` i `detail-client.tsx`. Navnet er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

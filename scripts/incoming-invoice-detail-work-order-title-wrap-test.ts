@@ -26,7 +26,7 @@ ok(after.includes('{detail.workOrder.title}'), 'titlen bliver')
 ok(view.split(bare).length === 1, 'den bare arbejdsordretitel er vaek')
 ok(!view.includes(bare), 'den bare arbejdsordretitel er vaek')
 ok(view.includes('className="text-red-800 break-words min-w-0" data-testid="incoming-invoice-work-order-error"'), 'arbejdsordrefejlen bliver')
-ok(view.includes('<span className="text-gray-400">Ingen specifik WO</span>'), 'ingen-wo bliver')
+ok(view.includes('<span className="text-gray-400 break-words min-w-0">Ingen specifik WO</span>'), 'ingen-wo bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

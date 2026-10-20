@@ -429,7 +429,7 @@ export function IncomingInvoiceDetailClient({
               )
             ) : detail.work_order_failed ? (
               <span className="text-red-800 break-words min-w-0" data-testid="incoming-invoice-work-order-error">Arbejdsordren kunne ikke hentes. Det tælles ikke som ingen.</span>
-            ) : <span className="text-gray-400">Ingen specifik WO</span>}
+            ) : <span className="text-gray-400 break-words min-w-0">Ingen specifik WO</span>}
           />
           {inv.duplicate_of_id && (
             <Row label="Duplikat af"
