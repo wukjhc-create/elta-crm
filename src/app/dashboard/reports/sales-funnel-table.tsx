@@ -50,7 +50,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left">
-              <th className="pb-2 font-medium text-gray-500">Måned</th>
+              <th className="pb-2 font-medium text-gray-500 break-words min-w-0">Måned</th>
               <th className="pb-2 font-medium text-gray-500 text-right">Nye kunder</th>
               <th className="pb-2 font-medium text-gray-500 text-right">Tilbud oprettet</th>
               <th className="pb-2 font-medium text-gray-500 text-right">Sendt</th>
