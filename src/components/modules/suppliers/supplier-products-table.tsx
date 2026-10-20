@@ -268,7 +268,7 @@ export function SupplierProductsTable({
                     </div>
                   </TableHead>
                   <TableHead className={sortableHeaderClass} onClick={() => handleSort('supplier_name')}>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 break-words min-w-0">
                       Navn
                       <SortIcon column="supplier_name" currentSort={sortBy} currentOrder={sortOrder} />
                     </div>
