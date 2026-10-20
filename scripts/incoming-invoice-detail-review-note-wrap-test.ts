@@ -26,7 +26,7 @@ ok(after.includes('Konfidens er under 70 %'), 'saetningen bliver')
 ok(view.split(bare).length === 1, 'den bare konfidenslinje er vaek')
 ok(!view.includes(bare), 'den bare konfidenslinje er vaek')
 ok(view.includes('<div className="font-medium text-amber-900 break-words min-w-0">Faktura kræver manuel gennemgang</div>'), 'gennemgangsoverskriften bliver')
-ok(view.includes('className="rounded-md bg-amber-50 ring-1 ring-amber-300 px-4 py-3"'), 'gennemgangsrammen bliver')
+ok(view.includes('className="rounded-md bg-amber-50 ring-1 ring-amber-300 px-4 py-3 break-words min-w-0"'), 'gennemgangsrammen bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
