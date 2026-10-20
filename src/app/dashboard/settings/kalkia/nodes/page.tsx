@@ -18,7 +18,9 @@ export default async function KalkiaNodesPage() {
   return (
     <KalkiaNodesClient
       nodes={nodesResult.success && nodesResult.data ? nodesResult.data : []}
+      loadError={nodesResult.success ? null : nodesResult.error || 'Kunne ikke hente noder'}
       categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
+      categoriesError={categoriesResult.success ? null : categoriesResult.error || 'Kunne ikke hente kategorier'}
     />
   )
 }
