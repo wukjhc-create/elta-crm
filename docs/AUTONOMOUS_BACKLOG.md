@@ -1669,7 +1669,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-935 | 2 Faktura | DONE. Sagsnavnet ved sagen på fakturadetaljen kan krympe. | Kun `<span className="ml-2">{detail.case.project_name || detail.case.title}</span>` i `detail-client.tsx`. Navnet er uændret. |
 | G18-936 | 2 Faktura | DONE. Sagsnummeret på fakturadetaljen kan krympe. | Kun `<span className="font-mono text-xs">{detail.case.case_number}</span>` i `detail-client.tsx`. Nummeret er uændret. |
 | G18-937 | 2 Faktura | DONE. Fakturanummeret i hovedet på fakturadetaljen kan krympe. | Kun `<span className="font-mono">{inv.invoice_number ?? '—'}</span>` i `detail-client.tsx`. Nummeret er uændret. |
-| G18-938 | 2 Faktura | ÅBEN. Betalingsreferencen på fakturadetaljen kan krympe. | Kun `<span className="font-mono">{inv.payment_reference ?? '—'}</span>` i `detail-client.tsx`. Referencen er uændret. |
+| G18-938 | 2 Faktura | DONE. Betalingsreferencen på fakturadetaljen kan krympe. | Kun `<span className="font-mono">{inv.payment_reference ?? '—'}</span>` i `detail-client.tsx`. Referencen er uændret. |
+| G18-939 | 2 Faktura | ÅBEN. Signalscoren i match-breakdown kan krympe. | Kun `<span className="w-12 shrink-0 text-right font-mono">{score.toFixed(2)}</span>` i `detail-client.tsx`. Scoren er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

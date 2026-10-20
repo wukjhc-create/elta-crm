@@ -352,7 +352,7 @@ export function IncomingInvoiceDetailClient({
           <Row label="Beløb ekskl moms"   value={fmtAmount(inv.amount_excl_vat, inv.currency)} />
           <Row label="Moms"               value={fmtAmount(inv.vat_amount, inv.currency)} />
           <Row label="Beløb incl moms"    value={fmtAmount(inv.amount_incl_vat, inv.currency)} />
-          <Row label="Betalingsreference" value={<span className="font-mono">{inv.payment_reference ?? '—'}</span>} />
+          <Row label="Betalingsreference" value={<span className="font-mono break-words min-w-0">{inv.payment_reference ?? '—'}</span>} />
           <Row label="IBAN"               value={<IbanValue invoiceId={inv.id} masked={inv.iban} canReveal={canRevealIban} />} />
           </>)}
         </Panel>

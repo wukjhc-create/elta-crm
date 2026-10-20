@@ -26,7 +26,7 @@ ok(after.includes('{inv.invoice_number ?? \'—\'}'), 'nummeret bliver')
 ok(view.split(bare).length === 1, 'det bare fakturanummer er vaek')
 ok(!view.includes(bare), 'det bare fakturanummer er vaek')
 ok(view.includes('<span className="font-mono text-xs break-words min-w-0">{detail.case.case_number}</span>'), 'sagsnummeret bliver')
-ok(view.includes('<span className="font-mono">{inv.payment_reference ?? \'—\'}</span>'), 'betalingsreferencen bliver')
+ok(view.includes('<span className="font-mono break-words min-w-0">{inv.payment_reference ?? \'—\'}</span>'), 'betalingsreferencen bliver')
 ok(view.includes('<span className="font-mono break-all">{inv.invoice_number ?? \'—\'}</span>'), 'overskriftens nummer bliver')
 
 if (bad > 0) {
