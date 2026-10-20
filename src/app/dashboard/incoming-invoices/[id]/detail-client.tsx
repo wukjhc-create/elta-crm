@@ -657,7 +657,7 @@ export function IncomingInvoiceDetailClient({
         {detail.audit_failed ? (
           <p className="text-xs text-red-800 break-words min-w-0" data-testid="incoming-invoice-audit-error">Historikken kunne ikke hentes. Det tælles ikke som ingen poster.</p>
         ) : detail.audit.length === 0 ? (
-          <p className="text-xs text-gray-400">Ingen log-poster endnu. De vises her, når fakturaen ændres.</p>
+          <p className="text-xs text-gray-400 break-words min-w-0">Ingen log-poster endnu. De vises her, når fakturaen ændres.</p>
         ) : (
           <div className="space-y-2">
             {detail.audit.map((a) => (

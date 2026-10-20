@@ -26,7 +26,7 @@ ok(after.includes('Ingen fil tilknyttet (kilde: {incomingInvoiceSourceLabel(inv.
 ok(view.split(bare).length === 1, 'den bare tomme fil er vaek')
 ok(!view.includes(bare), 'den bare tomme fil er vaek')
 ok(view.includes('<p className="text-xs text-gray-400 break-words min-w-0">Ingen linjer ekstraheret. Uden linjer er der ikke noget at kontrollere. Tjek bilaget nedenfor.</p>'), 'tomme linjer bliver')
-ok(view.includes('<p className="text-xs text-gray-400">Ingen log-poster endnu. De vises her, når fakturaen ændres.</p>'), 'tom historik bliver')
+ok(view.includes('<p className="text-xs text-gray-400 break-words min-w-0">Ingen log-poster endnu. De vises her, når fakturaen ændres.</p>'), 'tom historik bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
