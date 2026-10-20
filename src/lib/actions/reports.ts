@@ -328,8 +328,9 @@ export async function getRevenueByPeriod(
       arr.push(r)
       invByMonth.set(key, arr)
     }
-    // R-8 (review 2026-10-16): en kreditnota kan høre til en faktura fra før perioden — måneden vises ikke under 0
-    for (const [key, arr] of invByMonth) periodMap.get(key)!.invoiced_ex_vat = Math.max(0, netInvoicedExVat(arr))
+    // FIN3-4 (finans-review 2 2026-10-20): en kreditnota trækkes i SIN måned — også under 0 (før klampet til 0 = R-8), så
+    // perioderne kan afstemmes med bogføringen og tragten (B-9)
+    for (const [key, arr] of invByMonth) periodMap.get(key)!.invoiced_ex_vat = netInvoicedExVat(arr)
 
     // Group accepted offers by month
     for (const offer of acceptedResult.data || []) {

@@ -1658,6 +1658,14 @@ async function main() {
       const snap2 = await rv.latestSnapshotId(r2)
       const s2 = (await admin.from('offer_snapshots').select('id, revision_number').eq('offer_id', r2).single()).data as { id: string; revision_number: number }
       check('underskrift på R2 bindes til R2-snapshot (latestSnapshotId)', snap2 === s2.id && s2.revision_number === 2)
+      // FIN3-3: et tilbud i kæden er gjort til sag → ny revision afvises (ellers sag nr. 2 ved accept)
+      const { data: fc } = await admin.from('service_cases').insert({ title: `[HARNESS] rev-sag ${stamp}`, customer_id: custId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: owner, source_offer_id: r2 }).select('id').single()
+      const fcId = (fc as { id?: string } | null)?.id ?? null
+      try {
+        const blocked = await rv.createOfferRevision(r2, owner)
+        check('revision afvises når kæden allerede er en sag (FIN3-3)', !blocked.ok && /sag/i.test(blocked.ok ? '' : blocked.error), blocked.ok ? 'oprettet!' : blocked.error)
+        if (blocked.ok) offerIds.push(blocked.id)
+      } finally { if (fcId) await admin.from('service_cases').delete().eq('id', fcId) }
 
       await admin.from('offers').update({ status: 'accepted', accepted_at: new Date().toISOString() }).eq('id', r2)
       const accRev = await rv.createOfferRevision(r2, owner)

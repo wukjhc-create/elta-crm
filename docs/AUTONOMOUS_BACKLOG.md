@@ -231,8 +231,8 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 |---|---|---|
 | FIN3-1 | Avance-prioritet: tilbudslinjen lader enhver avanceregel (inkl. leverandør-standard) slå kundeaftalen; kalkia/sagsmateriale/DB-funktion omvendt (S2, latent) | TODO |
 | FIN3-2 | Tilbudsnumre låser, når højeste tilbud er en revision (-R2 → NaN → 0001 findes); UTC-år ved nytår (S2 på staging) | DONE (kode, offer-number-test 6 + harness:concurrency C4) — revisioner udelades, numerisk maksimum, dansk år |
-| FIN3-3 | Revision af et allerede konverteret sendt tilbud opretter en sag nr. 2 (S2 når flaget er tændt) | TODO |
-| FIN3-4 | Rapport: faktureret pr. periode klampes ≥ 0 (kreditnota i anden måned) ≠ tragt/bogføring (S3) | TODO |
+| FIN3-3 | Revision af et allerede konverteret sendt tilbud opretter en sag nr. 2 (S2 når flaget er tændt) | DONE (kode, offer-revisions-check +1) — revision afvises, når et tilbud i kæden har en sag (converted_case_id/source_offer_id) |
+| FIN3-4 | Rapport: faktureret pr. periode klampes ≥ 0 (kreditnota i anden måned) ≠ tragt/bogføring (S3) | DONE (kode, U88/U91/U100) — kreditnota trækkes i sin måned, også under 0 (afstemmelig med tragt/bogføring) |
 | FIN3-5 | "Klar til fakturering"/faktureringsstatus prissætter fastprissager med linjepriser (S3) | DELVIS (kode, U216) — cockpit/sagsliste: fastprissag = kontraktens restbeløb (eller ude ved ingen rest); sagens faktureringsstatus (service-case-economy) = TODO |
 | FIN3-6 | Skift af satstype beholder auto-udfyldt overtidssats (S4) | TODO |
 | FIN3-7 | Udestående/lønsomhed/sagsøkonomi/afvisninger blander valutaer (S4) | TODO |

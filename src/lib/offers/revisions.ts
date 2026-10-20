@@ -107,6 +107,19 @@ export async function createOfferRevision(offerId: string, userId: string): Prom
 
   const nextRev = (s.revision_number ?? 1) + 1
   const base = String(s.offer_number).replace(/-R\d+$/, '')
+
+  // FIN3-3 (finans-review 2 2026-10-20): er et tilbud i revisionskæden allerede konverteret til en sag, ville en ny
+  // revision (accepteret i portalen) oprette sag nr. 2 → to fastpris-slutfakturaer. Revisionen afvises i stedet.
+  {
+    const { data: chain } = await admin.from('offers').select('id, converted_case_id').or(`offer_number.eq.${base},offer_number.like.${base}-R%`)
+    const chainRows = (chain ?? []) as Array<{ id: string; converted_case_id: string | null }>
+    let hasCase = chainRows.some((o) => !!o.converted_case_id)
+    if (!hasCase && chainRows.length) {
+      const { count } = await admin.from('service_cases').select('id', { count: 'exact', head: true }).in('source_offer_id', chainRows.map((o) => o.id))
+      hasCase = (count ?? 0) > 0
+    }
+    if (hasCase) return { ok: false, error: 'Tilbuddet er allerede gjort til en sag — ret sagens kontraktsum i stedet for at revidere tilbuddet' }
+  }
   const insert: Record<string, unknown> = {
     offer_number: `${base}-R${nextRev}`, title: s.title, status: 'draft', created_by: userId,
     revision_of: offerId, revision_number: nextRev,
