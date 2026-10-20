@@ -187,7 +187,7 @@ export function PlanWorkOrderDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="plan-wo-title"
-        className="w-full max-w-lg rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
       >
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 id="plan-wo-title" className="text-base font-semibold text-gray-900">
@@ -366,13 +366,14 @@ export function PlanWorkOrderDialog({
           </div>
 
           {submitError && (
-            <div className="rounded ring-1 ring-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-800 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> {submitError}
+            <div className="rounded ring-1 ring-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-800 flex items-start gap-1">
+              <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+              <span className="min-w-0 break-words">{submitError}</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t bg-gray-50 px-4 py-2.5 rounded-b-lg">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-gray-50 px-4 py-2.5 rounded-b-lg">
           <button
             type="button"
             onClick={onClose}
