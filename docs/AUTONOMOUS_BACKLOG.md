@@ -1735,7 +1735,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-1001 | 6 Salg | DONE. Månedens navn i salgstragtens mobilkort kan krympe. | Kun p med klassen font-medium text-gray-900 der viser monthLabel. Satser og beløb er uændrede. |
 | G18-1002 | 6 Salg | DONE. Månedskortet i salgstragten kan krympe. | Kun article med klassen rounded ring-1 ring-gray-200 p-3 text-sm i sales-funnel-table.tsx. Månedens navn, satser og beløb er uændrede. |
 | G18-1003 | 6 Salg | DONE. Salgstragtens ikon kan krympe. | Kun TrendingUp med klassen w-5 h-5 text-gray-400 i sales-funnel-table.tsx. Overskriften og satserne er uændrede. |
-| G18-1004 | 6 Salg | ÅBEN. Totaloverskriften i salgstragtens mobilkort kan krympe. | Kun p med klassen font-semibold der viser I alt i sales-funnel-table.tsx. Beløb og satser er uændrede. |
+| G18-1004 | 6 Salg | DONE. Totaloverskriften i salgstragtens mobilkort kan krympe. | Kun p med klassen font-semibold der viser I alt i sales-funnel-table.tsx. Beløb og satser er uændrede. |
 | G18-1005 | 6 Salg | ÅBEN. Totalkortet i salgstragten kan krympe. | Kun article med klassen rounded bg-gray-50 ring-1 ring-gray-200 p-3 text-sm i sales-funnel-table.tsx. Beløb og satser er uændrede. |
 | G18-1006 | 6 Salg | ÅBEN. Mobilisten i salgstragten kan krympe. | Kun div med klassen md:hidden space-y-2 og testid sales-funnel-mobile i sales-funnel-table.tsx. Kortene er uændrede. |
 | G18-1007 | 8 Pilot | ÅBEN. Kategoricellen på leverandørvarens skrivebord kan krympe. | Kun den TableCell der omslutter product.category på skrivebordet i supplier-products-table.tsx. Mærket, priser og status er uændrede. |
@@ -1749,6 +1749,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-1015 | 6 Salg | ÅBEN. Månedens satser i salgstragtens mobilkort kan krympe. | Kun p med klassen text-xs text-gray-600 break-words og testid funnel-month-rates i sales-funnel-table.tsx. Tilføj kun min-w-0. Satserne og skrivebordet er uændrede. |
 | G18-1016 | 6 Salg | ÅBEN. Salgstragtens ramme kan krympe. | Kun div med klassen bg-white rounded-lg border p-6 og testid report-sales-funnel i sales-funnel-table.tsx. Overskrift, måneder og beløb er uændrede. |
 | G18-1017 | 6 Salg | ÅBEN. Beløbslisten i salgstragtens månedskort kan krympe. | Kun dl med klassen mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0 i sales-funnel-table.tsx. Tilføj kun break-words. Beløbene er uændrede. |
+| G18-1018 | 6 Salg | ÅBEN. Totallinjen i salgstragtens mobilkort kan krympe. | Kun p med klassen text-xs text-gray-700 mt-1 break-words i sales-funnel-table.tsx. Tilføj kun min-w-0. Beløbene er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

@@ -28,7 +28,7 @@ ok(table.split(wrapped).length === 2, 'maanedens navn er et')
 ok(!table.includes(bare), 'maanedens navn er ikke bart')
 ok(table.includes('data-testid="funnel-month-rates"'), 'satserne bliver')
 ok(table.includes('kr(m.accepted_value)'), 'beloebet bliver')
-ok(table.includes('<p className="font-semibold">I alt</p>'), 'totaloverskriften bliver')
+ok(table.includes('<p className="font-semibold break-words min-w-0">I alt</p>'), 'totaloverskriften kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

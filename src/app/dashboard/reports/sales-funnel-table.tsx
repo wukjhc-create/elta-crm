@@ -41,7 +41,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
           </article>
         ))}
         <article className="rounded bg-gray-50 ring-1 ring-gray-200 p-3 text-sm">
-          <p className="font-semibold">I alt</p>
+          <p className="font-semibold break-words min-w-0">I alt</p>
           <p className="text-xs text-gray-700 mt-1 break-words">Nye kunder {t.new_customers} · tilbud {t.offers_created} · sendt {t.offers_sent} · accepteret {t.offers_accepted}</p>
           <p className="text-xs text-gray-700 break-words">Accepteret værdi {kr(t.accepted_value)} · faktureret {kr(t.invoiced_ex_vat)}</p>
         </article>
