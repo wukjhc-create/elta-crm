@@ -71,7 +71,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
                 <td className="py-2 text-right tabular-nums">{m.invoiced_ex_vat ? kr(m.invoiced_ex_vat) : '—'}</td>
               </tr>
             ))}
-            <tr className="font-semibold bg-gray-50">
+            <tr className="font-semibold bg-gray-50 break-words min-w-0">
               <td className="py-2">I alt</td>
               <td className="py-2 text-right tabular-nums">{t.new_customers}</td>
               <td className="py-2 text-right tabular-nums">{t.offers_created}</td>
