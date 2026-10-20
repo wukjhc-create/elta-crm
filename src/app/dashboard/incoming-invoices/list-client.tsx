@@ -354,7 +354,7 @@ export function IncomingInvoicesListClient({
                 <td className="px-3 py-2 text-xs break-words min-w-0">
                   <DueMarks dueDate={r.due_date} todayIso={todayIso} />
                 </td>
-                <td className="px-3 py-2"><StatusBadge row={r} /></td>
+                <td className="px-3 py-2 break-words min-w-0"><StatusBadge row={r} /></td>
                 <td className="px-3 py-2 text-right text-xs">
                   <Confidence row={r} />
                 </td>
