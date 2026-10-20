@@ -71,18 +71,29 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 /** Hentes FØRST når fanen åbnes; data forsvinder når fanen forlades (afmontering). */
 export function EmployeeEconomyTab({ employeeId }: { employeeId: string }) {
+  const [reloadKey, setReloadKey] = useState(0)
   const [state, setState] = useState<{ loading: boolean; error?: string; data?: { hourly_rate: number | null; cost_rate: number | null; compensation: EmployeeWithCompensation['compensation'] } }>({ loading: true })
   useEffect(() => {
     let alive = true
     getEmployeeCompensationAction(employeeId).then((r) => {
       if (!alive) return
       setState(r.ok ? { loading: false, data: r.data } : { loading: false, error: r.message })
+    }).catch(() => {
+      if (!alive) return
+      setState({ loading: false, error: 'Kunne ikke hente løn og satser' })
     })
     return () => { alive = false; setState({ loading: true }) }
-  }, [employeeId])
+  }, [employeeId, reloadKey])
 
   if (state.loading) return <div className="bg-white rounded-lg ring-1 ring-gray-200 p-6 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Henter…</div>
-  if (state.error) return <div className="bg-white rounded-lg ring-1 ring-gray-200 p-6 text-sm text-red-700">{state.error}</div>
+  if (state.error) return (
+    <div className="bg-white rounded-lg ring-1 ring-gray-200 p-6 text-sm text-red-700">
+      <p>{state.error}. Det tælles ikke som manglende løndetaljer.</p>
+      <button type="button" onClick={() => setReloadKey((key) => key + 1)} className="mt-3 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800">
+        Prøv igen
+      </button>
+    </div>
+  )
   const comp = state.data?.compensation
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5" data-testid="employee-economy">
@@ -121,7 +132,25 @@ const WO_STATUS: Record<string, string> = { planned: 'Planlagt', in_progress: 'I
 
 export function EmployeeJobTab({ employeeId }: { employeeId: string }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getEmployeeWorkSummaryAction>> | null>(null)
-  useEffect(() => { getEmployeeWorkSummaryAction(employeeId).then(setData) }, [employeeId])
+  const [failed, setFailed] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
+  useEffect(() => {
+    let alive = true
+    setData(null)
+    setFailed(false)
+    getEmployeeWorkSummaryAction(employeeId)
+      .then((d) => { if (alive) setData(d) })
+      .catch(() => { if (alive) setFailed(true) })
+    return () => { alive = false }
+  }, [employeeId, reloadKey])
+  if (failed) return (
+    <div className="bg-white rounded-lg ring-1 ring-gray-200 p-6 text-sm text-red-700">
+      <p>Kunne ikke hente job. Det tælles ikke som ingen job.</p>
+      <button type="button" onClick={() => setReloadKey((key) => key + 1)} className="mt-3 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800">
+        Prøv igen
+      </button>
+    </div>
+  )
   if (!data) return <div className="bg-white rounded-lg ring-1 ring-gray-200 p-6 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Henter…</div>
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5" data-testid="employee-jobs">
