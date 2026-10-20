@@ -14,6 +14,7 @@ import type { UserRole } from '@/types/auth.types'
 import { parseAssistantCommand, type ParsedCommand } from './command-parser'
 import { resolveTarget } from './resolve-target'
 import { lookupReply } from './lookup-reply'
+import { noteSavedReply } from './note-reply'
 import { getCaseScope } from '@/lib/auth/case-scope'
 import { copenhagenParts, copenhagenLocalToIso, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { escapeLike } from '@/lib/validations/postgrest-filter'
@@ -273,10 +274,10 @@ Bekræftelse til kunden er IKKE sendt — send fra CRM.`,
     const { data, error } = await admin.from('case_notes').insert({ case_id: target.id, content: body, kind: 'note', urgency: null, source, created_by: actor.profileId }).select('id').single()
     if (error || !data) return { ok: false, text: 'Noten kunne ikke gemmes på sagen.' }
     await audit(admin, actor, 'note_created', (data as { id: string }).id, target.label, { target_kind: 'case', target_id: target.id, content_length: body.length })
-    return { ok: true, text: `📝 Note gemt på ${target.label}.` }
+    return { ok: true, text: noteSavedReply(target.label, body) }
   }
   const { data, error } = await admin.from('customer_notes').insert({ customer_id: target.id, content: body, source, created_by: actor.profileId }).select('id').single()
   if (error || !data) return { ok: false, text: 'Noten kunne ikke gemmes på kunden.' }
   await audit(admin, actor, 'note_created', (data as { id: string }).id, target.label, { target_kind: 'customer', target_id: target.id, content_length: body.length })
-  return { ok: true, text: `📝 Note gemt på ${target.label}.`, buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.id }] }
+  return { ok: true, text: noteSavedReply(target.label, body), buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.id }] }
 }
