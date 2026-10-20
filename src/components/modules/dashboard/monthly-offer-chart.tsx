@@ -34,7 +34,7 @@ export function MonthlyOfferChart() {
   const maxValue = Math.max(stats.sentValue, stats.acceptedValue, 1)
   const sentPct = Math.round((stats.sentValue / maxValue) * 100)
   const acceptedPct = Math.round((stats.acceptedValue / maxValue) * 100)
-  const monthName = new Date().toLocaleDateString('da-DK', { month: 'long', year: 'numeric' })
+  const monthName = new Date().toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', month: 'long', year: 'numeric' })
 
   return (
     <div className="space-y-4">
