@@ -27,7 +27,7 @@ ok(after.includes('Sletter…'), 'venteteksten bliver')
 ok(view.split(bare).length === 1, 'den bare knap er vaek')
 ok(!view.includes(bare), 'den bare knap er vaek')
 ok(view.includes('className="rounded-md ring-1 ring-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 break-words min-w-0"'), 'fejlrammen bliver')
-ok(view.includes('className="flex flex-wrap items-center justify-end gap-3"'), 'handlingsraekken bliver')
+ok(view.includes('className="flex flex-wrap items-center justify-end gap-3 break-words min-w-0"'), 'handlingsraekken bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

@@ -245,7 +245,7 @@ export function IncomingInvoiceDetailClient({
             {inv.due_date && <> · forfald {fmtDate(inv.due_date)}</>}
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3 break-words min-w-0">
           {isTestInvoice && isAdmin && (
             <Button
               variant="outline"
