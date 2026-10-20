@@ -472,7 +472,7 @@ export function IncomingInvoiceDetailClient({
             {Array.isArray(breakdown.reasons) && breakdown.reasons.length > 0 && (
               <div className="text-xs text-gray-500 mt-2 break-words">
                 <span className="font-medium">Årsager:</span> {(breakdown.reasons as string[]).map((r) => (
-                  <code key={r} className="ml-2 bg-gray-100 px-1 rounded">{r}</code>
+                  <code key={r} className="ml-2 bg-gray-100 px-1 rounded break-words min-w-0">{r}</code>
                 ))}
               </div>
             )}

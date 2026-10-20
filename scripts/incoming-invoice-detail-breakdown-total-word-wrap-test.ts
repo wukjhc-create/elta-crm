@@ -26,7 +26,7 @@ ok(after.includes('>Total<'), 'totalteksten bliver')
 ok(view.split(bare).length === 1, 'det bare totalord er vaek')
 ok(!view.includes(bare), 'det bare totalord er vaek')
 ok(view.includes('className="h-2 bg-blue-500 break-words min-w-0"'), 'den blaa bjaelke bliver')
-ok(view.includes('className="ml-2 bg-gray-100 px-1 rounded"'), 'aarsagskoden bliver')
+ok(view.includes('className="ml-2 bg-gray-100 px-1 rounded break-words min-w-0"'), 'aarsagskoden bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
