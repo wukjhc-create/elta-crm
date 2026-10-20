@@ -53,6 +53,8 @@ export function ConversionPreviewPanel({ invoiceId }: { invoiceId: string }) {
             <div><span className="text-gray-500">Sag:</span>{' '}
               {data.case ? (
                 <Link href={`/dashboard/orders/${data.case.case_number}`} className="text-emerald-700 hover:underline font-mono">{data.case.case_number}</Link>
+              ) : data.case_failed ? (
+                <span className="text-red-800" data-testid="conversion-preview-case-error">Sagen kunne ikke hentes. Det tælles ikke som ikke matchet.</span>
               ) : <span className="text-amber-700">ikke matchet</span>}
             </div>
             <div><span className="text-gray-500">Beløb (inkl. moms):</span> {kr(data.amount_incl_vat)}</div>
