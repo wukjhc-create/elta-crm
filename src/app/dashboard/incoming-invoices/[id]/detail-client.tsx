@@ -670,7 +670,7 @@ export function IncomingInvoiceDetailClient({
                   </span>
                   <span className="text-gray-500 shrink-0 break-words min-w-0">{fmtDate(a.created_at)} {a.created_at.slice(11, 19)}</span>
                 </div>
-                {a.message && <div className="mt-0.5 text-gray-700 break-words">{a.message}</div>}
+                {a.message && <div className="mt-0.5 text-gray-700 break-words min-w-0">{a.message}</div>}
               </div>
             ))}
           </div>

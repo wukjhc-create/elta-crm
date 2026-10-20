@@ -26,7 +26,7 @@ ok(after.includes('incomingInvoiceAuditActionLabel(a.action)'), 'handlingen bliv
 ok(view.split(bare).length === 1, 'den bare raekke er vaek')
 ok(!view.includes(bare), 'den bare raekke er vaek')
 ok(view.includes('<span className="text-gray-500 shrink-0 break-words min-w-0">{fmtDate(a.created_at)} {a.created_at.slice(11, 19)}</span>'), 'tidspunktet bliver')
-ok(view.includes('<div className="mt-0.5 text-gray-700 break-words">{a.message}</div>'), 'beskeden bliver')
+ok(view.includes('<div className="mt-0.5 text-gray-700 break-words min-w-0">{a.message}</div>'), 'beskeden bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

@@ -24,12 +24,12 @@ eq('ukendt kode bliver', incomingInvoiceAuditActionLabel('mystery_action'), 'mys
 
 const detail = fs.readFileSync('src/app/dashboard/incoming-invoices/[id]/detail-client.tsx', 'utf8')
 const at = detail.indexOf('detail.audit.length === 0')
-const slice = detail.slice(Math.max(0, at - 120), at + 1400)
+const slice = detail.slice(Math.max(0, at - 800), at + 1400)
 eq('tom log siger naeste skridt', slice.includes('Ingen log-poster endnu. De vises her, når fakturaen ændres.'), true)
 eq('panelet hedder revisionslog', slice.includes('Revisionslog (${detail.audit.length})'), true)
 eq('visningen bruger koden', slice.includes('incomingInvoiceAuditActionLabel(a.action)'), true)
 eq('tidspunktet bliver', slice.includes('a.created_at.slice(11, 19)'), true)
-eq('beskeden ombrydes', slice.includes('text-gray-700 break-words">{a.message}'), true)
+eq('beskeden ombrydes', slice.includes('text-gray-700 break-words min-w-0">{a.message}'), true)
 eq('raa handling vises ikke direkte', slice.includes('{a.action}'), false)
 
 console.log(fail ? `\n${fail} fejl` : '\nincoming-invoice-audit-label-test OK')
