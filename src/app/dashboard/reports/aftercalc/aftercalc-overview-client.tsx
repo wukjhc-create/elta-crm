@@ -246,7 +246,7 @@ export function AftercalcOverviewClient() {
                           <th className="px-2 py-1.5 text-left break-words min-w-0">Datakvalitet</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-gray-100 break-words min-w-0">
                         {data.rows.map((r) => (
                           <tr key={r.case_id} data-testid="aftercalc-overview-row" data-quality={r.data_quality}>
                             <td className="px-2 py-1.5">

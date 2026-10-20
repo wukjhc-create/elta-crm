@@ -31,7 +31,7 @@ ok(view.split(id).length === 2, 'tabelrullen findes en gang')
 ok(view.split('<div className="hidden md:block overflow-x-auto">').length === 1, 'den bare tabelrulle er vaek')
 ok(view.includes('hidden md:block overflow-x-auto'), 'markoeret til skrivebordet bliver')
 ok(view.includes('<thead className="bg-gray-50 text-xs text-gray-600 break-words min-w-0">'), 'tabelhovedet kan stadig krympe')
-ok(view.includes('<tbody className="divide-y divide-gray-100">'), 'tabelkroppen bliver')
+ok(view.includes('<tbody className="divide-y divide-gray-100 break-words min-w-0">'), 'tabelkroppen kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 
 if (bad > 0) {
