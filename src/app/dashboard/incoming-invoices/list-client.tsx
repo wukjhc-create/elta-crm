@@ -324,7 +324,7 @@ export function IncomingInvoicesListClient({
               <th className="px-3 py-2 break-words min-w-0">Forfald</th>
               <th className="px-3 py-2 break-words min-w-0">Status</th>
               <th className="px-3 py-2 text-right break-words min-w-0">Konfidens</th>
-              <th className="px-3 py-2"></th>
+              <th className="px-3 py-2 break-words min-w-0"></th>
             </tr>
           </thead>
           <tbody>
