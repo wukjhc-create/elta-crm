@@ -1621,6 +1621,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogfireogtredivte (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `fcb32785`. Det lader hundredeogtreogtredivte-hegnet stå. `fcb32785` hedder `feat(invoice): filterraekken paa fakturalisten kan krympe`. `af8a0bc1` hedder `feat(invoice): mobilisten paa fakturalisten kan krympe`. `origin/grok-next` er `fcb32785`. Push af `fcb32785` lykkedes. `af8a0bc1` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `af8a0bc1..fcb32785`
+
+```
+fcb32785 feat(invoice): filterraekken paa fakturalisten kan krympe
+af8a0bc1 feat(invoice): mobilisten paa fakturalisten kan krympe
+```
+
+Listen er skiftets commits fra `af8a0bc1` til og med `fcb32785`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+f5d7876c docs: checkpoint efter 2503b010
+```
+
+### Features
+
+G18-880 lader kun filterrækken på fakturalisten krympe. Knapperne bliver. G18-879 lader kun mobilisten på fakturalisten krympe. Kortene bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-filter-row-wrap-test.ts` og `scripts/incoming-invoice-mobile-list-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for mobilisten exiterede 0 sammen med det commit, der ændrede filterrækken. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for begge produktcommits. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `fcb32785`, herunder G18-748 til G18-880. `f5d7876c` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `fcb32785`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-881, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogtreogtredivte (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `2503b010`. Det lader hundredeogtoogtredivte-hegnet stå. `2503b010` hedder `feat(invoice): skrivebordsrammen paa fakturalisten kan krympe`. `ba819535` hedder `feat(invoice): tabellen paa fakturalistens skrivebord kan krympe`. `3796e984` hedder `feat(invoice): tabelhovedet paa fakturalistens skrivebord kan krympe`. `origin/grok-next` er `2503b010`. Push af `2503b010` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
