@@ -179,7 +179,7 @@ export function IncomingInvoicesListClient({
             Godkend leverandørfakturaer. Ved godkendelse forsøges bogføring til e-conomic. Lykkes det ikke, er fakturaen stadig godkendt.
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap break-words min-w-0">
         <UploadInvoiceButton />
         {isAdmin && (
           <Button
