@@ -34,15 +34,15 @@ ok(between.includes(marker), 'det er overpris i alt')
 ok(!between.includes('overchargeAmount'), 'beloebet er et andet sted')
 ok(!between.includes('invoice-control-label-controlled'), 'den kontrollerede celle er et andet sted')
 ok(!between.includes('invoice-control-label-supplier'), 'leverandoercellen er et andet sted')
-ok(view.split(id).length === 3, 'cellerne kan krympe')
-ok(view.split(bare).length === 2, 'leverandoercellen bliver bar')
+ok(view.split(id).length === 4, 'cellerne kan krympe')
+ok(view.split(bare).length === 1, 'ingen bar celle bliver')
 ok(view.includes('kr(res.control.overchargeAmount)'), 'overprisbeloebet bliver')
 ok(view.includes('Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr.'), 'nul-linjen bliver')
 
 const supMarker = 'data-testid="invoice-control-label-supplier"'
 const supAt = view.indexOf(supMarker)
-const supCell = supAt >= 0 ? view.lastIndexOf(bare, supAt) : -1
-ok(supCell >= 0 && view.slice(supCell, supAt).startsWith(bare), 'leverandoercellen bliver bar')
+const supCell = supAt >= 0 ? view.lastIndexOf(id, supAt) : -1
+ok(supCell >= 0 && view.slice(supCell, supAt).startsWith(id), 'leverandoercellen kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

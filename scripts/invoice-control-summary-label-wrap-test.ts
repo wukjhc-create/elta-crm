@@ -31,7 +31,7 @@ check('invoice-control-label-supplier', 'Leverandør')
 ok(grid.includes('kr(res.control.overchargeAmount)'), 'overprisbeløbet er uændret')
 ok(grid.includes('Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr.'), 'nul-linjen er uændret')
 ok(grid.includes("{res.control.controlledLines} / {res.control.totalLines}"), 'dækningen er uændret')
-ok(grid.split('className="min-w-0"').length === 2, 'leverandoercellen bliver bar')
+ok(grid.split('className="min-w-0"').length === 1, 'ingen bar celle bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

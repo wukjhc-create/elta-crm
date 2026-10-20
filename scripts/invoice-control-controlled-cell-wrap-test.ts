@@ -34,8 +34,8 @@ ok(between.indexOf(id, 1) === -1, 'det er den naermeste celle')
 ok(between.includes(marker), 'det er kontrollerede linjer')
 ok(!between.includes('overchargeAmount'), 'beloebet er et andet sted')
 ok(!between.includes('invoice-control-label-overcharge'), 'overpriscellen er et andet sted')
-ok(view.split(id).length === 3, 'cellerne kan krympe')
-ok(view.split(bare).length === 2, 'leverandoercellen bliver bar')
+ok(view.split(id).length === 4, 'cellerne kan krympe')
+ok(view.split(bare).length === 1, 'ingen bar celle bliver')
 ok(view.includes('kr(res.control.overchargeAmount)'), 'overprisbeloebet bliver')
 ok(view.includes('{res.control.controlledLines} / {res.control.totalLines}'), 'daekningen bliver')
 
@@ -45,8 +45,8 @@ const overCell = overAt >= 0 ? view.lastIndexOf(id, overAt) : -1
 ok(overCell >= 0 && view.slice(overCell, overAt).startsWith(id), 'overpriscellen kan krympe')
 const supMarker = 'data-testid="invoice-control-label-supplier"'
 const supAt = view.indexOf(supMarker)
-const supCell = supAt >= 0 ? view.lastIndexOf(bare, supAt) : -1
-ok(supCell >= 0 && supCell !== overCell, 'leverandoercellen bliver bar')
+const supCell = supAt >= 0 ? view.lastIndexOf(id, supAt) : -1
+ok(supCell >= 0 && supCell !== overCell && view.slice(supCell, supAt).startsWith(id), 'leverandoercellen kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

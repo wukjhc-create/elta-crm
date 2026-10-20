@@ -89,7 +89,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
                 <p className="text-[10px] text-gray-500 break-words">Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr.</p>
               )}
             </div>
-            <div className="min-w-0">
+            <div className="break-words min-w-0">
               <div className="text-gray-500 break-words min-w-0" data-testid="invoice-control-label-supplier">Leverandør</div>
               <div className="font-medium break-words">{res.hasSupplier ? 'Kendt' : 'Ukendt — kan ikke matche katalog'}</div>
             </div>
