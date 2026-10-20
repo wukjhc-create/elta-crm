@@ -35,11 +35,12 @@ import type { CustomerPaymentBadge } from '@/lib/actions/invoices'
  */
 const AUTO_CREATED_FILTER = 'tags.cs.{auto-email},email.ilike.%@elta-crm.local'
 
-/** N74: antal automatisk oprettede kunder (customers.view). */
-export async function countAutoCreatedCustomersAction(): Promise<number> {
+/** N74: antal automatisk oprettede kunder (customers.view). null = tællingen fejlede og er ikke 0. */
+export async function countAutoCreatedCustomersAction(): Promise<number | null> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('customers.view')) return 0
-  const { count } = await supabase.from('customers').select('id', { count: 'exact', head: true }).or(AUTO_CREATED_FILTER)
+  const { count, error } = await supabase.from('customers').select('id', { count: 'exact', head: true }).or(AUTO_CREATED_FILTER)
+  if (error) return null
   return count ?? 0
 }
 

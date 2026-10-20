@@ -56,8 +56,8 @@ interface CustomersPageClientProps {
   paymentSort?: PaymentSortKey
   /** Sprint Ø4.6/Ø4.9 — tællere pr. betalingsfilter. */
   paymentCounts?: PaymentCounts
-  /** N74: antal kunder oprettet automatisk fra mail */
-  autoCreatedCount?: number
+  /** N74: antal kunder oprettet automatisk fra mail. null = tællingen fejlede. */
+  autoCreatedCount?: number | null
 }
 
 export function CustomersPageClient({
@@ -228,7 +228,7 @@ export function CustomersPageClient({
             )}
 
             {/* N74: automatisk oprettede kunder (fra mail) — til gennemgang/oprydning */}
-            {(autoCreatedCount > 0 || filters.origin === 'auto') && (
+            {((autoCreatedCount ?? 0) > 0 || autoCreatedCount == null || filters.origin === 'auto') && (
               <button
                 type="button"
                 onClick={() => updateURL({ origin: filters.origin === 'auto' ? undefined : 'auto', page: '1' })}
@@ -236,7 +236,9 @@ export function CustomersPageClient({
                 data-testid="customers-origin-auto"
                 title="Kunder som mail-automatikken har oprettet ud fra telefon/adresse i en mail — kan være leverandører eller dubletter"
               >
-                Oprettet fra mail ({autoCreatedCount})
+                {autoCreatedCount == null
+                  ? 'Oprettet fra mail kunne ikke tælles. Det tælles ikke som 0.'
+                  : `Oprettet fra mail (${autoCreatedCount})`}
               </button>
             )}
 
