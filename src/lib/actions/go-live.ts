@@ -38,25 +38,27 @@ export interface GoLiveStatus {
       active: boolean
       dry_run: boolean
     }>
-    dry_run_count: number
-    live_count: number
+    dry_run_count: number | null
+    live_count: number | null
+    /** true når regellisten ikke kunne hentes. Tom liste er da ikke "ingen regler". */
+    rules_error: boolean
   }
   bank: {
-    total_transactions: number
+    total_transactions: number | null
     last_imported_at: string | null
-    unmatched_count: number
-    ambiguous_count: number
+    unmatched_count: number | null
+    ambiguous_count: number | null
   }
   email_sync: {
     last_sync_at: string | null
     last_status: string | null
-    mailbox_count: number
+    mailbox_count: number | null
   }
   invoice_reminder_cron: {
     last_run_at: string | null
-    last_24h_sent: number
+    last_24h_sent: number | null
   }
-  system_errors_last_24h: number
+  system_errors_last_24h: number | null
 }
 
 export async function getGoLiveStatus(): Promise<GoLiveStatus> {
@@ -135,8 +137,10 @@ export async function getGoLiveStatus(): Promise<GoLiveStatus> {
   ])
 
   const econ = econRes.data
-  const rules = (rulesRes.data ?? []) as GoLiveStatus['autopilot']['rules']
-  const syncRows = syncRes.data ?? []
+  const rulesFailed = Boolean(rulesRes.error)
+  const rules = (rulesFailed ? [] : (rulesRes.data ?? [])) as GoLiveStatus['autopilot']['rules']
+  const syncFailed = Boolean(syncRes.error)
+  const syncRows = syncFailed ? [] : (syncRes.data ?? [])
   const latestSync = syncRows[0]
 
   return {
@@ -149,25 +153,26 @@ export async function getGoLiveStatus(): Promise<GoLiveStatus> {
     },
     autopilot: {
       rules,
-      dry_run_count: rules.filter((r) => r.dry_run).length,
-      live_count: rules.filter((r) => !r.dry_run && r.active).length,
+      rules_error: rulesFailed,
+      dry_run_count: rulesFailed ? null : rules.filter((r) => r.dry_run).length,
+      live_count: rulesFailed ? null : rules.filter((r) => !r.dry_run && r.active).length,
     },
     bank: {
-      total_transactions: bankCount.count ?? 0,
+      total_transactions: bankCount.error ? null : (bankCount.count ?? 0),
       last_imported_at: bankLast.data?.created_at ?? null,
-      unmatched_count: bankUnmatched.count ?? 0,
-      ambiguous_count: bankAmbig.count ?? 0,
+      unmatched_count: bankUnmatched.error ? null : (bankUnmatched.count ?? 0),
+      ambiguous_count: bankAmbig.error ? null : (bankAmbig.count ?? 0),
     },
     email_sync: {
-      last_sync_at: latestSync?.last_sync_at ?? null,
-      last_status: latestSync?.last_sync_status ?? null,
-      mailbox_count: syncRows.length,
+      last_sync_at: syncFailed ? null : (latestSync?.last_sync_at ?? null),
+      last_status: syncFailed ? null : (latestSync?.last_sync_status ?? null),
+      mailbox_count: syncFailed ? null : syncRows.length,
     },
     invoice_reminder_cron: {
       last_run_at: reminderLast.data?.created_at ?? null,
-      last_24h_sent: reminderSent24h.count ?? 0,
+      last_24h_sent: reminderSent24h.error ? null : (reminderSent24h.count ?? 0),
     },
-    system_errors_last_24h: sysErr.count ?? 0,
+    system_errors_last_24h: sysErr.error ? null : (sysErr.count ?? 0),
   }
 }
 
@@ -344,14 +349,19 @@ export async function testBankImportAction(): Promise<ActionOutcome> {
 
   try {
     const since7d = copenhagenDatePlusDays(-7)
-    const { count } = await ctx.supabase
+    const { count, error } = await ctx.supabase
       .from('bank_transactions')
       .select('id', { count: 'exact', head: true })
       .gte('date', since7d)
-    const { count: unmatched } = await ctx.supabase
+    const { count: unmatched, error: unmatchedError } = await ctx.supabase
       .from('bank_transactions')
       .select('id', { count: 'exact', head: true })
       .eq('match_status', 'unmatched')
+    if (error || unmatchedError) {
+      const msg = 'Kunne ikke tælle bankposteringer. Det tælles ikke som 0.'
+      await logAudit({ userId: ctx.userId, action: 'test_bank_import', ok: false, message: msg })
+      return { ok: false, message: msg }
+    }
     if ((count ?? 0) === 0) {
       const msg = 'Ingen bankposteringer importeret de sidste 7 dage.'
       await logAudit({ userId: ctx.userId, action: 'test_bank_import', ok: false, message: msg })
