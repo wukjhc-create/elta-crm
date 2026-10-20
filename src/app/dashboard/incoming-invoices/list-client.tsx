@@ -267,7 +267,7 @@ export function IncomingInvoicesListClient({
         </p>
       )}
       {!listError && sendersFailed && (
-        <p className="text-sm text-red-700" data-testid="incoming-invoices-senders-error">
+        <p className="text-sm text-red-700 break-words min-w-0" data-testid="incoming-invoices-senders-error">
           Afsendere kunne ikke hentes. Det tælles ikke som rigtige fakturaer.
         </p>
       )}
