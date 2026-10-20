@@ -2169,11 +2169,15 @@ export async function updateCaseNote(input: {
     const ctx = await getAuthenticatedClientWithRole()
     const { supabase, userId } = ctx
 
-    const { data: existing } = await supabase
+    const { data: existing, error: existingErr } = await supabase
       .from('case_notes')
       .select('id, case_id, content, created_by')
       .eq('id', input.noteId)
       .maybeSingle()
+    if (existingErr) {
+      logger.error('updateCaseNote read failed', { error: existingErr })
+      return { success: false, error: 'Kunne ikke læse noten. Den er ikke ændret.' }
+    }
     if (!existing) return { success: false, error: 'Noten blev ikke fundet' }
 
     const denied = await authorizeCaseNoteMutation(ctx, { case_id: existing.case_id as string, created_by: (existing.created_by as string | null) ?? null })
@@ -2245,11 +2249,15 @@ export async function deleteCaseNote(noteId: string): Promise<ActionResult<{ id:
     const ctx = await getAuthenticatedClientWithRole()
     const { supabase } = ctx
 
-    const { data: existing } = await supabase
+    const { data: existing, error: existingErr } = await supabase
       .from('case_notes')
       .select('id, case_id, kind, content, created_by')
       .eq('id', noteId)
       .maybeSingle()
+    if (existingErr) {
+      logger.error('deleteCaseNote read failed', { error: existingErr })
+      return { success: false, error: 'Kunne ikke læse noten. Den er ikke slettet.' }
+    }
     if (!existing) return { success: false, error: 'Noten blev ikke fundet' }
 
     const denied = await authorizeCaseNoteMutation(ctx, { case_id: existing.case_id as string, created_by: (existing.created_by as string | null) ?? null })
