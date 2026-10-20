@@ -37,7 +37,7 @@ ok(view.includes('{data.total} sager i visningen. Beregnet på {data.query_ms} m
 ok(view.includes('data-testid="aftercalc-page-label"'), 'sidetallet bliver')
 ok(view.includes('Side {data.page} af {pages}'), 'sideteksten bliver')
 ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40 break-words min-w-0">Forrige'), 'Forrige bliver')
-ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Næste'), 'Naeste bliver')
+ok(view.includes('min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40 break-words min-w-0">Næste'), 'Naeste kan krympe')
 ok(view.includes('setFilter({ page: (data.page ?? 1) - 1 }, true)'), 'forrige side bliver')
 ok(view.includes('setFilter({ page: (data.page ?? 1) + 1 }, true)'), 'naeste side bliver')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')

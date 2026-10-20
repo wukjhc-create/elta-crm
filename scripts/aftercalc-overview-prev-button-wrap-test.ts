@@ -31,7 +31,7 @@ ok(!row.includes('\n'), 'linjeskiftet er et andet sted')
 ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'knappen findes en gang')
 ok(view.split(bare).length === 1, 'den bare knap er vaek')
-ok(view.includes('className="min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40">Næste</button>'), 'Naeste bliver')
+ok(view.includes('className="min-h-[44px] px-2 py-1 rounded border border-gray-300 disabled:opacity-40 break-words min-w-0">Næste</button>'), 'Naeste kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 ok(view.includes('setFilter({ page: (data.page ?? 1) + 1 }, true)'), 'naeste side bliver')
 
