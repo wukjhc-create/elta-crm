@@ -612,6 +612,10 @@ export interface EconomicInvoicePreview {
   invoice_number: string
   /** e-conomic-opsætningen er aktiv med nøgler (live-eksport mulig) */
   integration_ready: boolean
+  /** Sat når indstillingsopslaget fejler. integration_ready er da false, men det er ikke "ikke opsat". */
+  integration_error?: string | null
+  /** Sat når kundeopslaget fejler. Det er ikke "ny kunde". */
+  customer_error?: string | null
   /** allerede eksporteret (e-conomic-id) */
   external_id: string | null
   draft: EconomicInvoiceDraft
@@ -626,14 +630,15 @@ export async function previewInvoiceForEconomic(
   invoiceId: string
 ): Promise<{ ok: true; data: EconomicInvoicePreview } | { ok: false; error: string }> {
   const supabase = createAdminClient()
-  const { data: inv } = await supabase
+  const { data: inv, error: invErr } = await supabase
     .from('invoices')
     .select('id, invoice_number, currency, created_at, sent_at, total_amount, vat_mode, customer_id, external_invoice_id, external_provider')
     .eq('id', invoiceId)
     .maybeSingle()
+  if (invErr) return { ok: false, error: 'Kunne ikke hente fakturaen. Det tælles ikke som at fakturaen mangler.' }
   if (!inv) return { ok: false, error: 'Faktura ikke fundet' }
 
-  const [{ data: settingsRow }, { data: cust }, { data: lineRows }] = await Promise.all([
+  const [settingsRes, customerRes, linesRes] = await Promise.all([
     supabase
       .from('accounting_integration_settings')
       .select('active, config, api_token, agreement_grant_token')
@@ -645,15 +650,20 @@ export async function previewInvoiceForEconomic(
           .select('company_name, contact_person, billing_address, billing_postal_code, billing_city, billing_country, external_customer_id, external_provider')
           .eq('id', inv.customer_id)
           .maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
     supabase
       .from('invoice_lines')
       .select('position, description, quantity, unit_price, total_price')
       .eq('invoice_id', invoiceId)
       .order('position', { ascending: true }),
   ])
+  if (linesRes.error) return { ok: false, error: 'Kunne ikke hente fakturalinjer. Det tælles ikke som ingen linjer.' }
 
+  const settingsRow = settingsRes.data
   const s = settingsRow as { active?: boolean; config?: EconomicConfig | null; api_token?: string | null; agreement_grant_token?: string | null } | null
+  const integrationError = settingsRes.error ? 'Kunne ikke tjekke e-conomic' : null
+  const customerError = customerRes.error ? 'Kunne ikke hente kunden' : null
+  const cust = customerError ? null : customerRes.data
   const c = cust as { external_customer_id?: string | null; external_provider?: string | null } | null
   const linkedNumber =
     c?.external_customer_id && c.external_provider === PROVIDER ? Number(c.external_customer_id) : null
@@ -662,8 +672,8 @@ export async function previewInvoiceForEconomic(
     invoice: inv,
     customer: (cust ?? {}) as Record<string, string | null>,
     customerNumber: Number.isFinite(linkedNumber) ? linkedNumber : null,
-    lines: lineRows ?? [],
-    config: s?.config ?? {},
+    lines: linesRes.data ?? [],
+    config: integrationError ? {} : (s?.config ?? {}),
   })
   if (!inv.customer_id) {
     draft.issues.unshift({ code: 'no_customer', severity: 'error', message: 'Fakturaen har ingen kunde' })
@@ -675,7 +685,9 @@ export async function previewInvoiceForEconomic(
     data: {
       invoice_number: inv.invoice_number,
       // Kun om nøgler FINDES — værdierne læses aldrig ud herfra.
-      integration_ready: Boolean(s?.active && s?.api_token && s?.agreement_grant_token),
+      integration_ready: integrationError ? false : Boolean(s?.active && s?.api_token && s?.agreement_grant_token),
+      integration_error: integrationError,
+      customer_error: customerError,
       external_id: inv.external_provider === PROVIDER ? inv.external_invoice_id : null,
       draft,
     },
@@ -697,11 +709,12 @@ export async function previewSupplierInvoiceForEconomic(
   incomingInvoiceId: string
 ): Promise<{ ok: true; data: EconomicSupplierInvoicePreview } | { ok: false; error: string }> {
   const supabase = createAdminClient()
-  const { data: inv } = await supabase
+  const { data: inv, error: invErr } = await supabase
     .from('incoming_invoices')
     .select('id, supplier_id, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat, payment_reference, external_invoice_id, external_provider')
     .eq('id', incomingInvoiceId)
     .maybeSingle()
+  if (invErr) return { ok: false, error: 'Kunne ikke hente fakturaen. Det tælles ikke som at fakturaen mangler.' }
   if (!inv) return { ok: false, error: 'Faktura ikke fundet' }
   const [settingsRes, supplierRes, linesRes] = await Promise.all([
     supabase.from('accounting_integration_settings').select('active, config, api_token, agreement_grant_token').eq('provider', PROVIDER).maybeSingle(),
