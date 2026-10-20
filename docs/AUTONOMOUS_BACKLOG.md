@@ -1583,7 +1583,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-849 | 2 Faktura | DONE. Dækningstallet på fakturakontrol kan krympe. | Kun den `<div className="font-medium break-words">` der viser `controlledLines` i `invoice-control-panel.tsx`. Beløbene er uændrede. |
 | G18-850 | 2 Faktura | DONE. Overprisbeløbet på fakturakontrol kan krympe. | Kun den div med `data-testid="invoice-control-overcharge"` i `invoice-control-panel.tsx`. Beløbene og `kr()` er uændrede. |
 | G18-851 | 2 Faktura | DONE. Beløbet på mobilkortet for indgående fakturaer kan krympe. | Kun den `<p className="font-medium text-gray-900 mt-2">` i `list-client.tsx`. `fmtAmount` er uændret. |
-| G18-852 | 2 Faktura | ÅBEN. Fejlen i fakturatællingen kan krympe. | Kun den `<p className="text-sm text-red-700" data-testid="incoming-invoices-counts-error">` i `list-client.tsx`. Sætningen er uændret. |
+| G18-852 | 2 Faktura | DONE. Fejlen i fakturatællingen kan krympe. | Kun den `<p className="text-sm text-red-700" data-testid="incoming-invoices-counts-error">` i `list-client.tsx`. Sætningen er uændret. |
+| G18-853 | 2 Faktura | ÅBEN. Fejlen om afsendere på fakturalisten kan krympe. | Kun den `<p className="text-sm text-red-700" data-testid="incoming-invoices-senders-error">` i `list-client.tsx`. Sætningen er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

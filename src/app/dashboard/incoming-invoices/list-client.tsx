@@ -257,7 +257,7 @@ export function IncomingInvoicesListClient({
       </div>
 
       {countsError && (
-        <p className="text-sm text-red-700" data-testid="incoming-invoices-counts-error">
+        <p className="text-sm text-red-700 break-words min-w-0" data-testid="incoming-invoices-counts-error">
           {countsError}. Det tælles ikke som 0.
         </p>
       )}
