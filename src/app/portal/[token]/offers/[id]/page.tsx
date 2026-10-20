@@ -42,6 +42,18 @@ export default async function PortalOfferPage({ params }: OfferPageProps) {
   }
 
   if (!offerResult.success || !offerResult.data) {
+    if (offerResult.error && offerResult.error !== 'Tilbud ikke fundet') {
+      return (
+        <main className="max-w-lg mx-auto p-6">
+          <p className="text-sm text-red-700" data-testid="portal-offer-load-error">
+            {offerResult.error} Det tælles ikke som at tilbuddet er væk.
+          </p>
+          <a href={`/portal/${token}`} className="mt-4 inline-block text-sm underline">
+            Tilbage til portalen
+          </a>
+        </main>
+      )
+    }
     redirect(`/portal/${token}`)
   }
 
