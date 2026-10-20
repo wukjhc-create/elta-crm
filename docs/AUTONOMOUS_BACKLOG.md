@@ -1751,6 +1751,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogtoogtresindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `41e5e1de`. Det lader tohundredeogenogtresindstyvende-hegnet stå. `41e5e1de` hedder `feat(reports): salgstragtens overskrift kan krympe`. `b516c654` hedder `feat(assistant): note-citat viser forkortelse`. `origin/grok-next` er `41e5e1de`. Push af `41e5e1de` lykkedes. `b516c654` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `b516c654..41e5e1de`
+
+```
+41e5e1de feat(reports): salgstragtens overskrift kan krympe
+b516c654 feat(assistant): note-citat viser forkortelse
+```
+
+Listen er skiftets commits fra `b516c654` til og med `41e5e1de`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+faab6eed docs: checkpoint efter b516c654
+```
+
+### Features
+
+G18-997 lader salgstragtens overskrift krympe. Ikonet, indledningen og satserne bliver. G18-996 lader note-svaret vise at citatet er forkortet når teksten er længere end 120 tegn. Insert og afsendelse bliver. Ingen webhook. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic.
+
+### Tests
+
+`scripts/sales-funnel-heading-wrap-test.ts` kalder `funnelMonthRates` fra `src/lib/reports/sales-funnel` og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. Den kørte med `npx tsx` og exiterede 0. `scripts/assistant-note-truncation-test.ts` er testen for note-forkortelsen og havde allerede exit 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `41e5e1de`. `b516c654` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d2b2521e`, tilbudslistens tælle-mærke i `589fad7b`, varenavnet i `943b355a`, mobilproducenten i `3d5409f1`, konverteringsteksten i `b0111850`, note-svaret i `a2532b6e`, salgstragtens indledning i `9f007f5f`, callback-svaret i `cbb55c21`, skrivebordsproducenten i `b488225a`, filikonet i `0490e08a`, fillisten i `512ef9cd`, billedgitteret i `ffbeb5f9`, download-ikonet i `848c7e72`, papirclipsen i `96f3195a`, venteteksten i `5d892a39`, tilbud ude-mærket i `6ba193f0`, navnecellen i `ba10bb6a`, mobilkortet i `e15fbf18`, den skjulte konverteringstekst i `b580e012`, note-forkortelsen i `b516c654`, og salgstragtens overskrift i `41e5e1de`. `faab6eed` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `41e5e1de`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-991, G18-998, G18-999, G18-1000, G18-1001, G18-1002, G18-1003, G18-1004, G18-1005, G18-1006, G18-1007, G18-1008, G18-1009, G18-1010, G18-1011.
+
 ## Checkpoint 2026-10-18 tohundredeogenogtresindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `b516c654`. Det lader tohundredeogtresindstyvende-hegnet stå. `b516c654` hedder `feat(assistant): note-citat viser forkortelse`. `b580e012` hedder `feat(offers): skjult konverteringstekst kan krympe`. `origin/grok-next` er `b516c654`. Push af `b516c654` lykkedes. `b580e012` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
