@@ -95,16 +95,16 @@ export function IncomingInvoiceCasePicker({
         role="dialog"
         aria-modal="true"
         aria-labelledby="ii-case-picker-title"
-        className="w-full max-w-lg rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl ring-1 ring-gray-200"
       >
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 id="ii-case-picker-title" className="text-base font-semibold text-gray-900">
+          <h2 id="ii-case-picker-title" className="text-base font-semibold text-gray-900 break-words min-w-0">
             {currentCaseId ? 'Skift sag' : 'Match til sag'}
           </h2>
           <button
             type="button"
             onClick={() => !submitting && onClose()}
-            className="p-1 hover:bg-gray-100 rounded"
+            className="p-1 hover:bg-gray-100 rounded shrink-0"
             aria-label="Luk"
           >
             <X className="w-4 h-4" />
@@ -112,7 +112,7 @@ export function IncomingInvoiceCasePicker({
         </div>
 
         <div className="px-4 py-3 space-y-3">
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-gray-600 break-words">
             Vælg den sag, fakturaen skal tilknyttes.
             {currentCaseId && (
               <>
@@ -141,8 +141,9 @@ export function IncomingInvoiceCasePicker({
                 <Loader2 className="w-3 h-3 animate-spin" /> Henter sager…
               </div>
             ) : loadError ? (
-              <div className="p-3 text-xs text-red-700 flex items-center gap-2">
-                <AlertCircle className="w-3 h-3" /> {loadError}
+              <div className="p-3 text-xs text-red-700 flex items-start gap-2">
+                <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                <span className="min-w-0 break-words">{loadError}</span>
               </div>
             ) : filtered.length === 0 ? (
               <div className="p-3 text-xs text-gray-500">Ingen åbne sager matcher</div>
@@ -187,13 +188,14 @@ export function IncomingInvoiceCasePicker({
           </div>
 
           {error && (
-            <div className="rounded ring-1 ring-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-800 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> {error}
+            <div className="rounded ring-1 ring-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-800 flex items-start gap-1">
+              <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+              <span className="min-w-0 break-words">{error}</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t bg-gray-50 px-4 py-2.5 rounded-b-lg">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-gray-50 px-4 py-2.5 rounded-b-lg">
           <button
             type="button"
             onClick={onClose}
