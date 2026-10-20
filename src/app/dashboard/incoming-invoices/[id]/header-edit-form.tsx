@@ -77,47 +77,47 @@ export function HeaderEditForm({
     await onSaved(r.message)
   }
 
-  const field = 'w-full rounded-md border border-gray-300 px-2 py-1 text-sm'
+  const field = 'w-full min-w-0 max-w-full rounded-md border border-gray-300 px-2 py-1 text-sm'
   return (
     <div className="space-y-2" data-testid="invoice-header-edit">
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <label className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm min-w-0">
+        <label className="min-w-0 sm:col-span-2">
           <span className="text-gray-500 text-xs">Faktura nr</span>
           <input className={field} value={form.invoice_number} onChange={set('invoice_number')} data-testid="header-invoice-number" />
         </label>
-        <label>
+        <label className="min-w-0">
           <span className="text-gray-500 text-xs">Faktura dato</span>
           <input type="date" className={field} value={form.invoice_date} onChange={set('invoice_date')} />
         </label>
-        <label>
+        <label className="min-w-0">
           <span className="text-gray-500 text-xs">Forfald</span>
           <input type="date" className={field} value={form.due_date} onChange={set('due_date')} />
         </label>
-        <label>
+        <label className="min-w-0">
           <span className="text-gray-500 text-xs">Valuta</span>
           <input className={field} value={form.currency} maxLength={3} onChange={set('currency')} />
         </label>
-        <label>
+        <label className="min-w-0">
           <span className="text-gray-500 text-xs">Beløb ekskl moms</span>
           <input inputMode="decimal" className={field} value={form.amount_excl_vat} onChange={set('amount_excl_vat')} data-testid="header-amount-excl" />
         </label>
-        <label>
+        <label className="min-w-0">
           <span className="text-gray-500 text-xs">Moms</span>
           <input inputMode="decimal" className={field} value={form.vat_amount} onChange={set('vat_amount')} data-testid="header-vat" />
         </label>
-        <label>
+        <label className="min-w-0">
           <span className="text-gray-500 text-xs">Beløb incl moms</span>
           <input inputMode="decimal" className={field} value={form.amount_incl_vat} onChange={set('amount_incl_vat')} data-testid="header-amount-incl" />
         </label>
       </div>
-      {error && <div className="text-xs text-red-700" data-testid="header-edit-error">{error}</div>}
-      <div className="flex gap-2 justify-end">
+      {error && <div className="text-xs text-red-700 break-words" data-testid="header-edit-error">{error}</div>}
+      <div className="flex flex-wrap gap-2 justify-end">
         <Button size="sm" variant="outline" onClick={onCancel} disabled={saving}>Annullér</Button>
         <Button size="sm" onClick={handleSave} disabled={saving} data-testid="header-edit-save">
           {saving && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}Gem
         </Button>
       </div>
-      <p className="text-[11px] text-gray-500">Ændringen logges i fakturaens historik. Ekskl. + moms skal give inkl. moms.</p>
+      <p className="text-[11px] text-gray-500 break-words">Ændringen logges i fakturaens historik. Ekskl. + moms skal give inkl. moms.</p>
     </div>
   )
 }
