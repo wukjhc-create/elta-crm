@@ -118,7 +118,7 @@ export function AftercalcOverviewClient() {
               </label>
               <label className="block min-w-0">
                 <span className="text-xs text-gray-500 break-words min-w-0">Ansvarlig</span>
-                <select value={filters.assigneeId ?? ''} onChange={(e) => setFilter({ assigneeId: e.target.value || null })} className="mt-0.5 w-full min-w-0 max-w-full rounded border border-gray-300 px-2 py-1">
+                <select value={filters.assigneeId ?? ''} onChange={(e) => setFilter({ assigneeId: e.target.value || null })} className="mt-0.5 w-full break-words min-w-0 max-w-full rounded border border-gray-300 px-2 py-1">
                   <option value="">Alle</option>
                   {assignees.map((a) => <option key={a.id} value={a.id}>{a.full_name || 'Uden navn'}</option>)}
                 </select>
