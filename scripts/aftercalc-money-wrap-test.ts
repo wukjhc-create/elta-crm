@@ -14,7 +14,7 @@ eq('gitteret kan krympe', mobile.includes('grid grid-cols-2 gap-x-3 gap-y-1 text
 eq('beloeb ombrydes', mobile.split('tabular-nums text-gray-900 break-words').length - 1, 4)
 eq('tilbudt mobilbeloeb kan krympe', mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.quoted_revenue)}</dd>'), true)
 eq('faktisk mobilbeloeb kan krympe', mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.actual_revenue)}</dd>'), true)
-eq('tilbudt db bliver', mobile.includes('<dd className="tabular-nums text-gray-900 break-words">{pct(r.quoted_db_pct)}</dd>'), true)
+eq('tilbudt db kan krympe', mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{pct(r.quoted_db_pct)}</dd>'), true)
 eq('faktisk db bliver', mobile.includes('<dd className="tabular-nums text-gray-900 break-words">{pct(r.actual_db_pct)}</dd>'), true)
 eq('afvigelse ombrydes', mobile.includes('text-sm tabular-nums break-words'), true)
 eq('omsaetning bliver', mobile.includes('kr(r.quoted_revenue)') && mobile.includes('kr(r.actual_revenue)'), true)
