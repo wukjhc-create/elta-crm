@@ -188,7 +188,7 @@ export function IncomingInvoicesListClient({
             disabled={seedBusy}
             variant="outline"
             size="sm"
-            className="border-amber-300 text-amber-900 hover:bg-amber-50"
+            className="border-amber-300 text-amber-900 hover:bg-amber-50 break-words min-w-0"
           >
             {seedBusy ? 'Opretter…' : '+ Opret test-leverandørfaktura'}
           </Button>
