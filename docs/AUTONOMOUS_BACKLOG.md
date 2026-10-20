@@ -1553,6 +1553,52 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogtolvte (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `000c1d3e`. Det lader hundredeogellevte-hegnet stå. `000c1d3e` hedder `feat(profit): sortering-feltet paa efterkalkulation kan krympe`. `21bb0368` hedder `feat(profit): afvigelse-feltet paa efterkalkulation kan krympe`. `008f5982` hedder `feat(profit): status-feltet paa efterkalkulation kan krympe`. `d2c0cca9` hedder `feat(profit): til-dato-feltet paa efterkalkulation kan krympe`. `origin/grok-next` er `000c1d3e`. Push af `000c1d3e` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `d2c0cca9..000c1d3e`
+
+```
+000c1d3e feat(profit): sortering-feltet paa efterkalkulation kan krympe
+21bb0368 feat(profit): afvigelse-feltet paa efterkalkulation kan krympe
+008f5982 feat(profit): status-feltet paa efterkalkulation kan krympe
+c013b575 feat(profit): ansvarlig-feltet paa efterkalkulation kan krympe
+d2c0cca9 feat(profit): til-dato-feltet paa efterkalkulation kan krympe
+```
+
+Listen er skiftets commits fra `d2c0cca9` til og med `000c1d3e`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+a5307e4e docs: checkpoint efter 621bed34
+```
+
+### Features
+
+G18-808 lader kun til-dato-feltet krympe. De andre filtre bliver. G18-809 lader kun ansvarlig-feltet krympe. G18-810 lader kun status-feltet krympe. G18-811 lader kun afvigelse-feltet krympe. G18-812 lader kun sortering-feltet krympe. Beløbene bliver. `kr()`, `pct()` og `varianceText()` bliver. Beløb, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/aftercalc-overview-to-input-wrap-test.ts`, `scripts/aftercalc-overview-assignee-input-wrap-test.ts`, `scripts/aftercalc-overview-status-input-wrap-test.ts`, `scripts/aftercalc-overview-variance-input-wrap-test.ts` og `scripts/aftercalc-overview-sort-input-wrap-test.ts` læser den shippede efterkalkulation og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetestene for penge, sideantal og de elementer, der netop blev låst, exiterede 0 sammen med det commit, der ændrede elementet. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for hvert produktcommit i hegnet. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `000c1d3e`, herunder G18-748 til G18-812. `a5307e4e` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `000c1d3e`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-813, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogellevte (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `621bed34`. Det lader hundredeogtiende-hegnet stå. `621bed34` hedder `feat(profit): fra-dato-feltet paa efterkalkulation kan krympe`. `16ff3af8` hedder `feat(profit): filtergitteret paa efterkalkulation kan krympe`. `0705a246` hedder `feat(profit): etiketten omkring manglende kost kan krympe`. `c43d21e0` hedder `feat(profit): db-afvigelsen paa mobilkortet kan krympe`. `origin/grok-next` er `621bed34`. Push af `621bed34` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
