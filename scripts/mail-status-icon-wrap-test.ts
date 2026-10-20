@@ -32,7 +32,7 @@ ok(view.split(bare).length === 1, 'det bare ikon er vaek')
 ok(view.includes('{c.label}'), 'statusteksten bliver')
 ok(view.includes('data-testid="mail-unlink-x"'), 'fjern-ikonet bliver')
 ok(view.includes('data-testid="mail-pending-dl-icon"'), 'download-ikonet bliver')
-ok(view.includes('<Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0" />'), 'filikonet bliver')
+ok(view.includes('<Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0 break-words min-w-0" />'), 'filikonet ombrydes')
 ok(view.includes('data-testid="mail-body-loading"'), 'indlaesningen bliver')
 ok(view.includes('data-testid="mail-create-offer"'), 'opret-tilbud bliver')
 
