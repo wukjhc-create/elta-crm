@@ -100,8 +100,10 @@ export function EditSiteInfoDialog({
   )
   const [customerQuery, setCustomerQuery] = useState('')
   const [customerResults, setCustomerResults] = useState<CustomerSearchResult[]>([])
+  const [customerSearchError, setCustomerSearchError] = useState<string | null>(null)
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
   const [searchingCustomers, setSearchingCustomers] = useState(false)
+  const customerResultsQuery = useRef<string | null>(null)
 
   // Section C — site_contact
   const [siteContactId, setSiteContactId] = useState<string | null>(
@@ -169,13 +171,25 @@ export function EditSiteInfoDialog({
   // Customer search debounce
   useEffect(() => {
     if (!customerSearchOpen) return
+    let alive = true
+    const term = customerQuery
     const handle = setTimeout(async () => {
       setSearchingCustomers(true)
-      const res = await searchCustomersForSite(customerQuery)
-      if (res.success) setCustomerResults(res.results)
+      const res = await searchCustomersForSite(term)
+      if (!alive) return
+      if (res.success) {
+        setCustomerResults(res.results)
+        customerResultsQuery.current = term
+        setCustomerSearchError(null)
+      } else if (customerResultsQuery.current === term) {
+        setCustomerSearchError(res.error || 'Søgning fejlede')
+      } else {
+        setCustomerResults([])
+        setCustomerSearchError(res.error || 'Søgning fejlede')
+      }
       setSearchingCustomers(false)
     }, 250)
-    return () => clearTimeout(handle)
+    return () => { alive = false; clearTimeout(handle) }
   }, [customerQuery, customerSearchOpen])
 
   const handleSave = async () => {
@@ -415,6 +429,7 @@ export function EditSiteInfoDialog({
                       setCustomerSearchOpen(false)
                       setCustomerQuery('')
                       setCustomerResults([])
+                      setCustomerSearchError(null)
                     }}
                     disabled={saving}
                     className="text-xs text-gray-500 hover:underline"
@@ -426,27 +441,36 @@ export function EditSiteInfoDialog({
                   <div className="text-xs text-gray-500 flex items-center gap-1">
                     <Loader2 className="w-3 h-3 animate-spin" /> Søger...
                   </div>
-                ) : customerResults.length === 0 ? (
-                  <div className="text-xs text-gray-500">Ingen resultater</div>
                 ) : (
-                  <ul className="border bg-white rounded divide-y max-h-48 overflow-y-auto">
-                    {customerResults.map((c) => (
-                      <li key={c.id}>
-                        <button
-                          type="button"
-                          onClick={() => handleSelectCustomer(c)}
-                          className="w-full text-left px-2 py-1.5 text-xs hover:bg-blue-50"
-                        >
-                          <div className="font-medium text-gray-900">{c.company_name}</div>
-                          <div className="text-gray-500">
-                            {c.customer_number}
-                            {c.contact_person ? ` · ${c.contact_person}` : ''}
-                            {c.email ? ` · ${c.email}` : ''}
-                          </div>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    {customerSearchError && (
+                      <div className="text-xs text-red-700 break-words" data-testid="site-customer-search-error">
+                        {customerSearchError}{customerResults.length === 0 ? '. Det tælles ikke som ingen kunder.' : '. De tidligere forslag bliver.'}
+                      </div>
+                    )}
+                    {!customerSearchError && customerResults.length === 0 ? (
+                      <div className="text-xs text-gray-500">Ingen resultater</div>
+                    ) : customerResults.length > 0 ? (
+                      <ul className="border bg-white rounded divide-y max-h-48 overflow-y-auto">
+                        {customerResults.map((c) => (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectCustomer(c)}
+                              className="w-full text-left px-2 py-1.5 text-xs hover:bg-blue-50"
+                            >
+                              <div className="font-medium text-gray-900">{c.company_name}</div>
+                              <div className="text-gray-500">
+                                {c.customer_number}
+                                {c.contact_person ? ` · ${c.contact_person}` : ''}
+                                {c.email ? ` · ${c.email}` : ''}
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </>
                 )}
               </div>
             )}
