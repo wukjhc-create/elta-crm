@@ -26,7 +26,7 @@ ok(after.includes('Total'), 'totalteksten bliver')
 ok(view.split(bare).length === 1, 'den bare totalraekke er vaek')
 ok(!view.includes(bare), 'den bare totalraekke er vaek')
 ok(view.includes('className="text-red-700 hover:underline break-words min-w-0"'), 'originallinket bliver')
-ok(view.includes('className="w-12 shrink-0 text-right font-mono font-medium"'), 'totalscoren bliver')
+ok(view.includes('className="w-12 shrink-0 text-right font-mono font-medium break-words min-w-0"'), 'totalscoren bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

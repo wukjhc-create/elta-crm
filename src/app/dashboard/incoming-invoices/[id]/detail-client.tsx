@@ -467,7 +467,7 @@ export function IncomingInvoiceDetailClient({
               <div className="flex-1 h-2 bg-gray-100 rounded overflow-hidden">
                 <div className="h-2 bg-blue-500" style={{ width: `${Math.min(100, Number(breakdown.total ?? 0) * 100)}%` }} />
               </div>
-              <span className="w-12 shrink-0 text-right font-mono font-medium">{Number(breakdown.total ?? 0).toFixed(2)}</span>
+              <span className="w-12 shrink-0 text-right font-mono font-medium break-words min-w-0">{Number(breakdown.total ?? 0).toFixed(2)}</span>
             </div>
             {Array.isArray(breakdown.reasons) && breakdown.reasons.length > 0 && (
               <div className="text-xs text-gray-500 mt-2 break-words">
