@@ -57,6 +57,8 @@ export function EditOrderForm({
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [offers, setOffers] = useState<{ id: string; offer_number: string | null; title: string }[]>([])
+  const [offerLoadError, setOfferLoadError] = useState<string | null>(null)
+  const [offerTry, setOfferTry] = useState(0)
 
   const {
     register,
@@ -93,18 +95,23 @@ export function EditOrderForm({
   useEffect(() => {
     let cancelled = false
     async function load() {
-      if (!customerId) {
-        setOffers([])
-        return
+      setOffers([])
+      setOfferLoadError(null)
+      if (!customerId) return
+      try {
+        const res = await getOffersForOrderSelect(customerId)
+        if (cancelled) return
+        if (res.success) setOffers(res.data ?? [])
+        else setOfferLoadError(res.error ?? 'Kunne ikke hente tilbud')
+      } catch {
+        if (!cancelled) setOfferLoadError('Kunne ikke hente tilbud')
       }
-      const res = await getOffersForOrderSelect(customerId)
-      if (!cancelled && res.success && res.data) setOffers(res.data)
     }
     load()
     return () => {
       cancelled = true
     }
-  }, [customerId])
+  }, [customerId, offerTry])
 
   const onSubmit = async (data: CreateServiceCaseInput) => {
     setError(null)
@@ -266,7 +273,22 @@ export function EditOrderForm({
           />
         </Field>
 
-        {customerId && offers.length > 0 && (
+        {customerId && offerLoadError && (
+          <Field label="Knyt til tilbud (valgfrit)">
+            <p className="text-sm text-red-700" data-testid="order-offer-load-error">
+              {offerLoadError}. Det tælles ikke som ingen tilbud.
+            </p>
+            <button
+              type="button"
+              onClick={() => setOfferTry((n) => n + 1)}
+              className="mt-2 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800"
+            >
+              Prøv igen
+            </button>
+          </Field>
+        )}
+
+        {customerId && !offerLoadError && offers.length > 0 && (
           <Field label="Knyt til tilbud (valgfrit)">
             <select
               defaultValue={sag.source_offer_id ?? ''}
