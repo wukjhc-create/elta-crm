@@ -40,7 +40,7 @@ const unitCell = '<td className="px-2 py-1 break-words min-w-0">{l.unit ?? \'—
 ok(view.includes(unitCell), 'enhedscellen bliver')
 ok(view.split(unitCell).length === 2, 'enhedscellen er en')
 
-const stk = '<th className="px-2 py-1 text-right">Stk-pris</th>'
+const stk = '<th className="px-2 py-1 text-right break-words min-w-0">Stk-pris</th>'
 ok(view.includes(stk), 'stkpriskolonnen bliver')
 ok(view.split(stk).length === 2, 'stkpriskolonnen er en')
 
