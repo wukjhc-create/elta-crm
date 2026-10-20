@@ -37,7 +37,8 @@ import {
 } from '@/lib/actions/suppliers'
 import type { SupplierProductWithSupplier, SupplierProductFilters } from '@/types/suppliers.types'
 import { formatDate as formatDateUtil } from '@/lib/utils'
-import { formatCurrency } from '@/lib/utils/format'
+// Grok 0bed1770/25fcbc76/33261682: manglende kost-/liste-/salgspris siges ('Ingen lagret pris'); lagret 0 vises som 0 kr
+import { storedCostText } from '@/lib/products/stored-cost-text'
 
 type SortColumn = SupplierProductFilters['sortBy']
 
@@ -247,13 +248,13 @@ export function SupplierProductsTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {product.cost_price !== null ? formatCurrency(product.cost_price) : '-'}
+                    {storedCostText(product.cost_price)}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {product.list_price !== null ? formatCurrency(product.list_price) : '-'}
+                    {storedCostText(product.list_price)}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm text-blue-600">
-                    {product.effective_sale_price !== null ? formatCurrency(product.effective_sale_price) : '-'}
+                    {storedCostText(product.effective_sale_price)}
                   </TableCell>
                   <TableCell>
                     <Badge variant={product.is_available ? 'default' : 'secondary'}>
