@@ -10,7 +10,10 @@ const kr = (n: number) => new Intl.NumberFormat('da-DK', { style: 'currency', cu
 const monthLabel = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString('da-DK', { month: 'short', year: '2-digit', timeZone: 'UTC' })
 const pct = (n: number | null) => (n == null ? '—' : `${n.toLocaleString('da-DK', { maximumFractionDigits: 1 })} %`)
 
-export function SalesFunnelTable({ data }: { data: SalesFunnel | null }) {
+export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | null; error?: boolean }) {
+  if (!data && error) {
+    return <p className="text-sm text-red-700 bg-white rounded-lg border p-4">Kunne ikke hente salgstragten. De andre tal på siden er uændrede.</p>
+  }
   if (!data) return null
   const t = data.totals
   return (

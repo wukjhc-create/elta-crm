@@ -587,6 +587,7 @@ export default function ReportsClient({ exports: allowedExports }: { exports?: P
   const [team, setTeam] = useState<TeamProductivity[]>([])
   const [rejections, setRejections] = useState<RejectionStats | null>(null)
   const [funnel, setFunnel] = useState<SalesFunnel | null>(null)
+  const [funnelError, setFunnelError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -619,6 +620,9 @@ export default function ReportsClient({ exports: allowedExports }: { exports?: P
       }
       if (funnelRes.status === 'fulfilled' && funnelRes.value.success) {
         setFunnel(funnelRes.value.data || null)
+        setFunnelError(false)
+      } else {
+        setFunnelError(true)
       }
       setIsLoading(false)
     }
@@ -695,7 +699,7 @@ export default function ReportsClient({ exports: allowedExports }: { exports?: P
 
       {/* Project Profitability */}
       {/* N53: salgstragt pr. måned */}
-      <SalesFunnelTable data={funnel} />
+      <SalesFunnelTable data={funnel} error={funnelError} />
 
       <ProjectTable />
 
