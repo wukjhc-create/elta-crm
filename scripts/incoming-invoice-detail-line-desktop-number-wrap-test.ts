@@ -33,7 +33,7 @@ const qty = '<td className="px-2 py-1 text-right break-words min-w-0">{l.quantit
 ok(view.includes(qty), 'antalcellen bliver')
 ok(view.split(qty).length === 2, 'antalcellen er en')
 
-const hash = '<th className="px-2 py-1">#</th>'
+const hash = '<th className="px-2 py-1 break-words min-w-0">#</th>'
 ok(view.includes(hash), 'nummerkolonnen bliver')
 ok(view.split(hash).length === 2, 'nummerkolonnen er en')
 

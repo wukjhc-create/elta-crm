@@ -512,7 +512,7 @@ export function IncomingInvoiceDetailClient({
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
-                  <th className="px-2 py-1">#</th>
+                  <th className="px-2 py-1 break-words min-w-0">#</th>
                   <th className="px-2 py-1">Beskrivelse</th>
                   <th className="px-2 py-1 text-right">Antal</th>
                   <th className="px-2 py-1">Enhed</th>
