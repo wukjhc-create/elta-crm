@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,7 +50,10 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
   // S2: valgt ladestander (hardware fra produktkataloget — aldrig automatisk)
   const [chargerQuery, setChargerQuery] = useState('')
   const [chargerHits, setChargerHits] = useState<ChargerSearchHit[]>([])
+  const [chargerError, setChargerError] = useState<string | null>(null)
   const [charger, setCharger] = useState<ChargerSearchHit | null>(null)
+  const chargerReq = useRef(0)
+  const chargerQueryRef = useRef<string | null>(null)
   const router = useRouter()
   const toast = useToast()
   const [description, setDescription] = useState('')
@@ -259,18 +262,34 @@ export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: b
                   onChange={async (e) => {
                     const q = e.target.value
                     setChargerQuery(q)
+                    const req = ++chargerReq.current
                     const r = await searchChargerProducts(q)
-                    setChargerHits(r.success && r.data ? r.data : [])
+                    if (req !== chargerReq.current) return
+                    if (r.success) {
+                      setChargerHits(r.data ?? [])
+                      chargerQueryRef.current = q
+                      setChargerError(null)
+                    } else if (chargerQueryRef.current === q) {
+                      setChargerError(r.error || 'Kunne ikke søge i produktkataloget')
+                    } else {
+                      setChargerHits([])
+                      setChargerError(r.error || 'Kunne ikke søge i produktkataloget')
+                    }
                   }}
                   placeholder="Søg ladeboks i produktkataloget (fx Zaptec, Easee, EVlink)…"
                   aria-label="Søg ladestander"
                   className="w-full rounded-md border px-3 py-1.5 text-sm"
                 />
+                {chargerError && (
+                  <p className="mt-1 text-xs text-red-700" data-testid="charger-search-error">
+                    {chargerError}{chargerHits.length === 0 ? '. Det tælles ikke som ingen ladestandere.' : '. De tidligere forslag bliver.'}
+                  </p>
+                )}
                 {chargerHits.length > 0 && (
                   <ul className="mt-2 max-h-48 overflow-auto divide-y text-sm">
                     {chargerHits.map((h) => (
                       <li key={h.id}>
-                        <button type="button" className="w-full text-left px-2 py-1 hover:bg-purple-50" onClick={() => { setCharger(h); setChargerHits([]) }}>
+                        <button type="button" className="w-full text-left px-2 py-1 hover:bg-purple-50" onClick={() => { setCharger(h); setChargerHits([]); setChargerError(null) }}>
                           {h.name}{h.sku ? ` · ${h.sku}` : ''} — {formatCurrency(h.cost_price)}{h.available ? '' : ' (ikke tilgængelig)'}
                         </button>
                       </li>
