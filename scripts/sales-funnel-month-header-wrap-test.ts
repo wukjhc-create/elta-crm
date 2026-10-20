@@ -29,7 +29,8 @@ ok(view.includes('className="pb-2 font-medium text-gray-500 text-right">Nye kund
 ok(view.includes('className="pb-2 font-medium text-gray-500 text-right">Faktureret</th>'), 'faktureret bliver')
 ok(view.includes('-15T12:00:00Z'), 'maanedens anker bliver')
 ok(view.includes("timeZone: 'UTC'"), 'maanedsmatekken bliver')
-ok(view.includes('className="py-2 text-gray-900"'), 'maanedscellen bliver')
+ok(view.includes('className="py-2 text-gray-900 break-words min-w-0"'), 'maanedscellen kan krympe')
+ok(!view.includes('className="py-2 text-gray-900"'), 'maanedscellen er ikke bar')
 ok(view.includes('formatCurrency') === false, 'tabellen opfinder ikke en pris')
 
 if (bad > 0) {
