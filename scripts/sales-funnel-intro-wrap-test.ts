@@ -22,7 +22,7 @@ ok(table.split(intro).length === 2, 'kun indledningen har den klasse')
 ok(table.includes('Sendt-rate {pct(t.sent_rate)} af oprettede tilbud · vinderrate {pct(t.win_rate)} af sendte.'), 'teksten bruger stadig pct')
 ok(table.includes("const pct = (n: number | null) => (n == null ? '—' : `${n.toLocaleString('da-DK', { maximumFractionDigits: 1 })} %`)"), 'pct bliver')
 ok(table.includes('funnelMonthRates(m)'), 'maanedens satser bliver')
-ok(table.includes('<h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">'), 'overskriften er ikke ombrudt her')
+ok(table.includes('<h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2 break-words min-w-0">'), 'overskriften kan krympe')
 
 const reports = readFileSync('src/lib/actions/reports.ts', 'utf8')
 ok(reports.includes('export async function getSalesFunnel(months: number = 6)'), 'hentningen bliver')

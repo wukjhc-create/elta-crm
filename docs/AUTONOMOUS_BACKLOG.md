@@ -1728,7 +1728,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-994 | 8 Pilot | DONE. Mobilkortet for en leverandørvare kan krympe. | Kun article med klassen rounded-lg border bg-white p-3 space-y-2 text-sm i supplier-products-table.tsx. Priser, navn og status er uændrede. |
 | G18-995 | 6 Salg | DONE. Konverteringsmærkets skjulte tekst kan krympe. | Kun span med klassen sr-only i offer-conversion-badge.tsx. Sagsnummeret og linket er uændrede. |
 | G18-996 | 7 Assistent | DONE. Note-svaret viser at citatet er forkortet når teksten er længere end 120 tegn. | Kun noteSavedReply. Insert og afsendelse er uændrede. |
-| G18-997 | 6 Salg | ÅBEN. Salgstragtens overskrift ombrydes. | Kun h3 med Salgstragt i sales-funnel-table.tsx. Ikonet, indledningen og satserne er uændrede. |
+| G18-997 | 6 Salg | DONE. Salgstragtens overskrift ombrydes. | Kun h3 med Salgstragt i sales-funnel-table.tsx. Ikonet, indledningen og satserne er uændrede. |
 | G18-998 | 7 Assistent | ÅBEN. Påmindelses-svaret siger at kunden ikke er kontaktet. | Kun reminder-teksten. Insert og afsendelse er uændrede. Ingen webhook. |
 | G18-999 | 8 Pilot | ÅBEN. Navnerammen på leverandørvarens skrivebord kan krympe. | Kun div uden klasse lige før product.supplier_name i skrivebordstabellen. Producent, priser og mobilkort er uændrede. |
 | G18-1000 | 8 Pilot | ÅBEN. Filikonet på lead-detaljen kan krympe. | Kun Icon med klassen w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0 i lead-detail-client.tsx. Mail-detaljen er uændret. |
@@ -1742,6 +1742,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-1008 | 8 Pilot | ÅBEN. Statuscellen på leverandørvarens skrivebord kan krympe. | Kun den TableCell der omslutter skrivebordsstatussen i supplier-products-table.tsx. Mærket, priser og navn er uændrede. |
 | G18-1009 | 6 Salg | ÅBEN. Konverteringslinket kan krympe. | Kun Link med klassen inline-flex items-center gap-1 rounded-full bg-emerald-50 ring-1 ring-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 i offer-conversion-badge.tsx. Sagsnummeret og href er uændrede. |
 | G18-1010 | 6 Salg | ÅBEN. Advarslen Sag mangler kan krympe. | Kun span med klassen inline-flex items-center gap-1 rounded-full bg-amber-50 ring-1 ring-amber-200 px-2 py-0.5 text-xs font-medium text-amber-700 i offer-conversion-badge.tsx. Teksten og titlen er uændrede. |
+| G18-1011 | 6 Salg | ÅBEN. Fejlteksten i salgstragten kan krympe. | Kun p med klassen text-sm text-red-700 bg-white rounded-lg border p-4 i sales-funnel-table.tsx. Teksten er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
