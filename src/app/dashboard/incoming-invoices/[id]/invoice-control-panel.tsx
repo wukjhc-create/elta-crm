@@ -64,7 +64,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
         {v && <span className={`text-xs px-2 py-1 rounded border break-words min-w-0 ${v.cls}`} data-testid="invoice-control-verdict">{v.label}</span>}
       </div>
       {error && (
-        <div className="text-xs text-red-600">
+        <div className="text-xs text-red-600 break-words min-w-0">
           <p className="break-words min-w-0" data-testid="invoice-control-load-error">{error}. Det tælles ikke som at priserne stemmer.</p>
           <button type="button" onClick={() => setTryKey((n) => n + 1)} className="mt-2 min-h-[44px] px-3 text-sm font-medium border rounded-lg text-gray-800">
             Prøv igen
