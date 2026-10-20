@@ -10,7 +10,7 @@ const eq = (name: string, got: unknown, want: unknown) => {
 
 const src = fs.readFileSync('src/app/dashboard/reports/aftercalc/aftercalc-overview-client.tsx', 'utf8')
 const mobile = src.slice(src.indexOf('data-testid="aftercalc-overview-mobile"'), src.indexOf('hidden md:block overflow-x-auto'))
-eq('gitteret kan krympe', mobile.includes('grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0'), true)
+eq('gitteret kan krympe', mobile.includes('grid grid-cols-2 gap-x-3 gap-y-1 text-xs break-words min-w-0'), true)
 eq('beloeb ombrydes', mobile.split('tabular-nums text-gray-900 break-words').length - 1, 4)
 eq('tilbudt mobilbeloeb kan krympe', mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.quoted_revenue)}</dd>'), true)
 eq('faktisk mobilbeloeb kan krympe', mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.actual_revenue)}</dd>'), true)

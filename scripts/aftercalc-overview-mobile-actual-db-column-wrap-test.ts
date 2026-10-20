@@ -39,7 +39,7 @@ ok(!view.includes('<div className="min-w-0">'), 'ingen bar kolonne bliver')
 ok(view.includes('{pct(r.actual_db_pct)}'), 'faktisk db bliver')
 ok(view.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{pct(r.actual_db_pct)}</dd>'), 'procentlinjen kan krympe')
 ok(view.includes('{pct(r.quoted_db_pct)}'), 'tilbudt db bliver')
-ok(view.includes('className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0"'), 'listen bliver')
+ok(view.includes('className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs break-words min-w-0"'), 'listen kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 
 if (bad > 0) {
