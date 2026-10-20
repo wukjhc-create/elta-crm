@@ -97,6 +97,9 @@ export function IncomingInvoiceSupplierPicker({ invoiceId }: { invoiceId: string
         )}
         {busy && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
       </div>
+      {ctx.same_domain_failed && (
+        <p className="text-xs text-red-800" data-testid="invoice-supplier-domain-count-error">Andre fakturaer fra afsenderen kunne ikke tælles. Det tælles ikke som 0.</p>
+      )}
       {ctx.sameDomainOpen > 0 && ctx.senderDomain && (
         <label className="flex items-center gap-2 text-xs text-gray-700" data-testid="invoice-supplier-same-domain">
           <input type="checkbox" checked={alsoSameDomain} onChange={(e) => setAlsoSameDomain(e.target.checked)} />
