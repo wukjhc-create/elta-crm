@@ -1796,6 +1796,39 @@ export function BillingStandardMode({
         {data.materials.length === 0 ? (
           <Empty>Ingen ufakturerede materialer på sagen.</Empty>
         ) : (
+          <>
+          <ul className="md:hidden space-y-2 p-2" data-testid="billing-materials-mobile">
+            {data.materials.map((m) => (
+              <li key={m.id} className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${!m.has_sale_price ? 'bg-amber-50/40' : ''}`}>
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedMaterials.has(m.id)}
+                    onChange={() => toggleSet(selectedMaterials, setSelectedMaterials, m.id)}
+                    disabled={submitting}
+                    aria-label="Vælg materiale"
+                    className="mt-1"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium text-gray-900 break-words">{m.description}</p>
+                      <p className="shrink-0 tabular-nums font-medium">{fmtKr(m.total_sales_price)}</p>
+                    </div>
+                    <p className="text-xs text-gray-600 break-words">{m.supplier_name ?? '—'}</p>
+                    {!m.has_sale_price && (
+                      <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                        Mangler salgspris
+                      </span>
+                    )}
+                    <p className="mt-1 text-xs tabular-nums text-gray-700">
+                      {m.quantity.toLocaleString('da-DK', { maximumFractionDigits: 2 })} {m.unit} · {fmtKr(m.unit_sales_price)}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-left text-gray-600">
               <tr>
@@ -1847,6 +1880,8 @@ export function BillingStandardMode({
               ))}
             </tbody>
           </table>
+          </div>
+          </>
         )}
       </Section>
 
