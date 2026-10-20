@@ -133,8 +133,12 @@ export async function getPackages(filters?: {
       if (sanitized) countQuery = countQuery.or(`name.ilike.${pgQuote(`%${sanitized}%`)},code.ilike.${pgQuote(`%${sanitized}%`)}`)
     }
 
-    const { count } = await countQuery
-    const total = count || 0
+    const { count, error: countError } = await countQuery
+    if (countError) {
+      logger.error('Database error counting packages', { error: countError })
+      throw new Error('DATABASE_ERROR')
+    }
+    const total = count ?? 0
     const totalPages = Math.ceil(total / pageSize)
 
     // Build data query

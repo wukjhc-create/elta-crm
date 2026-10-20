@@ -47,6 +47,7 @@ export function PackageBrowser({
   const [packages, setPackages] = useState<PackageSummary[]>([])
   const [categories, setCategories] = useState<PackageCategory[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [loadingPackage, setLoadingPackage] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const toast = useToast()
@@ -63,11 +64,15 @@ export function PackageBrowser({
 
         if (packagesResult.success && packagesResult.data) {
           setPackages(packagesResult.data as unknown as PackageSummary[])
+          setLoadError(null)
+        } else {
+          setLoadError(packagesResult.error || 'Kunne ikke hente pakker')
         }
         if (categoriesResult.success && categoriesResult.data) {
           setCategories(categoriesResult.data)
         }
       } catch {
+        setLoadError('Kunne ikke hente pakker')
         toast.error('Kunne ikke hente pakker')
       } finally {
         setLoading(false)
@@ -244,6 +249,10 @@ export function PackageBrowser({
             <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2" />
             Henter pakker...
           </div>
+        ) : loadError && packages.length === 0 ? (
+          <p className="p-8 text-center text-sm text-amber-800" data-testid="package-browser-load-error">
+            {loadError}. Det tælles ikke som ingen pakker.
+          </p>
         ) : filteredPackages.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <Package className="w-12 h-12 mx-auto mb-4 opacity-30" />
