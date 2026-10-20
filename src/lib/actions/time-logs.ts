@@ -73,9 +73,15 @@ export async function listTimeLogsForWorkOrder(
 
     // Sprint 7E — montor maa kun se time_logs paa egne work_orders.
     if (!hasPermission('time_logs.view.all')) {
-      const woScope = await getWorkOrderScope({ role, userId, supabase })
-      if (woScope.type === 'specific' && !woScope.workOrderIds.includes(workOrderId)) {
-        return { success: true, data: [] }
+      // PF3-2: én opslag på arbejdsordren i stedet for alle montørens id'er
+      const woScope = await getWorkOrderEmployeeScope({ role, userId, supabase })
+      if (woScope.type === 'employee') {
+        const { data: wo } = woScope.employeeId
+          ? await supabase.from('work_orders').select('assigned_employee_id').eq('id', workOrderId).maybeSingle()
+          : { data: null }
+        if (!wo || (wo as { assigned_employee_id: string | null }).assigned_employee_id !== woScope.employeeId) {
+          return { success: true, data: [] }
+        }
       }
     }
 
@@ -110,29 +116,28 @@ export async function listTimeLogsForCase(
     }
 
     // Sprint 7E — montor scope: kun egne work_orders.
-    let scopedWoIds: string[] | null = null
+    // PF3-2: montørens scope = arbejdsordrer på sagen tildelt hans medarbejder (filtreres i databasen)
+    let scopedEmployeeId: string | null | undefined
     if (!hasPermission('time_logs.view.all')) {
-      const woScope = await getWorkOrderScope({ role, userId, supabase })
-      if (woScope.type === 'specific') {
-        scopedWoIds = woScope.workOrderIds
-        if (scopedWoIds.length === 0) return { success: true, data: [] }
+      const woScope = await getWorkOrderEmployeeScope({ role, userId, supabase })
+      if (woScope.type === 'employee') {
+        if (!woScope.employeeId) return { success: true, data: [] }
+        scopedEmployeeId = woScope.employeeId
       }
     }
 
     // Pull all work_orders for the case so we can scope the time_logs query.
-    const { data: woRows, error: woErr } = await supabase
+    let woQuery = supabase
       .from('work_orders')
       .select('id')
       .eq('case_id', caseId)
+    if (scopedEmployeeId) woQuery = woQuery.eq('assigned_employee_id', scopedEmployeeId)
+    const { data: woRows, error: woErr } = await woQuery
     if (woErr) {
       logger.error('listTimeLogsForCase: failed to fetch work_orders', { error: woErr })
       return { success: false, error: 'Kunne ikke hente arbejdsordrer for sagen' }
     }
-    let woIds = (woRows || []).map((r) => r.id as string)
-    // Sprint 7E — for montor: skaer ned til work_orders bruger maa se.
-    if (scopedWoIds !== null) {
-      woIds = woIds.filter((id) => scopedWoIds!.includes(id))
-    }
+    const woIds = (woRows || []).map((r) => r.id as string)
     if (woIds.length === 0) return { success: true, data: [] }
 
     // Review 2026-10-16 (R-2): pagineret og i bidder — listen deles med alle arbejdsordre-rækker (M-9), så 1.000-loftet
@@ -206,9 +211,10 @@ export async function suggestTimeLogStartAction(employeeId: string, date: string
     const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('time_logs.create')) return { success: false, error: 'Manglende tilladelse: time_logs.create' }
     if (!hasPermission('time_logs.edit.all')) {
-      const woScope = await getWorkOrderScope({ role, userId, supabase })
+      // PF3-2: kun medarbejder-id'et behøves
+      const woScope = await getWorkOrderEmployeeScope({ role, userId, supabase })
       // R-7: også uden medarbejder-række (employeeId null) → ingen opslag på andres tider
-      if (woScope.type === 'specific' && woScope.employeeId !== employeeId) {
+      if (woScope.type === 'employee' && woScope.employeeId !== employeeId) {
         return { success: true, data: { clock: null } }
       }
     }
@@ -429,9 +435,13 @@ export async function updateTimeLog(
 
     // Sprint 7E — for montor: skal eje work_order + employee_id matcher.
     if (!hasPermission('time_logs.edit.all')) {
-      const woScope = await getWorkOrderScope({ role, userId, supabase })
-      if (woScope.type === 'specific') {
-        if (!woScope.workOrderIds.includes(cur.work_order_id as string)) {
+      // PF3-2: arbejdsordrens tildeling slås op direkte
+      const woScope = await getWorkOrderEmployeeScope({ role, userId, supabase })
+      if (woScope.type === 'employee') {
+        const { data: wo } = woScope.employeeId
+          ? await supabase.from('work_orders').select('assigned_employee_id').eq('id', cur.work_order_id as string).maybeSingle()
+          : { data: null }
+        if (!wo || (wo as { assigned_employee_id: string | null }).assigned_employee_id !== woScope.employeeId) {
           return { success: false, error: 'Arbejdsordren er ikke tildelt dig' }
         }
         if (woScope.employeeId && cur.employee_id !== woScope.employeeId) {

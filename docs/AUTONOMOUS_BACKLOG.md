@@ -257,7 +257,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | MB2-11 | Underskrift: navnefeltet autoudfylder montørens navn (S4) | DONE (kode) — autoComplete off, autoCapitalize words |
 | MB2-12 | "Mine job"-header klemt (S4) | DONE (kode, U174) — flex-wrap, kortere label |
 | PF3-1 | Kundesiden: ~13 serielle server-actions ved åbning (S3) | TODO |
-| PF3-2 | getWorkOrderScope henter ALLE montørens arbejdsordre-id'er pr. tidsregistrering/fane (S3) | TODO |
+| PF3-2 | getWorkOrderScope henter ALLE montørens arbejdsordre-id'er pr. tidsregistrering/fane (S3) | DONE (kode, montør-gruppen U11/U21/U34/U44/U48/U62/U63/U66/U67/U71/U73/U117) — getWorkOrderEmployeeScope + filter på assigned_employee_id i databasen / opslag af den ene arbejdsordre (5 kald) |
 | PF3-3 | Kalender: backlog/uden-tid hentes efter Promise.all, serielle bidder, O(n²) spread (S3) | TODO |
 | PF3-4 | Opgavesiden: getActiveProfiles for montør + ufiltreret realtime (S3) | TODO |
 | PF3-5 | Thumbnails henter fulde billeder uden lazy (S3) | DELVIS (kode) — loading="lazy" decoding="async"; rigtige thumbnails (transform) = TODO |

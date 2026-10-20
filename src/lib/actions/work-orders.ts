@@ -96,14 +96,16 @@ export async function listWorkOrdersForCase(
     if (!hasPermission('work_orders.view.all') && !hasPermission('work_orders.view.assigned')) {
       return { success: false, error: 'Manglende tilladelse: work_orders.view' }
     }
-    const scope = await getWorkOrderScope({ role, userId, supabase })
+    // PF3-2 (performance-review 2026-10-20): montørens scope = "tildelt min medarbejder" filtreres i databasen — før
+    // blev ALLE montørens arbejdsordre-id'er nogensinde hentet (side for side) ved hver visning
+    const scope = await getWorkOrderEmployeeScope({ role, userId, supabase })
 
-    // Sprint 7E — graceful empty for montor uden tildelte work orders
-    if (scope.type === 'specific' && scope.workOrderIds.length === 0) {
+    // Sprint 7E — graceful empty for montor uden medarbejder
+    if (scope.type === 'employee' && !scope.employeeId) {
       return { success: true, data: [] }
     }
 
-    const query = supabase
+    let query = supabase
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
@@ -113,6 +115,7 @@ export async function listWorkOrdersForCase(
       .eq('case_id', caseId)
       .order('scheduled_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
+    if (scope.type === 'employee' && scope.employeeId) query = query.eq('assigned_employee_id', scope.employeeId)
 
     const { data: rows, error } = await query
 
@@ -123,8 +126,7 @@ export async function listWorkOrdersForCase(
 
     // Sprint 7E — for montor: kun work orders tildelt egen employee. X4n: filtreres efter hentning (sagen afgrænser
     // mængden) — før én .in() med ALLE montørens arbejdsordrer nogensinde → URL-grænsen (~350) → tom liste
-    const allowed = scope.type === 'specific' ? new Set(scope.workOrderIds) : null
-    const workOrders = ((rows || []) as WorkOrderRow[]).filter((w) => !allowed || allowed.has(w.id))
+    const workOrders = (rows || []) as WorkOrderRow[]
 
     // Resolve employees in a separate query (no FK relation hint needed).
     const employeeIds = Array.from(
