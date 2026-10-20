@@ -41,7 +41,8 @@ ok(lines[saleLine - 1]?.trim() === '<TableCell className="text-right font-mono t
 ok(lines[saleLine - 1]?.trim() !== sale, 'salgsprisen er ikke bar')
 ok(view.includes('<dd className="font-mono break-words">{storedCostText(product.list_price)}</dd>'), 'mobillistepris bliver')
 ok((view.match(/storedCostText\(product\.list_price\)/g) ?? []).length === 2, 'listepristeksten bliver')
-ok(view.includes('<TableHead className="w-[100px] text-right">Listepris</TableHead>'), 'kolonnen bliver')
+ok(view.includes('<TableHead className="w-[100px] text-right break-words min-w-0">Listepris</TableHead>'), 'kolonnen bliver')
+ok(!view.includes('<TableHead className="w-[100px] text-right">Listepris</TableHead>'), 'kolonnen er ikke bar')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
