@@ -2785,32 +2785,42 @@ export async function getOfferConversionSummaryAction(): Promise<OfferConversion
   // ready_count — head count, ingen rækker hentet (O(1), ingen N+1).
   let readyCount = 0
   try {
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from('offers')
       .select('id', { count: 'exact', head: true })
       .or(scopeOr)
       .eq('is_proposal', false)
       .is('converted_case_id', null)
       .in('status', CONVERSION_READY_STATUSES)
+    if (error) {
+      logger.error('getOfferConversionSummaryAction: ready count failed', { error })
+      return { ...empty, message: 'Kunne ikke hente tilbudsstatus' }
+    }
     readyCount = count ?? 0
   } catch (e) {
     logger.error('getOfferConversionSummaryAction: ready count failed', { error: e })
+    return { ...empty, message: 'Kunne ikke hente tilbudsstatus' }
   }
 
   // converted_30d — head count på converted_at.
   let converted30d = 0
   try {
     const since = new Date(Date.now() - 30 * 86400_000).toISOString()
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from('offers')
       .select('id', { count: 'exact', head: true })
       .or(scopeOr)
       .eq('is_proposal', false)
       .not('converted_case_id', 'is', null)
       .gte('converted_at', since)
+    if (error) {
+      logger.error('getOfferConversionSummaryAction: converted_30d count failed', { error })
+      return { ...empty, message: 'Kunne ikke hente tilbudsstatus' }
+    }
     converted30d = count ?? 0
   } catch (e) {
     logger.error('getOfferConversionSummaryAction: converted_30d count failed', { error: e })
+    return { ...empty, message: 'Kunne ikke hente tilbudsstatus' }
   }
 
   // latest_ready — ét opslag med kunde-embed (cost-free kolonner).
