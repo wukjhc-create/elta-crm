@@ -253,7 +253,7 @@ export function AftercalcOverviewClient() {
                               <Link href={`/dashboard/orders/${r.case_id}?tab=oekonomi`} className="text-blue-700 hover:underline break-words">
                                 {r.case_number || 'Sag'}
                               </Link>
-                              {r.title && <div className="text-[11px] text-gray-500 break-words max-w-[16rem]">{r.title}</div>}
+                              {r.title && <div className="text-[11px] text-gray-500 break-words max-w-[16rem] min-w-0">{r.title}</div>}
                             </td>
                             <td className="px-2 py-1.5 text-gray-800 break-words">{r.customer_name || '—'}</td>
                             <td className="px-2 py-1.5 text-gray-800 break-words">{r.assignee_name || '—'}</td>
