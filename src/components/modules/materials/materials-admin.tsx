@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Loader2, Search, Link as LinkIcon, Unlink, RefreshCw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -252,22 +252,38 @@ function BindDialog({
   const toast = useToast()
   const [query, setQuery] = useState(material.name)
   const [results, setResults] = useState<SupplierProductPickerRow[]>([])
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
   const [pending, startTransition] = useTransition()
   const [force, setForce] = useState(false)
+  const searchSeq = useRef(0)
 
-  // Debounced search
+  // Debounced search. A new term drops the previous products. A failed lookup is not an empty catalog.
   useEffect(() => {
     const term = query.trim()
+    const my = ++searchSeq.current
     if (term.length < 2) {
       setResults([])
+      setSearchError(null)
+      setSearching(false)
       return
     }
+    setResults([])
+    setSearchError(null)
+    setSearching(true)
     const handle = setTimeout(async () => {
-      setSearching(true)
-      const data = await searchSupplierProductsForBinding(term, { limit: 25 })
-      setResults(data)
-      setSearching(false)
+      try {
+        const res = await searchSupplierProductsForBinding(term, { limit: 25 })
+        if (my !== searchSeq.current) return
+        setSearchError(res.error)
+        setResults(res.error ? [] : res.rows)
+      } catch {
+        if (my !== searchSeq.current) return
+        setSearchError('Kunne ikke søge i leverandørprodukter')
+        setResults([])
+      } finally {
+        if (my === searchSeq.current) setSearching(false)
+      }
     }, 250)
     return () => clearTimeout(handle)
   }, [query])
@@ -341,6 +357,10 @@ function BindDialog({
             <div className="p-8 flex items-center justify-center text-gray-500">
               <Loader2 className="w-5 h-5 animate-spin mr-2" /> Søger…
             </div>
+          ) : searchError ? (
+            <p className="p-8 text-center text-sm text-amber-800" data-testid="material-bind-search-error">
+              {searchError}. Det tælles ikke som ingen resultater.
+            </p>
           ) : results.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">
               {query.trim().length < 2 ? 'Skriv mindst 2 tegn for at søge.' : 'Ingen resultater.'}
