@@ -286,7 +286,42 @@ export function LearningDashboardClient() {
             Ingen kalibreringsforslag tilgængelige. Der kræves mere projektdata.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <ul className="md:hidden space-y-2" data-testid="learning-calibrations-mobile">
+            {calibrations.map(cal => {
+              const varianceColor = Math.abs(cal.variance_percentage) < 10
+                ? 'text-green-600'
+                : Math.abs(cal.variance_percentage) < 25
+                ? 'text-amber-600'
+                : 'text-red-600'
+              return (
+                <li key={cal.code} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+                  <p className="font-medium text-gray-900 break-words">{cal.code}</p>
+                  <p className="mt-1 text-xs text-gray-600">Nuværende {cal.current_time_minutes} min</p>
+                  <p className="text-xs font-medium text-gray-900">Foreslået {cal.suggested_time_minutes} min</p>
+                  <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${varianceColor}`}>
+                    {cal.variance_percentage > 0 ? (
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    ) : (
+                      <ArrowDownRight className="w-3.5 h-3.5" />
+                    )}
+                    {Math.abs(cal.variance_percentage).toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-gray-500">Datapunkter {cal.sample_size}</p>
+                  <p className="text-xs text-gray-500">Konfidens {(cal.confidence * 100).toFixed(0)}%</p>
+                  <button
+                    onClick={() => handleApplyCalibration(cal)}
+                    className="mt-2 text-xs px-2 py-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100"
+                    disabled={cal.confidence < 0.3}
+                    title={cal.confidence < 0.3 ? 'For lav konfidens' : 'Anvend justering'}
+                  >
+                    Anvend
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50">
@@ -352,6 +387,7 @@ export function LearningDashboardClient() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
