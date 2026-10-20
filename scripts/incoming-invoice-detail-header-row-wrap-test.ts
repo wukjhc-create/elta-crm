@@ -26,7 +26,7 @@ ok(view.includes('href="/dashboard/incoming-invoices"'), 'linket bliver')
 ok(view.includes('← Indgående fakturaer'), 'linkteksten bliver')
 ok(view.includes('fmtAmount(inv.amount_incl_vat, inv.currency)'), 'beloebet bliver')
 
-const code = '<code className="text-xs">{inv.external_invoice_id}</code>'
+const code = '<code className="text-xs break-words min-w-0">{inv.external_invoice_id}</code>'
 ok(view.includes(code), 'economic-koden bliver')
 ok(view.split(code).length === 2, 'economic-koden er en')
 

@@ -295,7 +295,7 @@ export function IncomingInvoiceDetailClient({
           <Row label="Kræver review"    value={review ? 'JA' : 'nej'} />
           <Row label="Modtaget"         value={fmtDate(inv.created_at)} />
           {inv.posted_at && <Row label="Bogført" value={fmtDate(inv.posted_at)} />}
-          {inv.external_invoice_id && <Row label="e-conomic ID" value={<code className="text-xs">{inv.external_invoice_id}</code>} />}
+          {inv.external_invoice_id && <Row label="e-conomic ID" value={<code className="text-xs break-words min-w-0">{inv.external_invoice_id}</code>} />}
           {canPost && !alreadyPosted && inv.status !== 'rejected' && inv.status !== 'cancelled' && (
             <SupplierEconomicPreview invoiceId={inv.id} />
           )}
