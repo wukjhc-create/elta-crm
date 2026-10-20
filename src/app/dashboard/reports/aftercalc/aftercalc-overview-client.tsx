@@ -210,7 +210,7 @@ export function AftercalcOverviewClient() {
                             <dd className="tabular-nums text-gray-900 break-words">{kr(r.quoted_revenue)}</dd>
                           </div>
                           <div className="min-w-0">
-                            <dt className="text-gray-500">Faktisk omsætning</dt>
+                            <dt className="text-gray-500 break-words min-w-0">Faktisk omsætning</dt>
                             <dd className="tabular-nums text-gray-900 break-words">{kr(r.actual_revenue)}</dd>
                           </div>
                           <div className="min-w-0">
