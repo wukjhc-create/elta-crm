@@ -47,7 +47,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
         </article>
       </div>
       <div className="hidden md:block overflow-x-auto break-words min-w-0">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm break-words min-w-0">
           <thead>
             <tr className="border-b text-left">
               <th className="pb-2 font-medium text-gray-500 break-words min-w-0">Måned</th>
