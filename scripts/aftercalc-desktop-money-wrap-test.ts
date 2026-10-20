@@ -30,7 +30,7 @@ ok(mobile.split('tabular-nums text-gray-900 break-words').length - 1 === 4, 'mob
 ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.quoted_revenue)}</dd>'), 'tilbudt mobilbeloeb kan krympe')
 ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.actual_revenue)}</dd>'), 'faktisk mobilbeloeb kan krympe')
 ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{pct(r.quoted_db_pct)}</dd>'), 'tilbudt db kan krympe')
-ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words">{pct(r.actual_db_pct)}</dd>'), 'faktisk db bliver')
+ok(mobile.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{pct(r.actual_db_pct)}</dd>'), 'faktisk db kan krympe')
 ok(desk.includes('varianceText(r.db_variance, r.db_variance_pct_points)'), 'afvigelsesteksten bliver')
 ok(!desk.includes(' truncate') && !desk.includes('truncate '), 'beløbene klippes ikke')
 

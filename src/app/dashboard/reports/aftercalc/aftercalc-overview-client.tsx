@@ -219,7 +219,7 @@ export function AftercalcOverviewClient() {
                           </div>
                           <div className="min-w-0">
                             <dt className="text-gray-500 break-words min-w-0">Faktisk DB</dt>
-                            <dd className="tabular-nums text-gray-900 break-words">{pct(r.actual_db_pct)}</dd>
+                            <dd className="tabular-nums text-gray-900 break-words min-w-0">{pct(r.actual_db_pct)}</dd>
                           </div>
                         </dl>
                         <p className={`mt-2 text-sm tabular-nums break-words ${r.db_variance == null ? 'text-gray-400' : r.db_variance < 0 ? 'text-red-700' : r.db_variance > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
