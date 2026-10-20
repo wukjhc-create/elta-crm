@@ -29,7 +29,7 @@ ok(offerConversionLabel('outstanding', null, false) === null, 'ingen ny status')
 
 const badge = readFileSync('src/components/modules/offers/offer-conversion-badge.tsx', 'utf8')
 ok(badge.includes('offerConversionLabel(status, convertedCaseId, Boolean(convertedCase))'), 'maerket bruger teksten')
-ok(badge.includes('<span className="sr-only">{label}</span>'), 'konverteret hoeres')
+ok(badge.includes('<span className="sr-only break-words min-w-0">{label}</span>'), 'konverteret hoeres og kan krympe')
 ok(badge.includes('{convertedCase.case_number}'), 'sagsnummeret bliver')
 ok(badge.includes('title="Åbn sagen"'), 'titlen bliver')
 ok(!badge.includes('follow-up'), 'maerket er ikke opfoelgning')

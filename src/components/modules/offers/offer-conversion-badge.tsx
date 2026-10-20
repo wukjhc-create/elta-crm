@@ -38,7 +38,7 @@ export function OfferConversionBadge({
         title="Åbn sagen"
       >
         <Briefcase className="w-3 h-3" />
-        <span className="sr-only">{label}</span>
+        <span className="sr-only break-words min-w-0">{label}</span>
         {convertedCase.case_number}
         <ArrowRight className="w-3 h-3" />
       </Link>
