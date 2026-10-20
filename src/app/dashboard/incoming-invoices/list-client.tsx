@@ -262,7 +262,7 @@ export function IncomingInvoicesListClient({
         </p>
       )}
       {listError && (
-        <p className="text-sm text-red-700 break-words" data-testid="incoming-invoices-load-error">
+        <p className="text-sm text-red-700 break-words min-w-0" data-testid="incoming-invoices-load-error">
           {listError}{rowsTerm === listTerm && rows.length > 0 ? '. De tidligere fakturaer bliver.' : '. Det tælles ikke som ingen fakturaer.'}
         </p>
       )}
