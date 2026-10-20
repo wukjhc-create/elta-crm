@@ -49,7 +49,7 @@ export function OfferConversionBadge({
   if (label === 'Sag mangler') {
     return (
       <span
-        className="inline-flex items-center gap-1 rounded-full bg-amber-50 ring-1 ring-amber-200 px-2 py-0.5 text-xs font-medium text-amber-700"
+        className="inline-flex items-center gap-1 rounded-full bg-amber-50 ring-1 ring-amber-200 px-2 py-0.5 text-xs font-medium text-amber-700 break-words min-w-0"
         title="Tilbuddet er markeret som konverteret, men sagen kan ikke findes (måske slettet)."
       >
         <AlertTriangle className="w-3 h-3" />

@@ -28,7 +28,7 @@ ok(badge.includes('{convertedCase.case_number}'), 'sagsnummeret bliver')
 ok(badge.includes('href={`/dashboard/orders/${convertedCase.case_number}`}'), 'href bliver')
 ok(badge.includes('title="Åbn sagen"'), 'titlen bliver')
 ok(badge.includes('<span className="sr-only break-words min-w-0">{label}</span>'), 'den skjulte tekst bliver')
-ok(badge.includes('className="inline-flex items-center gap-1 rounded-full bg-amber-50 ring-1 ring-amber-200 px-2 py-0.5 text-xs font-medium text-amber-700"'), 'advarslen bliver')
+ok(badge.includes('className="inline-flex items-center gap-1 rounded-full bg-amber-50 ring-1 ring-amber-200 px-2 py-0.5 text-xs font-medium text-amber-700 break-words min-w-0"'), 'advarslen kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
