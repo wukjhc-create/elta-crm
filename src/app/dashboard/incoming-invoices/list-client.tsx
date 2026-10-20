@@ -277,7 +277,7 @@ export function IncomingInvoicesListClient({
           <p className="px-3 py-6 text-center text-gray-400 text-xs break-words min-w-0">Henter…</p>
         )}
         {!busy && !listError && displayRows.length === 0 && (
-          <p className="px-3 py-6 text-center text-gray-400 text-xs">{emptyListText(due)}</p>
+          <p className="px-3 py-6 text-center text-gray-400 text-xs break-words min-w-0">{emptyListText(due)}</p>
         )}
         {!busy && rowsTerm === listTerm && displayRows.map((r) => {
           const isTest = isTestRow(r)
