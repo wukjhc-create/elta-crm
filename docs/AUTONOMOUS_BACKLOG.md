@@ -1607,6 +1607,50 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogniogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `e12dde16`. Det lader hundredeogotteogtyvende-hegnet stå. `e12dde16` hedder `feat(invoice): konfidenscellen paa fakturalistens skrivebord kan krympe`. `7e5b0bda` hedder `feat(invoice): statuscellen paa fakturalistens skrivebord kan krympe`. `2debe5aa` hedder `feat(invoice): forfaldscellen paa fakturalistens skrivebord kan krympe`. `origin/grok-next` er `e12dde16`. Push af `e12dde16` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `2debe5aa..e12dde16`
+
+```
+e12dde16 feat(invoice): konfidenscellen paa fakturalistens skrivebord kan krympe
+7e5b0bda feat(invoice): statuscellen paa fakturalistens skrivebord kan krympe
+2debe5aa feat(invoice): forfaldscellen paa fakturalistens skrivebord kan krympe
+```
+
+Listen er skiftets commits fra `2debe5aa` til og med `e12dde16`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+c9c0c1e0 docs: checkpoint efter 270ee371
+```
+
+### Features
+
+G18-866 lader kun konfidenscellen på fakturalistens skrivebord krympe. `Confidence` og mobilafsnittet bliver. G18-865 lader kun statuscellen krympe. `StatusBadge` bliver. G18-864 lader kun forfaldscellen krympe. `DueMarks` uden `withLabel` bliver, og mobilens etiket bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-desktop-confidence-wrap-test.ts`, `scripts/incoming-invoice-desktop-status-wrap-test.ts` og `scripts/incoming-invoice-desktop-due-cell-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for mobilisten exiterede 0 sammen med det commit, der ændrede cellen. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for de tre produktcommits. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `e12dde16`, herunder G18-748 til G18-866. `c9c0c1e0` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `e12dde16`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-867, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogotteogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `270ee371`. Det lader hundredeogsyvogtyvende-hegnet stå. `270ee371` hedder `feat(invoice): fakturadatoen paa fakturalistens skrivebord kan krympe`. `d884e077` hedder `feat(invoice): fakturanummeret paa fakturalistens skrivebord kan krympe`. `b41130d3` hedder `feat(invoice): skrivebordsbeloebet paa fakturalisten kan krympe`. `origin/grok-next` er `270ee371`. Push af `270ee371` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
