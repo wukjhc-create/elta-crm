@@ -1651,6 +1651,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogtoogtresindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `847d22c8`. Det lader hundredeogenogtresindstyvende-hegnet stå. `847d22c8` hedder `feat(invoice): rammen om e-conomic-fejl kan krympe`. `2b1630ec` hedder `feat(invoice): rammen om manglende e-conomic kan krympe`. `origin/grok-next` er `847d22c8`. Push af `847d22c8` lykkedes. `2b1630ec` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `2b1630ec..847d22c8`
+
+```
+847d22c8 feat(invoice): rammen om e-conomic-fejl kan krympe
+2b1630ec feat(invoice): rammen om manglende e-conomic kan krympe
+```
+
+Listen er skiftets commits fra `2b1630ec` til og med `847d22c8`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+480c6c0f docs: checkpoint efter 2b1630ec
+```
+
+### Features
+
+G18-910 lader kun rammen om e-conomic-fejl på fakturadetaljen krympe. Fejlteksten bliver. data-testid bliver. G18-909 lader kun rammen om manglende e-conomic krympe. Teksten om opsætning bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-economic-error-wrap-test.ts` og `scripts/incoming-invoice-detail-economic-banner-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for opsætningsrammen exiterede 0 sammen med det commit, der ændrede fejlrammen. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `847d22c8`. `2b1630ec` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `847d22c8`, herunder G18-748 til G18-910. `480c6c0f` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `847d22c8`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-911, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogenogtresindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `2b1630ec`. Det lader hundredeogtresindstyvende-hegnet stå. `2b1630ec` hedder `feat(invoice): rammen om manglende e-conomic kan krympe`. `f9dbad05` hedder `feat(invoice): rammen om test-faktura kan krympe`. `origin/grok-next` er `2b1630ec`. Push af `2b1630ec` lykkedes. `f9dbad05` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
