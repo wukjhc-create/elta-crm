@@ -33,8 +33,8 @@ ok(between.includes(marker), 'det er faktisk omsaetning')
 ok(!between.includes('actual_revenue'), 'beloebet er et andet sted')
 ok(!between.includes('>Tilbudt omsætning</dt>'), 'tilbudt omsaetning er et andet sted')
 ok(!between.includes('>Faktisk omsætning</th>'), 'skrivebordskolonnen er et andet sted')
-ok(view.split(id).length === 4, 'titelkolonnen og omsaetningskolonnerne kan krympe')
-ok(view.split('<div className="min-w-0">').length === 3, 'db-kolonnerne bliver bare')
+ok(view.split(id).length === 5, 'titelkolonnen, omsaetning og tilbudt db kan krympe')
+ok(view.split('<div className="min-w-0">').length === 2, 'faktisk db bliver bar')
 ok(view.includes('{kr(r.actual_revenue)}'), 'faktisk beloeb bliver')
 ok(view.includes('<dd className="tabular-nums text-gray-900 break-words min-w-0">{kr(r.actual_revenue)}</dd>'), 'beloebslinjen kan krympe')
 ok(view.includes('{kr(r.quoted_revenue)}'), 'tilbudt beloeb bliver')
@@ -42,14 +42,14 @@ ok(view.includes('className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 
 const bare = '<div className="min-w-0">'
-const tilbudtDb = '>Tilbudt DB</dt>'
-const tilbudtDbAt = view.indexOf(tilbudtDb)
-const tilbudtDbDiv = tilbudtDbAt >= 0 ? view.lastIndexOf(bare, tilbudtDbAt) : -1
-const tilbudtDbRow = tilbudtDbDiv >= 0 ? view.slice(tilbudtDbDiv, tilbudtDbDiv + bare.length) : ''
-const tilbudtDbBetween = tilbudtDbDiv >= 0 && tilbudtDbAt >= tilbudtDbDiv ? view.slice(tilbudtDbDiv, tilbudtDbAt + tilbudtDb.length) : ''
-ok(tilbudtDbRow === bare, 'tilbudt db er uindpakket')
-ok(tilbudtDbBetween.startsWith(bare), 'tilbudt db bliver bar')
-ok(tilbudtDbBetween.indexOf('<div', 1) === -1, 'tilbudt db er den naermeste')
+const faktiskDb = '>Faktisk DB</dt>'
+const faktiskDbAt = view.indexOf(faktiskDb)
+const faktiskDbDiv = faktiskDbAt >= 0 ? view.lastIndexOf(bare, faktiskDbAt) : -1
+const faktiskDbRow = faktiskDbDiv >= 0 ? view.slice(faktiskDbDiv, faktiskDbDiv + bare.length) : ''
+const faktiskDbBetween = faktiskDbDiv >= 0 && faktiskDbAt >= faktiskDbDiv ? view.slice(faktiskDbDiv, faktiskDbAt + faktiskDb.length) : ''
+ok(faktiskDbRow === bare, 'faktisk db er uindpakket')
+ok(faktiskDbBetween.startsWith(bare), 'faktisk db bliver bar')
+ok(faktiskDbBetween.indexOf('<div', 1) === -1, 'faktisk db er den naermeste')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
