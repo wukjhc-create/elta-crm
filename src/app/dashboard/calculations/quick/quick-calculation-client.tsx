@@ -431,22 +431,23 @@ export default function QuickCalculationClient({
                   {rooms.map(room => (
                     <Card key={room.id}>
                       <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Home className="w-5 h-5 text-gray-500" />
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2 min-w-0">
+                            <Home className="w-5 h-5 text-gray-500 shrink-0" />
                             <Input
                               value={room.name}
+                              aria-label={`Navn på ${room.name || room.roomTypeName}`}
                               onChange={(e) => setRooms(prev => prev.map(r =>
                                 r.id === room.id ? { ...r, name: e.target.value } : r
                               ))}
-                              className="font-medium h-8 w-48"
+                              className="font-medium h-8 w-full max-w-48 min-w-0"
                             />
                             <Badge variant="outline">{room.roomTypeName}</Badge>
                           </div>
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label="Fjern rum"
+                            aria-label={`Fjern rum ${room.name}`}
                             onClick={() => removeRoom(room.id)}
                             className="text-red-500 hover:text-red-700"
                           >
@@ -480,7 +481,7 @@ export default function QuickCalculationClient({
                                     variant="outline"
                                     size="icon"
                                     className="h-7 w-7"
-                                    aria-label="Minus"
+                                    aria-label={`Færre ${comp.componentName}`}
                                     onClick={() => updateComponentQuantity(room.id, comp.id, -1)}
                                   >
                                     <Minus className="w-3 h-3" />
@@ -490,7 +491,7 @@ export default function QuickCalculationClient({
                                     variant="outline"
                                     size="icon"
                                     className="h-7 w-7"
-                                    aria-label="Plus"
+                                    aria-label={`Flere ${comp.componentName}`}
                                     onClick={() => updateComponentQuantity(room.id, comp.id, 1)}
                                   >
                                     <Plus className="w-3 h-3" />
