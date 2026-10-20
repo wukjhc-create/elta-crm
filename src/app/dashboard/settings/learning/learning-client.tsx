@@ -361,7 +361,7 @@ export function LearningDashboardClient() {
           <h2 className="text-lg font-semibold mb-4">Seneste justeringer</h2>
           <div className="space-y-3">
             {metrics.recent_adjustments.map((adj, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 border rounded-lg">
+              <div key={i} className="flex flex-wrap items-start gap-3 p-3 border rounded-lg">
                 <div className={`p-2 rounded ${
                   adj.type === 'time' ? 'bg-blue-50' :
                   adj.type === 'material' ? 'bg-green-50' :
@@ -384,7 +384,7 @@ export function LearningDashboardClient() {
                   <span className="font-medium text-gray-900">{adj.new_value}</span>
                 </div>
                 <span className="text-xs text-gray-400 shrink-0">
-                  {new Date(adj.applied_at).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}
+                  {new Date(adj.applied_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short' })}
                 </span>
               </div>
             ))}
