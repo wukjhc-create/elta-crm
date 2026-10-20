@@ -12,7 +12,7 @@ const pct = (n: number | null) => (n == null ? '—' : `${n.toLocaleString('da-D
 
 export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | null; error?: boolean }) {
   if (!data && error) {
-    return <p className="text-sm text-red-700 bg-white rounded-lg border p-4">Kunne ikke hente salgstragten. De andre tal på siden er uændrede.</p>
+    return <p className="text-sm text-red-700 bg-white rounded-lg border p-4 break-words min-w-0">Kunne ikke hente salgstragten. De andre tal på siden er uændrede.</p>
   }
   if (!data) return null
   const t = data.totals
