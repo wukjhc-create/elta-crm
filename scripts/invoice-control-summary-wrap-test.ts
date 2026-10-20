@@ -9,7 +9,7 @@ const eq = (name: string, got: unknown, want: unknown) => {
 }
 
 const src = fs.readFileSync('src/app/dashboard/incoming-invoices/[id]/invoice-control-panel.tsx', 'utf8')
-const start = src.indexOf('grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-3 min-w-0')
+const start = src.indexOf('grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-3 break-words min-w-0')
 const end = src.indexOf('invoice-control-lines-mobile', start)
 const grid = src.slice(start, end)
 eq('gitteret findes', start > 0 && end > start, true)

@@ -13,7 +13,7 @@ const ok = (c: boolean, label: string) => {
 }
 
 const view = readFileSync(join('src', 'app', 'dashboard', 'incoming-invoices', '[id]', 'invoice-control-panel.tsx'), 'utf8')
-const start = view.indexOf('grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-3 min-w-0')
+const start = view.indexOf('grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-3 break-words min-w-0')
 const end = view.indexOf('invoice-control-lines-mobile', start)
 const grid = start >= 0 && end > start ? view.slice(start, end) : ''
 
