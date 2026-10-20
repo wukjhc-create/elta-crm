@@ -323,7 +323,7 @@ export function IncomingInvoicesListClient({
               <th className="px-3 py-2">Faktura dato</th>
               <th className="px-3 py-2">Forfald</th>
               <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2 text-right">Konfidens</th>
+              <th className="px-3 py-2 text-right break-words min-w-0">Konfidens</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
