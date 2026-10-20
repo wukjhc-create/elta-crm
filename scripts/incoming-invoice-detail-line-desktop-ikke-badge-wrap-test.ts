@@ -29,7 +29,7 @@ const oevrig = '<span className="text-[10px] uppercase tracking-wide bg-purple-1
 ok(view.includes(oevrig), 'oevrig-maerket bliver')
 ok(view.split(oevrig).length === 2, 'oevrig-maerket er et')
 
-const sprunget = '<span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">'
+const sprunget = '<span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded break-words min-w-0">'
 ok(view.includes(sprunget), 'sprunget-over bliver')
 ok(view.split(sprunget).length === 2, 'sprunget-over er et')
 
@@ -42,8 +42,10 @@ ok(costDialog.includes('<span className="text-[10px] text-gray-500">'), 'omkostn
 ok(!costDialog.includes(wrapped), 'omkostningsdialogen er ikke pakket')
 
 const mailSettings = readFileSync('src/app/dashboard/settings/invoice-email/invoice-email-settings-client.tsx', 'utf8')
-ok(mailSettings.includes(sprunget), 'mailindstillingerne bliver')
-ok(!mailSettings.includes('rounded break-words'), 'mailindstillingerne er ikke pakket')
+const sprungetBare = '<span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">'
+ok(mailSettings.includes(sprungetBare), 'mailindstillingerne bliver')
+ok(!mailSettings.includes(sprunget), 'mailindstillingerne er ikke pakket')
+ok(!view.includes(sprungetBare), 'det bare sprunget-over er vaek')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

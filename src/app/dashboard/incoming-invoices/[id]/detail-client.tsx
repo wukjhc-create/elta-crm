@@ -547,7 +547,7 @@ export function IncomingInvoiceDetailClient({
                             Øvrig
                           </span>
                         ) : skippedExplicit ? (
-                          <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded break-words min-w-0">
                             Sprunget over
                           </span>
                         ) : (
