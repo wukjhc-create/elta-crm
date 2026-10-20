@@ -1737,6 +1737,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogotteogfyrretyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `9f007f5f`. Det lader tohundredeogsyvogfyrretyvende-hegnet stå. `9f007f5f` hedder `feat(reports): indledning ombrydes`. `a2532b6e` hedder `feat(assistant): note-svar citerer`. `origin/grok-next` er `9f007f5f`. Push af `9f007f5f` lykkedes. `a2532b6e` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `a2532b6e..9f007f5f`
+
+```
+9f007f5f feat(reports): indledning ombrydes
+a2532b6e feat(assistant): note-svar citerer
+```
+
+Listen er skiftets commits fra `a2532b6e` til og med `9f007f5f`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+e62347dd docs: checkpoint efter a2532b6e
+```
+
+### Features
+
+G18-48 lader salgstragtens indledning ombrydes. Teksten bruger stadig pct af totalerne. `reports.ts` og månedens satser bliver. G18-21 lader note-svaret citere de første 120 tegn af den gemte tekst. Insert og afsendelse bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/sales-funnel-intro-wrap-test.ts` læser den shippede salgstragt og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. Den kørte med `npx tsx` og exiterede 0. `scripts/assistant-note-reply-test.ts` er testen for note-svaret og havde allerede exit 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `9f007f5f`. `a2532b6e` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d2b2521e`, tilbudslistens tælle-mærke i `589fad7b`, varenavnet i `943b355a`, mobilproducenten i `3d5409f1`, konverteringsteksten i `b0111850`, note-svaret i `a2532b6e`, og salgstragtens indledning i `9f007f5f`. `e62347dd` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `9f007f5f`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-991, G18-992, G18-993, G18-994, G18-995, G18-996, G18-997, G18-597.
+
 ## Checkpoint 2026-10-18 tohundredeogsyvogfyrretyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `a2532b6e`. Det lader tohundredeogseksogfyrretyvende-hegnet stå. `a2532b6e` hedder `feat(assistant): note-svar citerer`. `b0111850` hedder `feat(offers): konverteringstekst`. `origin/grok-next` er `a2532b6e`. Push af `a2532b6e` lykkedes. `b0111850` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
