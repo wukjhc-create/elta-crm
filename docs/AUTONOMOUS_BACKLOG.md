@@ -1592,6 +1592,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogfireogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `1b2ec490`. Det lader hundredeogtreogtyvende-hegnet stå. `1b2ec490` hedder `feat(invoice): mobilbeloebet paa indgaaende fakturaer kan krympe`. `fd7db536` hedder `feat(invoice): overprisbeloebet paa fakturakontrol kan krympe`. `origin/grok-next` er `1b2ec490`. Push af `1b2ec490` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `fd7db536..1b2ec490`
+
+```
+1b2ec490 feat(invoice): mobilbeloebet paa indgaaende fakturaer kan krympe
+fd7db536 feat(invoice): overprisbeloebet paa fakturakontrol kan krympe
+```
+
+Listen er skiftets commits fra `fd7db536` til og med `1b2ec490`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+32193f96 docs: checkpoint efter 240062b2
+```
+
+### Features
+
+G18-851 lader kun beløbet på mobilkortet for indgående fakturaer krympe. `fmtAmount` bliver, og skrivebordsbeløbet bliver. G18-850 lader kun overprisbeløbet på fakturakontrol krympe. Rød skrift gælder kun når der er kontrollerede linjer og beløbet er over 0. Dækningstallet kan stadig krympe. Beløbene bliver. `kr()` bliver. Beløb, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-mobile-amount-wrap-test.ts` og `scripts/invoice-control-overcharge-amount-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetestene for mobilkortet, filteret, indlæsningen, opsummeringen, leverandørteksten, dækningen og overpriscellen exiterede 0 sammen med det commit, der ændrede elementet. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for begge produktcommits. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `1b2ec490`, herunder G18-748 til G18-851. `32193f96` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `1b2ec490`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-852, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogtreogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `240062b2`. Det lader hundredeogtoogtyvende-hegnet stå. `240062b2` hedder `feat(invoice): daekningstallet paa fakturakontrol kan krympe`. `46cdea6f` hedder `feat(invoice): fragt-taelleren paa fakturakontrol kan krympe`. `origin/grok-next` er `240062b2`. Push af `240062b2` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
