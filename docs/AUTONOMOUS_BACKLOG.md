@@ -1664,6 +1664,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogfemoghalvfjerdsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `aff716e4`. Det lader hundredeogfireoghalvfjerdsindstyvende-hegnet stå. `aff716e4` hedder `feat(invoice): ordet total i match-breakdown kan krympe`. `0275b3cf` hedder `feat(invoice): den blaa bjaelke i match-breakdown kan krympe`. `origin/grok-next` er `aff716e4`. Push af `aff716e4` lykkedes. `0275b3cf` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `0275b3cf..aff716e4`
+
+```
+aff716e4 feat(invoice): ordet total i match-breakdown kan krympe
+0275b3cf feat(invoice): den blaa bjaelke i match-breakdown kan krympe
+```
+
+Listen er skiftets commits fra `0275b3cf` til og med `aff716e4`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+8d13ebc4 docs: checkpoint efter 0275b3cf
+```
+
+### Features
+
+G18-923 lader kun ordet Total i match-breakdown på fakturadetaljen krympe. Ordet Total bliver. G18-922 lader kun den blå bjælke i match-breakdown krympe. Bredden bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-breakdown-total-word-wrap-test.ts` og `scripts/incoming-invoice-detail-breakdown-bar-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for bjælken exiterede 0 sammen med det commit, der ændrede ordet Total. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `aff716e4`. `0275b3cf` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `aff716e4`, herunder G18-748 til G18-923. `8d13ebc4` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `aff716e4`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-924, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogfireoghalvfjerdsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `0275b3cf`. Det lader hundredeogtreoghalvfjerdsindstyvende-hegnet stå. `0275b3cf` hedder `feat(invoice): den blaa bjaelke i match-breakdown kan krympe`. `3bacf2b4` hedder `feat(invoice): totalscoren i match-breakdown kan krympe`. `origin/grok-next` er `0275b3cf`. Push af `0275b3cf` lykkedes. `3bacf2b4` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
