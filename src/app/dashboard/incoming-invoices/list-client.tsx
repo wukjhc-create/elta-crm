@@ -436,7 +436,7 @@ function Confidence({ row }: { row: IncomingInvoiceListItem }) {
 
 function StatusBadge({ row }: { row: IncomingInvoiceListItem }) {
   if (row.requires_manual_review && row.status !== 'rejected' && row.status !== 'approved' && row.status !== 'posted') {
-    return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">Kræver gennemgang</span>
+    return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 break-words min-w-0">Kræver gennemgang</span>
   }
   const colour =
     row.status === 'approved'           ? 'bg-emerald-100 text-emerald-800'
