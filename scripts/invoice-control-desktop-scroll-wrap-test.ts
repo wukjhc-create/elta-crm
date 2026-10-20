@@ -38,7 +38,8 @@ ok(!view.includes(bare), 'den bare liste er vaek')
 ok(view.includes('kr(res.control.overchargeAmount)'), 'overprisbeloebet bliver')
 ok(view.includes('<div className="md:hidden divide-y rounded ring-1 ring-gray-200 break-words min-w-0" data-testid="invoice-control-lines-mobile">'), 'mobilisten kan stadig krympe')
 ok(view.split('<div className="break-words min-w-0">').length === 4, 'opsummeringscellerne bliver')
-ok(view.includes('<table className="w-full text-xs">'), 'tabellen bliver')
+ok(view.includes('<table className="w-full text-xs break-words min-w-0">'), 'tabellen kan krympe')
+ok(view.split('<table className="w-full text-xs">').length === 1, 'den bare tabel er vaek')
 ok(view.includes('Det tælles ikke som 0 kr.'), 'nul-linjen bliver')
 
 if (bad > 0) {
