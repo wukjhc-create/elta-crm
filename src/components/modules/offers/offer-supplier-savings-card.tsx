@@ -27,10 +27,23 @@ export function OfferSupplierSavingsCard({ offerId, lineItems }: { offerId: stri
 
   return (
     <div className="bg-white rounded-lg border p-6" data-testid="offer-supplier-savings-card">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2 font-medium"><ArrowDownCircle className="w-4 h-4 text-green-700" /> Billigere hos anden grossist</div>
         <span className="text-xs px-2 py-1 rounded border bg-green-50 text-green-800 border-green-200">Mulig besparelse {kr(total)}</span>
       </div>
+      <ul className="md:hidden space-y-2" data-testid="offer-supplier-savings-mobile">
+        {alts.map((a) => (
+          <li key={a.lineId} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+            <p className="font-medium text-gray-900 break-words">{a.description}</p>
+            <p className="text-xs text-muted-foreground break-all">EAN {a.ean}</p>
+            <p className="mt-1 text-xs break-words">Nu {a.current.supplierName} · {kr(a.current.unitCost)}</p>
+            <p className="text-xs break-words">Billigst {a.best.supplierName} · {kr(a.best.unitCost)}</p>
+            <p className="text-xs text-muted-foreground break-all">varenr. {a.best.sku}</p>
+            <p className="mt-1 font-medium text-green-800">{kr(a.savingTotal)} ({a.savingPct} %)</p>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden md:block overflow-x-auto">
       <table className="w-full text-sm">
         <thead><tr className="text-left text-muted-foreground"><th className="py-1">Linje</th><th>Nu</th><th>Billigst</th><th className="text-right">Besparelse</th></tr></thead>
         <tbody>
@@ -44,6 +57,7 @@ export function OfferSupplierSavingsCard({ offerId, lineItems }: { offerId: stri
           ))}
         </tbody>
       </table>
+      </div>
       <p className="text-xs text-muted-foreground mt-2">Baseret på kostpriser i leverandørkataloget (samme EAN). Skift leverandør på linjen for at udnytte besparelsen.</p>
     </div>
   )
