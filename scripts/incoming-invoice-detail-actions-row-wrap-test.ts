@@ -28,7 +28,7 @@ ok(after.includes('className="border-amber-300 text-amber-900 hover:bg-amber-50 
 ok(after.includes('incl. moms'), 'momsnoten bliver')
 ok(view.split(bare).length === 1, 'den bare handlingsraekke er vaek')
 ok(!view.includes(bare), 'den bare handlingsraekke er vaek')
-ok(view.includes('className="flex justify-end -mt-1 mb-1"'), 'ret-raekken bliver')
+ok(view.includes('className="flex justify-end -mt-1 mb-1 break-words min-w-0"'), 'ret-raekken bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

@@ -320,7 +320,7 @@ export function IncomingInvoiceDetailClient({
 
         <Panel title="Parsede felter">
           {canEditHeader && !terminal && !editingHeader && (
-            <div className="flex justify-end -mt-1 mb-1">
+            <div className="flex justify-end -mt-1 mb-1 break-words min-w-0">
               <button
                 type="button"
                 onClick={() => setEditingHeader(true)}
