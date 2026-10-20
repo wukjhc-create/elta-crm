@@ -26,7 +26,7 @@ ok(after.includes('Number(breakdown.total ?? 0).toFixed(2)'), 'scoren bliver')
 ok(view.split(bare).length === 1, 'den bare totalscore er vaek')
 ok(!view.includes(bare), 'den bare totalscore er vaek')
 ok(view.includes('className="flex items-center gap-2 text-xs pt-1 border-t break-words min-w-0"'), 'totalraekken bliver')
-ok(view.includes('className="h-2 bg-blue-500"'), 'den blaa bjaelke bliver')
+ok(view.includes('className="h-2 bg-blue-500 break-words min-w-0"'), 'den blaa bjaelke bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
