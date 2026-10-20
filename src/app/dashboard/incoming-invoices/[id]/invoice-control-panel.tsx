@@ -122,7 +122,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
           </div>
           <div className="hidden md:block overflow-x-auto break-words min-w-0">
             <table className="w-full text-xs break-words min-w-0">
-              <thead><tr className="text-left text-gray-500"><th className="py-1 min-w-0 break-words" data-testid="invoice-control-col-number">#</th><th className="break-words min-w-0" data-testid="invoice-control-col-description">Beskrivelse</th><th className="break-words min-w-0" data-testid="invoice-control-col-match">Match</th><th className="text-right break-words min-w-0" data-testid="invoice-control-col-expected">Forventet</th><th className="text-right break-words min-w-0" data-testid="invoice-control-col-deviation">Afvigelse</th><th className="pl-4 break-words min-w-0" data-testid="invoice-control-col-status">Status</th></tr></thead>
+              <thead className="break-words min-w-0"><tr className="text-left text-gray-500"><th className="py-1 min-w-0 break-words" data-testid="invoice-control-col-number">#</th><th className="break-words min-w-0" data-testid="invoice-control-col-description">Beskrivelse</th><th className="break-words min-w-0" data-testid="invoice-control-col-match">Match</th><th className="text-right break-words min-w-0" data-testid="invoice-control-col-expected">Forventet</th><th className="text-right break-words min-w-0" data-testid="invoice-control-col-deviation">Afvigelse</th><th className="pl-4 break-words min-w-0" data-testid="invoice-control-col-status">Status</th></tr></thead>
               <tbody>
                 {res.control.lines.map((l) => {
                   const m = res.matches.find((x) => x.lineNumber === l.lineNumber)
