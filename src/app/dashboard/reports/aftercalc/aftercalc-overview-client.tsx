@@ -255,7 +255,7 @@ export function AftercalcOverviewClient() {
                               </Link>
                               {r.title && <div className="text-[11px] text-gray-500 break-words max-w-[16rem] min-w-0">{r.title}</div>}
                             </td>
-                            <td className="px-2 py-1.5 text-gray-800 break-words">{r.customer_name || '—'}</td>
+                            <td className="px-2 py-1.5 text-gray-800 break-words min-w-0">{r.customer_name || '—'}</td>
                             <td className="px-2 py-1.5 text-gray-800 break-words">{r.assignee_name || '—'}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{kr(r.quoted_revenue)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{kr(r.actual_revenue)}</td>

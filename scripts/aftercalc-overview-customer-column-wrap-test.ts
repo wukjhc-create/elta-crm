@@ -31,7 +31,7 @@ ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'kolonnen findes en gang')
 ok(view.split('<th className="px-2 py-1.5 text-left">Kunde</th>').length === 1, 'den bare kolonne er vaek')
 ok(view.includes('<th className="px-2 py-1.5 text-left break-words min-w-0">Ansvarlig</th>'), 'ansvarlig-kolonnen kan krympe')
-ok(view.includes('<td className="px-2 py-1.5 text-gray-800 break-words">{r.customer_name || \'—\'}</td>'), 'kundenavnet bliver')
+ok(view.includes('<td className="px-2 py-1.5 text-gray-800 break-words min-w-0">{r.customer_name || \'—\'}</td>'), 'kundenavnet kan krympe')
 ok(view.includes('<th className="px-2 py-1.5 text-right break-words min-w-0">Tilbudt omsætning</th>'), 'tilbudt-omsaetning-kolonnen kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 const sag = '>Sag</th>'
