@@ -666,7 +666,7 @@ export function IncomingInvoiceDetailClient({
               }`}>
                 <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5">
                   <span className="font-medium break-words min-w-0">
-                    {incomingInvoiceAuditActionLabel(a.action)} {a.actor_name && <span className="text-gray-500">· {a.actor_name}</span>}
+                    {incomingInvoiceAuditActionLabel(a.action)} {a.actor_name && <span className="text-gray-500 break-words min-w-0">· {a.actor_name}</span>}
                   </span>
                   <span className="text-gray-500 shrink-0">{fmtDate(a.created_at)} {a.created_at.slice(11, 19)}</span>
                 </div>

@@ -26,7 +26,7 @@ ok(after.includes('Ingen log-poster endnu. De vises her, når fakturaen ændres.
 ok(view.split(bare).length === 1, 'den bare tomme historik er vaek')
 ok(!view.includes(bare), 'den bare tomme historik er vaek')
 ok(view.includes('<p className="text-xs text-gray-400 break-words min-w-0">Ingen fil tilknyttet (kilde: {incomingInvoiceSourceLabel(inv.source)}).</p>'), 'tom fil bliver')
-ok(view.includes('<span className="text-gray-500">· {a.actor_name}</span>'), 'afsenderen bliver')
+ok(view.includes('<span className="text-gray-500 break-words min-w-0">· {a.actor_name}</span>'), 'afsenderen bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
