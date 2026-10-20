@@ -323,7 +323,7 @@ export function SupplierProductsTable({
                     <TableCell className="text-right font-mono text-sm break-words min-w-0">
                       {storedCostText(product.list_price)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-blue-600">
+                    <TableCell className="text-right font-mono text-sm text-blue-600 break-words min-w-0">
                       {storedCostText(product.effective_sale_price)}
                     </TableCell>
                     <TableCell className="break-words min-w-0">

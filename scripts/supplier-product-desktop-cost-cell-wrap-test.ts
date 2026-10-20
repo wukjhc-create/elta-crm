@@ -33,7 +33,8 @@ ok(lines.filter((line, i) => line.trim() === '{storedCostText(product.cost_price
 ok(lines[costLine - 1]?.trim() !== bare, 'kostcellen er ikke bar')
 ok(lines[listLine - 1]?.trim() === wrapped, 'listeprisen kan krympe')
 ok(lines[listLine - 1]?.trim() !== bare, 'listeprisen er ikke bar')
-ok(lines[saleLine - 1]?.trim() === sale, 'salgsprisen bliver')
+ok(lines[saleLine - 1]?.trim() === '<TableCell className="text-right font-mono text-sm text-blue-600 break-words min-w-0">', 'salgsprisen kan krympe')
+ok(lines[saleLine - 1]?.trim() !== sale, 'salgsprisen er ikke bar')
 ok(view.includes('<dd className="font-mono break-words">{storedCostText(product.cost_price)}</dd>'), 'mobilkost bliver')
 ok((view.match(/storedCostText\(product\.cost_price\)/g) ?? []).length === 2, 'kostteksten bliver')
 
