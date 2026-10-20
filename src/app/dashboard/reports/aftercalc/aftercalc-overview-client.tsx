@@ -214,7 +214,7 @@ export function AftercalcOverviewClient() {
                             <dd className="tabular-nums text-gray-900 break-words">{kr(r.actual_revenue)}</dd>
                           </div>
                           <div className="min-w-0">
-                            <dt className="text-gray-500">Tilbudt DB</dt>
+                            <dt className="text-gray-500 break-words min-w-0">Tilbudt DB</dt>
                             <dd className="tabular-nums text-gray-900 break-words">{pct(r.quoted_db_pct)}</dd>
                           </div>
                           <div className="min-w-0">
