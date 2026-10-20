@@ -943,12 +943,18 @@ export async function createCustomerFromEmail(
 
   // Leads-review 2026-10-08 (#3/#4): findes der allerede et lead fra DENNE mail (fx "Opret lead" først), kobles det til
   // den nye kunde i stedet for et dublet-lead; nye leads får customer_id (pipeline/kundekort finder dem via den)
+  let priorLeadLinkFailed = false
   const { data: priorLead } = await supabase.from('leads').select('id, custom_fields')
     .eq('custom_fields->>source_email_id', emailId).limit(1).maybeSingle()
   if (priorLead) {
     const prior = priorLead as { id: string; custom_fields: Record<string, unknown> | null }
-    await supabase.from('leads').update({ custom_fields: { ...(prior.custom_fields ?? {}), customer_id: newCustomer.id } })
+    const { error: priorLinkErr } = await supabase.from('leads').update({ custom_fields: { ...(prior.custom_fields ?? {}), customer_id: newCustomer.id } })
       .eq('id', prior.id)
+    // PR4-9 (pilot-review 4): før ukontrolleret → leadet stod ukoblet, og næste "Konvertér" lavede en dublet-kunde
+    if (priorLinkErr) {
+      logger.error('Failed to link prior lead to new customer', { error: priorLinkErr, metadata: { emailId, leadId: prior.id } })
+      priorLeadLinkFailed = true
+    }
     // LD-3 (leads-review 2026-10-18): tilbud oprettet på leadet før kunden fandtes, får kunden (mailen kobles nedenfor)
     const { linkLeadArtifactsToCustomer } = await import('@/lib/leads/link-to-customer')
     await linkLeadArtifactsToCustomer(supabase, { leadId: prior.id, customerId: newCustomer.id as string,
@@ -982,6 +988,7 @@ export async function createCustomerFromEmail(
     // T-4: før "Ny kunde + lead oprettet", selv om leadet ikke blev oprettet
     warnings.push('leadet kunne ikke oprettes — opret det manuelt fra kunden')
   }
+  if (priorLeadLinkFailed) warnings.push('det eksisterende lead blev ikke koblet til kunden — konvertér det IKKE igen, kobl det på leadet')
 
   // 8. Copy attachments to lead folder and update lead with new URLs
   if (newLead?.id && email.has_attachments && attachmentRefs.length > 0) {

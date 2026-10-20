@@ -119,7 +119,7 @@ export function OrderDetailClient({
   canManageAllNotes?: boolean
   /** DE-1/2/9 (dead-end-review 2026-10-19): faner kun når serveren leverer data (work_orders.view.*, materials.view,
    *  other_costs.view, invoices.view.all) */
-  tabAccess?: { workOrders: boolean; materials: boolean; otherCosts: boolean; allInvoices: boolean }
+  tabAccess?: { workOrders: boolean; materials: boolean; otherCosts: boolean; allInvoices: boolean; caseActivity?: boolean }
 }) {
   // DE-1/2/9: én regel for fanelinjen, deeplinket (?tab=) og indholdet — ingen fane serveren afviser
   const isTabVisible = (id: string) =>
@@ -130,7 +130,9 @@ export function OrderDetailClient({
     (id !== 'dokumentation' || canInspect) &&
     (id !== 'planlaegning' || tabAccess.workOrders) &&
     (id !== 'materialer' || tabAccess.materials) &&
-    (id !== 'oevrige' || tabAccess.otherCosts)
+    (id !== 'oevrige' || tabAccess.otherCosts) &&
+    // PR4-1: montør/salg fik "Du har ikke adgang til at se sager" på Aktivitet
+    (id !== 'aktivitet' || tabAccess.caseActivity !== false)
   // Deep-link ?tab=<id> (fx fra "Mine job" -> planlaegning)
   const tabParam = useSearchParams().get('tab')
   const [active, setActiveState] = useState<TabId>(
@@ -287,7 +289,9 @@ export function OrderDetailClient({
               formand={formand}
               creator={creator}
               canSeeBilling={canSeeBilling}
-              onOpenFakturakladde={() => setActive('fakturakladde')}
+              // DE2-3 (dead-end-review 2026-10-20): kun når fanen faktisk findes for rollen (salg: ingen kladdeoversigt)
+              onOpenFakturakladde={isTabVisible('fakturakladde') ? () => setActive('fakturakladde') : undefined}
+              canOpenInvoices={tabAccess.allInvoices}
             />
           )}
           {active === 'planlaegning' && isTabVisible('planlaegning') && (
@@ -355,9 +359,12 @@ function OverblikTab({
   creator,
   canSeeBilling = false,
   onOpenFakturakladde,
+  canOpenInvoices = false,
   canEditCase = false,
   onOpenNotes,
 }: {
+  /** DE2-1/2: fakturalisten/-detaljen kræver invoices.view.all */
+  canOpenInvoices?: boolean
   canEditCase?: boolean
   onOpenNotes?: () => void
   sag: ServiceCaseWithRelations
@@ -381,11 +388,11 @@ function OverblikTab({
       <div className="mb-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
         <CaseBillingStatusCard
           caseId={sag.id}
-          canOpenFakturakladde={canSeeBilling}
+          canOpenFakturakladde={canSeeBilling && !!onOpenFakturakladde}
           onOpenFakturakladde={onOpenFakturakladde}
         />
         {/* Sprint Ø8.0 — cost-free projektøkonomi-overblik */}
-        <CaseProjectEconomyCard caseId={sag.id} caseNumber={sag.case_number} />
+        <CaseProjectEconomyCard caseId={sag.id} caseNumber={sag.case_number} canOpenInvoices={canOpenInvoices} />
       </div>
     )}
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

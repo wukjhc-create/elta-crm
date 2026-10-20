@@ -825,11 +825,12 @@ export async function approveInvoice(
       ok: false,
       message: `e-conomic failed: ${econ.error ?? 'unknown'}`,
     })
-    return { ok: true, warning: true, message: `Godkendt — men bogføring i e-conomic fejlede: ${econ.error ?? 'ukendt fejl'}. Prøv "Bogfør til e-conomic" igen.` }
+    // PR4-13 (pilot-review 4): e-conomics rå fejl ("HTTP 422", "customer not found") står i auditloggen — brugeren får dansk
+    return { ok: true, warning: true, message: 'Godkendt — men bogføring i e-conomic fejlede (detaljer i fakturaens historik). Prøv "Bogfør til e-conomic" igen.' }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     await auditLog({ incomingInvoiceId: invoiceId, action: 'error', ok: false, message: msg })
-    return { ok: true, warning: true, message: `Godkendt — men bogføring i e-conomic fejlede (${msg}). Prøv "Bogfør til e-conomic" igen.` }
+    return { ok: true, warning: true, message: 'Godkendt — men bogføring i e-conomic fejlede (detaljer i fakturaens historik). Prøv "Bogfør til e-conomic" igen.' }
   }
 }
 

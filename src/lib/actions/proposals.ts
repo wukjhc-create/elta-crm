@@ -204,6 +204,9 @@ export async function rejectCaseProposal(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'sag-ID')
     const { supabase, userId } = await requireGate('cases.create')
+    // SC-4 (scope-review 2026-10-20): kun et sag-FORSLAG — ellers kunne id'et på en rigtig sag frakoble alle dens mails
+    const { data: prop } = await supabase.from('service_cases').select('id').eq('id', id).eq('is_proposal', true).maybeSingle()
+    if (!prop) return { success: false, error: 'Sag-forslaget findes ikke (eller er allerede godkendt)' }
     // Defensiv: ryd incoming_emails.service_case_id-referencer foer DELETE.
     await supabase
       .from('incoming_emails')

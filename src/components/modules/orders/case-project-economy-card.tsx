@@ -16,7 +16,7 @@ import { getServiceCaseProjectEconomy, type CaseProjectEconomy } from '@/lib/act
 import { formatCurrency } from '@/lib/utils/format'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
-export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string; caseNumber?: string | null }) {
+export function CaseProjectEconomyCard({ caseId, caseNumber, canOpenInvoices = false }: { caseId: string; caseNumber?: string | null; canOpenInvoices?: boolean }) {
   const [data, setData] = useState<CaseProjectEconomy | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,7 +38,8 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
         <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-800">
           <Wallet className="w-4 h-4 text-emerald-600" /> Projektøkonomi
         </h3>
-        {caseNumber && (
+        {/* DE2-1 (dead-end-review 2026-10-20): fakturalisten kræver invoices.view.all — salg fik "ingen adgang" */}
+        {caseNumber && canOpenInvoices && (
           <Link href={`/dashboard/invoices?search=${encodeURIComponent(caseNumber)}`} className="text-xs text-emerald-700 hover:underline inline-flex items-center gap-1">
             Fakturaer <ArrowRight className="w-3.5 h-3.5" />
           </Link>
@@ -81,11 +82,14 @@ export function CaseProjectEconomyCard({ caseId, caseNumber }: { caseId: string;
               {data.credited_total > 0 && ` · ${kr(data.credited_total)} krediteret`}
               {data.voided_count > 0 && ` · ${data.voided_count} annulleret`}
             </span>
-            {data.latest_invoice && (
+            {/* DE2-2: fakturadetaljen kræver invoices.view.all (salg fik 404) — ellers kun nummeret */}
+            {data.latest_invoice && (canOpenInvoices ? (
               <Link href={`/dashboard/invoices/${data.latest_invoice.id}`} className="text-emerald-700 hover:underline">
                 Seneste{data.latest_invoice.invoice_number ? `: ${data.latest_invoice.invoice_number}` : ''}
               </Link>
-            )}
+            ) : (
+              <span>Seneste{data.latest_invoice.invoice_number ? `: ${data.latest_invoice.invoice_number}` : ''}</span>
+            ))}
           </div>
 
           <p className="text-[11px] text-gray-400">

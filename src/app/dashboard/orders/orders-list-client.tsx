@@ -228,15 +228,16 @@ export function OrdersListClient({
                 <th className="px-3 py-2">Ansvarlig</th>
                 <th className="px-3 py-2">Formand</th>
                 <th className="px-3 py-2">Planlagt</th>
-                <th className="px-3 py-2 text-right">Tilbudt</th>
-                <th className="px-3 py-2 text-right">Revideret</th>
+                {/* PR4-5 (pilot-review 4): beløbene fjernes på serveren uden faktureringsadgang (FW-1) → ingen tomme kolonner */}
+                {canSeeBilling && <th className="px-3 py-2 text-right">Tilbudt</th>}
+                {canSeeBilling && <th className="px-3 py-2 text-right">Revideret</th>}
                 {canSeeBilling && <th className="px-3 py-2 text-right">Faktureret / Udestående</th>}
               </tr>
             </thead>
             <tbody>
               {cases.length === 0 ? (
                 <tr>
-                  <td colSpan={canSeeBilling ? 13 : 12} className="px-3 py-12 text-center text-gray-400 text-sm">
+                  <td colSpan={canSeeBilling ? 13 : 10} className="px-3 py-12 text-center text-gray-400 text-sm">
                     {filters.search || filters.status || filters.type
                       ? 'Ingen sager matcher filtrene.'
                       : 'Ingen sager endnu — opret din første sag fra et tilbud, en email eller manuelt.'}
@@ -288,8 +289,8 @@ export function OrdersListClient({
                       <td className="px-3 py-2 text-xs">{assigneeName}</td>
                       <td className="px-3 py-2 text-xs">{formandName}</td>
                       <td className="px-3 py-2 text-xs whitespace-nowrap">{fmtDateRange(c.start_date, c.end_date)}</td>
-                      <td className="px-3 py-2 text-right text-xs">{fmtAmount(c.contract_sum)}</td>
-                      <td className="px-3 py-2 text-right text-xs">{fmtAmount(c.revised_sum)}</td>
+                      {canSeeBilling && <td className="px-3 py-2 text-right text-xs">{fmtAmount(c.contract_sum)}</td>}
+                      {canSeeBilling && <td className="px-3 py-2 text-right text-xs">{fmtAmount(c.revised_sum)}</td>}
                       {canSeeBilling && (
                         <td className="px-3 py-2 text-right text-xs whitespace-nowrap">
                           {(() => {

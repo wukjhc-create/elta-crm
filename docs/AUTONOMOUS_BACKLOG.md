@@ -378,7 +378,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | TZ-2 | "Antal ved tilføj": "1.000" → antal 1 (S3) | DONE (kode) — "Antal ved tilføj" og ny fakturalinje via fælles parser; toNumberDa: tomt → NaN (ikke 0); alle 20 kaldere gennemgået (U51/U15/U34/U40/U33) |
 | TZ-3 | Bookede besigtigelser gemmes som UTC-midnat (forsvinder/forsinket på dagen) (S3) | DONE (kode) — intern booking og portalbooking gemmer det bookede klokkeslæt i dansk tid (dublet-tjek med samme værdi); mail-datoen med timeZone (U69 + tidspunkt 10:00, U70/U99). Intern booking ikke UI-testet |
 | TZ-4 | "Kommende opgaver" regner i UTC på serveren (S3) | DONE (kode) — i dag/forsinket/dato i dansk kalender (copenhagenParts) (U193) |
-| TZ-5 | Årsserier (faktura/tilbud/sag) skifter ved UTC-midnat (S4) | TODO (TS); allocate_invoice_number = BLOCKED_APPROVAL [MIGRATION] |
+| TZ-5 | Årsserier (faktura/tilbud/sag) skifter ved UTC-midnat (S4) | TS DONE (kode, 2026-10-20) — tilbudsnumre (FIN3-2) og ELS-tilbudsreference/PDF-sti (quote-generator) bruger dansk år; sagsnumre sættes i DB; allocate_invoice_number = BLOCKED_APPROVAL [MIGRATION] |
 | TZ-6 | Tilbuds-/quote-gyldighed én dag for kort omkring midnat/DST (S4) | DONE (kode) — copenhagenDatePlusDays i tilbudsformular og Gyldne Knap (PDF/mail/sent_quotes) |
 | TZ-7 | Leverandørsynk "næste kørsel" vises 1–2 t forkert (S4) | DONE (kode) — nextDailyRunIso (cron-tid = dansk tid, DST-sikker) i action + cron-rute; kun visning (next-run-test 7, U12/U83) |
 | TZ-8 | Opfølgningsudkast kan vise forkert afsendelsesdato (S4) | DONE (kode) — opfølgningsagentens dato med timeZone Europe/Copenhagen (agent-/opfølgningstests grønne) |
@@ -614,7 +614,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | EC-12 | Rå e-conomic-fejltekst til brugeren; "book"-match for bred (S4) | DONE (kode) |
 | EC-13 | Auto-bogføring: status-side og klient uenige om standard (S4) | DONE (kode) — kun ved eksplicit true |
 | EC-14 | Leverandørfakturaer logges som kundefakturaer; kladde kaldt "bogført" (S4) | TODO (entity_type kræver CHECK-tjek) |
-| EC-15 | Forfaldsdato sendes ikke til e-conomic (S4, plausibel) | TODO |
+| EC-15 | Forfaldsdato sendes ikke til e-conomic (S4, plausibel) | BLOCKED_CONFIGURATION (2026-10-20) — kladden sender date + paymentTerms (lib/economic/invoice-draft.ts:199); e-conomic beregner forfald ud fra betalingsbetingelsen og accepterer dueDate kun ved betingelsestypen "dueDate" — skal afprøves i e-conomic-sandbox (som EC-9), intet gæt |
 
 ## NEXT-39 (review-bølge 2026-10-17 aften — automatik/agenter + sager/materialer)
 | # | Fund | Status |
@@ -835,7 +835,7 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | F-11 (S2) | Kostkolonner på case_materials/case_other_costs læsbare via API for alle | BLOCKED_APPROVAL — forslag docs/runbooks/cost-columns-case-materials-proposal.md (00234) |
 | F-12 (S2) | work_order_profit-snapshots forkerte (materialer/omsætning) — også i 00222-udkastet | [MIGRATION] — 00222 ER i prod; restgab (materialer uden work_order_id, omsætning fra sagsfakturaer) kræver ny migration → forslag næste |
 | Q-1 (S2) | Dashboard-tal pager hele tabeller (leads/kunder/tilbud/timer) | DELVIS — leads (7 statusser) og kunder (i alt/aktive/nye denne måned) tælles med HEAD-count. Tilbud/timer summeres stadig fra rækker (kræver beløb). UI U70/U76 |
-| Q-2 (S2) | Dashboard-widgets henter serielt (client server-actions) | TODO (større) |
+| Q-2 (S2) | Dashboard-widgets henter serielt (client server-actions) | DONE (verificeret 2026-10-20) — dashboardet renderes på serveren med Promise.all; de to klient-widgets bruger fetch mod API-ruter (parallelt, ingen server-action-kø); sidens øvrige kald samlet i PF-2/PF3 |
 | Q-3 (S3) | Overblik: chunk-løkker sekventielle + N+1 på webhenvendelser | DONE — bidder og kundeopslag samtidig. UI U67/U68/U70 |
 | Q-4 (S2) | Kalender henter montørens job to gange | DONE — ét opslag, delt i JS. UI U43/U151 |
 | Q-5 (S3) | Arbejdsordre-scope henter alle id'er unødigt | DONE — dublet af Q-5 ovenfor (8584ccf9) |
@@ -2016,7 +2016,48 @@ Ingen penge-forkert regression i FIN3-ændringerne. Fund:
 | R3-5 | Sagsmateriale: varens avance 0 gav salg til kostpris efter FIN3-1 | DONE (kode) — avance ≤ 0 = ikke sat (som før) |
 | R3-6 | Fakturabinding af timer tjekker ikke pay_rate_type/sale_amount (kapløb med satsskift) (S4) | DONE (kode, U32/U48) — bindingen kræver det læste sale_amount |
 | R3-11 | Medarbejderlistens "Mangler timepris"-mærke læste højst 1.000 medarbejdere (.limit(1000)) — fundet via U11 der fejlede 2× | DONE (kode, U11) — fetchAllRows; U11 rammer præcis den seedede række |
-| R3-7 | Fraværsadvarsel mangler ved flytning af time/timer-start; godkender-roller uden for 00228 ser ikke mærket (S4) | DELVIS (kode, U155/U163) — advarsel også når en rettelse flytter tiden til en fraværsdag; godkendere (time_logs.approve = admin/serviceleder) er inden for 00228's læseroller; timer-start = TODO |
+| R3-7 | Fraværsadvarsel mangler ved flytning af time/timer-start; godkender-roller uden for 00228 ser ikke mærket (S4) | DONE (kode, U155/U163) — advarsel også når en rettelse flytter tiden til en fraværsdag; godkendere (time_logs.approve = admin/serviceleder) er inden for 00228's læseroller; "timer-start" findes ikke som separat sti (job-start skifter kun arbejdsordrens status; timer oprettes via createTimeLog = advarsel; planlægning på fraværsdag kræver allerede override, 00228) |
 | R3-8 | Sagsmaterialesøgningen: ~4 opslag pr. hit (supplierLinePricing pr. række) (S4, perf) | DONE (kode, supplier-line-pricing-check batch=enkelt, U34/U51/U14/U28) — supplierLinePricingBatch: kategorier/aftaler/produktpriser én gang; fælles finishSupplierLinePricing (én forrang) |
 | R3-9 | FIN3-4: kreditnota uden sent_at falder ud af perioderne (S4, plausibel) | AFVIST (verificeret) — kreditnotaer oprettes som kladde og udstedes via samme afsendelse/setInvoiceStatus, der altid sætter sent_at |
 | R3-10 | Tilbudsnumre > 9.999 pr. år sorteres som tekst (S4) | DONE (kode, offer-number-test, U7/U14/U51) — også de 50 senest oprettede indgår i det numeriske maksimum |
+
+### Pilot-readiness-review 4 (2026-10-20, ikke-finans + slugte fejl)
+
+Ingen pilot-blokerende fund. Fund:
+
+| # | Fund | Status |
+|---|------|--------|
+| PR4-1 | Aktivitet-fanen vises for montør/salg, men getServiceCaseActivity kræver cases.view.all → "ingen adgang" (S3) | DONE (kode, U210) — fanen kun med cases.view.all |
+| PR4-2 | Arbejdsordre-statusfejl med engelske statuskoder ("cancelled til done") (S3) | DONE (kode) — danske navne / "annulleret — genindlæs" |
+| PR4-3 | Læsefejl på aktivitetsloggen vises som "ingen aktivitet" (S4) | DONE (kode) — fejl i stedet for tom liste |
+| PR4-4 | Telefonkalender-linket (<a download>) viser rå JSON ved fejl (S4) | DONE (kode) — lille dansk side med vej tilbage |
+| PR4-5 | Tomme Tilbudt/Revideret-kolonner for montør i sagslisten (S4, kosmetisk) | DONE (kode) — kolonnerne kun med faktureringsadgang |
+| PR4-6 | Start af afleveringstjekliste tjekker ikke lukket sag (S4) | DONE (kode) — closedCaseBlock |
+| PR4-7 | Fakturakladde: læsefejl på linjer skrev totaler 0 kr med "gemt" (S2) | DONE (kode) — fejl, ingen opdatering |
+| PR4-8 | Sletning af eneste afleveringsfoto: fejlet afkrydsning ignoreret → sag kan lukkes uden dokumentation (S3) | DONE (kode) — fejl meldes |
+| PR4-9 | Kunde fra mail: kobling af eksisterende lead ukontrolleret → dublet-kunde ved næste konvertering (S3) | DONE (kode) — advarsel |
+| PR4-10 | Mail sendt via Graph: status 'sent'/tidslinje-kopi ukontrolleret (supabase-js kaster ikke) (S4, plausibel) | DONE (kode) |
+| PR4-11 | Faktura-afsendelse viser engelske årsager/fejl ("no customer linked", "claim failed") (S3) | DONE (kode) |
+| PR4-12 | Graph-/PostgREST-fejltekster sendes råt til brugeren (email.ts, task-mail.ts, customer-tasks.ts) (S3) | DONE (kode) |
+| PR4-13 | Leverandørfaktura-godkendelse viser e-conomic-fejl råt ("HTTP 422") (S3) | DONE (kode) |
+| PR4-14 | Catch-blokke returnerer err.message råt (AUTH_REQUIRED); auth uden for try i nogle actions (S3) | DONE (kode) |
+| PR4-15 | Arbejdsordre: rollback ved samtidig lukning og åben-timer-tælling ukontrolleret (S4) | DONE (kode) |
+
+### Scope-/dead-end-sweep (2026-10-20, del af pilot-review 4)
+
+| # | Fund | Status |
+|---|------|--------|
+| SC-1 | generateEmailPreview uden tilbuds-scope → salg kunne forhåndsvise kollegas tilbud inkl. kundens portal-link (S2, API-2) | DONE (kode) — offerScopeDeniedFor |
+| SC-2 | getEmailThreads/getEmailThread/getEmailMessages uden tilbuds-scope (S2, API-2) | DONE (kode) — filterThreadsToOfferScope (fail-closed for tråde uden tilbud) |
+| SC-3 | getCustomerQuoteHistory: kollegas seneste tilbud + priser (S3, API-2) | DONE (kode) — currentOfferScopeOr |
+| SC-4 | rejectCaseProposal frakoblede mails fra en RIGTIG sag før DELETE (S3) | DONE (kode) — kun egentligt forslag |
+| SC-5 | getOffersForOrderSelect uden tilbuds-scope (S4) | DONE (kode, U207 udvidet) |
+| SC-6 | createEmailThread/createEmailMessage eksporteret 'use server' uden gate (S3, plausibel) | DONE (kode) — ikke længere eksporteret |
+| DE2-1/2 | Sagens projektøkonomi-kort: "Fakturaer →"/"Seneste" for salg → ingen adgang/404 | DONE (kode) — kun med invoices.view.all |
+| DE2-3 | "Åbn fakturakladde" for salg → tom fane | DONE (kode) — kun når fanen findes |
+| DE2-4 | Kundens fakturafane: "Se alle/forfaldne/udestående" for salg → ingen adgang | DONE (kode) |
+| DE2-5 | Lead "Se i Mail" for salg → ingen adgang | DONE (kode) — inbox.view |
+| DE2-6 | Sagsdokumenter "Fra mail"-link for salg/bogholderi → ingen adgang | DONE (kode) — mærke uden link |
+| DE2-7 | Sagens Mails-fane: links til mail-modulet for salg/bogholderi | DONE (kode) |
+| DE2-8 | Kundens Status: Besigtigelse-trin klikbart uden effekt for salg/bogholderi | DONE (kode) |
+| DE2-9 | Tilbud "Åbn sag" for sælger når en anden konverterede (plausibel) | BESLUTNING — skal sælgeren tildeles sagen ved manuel konvertering? |

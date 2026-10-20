@@ -157,6 +157,11 @@ export function isUserSafeMessage(msg: string | null | undefined): boolean {
   return m.length > 0 && m.length <= 300 && DANISH_RE.test(m) && !RAW_ERROR_RE.test(m)
 }
 
+/** PR4-12: en fejltekst fra en integration (Graph, PostgREST) vises kun hvis den er brugervenlig dansk — ellers fallback. */
+export function userSafeOr(msg: string | null | undefined, fallback: string): string {
+  return isUserSafeMessage(msg) ? String(msg).trim() : fallback
+}
+
 export function formatError(err: unknown, defaultMessage: string): string {
   if (err instanceof ActionError) {
     return err.message

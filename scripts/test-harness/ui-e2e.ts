@@ -3260,13 +3260,21 @@ ${m.text()}`) })
           await gotoSafe(sp.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await sp.page.getByRole('button', { name: /^Overblik$/ }).first().waitFor({ timeout: 60_000 }).catch(() => {})
           r.salg_ser_sag = (await sp.page.getByRole('button', { name: /^Overblik$/ }).count()) > 0
-          for (const [k, re] of [['planlaegning', /^Planlægning/], ['materialer', /^Materialer$/], ['oevrige', /^Øvrige omkostninger$/], ['fakturakladde', /^Fakturakladde$/]] as const) {
+          for (const [k, re] of [['planlaegning', /^Planlægning/], ['materialer', /^Materialer$/], ['oevrige', /^Øvrige omkostninger$/], ['fakturakladde', /^Fakturakladde$/], ['aktivitet', /^Aktivitet$/]] as const) {
             r[`salg_ingen_${k}`] = (await sp.page.getByRole('button', { name: re }).count()) === 0
           }
+          // DE2-1..3 (2026-10-20): Overblik har ingen links/knapper til faktura-sider salg ikke kan åbne
+          await sp.page.waitForTimeout(2000)
+          r.salg_ingen_fakturalink = (await sp.page.locator('a[href^="/dashboard/invoices"]').count()) === 0
+          r.salg_ingen_aabn_kladde = (await sp.page.getByRole('button', { name: /Åbn fakturakladde/ }).count()) === 0
           await gotoSafe(sp.page, `${base}/dashboard/orders/${caseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
           await sp.page.waitForTimeout(1500)
           r.salg_deeplink_ingen_evig_hentning = (await sp.page.getByText('Henter planlagte arbejdsordrer').count()) === 0
         } finally { await sp.ctx.close().catch(() => {}) }
+        // PR4-1 positiv kontrol: admin har stadig Aktivitet-fanen
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /^Overblik$/ }).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.admin_har_aktivitet = (await a.page.getByRole('button', { name: /^Aktivitet$/ }).count()) > 0
         const m = await login(montor)
         try {
           await gotoSafe(m.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
@@ -3394,6 +3402,14 @@ ${m.text()}`) })
             r.b_eksport_kun_egne = csv.includes(`${tag}-C`) && !csv.includes(`${tag}-A`)
             const pa = foreign ? await gotoSafe(b.page, `${base}/api/offers/${foreign}/pdf`, { waitUntil: 'load', timeout: 120_000 }).catch(() => null) : null
             r.b_pdf_andens_404 = pa?.status() === 404
+            // SC-5 (scope-review 2026-10-20): tilbudsvælgeren på "Ny sag" viser kun tilbud i B's scope
+            await gotoSafe(b.page, `${base}/dashboard/orders/new`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await b.page.locator('select[name="customer_id"]').first().selectOption(profitCustomerId, { timeout: 30_000 }).catch(() => {})
+            const offerSel = b.page.locator('select[name="source_offer_id"]')
+            await offerSel.waitFor({ timeout: 45_000 }).catch(() => {})
+            const optText = ((await offerSel.locator('option').allTextContents().catch(() => [])) as string[]).join(' | ')
+            r.b_tilbudsvaelger_kun_scope = optText.includes(`${tag}-C`) && !optText.includes(`${tag}-A`)
+            if (!r.b_tilbudsvaelger_kun_scope) console.log(`[U207] tilbudsvælger: ${optText.slice(0, 300)}`)
           } finally { await b.ctx.close().catch(() => {}) }
           await gotoSafe(a.page, `${base}/dashboard/offers?search=${encodeURIComponent(tag)}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByText(`[HARNESS] ${tag} andens`).first().waitFor({ timeout: 60_000 }).catch(() => {})

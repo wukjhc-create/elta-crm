@@ -50,12 +50,15 @@ function calculateFinancials(input: GenerateQuoteInput) {
   }
 }
 
+
+const copenhagenYear = () => Number(copenhagenParts(new Date()).date.slice(0, 4))
 /**
  * Generate quote reference — NEVER fails.
  * Tries DB first, falls back to timestamp-based.
  */
 async function generateQuoteReference(supabase: ReturnType<typeof getServiceClient>): Promise<string> {
-  const year = new Date().getFullYear()
+  // TZ-5 (2026-10-20): dansk år — serverens UTC-år gav forrige års serie kl. 00–01 nytårsnat (som FIN3-2 for tilbud)
+  const year = copenhagenYear()
   const prefix = `ELS-${year}-`
 
   try {
@@ -144,7 +147,7 @@ export async function generateAndSendQuote(
     const pdfBuffer = await renderToBuffer(pdfDocument as any)
 
     // 6. Upload to Supabase Storage
-    const year = new Date().getFullYear()
+    const year = copenhagenYear()
     // IV2-2: unik sti pr. afsendelse og ALDRIG upsert — to samtidige afsendelser kan få samme reference (læs-max+1), og
     // den anden overskrev før den første kundes PDF (som første kundes mail-link så pegede på)
     const storagePath = `quotes/${year}/${quoteReference}-${randomUUID().slice(0, 8)}.pdf`

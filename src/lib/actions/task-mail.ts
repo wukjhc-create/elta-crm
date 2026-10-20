@@ -19,7 +19,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { formatError, getAuthenticatedClientWithRole, userSafeOr } from '@/lib/actions/action-helpers'
 import {
   isGraphConfigured,
   sendEmailViaGraph,
@@ -345,14 +345,16 @@ export async function sendTaskEmail(
         success: false,
         error: sendResult.uncertain
           ? 'Mailen er MULIGVIS sendt (svaret udeblev) — kontrollér Sendt post, før du sender igen'
-          : (sendResult.error || 'Mail kunne ikke sendes'),
+          // PR4-12: ingen rå Graph-tekst til brugeren
+          : userSafeOr(sendResult.error, 'Mailen kunne ikke sendes — prøv igen'),
         thread_id: threadId || undefined,
         message_id: messageRowId,
       }
     }
 
     const sentAt = new Date().toISOString()
-    await supabase
+    // PR4-10 (pilot-review 4): fejlen tjekkes (supabase-js kaster ikke)
+    const { error: sentStatusErr } = await supabase
       .from('email_messages')
       .update({
         status: 'sent',
@@ -360,9 +362,10 @@ export async function sendTaskEmail(
         message_id: sendResult.messageId || null,
       })
       .eq('id', messageRowId)
+    if (sentStatusErr) logger.error('sendTaskEmail: mail sendt, men status "sent" kunne ikke gemmes', { error: sentStatusErr, entityId: messageRowId })
 
     try {
-      await supabase
+      const { error: insErr } = await supabase
         .from('incoming_emails')
         .insert({
           graph_message_id:
@@ -392,6 +395,8 @@ export async function sendTaskEmail(
           linked_at: sentAt,
           processed_at: sentAt,
         })
+      // PR4-10: insert-fejl kastes ikke — før nåede advarslen aldrig loggen
+      if (insErr) throw insErr
     } catch (mirrorErr) {
       logger.warn('sendTaskEmail: failed to mirror to incoming_emails', {
         error: mirrorErr,
@@ -429,7 +434,8 @@ export async function sendTaskEmail(
     logger.error('sendTaskEmail: unexpected error', { error })
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Uventet fejl ved afsendelse af mail',
+      // PR4-14: formatError (ingen rå Graph-/systemtekst)
+      error: formatError(error, 'Uventet fejl ved afsendelse af mail'),
     }
   }
 }

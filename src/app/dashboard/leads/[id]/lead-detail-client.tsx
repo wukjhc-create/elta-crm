@@ -267,13 +267,14 @@ export function LeadDetailClient({ lead, activities, followUpEnabled = false }: 
                       )}
                     </p>
                   </div>
-                  <a
+                  {/* DE2-5 (dead-end-review 2026-10-20): mail-modulet kræver inbox.view — salg fik "ingen adgang" */}
+                  {hasPermission(role, 'inbox.view') && <a
                     href={`/dashboard/mail?filter=${web ? 'webform' : 'all'}&emailId=${encodeURIComponent(cf.source_email_id)}`}
                     className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 shrink-0"
                     data-testid="lead-source-mail-link"
                   >
                     Se i Mail <ExternalLink className="w-3 h-3" />
-                  </a>
+                  </a>}
                 </div>
               )
             })()}

@@ -406,6 +406,8 @@ export async function updateWorkOrderPlanning(
 // Status transition
 // =====================================================
 
+const WO_STATUS_DA: Record<string, string> = { planned: 'Planlagt', in_progress: 'I gang', done: 'Afsluttet', cancelled: 'Annulleret' }
+
 export async function changeWorkOrderStatus(
   workOrderId: string,
   next: WorkOrderStatus
@@ -452,7 +454,10 @@ export async function changeWorkOrderStatus(
     if (!ALLOWED_TRANSITIONS[cur.status as WorkOrderStatus]?.includes(next)) {
       return {
         success: false,
-        error: `Status kan ikke gå fra ${cur.status} til ${next}`,
+        // PR4-2 (pilot-review 4): danske statusnavne (før fx "Status kan ikke gå fra cancelled til done")
+        error: cur.status === 'cancelled'
+          ? 'Arbejdsordren er annulleret — genindlæs siden'
+          : `Arbejdsordren kan ikke skifte fra "${WO_STATUS_DA[cur.status as string] ?? cur.status}" til "${WO_STATUS_DA[next] ?? next}" — genindlæs siden`,
       }
     }
     // FW-4: genåbning af en afsluttet arbejdsordre kun for kontoret (også når montøren må starte egne job, N11)
@@ -463,11 +468,13 @@ export async function changeWorkOrderStatus(
 
     // Block done if a timer is still open
     if (next === 'done') {
-      const { count: openTimers } = await supabase
+      const { count: openTimers, error: timerErr } = await supabase
         .from('time_logs')
         .select('id', { count: 'exact', head: true })
         .eq('work_order_id', workOrderId)
         .is('end_time', null)
+      // PR4-15 (pilot-review 4): kan tjekket ikke køre, afsluttes ikke (før: fejl = 0 åbne timere → afsluttet med kørende timer)
+      if (timerErr) return { success: false, error: 'Kunne ikke kontrollere aktive timere — prøv igen' }
       if ((openTimers ?? 0) > 0) {
         return {
           success: false,
@@ -501,7 +508,12 @@ export async function changeWorkOrderStatus(
     if (cur.case_id && next === 'in_progress') {
       const { data: csNow } = await supabase.from('service_cases').select('status').eq('id', cur.case_id as string).maybeSingle()
       if ((csNow as { status?: string } | null)?.status === 'closed') {
-        await supabase.from('work_orders').update({ status: cur.status, completed_at: (cur as { completed_at?: string | null }).completed_at ?? null }).eq('id', workOrderId).eq('status', next)
+        const { error: rbErr } = await supabase.from('work_orders').update({ status: cur.status, completed_at: (cur as { completed_at?: string | null }).completed_at ?? null }).eq('id', workOrderId).eq('status', next)
+        // PR4-15: fejlet tilbagerulning meldes (ellers står arbejdsordren "i gang" på en lukket sag uden at nogen ved det)
+        if (rbErr) {
+          logger.error('changeWorkOrderStatus rollback failed', { error: rbErr, entityId: workOrderId })
+          return { success: false, error: 'Sagen er netop lukket, og arbejdsordren kunne ikke sættes tilbage — bed kontoret rette den' }
+        }
         return { success: false, error: 'Sagen er netop lukket — genåbn den først' }
       }
     }

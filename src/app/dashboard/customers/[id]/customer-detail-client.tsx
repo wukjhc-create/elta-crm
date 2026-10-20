@@ -433,6 +433,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             customerId={customer.id}
             customerEmail={customer.email}
             onNavigateTab={(tab) => setActiveTab(tab)}
+            canNavigateTab={(tab) => isCustomerTabVisible(tab)}
           />
         )}
 

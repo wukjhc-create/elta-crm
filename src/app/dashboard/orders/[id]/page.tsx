@@ -134,6 +134,8 @@ export default async function OrderDetailPage({
         materials: await pageHasPermission('materials.view'),
         otherCosts: await pageHasPermission('other_costs.view'),
         allInvoices: await pageHasPermission('invoices.view.all'),
+        // PR4-1 (pilot-review 4): aktivitetsloggen kræver cases.view.all (getServiceCaseActivity)
+        caseActivity: await pageHasPermission('cases.view.all'),
       }}
     />
   )

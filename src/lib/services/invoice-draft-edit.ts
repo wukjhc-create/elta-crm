@@ -59,7 +59,9 @@ export function vatRateOf(inv: { total_amount: number | null; tax_amount: number
 }
 
 export async function recomputeDraftTotals(admin: Admin, invoiceId: string, vatRate: number): Promise<DraftEditResult> {
-  const { data: lines } = await admin.from('invoice_lines').select('total_price').eq('invoice_id', invoiceId)
+  const { data: lines, error: linesErr } = await admin.from('invoice_lines').select('total_price').eq('invoice_id', invoiceId)
+  // PR4-7 (pilot-review 4): en læsefejl gav subtotal 0 → kladdens totaler skrevet som 0 kr med "Linje gemt"
+  if (linesErr || !lines) return { ok: false, message: 'Fakturaens linjer kunne ikke læses — totalerne er ikke opdateret, prøv igen' }
   const subtotal = r2(((lines ?? []) as Array<{ total_price: number | null }>).reduce((s, l) => s + Number(l.total_price ?? 0), 0))
   const tax = r2(subtotal * vatRate)
   const totals = { total_amount: subtotal, tax_amount: tax, final_amount: r2(subtotal + tax) }

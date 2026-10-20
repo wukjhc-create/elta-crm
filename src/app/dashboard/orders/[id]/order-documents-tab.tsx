@@ -193,7 +193,7 @@ export function OrderDocumentsTab({
           </div>
           <div className="divide-y">
             {mailDocs.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} fromMail onDelete={canDelete ? onDelete : undefined} />
+              <DocumentRow key={doc.id} doc={doc} fromMail onDelete={canDelete ? onDelete : undefined} canOpenMail={hasPermission(role, 'inbox.view')} />
             ))}
           </div>
         </div>
@@ -218,7 +218,7 @@ export function OrderDocumentsTab({
   )
 }
 
-function DocumentRow({ doc, fromMail, onDelete }: { doc: CaseDocument; fromMail: boolean; onDelete?: (doc: CaseDocument) => void }) {
+function DocumentRow({ doc, fromMail, onDelete, canOpenMail = false }: { doc: CaseDocument; fromMail: boolean; onDelete?: (doc: CaseDocument) => void; canOpenMail?: boolean }) {
   const blocked = documentDeleteBlockReason(doc)
   const isImg = isImage(doc.mime_type, doc.file_name)
   return (
@@ -242,7 +242,14 @@ function DocumentRow({ doc, fromMail, onDelete }: { doc: CaseDocument; fromMail:
               {doc.file_size ? ` — ${formatSize(doc.file_size)}` : ''}
               {doc.mime_type ? ` — ${doc.mime_type.split('/')[1]?.toUpperCase() || doc.mime_type}` : ''}
             </p>
-            {fromMail && doc.source_email_id && (
+            {/* DE2-6 (dead-end-review 2026-10-20): mail-modulet kræver inbox.view — ellers kun mærket (salg/bogholderi fik "ingen adgang") */}
+            {fromMail && doc.source_email_id && !canOpenMail && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                <Mail className="w-3 h-3" />
+                Fra mail
+              </span>
+            )}
+            {fromMail && doc.source_email_id && canOpenMail && (
               <Link
                 href={`/dashboard/mail?emailId=${doc.source_email_id}`}
                 className="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 px-1.5 py-0.5 rounded"

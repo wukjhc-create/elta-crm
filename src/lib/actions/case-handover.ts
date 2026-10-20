@@ -104,6 +104,8 @@ export async function startCaseHandoverAction(caseId: string): Promise<ActionRes
     const ctx = await getAuthenticatedClientWithRole()
     const { canEdit } = await handoverAccess(ctx, caseId)
     if (!canEdit) return { success: false, error: 'Manglende tilladelse til at redigere sagen' }
+    // PR4-6 (pilot-review 4): som afkrydsning/upload/sletning (FW-2) — ingen ny tjekliste på en lukket sag
+    { const closed = await closedCaseBlock(caseId); if (closed) return { success: false, error: closed } }
     const db = await admin()
     const { data: sc } = await db.from('service_cases').select('checklist, updated_at').eq('id', caseId).maybeSingle()
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
@@ -234,7 +236,14 @@ export async function deleteHandoverPhotoAction(caseId: string, attachmentId: st
     } catch { /* audit er best-effort */ }
     // Punktet er ikke længere dokumenteret, hvis det var det eneste billede
     const { count } = await db.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', caseId).eq('category', att.category as string)
-    if ((count ?? 0) === 0 && typeof att.category === 'string' && att.category.endsWith('_photo')) await setItem(caseId, att.category, false, null)
+    if ((count ?? 0) === 0 && typeof att.category === 'string' && att.category.endsWith('_photo')) {
+      // PR4-8 (pilot-review 4): før ignoreret — fejlede afkrydsningen, stod punktet som dokumenteret uden foto
+      const r = await setItem(caseId, att.category, false, null)
+      if (!r.ok) {
+        revalidateCase(caseId)
+        return { success: false, error: 'Billedet er slettet, men punktet blev ikke fjernet fra tjeklisten — fjern fluebenet manuelt' }
+      }
+    }
     revalidateCase(caseId)
     return { success: true }
   } catch (err) {

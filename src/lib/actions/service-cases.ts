@@ -1568,6 +1568,8 @@ export async function getOffersForOrderSelect(
       .from('offers')
       .select('id, offer_number, title, status, created_at')
       .eq('customer_id', customerId)
+      // SC-5 (scope-review 2026-10-20): API-2 — kun tilbud i brugerens scope
+      .or(await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr())
       .order('created_at', { ascending: false })
       .limit(50)
     if (error) {
@@ -1953,9 +1955,9 @@ export async function getServiceCaseActivity(
       .limit(100)
 
     if (error) {
-      // Some non-admin users may see RLS-empty results — return empty list.
+      // PR4-3 (pilot-review 4): en læsefejl er ikke "ingen aktivitet" (RLS-tomme rækker giver ingen fejl, kun [])
       logger.warn('Could not fetch service case activity', { error })
-      return { success: true, data: [] }
+      return { success: false, error: 'Kunne ikke hente aktivitet — prøv igen' }
     }
 
     return {

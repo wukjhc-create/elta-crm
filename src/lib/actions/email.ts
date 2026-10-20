@@ -2,6 +2,7 @@
 import { stripPortalLinks, containsPortalLink } from '@/lib/portal/strip-portal-links'
 import { secretTokenReader } from '@/lib/portal/token-reader'
 import { permissionDenied, formatError } from '@/lib/actions/action-helpers'
+import { userSafeOr } from '@/lib/actions/action-helpers'
 
 /**
  * EMAIL SERVER ACTIONS
@@ -290,6 +291,27 @@ export async function deleteEmailTemplate(id: string): Promise<{ success: boolea
 // THREAD ACTIONS
 // =====================================================
 
+/**
+ * SC-2 (scope-review 2026-10-20): API-2 for tilbudsmails — admin/serviceleder (scope "alle") ser alt; ellers kun tråde
+ * hvis tilbud er i brugerens tilbuds-scope. Tråde uden tilbud vises kun for scope "alle" (fail-closed).
+ */
+async function filterThreadsToOfferScope<T extends { offer_id?: string | null }>(ctx: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>, rows: T[]): Promise<T[]> {
+  if (!rows.length) return rows
+  const { getOfferScope, offerScopeOr } = await import('@/lib/offers/offer-scope')
+  const scope = await getOfferScope(ctx)
+  if (scope.all) return rows
+  const ids = [...new Set(rows.map((r) => r.offer_id).filter((x): x is string => !!x))]
+  if (!ids.length) return []
+  const or = offerScopeOr(scope)
+  const { selectInChunks } = await import('@/lib/supabase/in-chunks')
+  const allowed = await selectInChunks<{ id: string }>(ids, (chunk) => {
+    const q = ctx.supabase.from('offers').select('id').in('id', chunk)
+    return or ? q.or(or) : q
+  })
+  const ok = new Set(allowed.map((o) => o.id))
+  return rows.filter((r) => !!r.offer_id && ok.has(r.offer_id))
+}
+
 export async function getEmailThreads(options?: {
   offer_id?: string
   customer_id?: string
@@ -299,7 +321,8 @@ export async function getEmailThreads(options?: {
   try {
     // IDOR-sweep 2026-10-09 (#4): tilbudsmails (brødtekst/vedhæftninger) kun for roller med offers.view — før var
     // login nok (montør/bogholderi kunne læse alle sendte tilbudsmails)
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const ctx = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission } = ctx
     if (!hasPermission('offers.view')) return []
 
     let query = supabase
@@ -336,8 +359,11 @@ export async function getEmailThreads(options?: {
       return []
     }
 
+    // SC-2 (scope-review 2026-10-20): API-2 — salg ser kun tråde på tilbud i eget scope (før alle sælgeres tilbudsmails)
+    const rows = await filterThreadsToOfferScope(ctx, data || [])
+
     // Process to get only latest message
-    return (data || []).map(thread => ({
+    return rows.map(thread => ({
       ...thread,
       latest_message: Array.isArray(thread.latest_message)
         ? thread.latest_message.sort((a: EmailMessage, b: EmailMessage) =>
@@ -355,7 +381,8 @@ export async function getEmailThread(id: string): Promise<EmailThreadWithRelatio
   try {
     // IDOR-sweep 2026-10-09 (#4): tilbudsmails (brødtekst/vedhæftninger) kun for roller med offers.view — før var
     // login nok (montør/bogholderi kunne læse alle sendte tilbudsmails)
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const ctx = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission } = ctx
     if (!hasPermission('offers.view')) return null
     validateUUID(id, 'tråd ID')
 
@@ -374,6 +401,9 @@ export async function getEmailThread(id: string): Promise<EmailThreadWithRelatio
       logger.error('Error fetching email thread', { error: error })
       return null
     }
+    if (!data) return null
+    // SC-2: tråden kun hvis dens tilbud er i brugerens scope
+    if ((await filterThreadsToOfferScope(ctx, [data])).length === 0) return null
 
     // Sort messages by date
     if (data.messages) {
@@ -389,7 +419,8 @@ export async function getEmailThread(id: string): Promise<EmailThreadWithRelatio
   }
 }
 
-export async function createEmailThread(
+// SC-6 (scope-review 2026-10-20): IKKE eksporteret — kun send-flowet bruger den (eksporteret 'use server' = kaldbar af enhver bruger)
+async function createEmailThread(
   input: EmailThreadCreate
 ): Promise<{ success: boolean; data?: EmailThread; error?: string }> {
   try {
@@ -424,9 +455,13 @@ export async function getEmailMessages(threadId: string): Promise<EmailMessageWi
   try {
     // IDOR-sweep 2026-10-09 (#4): tilbudsmails (brødtekst/vedhæftninger) kun for roller med offers.view — før var
     // login nok (montør/bogholderi kunne læse alle sendte tilbudsmails)
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const ctx = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission } = ctx
     if (!hasPermission('offers.view')) return []
     validateUUID(threadId, 'tråd ID')
+    // SC-2: beskederne kun hvis trådens tilbud er i brugerens scope
+    const { data: thr } = await supabase.from('email_threads').select('id, offer_id').eq('id', threadId).maybeSingle()
+    if (!thr || (await filterThreadsToOfferScope(ctx, [thr as { offer_id: string | null }])).length === 0) return []
 
     const { data, error } = await supabase
       .from('email_messages')
@@ -450,7 +485,8 @@ export async function getEmailMessages(threadId: string): Promise<EmailMessageWi
   }
 }
 
-export async function createEmailMessage(
+// SC-6: ikke eksporteret (se createEmailThread)
+async function createEmailMessage(
   input: EmailMessageCreate
 ): Promise<{ success: boolean; data?: EmailMessage; error?: string }> {
   try {
@@ -551,6 +587,8 @@ export async function generateEmailPreview(
   const __denied = await permissionDenied('offers.send')
   if (__denied) return { success: false, error: __denied }
   try {
+    // SC-1 (scope-review 2026-10-20): API-2 — før kunne salg forhåndsvise en kollegas tilbud inkl. kundens portal-link
+    { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(input.offer_id); if (scopeDenied) return { success: false, error: scopeDenied } }
     const { supabase } = await getAuthenticatedClient()
 
     // Get offer with customer
@@ -992,12 +1030,14 @@ export async function sendOfferEmail(
         success: false,
         error: emailResult.uncertain
           ? 'Afsendelsen fik timeout — mailen kan være sendt. Tjek Sendt post i Outlook før du sender igen.'
-          : emailResult.error || 'Kunne ikke sende e-mail',
+          // PR4-12 (pilot-review 4): Graphs rå/engelske fejltekst ("Graph fejl: …", "fetch failed") vises ikke
+          : userSafeOr(emailResult.error, 'Mailen kunne ikke sendes — prøv igen, eller kontakt administratoren hvis det fortsætter'),
       }
     }
 
     // Update message status to sent
-    await supabase
+    // PR4-10 (pilot-review 4): supabase-js kaster ikke — fejlen tjekkes (ellers stod beskeden "sending" for altid uden spor)
+    const { error: sentStatusErr } = await supabase
       .from('email_messages')
       .update({
         status: 'sent',
@@ -1005,6 +1045,7 @@ export async function sendOfferEmail(
         message_id: emailResult.messageId,
       })
       .eq('id', message.id)
+    if (sentStatusErr) logger.error('sendOfferEmail: mail sendt, men status "sent" kunne ikke gemmes', { error: sentStatusErr, entityId: message.id })
 
     // Sprint 12A Trin 4 — Phase 6a shadow-log for offers
     const shadowMeta = await maybeBuildOfferShadowMeta(input.offer_id, route)
@@ -1067,7 +1108,8 @@ export async function sendOfferEmail(
 
     // Record outgoing email in incoming_emails for customer timeline
     try {
-      await supabase
+      // PR4-10: insert-fejl returneres (kastes ikke) → logges, så en manglende tidslinje-kopi kan findes
+      const { error: mirrorErr } = await supabase
         .from('incoming_emails')
         .insert({
           graph_message_id: emailResult.messageId || `sent-offer-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
@@ -1091,6 +1133,7 @@ export async function sendOfferEmail(
           linked_at: new Date().toISOString(),
           processed_at: new Date().toISOString(),
         })
+      if (mirrorErr) logger.warn('sendOfferEmail: tidslinje-kopi (incoming_emails) fejlede', { error: mirrorErr, entityId: offer.id })
     } catch {
       // Non-critical
     }

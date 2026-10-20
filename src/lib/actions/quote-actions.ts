@@ -71,12 +71,16 @@ export async function getCustomerQuoteHistory(
     // tilbud med linjer og priser
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('offers.view')) return { success: false, error: 'Manglende tilladelse: offers.view' }
+    // SC-3 (scope-review 2026-10-20): API-2 — kun tilbud i brugerens scope (før en kollegas seneste tilbud med priser)
+    const { currentOfferScopeOr } = await import('@/lib/offers/offer-scope')
+    const scopeOr = await currentOfferScopeOr()
 
     // Get the most recent offer for this customer
     const { data: offers, error } = await supabase
       .from('offers')
       .select('id, title, description, notes, terms_and_conditions')
       .eq('customer_id', customerId)
+      .or(scopeOr)
       .order('created_at', { ascending: false })
       .limit(1)
 
@@ -107,6 +111,7 @@ export async function getCustomerQuoteHistory(
       .from('offers')
       .select('*', { count: 'exact', head: true })
       .eq('customer_id', customerId)
+      .or(scopeOr)
 
     return {
       success: true,

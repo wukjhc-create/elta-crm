@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache'
 import {
   getAuthenticatedClientWithRole,
   formatError,
+  isUserSafeMessage,
 } from '@/lib/actions/action-helpers'
 import {
   createInvoiceDraftFromCase as createInvoiceDraftFromCaseService,
@@ -649,11 +650,12 @@ export async function sendInvoiceEmailAction(
         : `Faktura sendt til ${r.recipient}`,
     }
   }
+  // PR4-11 (pilot-review 4): servicens interne/engelske årsager ("status=sent", "no customer linked") vises på dansk
   if (r.status === 'already_sent') {
-    return { ok: false, message: `Allerede sendt — ${r.reason ?? 'status er ikke draft'}` }
+    return { ok: false, message: 'Fakturaen er allerede sendt (eller er ved at blive sendt) — genindlæs siden' }
   }
   if (r.status === 'skipped') {
-    return { ok: false, message: `Sprunget over — ${r.reason ?? 'kunne ikke sende'}` }
+    return { ok: false, message: `Ikke sendt — ${invoiceSendText(r.reason, 'fakturaen kunne ikke sendes')}` }
   }
   if (r.uncertain) {
     return {
@@ -662,7 +664,21 @@ export async function sendInvoiceEmailAction(
         'genafsendelse: er den sendt, brug "Markér som sendt"; ellers "Frigiv afsendelse" og send igen.',
     }
   }
-  return { ok: false, message: `Mail-send fejlede: ${r.error ?? 'ukendt fejl'}` }
+  return { ok: false, message: `Mailen blev ikke sendt: ${invoiceSendText(r.error, 'ukendt fejl — prøv igen')}` }
+}
+
+/** PR4-11: kendte interne koder → dansk; anden tekst kun hvis den er brugervenlig dansk, ellers en generel besked */
+const INVOICE_SEND_TEXT: Record<string, string> = {
+  'claim failed': 'fakturaen kunne ikke låses til afsendelse — prøv igen',
+  'invoice not found': 'fakturaen findes ikke længere',
+  'no customer linked': 'fakturaen har ingen kunde — vælg kunden på fakturaen',
+  'routing failed': 'modtagerens mailadresse kunne ikke findes',
+  'Graph not configured': 'mailafsendelse (Microsoft 365) er ikke sat op',
+}
+function invoiceSendText(raw: string | null | undefined, fallback: string): string {
+  if (!raw) return fallback
+  if (INVOICE_SEND_TEXT[raw]) return INVOICE_SEND_TEXT[raw]
+  return isUserSafeMessage(raw) ? raw : fallback
 }
 
 /** A-1 (review 2026-10-16): frigiv tilbageholdt send-krav efter ukendt udfald (brugeren har tjekket Sendt-mappen) */
@@ -2449,7 +2465,7 @@ export async function getInvoiceRecipientAction(invoiceId: string): Promise<{ ok
     if (!r.ok || !r.route) return { ok: false, message: r.error ?? 'Ingen modtager' }
     return { ok: true, email: r.route.toEmail, viaBillingContact: r.route.recipientRole === 'billing_contact' }
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : 'Kunne ikke finde modtager' }
+    return { ok: false, message: formatError(err, 'Kunne ikke finde modtager') }
   }
 }
 
@@ -2479,7 +2495,8 @@ export async function editDraftInvoiceLineAction(invoiceId: string, lineId: stri
     }
     return { ok: r.ok, message: r.ok ? 'Linje gemt' : r.message }
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : 'Uventet fejl' }
+    // PR4-14 (pilot-review 4): formatError — ingen rå tekst (AUTH_REQUIRED, engelske DB-fejl) til brugeren
+    return { ok: false, message: formatError(err, 'Uventet fejl — prøv igen') }
   }
 }
 
@@ -2497,7 +2514,8 @@ export async function addDraftInvoiceLineAction(invoiceId: string, input: { desc
     }
     return { ok: r.ok, message: r.ok ? 'Linje tilføjet' : r.message }
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : 'Uventet fejl' }
+    // PR4-14 (pilot-review 4): formatError — ingen rå tekst (AUTH_REQUIRED, engelske DB-fejl) til brugeren
+    return { ok: false, message: formatError(err, 'Uventet fejl — prøv igen') }
   }
 }
 
@@ -2516,7 +2534,8 @@ export async function deleteDraftInvoiceLineAction(invoiceId: string, lineId: st
     }
     return { ok: r.ok, message: r.ok ? 'Linje slettet' : r.message }
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : 'Uventet fejl' }
+    // PR4-14 (pilot-review 4): formatError — ingen rå tekst (AUTH_REQUIRED, engelske DB-fejl) til brugeren
+    return { ok: false, message: formatError(err, 'Uventet fejl — prøv igen') }
   }
 }
 

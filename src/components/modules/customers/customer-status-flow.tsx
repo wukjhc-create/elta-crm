@@ -23,6 +23,8 @@ interface CustomerStatusFlowProps {
   customerId: string
   customerEmail: string
   onNavigateTab?: (tab: 'oversigt' | 'besigtigelse' | 'dokumenter') => void
+  /** DE2-8: kun faner rollen har (salg/bogholderi har ikke Besigtigelse) — ellers er trinnet ikke klikbart */
+  canNavigateTab?: (tab: 'oversigt' | 'besigtigelse' | 'dokumenter') => boolean
 }
 
 const STEP_ICONS: Record<string, typeof UserPlus> = {
@@ -69,7 +71,7 @@ const STATUS_CONFIG: Record<StepStatus, { bg: string; border: string; text: stri
   },
 }
 
-export function CustomerStatusFlow({ customerId, customerEmail, onNavigateTab }: CustomerStatusFlowProps) {
+export function CustomerStatusFlow({ customerId, customerEmail, onNavigateTab, canNavigateTab }: CustomerStatusFlowProps) {
   const [steps, setSteps] = useState<FlowStep[]>([])
   const [lastEmailDate, setLastEmailDate] = useState<string | null>(null)
   const [unreadEmailCount, setUnreadEmailCount] = useState(0)
@@ -173,7 +175,8 @@ export function CustomerStatusFlow({ customerId, customerEmail, onNavigateTab }:
             const cfg = STATUS_CONFIG[step.status]
             const StepIcon = STEP_ICONS[step.key] || Circle
             const StatusIcon = cfg.icon
-            const isClickable = !!step.linkTab && !!onNavigateTab
+            // DE2-8 (dead-end-review 2026-10-20): før klikbart (hånd + zoom) uden at noget skete for salg/bogholderi
+            const isClickable = !!step.linkTab && !!onNavigateTab && (canNavigateTab?.(step.linkTab) ?? true)
 
             return (
               <div

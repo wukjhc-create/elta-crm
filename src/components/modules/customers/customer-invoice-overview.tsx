@@ -156,8 +156,9 @@ export function CustomerInvoiceOverview({
           : 'Ingen forfaldne fakturaer på kunden.'}
       </div>
 
-      {/* Deep-links til samlet fakturaoverblik */}
-      <div className="flex flex-wrap gap-3 text-xs">
+      {/* Deep-links til samlet fakturaoverblik — DE2-4 (dead-end-review 2026-10-20): kun med invoices.view.all (som linkene
+          pr. faktura); salg fik "ingen adgang" */}
+      {canOpenInvoice && <div className="flex flex-wrap gap-3 text-xs">
         <Link href={`/dashboard/invoices${qOnly}`} className="text-emerald-700 hover:underline">
           Se alle kundens fakturaer →
         </Link>
@@ -167,7 +168,7 @@ export function CustomerInvoiceOverview({
         <Link href={`/dashboard/invoices?filter=sent&outstanding=1${q}`} className="text-amber-700 hover:underline">
           Se udestående →
         </Link>
-      </div>
+      </div>}
 
       {/* Fakturaliste */}
       <div className="rounded-lg border overflow-hidden bg-white">

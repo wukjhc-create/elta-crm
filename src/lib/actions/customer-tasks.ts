@@ -15,6 +15,7 @@ import { sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { generateBesigtigelseICS } from '@/lib/utils/ics'
 import { APP_URL } from '@/lib/constants'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { userSafeOr } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -886,7 +887,8 @@ export async function bookBesigtigelse(
 
     if (taskError || !task) {
       logger.error('Failed to create besigtigelse task', { error: taskError, entityId: customerId })
-      return { success: false, error: taskError?.message ?? 'Kunne ikke oprette opgaven' }
+      // PR4-12: ikke PostgREST-teksten (taskError.message) til brugeren
+      return { success: false, error: 'Kunne ikke oprette opgaven — prøv igen' }
     }
     const taskId = (task as { id: string }).id
     // ML-9 (mail-review 2026-10-17): tjek-så-indsæt kunne overhales af et samtidigt klik (begge passerede tjekket) → to
@@ -927,7 +929,7 @@ export async function bookBesigtigelse(
         entityId: customerId,
       })
       await supabase.from('customer_tasks').delete().eq('id', taskId)
-      return { success: false, error: `Kunne ikke sende bekræftelses-email: ${emailResult.error}` }
+      return { success: false, error: `Kunne ikke sende bekræftelses-email: ${userSafeOr(emailResult.error, 'mailserveren afviste afsendelsen')} — besigtigelsen er ikke booket` }
     }
     await supabase.from('customer_tasks').update({
       description: emailResult.uncertain

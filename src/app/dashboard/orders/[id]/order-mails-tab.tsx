@@ -77,6 +77,9 @@ function rrBadge(ageHours: number | null): { label: string; cls: string } {
 }
 
 export function OrderMailsTab({ caseId }: { caseId: string }) {
+  // DE2-7 (dead-end-review 2026-10-20): links til mail-modulet kun med inbox.view (salg/bogholderi fik "ingen adgang")
+  const { role: tabRole } = useUserRole()
+  const canOpenMailModule = !!tabRole && hasPermission(tabRole, 'inbox.view')
   const [emails, setEmails] = useState<CaseEmail[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -143,8 +146,10 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
         <Mail className="w-12 h-12 mx-auto mb-3 opacity-30" />
         <p className="font-medium">Ingen mails koblet til denne sag</p>
         <p className="text-sm mt-1">
-          Mails kobles til sagen via &quot;Vælg sag&quot;-dropdown i mail-detail på{' '}
-          <Link href="/dashboard/mail" className="text-blue-600 hover:underline">/dashboard/mail</Link>.
+          {canOpenMailModule ? (<>
+            Mails kobles til sagen via &quot;Vælg sag&quot;-dropdown i mail-detail på{' '}
+            <Link href="/dashboard/mail" className="text-blue-600 hover:underline">/dashboard/mail</Link>.
+          </>) : 'Kontoret kobler mails til sagen fra mail-modulet.'}
         </p>
       </div>
     )
@@ -552,15 +557,15 @@ function ExpandedMailDetail({
         </div>
       )}
 
-      {/* Sekundær link til fuld mailmodul */}
-      <div className="text-right">
+      {/* Sekundær link til fuld mailmodul — DE2-7: kun med inbox.view */}
+      {!!viewerRole && hasPermission(viewerRole, 'inbox.view') && <div className="text-right">
         <Link
           href={`/dashboard/mail?emailId=${emailId}`}
           className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600"
         >
           <ExternalLink className="w-3 h-3" /> Åbn i mailmodul
         </Link>
-      </div>
+      </div>}
 
       {/* Sprint 8D-1 polish: lightbox modal til billed-thumbnails */}
       {lightbox && (
