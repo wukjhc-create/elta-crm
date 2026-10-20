@@ -84,7 +84,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 | EM-5 | Kobling login ↔ medarbejder uden audit (S3) | DONE (kode) — audit employee_login_linked (gammel/ny profile_id) + medarbejderhændelse |
 | EM-6 | Ændringer af leverandørlogins, avanceregler, kalkulationssatser, overtidssatser, firmaindstillinger uden audit (S3) | DONE (kode) — audit for kalkulationsindstillinger, firmaindstillinger (hemmeligheder kun "ændret"), avanceregler, overtidssatser, leverandørlogins (kun feltnavne) |
 | EM-7 | Deaktiveret bruger beholder DB-rettigheder til JWT udløber; inline-tjek ignorerer is_active (S3) | DELVIS (kode) — inline admin-tjek (brugeraktivitet, autokalibrering, testdata) kræver is_active. user_role()/is_admin() = BLOCKED_APPROVAL [MIGRATION] |
-| EM-8 | Webhook-headers i klartekst og læsbare for alle (S4) | TODO — maskering i getWebhooks kræver at redigeringsformularen ikke gemmer masken tilbage; SELECT kun admin = BLOCKED_APPROVAL [MIGRATION] |
+| EM-8 | Webhook-headers i klartekst og læsbare for alle (S4) | DELVIS (kode, integration-webhook-check, crawl U101–U110) — app: hemmelige header-værdier maskeres i getWebhooks/getIntegration; updateWebhook gemmer aldrig masken over hemmeligheden (formularen redigerer ikke headers). DB: SELECT kun admin = BLOCKED_APPROVAL [MIGRATION] |
 | EM-9 | Deaktivér login fra medarbejderkortet lader medarbejderen være aktiv (S4) | DONE (kode) — deaktiveret login fra medarbejderkortet sætter employees.active=false + fratrædelsesdato og advarer om åbne job |
 
 ## NEXT-34 (review-bølge 2026-10-17 aften — performance/robusthed)

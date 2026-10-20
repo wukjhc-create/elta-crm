@@ -121,6 +121,9 @@ export async function getIntegration(id: string): Promise<ActionResult<Integrati
 
     // Masker secrets; relationer (webhooks/endpoints/creator) bevares.
     const masked = maskIntegrationSecrets(data as Integration) as IntegrationWithRelations
+    // EM-8 (2026-10-20): webhookenes headers (API-nøgler/tokens) maskeres også — før i klartekst til bogholderi m.fl.
+    const mw = masked as unknown as { webhooks?: Array<{ headers?: Record<string, string> | null }> }
+    if (Array.isArray(mw.webhooks)) mw.webhooks = mw.webhooks.map((w) => ({ ...w, headers: redactSecretHeaders(w.headers) }))
     return { success: true, data: masked }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente integration') }
@@ -270,7 +273,8 @@ export async function getWebhooks(integrationId: string): Promise<ActionResult<I
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data as IntegrationWebhook[] }
+    // EM-8: hemmelige header-værdier maskeres ([REDACTED]); updateWebhook bevarer den gemte værdi for en maske
+    return { success: true, data: ((data ?? []) as IntegrationWebhook[]).map((w) => ({ ...w, headers: redactSecretHeaders((w as { headers?: Record<string, string> | null }).headers) })) as IntegrationWebhook[] }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente webhooks') }
   }
@@ -311,6 +315,20 @@ export async function updateWebhook(
     const { supabase } = await requireGate('settings.manage')
 
     const { id, ...updateData } = input
+    // EM-8: en maskeret header-værdi ("[REDACTED]" fra getWebhooks) overskriver aldrig den gemte hemmelighed
+    {
+      const hdrs = (updateData as { headers?: Record<string, string> | null }).headers
+      if (hdrs && Object.values(hdrs).some((v) => v === '[REDACTED]')) {
+        const { data: cur } = await supabase.from('integration_webhooks').select('headers').eq('id', id).maybeSingle()
+        const stored = ((cur as { headers?: Record<string, string> | null } | null)?.headers) ?? {}
+        const merged: Record<string, string> = {}
+        for (const [k, v] of Object.entries(hdrs)) {
+          if (v !== '[REDACTED]') merged[k] = v
+          else if (stored[k] !== undefined) merged[k] = stored[k]
+        }
+        ;(updateData as { headers?: Record<string, string> }).headers = merged
+      }
+    }
     // SEC2-2: kun https til offentlige værter
     if (typeof updateData.url === 'string') {
       const { webhookUrlBlockReason } = await import('@/lib/integrations/webhook-url-guard')
