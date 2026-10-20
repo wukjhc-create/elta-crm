@@ -655,7 +655,7 @@ export function IncomingInvoiceDetailClient({
           <p className="text-xs text-red-800 mb-2" data-testid="incoming-invoice-audit-names-error">Medarbejdernavne kunne ikke hentes. Det tælles ikke som ingen afsender.</p>
         )}
         {detail.audit_failed ? (
-          <p className="text-xs text-red-800" data-testid="incoming-invoice-audit-error">Historikken kunne ikke hentes. Det tælles ikke som ingen poster.</p>
+          <p className="text-xs text-red-800 break-words min-w-0" data-testid="incoming-invoice-audit-error">Historikken kunne ikke hentes. Det tælles ikke som ingen poster.</p>
         ) : detail.audit.length === 0 ? (
           <p className="text-xs text-gray-400">Ingen log-poster endnu. De vises her, når fakturaen ændres.</p>
         ) : (
