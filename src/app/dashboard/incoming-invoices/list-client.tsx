@@ -289,7 +289,7 @@ export function IncomingInvoicesListClient({
                 </Link>
                 <StatusBadge row={r} />
               </div>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
+              <div className="flex flex-wrap items-center gap-2 mt-1 break-words min-w-0">
                 {r.probably_not_invoice && <NotInvoiceBadge />}
                 {r.duplicate_of_id && <DuplicateBadge />}
                 {isTest && <TestBadge />}

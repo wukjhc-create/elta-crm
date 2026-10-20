@@ -1613,7 +1613,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-879 | 2 Faktura | DONE. Mobilisten på fakturalisten kan krympe. | Kun den `<div className="md:hidden border rounded overflow-hidden bg-white divide-y" data-testid="incoming-invoices-mobile-list">` i `list-client.tsx`. Kortene er uændrede. |
 | G18-880 | 2 Faktura | DONE. Filterrækken på fakturalisten kan krympe. | Kun den `<div className="flex flex-wrap gap-2">` i `list-client.tsx`. Knapperne er uændrede. |
 | G18-881 | 2 Faktura | DONE. Titelrækken på fakturalistens mobilkort kan krympe. | Kun den `<div className="flex items-start justify-between gap-2">` i `list-client.tsx`. Navn og status er uændrede. |
-| G18-882 | 2 Faktura | ÅBEN. Mærkerækken på fakturalistens mobilkort kan krympe. | Kun den `<div className="flex flex-wrap items-center gap-2 mt-1">` i `list-client.tsx`. Mærkerne er uændrede. |
+| G18-882 | 2 Faktura | DONE. Mærkerækken på fakturalistens mobilkort kan krympe. | Kun den `<div className="flex flex-wrap items-center gap-2 mt-1">` i `list-client.tsx`. Mærkerne er uændrede. |
+| G18-883 | 2 Faktura | ÅBEN. Datorækken på fakturalistens mobilkort kan krympe. | Kun den `<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">` i `list-client.tsx`. Dato og forfald er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
