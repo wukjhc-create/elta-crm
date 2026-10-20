@@ -85,12 +85,13 @@ export async function searchProductsForCaseMaterialAction(
     if (showPrices && rows.length) {
       const { data: sc } = await admin.from('service_cases').select('customer_id').eq('id', caseId).maybeSingle()
       const customerId = (sc as { customer_id?: string | null } | null)?.customer_id ?? null
-      const { supplierLinePricing } = await import('@/lib/offers/supplier-line-pricing')
-      await Promise.all(rows.map(async (r) => {
-        const res = await supplierLinePricing({ supplierId: r.supplier_id, supplierProductId: r.id, customerId, costPrice: Number(r.cost_price || 0), productMargin: r.margin_percentage && r.margin_percentage > 0 ? r.margin_percentage : null, admin })
-          .catch(() => null)
-        if (res) priced.set(r.id, { cost: Math.round(res.effectiveCost * 100) / 100, sale: res.unitPrice })
-      }))
+      // R3-8: aftaler/produktpriser/kategorier hentes én gang for alle hits (før ~4 opslag pr. hit)
+      const { supplierLinePricingBatch } = await import('@/lib/offers/supplier-line-pricing')
+      const res = await supplierLinePricingBatch({
+        customerId, admin,
+        items: rows.map((r) => ({ supplierId: r.supplier_id, supplierProductId: r.id, costPrice: Number(r.cost_price || 0), productMargin: r.margin_percentage && r.margin_percentage > 0 ? r.margin_percentage : null })),
+      }).catch(() => new Map<string, { unitPrice: number; effectiveCost: number }>())
+      for (const [id, v] of res) priced.set(id, { cost: Math.round(v.effectiveCost * 100) / 100, sale: v.unitPrice })
     }
 
     return {

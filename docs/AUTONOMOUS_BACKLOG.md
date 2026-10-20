@@ -2017,6 +2017,6 @@ Ingen penge-forkert regression i FIN3-ændringerne. Fund:
 | R3-6 | Fakturabinding af timer tjekker ikke pay_rate_type/sale_amount (kapløb med satsskift) (S4) | DONE (kode, U32/U48) — bindingen kræver det læste sale_amount |
 | R3-11 | Medarbejderlistens "Mangler timepris"-mærke læste højst 1.000 medarbejdere (.limit(1000)) — fundet via U11 der fejlede 2× | DONE (kode, U11) — fetchAllRows; U11 rammer præcis den seedede række |
 | R3-7 | Fraværsadvarsel mangler ved flytning af time/timer-start; godkender-roller uden for 00228 ser ikke mærket (S4) | DELVIS (kode, U155/U163) — advarsel også når en rettelse flytter tiden til en fraværsdag; godkendere (time_logs.approve = admin/serviceleder) er inden for 00228's læseroller; timer-start = TODO |
-| R3-8 | Sagsmaterialesøgningen: ~4 opslag pr. hit (supplierLinePricing pr. række) (S4, perf) | TODO |
+| R3-8 | Sagsmaterialesøgningen: ~4 opslag pr. hit (supplierLinePricing pr. række) (S4, perf) | DONE (kode, supplier-line-pricing-check batch=enkelt, U34/U51/U14/U28) — supplierLinePricingBatch: kategorier/aftaler/produktpriser én gang; fælles finishSupplierLinePricing (én forrang) |
 | R3-9 | FIN3-4: kreditnota uden sent_at falder ud af perioderne (S4, plausibel) | AFVIST (verificeret) — kreditnotaer oprettes som kladde og udstedes via samme afsendelse/setInvoiceStatus, der altid sætter sent_at |
 | R3-10 | Tilbudsnumre > 9.999 pr. år sorteres som tekst (S4) | TODO (ikke pilot-relevant) |

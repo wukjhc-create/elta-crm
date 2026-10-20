@@ -2263,7 +2263,7 @@ async function main() {
   }
   if (SUB === 'supplier-line-pricing-check') {
     // Grossist-review 2026-10-14: GP-3 kategoriregel gælder for tilbudslinjer; GP-2 udløbet kundeaftale giver ikke rabat
-    const { supplierLinePricing } = await import('../../src/lib/offers/supplier-line-pricing')
+    const { supplierLinePricing, supplierLinePricingBatch } = await import('../../src/lib/offers/supplier-line-pricing')
     const stamp = Date.now()
     let fails = 0
     const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
@@ -2290,12 +2290,17 @@ async function main() {
       if (agrId) await admin.from('customer_supplier_prices').update({ custom_margin_percentage: 15 }).eq('id', agrId)
       const p2b = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
       check('kundeaftalens avance (15 %) slår kategoriregel (40 %) — FIN3-1', p2b.marginPercentage === 15, `avance ${p2b.marginPercentage}`)
+      // R3-8: batch-stien (sagsmaterialesøgningen) giver præcis samme pris som enkeltstien
+      const b2b = (await supplierLinePricingBatch({ admin, customerId: cust, items: [{ supplierId: sup, supplierProductId: prod, costPrice: 100, productMargin: 20 }] })).get(prod)
+      check('batch = enkelt (aftale-avance + rabat) — R3-8', !!b2b && b2b.unitPrice === p2b.unitPrice && b2b.effectiveCost === p2b.effectiveCost && b2b.marginPercentage === p2b.marginPercentage, `batch ${JSON.stringify(b2b)} enkelt ${JSON.stringify(p2b)}`)
       if (agrId) await admin.from('customer_supplier_prices').update({ custom_margin_percentage: null }).eq('id', agrId)
       // GP-2: produktspecifik kundepris går foran leverandøraftalen
       const cpp = await admin.from('customer_product_prices').insert({ customer_id: cust, supplier_product_id: prod, custom_cost_price: 70, is_active: true, created_by: owner }).select('id').single()
       cppId = (cpp.data as { id: string } | null)?.id ?? null
       const p3 = await supplierLinePricing({ admin, supplierId: sup, supplierProductId: prod, customerId: cust, costPrice: 100, productMargin: 20 })
       check('produktspecifik kundepris (70) går foran leverandøraftalens rabat', p3.effectiveCost === 70, `kost ${p3.effectiveCost}${cpp.error ? ` · ${cpp.error.message}` : ''}`)
+      const b3 = (await supplierLinePricingBatch({ admin, customerId: cust, items: [{ supplierId: sup, supplierProductId: prod, costPrice: 100, productMargin: 20 }] })).get(prod)
+      check('batch = enkelt (kundespecifik produktpris) — R3-8', !!b3 && b3.unitPrice === p3.unitPrice && b3.effectiveCost === p3.effectiveCost, `batch ${JSON.stringify(b3)} enkelt ${JSON.stringify(p3)}`)
     } finally {
       if (cppId) await admin.from('customer_product_prices').delete().eq('id', cppId)
       if (agrId) await admin.from('customer_supplier_prices').delete().eq('id', agrId)
