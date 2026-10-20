@@ -28,7 +28,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
       <div className="md:hidden space-y-2" data-testid="sales-funnel-mobile">
         {data.months.map((m) => (
           <article key={m.month} className="rounded ring-1 ring-gray-200 p-3 text-sm">
-            <p className="font-medium text-gray-900">{monthLabel(m.month)}</p>
+            <p className="font-medium text-gray-900 break-words min-w-0">{monthLabel(m.month)}</p>
             <p className="text-xs text-gray-600 break-words" data-testid="funnel-month-rates">Sendt {pct(funnelMonthRates(m).sent_rate)} · vundet {pct(funnelMonthRates(m).win_rate)}</p>
             <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs min-w-0">
               <div className="min-w-0"><dt className="text-gray-500">Nye kunder</dt><dd className="tabular-nums break-words">{m.new_customers}</dd></div>
