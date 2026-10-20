@@ -32,7 +32,7 @@ const total = '<th className="px-2 py-1 text-right break-words min-w-0">Total</t
 ok(view.includes(total), 'totalkolonnen bliver')
 ok(view.split(total).length === 2, 'totalkolonnen er en')
 
-const materiale = '<span className="text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">'
+const materiale = '<span className="text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded break-words min-w-0">'
 ok(view.includes(materiale), 'materialemaerket bliver')
 ok(view.split(materiale).length === 2, 'materialemaerket er et')
 
