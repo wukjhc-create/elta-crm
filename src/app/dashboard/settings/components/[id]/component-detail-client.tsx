@@ -56,11 +56,13 @@ import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
 interface ComponentDetailClientProps {
   component: ComponentWithDetails
   variantMaterialsMap: Record<string, VariantMaterial[] | undefined>
+  variantMaterialErrors?: Record<string, string>
 }
 
 export default function ComponentDetailClient({
   component,
   variantMaterialsMap,
+  variantMaterialErrors = {},
 }: ComponentDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
@@ -469,6 +471,7 @@ export default function ComponentDetailClient({
                 <div className="space-y-3">
                   {component.variants.map(variant => {
                     const isExpanded = expandedVariants.has(variant.id)
+                    const materialsError = variantMaterialErrors[variant.id]
                     const variantMaterials = variantMaterialsMap[variant.id] || []
                     const calculatedTime = Math.round(
                       component.base_time_minutes * variant.time_multiplier + variant.extra_minutes
@@ -546,7 +549,11 @@ export default function ComponentDetailClient({
                                 Tilføj
                               </Button>
                             </div>
-                            {variantMaterials.length === 0 ? (
+                            {materialsError ? (
+                              <p className="text-sm text-red-700" data-testid="variant-materials-load-error">
+                                {materialsError}. Det tælles ikke som ingen materialer.
+                              </p>
+                            ) : variantMaterials.length === 0 ? (
                               <p className="text-sm text-gray-500">Ingen ekstra materialer. Tilføj et, hvis varianten skal bruge noget ud over basis.</p>
                             ) : (
                               <div className="space-y-2">
