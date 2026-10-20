@@ -83,6 +83,8 @@ export async function getOffers(filters?: {
   mine?: boolean
   /** DB-3: kun tilbud der skal følges op (samme definition som cockpittets tal) */
   followup?: boolean
+  /** DB-15o: kun afventende (sendt + set) — dashboardets "Afventende Tilbud" */
+  awaiting?: boolean
   /** DB-15i: kun kladder oprettet for mere end N dage siden (cockpittets "gamle kladder") */
   staleDraftDays?: number
   /** DB-15n: kun afviste inden for de seneste N dage (dashboardets afvist/tabt-kort) */
@@ -177,6 +179,11 @@ export async function getOffers(filters?: {
       const since = new Date(Date.now() - filters.rejectedWithinDays * 86_400_000).toISOString()
       countQuery = countQuery.eq('status', 'rejected').gte('rejected_at', since)
       dataQuery = dataQuery.eq('status', 'rejected').gte('rejected_at', since)
+    }
+
+    if (filters?.awaiting) {
+      countQuery = countQuery.in('status', ['sent', 'viewed'])
+      dataQuery = dataQuery.in('status', ['sent', 'viewed'])
     }
 
     if (filters?.followup) {

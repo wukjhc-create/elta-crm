@@ -31,6 +31,7 @@ interface Filters {
   conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
   mine?: boolean
   followup?: boolean
+  awaiting?: boolean
   staleDraftDays?: number
   rejectedWithinDays?: number
 }
@@ -104,7 +105,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
       })
 
       // Reset to page 1 when filters change
-      if (updates.search !== undefined || updates.status !== undefined || updates.conversion !== undefined || updates.mine !== undefined || updates.followup !== undefined || updates.staleDays !== undefined || updates.rejectedDays !== undefined) {
+      if (updates.search !== undefined || updates.status !== undefined || updates.conversion !== undefined || updates.mine !== undefined || updates.followup !== undefined || updates.awaiting !== undefined || updates.staleDays !== undefined || updates.rejectedDays !== undefined) {
         params.delete('page')
       }
 
@@ -148,7 +149,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
     router.push('/dashboard/offers')
   }
 
-  const hasActiveFilters = filters.search || filters.status || filters.conversion || filters.mine || filters.followup || filters.staleDraftDays || filters.rejectedWithinDays
+  const hasActiveFilters = filters.search || filters.status || filters.conversion || filters.mine || filters.followup || filters.awaiting || filters.staleDraftDays || filters.rejectedWithinDays
 
   return (
     <>
@@ -287,6 +288,14 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 rounded-full text-sm" data-testid="offers-rejected-days-chip">
                   Afvist de seneste {filters.rejectedWithinDays} dage
                   <button onClick={() => updateURL({ rejectedDays: '' })} aria-label="Ryd periodefilter" className="hover:text-red-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {filters.awaiting && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 rounded-full text-sm" data-testid="offers-awaiting-chip">
+                  Afventer kunden (sendt/set)
+                  <button onClick={() => updateURL({ awaiting: '' })} aria-label="Ryd afventer-filter" className="hover:text-red-600">
                     <X className="w-3 h-3" />
                   </button>
                 </span>

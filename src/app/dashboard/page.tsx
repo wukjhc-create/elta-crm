@@ -202,7 +202,7 @@ export default async function DashboardPage() {
           icon={FileText}
           iconColor="text-purple-600"
           iconBgColor="bg-purple-100"
-          href={canViewOffers ? "/dashboard/offers" : undefined}
+          href={canViewOffers ? "/dashboard/offers?awaiting=1" : undefined /* DB-15o: tallet er sendt + set */}
         />
         <StatCard
           title="Aktive Sager"
@@ -240,7 +240,7 @@ export default async function DashboardPage() {
           icon={Mail}
           iconColor="text-blue-600"
           iconBgColor="bg-blue-100"
-          href={canViewMail ? "/dashboard/mail" : undefined}
+          href={canViewMail ? "/dashboard/mail?filter=linked&read=unread" : undefined /* DB-15o: ulæste mails koblet til kunder */}
         />
       </div>
 

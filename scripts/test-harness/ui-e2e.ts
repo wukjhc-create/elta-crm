@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3567,6 +3567,32 @@ ${m.text()}`) })
           if (custs.length) await c.admin.from('customers').delete().in('id', custs.map((x) => x.id))
         }
         out.push({ id: 'U217 DB-15e kundeliste: kun ulæste portalbeskeder', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U218 DB-15o (2026-10-20): dashboardets "Afventende Tilbud" linker til ?awaiting=1 (kun sendt + set, med fjernbart
+      // filter) og "Ulæste Kundemails" til mail-listen med ulæste koblede mails (?filter=linked&read=unread)
+      if (want('U218') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U218-${stamp}`
+        const ins = await c.admin.from('offers').insert([
+          { offer_number: `UI-E2E-AW1-${stamp}`, title: `[HARNESS] ${tag} sendt`, created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString() },
+          { offer_number: `UI-E2E-AW2-${stamp}`, title: `[HARNESS] ${tag} kladde`, created_by: adminUser.id, customer_id: profitCustomerId, status: 'draft' },
+        ]).select('id')
+        const offIds = ((ins.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        r.seed = offIds.length === 2
+        try {
+          await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.afventende_link = (await a.page.locator('a[href="/dashboard/offers?awaiting=1"]').count()) > 0
+          r.ulaeste_mails_link = (await a.page.locator('a[href="/dashboard/mail?filter=linked&read=unread"]').count()) > 0
+          await gotoSafe(a.page, `${base}/dashboard/offers?awaiting=1&search=${encodeURIComponent(tag)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByText(`[HARNESS] ${tag} sendt`).first().waitFor({ timeout: 45_000 }).catch(() => {})
+          r.sendt_vist = (await a.page.getByText(`[HARNESS] ${tag} sendt`).count()) > 0
+          r.kladde_skjult = (await a.page.getByText(`[HARNESS] ${tag} kladde`).count()) === 0
+          r.chip_vist = (await a.page.getByTestId('offers-awaiting-chip').count()) === 1
+        } finally {
+          if (offIds.length) await c.admin.from('offers').delete().in('id', offIds)
+        }
+        out.push({ id: 'U218 DB-15o afventende tilbud + ulæste kundemails-links', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U214 DB-15k: "Klar til fakturering" linker til sagslisten med kun sager med ufaktureret arbejde (?unbilled=1)

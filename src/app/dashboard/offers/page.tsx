@@ -22,6 +22,7 @@ interface PageProps {
     sortOrder?: 'asc' | 'desc'
     mine?: string
     followup?: string
+    awaiting?: string
     staleDays?: string
     rejectedDays?: string
   }>
@@ -42,6 +43,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
   const sortOrder = params.sortOrder || undefined
   const mine = params.mine === '1'
   const followup = params.followup === '1' // DB-3: cockpittets "Tilbud — opfølgning"
+  const awaiting = params.awaiting === '1' // DB-15o: dashboardets "Afventende Tilbud" (sendt + set)
   // DB-15i/n: hele dage 1–365 (ellers ignoreret)
   const dayParam = (v?: string) => { const n = v ? parseInt(v, 10) : NaN; return Number.isFinite(n) && n >= 1 && n <= 365 ? n : undefined }
   const staleDraftDays = dayParam(params.staleDays)
@@ -58,6 +60,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
       sortOrder,
       mine,
       followup,
+      awaiting,
       staleDraftDays,
       rejectedWithinDays,
     }),
@@ -83,7 +86,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
         totalItems: offersResult.data.total,
         pageSize: offersResult.data.pageSize,
       }}
-      filters={{ search, status, conversion, mine, followup, staleDraftDays, rejectedWithinDays }}
+      filters={{ search, status, conversion, mine, followup, awaiting, staleDraftDays, rejectedWithinDays }}
       sort={{ sortBy, sortOrder }}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />

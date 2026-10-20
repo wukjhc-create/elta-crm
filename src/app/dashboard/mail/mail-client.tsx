@@ -148,7 +148,11 @@ export function MailClient() {
     const t = setTimeout(() => setSearch(searchInput), 300)
     return () => clearTimeout(t)
   }, [searchInput])
-  const [readFilter, setReadFilter] = useState<ReadFilter>('all')
+  // DB-15o: ?read=unread fra dashboardets "Ulæste Kundemails" (samme sæt som tallet)
+  const [readFilter, setReadFilter] = useState<ReadFilter>(() => {
+    const v = searchParams.get('read')
+    return v === 'unread' || v === 'read' ? v : 'all'
+  })
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest')
 
   // Link modal state — Sprint 8H polish: CustomerLinkDialog ejer egen
