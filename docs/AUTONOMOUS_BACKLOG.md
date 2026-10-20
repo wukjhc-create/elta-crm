@@ -1504,7 +1504,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-770 | 1 Profit | DONE. Etiketten Faktisk DB på efterkalkulationens mobilkort kan krympe. | Kun `<dt className="text-gray-500">Faktisk DB</dt>` i `aftercalc-overview-client.tsx`. Procenten er uændret. |
 | G18-771 | 1 Profit | DONE. Kolonnen Sag på efterkalkulationens skrivebord kan krympe. | Kun `<th className="px-2 py-1.5 text-left">Sag</th>` i `aftercalc-overview-client.tsx`. Linket er uændret. |
 | G18-772 | 1 Profit | DONE. Kolonnen Kunde på efterkalkulationens skrivebord kan krympe. | Kun `<th className="px-2 py-1.5 text-left">Kunde</th>` i `aftercalc-overview-client.tsx`. Kundenavnet er uændret. |
-| G18-773 | 1 Profit | ÅBEN. Kolonnen Ansvarlig på efterkalkulationens skrivebord kan krympe. | Kun `<th className="px-2 py-1.5 text-left">Ansvarlig</th>` i `aftercalc-overview-client.tsx`. Navnet er uændret. |
+| G18-773 | 1 Profit | DONE. Kolonnen Ansvarlig på efterkalkulationens skrivebord kan krympe. | Kun `<th className="px-2 py-1.5 text-left">Ansvarlig</th>` i `aftercalc-overview-client.tsx`. Navnet er uændret. |
+| G18-774 | 1 Profit | ÅBEN. Kolonnen Status på efterkalkulationens skrivebord kan krympe. | Kun `<th className="px-2 py-1.5 text-left">Status</th>` i `aftercalc-overview-client.tsx`. Sagsstatus er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
