@@ -86,7 +86,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
                 {res.control.controlledLines > 0 ? kr(res.control.overchargeAmount) : '—'}
               </div>
               {res.control.controlledLines === 0 && (
-                <p className="text-[10px] text-gray-500 break-words">Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr.</p>
+                <p className="text-[10px] text-gray-500 break-words min-w-0">Ingen linje kunne kontrolleres. Det tælles ikke som 0 kr.</p>
               )}
             </div>
             <div className="break-words min-w-0">
