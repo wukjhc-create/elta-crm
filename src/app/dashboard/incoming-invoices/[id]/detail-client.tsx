@@ -310,7 +310,7 @@ export function IncomingInvoiceDetailClient({
                   {posting ? 'Bogfører…' : 'Bogfør til e-conomic'}
                 </Button>
               ) : (
-                <div className="rounded-md ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <div className="rounded-md ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 break-words min-w-0">
                   e-conomic er ikke opsat endnu — bogføring er deaktiveret.
                 </div>
               )}
