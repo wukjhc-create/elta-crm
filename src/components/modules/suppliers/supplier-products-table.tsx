@@ -302,7 +302,7 @@ export function SupplierProductsTable({
                     <TableCell className="font-mono text-sm break-all min-w-0" data-testid="supplier-product-desktop-sku">
                       {product.supplier_sku}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="break-words min-w-0">
                       <div>
                         <p className="font-medium break-words min-w-0">{product.supplier_name}</p>
                         {product.manufacturer && (
