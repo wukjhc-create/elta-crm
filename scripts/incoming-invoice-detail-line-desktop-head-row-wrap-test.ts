@@ -31,9 +31,9 @@ ok(view.includes('<tbody className="break-words min-w-0">'), 'tabelkroppen blive
 ok(view.includes('data-testid="incoming-invoice-lines-mobile"'), 'mobilkortet bliver')
 ok(!view.includes('break-words break-words'), 'et break-words')
 
-const before = view.slice(Math.max(0, at - 80), at)
-ok(before.includes('<table className="w-full text-xs">'), 'tabellen bliver')
-ok(!before.includes('break-words'), 'tabellen har ikke wrap')
+const before = view.slice(Math.max(0, at - 140), at)
+ok(before.includes('<table className="w-full text-xs break-words min-w-0">'), 'tabellen kan krympe')
+ok(!before.includes('<table className="w-full text-xs">'), 'den bare tabel er vaek')
 
 const approve = readFileSync('src/app/dashboard/incoming-invoices/[id]/approve-preview-dialog.tsx', 'utf8')
 const ap = approve.indexOf('<thead className="bg-gray-50 text-left text-gray-600">')
