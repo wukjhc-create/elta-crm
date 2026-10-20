@@ -845,7 +845,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-109 | 2 Faktura | DONE linjedommen på fakturakontrollen ombrydes. | Domsteksten er uændret. |
 | G18-35 | 1 Profit | DONE sagspanelets advarsler ombrydes. | Advarselsteksten uændret. |
 | G18-54 | 1 Profit | DONE den lukkede efterkalk-linje ombrydes. | Teksten er uændret. |
-| G18-60 | 8 Pilot | ÅBEN. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |
+| G18-60 | 8 Pilot | DONE. Producentnavnet på leverandørvarens skrivebordskort ombrydes. | Priser og mobilkortet er uændret. |
 | G18-110 | 2 Faktura | DONE match-teksten på fakturakontrollens skrivebord ombrydes. | Match-ordene er uændret. |
 | G18-111 | 5 Plan | DONE "+N påmindelser" på månedsdagen ombrydes. | Tællingen er uændret. Dagbrikkerne afkortes stadig. |
 | G18-112 | 5 Plan | DONE Forrige og næste måned er mindst 44 px. | Aria-teksten er uændret. |
@@ -1730,6 +1730,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-996 | 7 Assistent | ÅBEN. Note-svaret viser at citatet er forkortet når teksten er længere end 120 tegn. | Kun noteSavedReply. Insert og afsendelse er uændrede. |
 | G18-997 | 6 Salg | ÅBEN. Salgstragtens overskrift ombrydes. | Kun h3 med Salgstragt i sales-funnel-table.tsx. Ikonet, indledningen og satserne er uændrede. |
 | G18-998 | 7 Assistent | ÅBEN. Påmindelses-svaret siger at kunden ikke er kontaktet. | Kun reminder-teksten. Insert og afsendelse er uændrede. Ingen webhook. |
+| G18-999 | 8 Pilot | ÅBEN. Navnerammen på leverandørvarens skrivebord kan krympe. | Kun div uden klasse lige før product.supplier_name i skrivebordstabellen. Producent, priser og mobilkort er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

@@ -306,7 +306,7 @@ export function SupplierProductsTable({
                       <div>
                         <p className="font-medium break-words min-w-0">{product.supplier_name}</p>
                         {product.manufacturer && (
-                          <p className="text-xs text-gray-500">{product.manufacturer}</p>
+                          <p className="text-xs text-gray-500 break-words min-w-0">{product.manufacturer}</p>
                         )}
                       </div>
                     </TableCell>
