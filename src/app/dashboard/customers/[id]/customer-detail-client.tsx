@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useUserRole } from '@/lib/hooks/use-user-role'
@@ -77,9 +77,12 @@ interface CustomerDetailClientProps {
   companySettings?: CompanySettings | null
   /** D48 — tools.pricing: kundespecifikke aftaler (kost/avance/rabat) */
   canManagePricing?: boolean
+  /** PF3-1: hentet på serveren sammen med kunden (ellers henter komponenterne selv) */
+  initialActivity?: ComponentProps<typeof CustomerActivityOverview>['initial']
+  initialPaymentHealth?: ComponentProps<typeof CustomerPaymentBadge>['initial']
 }
 
-export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false }: CustomerDetailClientProps) {
+export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false, initialActivity, initialPaymentHealth }: CustomerDetailClientProps) {
   const router = useRouter()
   // M-10 (mobil-review 2026-10-14): kun handlinger brugeren har ret til (bogholderi/salg fik knapper der altid fejlede)
   const { role } = useUserRole()
@@ -238,6 +241,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
               {/* Sprint Ø4.4 — betalingsstatus-badge (cost-free) */}
               <CustomerPaymentBadge
                 customerId={customer.id}
+                initial={initialPaymentHealth}
                 onOpenInvoices={() => setActiveTab('fakturaer')}
               />
             </div>
@@ -706,7 +710,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             <CustomerTasks customerId={customer.id} />
 
             {/* Activity Overview */}
-            <CustomerActivityOverview customerId={customer.id} customerEmail={customer.email} />
+            <CustomerActivityOverview customerId={customer.id} customerEmail={customer.email} initial={initialActivity} />
 
             {/* Notes */}
             {customer.notes && (

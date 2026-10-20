@@ -100,6 +100,8 @@ export function WorkOrderTimeLogs({
   const [logs, setLogs] = useState<TimeLogWithEmployee[] | null>(null)
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [error, setError] = useState<string | null>(null)
+  // FIN3-11: advarsel efter registrering på en fraværsdag (timerne ER gemt)
+  const [absenceNotice, setAbsenceNotice] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(false)
 
   // Form state
@@ -186,6 +188,7 @@ export function WorkOrderTimeLogs({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setAbsenceNotice(null)
     if (!employeeId) {
       setError('Vælg en medarbejder')
       return
@@ -218,6 +221,7 @@ export function WorkOrderTimeLogs({
       setError(humanizeErrorText(res.error) || 'Kunne ikke gemme timer')
       return
     }
+    setAbsenceNotice(res.data?.absence_warning ?? null)
     setShowForm(false)
     resetForm()
     await reload()
@@ -358,6 +362,11 @@ export function WorkOrderTimeLogs({
       {error && (
         <div className="text-xs text-red-700 bg-red-50 ring-1 ring-red-200 rounded px-2 py-1">
           {error}
+        </div>
+      )}
+      {absenceNotice && (
+        <div className="text-xs text-amber-900 bg-amber-50 ring-1 ring-amber-200 rounded px-2 py-1" role="status" data-testid="time-log-absence-warning">
+          {absenceNotice}
         </div>
       )}
 

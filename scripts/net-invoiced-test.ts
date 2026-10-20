@@ -37,5 +37,10 @@ const s4 = summarizeCaseInvoices([full(100000), full(20000, { type: 'credit' })]
 eq('delkreditering trækker fra udestående', s4.outstandingInclVat, 100000)
 eq('  … netto ekskl. moms', s4.netExVat, 80000)
 
+// FIN3-7: anden valuta end DKK lægges ikke sammen med kroner (null/udeladt valuta = DKK)
+eq('EUR-faktura tæller ikke i DKK-netto', netInvoicedExVat([inv(10000), { ...inv(5000), currency: 'EUR' }]), 10000)
+eq('valuta "dkk" (små bogstaver) tæller', netInvoicedExVat([{ ...inv(10000), currency: 'dkk' }]), 10000)
+eq('  … EUR-faktura giver ikke udestående i DKK', summarizeCaseInvoices([{ ...full(1000), currency: 'EUR' }]).outstandingInclVat, 0)
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle netto-faktureret-tests bestået')
 process.exitCode = bad ? 1 : 0

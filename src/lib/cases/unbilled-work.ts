@@ -57,6 +57,9 @@ export async function unbilledWorkByCase(supabase: SupabaseClient): Promise<Map<
         const remainder = Math.round((ref - netInvoicedExVat(byCase.get(c.id) ?? [])) * 100) / 100
         const cur = agg.get(c.id)!
         if (remainder > 0.5) agg.set(c.id, { lines: cur.lines, sale: remainder })
+        // R3-2 (finans-review 3): kontrakten er fuldt faktureret → de ubundne linjer er ekstraarbejde (efter
+        // slutfakturaen) og bliver stående med deres salgspris — før forsvandt de, og omsætningen blev aldrig faktureret
+        else if (cur.lines > 0 && cur.sale > 0.5) agg.set(c.id, cur)
         else agg.delete(c.id)
       }
     }

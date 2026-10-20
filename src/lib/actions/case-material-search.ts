@@ -12,9 +12,6 @@ import { userCanViewCase } from '@/lib/auth/case-scope'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
-import { calculateSalePrice } from '@/lib/logic/pricing'
-import { loadDefaultProductMargin } from '@/lib/settings/product-margin'
-import { onlyValidAgreements } from '@/lib/pricing/agreement-validity'
 import { rankBy, searchWords } from '@/lib/products/search-rank'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
@@ -81,22 +78,19 @@ export async function searchProductsForCaseMaterialAction(
       margin_percentage: number | null; unit: string | null; ean: string | null; suppliers: { name: string | null } | { name: string | null }[] | null }
     const rows = rankBy((data ?? []) as unknown as Row[], q, (r) => ({ sku: r.supplier_sku, name: r.supplier_name, ean: r.ean, cost: r.cost_price })).slice(0, 15)
 
-    // Salgspris som i tilbud: kundens gyldige leverandøraftale (rabat/avance), ellers varens/den globale avance
-    let agreements = new Map<string, { discount: number; margin: number | null }>()
-    let defaultMargin = 0
+    // Salgspris som i tilbud — FIN3-1 (finans-review 2 2026-10-20): SAMME prisberegning som tilbudslinjerne
+    // (supplierLinePricing: kundespecifik produktpris → leverandøraftale; produkt-/kunderegel → aftale-avance → generel
+    // regel → varens avance → standard). Før kun aftale/varens avance → avancereglerne gjaldt ikke på sagsmaterialer.
+    const priced = new Map<string, { cost: number; sale: number }>()
     if (showPrices && rows.length) {
-      defaultMargin = await loadDefaultProductMargin()
       const { data: sc } = await admin.from('service_cases').select('customer_id').eq('id', caseId).maybeSingle()
-      const customerId = (sc as { customer_id?: string | null } | null)?.customer_id
-      if (customerId) {
-        const { data: cp } = await onlyValidAgreements(admin
-          .from('customer_supplier_prices')
-          .select('supplier_id, discount_percentage, custom_margin_percentage')
-          .eq('customer_id', customerId)
-          .eq('is_active', true))
-        agreements = new Map(((cp ?? []) as Array<{ supplier_id: string; discount_percentage: number | null; custom_margin_percentage: number | null }>)
-          .map((a) => [a.supplier_id, { discount: a.discount_percentage || 0, margin: a.custom_margin_percentage }]))
-      }
+      const customerId = (sc as { customer_id?: string | null } | null)?.customer_id ?? null
+      const { supplierLinePricing } = await import('@/lib/offers/supplier-line-pricing')
+      await Promise.all(rows.map(async (r) => {
+        const res = await supplierLinePricing({ supplierId: r.supplier_id, supplierProductId: r.id, customerId, costPrice: Number(r.cost_price || 0), productMargin: r.margin_percentage && r.margin_percentage > 0 ? r.margin_percentage : null, admin })
+          .catch(() => null)
+        if (res) priced.set(r.id, { cost: Math.round(res.effectiveCost * 100) / 100, sale: res.unitPrice })
+      }))
     }
 
     return {
@@ -106,11 +100,8 @@ export async function searchProductsForCaseMaterialAction(
         let unit_cost: number | null = null
         let unit_sales_price: number | null = null
         if (showPrices) {
-          const a = agreements.get(r.supplier_id)
-          const cost = (r.cost_price || 0) * (1 - (a?.discount ?? 0) / 100)
-          const margin = a && a.margin !== null ? a.margin : (r.margin_percentage || defaultMargin)
-          unit_cost = Math.round(cost * 100) / 100
-          unit_sales_price = calculateSalePrice(cost, margin)
+          const pr = priced.get(r.id)
+          if (pr) { unit_cost = pr.cost; unit_sales_price = pr.sale }
         }
         return {
           supplier_product_id: r.id,

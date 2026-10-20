@@ -177,6 +177,28 @@ export async function supersededBy(offerId: string): Promise<string | null> {
   return (data as { superseded_by: string | null } | null)?.superseded_by ?? null
 }
 
+/**
+ * R3-1 (finans-review 3 2026-10-20): er et ANDET tilbud i revisionskæden allerede accepteret eller gjort til en sag?
+ * Så må denne revision ikke sendes/accepteres — ellers sag nr. 2 og to fastpris-slutfakturaer (FIN3-3 dækkede kun
+ * oprettelsen af revisionen). Returnerer en dansk fejltekst eller null. No-op uden flaget.
+ */
+export async function revisionChainCommittedError(offerId: string): Promise<string | null> {
+  if (!offerRevisionsEnabled()) return null
+  const admin = createAdminClient()
+  const { data: me } = await admin.from('offers').select('offer_number').eq('id', offerId).maybeSingle()
+  const num = (me as { offer_number: string | null } | null)?.offer_number
+  if (!num) return null
+  const base = String(num).replace(/-R\d+$/, '')
+  const { data: chain } = await admin.from('offers').select('id, status, converted_case_id').or(`offer_number.eq.${base},offer_number.like.${base}-R%`)
+  const others = ((chain ?? []) as Array<{ id: string; status: string | null; converted_case_id: string | null }>).filter((o) => o.id !== offerId)
+  if (!others.length) return null
+  if (others.some((o) => o.status === 'accepted' || !!o.converted_case_id)) {
+    return 'En anden version af tilbuddet er allerede accepteret eller gjort til en sag — denne version kan ikke bruges'
+  }
+  const { count } = await admin.from('service_cases').select('id', { count: 'exact', head: true }).in('source_offer_id', others.map((o) => o.id))
+  return (count ?? 0) > 0 ? 'En anden version af tilbuddet er allerede gjort til en sag — denne version kan ikke bruges' : null
+}
+
 /** Revisionshistorik for tilbudssiden: kæden (ældste → nyeste) + snapshots */
 export async function getRevisionHistory(offerId: string): Promise<Array<{ id: string; offer_number: string; revision_number: number; status: string; superseded_at: string | null; snapshot_sent_at: string | null }>> {
   if (!offerRevisionsEnabled()) return []

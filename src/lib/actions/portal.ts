@@ -574,10 +574,12 @@ export async function acceptOffer(
       return { success: false, error: isOfferExpired(offer.valid_until as string | null) ? 'Tilbuddet er udløbet — kontakt os for et nyt tilbud' : 'Tilbuddet kan ikke accepteres i denne status' }
     }
     // 00203 (staging): en afløst revision kan ikke accepteres; underskriften bindes til den præcise revisions snapshot
-    const { supersededBy, latestSnapshotId } = await import('@/lib/offers/revisions')
+    const { supersededBy, latestSnapshotId, revisionChainCommittedError } = await import('@/lib/offers/revisions')
     if (await supersededBy(data.offer_id)) {
       return { success: false, error: 'Tilbuddet er erstattet af en nyere version — genindlæs siden' }
     }
+    // R3-1: en anden version er allerede accepteret/gjort til sag → ingen sag nr. 2
+    { const chainErr = await revisionChainCommittedError(data.offer_id); if (chainErr) return { success: false, error: chainErr } }
     const snapshotId = await latestSnapshotId(data.offer_id)
 
     // Tilbuds-review 2026-10-09 (#3): accepten bindes til det beløb/den udsendelse kunden så — er tilbuddet ændret og

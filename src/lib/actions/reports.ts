@@ -519,7 +519,7 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
           .order('id')
           .range(from, to)),
         fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', ids).order('id').range(from, to)),
-        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('invoices').select('id, case_id, total_amount, status, invoice_type, voided_at').in('case_id', ids).order('id').range(from, to)),
+        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('invoices').select('id, case_id, total_amount, status, invoice_type, voided_at, currency').in('case_id', ids).order('id').range(from, to)),
         fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_other_costs').select('id, case_id, total_cost').in('case_id', ids).order('id').range(from, to)),
     ])))
     for (const [logs, mats, invs, others] of caseChunkData) {

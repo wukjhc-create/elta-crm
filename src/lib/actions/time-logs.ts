@@ -243,7 +243,7 @@ export async function suggestTimeLogStartAction(employeeId: string, date: string
 
 export async function createTimeLog(
   input: CreateTimeLogInput
-): Promise<ActionResult<TimeLogRow>> {
+): Promise<ActionResult<TimeLogRow & { absence_warning?: string | null }>> {
   try {
     if (!input.work_order_id) return { success: false, error: 'Arbejdsordre mangler' }
     if (!input.employee_id) return { success: false, error: 'Medarbejder mangler' }
@@ -394,7 +394,16 @@ export async function createTimeLog(
       const { autoStartCaseOnWork } = await import('@/lib/cases/case-auto-start')
       await autoStartCaseOnWork(wo.case_id as string, 'time_logged', userId)
     }
-    return { success: true, data: stripOneTimeLogPrice(data as unknown as TimeLogRow, hasPermission) }
+    // FIN3-11 (finans-review 2 2026-10-20): registrering på en fraværsdag gemmes, men brugeren advares
+    let absence_warning: string | null = null
+    try {
+      const { loadAbsencesFor, absenceTimeLogWarning } = await import('@/lib/time-logs/absence-days')
+      const hit = (await loadAbsencesFor(supabase, [input.employee_id], input.date, input.date))[0]
+      if (hit) absence_warning = absenceTimeLogWarning(hit)
+    } catch (e) {
+      logger.warn('createTimeLog absence check failed', { error: e })
+    }
+    return { success: true, data: { ...stripOneTimeLogPrice(data as unknown as TimeLogRow, hasPermission), absence_warning } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -536,13 +545,25 @@ export async function updateTimeLog(
     if (input.billable !== undefined) {
       patch.billable = !!input.billable
     }
+    const typeChanged = input.pay_rate_type !== undefined && input.pay_rate_type !== cur.pay_rate_type
     if (input.pay_rate_type !== undefined) {
       patch.pay_rate_type = input.pay_rate_type
     }
-    if (input.employee_rate_id !== undefined) {
+    // FIN3-6 (finans-review 2 2026-10-20): triggeren udfylder employee_rate_id med den automatisk fundne sats og rydder
+    // den aldrig → skift fx 50 % → 100 % (eller via 'normal') beholdt 50 %-satsen. Skifter satstypen uden et eksplicit
+    // valgt sats-id, nulstilles sats-id'et, så triggeren finder satsen for den NYE type.
+    const curRateId = (cur as { employee_rate_id?: string | null }).employee_rate_id ?? null
+    if (typeChanged && !input.employee_rate_id && curRateId) {
+      patch.employee_rate_id = null
+    }
+    // R3-4 (finans-review 3): null med UÆNDRET satstype rydder ikke den udfyldte sats — ellers blev en godkendt time
+    // genprissat til dagens sats (EM-2) eller montørens rettelse af en afvist time blokeret. Vagten gælder kun et konkret id.
+    if (input.employee_rate_id) {
       // Mail-/planlægningsreview 2026-10-08 (#5): godkendelses-triggeren (00185) nulstiller ikke godkendelsen ved
       // satsskift → en godkendt time kunne flyttes til en dyrere sats uden ny godkendelse. Uden godkenderret: afvis.
-      if ((input.employee_rate_id ?? null) !== ((cur as { employee_rate_id?: string | null }).employee_rate_id ?? null)
+      // FIN3-6: vagten gælder et EKSPLICIT valgt/ændret sats-id — ikke nulstillingen ved typeskift (den blokerede ellers
+      // montørens rettelse af en afvist time, fordi satsvælgeren sender null med).
+      if ((input.employee_rate_id ?? null) !== curRateId
         && (cur as { approval_status?: string }).approval_status !== 'pending' && !hasPermission('time_logs.approve')) {
         return { success: false, error: 'Satsen kan ikke ændres på godkendte/afviste timer — bed en godkender om at rette den' }
       }

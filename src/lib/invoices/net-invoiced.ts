@@ -19,6 +19,13 @@ export type InvoiceAmountRow = {
   status: string | null
   invoice_type: string | null
   voided_at: string | null
+  /** FIN3-7: valuta — rækker i anden valuta end DKK tæller ikke med i DKK-totalerne (null/udeladt = DKK) */
+  currency?: string | null
+}
+
+/** FIN3-7 (finans-review 2 2026-10-20): totaler er DKK — en EUR-faktura må ikke lægges sammen med kroner. */
+export function isDkkInvoice(r: { currency?: string | null }): boolean {
+  return !r.currency || r.currency.toUpperCase() === 'DKK'
 }
 
 export type CaseInvoiceRow = InvoiceAmountRow & {
@@ -59,6 +66,7 @@ export function summarizeCaseInvoices(rows: CaseInvoiceRow[]): CaseInvoiceSummar
   let invEx = 0, credEx = 0, invIncl = 0, credIncl = 0, paid = 0, issued = 0, voided = 0
   for (const r of rows) {
     if (!ISSUED_INVOICE_STATUSES.has(r.status ?? '')) continue // kladder tæller aldrig
+    if (!isDkkInvoice(r)) continue // FIN3-7: anden valuta blandes ikke i DKK-totalerne
     issued++
     if (r.voided_at) voided++
     const ex = num(r.total_amount)

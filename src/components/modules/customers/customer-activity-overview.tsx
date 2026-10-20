@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
@@ -31,16 +31,20 @@ import { SERVICE_CASE_STATUS_LABELS, SERVICE_CASE_PRIORITY_LABELS } from '@/type
 interface CustomerActivityOverviewProps {
   customerId: string
   customerEmail: string
+  /** PF3-1: hentet på serveren — så springes første hentning over */
+  initial?: { offers: CustomerOffer[]; leads: CustomerLead[]; sentQuotes: CustomerSentQuote[]; serviceCases: ServiceCase[] }
 }
 
-export function CustomerActivityOverview({ customerId, customerEmail }: CustomerActivityOverviewProps) {
-  const [offers, setOffers] = useState<CustomerOffer[]>([])
-  const [leads, setLeads] = useState<CustomerLead[]>([])
-  const [sentQuotes, setSentQuotes] = useState<CustomerSentQuote[]>([])
-  const [serviceCases, setServiceCases] = useState<ServiceCase[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+export function CustomerActivityOverview({ customerId, customerEmail, initial }: CustomerActivityOverviewProps) {
+  const [offers, setOffers] = useState<CustomerOffer[]>(initial?.offers ?? [])
+  const [leads, setLeads] = useState<CustomerLead[]>(initial?.leads ?? [])
+  const [sentQuotes, setSentQuotes] = useState<CustomerSentQuote[]>(initial?.sentQuotes ?? [])
+  const [serviceCases, setServiceCases] = useState<ServiceCase[]>(initial?.serviceCases ?? [])
+  const [isLoading, setIsLoading] = useState(!initial)
+  const skipFirst = useRef(!!initial)
 
   useEffect(() => {
+    if (skipFirst.current) { skipFirst.current = false; return }
     async function loadAll() {
       setIsLoading(true)
       const [o, l, sq, sc] = await Promise.all([

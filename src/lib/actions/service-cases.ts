@@ -1640,7 +1640,7 @@ async function unbilledCloseBlock(
     const ref = effectiveContractSum({ contractSum: s.contract_sum, revisedSum: s.revised_sum, billingModel: s.billing_model })
     if (ref != null && ref > 0) {
       const { netInvoicedExVat } = await import('@/lib/invoices/net-invoiced')
-      const { data: inv } = await supabase.from('invoices').select('total_amount, status, invoice_type, voided_at').eq('case_id', caseId)
+      const { data: inv } = await supabase.from('invoices').select('total_amount, status, invoice_type, voided_at, currency').eq('case_id', caseId)
       const rest = Math.round((ref - netInvoicedExVat((inv ?? []) as never[])) * 100) / 100
       if (rest >= 1) fixedMsg = `Fastpris: ${rest.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr. ekskl. moms af kontraktsummen er ikke faktureret.`
     }

@@ -43,6 +43,8 @@ export interface ApprovalTimeLog {
   is_own: boolean
   /** P-7 (pilot-review 2026-10-16): faktureret → kan ikke afvises (UI viser "Faktureret" i stedet for Afvis) */
   invoiced: boolean
+  /** FIN3-11: medarbejderen har registreret fravær (ferie/syg …) på dagen — godkenderen skal se det */
+  absence_label: string | null
 }
 
 const STATUSES: TimeApprovalStatus[] = ['pending', 'approved', 'rejected']
@@ -86,8 +88,29 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
         case_title: cs?.title ?? null, work_order_title: wo?.title ?? null,
         pay_rate_type: r.pay_rate_type ?? 'normal', employee_rate_id: r.employee_rate_id ?? null, is_own: !!emp?.profile_id && emp.profile_id === userId,
         invoiced: !!r.invoice_line_id,
+        absence_label: null,
       }
     })
+    // FIN3-11 (finans-review 2 2026-10-20): fravær på registreringens dag (dansk dato) markeres — løn/kost for en
+    // ferie-/sygedag skal ikke godkendes uset. Fejler opslaget, vises listen uden mærker.
+    if (rows.length) {
+      try {
+        const { copenhagenParts } = await import('@/lib/utils/copenhagen-time')
+        const { loadAbsencesFor } = await import('@/lib/time-logs/absence-days')
+        const { absenceOn, absenceLabel, absencePeriodText } = await import('@/lib/planning/absence')
+        const day = (r: ApprovalTimeLog) => copenhagenParts(r.start_time).date
+        const days = rows.map(day).sort()
+        const abs = await loadAbsencesFor(supabase, rows.map((r) => r.employee_id), days[0], days[days.length - 1])
+        if (abs.length) {
+          for (const r of rows) {
+            const hit = absenceOn(abs, r.employee_id, day(r))
+            if (hit) r.absence_label = `${absenceLabel(hit.kind)} ${absencePeriodText(hit)}`
+          }
+        }
+      } catch (e) {
+        logger.warn('listTimeLogsForApproval absence check failed', { error: e })
+      }
+    }
     return { success: true, data: rows }
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }

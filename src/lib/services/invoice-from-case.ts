@@ -360,6 +360,10 @@ export async function createInvoiceDraftFromCase(
         .eq('approval_status', 'approved')
         .eq('start_time', tl.start_time)
       bindQ = tl.end_time ? bindQ.eq('end_time', tl.end_time) : bindQ.is('end_time', null)
+      // R3-6 (finans-review 3 2026-10-20): også det læste salgsbeløb — et samtidigt satsskift (normal → overtid) genberegner
+      // sale_amount i triggeren; uden dette blev rækken bundet til linjen med den GAMLE pris og derefter låst
+      const saleRead = (tl as { sale_amount?: number | string | null }).sale_amount
+      bindQ = saleRead === null || saleRead === undefined ? bindQ.is('sale_amount', null) : bindQ.eq('sale_amount', saleRead)
       const { data: bound, error: bindErr } = await bindQ.select('id')
       if (bindErr || !bound || bound.length !== 1) {
         await supabase.from('invoice_lines').delete().eq('id', line.id)

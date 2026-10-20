@@ -2820,6 +2820,15 @@ ${m.text()}`) })
           r.bekraeftet_oprettet = wos.length === 1
           const aud = wos[0] ? ((await c.admin.from('audit_logs').select('action').eq('entity_id', wos[0].id).eq('action', 'planning_absence_override')).data ?? []) : []
           r.override_audit = aud.length === 1
+          // FIN3-11 (2026-10-20): timer på fraværsdagen markeres i godkendelseslisten (advarsel, ikke blokering)
+          if (wos[0] && empId) {
+            const tl = await c.admin.from('time_logs').insert([{ work_order_id: wos[0].id, employee_id: empId, start_time: `${d}T10:00:00Z`, end_time: `${d}T11:00:00Z`, description: `Fraværstime ${stamp}`, billable: true }]).select('id')
+            r.fravaerstime_gemt = !tl.error && (tl.data ?? []).length === 1
+            await gotoSafe(a.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const apRow = a.page.getByTestId('time-approval-row').filter({ hasText: `Fraværstime ${stamp}` }).first()
+            await apRow.waitFor({ timeout: 30_000 }).catch(() => {})
+            r.godkendelse_viser_fravaer = /Ferie/i.test(String(await apRow.getByTestId('time-approval-absence').textContent({ timeout: 10_000 }).catch(() => '')))
+          }
           // bogholderi læser, kan ikke skrive; montør ingen adgang
           const bog = await login(await mkUser('bogholderi'))
           try {
@@ -2834,7 +2843,7 @@ ${m.text()}`) })
             r.montoer_ingen_adgang = (await mo.page.getByTestId('absences-page').count()) === 0
           } finally { await mo.ctx.close().catch(() => {}) }
         } finally {
-          if (caseId) { const w = ((await c.admin.from('work_orders').select('id').eq('case_id', caseId)).data ?? []) as Array<{ id: string }>; if (w.length) await c.admin.from('work_orders').delete().in('id', w.map((x) => x.id)) }
+          if (caseId) { const w = ((await c.admin.from('work_orders').select('id').eq('case_id', caseId)).data ?? []) as Array<{ id: string }>; if (w.length) { await c.admin.from('time_logs').delete().in('work_order_id', w.map((x) => x.id)); await c.admin.from('work_orders').delete().in('id', w.map((x) => x.id)) } }
           if (empId) { await c.admin.from('employee_absences').delete().eq('employee_id', empId); await c.admin.from('employees').delete().eq('id', empId) }
         }
         out.push({ id: 'U163 fravær: kalender, advarsel + override + audit, roller', ok: !!empId && !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
@@ -3492,17 +3501,34 @@ ${m.text()}`) })
         const inv = done ? await c.admin.from('invoices').insert([{ invoice_number: `U216-${stamp}`, customer_id: profitCustomerId, case_id: done, status: 'sent',
           invoice_type: 'standard', total_amount: 10000, tax_amount: 2500, final_amount: 12500, due_date: new Date().toISOString().slice(0, 10) }]).select('id') : null
         const invId = (inv?.data?.[0] as { id?: string } | undefined)?.id ?? null
-        r.seed = rows.length === 2 && matIds.length === 2 && !!invId
+        // som i det rigtige flow: slutfakturaen binder sagens linjer (her materialet på den fakturerede sag)
+        const doneMat = done ? matIds.find((_, i) => rows[i]?.id === done) ?? null : null
+        const invLine = invId ? await c.admin.from('invoice_lines').insert([{ invoice_id: invId, position: 1, description: 'Kontrakt', quantity: 1, unit: 'stk', unit_price: 10000, total_price: 10000 }]).select('id') : null
+        const invLineId = (invLine?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (doneMat && invLineId) await c.admin.from('case_materials').update({ invoice_line_id: invLineId }).eq('id', doneMat)
+        r.seed = rows.length === 2 && matIds.length === 2 && !!invId && !!invLineId
         try {
-          await gotoSafe(a.page, `${base}/dashboard/orders?unbilled=1&search=${encodeURIComponent(tag)}`, { waitUntil: 'networkidle', timeout: 180_000 })
-          await a.page.getByText(`[HARNESS] ${tag} fastpris åben`).first().waitFor({ timeout: 45_000 }).catch(() => {})
+          const visit = async () => {
+            await gotoSafe(a.page, `${base}/dashboard/orders?unbilled=1&search=${encodeURIComponent(tag)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await a.page.getByText(`[HARNESS] ${tag} fastpris åben`).first().waitFor({ timeout: 45_000 }).catch(() => {})
+          }
+          await visit()
           r.aaben_fastpris_vist = (await a.page.getByText(`[HARNESS] ${tag} fastpris åben`).count()) > 0
           r.faktureret_fastpris_skjult = (await a.page.getByText(`[HARNESS] ${tag} fastpris faktureret`).count()) === 0
+          // R3-2: ekstraarbejde registreret EFTER slutfakturaen (ubundet linje) → sagen står igen som klar til fakturering
+          const extra = done ? await c.admin.from('case_materials').insert([{ case_id: done, description: `U216 ekstra ${stamp}`, quantity: 1, unit: 'stk',
+            unit_cost: 50, unit_sales_price: 100, billable: true, source: 'manual', created_by: adminUser.id }]).select('id') : null
+          const extraId = (extra?.data?.[0] as { id?: string } | undefined)?.id ?? null
+          if (extraId) matIds.push(extraId)
+          await visit()
+          r.ekstraarbejde_vist = (await a.page.getByText(`[HARNESS] ${tag} fastpris faktureret`).count()) > 0
         } finally {
+          if (doneMat) await c.admin.from('case_materials').update({ invoice_line_id: null }).eq('id', doneMat)
+          if (invLineId) await c.admin.from('invoice_lines').delete().eq('id', invLineId)
           if (matIds.length) await c.admin.from('case_materials').delete().in('id', matIds)
           if (invId) await c.admin.from('invoices').delete().eq('id', invId)
         }
-        out.push({ id: 'U216 FIN3-5 fastpris i klar til fakturering', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+        out.push({ id: 'U216 FIN3-5/R3-2 fastpris i klar til fakturering (rest, ekstraarbejde)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U214 DB-15k: "Klar til fakturering" linker til sagslisten med kun sager med ufaktureret arbejde (?unbilled=1)
@@ -4256,8 +4282,9 @@ ${m.text()}`) })
           // 00230: medarbejderen er markeret i medarbejder-UI'et (admin) før satsen sættes
           await gotoSafe(a.page, `${base}/dashboard/employees/${jobEmployeeId}`, { waitUntil: 'networkidle', timeout: 120_000 })
           r.mangler_sats_vist = /Mangler timepris/.test(((await a.page.getByTestId('employee-rate-gap-banner').textContent().catch(() => '')) ?? ''))
-          await gotoSafe(a.page, `${base}/dashboard/employees`, { waitUntil: 'networkidle', timeout: 120_000 })
-          r.mangler_sats_liste = (await a.page.locator('tr', { hasText: 'Harness Montør' }).first().getByTestId('employee-rate-gap').count()) === 1
+          // præcis DENNE medarbejders række (staging har mange "Harness Montør" fra tidligere kørsler; listen viser højst 500)
+          await gotoSafe(a.page, `${base}/dashboard/employees?q=${encodeURIComponent('Harness Montør')}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.mangler_sats_liste = (await a.page.locator('tr', { has: a.page.locator(`a[href="/dashboard/employees/${jobEmployeeId}"]`) }).first().getByTestId('employee-rate-gap').count()) === 1
           // admin/serviceleder sætter satsen → montøren kan registrere
           if (jobEmployeeId) await c.admin.from('employees').update({ hourly_rate: 495, cost_rate: 300 }).eq('id', jobEmployeeId)
           await m.page.getByRole('button', { name: 'Gem timer' }).click({ timeout: 30_000 }).catch(() => {})
@@ -4755,7 +4782,13 @@ ${m.text()}`) })
           let t1: T = null
           for (let i = 0; i < 15; i++) { t1 = await read(rej); if (t1?.approval_status === 'pending') break; await new Promise((res) => setTimeout(res, 1000)) }
           r.rettet_til_afventer = t1?.approval_status === 'pending' && new Date(t1.end_time).toISOString() === '2026-09-02T09:00:00.000Z'
-          const aud1 = ((await c.admin.from('audit_logs').select('action, metadata').eq('entity_id', rej ?? '')).data ?? []) as Array<{ action: string; metadata: Record<string, unknown> | null }>
+          // auditrækken skrives EFTER opdateringen i server-actionen → vent på den (før læst straks = sporadisk fejl)
+          let aud1: Array<{ action: string; metadata: Record<string, unknown> | null }> = []
+          for (let i = 0; i < 10; i++) {
+            aud1 = ((await c.admin.from('audit_logs').select('action, metadata').eq('entity_id', rej ?? '')).data ?? []) as typeof aud1
+            if (aud1.some((x) => x.action === 'time_log_corrected')) break
+            await new Promise((res) => setTimeout(res, 1000))
+          }
           r.audit_rettelse = aud1.some((x) => x.action === 'time_log_corrected' && x.metadata?.previous_rejection_reason === 'Forkert job U155')
           // slet den anden afviste
           m.page.once('dialog', (d) => { d.accept().catch(() => {}) })

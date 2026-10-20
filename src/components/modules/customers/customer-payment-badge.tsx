@@ -8,7 +8,7 @@
  * Selvhentende via getCustomerPaymentHealthAction. Cost-free.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, BadgeCheck, Clock, Receipt } from 'lucide-react'
 import {
   getCustomerPaymentHealthAction,
@@ -24,13 +24,18 @@ function kr(n: number): string {
 export function CustomerPaymentBadge({
   customerId,
   onOpenInvoices,
+  initial,
 }: {
   customerId: string
   onOpenInvoices?: () => void
+  /** PF3-1: hentet på serveren — så springes første hentning over */
+  initial?: CustomerPaymentHealthResult
 }) {
-  const [res, setRes] = useState<CustomerPaymentHealthResult | null>(null)
+  const [res, setRes] = useState<CustomerPaymentHealthResult | null>(initial ?? null)
+  const skipFirst = useRef(!!initial)
 
   useEffect(() => {
+    if (skipFirst.current) { skipFirst.current = false; return }
     let cancelled = false
     getCustomerPaymentHealthAction(customerId).then((r) => {
       if (!cancelled) setRes(r)

@@ -192,6 +192,12 @@ export function TimeApprovalClient() {
                           {PAY_RATE_TYPE_OPTIONS.find((o) => o.value === l.pay_rate_type)?.label ?? l.pay_rate_type}{l.employee_rate_id ? ' · særlig sats' : ''}
                         </span>
                       )}
+                      {l.absence_label && (
+                        // FIN3-11: timer på en fraværsdag — godkend kun hvis fraværet/timerne er rigtige
+                        <span className="ml-2 text-[10px] uppercase bg-red-100 text-red-800 px-1.5 py-0.5 rounded" data-testid="time-approval-absence" title="Medarbejderen har registreret fravær denne dag">
+                          Fravær: {l.absence_label}
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 truncate">
                       {l.case_id ? (

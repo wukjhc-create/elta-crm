@@ -870,6 +870,12 @@ export async function updateOfferStatus(
       return { success: false, error: 'Tilbuddet er allerede oprettet som sag — lav et nyt tilbud (kopiér) i stedet' }
     }
     // Tilbuds-review 2026-10-09 (#7): et udløbet tilbud kan ikke sendes (portalen afviser accept) — forlæng gyldigheden
+    // R3-1 (finans-review 3): en anden version i revisionskæden er accepteret/gjort til sag → denne sendes/accepteres ikke
+    if (status === 'sent' || status === 'accepted') {
+      const { revisionChainCommittedError } = await import('@/lib/offers/revisions')
+      const chainErr = await revisionChainCommittedError(id)
+      if (chainErr) return { success: false, error: chainErr }
+    }
     if (status === 'sent' && isOfferExpired((current as { valid_until?: string | null }).valid_until)) {
       return { success: false, error: 'Tilbuddets gyldighed er udløbet — ret "Gyldig til" før afsendelse' }
     }

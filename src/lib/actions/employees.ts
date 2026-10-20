@@ -610,9 +610,12 @@ export async function getEmployeeRateGapsAction(): Promise<Record<string, { miss
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const { employeeRateGap } = await import('@/lib/employees/rate-gaps')
   const admin = createAdminClient()
-  const [{ data: emps }, { data: comp }, { data: cs }] = await Promise.all([
-    admin.from('employees').select('id, hourly_rate, cost_rate').eq('active', true).limit(1000),
-    admin.from('employee_compensation').select('employee_id, real_hourly_cost').limit(1000),
+  // U11-diagnose 2026-10-20: .limit(1000) = PostgREST-loftet — medarbejdere ud over de første 1.000 fik aldrig
+  // "Mangler timepris"-mærket (og kunne ikke registrere tid uden at nogen så hvorfor). Side for side.
+  const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+  const [emps, comp, { data: cs }] = await Promise.all([
+    fetchAllRows((f, t) => admin.from('employees').select('id, hourly_rate, cost_rate').eq('active', true).order('id').range(f, t)),
+    fetchAllRows((f, t) => admin.from('employee_compensation').select('employee_id, real_hourly_cost').order('employee_id').range(f, t)),
     admin.from('company_settings').select('time_cost_basis, time_cost_rate').order('created_at', { ascending: true, nullsFirst: false }).limit(1),
   ])
   const rhc = new Map(((comp ?? []) as Array<{ employee_id: string; real_hourly_cost: number | null }>).map((c) => [c.employee_id, c.real_hourly_cost]))

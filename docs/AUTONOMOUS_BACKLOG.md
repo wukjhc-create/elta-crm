@@ -229,17 +229,17 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 ## NEXT-55 (finans-review 2 2026-10-20 — tilbud→sag→faktura, sagsøkonomi, tid→kost, priser)
 | # | Fund | Status |
 |---|---|---|
-| FIN3-1 | Avance-prioritet: tilbudslinjen lader enhver avanceregel (inkl. leverandør-standard) slå kundeaftalen; kalkia/sagsmateriale/DB-funktion omvendt (S2, latent) | DELVIS (tilbudsstien: produkt-/kunderegel → aftale → generel regel; supplier-line-pricing-check) — kalkia/sagsmateriale/DB-funktion TODO |
+| FIN3-1 | Avance-prioritet: tilbudslinjen lader enhver avanceregel (inkl. leverandør-standard) slå kundeaftalen; kalkia/sagsmateriale/DB-funktion omvendt (S2, latent) | DELVIS (tilbudsstien: produkt-/kunderegel → aftale → generel regel; supplier-line-pricing-check) — sagsmaterialesøgningen bruger nu samme supplierLinePricing; kalkia + DB-funktionen (get_effective_margin-forrang, kræver migration) TODO |
 | FIN3-2 | Tilbudsnumre låser, når højeste tilbud er en revision (-R2 → NaN → 0001 findes); UTC-år ved nytår (S2 på staging) | DONE (kode, offer-number-test 6 + harness:concurrency C4) — revisioner udelades, numerisk maksimum, dansk år |
 | FIN3-3 | Revision af et allerede konverteret sendt tilbud opretter en sag nr. 2 (S2 når flaget er tændt) | DONE (kode, offer-revisions-check +1) — revision afvises, når et tilbud i kæden har en sag (converted_case_id/source_offer_id) |
 | FIN3-4 | Rapport: faktureret pr. periode klampes ≥ 0 (kreditnota i anden måned) ≠ tragt/bogføring (S3) | DONE (kode, U88/U91/U100) — kreditnota trækkes i sin måned, også under 0 (afstemmelig med tragt/bogføring) |
-| FIN3-5 | "Klar til fakturering"/faktureringsstatus prissætter fastprissager med linjepriser (S3) | DELVIS (kode, U216) — cockpit/sagsliste: fastprissag = kontraktens restbeløb (eller ude ved ingen rest); sagens faktureringsstatus (service-case-economy) = TODO |
-| FIN3-6 | Skift af satstype beholder auto-udfyldt overtidssats (S4) | TODO |
-| FIN3-7 | Udestående/lønsomhed/sagsøkonomi/afvisninger blander valutaer (S4) | TODO |
-| FIN3-8 | Sagens indkøbsoversigt: revised_sum=0-reference, ignorerer regningssager; .limit(50) (S4) | TODO |
+| FIN3-5 | "Klar til fakturering"/faktureringsstatus prissætter fastprissager med linjepriser (S3) | DELVIS (kode, U216) — cockpit/sagsliste: fastprissag = kontraktens restbeløb (eller ude ved ingen rest); sagens faktureringsstatus (getServiceCaseBillingStatus) følger nu også kontraktens restbeløb → DONE |
+| FIN3-6 | Skift af satstype beholder auto-udfyldt overtidssats (S4) | DONE (kode) — typeskift uden valgt sats nulstiller sats-id'et; godkendelsesvagten gælder kun et eksplicit valgt id (blokerede før montørens rettelse af afvist time) |
+| FIN3-7 | Udestående/lønsomhed/sagsøkonomi/afvisninger blander valutaer (S4) | DONE (kode, net-invoiced-test) — summarizeCaseInvoices springer ikke-DKK over (isDkkInvoice); currency i alle fødende selects; afvisningernes tab var allerede DKK (exVat) |
+| FIN3-8 | Sagens indkøbsoversigt: revised_sum=0-reference, ignorerer regningssager; .limit(50) (S4) | DONE (kode) — reference = budget > 0 ellers effectiveContractSum; alle leverandørfakturaer (fetchAllRows) |
 | FIN3-9 | "Udfyld manglende kost" bruger rå leverandørkost (ignorerer kundeaftale) (S4) | DONE (kode; kundens effektive kost via supplierLinePricing) |
 | FIN3-10 | Profitanalysens timekost uden employees.cost_rate (≠ triggeren) (S4) | DONE (kode; samme COALESCE som triggeren) |
-| FIN3-11 | Timer på en fraværsdag uden advarsel (S4) | TODO |
+| FIN3-11 | Timer på en fraværsdag uden advarsel (S4) | DONE (kode, U163) — advarsel efter registrering + "Fravær: …"-mærke i godkendelseslisten (ikke blokering) |
 
 ## NEXT-54 (finans-review 2026-10-20)
 | # | Fund | Status |
@@ -271,11 +271,11 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | MB2-10 | Kalender: I dag/dato/visning-knapper ~30 px (S4) | DONE (kode, U30/U160) — I dag/dato/visning højere på telefon |
 | MB2-11 | Underskrift: navnefeltet autoudfylder montørens navn (S4) | DONE (kode) — autoComplete off, autoCapitalize words |
 | MB2-12 | "Mine job"-header klemt (S4) | DONE (kode, U174) — flex-wrap, kortere label |
-| PF3-1 | Kundesiden: ~13 serielle server-actions ved åbning (S3) | TODO |
+| PF3-1 | Kundesiden: ~13 serielle server-actions ved åbning (S3) | DELVIS (kode, U166/U173/U199/U52) — aktivitetsoversigt (4) + betalingsmærke hentes på serveren parallelt med kunden; opgaver/noter/mail-tidslinje henter stadig selv |
 | PF3-2 | getWorkOrderScope henter ALLE montørens arbejdsordre-id'er pr. tidsregistrering/fane (S3) | DONE (kode, montør-gruppen U11/U21/U34/U44/U48/U62/U63/U66/U67/U71/U73/U117) — getWorkOrderEmployeeScope + filter på assigned_employee_id i databasen / opslag af den ene arbejdsordre (5 kald) |
 | PF3-3 | Kalender: backlog/uden-tid hentes efter Promise.all, serielle bidder, O(n²) spread (S3) | DONE (kode, U96/U117/U30) — backlog/uden-tid i kalenderens Promise.all; bidder parallelt; push i stedet for O(n²) spread |
-| PF3-4 | Opgavesiden: getActiveProfiles for montør + ufiltreret realtime (S3) | DELVIS (kode, U174/U175/U201) — profillisten hentes ikke for montør uden opret-ret; realtime-filter pr. bruger = TODO |
-| PF3-5 | Thumbnails henter fulde billeder uden lazy (S3) | DELVIS (kode) — loading="lazy" decoding="async"; rigtige thumbnails (transform) = TODO |
+| PF3-4 | Opgavesiden: getActiveProfiles for montør + ufiltreret realtime (S3) | DONE (kode, U174/U175/U201) — profillisten hentes ikke for montør uden opret-ret. Realtime: bevidst UDEN kolonnefilter — Realtime anvender RLS på postgres_changes (montøren modtager kun synlige rækker), og et assigned_to-filter ville misse en opgave der flyttes VÆK fra brugeren (listen blev stående forældet); hændelser debounces allerede (1,5 s) |
+| PF3-5 | Thumbnails henter fulde billeder uden lazy (S3) | DELVIS (kode) — loading="lazy" decoding="async"; rigtige thumbnails = BLOCKED_CONFIGURATION (Supabase Storage-billedtransformation er en plan-funktion — skal bekræftes aktiv, ellers alternativt en thumbnail-variant ved upload via downscaleImageForUpload) |
 | PF3-6 | Planlægning-fanen: ~7 serielle actions (S3) | DONE (kode, U62/U96/U21/U73) — getCasePlanningBundleAction: ét kald (5 dele parallelt på serveren) |
 | PF3-7 | Kundeliste: betalingsview tælles 6 gange; auto-tal før listen (S4) | DELVIS (kode, U136/U195/U199) — auto-tal hentes parallelt med listen; 5 tællinger → én RPC = BLOCKED_APPROVAL [MIGRATION] |
 | PF3-8 | Chat/tilbud poller i skjult fane (S4) | DONE (kode, U7/U47) — kundechat og tilbudsdetalje poller kun synlig fane |
@@ -2002,3 +2002,21 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 - 2026-09-27: 00161 kørt i prod (godkendt) og verificeret; P0 lukket.
 - 2026-09-27: P0 #1–#4 færdige på staging; 00161 forberedt (gate).
 - 2026-09-27: backlog oprettet (Henrik). Forudgående: 00159 + 00160 kørt i prod, Pilot Ops PROD READY.
+
+### Finans-/pilot-review 3 (2026-10-20, efter FIN3-bølgen)
+
+Ingen penge-forkert regression i FIN3-ændringerne. Fund:
+
+| # | Fund | Status |
+|---|------|--------|
+| R3-1 | Revisions-værnet (FIN3-3) kører kun ved oprettelse — afsendelse/portal-accept af en EKSISTERENDE revision tjekker ikke kæden → sag nr. 2 mulig (S2, kun staging bag OFFER_REVISIONS_ENABLED) | DONE (kode, offer-revisions-check, U7/U14/U51/U42) — revisionChainCommittedError i portal-accept + intern send/accept (no-op uden flag) |
+| R3-2 | FIN3-5 skjulte ekstraarbejde registreret efter en fastpris-slutfaktura | DONE (kode, U216) — ubundne linjer står som klar til fakturering / "delvist faktureret" |
+| R3-3 | Projektøkonomien viste sidste fakturas valuta på DKK-totaler | DONE (kode) |
+| R3-4 | employee_rate_id: null med uændret satstype ryddede satsen (genprissætning af godkendt time) / blokerede montøren | DONE (kode, U155/U62) — vagt + ændring kun for et konkret id |
+| R3-5 | Sagsmateriale: varens avance 0 gav salg til kostpris efter FIN3-1 | DONE (kode) — avance ≤ 0 = ikke sat (som før) |
+| R3-6 | Fakturabinding af timer tjekker ikke pay_rate_type/sale_amount (kapløb med satsskift) (S4) | DONE (kode, U32/U48) — bindingen kræver det læste sale_amount |
+| R3-11 | Medarbejderlistens "Mangler timepris"-mærke læste højst 1.000 medarbejdere (.limit(1000)) — fundet via U11 der fejlede 2× | DONE (kode, U11) — fetchAllRows; U11 rammer præcis den seedede række |
+| R3-7 | Fraværsadvarsel mangler ved flytning af time/timer-start; godkender-roller uden for 00228 ser ikke mærket (S4) | TODO |
+| R3-8 | Sagsmaterialesøgningen: ~4 opslag pr. hit (supplierLinePricing pr. række) (S4, perf) | TODO |
+| R3-9 | FIN3-4: kreditnota uden sent_at falder ud af perioderne (S4, plausibel) | AFVIST (verificeret) — kreditnotaer oprettes som kladde og udstedes via samme afsendelse/setInvoiceStatus, der altid sætter sent_at |
+| R3-10 | Tilbudsnumre > 9.999 pr. år sorteres som tekst (S4) | TODO (ikke pilot-relevant) |

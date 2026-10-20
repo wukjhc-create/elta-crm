@@ -5,6 +5,9 @@ import { getPartnerTokens } from '@/lib/actions/partner-portal'
 import { getDocumentCompanySettings } from '@/lib/actions/company-public'
 import { CustomerDetailClient } from './customer-detail-client'
 import { pageHasPermission } from '@/lib/auth/page-guard'
+import { getCustomerOffers, getCustomerLeads, getCustomerSentQuotes } from '@/lib/actions/customer-relations'
+import { getCustomerServiceCases } from '@/lib/actions/service-cases'
+import { getCustomerPaymentHealthAction } from '@/lib/actions/invoices'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,18 +18,28 @@ interface CustomerDetailPageProps {
 export default async function CustomerDetailPage({ params }: CustomerDetailPageProps) {
   const { id } = await params
 
-  const [customerResult, tokensResult, partnerTokensResult, settingsResult] = await Promise.all([
+  // PF3-1 (performance-review 3 2026-10-20): aktivitetsoversigten (4 kald) og betalingsmærket hentes her samtidig med
+  // kunden — fra klienten køres server-actions ét ad gangen, så åbningen ventede på ~13 kald i træk. Hvert kald har sin
+  // egen rettigheds-/scope-kontrol; uden adgang til kunden bruges resultaterne ikke (notFound).
+  const [customerResult, tokensResult, partnerTokensResult, settingsResult, canManagePricing, offers, sentQuotes, serviceCases, paymentHealth] = await Promise.all([
     getCustomer(id),
     getPortalTokens(id),
     getPartnerTokens(id),
     getDocumentCompanySettings(),
+    // D48: kundeaftaler (leverandørrabat, avance, kostpris) kun for prisværktøjet (admin, serviceleder)
+    pageHasPermission('tools.pricing'),
+    getCustomerOffers(id).catch(() => null),
+    getCustomerSentQuotes(id).catch(() => null),
+    getCustomerServiceCases(id).catch(() => null),
+    getCustomerPaymentHealthAction(id).catch(() => null),
   ])
 
   if (!customerResult.success || !customerResult.data) {
     notFound()
   }
-  // D48: kundeaftaler (leverandørrabat, avance, kostpris) kun for prisværktøjet (admin, serviceleder)
-  const canManagePricing = await pageHasPermission('tools.pricing')
+  // leads matches også på kundens e-mail → efter kunden
+  const leads = await getCustomerLeads(id, customerResult.data.email).catch(() => null)
+  const initialActivity = offers && sentQuotes && serviceCases && leads ? { offers, leads, sentQuotes, serviceCases } : undefined
 
   return (
     <CustomerDetailClient
@@ -35,6 +48,8 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
       partnerTokens={partnerTokensResult.data || []}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
       canManagePricing={canManagePricing}
+      initialActivity={initialActivity}
+      initialPaymentHealth={paymentHealth ?? undefined}
     />
   )
 }
