@@ -40,7 +40,8 @@ ok(lines[costLine - 1]?.trim() === cost, 'kostcellen bliver')
 ok(lines[listLine - 1]?.trim() === cost, 'listeprisen bliver')
 ok(view.includes('<dd className="font-mono break-words text-blue-600">{storedCostText(product.effective_sale_price)}</dd>'), 'mobilsalgspris bliver')
 ok((view.match(/storedCostText\(product\.effective_sale_price\)/g) ?? []).length === 2, 'salgspristeksten bliver')
-ok(view.includes('<TableHead className="w-[100px] text-right">Salgspris</TableHead>'), 'kolonnen bliver')
+ok(view.includes('<TableHead className="w-[100px] text-right break-words min-w-0">Salgspris</TableHead>'), 'kolonnen bliver')
+ok(!view.includes('<TableHead className="w-[100px] text-right">Salgspris</TableHead>'), 'kolonnen er ikke bar')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

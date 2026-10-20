@@ -286,7 +286,7 @@ export function SupplierProductsTable({
                     </div>
                   </TableHead>
                   <TableHead className="w-[100px] text-right break-words min-w-0">Listepris</TableHead>
-                  <TableHead className="w-[100px] text-right">Salgspris</TableHead>
+                  <TableHead className="w-[100px] text-right break-words min-w-0">Salgspris</TableHead>
                   <TableHead className="w-[80px]">Status</TableHead>
                   <TableHead className={`w-[100px] ${sortableHeaderClass}`} onClick={() => handleSort('updated_at')}>
                     <div className="flex items-center gap-1">

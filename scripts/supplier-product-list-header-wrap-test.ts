@@ -26,7 +26,8 @@ const view = readFileSync('src/components/modules/suppliers/supplier-products-ta
 ok(view.includes(wrapped), 'listepriskolonnen kan krympe')
 ok(view.split(wrapped).length === 2, 'listepriskolonnen er en')
 ok(!view.includes(bare), 'listepriskolonnen er ikke bar')
-ok(view.includes('<TableHead className="w-[100px] text-right">Salgspris</TableHead>'), 'salgspriskolonnen bliver')
+ok(view.includes('<TableHead className="w-[100px] text-right break-words min-w-0">Salgspris</TableHead>'), 'salgspriskolonnen bliver')
+ok(!view.includes('<TableHead className="w-[100px] text-right">Salgspris</TableHead>'), 'salgspriskolonnen er ikke bar')
 ok(view.includes('{storedCostText(product.list_price)}'), 'listepristeksten bliver')
 ok(view.includes('formatCurrency') === false, 'tabellen opfinder ikke en pris')
 
