@@ -27,7 +27,7 @@ ok(after.includes('Ikke matchet'), 'tom tekst bliver')
 ok(view.split(bare).length === 1, 'den bare sagsraekke er vaek')
 ok(!view.includes(bare), 'den bare sagsraekke er vaek')
 ok(view.includes('className="flex justify-end -mt-1 mb-1 break-words min-w-0"'), 'ret-raekken bliver')
-ok(view.includes('className="flex items-center gap-1.5 shrink-0"'), 'sagsknapperne bliver')
+ok(view.includes('className="flex items-center gap-1.5 shrink-0 break-words min-w-0"'), 'sagsknapperne bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

@@ -388,7 +388,7 @@ export function IncomingInvoiceDetailClient({
                   )}
                 </div>
                 {!terminal && (
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0 break-words min-w-0">
                     <button
                       type="button"
                       onClick={() => {
