@@ -234,7 +234,7 @@ export function IncomingInvoiceDetailClient({
           <h1 className="text-2xl font-semibold mt-1 flex flex-wrap items-start gap-2">
             <span className="break-words min-w-0">{detail.supplier?.name ?? inv.supplier_name_extracted ?? 'Ukendt leverandør'}</span>
             {isTestInvoice && (
-              <span className="text-[11px] uppercase tracking-wide bg-amber-200 text-amber-900 px-2 py-0.5 rounded">
+              <span className="text-[11px] uppercase tracking-wide bg-amber-200 text-amber-900 px-2 py-0.5 rounded break-words min-w-0">
                 TEST
               </span>
             )}
