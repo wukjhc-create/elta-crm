@@ -339,7 +339,7 @@ export function IncomingInvoicesListClient({
               return (
               <tr key={r.id} className={`border-t hover:bg-gray-50 ${isTest ? 'bg-amber-50/40' : ''}`}>
                 <td className="px-3 py-2 break-words min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 break-words min-w-0">
                     <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline break-words min-w-0">
                       {r.supplier_name || 'Leverandør mangler'}
                     </Link>
