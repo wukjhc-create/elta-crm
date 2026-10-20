@@ -747,7 +747,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 py-1 text-sm border-b last:border-b-0">
+    <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 py-1 text-sm border-b last:border-b-0 break-words min-w-0">
       <span className="text-gray-500 shrink-0">{label}</span>
       <span className="text-right text-gray-900 min-w-0 break-words">{value}</span>
     </div>

@@ -26,7 +26,7 @@ ok(after.includes('{title}'), 'titlen bliver')
 ok(view.split(bare).length === 1, 'den bare overskrift er vaek')
 ok(!view.includes(bare), 'den bare overskrift er vaek')
 ok(view.includes('<div className="bg-white rounded-lg ring-1 ring-gray-200 p-4 break-words min-w-0">'), 'panelet bliver')
-ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 py-1 text-sm border-b last:border-b-0">'), 'raekken bliver')
+ok(view.includes('<div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 py-1 text-sm border-b last:border-b-0 break-words min-w-0">'), 'raekken bliver')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)
