@@ -19,8 +19,11 @@ export default async function QuickCalculationPage() {
   return (
     <QuickCalculationClient
       templates={templatesResult.success && templatesResult.data ? templatesResult.data : []}
+      templatesError={templatesResult.success ? null : templatesResult.error || 'Kunne ikke hente projektskabeloner'}
       roomTypes={roomTypesResult.success && roomTypesResult.data ? roomTypesResult.data : []}
+      roomTypesError={roomTypesResult.success ? null : roomTypesResult.error || 'Kunne ikke hente rumtyper'}
       components={componentsResult.success && componentsResult.data ? componentsResult.data : []}
+      componentsError={componentsResult.success ? null : componentsResult.error || 'Kunne ikke hente komponenter'}
       settings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />
   )
