@@ -543,7 +543,7 @@ export function IncomingInvoiceDetailClient({
                             Materiale
                           </span>
                         ) : convertedAs === 'other_cost' ? (
-                          <span className="text-[10px] uppercase tracking-wide bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] uppercase tracking-wide bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded break-words min-w-0">
                             Øvrig
                           </span>
                         ) : skippedExplicit ? (

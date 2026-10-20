@@ -25,7 +25,7 @@ ok(view.split(wrapped).length === 2, 'materialemaerket er et')
 ok(view.includes('Materiale'), 'teksten Materiale bliver')
 ok(!view.includes('break-words break-words'), 'et break-words')
 
-const oevrig = '<span className="text-[10px] uppercase tracking-wide bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">'
+const oevrig = '<span className="text-[10px] uppercase tracking-wide bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded break-words min-w-0">'
 ok(view.includes(oevrig), 'oevrig-maerket bliver')
 ok(view.split(oevrig).length === 2, 'oevrig-maerket er et')
 
