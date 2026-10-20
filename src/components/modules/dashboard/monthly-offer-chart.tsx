@@ -16,10 +16,16 @@ export function MonthlyOfferChart() {
     acceptedCount: number
     rejectedCount?: number // DB-2
   } | null>(null)
+  const [failed, setFailed] = useState(false)
 
   const loadStats = useCallback(async () => {
-    const data = await getMonthlyOfferStats()
-    setStats(data)
+    try {
+      const data = await getMonthlyOfferStats()
+      setStats(data)
+      setFailed(false)
+    } catch {
+      setFailed(true)
+    }
   }, [])
 
   useEffect(() => {
@@ -29,7 +35,8 @@ export function MonthlyOfferChart() {
   // PF-12 (performance-review 2026-10-16): ingen realtime — enhver ændring af et vilkårligt tilbud genhentede hele
   // månedens tilbud for hver åben forside; grafen opdateres ved sidevisning
 
-  if (!stats) return null
+  if (!stats && failed) return <p className="text-sm text-red-700">Kunne ikke hente tilbudsoversigt. Genindlæs siden.</p>
+  if (!stats) return <p className="text-sm text-gray-500">Henter tilbudsoversigt…</p>
 
   const maxValue = Math.max(stats.sentValue, stats.acceptedValue, 1)
   const sentPct = Math.round((stats.sentValue / maxValue) * 100)
@@ -38,7 +45,8 @@ export function MonthlyOfferChart() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {failed && <p className="text-xs text-red-700">Kunne ikke opdatere tilbudsoversigten. Tallene er de seneste.</p>}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
           <TrendingUp className="w-4 h-4" />
           Tilbudsoversigt — {monthName}
