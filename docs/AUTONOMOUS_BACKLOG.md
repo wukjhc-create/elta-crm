@@ -1512,6 +1512,50 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogsjette (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `e79b7519`. Det lader hundredeogfemte-hegnet stå. `e79b7519` hedder `feat(profit): kolonnen Sag paa efterkalkulation kan krympe`. `c58e7bc9` hedder `feat(profit): etiketten Faktisk DB paa efterkalkulation kan krympe`. `2339cba9` hedder `docs: checkpoint efter cb597f96`. Start: `80ab0dab`. `origin/grok-next` er `e79b7519`. Push af `e79b7519` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `2339cba9..e79b7519`
+
+```
+e79b7519 feat(profit): kolonnen Sag paa efterkalkulation kan krympe
+c58e7bc9 feat(profit): etiketten Faktisk DB paa efterkalkulation kan krympe
+2339cba9 docs: checkpoint efter cb597f96
+```
+
+Listen er skiftets commits fra `2339cba9` til og med `e79b7519`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+9987603d docs: checkpoint efter 9b8902c6
+```
+
+### Features
+
+G18-770 lader kun etiketten Faktisk DB på efterkalkulationens mobilkort krympe. Procenten og skrivebordskolonnen bliver. G18-771 lader kun kolonnen Sag på efterkalkulationens skrivebord krympe. Linket og kundekolonnen bliver. `formatCurrency` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/aftercalc-overview-case-column-wrap-test.ts` og `scripts/aftercalc-overview-actual-db-label-wrap-test.ts` læser den shippede efterkalkulation og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetestene `scripts/aftercalc-overview-quoted-db-label-wrap-test.ts`, `scripts/aftercalc-money-wrap-test.ts` og `scripts/aftercalc-desktop-money-wrap-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for hvert produktcommit. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `e79b7519`, herunder G18-748 til G18-771. `2339cba9` er kun docs. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `e79b7519`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-772, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogfemte (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `cb597f96`. Det lader hundredeogfjerde-hegnet stå. `cb597f96` hedder `feat(profit): etiketten Tilbudt DB paa efterkalkulation kan krympe`. `5d03254c` hedder `feat(profit): etiketten Faktisk omsaetning paa efterkalkulation kan krympe`. `ffca2091` hedder `feat(profit): etiketten Tilbudt omsaetning paa efterkalkulation kan krympe`. `faf3c851` hedder `feat(profit): etiketten Sortering paa efterkalkulation kan krympe`. `029c5a6b` hedder `feat(profit): etiketten Afvigelse paa efterkalkulation kan krympe`. `9987603d` hedder `docs: checkpoint efter 9b8902c6`. Start: `80ab0dab`. `origin/grok-next` er `cb597f96`. Push af `cb597f96` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
