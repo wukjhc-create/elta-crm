@@ -838,10 +838,11 @@ export async function getRecentRejections(
     )
     const customerMap = new Map<string, string>()
     if (customerIds.length > 0) {
-      const { data: customers } = await supabase
+      const { data: customers, error: customerError } = await supabase
         .from('customers')
         .select('id, company_name, contact_person')
         .in('id', customerIds)
+      if (customerError) return { success: false, error: 'Kunne ikke hente kundenavne' }
       for (const c of customers || []) {
         customerMap.set(c.id, c.company_name || c.contact_person || 'Ukendt')
       }
