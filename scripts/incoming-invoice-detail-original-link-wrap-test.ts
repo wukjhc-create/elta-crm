@@ -26,7 +26,7 @@ ok(after.includes('Åbn originalen'), 'originalteksten bliver')
 ok(view.split(bare).length === 1, 'det bare originallink er vaek')
 ok(!view.includes(bare), 'det bare originallink er vaek')
 ok(view.includes('className="text-gray-700 hover:underline break-words min-w-0"'), 'arbejdsordrelinket bliver')
-ok(view.includes('className="flex items-center gap-2 text-xs pt-1 border-t min-w-0"'), 'totalraekken bliver')
+ok(view.includes('className="flex items-center gap-2 text-xs pt-1 border-t break-words min-w-0"'), 'totalraekken bliver')
 ok(after.includes('Total'), 'totalteksten bliver')
 
 if (bad > 0) {

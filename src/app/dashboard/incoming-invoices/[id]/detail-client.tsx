@@ -462,7 +462,7 @@ export function IncomingInvoiceDetailClient({
                 </div>
               )
             })}
-            <div className="flex items-center gap-2 text-xs pt-1 border-t min-w-0">
+            <div className="flex items-center gap-2 text-xs pt-1 border-t break-words min-w-0">
               <span className="w-28 sm:w-44 shrink-0 font-medium">Total</span>
               <div className="flex-1 h-2 bg-gray-100 rounded overflow-hidden">
                 <div className="h-2 bg-blue-500" style={{ width: `${Math.min(100, Number(breakdown.total ?? 0) * 100)}%` }} />
