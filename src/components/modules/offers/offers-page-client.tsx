@@ -160,7 +160,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
               <span
                 data-testid="offers-out-count"
                 title={`${OFFER_STATUS_LABELS.sent} og ${OFFER_STATUS_LABELS.viewed} i den viste liste`}
-                className="inline-flex items-center px-2 py-1 rounded-full bg-amber-50 text-amber-900 text-sm"
+                className="inline-flex items-center px-2 py-1 rounded-full bg-amber-50 text-amber-900 text-sm break-words min-w-0"
               >
                 Tilbud ude: {countOffersOut(offers)}
               </span>
