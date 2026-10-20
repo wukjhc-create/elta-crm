@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -115,6 +115,8 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const [selectedMaterial, setSelectedMaterial] = useState<KalkiaVariantMaterial | null>(null)
   const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([])
+  const [supplierSearchError, setSupplierSearchError] = useState<string | null>(null)
+  const searchSeq = useRef(0)
   const [searchQuery, setSearchQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [linking, setLinking] = useState<string | null>(null)
@@ -141,29 +143,44 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
   }, [])
 
   const handleOpenLinkDialog = useCallback(async (material: KalkiaVariantMaterial) => {
+    const seq = ++searchSeq.current
     setSelectedMaterial(material)
     setSearchQuery(material.material_name)
+    setSupplierOptions([])
+    setSupplierSearchError(null)
     setLinkDialogOpen(true)
     setSearching(true)
     const result = await getSupplierOptionsForMaterial(material.material_name)
+    if (seq !== searchSeq.current) return
     if (result.success && result.data) {
       setSupplierOptions(result.data)
+      setSupplierSearchError(null)
     } else {
       setSupplierOptions([])
+      setSupplierSearchError(result.success ? null : (result.error || 'Kunne ikke hente leverandørmuligheder'))
     }
     setSearching(false)
   }, [])
 
   const handleSearch = useCallback(async (query: string) => {
+    const seq = ++searchSeq.current
     setSearchQuery(query)
     if (query.length < 2) {
       setSupplierOptions([])
+      setSupplierSearchError(null)
+      setSearching(false)
       return
     }
     setSearching(true)
+    setSupplierSearchError(null)
     const result = await getSupplierOptionsForMaterial(query)
+    if (seq !== searchSeq.current) return
     if (result.success && result.data) {
       setSupplierOptions(result.data)
+      setSupplierSearchError(null)
+    } else {
+      setSupplierOptions([])
+      setSupplierSearchError(result.success ? null : (result.error || 'Kunne ikke hente leverandørmuligheder'))
     }
     setSearching(false)
   }, [])
@@ -635,7 +652,12 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
             </div>
 
             <div className="max-h-[300px] overflow-y-auto space-y-2">
-              {supplierOptions.length === 0 && !searching && searchQuery.length >= 2 && (
+              {supplierSearchError && !searching && (
+                <p className="text-sm text-red-700 break-words text-center py-4" data-testid="supplier-options-load-error">
+                  {supplierSearchError}. Det tælles ikke som ingen leverandørprodukter.
+                </p>
+              )}
+              {supplierOptions.length === 0 && !searching && !supplierSearchError && searchQuery.length >= 2 && (
                 <p className="text-sm text-gray-500 text-center py-4">
                   Ingen leverandørprodukter fundet
                 </p>
