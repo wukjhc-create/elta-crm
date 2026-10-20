@@ -226,7 +226,7 @@ export function SupplierProductsTable({
                     <p className="font-mono text-xs text-gray-500 break-all min-w-0" data-testid="supplier-product-mobile-sku">{product.supplier_sku}</p>
                     <p className="font-medium break-words">{product.supplier_name}</p>
                     {product.manufacturer && (
-                      <p className="text-xs text-gray-500">{product.manufacturer}</p>
+                      <p className="text-xs text-gray-500 break-words min-w-0">{product.manufacturer}</p>
                     )}
                   </div>
                   <Badge variant={product.is_available ? 'default' : 'secondary'} className="break-words min-w-0 max-w-full" data-testid="supplier-product-mobile-status">
