@@ -1,0 +1,51 @@
+/**
+ * Kolonnen Tilbudt DB % paa efterkalkulationens skrivebord kan krympe. Procenten bliver.
+ *   npx tsx scripts/aftercalc-overview-quoted-db-column-wrap-test.ts
+ */
+import { readFileSync } from 'node:fs'
+import { formatDate } from '../src/lib/utils'
+import { formatCurrency } from '../src/lib/utils/format'
+
+let bad = 0
+const ok = (c: boolean, label: string) => {
+  if (!c) bad++
+  console.log(`${c ? 'PASS' : 'FAIL'}  ${label}`)
+}
+
+ok(formatDate('2026-06-02').includes('2026'), 'datoen bliver')
+ok(formatCurrency(1250).includes('1'), 'beloebsformatet bliver')
+
+const view = readFileSync('src/app/dashboard/reports/aftercalc/aftercalc-overview-client.tsx', 'utf8')
+const id = '>Tilbudt DB %</th>'
+const at = view.indexOf(id)
+const row = at >= 0 ? view.slice(at - 58, at + 10) : ''
+ok(row.startsWith('<th'), 'det er kolonnen Tilbudt DB %')
+ok(row.includes('break-words min-w-0'), 'kolonnen kan krympe')
+ok(row.includes('text-right'), 'hoejrestillingen bliver')
+ok(row.endsWith('>Tilbudt D'), 'etiketten bliver')
+ok(!row.includes('Faktisk'), 'faktisk-kolonnen er et andet sted')
+ok(!row.includes('omsætning'), 'omsaetningskolonnen er et andet sted')
+ok(!row.includes('quoted_db_pct'), 'procenten er et andet sted')
+ok(!row.includes('\n'), 'linjeskiftet er et andet sted')
+ok(!row.includes('\r'), 'vognretur er et andet sted')
+ok(view.split(id).length === 2, 'kolonnen findes en gang')
+ok(view.split('<th className="px-2 py-1.5 text-right">Tilbudt DB %</th>').length === 1, 'den bare kolonne er vaek')
+ok(view.includes('<td className="px-2 py-1.5 text-right tabular-nums break-words min-w-0">{pct(r.quoted_db_pct)}</td>'), 'procenten bliver')
+ok(view.includes('<th className="px-2 py-1.5 text-right">Faktisk DB %</th>'), 'faktisk-db-kolonnen bliver')
+ok(view.includes('<dt className="text-gray-500 break-words min-w-0">Tilbudt DB</dt>'), 'mobil-etiketten kan stadig krympe')
+ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
+const faktisk = '>Faktisk omsætning</th>'
+const fat = view.indexOf(faktisk)
+const frow = fat >= 0 ? view.slice(fat - 58, fat + 10) : ''
+ok(frow.startsWith('<th'), 'faktisk-omsaetning-vinduet bliver')
+ok(frow.includes('break-words min-w-0'), 'faktisk-omsaetning kan stadig krympe')
+ok(frow.endsWith('>Faktisk o'), 'faktisk-omsaetning-etiketten bliver')
+ok(!frow.includes('DB'), 'faktisk-omsaetning-vinduet er ikke db')
+ok(!frow.includes('\n'), 'faktisk-omsaetning-vinduet har ikke linjeskift')
+ok(!frow.includes('\r'), 'faktisk-omsaetning-vinduet har ikke vognretur')
+
+if (bad > 0) {
+  console.log(`FAIL  ${bad}`)
+  process.exit(1)
+}
+console.log('PASS  aftercalc-overview-quoted-db-column-wrap-test')
