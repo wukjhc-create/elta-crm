@@ -106,7 +106,7 @@ export function AftercalcOverviewClient() {
         {!open && <p className="mt-1 text-xs text-gray-500 break-words min-w-0" data-testid="aftercalc-overview-closed-hint">Kost og DB er skjult, indtil du åbner oversigten.</p>}
 
         {open && (
-          <div className="mt-3 space-y-3">
+          <div className="mt-3 space-y-3 break-words min-w-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm min-w-0">
               <label className="block min-w-0">
                 <span className="text-xs text-gray-500 break-words min-w-0">Fra dato</span>
