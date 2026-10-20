@@ -31,7 +31,7 @@ ok(view.split(id).length === 2, 'etiketten findes en gang')
 ok(view.split(bare).length === 1, 'den bare klasse er vaek')
 ok(view.includes('<dd className="tabular-nums text-gray-900 break-words">{pct(r.actual_db_pct)}</dd>'), 'procenten bliver')
 ok(view.includes('<th className="px-2 py-1.5 text-right">Faktisk DB %</th>'), 'skrivebordskolonnen bliver')
-ok(view.includes('<th className="px-2 py-1.5 text-left">Sag</th>'), 'sag-kolonnen bliver')
+ok(view.includes('<th className="px-2 py-1.5 text-left break-words min-w-0">Sag</th>'), 'sag-kolonnen kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 const quoted = '>Tilbudt DB</dt>'
 const qat = view.indexOf(quoted)

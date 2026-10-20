@@ -234,7 +234,7 @@ export function AftercalcOverviewClient() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-xs text-gray-600">
                         <tr>
-                          <th className="px-2 py-1.5 text-left">Sag</th>
+                          <th className="px-2 py-1.5 text-left break-words min-w-0">Sag</th>
                           <th className="px-2 py-1.5 text-left">Kunde</th>
                           <th className="px-2 py-1.5 text-left">Ansvarlig</th>
                           <th className="px-2 py-1.5 text-right">Tilbudt omsætning</th>
