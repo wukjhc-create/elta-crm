@@ -24,7 +24,8 @@ const at = view.indexOf(name)
 const row = at >= 0 ? view.slice(at - 160, at + name.length) : ''
 
 ok(view.includes(wrapped), 'navnecellen kan krympe')
-ok(view.split(wrapped).length === 2, 'navnecellen er en')
+const nameCells = view.split(/\r?\n/).filter((line, i, all) => line.trim() === '<TableCell className="break-words min-w-0">' && (all[i + 1] ?? '').includes('<div className="break-words min-w-0">'))
+ok(nameCells.length === 1, 'navnecellen er en')
 ok(row.includes(wrapped), 'klassen sidder paa navnecellen')
 ok(row.includes('<div className="break-words min-w-0">'), 'navnerammen kan krympe')
 ok(!row.includes(bare), 'navnecellen er ikke bar')
@@ -34,8 +35,8 @@ ok(view.includes('storedCostText(product.list_price)'), 'listeprisen bliver')
 ok(view.includes('storedCostText(product.effective_sale_price)'), 'salgsprisen bliver')
 ok(view.includes("{product.is_available ? 'Aktiv' : 'Inaktiv'}"), 'statussen bliver')
 const lines = view.split(/\r?\n/)
-const cat = lines.findIndex((line, i) => line.includes('{product.category && (') && lines[i - 1]?.trim() === '<TableCell>')
-ok(cat > 0, 'kategoricellen bliver')
+const cat = lines.findIndex((line, i) => line.includes('{product.category && (') && lines[i - 1]?.trim() === '<TableCell className="break-words min-w-0">')
+ok(cat > 0, 'kategoricellen kan krympe')
 
 if (bad > 0) {
   console.log(`FAIL  ${bad}`)

@@ -310,7 +310,7 @@ export function SupplierProductsTable({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="break-words min-w-0">
                       {product.category && (
                         <Badge variant="secondary" className="text-xs break-words min-w-0 max-w-full" data-testid="supplier-product-desktop-category">
                           {product.category}
