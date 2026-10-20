@@ -51,6 +51,7 @@ import type { ProductWithCategory, ProductCategory } from '@/types/products.type
 import type { PaginatedResponse } from '@/types/common.types'
 import ProductForm from '@/components/modules/products/product-form'
 import { formatCurrency } from '@/lib/utils/format'
+import { storedCostText } from '@/lib/products/stored-cost-text'
 
 interface ProductsClientProps {
   initialProducts: PaginatedResponse<ProductWithCategory> | null
@@ -251,7 +252,8 @@ export default function ProductsClient({
                   </TableCell>
                   {canSeeCost && (
                   <TableCell className="text-right">
-                    {product.cost_price ? formatCurrency(product.cost_price) : '-'}
+                    {/* Grok 8055c9c5: manglende kostpris siges; en lagret 0 vises som 0 kr (før '-' for begge) */}
+                    {storedCostText(product.cost_price)}
                   </TableCell>
                   )}
                   <TableCell className="text-right font-medium">
