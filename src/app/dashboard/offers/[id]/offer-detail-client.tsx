@@ -137,6 +137,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [activities, setActivities] = useState<OfferActivityWithPerformer[]>([])
+  const [activitiesError, setActivitiesError] = useState<string | null>(null)
   const [isLoadingActivities, setIsLoadingActivities] = useState(true)
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [showCalculationPicker, setShowCalculationPicker] = useState(false)
@@ -216,16 +217,25 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     }
   }
 
-  // Load activities on mount
+  // Load activities on mount. Et nyt tilbud må ikke vise det forriges rækker.
   useEffect(() => {
+    let cancelled = false
+    setIsLoadingActivities(true)
+    setActivitiesError(null)
     async function loadActivities() {
       const result = await getOfferActivities(offer.id)
+      if (cancelled) return
       if (result.success && result.data) {
         setActivities(result.data)
+        setActivitiesError(null)
+      } else if (!result.success) {
+        setActivities([])
+        setActivitiesError(result.error || 'Kunne ikke hente aktiviteter')
       }
       setIsLoadingActivities(false)
     }
     loadActivities()
+    return () => { cancelled = true }
   }, [offer.id])
 
   // Fetch unread portal message count
@@ -1441,7 +1451,16 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                   <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                 </div>
               ) : (
-                <OfferActivityTimeline activities={activities} />
+                <>
+                  {activitiesError && (
+                    <p className="text-sm text-red-700 text-center" data-testid="offer-activities-load-error">
+                      {activitiesError}. Det tælles ikke som ingen aktiviteter.
+                    </p>
+                  )}
+                  {!activitiesError && (
+                    <OfferActivityTimeline activities={activities} />
+                  )}
+                </>
               )}
             </div>
           </div>
