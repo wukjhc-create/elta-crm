@@ -21,12 +21,12 @@ const bare = '<TableCell>'
 const name = '<p className="font-medium break-words min-w-0">{product.supplier_name}</p>'
 const view = readFileSync('src/components/modules/suppliers/supplier-products-table.tsx', 'utf8')
 const at = view.indexOf(name)
-const row = at >= 0 ? view.slice(at - 120, at + name.length) : ''
+const row = at >= 0 ? view.slice(at - 160, at + name.length) : ''
 
 ok(view.includes(wrapped), 'navnecellen kan krympe')
 ok(view.split(wrapped).length === 2, 'navnecellen er en')
 ok(row.includes(wrapped), 'klassen sidder paa navnecellen')
-ok(row.includes('<div>'), 'navnerammen er uden klasse')
+ok(row.includes('<div className="break-words min-w-0">'), 'navnerammen kan krympe')
 ok(!row.includes(bare), 'navnecellen er ikke bar')
 ok(view.includes(name), 'navnet bliver')
 ok(view.includes('storedCostText(product.cost_price)'), 'kostprisen bliver')
