@@ -727,9 +727,11 @@ export async function setIncomingInvoiceCaseAction(
     .select('id, status, matched_case_id, matched_work_order_id')
     .eq('id', invoiceId)
     .maybeSingle()
-  if (readErr || !cur) {
-    return { ok: false, message: 'Faktura ikke fundet' }
+  if (readErr) {
+    logger.error('setIncomingInvoiceCaseAction read failed', { error: readErr })
+    return { ok: false, message: 'Kunne ikke læse fakturaen. Det tælles ikke som at den ikke findes.' }
   }
+  if (!cur) return { ok: false, message: 'Faktura ikke fundet' }
 
   // LF-1 (indkøbs-review 2026-10-16): en godkendt/bogført faktura UDEN fordelte linjer kan stadig kobles til en sag —
   // før kunne en faktura godkendt uden sag aldrig fordeles ("matching kan ske senere" i UI'et). Afviste/annullerede og
