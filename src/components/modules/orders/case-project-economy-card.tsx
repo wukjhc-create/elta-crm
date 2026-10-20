@@ -51,7 +51,9 @@ export function CaseProjectEconomyCard({ caseId, caseNumber, canOpenInvoices = f
           <Loader2 className="w-4 h-4 animate-spin" /> Henter…
         </div>
       ) : error || !data ? (
-        <p className="text-sm text-gray-400 py-2">{error || 'Ingen data'}</p>
+        <p className="text-sm text-red-700 break-words py-2" data-testid="project-economy-load-error">
+          {error || 'Kunne ikke hente projektøkonomi'}. Det tælles ikke som 0 kr.
+        </p>
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
