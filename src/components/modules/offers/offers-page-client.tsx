@@ -10,6 +10,7 @@ import { Pagination } from '@/components/shared/pagination'
 import { ExportButton } from '@/components/shared/export-button'
 import type { OfferWithRelations, OfferStatus } from '@/types/offers.types'
 import { OFFER_STATUS_LABELS, OFFER_STATUSES } from '@/types/offers.types'
+import { countOffersOut } from '@/lib/offers/validity'
 import type { CompanySettings } from '@/types/company-settings.types'
 
 interface CalculatorData {
@@ -159,6 +160,15 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
             <h1 className="text-3xl font-bold text-gray-900">Tilbud</h1>
             <p className="text-gray-600 mt-1">
               Opret og administrer salgstilbud ({pagination.totalItems} tilbud)
+            </p>
+            <p className="mt-2">
+              <span
+                data-testid="offers-out-count"
+                title={`${OFFER_STATUS_LABELS.sent} og ${OFFER_STATUS_LABELS.viewed} i den viste liste`}
+                className="inline-flex items-center px-2 py-1 rounded-full bg-amber-50 text-amber-900 text-sm"
+              >
+                Tilbud ude: {countOffersOut(offers)}
+              </span>
             </p>
           </div>
           <div className="flex items-center gap-2">
