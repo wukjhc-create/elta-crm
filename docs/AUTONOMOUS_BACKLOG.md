@@ -1759,7 +1759,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-1025 | 6 Salg | DONE. Månedscellen i salgstragtens skrivebord kan krympe. | Kun td med klassen py-2 text-gray-900 der viser monthLabel i sales-funnel-table.tsx. Satser og beløb er uændrede. |
 | G18-1026 | 6 Salg | DONE. Kolonnen Nye kunder i salgstragten kan krympe. | Kun th med klassen pb-2 font-medium text-gray-500 text-right der viser Nye kunder i sales-funnel-table.tsx. De andre kolonner er uændrede. |
 | G18-1027 | 6 Salg | DONE. Kolonnen Tilbud oprettet i salgstragten kan krympe. | Kun th med klassen pb-2 font-medium text-gray-500 text-right der viser Tilbud oprettet i sales-funnel-table.tsx. De andre kolonner er uændrede. |
-| G18-1028 | 6 Salg | ÅBEN. Kolonnen Sendt i salgstragten kan krympe. | Kun th med klassen pb-2 font-medium text-gray-500 text-right der viser Sendt i sales-funnel-table.tsx. De andre kolonner er uændrede. |
+| G18-1028 | 6 Salg | DONE. Kolonnen Sendt i salgstragten kan krympe. | Kun th med klassen pb-2 font-medium text-gray-500 text-right der viser Sendt i sales-funnel-table.tsx. De andre kolonner er uændrede. |
 | G18-1029 | 6 Salg | ÅBEN. Kolonnen Accepteret i salgstragten kan krympe. | Kun th med klassen pb-2 font-medium text-gray-500 text-right der viser Accepteret i sales-funnel-table.tsx. De andre kolonner er uændrede. |
 | G18-1030 | 6 Salg | ÅBEN. Kolonnen Accepteret værdi i salgstragten kan krympe. | Kun th med klassen pb-2 font-medium text-gray-500 text-right der viser Accepteret værdi i sales-funnel-table.tsx. De andre kolonner er uændrede. |
 | G18-1031 | 6 Salg | ÅBEN. Kolonnen Faktureret i salgstragten kan krympe. | Kun th med klassen pb-2 font-medium text-gray-500 text-right der viser Faktureret i sales-funnel-table.tsx. De andre kolonner er uændrede. |
@@ -1773,6 +1773,7 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-1039 | 6 Salg | ÅBEN. Nye-kunder-cellen i salgstragtens skrivebord kan krympe. | Kun td med klassen py-2 text-right tabular-nums der viser m.new_customers i sales-funnel-table.tsx. Tallet er uændret. |
 | G18-1040 | 6 Salg | ÅBEN. Cellen Tilbud oprettet i salgstragtens skrivebord kan krympe. | Kun td med klassen py-2 text-right tabular-nums der viser m.offers_created i sales-funnel-table.tsx. Tallet er uændret. |
 | G18-1041 | 6 Salg | ÅBEN. Cellen Sendt i salgstragtens skrivebord kan krympe. | Kun td med klassen py-2 text-right tabular-nums der viser m.offers_sent i sales-funnel-table.tsx. Tallet er uændret. |
+| G18-1042 | 6 Salg | ÅBEN. Cellen Accepteret i salgstragtens skrivebord kan krympe. | Kun td med klassen py-2 text-right tabular-nums der viser m.offers_accepted i sales-funnel-table.tsx. Tallet er uændret. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |
