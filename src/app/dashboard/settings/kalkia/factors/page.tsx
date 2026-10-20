@@ -14,6 +14,7 @@ export default async function GlobalFactorsPage() {
   return (
     <GlobalFactorsClient
       factors={factorsResult.success && factorsResult.data ? factorsResult.data : []}
+      loadError={factorsResult.success ? null : factorsResult.error || 'Kunne ikke hente globale faktorer'}
     />
   )
 }
