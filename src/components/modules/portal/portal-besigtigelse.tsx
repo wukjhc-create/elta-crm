@@ -1,7 +1,7 @@
 'use client'
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   CalendarCheck,
   CheckCircle,
@@ -34,10 +34,36 @@ function extractTimeFromDescription(desc: string | null): string | null {
 export function PortalBesigtigelseSection({ token, customerName }: PortalBesigtigelseSectionProps) {
   const [bookings, setBookings] = useState<PortalBesigtigelse[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const bookingsKey = useRef<string | null>(null)
+  const requestId = useRef(0)
 
   const loadBookings = () => {
-    getPortalBesigtigelser(token).then((res) => {
-      if (res.success && res.data) setBookings(res.data)
+    const term = token
+    const id = ++requestId.current
+    setLoading(true)
+    setLoadError(null)
+    getPortalBesigtigelser(term).then((res) => {
+      if (requestId.current !== id) return
+      if (res.success) {
+        setBookings(res.data ?? [])
+        bookingsKey.current = term
+        setLoadError(null)
+      } else if (bookingsKey.current === term) {
+        setLoadError(res.error ?? 'Kunne ikke hente besigtigelser')
+      } else {
+        setBookings([])
+        setLoadError(res.error ?? 'Kunne ikke hente besigtigelser')
+      }
+      setLoading(false)
+    }).catch(() => {
+      if (requestId.current !== id) return
+      if (bookingsKey.current === term) {
+        setLoadError('Kunne ikke hente besigtigelser')
+      } else {
+        setBookings([])
+        setLoadError('Kunne ikke hente besigtigelser')
+      }
       setLoading(false)
     })
   }
@@ -103,6 +129,14 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
       </div>
 
       <div className="p-6 space-y-4">
+        {loadError && (
+          <p className="text-sm text-red-700 break-words" data-testid="portal-besigtigelse-stale-error">
+            {loadError}. De tidligere besigtigelser bliver.{' '}
+            <button type="button" onClick={loadBookings} className="min-h-[44px] px-3 font-medium underline">
+              Prøv igen
+            </button>
+          </p>
+        )}
         {/* N31: kunden kan selv booke (endnu) en besigtigelse */}
         <PortalBookBesigtigelse token={token} onBooked={loadBookings} />
 
