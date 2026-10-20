@@ -1687,6 +1687,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogotteoghalvfemsindstyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `8f3b8aba`. Det lader hundredeogsyvoghalvfemsindstyvende-hegnet stå. `8f3b8aba` hedder `feat(invoice): beskeden i revisionsloggen kan krympe`. `56a6c61a` hedder `feat(invoice): raekken i revisionsloggen kan krympe`. `origin/grok-next` er `8f3b8aba`. Push af `8f3b8aba` lykkedes. `56a6c61a` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `56a6c61a..8f3b8aba`
+
+```
+8f3b8aba feat(invoice): beskeden i revisionsloggen kan krympe
+56a6c61a feat(invoice): raekken i revisionsloggen kan krympe
+```
+
+Listen er skiftets commits fra `56a6c61a` til og med `8f3b8aba`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+829a1148 docs: checkpoint efter 56a6c61a
+```
+
+### Features
+
+G18-946 lader kun beskeden i revisionsloggen krympe. Beskeden bliver. `break-words` bliver. Kun `min-w-0` er tilføjet. G18-945 lader kun rækken i revisionsloggen krympe. Indholdet bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-audit-message-wrap-test.ts` og `scripts/incoming-invoice-detail-audit-row-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for rækken exiterede 0 sammen med det commit, der ændrede beskeden. `scripts/incoming-invoice-audit-label-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `8f3b8aba`. `56a6c61a` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `8f3b8aba`, herunder G18-748 til G18-946. `829a1148` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `8f3b8aba`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-947, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogsyvoghalvfemsindstyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `56a6c61a`. Det lader hundredeogseksoghalvfemsindstyvende-hegnet stå. `56a6c61a` hedder `feat(invoice): raekken i revisionsloggen kan krympe`. `e873c3a6` hedder `feat(invoice): tidspunktet i revisionsloggen kan krympe`. `origin/grok-next` er `56a6c61a`. Push af `56a6c61a` lykkedes. `e873c3a6` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
