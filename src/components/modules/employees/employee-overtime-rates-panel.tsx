@@ -155,7 +155,13 @@ export function EmployeeOvertimeRatesPanel({
           Ingen satser endnu.{canEdit ? ' Standard-satser oprettes automatisk.' : ''}
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+          <ul className="md:hidden space-y-2" data-testid="overtime-editor-mobile">
+            {rates.map((rate) => (
+              <RateRow key={rate.id} rate={rate} canEdit={canEdit} pending={pending} onRun={run} layout="card" />
+            ))}
+          </ul>
+          <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-gray-500 text-left border-b">
@@ -173,7 +179,8 @@ export function EmployeeOvertimeRatesPanel({
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   )
@@ -183,11 +190,13 @@ export function EmployeeOvertimeRatesPanel({
     canEdit,
     pending,
     onRun,
+    layout = 'row',
   }: {
     rate: EmployeeOvertimeRate
     canEdit: boolean
     pending: boolean
     onRun: (fn: () => Promise<{ success: boolean; error?: string }>) => void
+    layout?: 'card' | 'row'
   }) {
     const [mult, setMult] = useState(String(rate.multiplier))
     const [cost, setCost] = useState(rate.cost_rate == null ? '' : String(rate.cost_rate))
@@ -217,6 +226,18 @@ export function EmployeeOvertimeRatesPanel({
       onRun(() => updateOvertimeRate(rate.id, { multiplier: m, cost_rate: c, sale_rate: s }))
     }
 
+    if (!canEdit && layout === 'card') {
+      return (
+        <li className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${rate.is_active ? '' : 'opacity-50'}`}>
+          <p className="font-medium break-words">{rate.name}</p>
+          <p className="mt-1 text-xs tabular-nums text-gray-600">Faktor {rate.multiplier}×</p>
+          <p className="mt-1 text-xs tabular-nums text-gray-600">Kost {fmt(rate.cost_rate)}</p>
+          <p className="mt-1 text-xs tabular-nums text-gray-600">Salg {fmt(rate.sale_rate)}</p>
+          <p className="mt-1 text-xs text-gray-600">{rate.is_active ? 'Ja' : 'Nej'}</p>
+        </li>
+      )
+    }
+
     if (!canEdit) {
       return (
         <tr className={rate.is_active ? '' : 'opacity-50'}>
@@ -226,6 +247,45 @@ export function EmployeeOvertimeRatesPanel({
           <td className="py-1.5 px-2 text-right tabular-nums">{fmt(rate.sale_rate)}</td>
           <td className="py-1.5 px-2 text-center">{rate.is_active ? 'Ja' : 'Nej'}</td>
         </tr>
+      )
+    }
+
+    if (layout === 'card') {
+      return (
+        <li className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${rate.is_active ? '' : 'opacity-60'}`}>
+          <p className="font-medium break-words">{rate.name}</p>
+          <label className="mt-2 block text-xs text-gray-500">
+            Multiplikator
+            <input value={mult} onChange={(e) => setMult(e.target.value)} className="mt-0.5 w-full text-right border rounded px-2 py-1 text-sm" />
+          </label>
+          <label className="mt-2 block text-xs text-gray-500">
+            Kostpris
+            <input value={cost} onChange={(e) => setCost(e.target.value)} placeholder="—" className="mt-0.5 w-full text-right border rounded px-2 py-1 text-sm" />
+          </label>
+          <label className="mt-2 block text-xs text-gray-500">
+            Salgspris
+            <input value={sale} onChange={(e) => setSale(e.target.value)} placeholder="—" className="mt-0.5 w-full text-right border rounded px-2 py-1 text-sm" />
+          </label>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => onRun(() => setOvertimeRateActive(rate.id, !rate.is_active))}
+              disabled={pending}
+              title={rate.is_active ? 'Deaktivér' : 'Aktivér'}
+              className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${
+                rate.is_active ? 'text-emerald-700 border-emerald-200' : 'text-gray-500 border-gray-200'
+              }`}
+            >
+              <Power className="w-3.5 h-3.5" /> {rate.is_active ? 'Aktiv' : 'Inaktiv'}
+            </button>
+            <button
+              onClick={saveRow}
+              disabled={pending || !dirty}
+              className="text-xs px-2 py-0.5 rounded bg-gray-900 text-white disabled:opacity-30"
+            >
+              Gem
+            </button>
+          </div>
+        </li>
       )
     }
 
