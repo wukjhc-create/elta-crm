@@ -30,7 +30,7 @@ const card = '<article key={l.id} className="rounded ring-1 ring-gray-200 p-2 te
 ok(view.includes(card), 'kortet bliver')
 ok(view.split(card).length === 2, 'kortet er et')
 
-const unit = '<p>Stk-pris {fmtAmount(l.unit_price, inv.currency)}</p>'
+const unit = '<p className="break-words min-w-0">Stk-pris {fmtAmount(l.unit_price, inv.currency)}</p>'
 ok(view.includes(unit), 'stykprisen bliver')
 ok(view.split(unit).length === 2, 'stykprisen er en')
 

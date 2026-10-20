@@ -499,7 +499,7 @@ export function IncomingInvoiceDetailClient({
                 <article key={l.id} className="rounded ring-1 ring-gray-200 p-2 text-xs break-words min-w-0">
                   <p className="font-medium text-gray-900 break-words min-w-0">{l.line_number}. {l.description ?? '—'}</p>
                   <p className="text-gray-600 mt-1 break-words min-w-0">{l.quantity ?? '—'} {l.unit ?? ''}</p>
-                  <p>Stk-pris {fmtAmount(l.unit_price, inv.currency)}</p>
+                  <p className="break-words min-w-0">Stk-pris {fmtAmount(l.unit_price, inv.currency)}</p>
                   <p className="font-medium break-words min-w-0">Total {fmtAmount(l.total_price, inv.currency)}</p>
                   <p className="mt-1 text-gray-700 break-words min-w-0">
                     {convertedAs === 'material' ? 'Materiale' : convertedAs === 'other_cost' ? 'Øvrig' : skippedExplicit ? 'Sprunget over' : 'Ikke konverteret'}
