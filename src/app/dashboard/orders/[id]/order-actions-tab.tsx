@@ -228,15 +228,16 @@ function ToggleRow({
   disabled?: boolean
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <span className="text-sm break-words min-w-0">
         {label}: <strong>{value ? 'JA' : 'nej'}</strong>
       </span>
       <button
         type="button"
         onClick={onToggle}
         disabled={disabled}
-        className={`px-3 py-1.5 rounded-md text-sm ${
+        aria-label={`${value ? 'Slå fra' : 'Slå til'}: ${label}`}
+        className={`px-3 py-1.5 min-h-[44px] rounded-md text-sm ${
           value
             ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
             : 'bg-emerald-100 text-emerald-900 hover:bg-emerald-200'
