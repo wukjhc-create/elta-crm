@@ -109,7 +109,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
               const bad = l.verdict === 'overcharge'
               return (
                 <div key={l.lineNumber} className={`p-3 break-words min-w-0 ${bad ? 'bg-red-50' : ''}`}>
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-2 break-words min-w-0">
                     <p className="text-gray-900 break-words min-w-0"><span className="text-gray-400 break-words min-w-0" data-testid="invoice-control-mobile-line-number">{l.lineNumber}.</span> {l.description}<ChargeMark description={l.description} /></p>
                     <span className={`shrink-0 max-w-[45%] break-words min-w-0 ${bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : 'text-gray-600'}`} data-testid="invoice-control-mobile-verdict">{LINE[l.verdict] ?? l.verdict}</span>
                   </div>
