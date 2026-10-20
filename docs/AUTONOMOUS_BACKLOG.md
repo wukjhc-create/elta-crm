@@ -1584,6 +1584,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `b69bd487`. Det lader hundredeognittende-hegnet stå. `b69bd487` hedder `feat(invoice): rammen paa fakturakontrol kan krympe`. `f1f3a511` hedder `feat(invoice): aarsagen paa fakturakontrol kan krympe`. `origin/grok-next` er `b69bd487`. Push af `b69bd487` lykkedes. `f1f3a511` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `f1f3a511..b69bd487`
+
+```
+b69bd487 feat(invoice): rammen paa fakturakontrol kan krympe
+f1f3a511 feat(invoice): aarsagen paa fakturakontrol kan krympe
+```
+
+Listen er skiftets commits fra `f1f3a511` til og med `b69bd487`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+d16d6341 docs: checkpoint efter e9c1cc62
+```
+
+### Features
+
+G18-843 lader kun rammen på fakturakontrol krympe. G18-842 lader kun årsagen på skrivebordets matchcelle krympe. Knappen Prøv igen holder højden på 44 px. Beløbene, dækningen og leverandørteksten bliver. `kr()` bliver. Beløb, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/invoice-control-panel-frame-wrap-test.ts` og `scripts/invoice-control-reason-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for sidehovedet exiterede 0 sammen med rammecommitten. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommitten i hegnet. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `b69bd487`, herunder G18-748 til G18-843. `d16d6341` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `b69bd487`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-844, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeognittende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `e9c1cc62`. Det lader hundredeogattende-hegnet stå. `e9c1cc62` hedder `feat(invoice): proev-igen paa fakturakontrol kan krympe`. `d29092f8` hedder `feat(invoice): fejlrammen paa fakturakontrol kan krympe`. `c35b4e45` hedder `feat(invoice): matchlinjen paa fakturakontrol kan krympe`. `origin/grok-next` er `e9c1cc62`. Push af `e9c1cc62` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
