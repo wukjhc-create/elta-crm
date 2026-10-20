@@ -1,4 +1,14 @@
 /**
+ * Lagret prishistorik-dato i dansk kalender. Ingen pris.
+ */
+export function storedHistoryDate(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return null
+  return new Date(iso).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen' })
+}
+
+/**
  * Datoen på den senest lagrede prishistorik-række. Ingen pris, og ingen dato når listen er tom.
  */
 export function latestStoredHistoryDate(
@@ -14,6 +24,5 @@ export function latestStoredHistoryDate(
     best = t
     bestIso = iso
   }
-  if (!bestIso) return null
-  return new Date(bestIso).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen' })
+  return storedHistoryDate(bestIso)
 }
