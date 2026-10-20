@@ -1505,6 +1505,53 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 hundredeogfjerde (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `9b8902c6`. Det lader hundredeogtredje-hegnet stå. `9b8902c6` hedder `feat(profit): etiketten Status paa efterkalkulation kan krympe`. `39c075b8` hedder `feat(profit): etiketten Ansvarlig paa efterkalkulation kan krympe`. `009fe5a7` hedder `feat(profit): etiketten Til dato paa efterkalkulation kan krympe`. `f13440fe` hedder `feat(profit): etiketten Fra dato paa efterkalkulation kan krympe`. `9251852e` hedder `feat(profit): afvigelsesfilteret paa efterkalkulation kan krympe`. `c8e486c1` hedder `docs: checkpoint efter 84606617`. Start: `80ab0dab`. `origin/grok-next` er `9b8902c6`. Push af `9b8902c6` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `c8e486c1..9b8902c6`
+
+```
+9b8902c6 feat(profit): etiketten Status paa efterkalkulation kan krympe
+39c075b8 feat(profit): etiketten Ansvarlig paa efterkalkulation kan krympe
+009fe5a7 feat(profit): etiketten Til dato paa efterkalkulation kan krympe
+f13440fe feat(profit): etiketten Fra dato paa efterkalkulation kan krympe
+9251852e feat(profit): afvigelsesfilteret paa efterkalkulation kan krympe
+c8e486c1 docs: checkpoint efter 84606617
+```
+
+Listen er skiftets commits fra `c8e486c1` til og med `9b8902c6`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+9bffbf3b docs: checkpoint efter 88559ebe
+```
+
+### Features
+
+G18-760 lader kun afvigelsesfilteret på efterkalkulation krympe. Teksten og filtrene bliver. G18-761 lader kun etiketten Fra dato krympe. Datofiltret bliver. G18-762 lader kun etiketten Til dato krympe. Datofiltret bliver. G18-763 lader kun etiketten Ansvarlig krympe. Navnelinjen og filtret bliver. G18-764 lader kun etiketten Status krympe. Sagsstatus og filtret bliver. `formatCurrency` bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/aftercalc-overview-variance-filter-wrap-test.ts`, `scripts/aftercalc-overview-from-date-wrap-test.ts`, `scripts/aftercalc-overview-to-date-wrap-test.ts`, `scripts/aftercalc-overview-assignee-label-wrap-test.ts` og `scripts/aftercalc-overview-status-label-wrap-test.ts` læser den shippede efterkalkulation og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten `scripts/aftercalc-mobile-status-wrap-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for hvert produktcommit. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris- og pilotbølgen fra `cb4f0a8f` til og med `9b8902c6`, herunder G18-748 til G18-764. `c8e486c1` er kun docs. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram. SelectValue viser stadig kun pladsholderen. SelectTrigger og DialogTitle videresender stadig ikke ukendte props.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `9b8902c6`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-765, G18-597.
+
 ## Checkpoint 2026-10-18 hundredeogtredje (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `84606617`. Det lader hundredeoganden-hegnet stå. `84606617` hedder `feat(profit): faktureringstilstanden paa efterkalkulationens mobilkort kan krympe`. `93bbb04e` hedder `feat(profit): advarselsteksten paa efterkalkulationens mobilkort kan krympe`. `5145ac2a` hedder `feat(profit): titlen paa efterkalkulationens mobilkort kan krympe`. `50ce1dd1` hedder `feat(profit): kundenavnet paa efterkalkulationens mobilkort kan krympe`. `9bffbf3b` hedder `docs: checkpoint efter 88559ebe`. Start: `80ab0dab`. `origin/grok-next` er `84606617`. Push af `84606617` lykkedes. De øvrige tip i hegnet blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
