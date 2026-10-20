@@ -76,16 +76,16 @@ export function SaveTemplateDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="save-template-title" className="bg-white rounded-lg shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 id="save-template-title" className="text-xl font-semibold">Gem som skabelon</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full" aria-label="Luk">
+      <div role="dialog" aria-modal="true" aria-labelledby="save-template-title" className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-2 p-4 border-b">
+          <h2 id="save-template-title" className="text-xl font-semibold break-words min-w-0">Gem som skabelon</h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full shrink-0" aria-label="Luk">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {error && (
-          <div className="mx-4 mt-4 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+          <div className="mx-4 mt-4 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md break-words">
             {error}
           </div>
         )}
@@ -123,15 +123,15 @@ export function SaveTemplateDialog({
 
           <div className="p-3 bg-gray-50 rounded-md text-sm">
             <p className="font-medium mb-2">Konfiguration der gemmes:</p>
-            <div className="grid grid-cols-2 gap-1 text-gray-600">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-gray-600">
               <span>Anlægsstørrelse:</span>
-              <span className="font-medium">{systemSize} kWp</span>
+              <span className="font-medium break-words">{systemSize} kWp</span>
               <span>Totalpris:</span>
-              <span className="font-medium">{formatCurrency(totalPrice)}</span>
+              <span className="font-medium break-words">{formatCurrency(totalPrice)}</span>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="flex flex-wrap justify-end gap-3 pt-4 border-t">
             <button
               type="button"
               onClick={onClose}
