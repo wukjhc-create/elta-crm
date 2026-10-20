@@ -220,10 +220,10 @@ maks. 3 materialelinjer pr. sag, 9 aktive tilbud, 7 besigtigelsesopgaver → ska
 | FC-4 | Sagens økonomi tæller afviste/annullerede leverandørfakturaer med; .limit(50) (S3) | DONE (kode) — afviste/annullerede tæller ikke i beløb/ufordelt; alle fakturaer (fetchAllRows) (U28/U47) |
 | FC-5 | "Betalt denne måned"/likviditet lægger hele amount_paid på paid_at-måneden; delbetalinger tælles ikke (S3) | DONE (kode) — "betalt denne måned" og likviditetsgrafen = faktiske indbetalinger (invoice_payments.recorded_at, dansk måned, DKK); ældre uden betalingsrække via paid_at (invoice-totals-test +2, U99/U76) |
 | FC-6 | Kundekortets fakturatal: .limit(500), valuta blandet, forfalden ved 0,01 kr (S4) | DONE (kode) — fetchAllRows, kun DKK i beløbene, forfalden ≥ 0,50 kr |
-| FC-7 | v_customer_payment_summary: valuta blandet, forfalden > 0, betalt = final_amount (S4) | BLOCKED_APPROVAL [MIGRATION] |
+| FC-7 | v_customer_payment_summary: valuta blandet, forfalden > 0, betalt = final_amount (S4) | BLOCKED_APPROVAL [MIGRATION 00264] — forslag i docs/runbooks/next53-migrations-proposal.md |
 | FC-8 | Bankmatch/registerPayment tjekker ikke valuta (EUR-faktura matches af kr-betaling) (S4) | DONE (kode) — bankmatch kun mod DKK-fakturaer (alle 4 opslag); manuel registrering uændret |
-| FC-9 | allocate_invoice_number afkorter ved > 9999 (dubletnumre) (S4) | BLOCKED_APPROVAL [MIGRATION] |
-| FC-10 | Fakturaårsserie i UTC (1/1 00–01 dansk tid → forrige år) (S4) | BLOCKED_APPROVAL [MIGRATION] (= TZ-5) |
+| FC-9 | allocate_invoice_number afkorter ved > 9999 (dubletnumre) (S4) | BLOCKED_APPROVAL [MIGRATION 00263] — forslag i docs/runbooks/next53-migrations-proposal.md |
+| FC-10 | Fakturaårsserie i UTC (1/1 00–01 dansk tid → forrige år) (S4) | BLOCKED_APPROVAL [MIGRATION 00263] (= TZ-5) |
 | FC-11 | Fakturakontrollens dækningstal sammenligner listepris med dagens kost (uden enhed/historik) (S4) | DONE (kode, delvis) — faktureret enhedspris (total/antal) + enhedstjek som loaderen (coverage-billed-unit-test 3, invoice-pipeline 10/10). Rest: prishistorik (costPriceAtDate) i dækningstallet |
 
 ## NEXT-52 (dead-end-review 2026-10-19 — knapper/faner serveren afviser)
