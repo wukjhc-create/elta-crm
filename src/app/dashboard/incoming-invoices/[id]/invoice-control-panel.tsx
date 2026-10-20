@@ -103,7 +103,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
               <span>{review.freight} fragt, {review.fee} gebyr.</span>
             </p>
           )}
-          <div className="md:hidden divide-y rounded ring-1 ring-gray-200" data-testid="invoice-control-lines-mobile">
+          <div className="md:hidden divide-y rounded ring-1 ring-gray-200 break-words min-w-0" data-testid="invoice-control-lines-mobile">
             {res.control.lines.map((l) => {
               const m = res.matches.find((x) => x.lineNumber === l.lineNumber)
               const bad = l.verdict === 'overcharge'
