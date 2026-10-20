@@ -131,6 +131,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // Sprint Ø8.1 — cost-free projektøkonomi (batch, ingen N+1). Kun ved
   // billing-adgang; ellers ingen tal i payload eller UI.
   let economy: Record<string, CaseEconomyBatchEntry> = {}
+  let economyError: string | null = null
   let displayCases = casesResult.data.data
   let pag = {
     currentPage: casesResult.data.page,
@@ -142,8 +143,9 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   if (canSeeBilling) {
     const ecoRes = await getServiceCaseEconomyBatch(casesResult.data.data.map((c) => c.id))
     if (ecoRes.success && ecoRes.data) economy = ecoRes.data
+    else economyError = ecoRes.success ? 'Kunne ikke hente sagsøkonomi' : (ecoRes.error || 'Kunne ikke hente sagsøkonomi')
 
-    if (billingFilter) {
+    if (billingFilter && !economyError) {
       // Filtrér det hentede sæt korrekt, derefter paginér i memory.
       const matched = casesResult.data.data.filter((c) =>
         caseMatchesBillingFilter(economy[c.id], c.status, billingFilter)
@@ -168,6 +170,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       cases={displayCases}
       employees={Array.from(employeeMap.values())}
       economy={economy}
+      economyError={economyError}
       canSeeBilling={canSeeBilling}
       // W-16: filteret dækker kun de nyeste N sager — sig det, når der findes flere
       billingCapHit={!!billingFilter && canSeeBilling && casesResult.data.total > BILLING_FILTER_CAP ? BILLING_FILTER_CAP : null}

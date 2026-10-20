@@ -64,6 +64,7 @@ export function OrdersListClient({
   pagination,
   filters,
   economy = {},
+  economyError = null,
   canSeeBilling = false,
   statusCounts = null,
 }: {
@@ -73,6 +74,7 @@ export function OrdersListClient({
   pagination: PaginationState
   filters: FiltersState
   economy?: Record<string, CaseEconomyBatchEntry>
+  economyError?: string | null
   canSeeBilling?: boolean
   /** N9c: antal sager pr. status (kun roller med cases.view.all) */
   statusCounts?: Record<string, number> | null
@@ -111,6 +113,11 @@ export function OrdersListClient({
           <p className="text-xs text-gray-500">
             {pagination.totalItems} sager · viser side {pagination.currentPage} af {pagination.totalPages || 1}
           </p>
+          {economyError && (
+            <p className="mt-2 text-sm text-red-700 break-words" data-testid="orders-economy-load-error">
+              {economyError}. {filters.billing ? 'Faktureringsfilteret er ikke anvendt. Det tælles ikke som ingen sager.' : 'Udestående tælles ikke som 0 kr.'}
+            </p>
+          )}
         </div>
         {/* M-16: kun med cases.create (bogholderi landede på "ingen adgang") */}
         {!!role && hasPermission(role, 'cases.create') && (
