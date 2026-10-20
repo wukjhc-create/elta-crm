@@ -2061,3 +2061,13 @@ Ingen pilot-blokerende fund. Fund:
 | DE2-7 | Sagens Mails-fane: links til mail-modulet for salg/bogholderi | DONE (kode) |
 | DE2-8 | Kundens Status: Besigtigelse-trin klikbart uden effekt for salg/bogholderi | DONE (kode) |
 | DE2-9 | Tilbud "Åbn sag" for sælger når en anden konverterede (plausibel) | BESLUTNING — skal sælgeren tildeles sagen ved manuel konvertering? |
+
+### Regressions-baseline 2026-10-20 (ren ui-full)
+
+- Commit **32955433**, `npm run harness:ui-full` (alle grupper, 10 kørsler, 16:03–18:56): **PASS 188 · FLAKY 0 · FAIL 1 ·
+  TIMEOUT 0 · NOT_RUN 0**. Resultat: `%TEMP%/elta-ui-e2e/full-2026-10-20T16-56-30-057Z.json`.
+- Eneste FAIL: **U17** (AO-prisfil-import) = **staging-data/miljø** — testen springer bevidst over, fordi staging allerede
+  har en AO-leverandør (den rører ikke eksisterende leverandørdata). Ikke en app-regression.
+- Forberedelse: port 3217 fri, ingen gamle harness-processer, 626 forældede @harness.test-brugere slettet (cleanup-users,
+  > 3 t, ikke pilot-personaer), gamle resultatfiler arkiveret (`archive-2026-10-20`). src frosset under hele kørslen.
+- Næste baseline-kandidat: når U17 får en isoleret AO-testleverandør (TODO, test-pålidelighed).

@@ -2261,6 +2261,34 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'table-policies') {
+    // READ-ONLY: RLS-politikker + grants for én tabel på staging (fx: table-policies lead_activities)
+    const t = String(process.argv[3] ?? '').replace(/[^a-z0-9_]/g, '')
+    if (!t) { log('angiv tabel'); return }
+    for (const r of await stagingSql(`SELECT policyname, cmd, roles::text, qual, with_check FROM pg_policies WHERE schemaname='public' AND tablename='${t}' ORDER BY cmd, policyname`)) log(`policy ${JSON.stringify(r)}`)
+    log(`rls: ${JSON.stringify(await stagingSql(`SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = 'public.${t}'::regclass`))}`)
+    log(`grants: ${JSON.stringify(await stagingSql(`SELECT grantee, string_agg(privilege_type, ',' ORDER BY privilege_type) p FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='${t}' GROUP BY grantee ORDER BY grantee`))}`)
+    return
+  }
+  if (SUB === 'profiles-is-active') {
+    // READ-ONLY (migrationspakke 2026-10-20): is_active-kolonnens definition + fordeling på staging (kun antal/roller)
+    log(`kolonne: ${JSON.stringify(await stagingSql(`SELECT data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='is_active'`))}`)
+    log(`fordeling: ${JSON.stringify(await stagingSql(`SELECT coalesce(is_active::text,'NULL') is_active, role::text, count(*)::int n FROM profiles GROUP BY 1,2 ORDER BY 1,2`))}`)
+    return
+  }
+  if (SUB === 'kalkia-pricing-schema') {
+    // READ-ONLY (FIN3-1 Kalkia-eksempler): skema + datamængde før beregningen skrives (CLAUDE.md: SELECT før kode)
+    for (const t of ['kalkia_variant_materials', 'supplier_margin_rules', 'customer_supplier_prices', 'customer_product_prices']) {
+      const cols = await stagingSql(`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='${t}' ORDER BY ordinal_position`)
+      const n = await stagingSql(`SELECT count(*)::int n FROM public.${t}`)
+      log(`${t} (${n[0].n} rækker): ${cols.map((c: { column_name: string }) => c.column_name).join(', ')}`)
+    }
+    const linked = await stagingSql(`SELECT count(*)::int n FROM public.kalkia_variant_materials WHERE supplier_product_id IS NOT NULL`)
+    log(`kalkia-materialer med leverandørvare: ${linked[0].n}`)
+    const rules = await stagingSql(`SELECT rule_type, count(*)::int n FROM public.supplier_margin_rules WHERE is_active GROUP BY rule_type`)
+    log(`aktive avanceregler: ${JSON.stringify(rules)}`)
+    return
+  }
   if (SUB === 'supplier-line-pricing-check') {
     // Grossist-review 2026-10-14: GP-3 kategoriregel gælder for tilbudslinjer; GP-2 udløbet kundeaftale giver ikke rabat
     const { supplierLinePricing, supplierLinePricingBatch } = await import('../../src/lib/offers/supplier-line-pricing')
