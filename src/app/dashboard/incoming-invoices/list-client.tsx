@@ -253,7 +253,7 @@ export function IncomingInvoicesListClient({
             className={`px-2.5 py-1 rounded-full text-xs ring-1 ${due === d ? 'bg-amber-600 text-white ring-amber-600' : 'bg-white text-gray-700 ring-gray-300 hover:bg-amber-50'}`}
           >{INCOMING_DUE_FILTER_LABELS[d]}</button>
         ))}
-        {due && <span className="text-[11px] text-gray-400">Viser godkendte fakturaer (afventer bogføring/betaling)</span>}
+        {due && <span className="text-[11px] text-gray-400 break-words min-w-0">Viser godkendte fakturaer (afventer bogføring/betaling)</span>}
       </div>
 
       {countsError && (
