@@ -1578,7 +1578,8 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 | G18-844 | 2 Faktura | DONE. Nul-linjen på fakturakontrol kan krympe. | Kun den `<p className="text-[10px] text-gray-500 break-words">` i `invoice-control-panel.tsx`. Sætningen og beløbene er uændrede. |
 | G18-845 | 2 Faktura | DONE. Leverandørteksten på fakturakontrol kan krympe. | Kun den `<div className="font-medium break-words">` der viser `hasSupplier` i `invoice-control-panel.tsx`. Teksten Kendt og beløbene er uændrede. |
 | G18-846 | 2 Faktura | DONE. Overpris-tælleren på fakturakontrol kan krympe. | Kun det span der viser `review.overcharge` i `invoice-control-panel.tsx`. Tallet og beløbene er uændrede. |
-| G18-847 | 2 Faktura | ÅBEN. Underpris-tælleren på fakturakontrol kan krympe. | Kun det span der viser `review.undercharge` i `invoice-control-panel.tsx`. Tallet og beløbene er uændrede. |
+| G18-847 | 2 Faktura | DONE. Underpris-tælleren på fakturakontrol kan krympe. | Kun det span der viser `review.undercharge` i `invoice-control-panel.tsx`. Tallet og beløbene er uændrede. |
+| G18-848 | 2 Faktura | ÅBEN. Fragt-tælleren på fakturakontrol kan krympe. | Kun det span der viser `review.freight` i `invoice-control-panel.tsx`. Tallet og beløbene er uændrede. |
 | G18-573 | 8 Pilot | DONE. Elpunktlisten kan krympe. | Kun den `<dl className="space-y-2 text-sm">` der følger overskriften Elpunkter. Bygningslisten, prislisten og tidsberegningens liste er uændrede. |
 | G18-580 | 8 Pilot | DONE. Elpunktkolonnen kan krympe. | Kun den `<div>` der omslutter overskriften Elpunkter. Bygningskolonnen, priskolonnen og listen er uændrede. |
 | G18-587 | 8 Pilot | DONE. Kompleksitetsrækken i bygningsinformationen kan krympe. | Kun den `<div className="flex flex-wrap justify-between gap-x-3 min-w-0">` der omslutter etiketten Kompleksitet. De andre rækker med samme klasse er uændrede. |

@@ -98,7 +98,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
             <p className="text-xs break-words min-w-0 mb-3" data-testid="invoice-control-review-counts">
               <span className={`break-words min-w-0 ${review.overcharge > 0 ? 'text-red-700 font-medium' : ''}`}>{review.overcharge} overpris</span>
               {', '}
-              <span className={review.undercharge > 0 ? 'text-amber-800 font-medium' : ''}>{review.undercharge} underpris</span>
+              <span className={`break-words min-w-0 ${review.undercharge > 0 ? 'text-amber-800 font-medium' : ''}`}>{review.undercharge} underpris</span>
               {', '}
               <span>{review.freight} fragt, {review.fee} gebyr.</span>
             </p>
