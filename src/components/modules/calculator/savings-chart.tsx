@@ -209,7 +209,26 @@ export function SavingsChart({ projections, totalPrice }: SavingsChartProps) {
       )}
 
       {/* Summary table */}
-      <div className="mt-4 overflow-x-auto">
+      <ul className="md:hidden mt-4 space-y-2" data-testid="savings-years-mobile">
+        {[1, 5, 10, 15, 20, 25].map((year) => {
+          const data = projections[year - 1]
+          const isBreakEven = year === breakEvenYear + 1
+          return (
+            <li key={year} className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${isBreakEven ? 'bg-green-50' : ''}`}>
+              <p className="font-medium">
+                År {year}
+                {isBreakEven && (
+                  <span className="ml-1 text-green-600 font-medium">(break-even)</span>
+                )}
+              </p>
+              <p className="mt-1 text-xs tabular-nums text-gray-600">Produktion {formatNumber(data.production)} kWh</p>
+              <p className="mt-1 text-xs tabular-nums text-green-600">Årlig besp. {formatCurrency(data.savings)}</p>
+              <p className="mt-1 text-xs tabular-nums font-medium">Akkumuleret {formatCurrency(data.cumulativeSavings)}</p>
+            </li>
+          )
+        })}
+      </ul>
+      <div className="mt-4 hidden md:block overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b">
