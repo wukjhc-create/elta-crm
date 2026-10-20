@@ -26,7 +26,7 @@ ok(!view.includes('break-words break-words'), 'et break-words')
 ok(view.includes('{inv.external_invoice_id}'), 'id-et bliver')
 ok(view.includes('e-conomic ID'), 'etiketten bliver')
 
-const amount = '<div className="text-right min-w-0">'
+const amount = '<div className="text-right min-w-0 break-words">'
 ok(view.includes(amount), 'belobskolonnen bliver')
 ok(view.split(amount).length === 2, 'belobskolonnen er en')
 ok(view.includes('fmtAmount(inv.amount_incl_vat, inv.currency)'), 'beloebet bliver')
