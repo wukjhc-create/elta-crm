@@ -130,7 +130,7 @@ export function AftercalcOverviewClient() {
                   {SERVICE_CASE_STATUSES.map((s) => <option key={s} value={s}>{SERVICE_CASE_STATUS_LABELS[s]}</option>)}
                 </select>
               </label>
-              <label className="block min-w-0">
+              <label className="block break-words min-w-0">
                 <span className="text-xs text-gray-500 break-words min-w-0">Afvigelse</span>
                 <select value={(filters.variance ?? 'all') as AftercalcVarianceFilter} onChange={(e) => setFilter({ variance: e.target.value as AftercalcVarianceFilter })} className="mt-0.5 w-full break-words min-w-0 max-w-full rounded border border-gray-300 px-2 py-1">
                   <option value="all">Alle</option>
