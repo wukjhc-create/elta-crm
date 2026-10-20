@@ -31,7 +31,7 @@ ok(view.split(id).length === 2, 'etiketten findes en gang')
 ok(view.split(bare).length === 1, 'den bare klasse er vaek')
 ok(view.includes("value={(filters.sort ?? 'worst_db') as AftercalcSort}"), 'sorteringsfilteret bliver')
 ok(view.includes('{SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}'), 'sorteringsvalgene bliver')
-ok(view.includes('<dt className="text-gray-500">Tilbudt omsætning</dt>'), 'tilbudt-omsaetning bliver')
+ok(view.includes('<dt className="text-gray-500 break-words min-w-0">Tilbudt omsætning</dt>'), 'tilbudt-omsaetning kan krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 const afv = '>Afvigelse</span>'
 const aat = view.indexOf(afv)
