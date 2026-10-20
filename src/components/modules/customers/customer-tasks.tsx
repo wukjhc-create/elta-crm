@@ -1,7 +1,7 @@
 'use client'
 
 import { isoToCopenhagenInput, copenhagenInputToIso } from '@/lib/utils/datetime-local'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import {
@@ -37,18 +37,25 @@ import { useToast } from '@/components/ui/toast'
 
 interface CustomerTasksProps {
   customerId: string
+  /** PF3-1: hentet på serveren — så springes første hentning over */
+  initial?: {
+    tasks: CustomerTaskWithRelations[]
+    profiles: Array<{ id: string; full_name: string | null; email: string }>
+    abilities: { canCreate: boolean; canEditAll: boolean; userId: string | null }
+  }
 }
 
-export function CustomerTasks({ customerId }: CustomerTasksProps) {
+export function CustomerTasks({ customerId, initial }: CustomerTasksProps) {
   const toast = useToast()
-  const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>([])
-  const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string }>>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>(initial?.tasks ?? [])
+  const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string }>>(initial?.profiles ?? [])
+  const [isLoading, setIsLoading] = useState(!initial)
+  const skipFirst = useRef(!!initial)
   const [showForm, setShowForm] = useState(false)
   const [editingTask, setEditingTask] = useState<CustomerTaskWithRelations | null>(null)
   const [showDone, setShowDone] = useState(false)
   // PM2-5: kun handlinger serveren tillader (opret efter rolle/montør-scope; ret/slet/udfør egne eller med customers.edit)
-  const [abilities, setAbilities] = useState<{ canCreate: boolean; canEditAll: boolean; userId: string | null }>({ canCreate: false, canEditAll: false, userId: null })
+  const [abilities, setAbilities] = useState<{ canCreate: boolean; canEditAll: boolean; userId: string | null }>(initial?.abilities ?? { canCreate: false, canEditAll: false, userId: null })
   const canWrite = (t: CustomerTaskWithRelations) =>
     abilities.canEditAll || (!!abilities.userId && (t.assigned_to === abilities.userId || t.created_by === abilities.userId))
 
@@ -66,6 +73,7 @@ export function CustomerTasks({ customerId }: CustomerTasksProps) {
   }
 
   useEffect(() => {
+    if (skipFirst.current) { skipFirst.current = false; return }
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId])

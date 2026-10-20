@@ -8,6 +8,8 @@ import { pageHasPermission } from '@/lib/auth/page-guard'
 import { getCustomerOffers, getCustomerLeads, getCustomerSentQuotes } from '@/lib/actions/customer-relations'
 import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import { getCustomerPaymentHealthAction } from '@/lib/actions/invoices'
+import { getCustomerTasks, getActiveProfiles, getCustomerTaskAbilitiesAction } from '@/lib/actions/customer-tasks'
+import { getCustomerNotes } from '@/lib/actions/customer-notes'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +23,7 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
   // PF3-1 (performance-review 3 2026-10-20): aktivitetsoversigten (4 kald) og betalingsmærket hentes her samtidig med
   // kunden — fra klienten køres server-actions ét ad gangen, så åbningen ventede på ~13 kald i træk. Hvert kald har sin
   // egen rettigheds-/scope-kontrol; uden adgang til kunden bruges resultaterne ikke (notFound).
-  const [customerResult, tokensResult, partnerTokensResult, settingsResult, canManagePricing, offers, sentQuotes, serviceCases, paymentHealth] = await Promise.all([
+  const [customerResult, tokensResult, partnerTokensResult, settingsResult, canManagePricing, offers, sentQuotes, serviceCases, paymentHealth, tasks, profiles, taskAbilities, notes] = await Promise.all([
     getCustomer(id),
     getPortalTokens(id),
     getPartnerTokens(id),
@@ -32,6 +34,11 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
     getCustomerSentQuotes(id).catch(() => null),
     getCustomerServiceCases(id).catch(() => null),
     getCustomerPaymentHealthAction(id).catch(() => null),
+    // PF3-1 del 2: opgaver (3 kald) og noter (1 kald) — samme gates som når komponenterne selv henter
+    getCustomerTasks(id).catch(() => null),
+    getActiveProfiles().catch(() => null),
+    getCustomerTaskAbilitiesAction(id).catch(() => null),
+    getCustomerNotes(id).catch(() => null),
   ])
 
   if (!customerResult.success || !customerResult.data) {
@@ -50,6 +57,8 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
       canManagePricing={canManagePricing}
       initialActivity={initialActivity}
       initialPaymentHealth={paymentHealth ?? undefined}
+      initialTasks={tasks && profiles && taskAbilities ? { tasks, profiles, abilities: taskAbilities } : undefined}
+      initialNotes={notes ?? undefined}
     />
   )
 }

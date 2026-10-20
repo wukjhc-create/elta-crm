@@ -80,9 +80,11 @@ interface CustomerDetailClientProps {
   /** PF3-1: hentet på serveren sammen med kunden (ellers henter komponenterne selv) */
   initialActivity?: ComponentProps<typeof CustomerActivityOverview>['initial']
   initialPaymentHealth?: ComponentProps<typeof CustomerPaymentBadge>['initial']
+  initialTasks?: ComponentProps<typeof CustomerTasks>['initial']
+  initialNotes?: ComponentProps<typeof CustomerNotesTimeline>['initial']
 }
 
-export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false, initialActivity, initialPaymentHealth }: CustomerDetailClientProps) {
+export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false, initialActivity, initialPaymentHealth, initialTasks, initialNotes }: CustomerDetailClientProps) {
   const router = useRouter()
   // M-10 (mobil-review 2026-10-14): kun handlinger brugeren har ret til (bogholderi/salg fik knapper der altid fejlede)
   const { role } = useUserRole()
@@ -707,7 +709,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             <CustomerEmailTimeline customerId={customer.id} customerEmail={customer.email} />
 
             {/* Tasks */}
-            <CustomerTasks customerId={customer.id} />
+            <CustomerTasks customerId={customer.id} initial={initialTasks} />
 
             {/* Activity Overview */}
             <CustomerActivityOverview customerId={customer.id} customerEmail={customer.email} initial={initialActivity} />
@@ -723,7 +725,7 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             )}
 
             {/* T6: tidsstemplede noter (customer_notes) — fritekstfeltet ovenfor overskrives aldrig */}
-            <CustomerNotesTimeline customerId={customer.id} />
+            <CustomerNotesTimeline customerId={customer.id} initial={initialNotes} />
           </div>
 
           {/* Sidebar */}

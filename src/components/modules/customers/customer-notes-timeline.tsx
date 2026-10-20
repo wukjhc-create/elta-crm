@@ -4,15 +4,20 @@
  * T6 — kundens tidsstemplede noter (customer_notes). Supplerer kundens fritekstfelt "Noter" (som aldrig overskrives).
  * Skjules helt, hvor tabellen ikke findes endnu (available=false).
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { StickyNote, Trash2 } from 'lucide-react'
 import { createCustomerNote, deleteCustomerNote, getCustomerNotes, type CustomerNote } from '@/lib/actions/customer-notes'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 const SOURCE_LABEL: Record<CustomerNote['source'], string> = { manual: '', assistant: 'via assistent', telegram: 'via Telegram', system: 'system' }
 
-export function CustomerNotesTimeline({ customerId }: { customerId: string }) {
-  const [state, setState] = useState<{ available: boolean; notes: CustomerNote[]; canWrite: boolean } | null>(null)
+export function CustomerNotesTimeline({ customerId, initial }: {
+  customerId: string
+  /** PF3-1: hentet på serveren — så springes første hentning over */
+  initial?: { available: boolean; notes: CustomerNote[]; canWrite: boolean }
+}) {
+  const [state, setState] = useState<{ available: boolean; notes: CustomerNote[]; canWrite: boolean } | null>(initial ?? null)
+  const skipFirst = useRef(!!initial)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,7 +30,10 @@ export function CustomerNotesTimeline({ customerId }: { customerId: string }) {
     }
   }, [customerId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    if (skipFirst.current) { skipFirst.current = false; return }
+    void load()
+  }, [load])
 
   if (!state?.available) return null
 
