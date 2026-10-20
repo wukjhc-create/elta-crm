@@ -1896,6 +1896,52 @@ export function BillingStandardMode({
         {data.other_costs.length === 0 ? (
           <Empty>Ingen ufakturerede øvrige omkostninger på sagen.</Empty>
         ) : (
+          <>
+          <ul className="md:hidden space-y-2 p-2" data-testid="billing-other-mobile">
+            {data.other_costs.map((o) => {
+              const cat = o.category as CaseOtherCostCategory
+              return (
+                <li key={o.id} className={`rounded-lg ring-1 ring-gray-200 p-3 text-sm ${!o.has_sale_price ? 'bg-amber-50/40' : ''}`}>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedOtherCosts.has(o.id)}
+                      onChange={() => toggleSet(selectedOtherCosts, setSelectedOtherCosts, o.id)}
+                      disabled={submitting}
+                      aria-label="Vælg øvrig omkostning"
+                      className="mt-1"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-gray-900 break-words">{o.description}</p>
+                        <p className="shrink-0 tabular-nums font-medium">{fmtKr(o.total_sales_price)}</p>
+                      </div>
+                      <p className="text-xs text-gray-600">{fmtDate(o.cost_date)}</p>
+                      <p
+                        className={`mt-1 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                          CASE_OTHER_COST_CATEGORY_COLORS[cat] ?? 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {CASE_OTHER_COST_CATEGORY_LABELS[cat] ?? o.category}
+                      </p>
+                      {o.supplier_name && (
+                        <p className="text-[11px] text-gray-500 break-words">{o.supplier_name}</p>
+                      )}
+                      {!o.has_sale_price && (
+                        <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                          Mangler salgspris
+                        </span>
+                      )}
+                      <p className="mt-1 text-xs tabular-nums text-gray-700">
+                        {o.quantity.toLocaleString('da-DK', { maximumFractionDigits: 2 })} {o.unit}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          <div className="hidden md:block">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-left text-gray-600">
               <tr>
@@ -1959,6 +2005,8 @@ export function BillingStandardMode({
               })}
             </tbody>
           </table>
+          </div>
+          </>
         )}
       </Section>
 
