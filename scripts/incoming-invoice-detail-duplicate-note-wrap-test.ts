@@ -25,7 +25,7 @@ ok(view.split(wrapped).length === 2, 'duplikatteksten er en')
 ok(!view.includes('break-words break-words'), 'et break-words')
 ok(view.includes('Status og bogføring er uændret.'), 'teksten bliver')
 
-const qty = '<p className="text-gray-600 mt-1">{l.quantity ?? \'—\'} {l.unit ?? \'\'}</p>'
+const qty = '<p className="text-gray-600 mt-1 break-words min-w-0">{l.quantity ?? \'—\'} {l.unit ?? \'\'}</p>'
 ok(view.includes(qty), 'antallet bliver')
 ok(view.split(qty).length === 2, 'antallet er et')
 
