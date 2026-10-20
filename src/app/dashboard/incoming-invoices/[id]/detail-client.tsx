@@ -265,7 +265,7 @@ export function IncomingInvoiceDetailClient({
       </div>
 
       {isTestInvoice && (
-        <div className="rounded-md bg-amber-50 ring-1 ring-amber-300 px-4 py-2 text-xs text-amber-900">
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-300 px-4 py-2 text-xs text-amber-900 break-words min-w-0">
           <strong>Test-faktura.</strong> Ingen rigtig leverandør, ingen e-conomic-push. Slet
           via knappen herover når testen er kørt færdig.
         </div>
