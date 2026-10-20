@@ -17,7 +17,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
   if (!data) return null
   const t = data.totals
   return (
-    <div className="bg-white rounded-lg border p-6" data-testid="report-sales-funnel">
+    <div className="bg-white rounded-lg border p-6 break-words min-w-0" data-testid="report-sales-funnel">
       <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2 break-words min-w-0">
         <TrendingUp className="w-5 h-5 text-gray-400 break-words min-w-0" />
         Salgstragt
