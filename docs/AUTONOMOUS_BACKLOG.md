@@ -1713,6 +1713,49 @@ START: 80ab0dab. origin/main: 2d979a03 (299 commits foran; VAT/security/cron/sto
 
 Staadig BLOCKED_APPROVAL (kun den opgave, arbejdet fortsaetter): 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198. VAT-vagten i 2d979a03 (`vat-guard.ts`) er Claudes og roeres ikke.
 
+## Checkpoint 2026-10-18 tohundredeogfireogtyvende (Grok-shift, grok-next)
+
+Dette checkpoint dækker skiftets commits til og med `d6534095`. Det lader tohundredeogtreogtyvende-hegnet stå. `d6534095` hedder `feat(invoice): linjenummercellen kan krympe`. `68937fe0` hedder `feat(invoice): enhedscellen kan krympe`. `origin/grok-next` er `d6534095`. Push af `d6534095` lykkedes. `68937fe0` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
+
+### Alle commits `68937fe0..d6534095`
+
+```
+d6534095 feat(invoice): linjenummercellen kan krympe
+68937fe0 feat(invoice): enhedscellen kan krympe
+```
+
+Listen er skiftets commits fra `68937fe0` til og med `d6534095`. Docs-committen med denne sektion kommer bagefter og står ikke i listen.
+
+### Forrige docs-commit
+
+```
+a673a934 docs: checkpoint efter 68937fe0
+```
+
+### Features
+
+G18-972 lader kun linjenummercellen på fakturalinjens skrivebord krympe. Linjenummeret bliver. Enhedscellen bliver. G18-971 lader kun enhedscellen på fakturalinjens skrivebord krympe. Enheden bliver. `fmtDate`, `fmtAmount`, `formatCurrency` og lagrede priser bliver. Ingen opfundne priser. Ingen e-conomic. Ingen webhook.
+
+### Tests
+
+`scripts/incoming-invoice-detail-line-desktop-number-wrap-test.ts` og `scripts/incoming-invoice-detail-line-desktop-unit-wrap-test.ts` læser den shippede visning og kalder `formatDate('2026-06-02')` fra `src/lib/utils` og `formatCurrency(1250)` fra `src/lib/utils/format`. De kørte med `npx tsx` og exiterede 0. Søskendetesten for enhedscellen exiterede 0 sammen med det commit, der ændrede linjenummercellen. `scripts/invoice-line-conversion-text-test.ts` exiterede 0. `node --max-old-space-size=8192 .\node_modules\typescript\bin\tsc --noEmit --pretty false` exiterede 0 for produktcommittet `d6534095`. `68937fe0` havde allerede typecheck. Docs-committen typecheckes ikke. Resultatet er tilføjet i tests.log. Ingen browser: der er ikke `.env` / `.env.local`.
+
+### BLOCKED_APPROVAL
+
+Ingen ny blok. Stående blokke gælder kun sig selv: 00221–00262, F-4, F-5, PE-3/PE-4, P-8, GP-4, OIOUBL-fortegn, live mail/SMS/Telegram/e-conomic, getSystemHealth, INVOICE_ATTACHMENT_FETCH_ENABLED, MONTOR_START_JOB_ENABLED, IC7, 00198, og VAT-vagten i `2d979a03`. G18-25, G18-27 og G18-30 er sprunget over, ikke blokeret.
+
+### Claude review
+
+Først kost-gate og `formatCurrency` på listepris. Derefter katalog-, formular-, detalje-, pris-, pilot-, efterkalkulations- og fakturabølgen fra `cb4f0a8f` til og med `d6534095`, herunder G18-748 til G18-972. `a673a934` er kun docs og står ikke i dette hegn. Ingen af dem opfinder en pris, ændrer en lagret kost, poster til e-conomic eller sender mail, SMS eller Telegram.
+
+### Integration
+
+Ingen merge til main. `origin/grok-next` er `d6534095`. Flet `origin/main` (`2d979a03`) ind i `grok-next` uden at køre migrationer. Claude reviewer kost-gate og listepris først, derefter bølgen ovenfor.
+
+### Åben kø
+
+15 ÅBEN: G18-13, G18-46, G18-47, G18-20, G18-21, G18-48, G18-23, G18-60, G18-600, G18-598, G18-599, G18-601, G18-602, G18-973, G18-597.
+
 ## Checkpoint 2026-10-18 tohundredeogtreogtyvende (Grok-shift, grok-next)
 
 Dette checkpoint dækker skiftets commits til og med `68937fe0`. Det lader tohundredeogtoogtyvende-hegnet stå. `68937fe0` hedder `feat(invoice): enhedscellen kan krympe`. `a2ae34e2` hedder `feat(invoice): antalcellen kan krympe`. `origin/grok-next` er `68937fe0`. Push af `68937fe0` lykkedes. `a2ae34e2` blev pushet før det. Ingen merge til main. Ingen prod-migration, prod-data, hemmelighed eller live flag.
