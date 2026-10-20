@@ -139,6 +139,7 @@ export function MailClient() {
   const [error, setError] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
   const [emailLeadMap, setEmailLeadMap] = useState<Record<string, { leadId: string; status: string }>>({})
+  const [leadMapFailed, setLeadMapFailed] = useState(false)
   // Sprint 8E-1A: requires_response status pr. email i nuværende side
   const [requiresResponseMap, setRequiresResponseMap] = useState<Record<string, { requiresResponse: boolean; ageHours: number | null }>>({})
 
@@ -233,8 +234,13 @@ export function MailClient() {
       // Check which emails have leads
       const emailIds = emailResult.data.map((e) => e.id)
       if (emailIds.length > 0) {
-        const leadMap = await getLeadsForEmails(emailIds)
-        setEmailLeadMap(leadMap)
+        try {
+          const leadMap = await getLeadsForEmails(emailIds)
+          setEmailLeadMap(leadMap)
+          setLeadMapFailed(false)
+        } catch {
+          setLeadMapFailed(true)
+        }
 
         // Sprint 8E-1A: hent requires_response-status pr. email
         try {
@@ -249,6 +255,8 @@ export function MailClient() {
           setRequiresResponseMap(compact)
         } catch { /* non-critical */ }
       } else {
+        setEmailLeadMap({})
+        setLeadMapFailed(false)
         setRequiresResponseMap({})
       }
 
@@ -366,8 +374,16 @@ export function MailClient() {
 
       const emailIds = emailResult.data.map((e) => e.id)
       if (emailIds.length > 0) {
-        const leadMap = await getLeadsForEmails(emailIds)
-        setEmailLeadMap(leadMap)
+        try {
+          const leadMap = await getLeadsForEmails(emailIds)
+          setEmailLeadMap(leadMap)
+          setLeadMapFailed(false)
+        } catch {
+          setLeadMapFailed(true)
+        }
+      } else {
+        setEmailLeadMap({})
+        setLeadMapFailed(false)
       }
     } catch {
       // Silent fail — don't show error for background refresh
@@ -1234,6 +1250,10 @@ export function MailClient() {
             {autoLinking ? 'Behandler…' : 'Forsøg automatisk kobling'}
           </button>
         </div>
+      )}
+
+      {leadMapFailed && (
+        <p className="text-sm text-red-700 break-words" data-testid="mail-leads-load-error">Leads for mailsene kunne ikke hentes. Det tælles ikke som ingen leads.</p>
       )}
 
       {/* ========== SPLIT VIEW: LIST (with filter bar) + DETAIL ========== */}

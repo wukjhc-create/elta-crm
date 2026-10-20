@@ -348,7 +348,7 @@ export async function getLeadsForEmails(
       .in('custom_fields->>source_email_id', chunk))
   } catch (err) {
     logger.warn('getLeadsForEmails failed', { error: err })
-    return {}
+    throw new Error('Kunne ikke hente leads for mails')
   }
 
   const map: Record<string, { leadId: string; status: string }> = {}
