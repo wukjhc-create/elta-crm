@@ -171,7 +171,7 @@ export function IncomingInvoicesListClient({
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4 break-words min-w-0">
       <div className="flex items-start justify-between flex-wrap gap-2 break-words min-w-0">
         <div>
           <h1 className="text-2xl font-semibold break-words min-w-0">Indgående fakturaer</h1>
