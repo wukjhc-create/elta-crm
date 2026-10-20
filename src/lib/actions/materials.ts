@@ -230,9 +230,9 @@ export interface ListMaterialsOptions {
 
 export async function listMaterialsForAdmin(
   options: ListMaterialsOptions = {}
-): Promise<MaterialAdminRow[]> {
+): Promise<{ rows: MaterialAdminRow[]; error: string | null }> {
   const denied = await requireMaterialsEdit()
-  if (denied) return [] // ingen adgang -> tom liste (siden viser NoAccess via layout-guard)
+  if (denied) return { rows: [], error: null } // ingen adgang -> tom liste (siden viser NoAccess via layout-guard)
   const supabase = createAdminClient()
 
   let query = supabase
@@ -258,15 +258,15 @@ export async function listMaterialsForAdmin(
   const { data, error } = await query.limit(500)
   if (error) {
     logger.error('listMaterialsForAdmin failed', { error })
-    return []
+    return { rows: [], error: 'Kunne ikke hente materialer' }
   }
-  if (!data) return []
+  if (!data) return { rows: [], error: null }
 
   // Per-material usage counts via batched HEAD count (one round-trip per row).
   const ids = data.map((r) => r.id)
   const usage = await countOfferLineUsage(ids)
 
-  return data.map((row) => {
+  return { rows: data.map((row) => {
     const sp = (row as { supplier_products?: {
       id?: string
       supplier_id?: string
@@ -298,7 +298,7 @@ export async function listMaterialsForAdmin(
       is_available: sp?.is_available ?? null,
       usage_count: usage.get(row.id) ?? 0,
     }
-  })
+  }), error: null }
 }
 
 async function countOfferLineUsage(materialIds: string[]): Promise<Map<string, number>> {
@@ -358,17 +358,21 @@ async function countOfferLineUsage(materialIds: string[]): Promise<Map<string, n
   return out
 }
 
-export async function listMaterialCategories(): Promise<string[]> {
+export async function listMaterialCategories(): Promise<{ categories: string[]; error: string | null }> {
   const denied = await requireMaterialsEdit()
-  if (denied) return []
+  if (denied) return { categories: [], error: null }
   const supabase = createAdminClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('materials')
     .select('category')
     .eq('is_active', true)
     .order('category', { ascending: true })
-  if (!data) return []
-  return Array.from(new Set(data.map((r) => r.category as string)))
+  if (error) {
+    logger.error('listMaterialCategories failed', { error })
+    return { categories: [], error: 'Kunne ikke hente kategorier' }
+  }
+  if (!data) return { categories: [], error: null }
+  return { categories: Array.from(new Set(data.map((r) => r.category as string))), error: null }
 }
 
 export interface SupplierProductPickerRow {
