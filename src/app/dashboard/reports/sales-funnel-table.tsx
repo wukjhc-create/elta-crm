@@ -66,7 +66,7 @@ export function SalesFunnelTable({ data, error = false }: { data: SalesFunnel | 
                 <td className="py-2 text-right tabular-nums break-words min-w-0">{m.new_customers}</td>
                 <td className="py-2 text-right tabular-nums break-words min-w-0">{m.offers_created}</td>
                 <td className="py-2 text-right tabular-nums break-words min-w-0">{m.offers_sent}</td>
-                <td className="py-2 text-right tabular-nums">{m.offers_accepted}</td>
+                <td className="py-2 text-right tabular-nums break-words min-w-0">{m.offers_accepted}</td>
                 <td className="py-2 text-right tabular-nums">{m.accepted_value ? kr(m.accepted_value) : '—'}</td>
                 <td className="py-2 text-right tabular-nums">{m.invoiced_ex_vat ? kr(m.invoiced_ex_vat) : '—'}</td>
               </tr>
