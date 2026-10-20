@@ -43,6 +43,7 @@ import {
 import type { Material, MaterialPriceHistory } from '@/types/component-intelligence.types'
 import { useToast } from '@/components/ui/toast'
 import { formatCurrency } from '@/lib/utils/format'
+import { latestStoredHistoryDate } from '@/lib/materials/latest-stored-history-date'
 import { calculateDBPercentage } from '@/lib/logic/pricing'
 
 interface MaterialsCatalogClientProps {
@@ -76,6 +77,7 @@ export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogCli
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null)
   const [priceHistory, setPriceHistory] = useState<MaterialPriceHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const latestStoredDate = latestStoredHistoryDate(priceHistory)
 
   const [formData, setFormData] = useState<Partial<MaterialFormData>>({
     sku: '',
@@ -599,6 +601,9 @@ export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogCli
                       <p className="text-sm text-gray-500">Ingen prisændringer registreret</p>
                     ) : (
                       <div className="space-y-2">
+                        {latestStoredDate && (
+                          <p className="text-xs text-gray-600 break-words" data-testid="materials-latest-stored-date">Senest lagret {latestStoredDate}</p>
+                        )}
                         {priceHistory.map((history, index) => {
                           const prevHistory = priceHistory[index + 1]
                           const costChange = prevHistory ? history.cost_price - prevHistory.cost_price : 0
