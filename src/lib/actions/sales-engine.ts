@@ -224,12 +224,13 @@ export interface OptionInput {
 export async function listOptionsForPackageAction(packageId: string): Promise<PackageOptionRow[]> {
   await getAuthenticatedClient()
   const { supabase } = await getAuthenticatedClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('package_options')
     .select('*')
     .eq('package_id', packageId)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
+  if (error) throw new Error('Kunne ikke hente tilvalg')
   return (data ?? []) as PackageOptionRow[]
 }
 

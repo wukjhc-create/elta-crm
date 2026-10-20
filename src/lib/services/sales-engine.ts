@@ -35,18 +35,19 @@ import type {
 
 export async function listActivePackages(): Promise<SalesPackageRow[]> {
   const supabase = createAdminClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('offer_packages')
     .select('*')
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
+  if (error) throw new Error('Kunne ikke hente pakker')
   return (data ?? []) as SalesPackageRow[]
 }
 
 export async function getPackageWithOptions(packageId: string): Promise<SalesPackageWithOptions | null> {
   const supabase = createAdminClient()
-  const [{ data: pkg }, { data: opts }] = await Promise.all([
+  const [pkgRes, optsRes] = await Promise.all([
     supabase.from('offer_packages').select('*').eq('id', packageId).maybeSingle(),
     supabase
       .from('package_options')
@@ -56,8 +57,9 @@ export async function getPackageWithOptions(packageId: string): Promise<SalesPac
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true }),
   ])
-  if (!pkg) return null
-  return { ...(pkg as SalesPackageRow), options: (opts ?? []) as PackageOptionRow[] }
+  if (pkgRes.error || optsRes.error) throw new Error('Kunne ikke hente pakke')
+  if (!pkgRes.data) return null
+  return { ...(pkgRes.data as SalesPackageRow), options: (optsRes.data ?? []) as PackageOptionRow[] }
 }
 
 export async function getTextBlock(slug: string): Promise<SalesTextBlockRow | null> {
