@@ -180,7 +180,11 @@ export async function setIncomingInvoiceSupplierAction(
     if (TERMINAL.includes(inv.status)) return { success: false, error: `Fakturaen er ${inv.status} — leverandøren kan ikke ændres` }
     let label: string | null = null
     if (supplierId) {
-      const { data: s } = await ctx.supabase.from('suppliers').select('id, name').eq('id', supplierId).maybeSingle()
+      const { data: s, error: supErr } = await ctx.supabase.from('suppliers').select('id, name').eq('id', supplierId).maybeSingle()
+      if (supErr) {
+        logger.error('incoming-invoice-supplier: supplier read failed', { error: supErr })
+        return { success: false, error: 'Kunne ikke tjekke leverandøren. Det tælles ikke som at den ikke findes.' }
+      }
       if (!s) return { success: false, error: 'Leverandør ikke fundet' }
       label = (s as { name: string }).name
     }
