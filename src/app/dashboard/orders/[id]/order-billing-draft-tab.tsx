@@ -461,7 +461,59 @@ function StageInvoicesOverview({
           </span>
         )}
       </div>
-      <div className="overflow-x-auto">
+      <ul className="md:hidden space-y-2" data-testid="stage-invoices-mobile">
+        {rows.map((r) => (
+          <li key={r.id} className="rounded-lg ring-1 ring-gray-200 p-3 text-sm">
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-mono text-gray-900 break-all">{r.invoice_number}</p>
+              <span
+                className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                  r.status === 'draft'
+                    ? 'bg-gray-100 text-gray-700'
+                    : r.status === 'sent'
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {invoiceStatusLabel(r.status)}
+              </span>
+            </div>
+            <p
+              className={`mt-1 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                r.invoice_type === 'deposit'
+                  ? 'bg-blue-100 text-blue-800'
+                  : r.invoice_type === 'progress'
+                  ? 'bg-purple-100 text-purple-800'
+                  : r.invoice_type === 'final'
+                  ? 'bg-orange-100 text-orange-800'
+                  : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              {r.invoice_type === 'deposit'
+                ? 'Forskud'
+                : r.invoice_type === 'progress'
+                ? 'Rate'
+                : r.invoice_type === 'final'
+                ? 'Slut'
+                : r.invoice_type}
+            </p>
+            <p className="mt-1 text-xs text-gray-700 break-words">{r.stage_label ?? '—'}</p>
+            <p className="mt-2 text-xs text-gray-600">
+              Procent {r.billing_percentage == null ? '—' : fmtPct(r.billing_percentage)}
+            </p>
+            <p className="text-xs tabular-nums text-gray-700">Subtotal {fmtKr(r.total_amount)}</p>
+            <p className="tabular-nums font-medium text-gray-900">{fmtKr(r.final_amount)} inkl. moms</p>
+            <Link
+              href={`/dashboard/invoices/${r.id}`}
+              className="mt-2 inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900"
+              aria-label="Åbn faktura"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Åbn
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
