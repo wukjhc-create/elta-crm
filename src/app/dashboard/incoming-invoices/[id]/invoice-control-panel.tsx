@@ -100,7 +100,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
               {', '}
               <span className={`break-words min-w-0 ${review.undercharge > 0 ? 'text-amber-800 font-medium' : ''}`}>{review.undercharge} underpris</span>
               {', '}
-              <span>{review.freight} fragt, {review.fee} gebyr.</span>
+              <span className="break-words min-w-0">{review.freight} fragt, {review.fee} gebyr.</span>
             </p>
           )}
           <div className="md:hidden divide-y rounded ring-1 ring-gray-200 break-words min-w-0" data-testid="invoice-control-lines-mobile">
