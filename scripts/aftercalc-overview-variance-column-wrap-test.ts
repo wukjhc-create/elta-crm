@@ -31,7 +31,7 @@ ok(!row.includes('\r'), 'vognretur er et andet sted')
 ok(view.split(id).length === 2, 'kolonnen findes en gang')
 ok(view.split('<th className="px-2 py-1.5 text-right">DB-afvigelse</th>').length === 1, 'den bare kolonne er vaek')
 ok(view.includes('{varianceText(r.db_variance, r.db_variance_pct_points)}'), 'afvigelsen bliver')
-ok(view.includes('<table className="w-full text-sm">'), 'tabellen bliver')
+ok(view.includes('<table className="w-full text-sm break-words min-w-0">'), 'tabellen kan krympe')
 ok(view.includes('<th className="px-2 py-1.5 text-left break-words min-w-0">Status</th>'), 'statuskolonnen kan stadig krympe')
 ok(view.includes('const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1'), 'sideantallet bliver')
 const faktisk = '>Faktisk DB %</th>'

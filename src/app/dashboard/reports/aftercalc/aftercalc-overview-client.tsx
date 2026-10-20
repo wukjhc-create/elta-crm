@@ -231,7 +231,7 @@ export function AftercalcOverviewClient() {
                     ))}
                   </div>
                   <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm break-words min-w-0">
                       <thead className="bg-gray-50 text-xs text-gray-600">
                         <tr>
                           <th className="px-2 py-1.5 text-left break-words min-w-0">Sag</th>
