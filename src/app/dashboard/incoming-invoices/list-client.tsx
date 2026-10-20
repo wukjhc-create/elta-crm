@@ -405,7 +405,7 @@ function NotInvoiceBadge() {
 
 function TestBadge() {
   return (
-    <span className="inline-block text-[10px] uppercase tracking-wide bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+    <span className="inline-block text-[10px] uppercase tracking-wide bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded break-words min-w-0">
       TEST
     </span>
   )
