@@ -274,7 +274,7 @@ export function IncomingInvoicesListClient({
 
       <div className="md:hidden border rounded overflow-hidden bg-white divide-y break-words min-w-0" data-testid="incoming-invoices-mobile-list">
         {busy && (
-          <p className="px-3 py-6 text-center text-gray-400 text-xs">Henter…</p>
+          <p className="px-3 py-6 text-center text-gray-400 text-xs break-words min-w-0">Henter…</p>
         )}
         {!busy && !listError && displayRows.length === 0 && (
           <p className="px-3 py-6 text-center text-gray-400 text-xs">{emptyListText(due)}</p>
