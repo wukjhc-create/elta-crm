@@ -438,6 +438,7 @@ function PartyChooser({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Søg firmanavn, kundenr, email…"
+              aria-label="Søg kunde til tilbuddet"
               disabled={saving}
               className="flex-1 px-2.5 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400"
               autoFocus
