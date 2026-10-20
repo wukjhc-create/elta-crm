@@ -1,6 +1,7 @@
 'use client'
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { dayTaskCountText } from '@/lib/planning/day-task-count'
 import { ASSISTANT_RULE } from '@/lib/assistant/rules'
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, CalendarCheck, MapPin, Clock, User, Navigation, CheckCircle } from 'lucide-react'
@@ -105,6 +106,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
   }
 
   const selectedTasks = selectedDate ? (tasksByDate[selectedDate] || []) : []
+  const dayTaskCount = dayTaskCountText(selectedTasks.length)
 
   // Extract time/address from description
   function extractInfo(desc: string | null) {
@@ -264,6 +266,9 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                   })
                 : 'Vælg en dag'}
             </h3>
+            {dayTaskCount && (
+              <p className="mt-1 text-xs text-gray-600 break-words" data-testid="calendar-day-task-count">{dayTaskCount}</p>
+            )}
           </div>
 
           {selectedDate && (remindersByDate[selectedDate]?.length ?? 0) > 0 && (
