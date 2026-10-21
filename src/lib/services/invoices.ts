@@ -96,7 +96,9 @@ export async function createInvoiceFromOffer(
     // S1 (tilbuds-review 2026-10-07): SQL-funktionen prissætter med COALESCE(sale_price, unit_price, 0), men sale_price
     // er NOT NULL DEFAULT 0, og manuelt oprettede/redigerede linjer gemte kun unit_price → linjen blev faktureret (og
     // automatik-reglen SENDT) til 0 kr eller en forældet pris. Afvis indtil linjerne er rettet (prod-data → godkendelse).
-    const { data: priceLines } = await supabase.from('offer_line_items').select('sale_price, unit_price').eq('offer_id', offerId)
+    const { data: priceLines, error: priceErr } = await supabase.from('offer_line_items').select('sale_price, unit_price').eq('offer_id', offerId)
+    // en læsefejl er ikke "0 fejlprissatte linjer" — vagten må ikke springes over (review 2026-10-22)
+    if (priceErr) throw new Error('Kunne ikke kontrollere tilbuddets linjepriser — prøv igen')
     const mispriced = ((priceLines ?? []) as Array<{ sale_price: number | string | null; unit_price: number | string | null }>)
       .filter((l) => Number(l.unit_price ?? 0) !== 0 && Number(l.sale_price ?? 0) !== Number(l.unit_price ?? 0)).length
     if (mispriced > 0) {
@@ -165,6 +167,25 @@ const ALLOWED_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
 /** sent_at-markør mens en kladde slettes (blokerer samtidig afsendelse, som kræver sent_at IS NULL) */
 const DRAFT_DELETE_CLAIM = '1970-01-01T00:00:00.000Z'
 
+/**
+ * Review 2026-10-22: betalingsrækken ER gemt, men fakturaen kunne ikke genberegnes/opdateres. Kalderen må IKKE frigive
+ * et bank-krav eller registrere igen (så blev betalingen talt to gange) — fakturaen genberegnes ved næste betaling.
+ */
+export class PaymentRecordedError extends Error {}
+
+async function paymentFollowUpAlarm(invoiceId: string, detail: string, err: unknown): Promise<never> {
+  logger.error(`registerPayment: ${detail}`, { entityId: invoiceId, error: err instanceof Error ? err : new Error(String((err as { message?: string } | null)?.message ?? err)) })
+  try {
+    const { logHealth } = await import('@/lib/services/system-health')
+    await logHealth('invoice', 'error', `payment recorded, invoice not updated: ${detail}`, { invoiceId })
+    const { createSystemAlertAdmin } = await import('@/lib/actions/system-alerts-admin')
+    await createSystemAlertAdmin({ alert_type: 'anomaly_detected', severity: 'critical', entity_type: 'invoice', entity_id: invoiceId,
+      title: 'Betaling registreret, men fakturaens betalingsstatus kunne ikke opdateres',
+      message: 'Registrér IKKE betalingen igen. Kontrollér fakturaens betalinger — status genberegnes ved næste betaling.' })
+  } catch { /* never crash */ }
+  throw new PaymentRecordedError('Betalingen er registreret, men fakturaens status kunne ikke opdateres — registrér den ikke igen (se systemadvarslen)')
+}
+
 /** LG-2: kreditnota-følgefejl logges som fejl + helbredslog + systemadvarsel (før kun warn — ingen så det) */
 async function voidStatusAlarm(invoiceId: string, title: string, err: unknown): Promise<void> {
   logger.error(`recomputeOriginalVoidStatus: ${title}`, { entityId: invoiceId, error: err instanceof Error ? err : new Error(String((err as { message?: string } | null)?.message ?? err)) })
@@ -195,12 +216,17 @@ async function recomputeOriginalVoidStatus(
 
   // Only count credit notes that are FINALIZED (sent or paid).
   // Drafts must not contribute to voiding.
-  const { data: finalizedCredits } = await supabase
+  const { data: finalizedCredits, error: creditsErr } = await supabase
     .from('invoices')
     .select('final_amount, status')
     .eq('credit_of_invoice_id', originalInvoiceId)
     .eq('invoice_type', 'credit')
     .in('status', ['sent', 'paid'])
+  // review 2026-10-22: en læsefejl er ikke "0 kr krediteret" — ellers ophæves annulleringen af en fuldt krediteret faktura
+  if (creditsErr) {
+    await voidStatusAlarm(originalInvoiceId, 'Annulleringsstatus kunne ikke genberegnes (kreditnotaer kunne ikke læses)', creditsErr)
+    return
+  }
 
   let creditedAbsIncl = 0
   for (const c of (finalizedCredits ?? []) as Array<{ final_amount: number | string }>) {
@@ -824,8 +850,10 @@ async function outstandingByInvoice(
   const credited = new Map<string, number>()
   const ids = invoices.map((i) => i.id)
   for (let k = 0; k < ids.length; k += 200) {
-    const { data } = await supabase.from('invoices').select('credit_of_invoice_id, final_amount')
+    const { data, error } = await supabase.from('invoices').select('credit_of_invoice_id, final_amount')
       .in('credit_of_invoice_id', ids.slice(k, k + 200)).in('status', ['sent', 'paid'])
+    // review 2026-10-22: en læsefejl er ikke "ingen kreditnotaer" (så blev udestående/rykkerbeløb for højt)
+    if (error) throw new Error(`Kreditnotaer kunne ikke læses: ${error.message}`)
     for (const c of (data ?? []) as Array<{ credit_of_invoice_id: string; final_amount: number | string | null }>) {
       credited.set(c.credit_of_invoice_id, (credited.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.final_amount) || 0))
     }
@@ -1818,10 +1846,13 @@ export async function registerPayment(
   // Økonomi-review 2026-10-08 (#5): amount_paid = læst + beløb tabte en betaling ved samtidige registreringer (manuelt
   // match + automatch). Nu = summen af invoice_payments (inkl. vores netop indsatte række) — sidste skriver har altid
   // alle committede betalinger med. (#7): "fuldt betalt" måles mod udestående efter sendte/betalte kreditnotaer.
-  const { data: payRows } = await supabase.from('invoice_payments').select('amount').eq('invoice_id', invoiceId)
+  const { data: payRows, error: payErr } = await supabase.from('invoice_payments').select('amount').eq('invoice_id', invoiceId)
+  // review 2026-10-22: en læsefejl må ikke skrive amount_paid = 0 — betalingsrækken er gemt; næste registrering genberegner
+  if (payErr) await paymentFollowUpAlarm(invoiceId, 'betalinger kunne ikke læses', payErr)
   const newAmountPaid = round2(((payRows ?? []) as Array<{ amount: number | string }>).reduce((a, r) => a + (Number(r.amount) || 0), 0))
-  const { data: creditRows } = await supabase.from('invoices').select('final_amount')
+  const { data: creditRows, error: credErr } = await supabase.from('invoices').select('final_amount')
     .eq('credit_of_invoice_id', invoiceId).eq('invoice_type', 'credit').in('status', ['sent', 'paid'])
+  if (credErr) await paymentFollowUpAlarm(invoiceId, 'kreditnotaer kunne ikke læses', credErr)
   const credited = ((creditRows ?? []) as Array<{ final_amount: number | string | null }>).reduce((a, r) => a + Math.abs(Number(r.final_amount) || 0), 0)
   const final = round2(Number(inv.final_amount) - credited)
   let nextPaymentStatus: InvoicePaymentStatus = 'pending'
@@ -1846,11 +1877,7 @@ export async function registerPayment(
     .update(patch)
     .eq('id', invoiceId)
   if (updErr) {
-    logger.error('registerPayment: invoice update failed', {
-      entityId: invoiceId,
-      error: updErr,
-    })
-    throw new Error(`registerPayment update failed: ${updErr.message}`)
+    await paymentFollowUpAlarm(invoiceId, 'invoice update failed', updErr)
   }
 
   console.log('PAYMENT REGISTERED:', invoiceId, amt)

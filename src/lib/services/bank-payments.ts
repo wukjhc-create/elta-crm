@@ -19,7 +19,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { parseCSVLine, parseDanishNumber } from '@/lib/services/import-engine'
-import { registerPayment } from '@/lib/services/invoices'
+import { registerPayment, PaymentRecordedError } from '@/lib/services/invoices'
 import type {
   BankMatchConfidence,
   BankMatchStatus,
@@ -555,6 +555,10 @@ async function applyMatch(
     const bankDate = typeof tx.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(tx.date) ? copenhagenLocalToIso(tx.date.slice(0, 10), '12:00') : null
     payment = await registerPayment(invoice.id, tx.amount, tx.reference_text || tx.sender_name || undefined, { syncEconomic: false, paidAt: bankDate })
   } catch (err) {
+    // review 2026-10-22: betalingsrækken er gemt — kravet BLIVER (ellers matches transaktionen igen → betaling talt 2×)
+    if (err instanceof PaymentRecordedError) {
+      return { bankTxId: tx.id, status: 'matched', invoiceId: invoice.id, amount: tx.amount, reason: err.message }
+    }
     // frigiv kravet, så transaktionen kan matches igen (før stod den "matched" uden registreret betaling)
     await supabase.from('bank_transactions')
       .update({ matched_invoice_id: null, match_status: 'unmatched', match_confidence: null, matched_at: null })

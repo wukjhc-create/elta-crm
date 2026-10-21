@@ -19,6 +19,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type MarginCategory =
   | 'solar'
@@ -282,11 +283,13 @@ export async function recomputeOfferTotals(offerId: string): Promise<{
     const offerDiscountPct = Number(offer.discount_percentage ?? 0)
 
     // Sum all lines
-    const { data: lines } = await supabase
+    // review 2026-10-22: en læsefejl gav 0 kr-totaler (fetchAllRows kaster → null); .limit(10000) blev afkortet til 1.000
+    const lines = await fetchAllRows<{ total: number | string | null }>((from, to) => supabase
       .from('offer_line_items')
       .select('total')
       .eq('offer_id', offerId)
-      .limit(10000)
+      .order('id')
+      .range(from, to))
 
     const sumLines = round2(
       (lines || []).reduce((s, l) => s + Number(l.total ?? 0), 0)

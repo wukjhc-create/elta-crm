@@ -2128,3 +2128,19 @@ Claudes ordlyd/struktur vinder (stored-cost, work-order-status-read).
   - Efter rettelserne: U69, U23, U25, U98, U189, U196, U11 PASS → **190/190 grønne** (187 i fuld kørsel + 3 målrettet).
 - Den forrige kørsel (commit 5f16a249, 83 PASS / 103 NOT_RUN) var IKKE gyldig: forældreløs `next start -p 3217` fra en
   timeout → EADDRINUSE i alle senere kørsler. Rettet i c967ef6d (port-vagt i ui-batches).
+
+### Økonomi-/pilot-review 2026-10-22 (efter A-4) — "en læsefejl er ikke 0" i økonomi-skrivestier
+
+| ID | Fund | Status |
+|---|---|---|
+| FR-1 (S1) | `registerPayment`: fejlet læsning af betalinger/kreditnotaer skrev `amount_paid = 0`/forkert status | DONE 2026-10-22 — `PaymentRecordedError` + kritisk systemadvarsel; bankmatch BEHOLDER kravet (før: frigivet → næste kørsel registrerede betalingen igen; gjaldt også en fejlet faktura-opdatering) |
+| FR-2 (S1) | `recomputeOriginalVoidStatus`: fejlet kreditnota-læsning ophævede annulleringen af en fuldt krediteret faktura | DONE 2026-10-22 — afbryder med `voidStatusAlarm` |
+| FR-3 (S2) | `outstandingByInvoice`: kreditnota-læsefejl → for højt udestående (markér betalt, rykkerbeløb) | DONE 2026-10-22 — kaster |
+| FR-4 (S2) | `recomputeOfferTotals`: læsefejl → 0 kr-totaler; `.limit(10000)` afkortet til 1.000 | DONE 2026-10-22 — `fetchAllRows` (kaster → null) |
+| FR-5 (S1) | Faktura-fra-tilbud: fejlprisvagten (Q13) sprang over ved læsefejl | DONE 2026-10-22 — kaster |
+| FR-6 (S2) | Bankpost med nummeret på en ALLEREDE BETALT faktura auto-matches på beløb til en anden faktura (F-7-hul) | TODO — eksplicit fakturanummer der kun rammer betalte fakturaer → `ambiguous`/overbetaling, ikke beløbsstrategi (bank-payments.ts `findByReference`) |
+| FR-7 (S2) | Manuel bankkobling tillader DKK-bankpost mod EUR-faktura (FC-8-rest) | TODO — søgning kun DKK/NULL; afvis ikke-DKK i `manualMatchTransaction` |
+| FR-8 (S3) | `unbilled-work.ts` fastpris-fakturaer pr. 200 sager uden `.range()` (1.000-loft) | TODO — `fetchAllRows` pr. bid |
+| FR-9 (S3) | Samme læsefejl-mønster i rate-/slut-/kreditplanlægning (invoice-stage.ts, invoice-credit.ts) | TODO — RC-1-genlæsning dækker oprettelse; tilbage er forhåndsvisning + 100 %-rategate |
+
+Test (FR-1..5): register-payment-check, bank-auto-match-check, credit-race-check, payment-summary-check + U29, U33, U35, U36, U180, U186, U191 grønne. Fejlinjektion (læsefejl) er ikke automatiseret — kode-review.
