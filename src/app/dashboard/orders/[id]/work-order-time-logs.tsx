@@ -330,8 +330,8 @@ export function WorkOrderTimeLogs({
 
   return (
     <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold text-gray-700">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-semibold text-gray-700 min-w-0 break-words">
           Timer ({logs.length})
           {logs.length > 0 && (
             <span className="ml-2 text-gray-500 font-normal">
@@ -508,7 +508,7 @@ export function WorkOrderTimeLogs({
       {/* Time-logs list */}
       {logs.length === 0 ? (
         <div className="text-xs text-gray-400 py-2 italic">
-          Ingen timer registreret på denne arbejdsordre endnu.
+          Ingen timer registreret på denne arbejdsordre endnu. De vises her, når tiden er gemt.
         </div>
       ) : (
         <div className="overflow-x-auto">
