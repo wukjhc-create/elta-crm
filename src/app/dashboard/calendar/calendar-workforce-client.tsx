@@ -265,15 +265,15 @@ export function CalendarWorkforceClient({
           )}
 
           {/* View toggle */}
-          <div className="inline-flex rounded-lg ring-1 ring-gray-200 overflow-hidden">
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Kalendervisning">
             {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
               <button
                 key={v}
                 onClick={() => updateParam({ view: v })}
                 className={`px-3 py-2.5 sm:py-1.5 text-sm font-medium transition ${
                   view === v
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                    ? 'bg-emerald-600 text-white ring-emerald-600'
+                    : 'bg-white text-gray-700 ring-gray-200 hover:bg-gray-50'
                 }`}
               >
                 {v === 'day' && 'Dag'}
@@ -305,8 +305,8 @@ export function CalendarWorkforceClient({
         <button
           onClick={() => updateParam({ date: stepBack() })}
           className="p-3 sm:p-2 hover:bg-gray-100 rounded-lg"
-          title="Forrige"
-          aria-label="Forrige"
+          title={view === 'week' ? 'Forrige uge' : 'Forrige dag'}
+          aria-label={view === 'week' ? 'Forrige uge' : 'Forrige dag'}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -327,8 +327,8 @@ export function CalendarWorkforceClient({
         <button
           onClick={() => updateParam({ date: stepForward() })}
           className="p-3 sm:p-2 hover:bg-gray-100 rounded-lg"
-          title="Næste"
-          aria-label="Næste"
+          title={view === 'week' ? 'Næste uge' : 'Næste dag'}
+          aria-label={view === 'week' ? 'Næste uge' : 'Næste dag'}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
