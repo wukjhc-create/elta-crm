@@ -53,10 +53,38 @@ function killTree(child: ChildProcess) {
     if (process.platform === 'win32') execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: 'ignore' })
     else child.kill('SIGKILL')
   } catch { /* allerede stoppet */ }
+  freeHarnessPort()
+}
+
+/**
+ * Test-pålidelighed (2026-10-21): taskkill /T fangede ikke altid "next start -p 3217" (forældreløs efter timeout) → alle
+ * senere kørsler fik EADDRINUSE og blev NOT_RUN (baseline 83/190). Før hver batch og efter hvert kill: en lytter på 3217
+ * stoppes — KUN hvis det er harness-serveren (next start -p 3217); alt andet røres ikke, men logges.
+ */
+function freeHarnessPort() {
+  if (process.platform !== 'win32') return
+  try {
+    const net = execSync('netstat -ano -p tcp', { encoding: 'utf8' })
+    const pids = new Set<string>()
+    for (const line of net.split(/\r?\n/)) {
+      const m = /^\s*TCP\s+\S+:3217\s+\S+\s+LISTENING\s+(\d+)/i.exec(line)
+      if (m) pids.add(m[1])
+    }
+    for (const pid of pids) {
+      const cmd = execSync(`powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine"`, { encoding: 'utf8' })
+      if (/next[\\/]dist[\\/]bin[\\/]next"?\s+start\s+-p\s+3217/.test(cmd)) {
+        execSync(`taskkill /pid ${pid} /T /F`, { stdio: 'ignore' })
+        log(`gammel harness-server på 3217 stoppet (PID=${pid})`)
+      } else {
+        log(`ADVARSEL: port 3217 bruges af en anden proces (PID=${pid}) — ikke stoppet`)
+      }
+    }
+  } catch { /* netstat/powershell utilgængelig — fortsæt */ }
 }
 
 /** Kør én batch; returnerer de tests der ikke nåede at køre (efter timeout) så de kan køres videre. */
 function runBatch(n: number, tests: string[], build: boolean, deadline: number): Promise<string[]> {
+  freeHarnessPort()
   return new Promise((resolve) => {
     const env = { ...process.env, UI_E2E_ONLY: tests.join(','), ...(build ? {} : { UI_E2E_REUSE_BUILD: '1' }) }
     const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', '-s', 'harness:ui-e2e'], { env, shell: process.platform === 'win32' })

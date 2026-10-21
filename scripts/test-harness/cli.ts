@@ -2291,6 +2291,12 @@ async function main() {
     log(`audit_logs checks: ${JSON.stringify(await stagingSql(`SELECT conname, pg_get_constraintdef(oid) d FROM pg_constraint WHERE conrelid = 'public.audit_logs'::regclass AND contype = 'c'`)).slice(0, 900)}`)
     return
   }
+  if (SUB === 'table-checks') {
+    // READ-ONLY: CHECK-constraints på en tabel (fx: table-checks accounting_sync_log)
+    const t = String(process.argv[3] ?? '').replace(/[^a-z0-9_]/g, '')
+    for (const r of await stagingSql(`SELECT conname, pg_get_constraintdef(oid) d FROM pg_constraint WHERE conrelid = 'public.${t}'::regclass AND contype = 'c' ORDER BY conname`)) log(`check ${r.conname}: ${r.d}`)
+    return
+  }
   if (SUB === 'table-dependents') {
     // READ-ONLY: views og funktioner der refererer en tabel (fx: table-dependents lead_activities)
     const t = String(process.argv[3] ?? '').replace(/[^a-z0-9_]/g, '')
