@@ -28,8 +28,7 @@ import {
   Image as ImageIcon,
   X,
 } from 'lucide-react'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { copenhagenDateTimeLabel } from '@/lib/utils/copenhagen-time'
 import {
   getEmailsForCase,
   getCaseEmailDetail,
@@ -231,7 +230,7 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
                       {email.sender_name || email.sender_email}
                     </span>
                     <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">
-                      {format(new Date(email.received_at), 'd. MMM yyyy HH:mm', { locale: da })}
+                      {copenhagenDateTimeLabel(email.received_at)}
                     </span>
                   </div>
                   <p className={`text-sm truncate ${!email.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
@@ -425,7 +424,7 @@ function ExpandedMailDetail({
         {detail.to_email && (
           <div><span className="text-gray-500">Til:</span> {detail.to_email}</div>
         )}
-        <div><span className="text-gray-500">Modtaget:</span> {format(new Date(detail.received_at), 'd. MMM yyyy HH:mm', { locale: da })}</div>
+        <div className="break-words"><span className="text-gray-500">Modtaget:</span> {copenhagenDateTimeLabel(detail.received_at)}</div>
       </div>
 
       {/* Body */}
