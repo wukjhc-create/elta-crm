@@ -42,6 +42,8 @@ export async function MyJobsCard() {
   // N64: afsluttede job (seneste 14 dage) uden en eneste timelinje — påmind montøren før timerne glemmes
   const pastDone = (res.data ?? []).filter((w) => w.status === 'done' && w.scheduled_date && w.scheduled_date <= today)
   const noTimeRes = pastDone.length ? await getWorkOrdersWithoutTimeAction(pastDone.map((w) => w.id)) : null
+  // Grok ae27188d: et fejlet timetjek er ikke "alle job har timer" (påmindelsen forsvandt tavst)
+  const timeCheckFailed = !!noTimeRes && !noTimeRes.success
   const noTimeIds = new Set(noTimeRes?.success ? noTimeRes.data ?? [] : [])
   const doneWithoutTime = pastDone.filter((w) => noTimeIds.has(w.id))
 
@@ -54,6 +56,11 @@ export async function MyJobsCard() {
         {/* fokus E 2026-10-15: egne job som kalenderfil (heldagsbegivenheder) */}
         <a href="/api/calendar/my-jobs" className="inline-flex items-center min-h-11 sm:min-h-0 px-2 sm:px-0 text-sm sm:text-xs text-emerald-700 hover:underline" data-testid="my-jobs-ics" download>Telefonkalender</a>
       </div>
+      {timeCheckFailed && (
+        <p className="mb-3 text-sm text-amber-800" data-testid="my-jobs-time-check-error">
+          {noTimeRes?.error ?? 'Kunne ikke tjekke timer'}. Det tælles ikke som at tiden er registreret.
+        </p>
+      )}
       {doneWithoutTime.length > 0 && (
         <div className="mb-4" data-testid="my-jobs-no-time">
           <JobGroup title="Afsluttet uden timer — registrér din tid" jobs={doneWithoutTime} warn />

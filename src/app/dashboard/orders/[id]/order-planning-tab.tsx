@@ -130,7 +130,7 @@ export function OrderPlanningTab({
     const empRes = bundle.employees
     const logsRes = bundle.logs
     const costRes = bundle.cost
-    if (woRes.success && woRes.data) setWorkOrders(woRes.data)
+    if (woRes.success && woRes.data) { setWorkOrders(woRes.data); setError(null) }
     else setError(woRes.error || 'Kunne ikke hente arbejdsordrer')
     if (empRes.success && empRes.data) { setEmployees(empRes.data); setSharedEmployees(empRes.data) }
     else setSharedEmployees(null)
@@ -238,6 +238,21 @@ export function OrderPlanningTab({
     startTransition(() => router.refresh())
   }
 
+  // Grok bac72d84: fejler den FØRSTE hentning, står fanen ikke og "henter" for evigt — fejl + Prøv igen
+  if (workOrders === null && error) {
+    return (
+      <div className="py-6 text-center">
+        <p className="text-sm text-red-800" data-testid="planning-load-error">{error}. Det tælles ikke som en tom plan.</p>
+        <button
+          type="button"
+          onClick={() => void reload()}
+          className="mt-3 min-h-[44px] px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50"
+        >
+          Prøv igen
+        </button>
+      </div>
+    )
+  }
   if (workOrders === null) {
     // DE-1: en fejl (fx manglende ret) vises — før stod fanen og "hentede" for evigt
     if (error) return <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3 my-4" data-testid="planning-load-error">{error}</div>
