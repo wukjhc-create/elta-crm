@@ -2071,3 +2071,21 @@ Ingen pilot-blokerende fund. Fund:
 - Forberedelse: port 3217 fri, ingen gamle harness-processer, 626 forældede @harness.test-brugere slettet (cleanup-users,
   > 3 t, ikke pilot-personaer), gamle resultatfiler arkiveret (`archive-2026-10-20`). src frosset under hele kørslen.
 - U17 rettet samme aften (test-pålidelighed): staging-AO-leverandøren var en **[HARNESS]-rest fra 2026-10-18** (afbrudt kørsel → global oprydning kørte aldrig). U17 rydder nu kun en [HARNESS]-rest > 1 t og springer stadig over for en rigtig AO-leverandør; U17 PASS (U16/U18 PASS), ingen rest bagefter. Forventet næste baseline: 189/189.
+
+### Grok 46 t — selektiv integration (2026-10-20/21)
+
+grok-next blev IKKE merget. 216 commits hentet til main (e62c7284 → 01879c2a), hver med "Hentet fra grok-next <sha>" i
+beskeden; Groks docs/checkpoints aldrig taget med. Claudes sikkerheds-/rettigheds-/økonomiadfærd vinder ved overlap.
+
+| Gruppe | Resultat |
+|---|---|
+| Listede adfærds-commits (23) | 16 integreret (heraf flere genimplementeret på main); 7 efterkalk-commits AFVIST = dublet af Claudes Profit Engine (to motorer til samme DB-tal) |
+| Ekstra adfærd fundet ved gennemgang | prishistorik-dato (4cc21d28/4905d6a0), fakturakontrol: fragt/gebyr-mærke, ukendt overpris ≠ 0 kr, fejl+Prøv igen; arbejdsordre-læsefejl (1dfa6104, 21cf6981, 9203bd3d sletning kræver ægte 0 timer, f35bf7df, ed8663f5); stale-data-værn portal/tagtegninger (cca6d254, 33235c79); touch-mål (d1c90b60, bb2e5a31, 558d5ea0 m. Claudes canWrite-gate) |
+| 492 ikke-wrap fix-commits (klassifikatoren talte kun 34 adfærds-commits) | automatisk ren cherry-pick + tsc pr. commit + samlet gennemgang + UI: 59 (intet overlap) + 76 (klient) + 56 (server, scripted review af gate/scope/beløb) = 191 integreret; resten konflikt/tom/tsc → ikke taget |
+| Wrap-flod (~1.200 "kan krympe"/"ombrydes") | ikke importeret enkeltvis; mobil-relevante (dialoger der kan rulles m.m.) kom med via fix-sporet hvor de var rene |
+| Dubletter af Claude | 5f5e5540 (åbne timere = PR4-15), efterkalk-modulet, SmartDate/format-hjælpere hvor Claude allerede havde dansk tid |
+| Ikke taget (kan genoptages manuelt) | ~230 fix-commits med konflikt mod Claudes kode, e61ac5ec (kalender-fejl, 4 konfliktfiler inkl. PF3-3), fakturahoved-kontrol (header-totals/OIOUBL, kræver Groks loader), "Min dag"-opgavelister (dac7a16e/992cbd20, feat), mobilkort-omskrivninger af kontorsider |
+
+Test: ~100 målrettede UI-kørsler grønne (fakturakontrol, indkøb, tilbud, sager, montør, kalender, portal, crawl
+U101–U110), gates grønne efter hvert batch; ingen regression fundet. Grok-unit-tests med kilde-grep tilpasset main hvor
+Claudes ordlyd/struktur vinder (stored-cost, work-order-status-read).
