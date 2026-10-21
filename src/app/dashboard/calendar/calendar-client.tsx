@@ -368,7 +368,9 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
             <h4 className="text-sm font-semibold text-gray-700 mb-3">Kommende besigtigelser</h4>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {tasks
-                .filter((t) => t.due_date && t.due_date >= today && t.status !== 'done')
+                // Grok 2af5544c: samme danske dato som tælleren (før rå tidsstempel → et besøg lige efter dansk midnat
+                // blev talt men manglede på listen)
+                .filter((t) => t.due_date && dayOf(t.due_date) >= today && t.status !== 'done')
                 .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
                 .slice(0, 10)
                 .map((task) => {
@@ -406,6 +408,9 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                     </div>
                   )
                 })}
+                {upcomingCount > 10 && (
+                  <p className="text-xs text-gray-500 text-center pt-2">Viser 10 af {upcomingCount}. Resten ligger i månedskalenderen.</p>
+                )}
               {upcomingCount === 0 && (
                 <p className="text-xs text-gray-400 text-center py-4">Ingen kommende besigtigelser</p>
               )}
