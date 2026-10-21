@@ -913,7 +913,7 @@ Proces: prod-migration først når kompatibel kode er pushet (CODE → TEST → 
 | M-11 (S3) | Tjeklistefoto kun via kamera (capture) — kan ikke vælge fra galleri | DONE — capture fjernet (telefonen tilbyder kamera eller galleri); knap "Foto" |
 | M-12 (S4) | Kalender: fravær-hentefejl tavs; tidsgodkendelse 500-loft uden besked | DONE — advarselsbanner til planlæggere når fravær ikke kan hentes; "Viser de 500 …" i tidsgodkendelse. UI U43/U72 |
 | B-1 (S1) | "Annuller" på betalingsreference-prompten markerer alligevel fakturaen betalt (irreversibelt); send uden mail uden bekræftelse | DONE — Annuller afbryder (prompten viser nr./beløb og "kan ikke fortrydes"); "Markér som sendt (uden mail)" bekræftes. UI U29 (annuller → stadig sendt) |
-| B-2 (S2) | Fakturaoversigten henter kun 500 nyeste uden besked; summeringskort regnes på det beskårne udsnit | DELVIS — tydelig besked når loftet rammes (summerne dækker kun de viste; fulde tal på Dashboard). Server-side summer = TODO (sammen med B-3) |
+| B-2 (S2) | Fakturaoversigten henter kun 500 nyeste uden besked; summeringskort regnes på det beskårne udsnit | DONE (verificeret 2026-10-22) — server-side totaler over HELE datasættet (getInvoiceOverviewTotalsAction, brugt af /dashboard/invoices) · tidligere: DELVIS — tydelig besked når loftet rammes (summerne dækker kun de viste; fulde tal på Dashboard). Server-side summer = TODO (sammen med B-3) |
 | B-3 (S2) | Tre forskellige "udestående" (widget trækker indbetalt/kreditnota fra, oversigt/kundekort/badge gør ikke); kundeoversigt loft 200, badge 500 uden order | DONE — fakturaoverblikket bruger åbent beløb (lib/invoices/open-amount, samme som dashboard) i summer + rykkertekst. Kundekort (loft 500 nyeste) og betalingsbadge (alle fakturaer, pagineret) bruger nu også åbent beløb; fuldt betalt/krediteret tælles ikke som forfalden. Unit payment-health-open 2/2, UI U173/U169/U29/U33/U35 |
 | B-4 (S3) | "Betalt denne måned" på browserens måned vs. UTC paid_at | DONE — Københavnsmåned på begge sider. UI U169 |
 | B-5 (S2) | Bogføring i gang/hængt claim vises som "allerede bogført" (pending-…) og skjuler Bogfør | DONE — pending-krav ≠ bogført (Bogfør vises, "Bogføring i gang"), handlingen returnerer in_progress og et hængt krav kan genoptages efter 15 min. UI U169 |
@@ -946,7 +946,7 @@ Proces: prod-migration først når kompatibel kode er pushet (CODE → TEST → 
 | W-5 (S2) | Montør ser statusskift/Rediger på sag han ikke må bruge | DONE — statusskift + Rediger (hoved, sagsoplysninger, sagspartnere, adresse) kun med cases.edit; ellers statusmærke. UI U40/U12/U11 |
 | W-6 (S2) | "Manglende tilladelse: x.y"-literaler | DONE — toast (R-12) + alle inline-fejl `setError(x.error || …)` (66 filer, 91 steder) går gennem humanizeErrorText → "Du har ikke adgang til at …". UI-smoke U27/U34/U163/U11/U40/U160/U28/U164/U53/U145 |
 | W-7 (S2) | Opgaver genindlæser alt pr. tastetryk; getAllTasks uden limit/guard | DONE — søgning debounces (300 ms), profiler hentes én gang, loft 1.000, escapeLike. UI U151/U140/U101/U102 |
-| W-8 (S2) | Salg/bogholderi kan oprette opgaver men ikke se en opgaveliste; getAllTasks uden rettighedstjek | DELVIS — guard DONE: uden tasks.view ses kun egne oprettede/tildelte opgaver (liste + tællere; før så alle indloggede alle opgaver). Rettighedsudvidelse (opgavemenu for salg/bogholderi) = [H] |
+| W-8 (S2) | Salg/bogholderi kan oprette opgaver men ikke se en opgaveliste; getAllTasks uden rettighedstjek | DONE (verificeret 2026-10-22) — guard + opgavemenu for salg/bogholderi (PM2-5, U175) · tidligere: DELVIS — guard DONE: uden tasks.view ses kun egne oprettede/tildelte opgaver (liste + tællere; før så alle indloggede alle opgaver). Rettighedsudvidelse (opgavemenu for salg/bogholderi) = [H] |
 | W-9 (S2) | Ingen genkald/opfølgning på leads | DELVIS — interim "Påmind mig" på leadet: kalenderfil (.ics, Københavnstid, alarm) med kontakt/tlf/link — intet gemmes i CRM. UI U167, unit work-order-ics. Rigtigt felt next_follow_up_at (eller 00197 personal_reminders til prod) = [H] migration |
 | W-10 (S3) | Lead-statusknapper tillader ugyldige skift; Rediger ikke gated | DONE — kun tilladte skift klikbare (forklaring i tooltip), knapper + Rediger kræver leads.edit. UI U27 |
 | W-11 (S3) | Leverandørsøgning: hele sætningen som én ILIKE, sorteret efter pris, "bedste pris" på tværs af forskellige varer | DONE — hvert ord skal matche varenr./navn/EAN, rangering: præcist varenr./EAN → navn starter med → alle ord i navnet → resten (pris som tie-breaker); "billigst" kun inden for samme EAN. Unit search-rank-test 9/9, UI U51/U77/U84 |
@@ -1077,7 +1077,7 @@ Kilde: tre read-only reviews 2026-10-14 aften. [H] = kræver Henrik. Prod-data e
 | # | Fund | Status |
 |---|---|---|
 | GP-1 (S1→S2) | Salg kan regne nettoindkøbspris baglæns: estimeret salgspris = kost × (1 + global avance), og avancen er læsbar for alle (calculation_settings RLS USING(true), ugated action) | DELVIS — app-vejen lukket: getCalculationSettings/getAllSettings udleverer ikke indkøbsavancer til roller uden kostadgang; server-beregning via lib/settings/product-margin (uændrede priser). RLS: 00223 i prod 2026-10-15 — DONE |
-| GP-2 (S2) | Produktspecifikke kundepriser og aftalers gyldighedsdatoer ignoreres ved linjeoprettelse/-opdatering | DELVIS — gyldighedsdatoer håndhæves ved linjeoprettelse/-opdatering (`supplier-line-pricing-check`); gyldighed nu også i søgning, optimering og Kalkia (fælles `onlyValidAgreements`); produktspecifikke kundepriser går nu foran leverandøraftalen ved linjeoprettelse/-opdatering/optimering (som DB-funktionen) — DONE |
+| GP-2 (S2) | Produktspecifikke kundepriser og aftalers gyldighedsdatoer ignoreres ved linjeoprettelse/-opdatering | DONE (verificeret 2026-10-22) — gyldighed + produktspecifikke kundepriser i alle stier · tidligere: DELVIS — gyldighedsdatoer håndhæves ved linjeoprettelse/-opdatering (`supplier-line-pricing-check`); gyldighed nu også i søgning, optimering og Kalkia (fælles `onlyValidAgreements`); produktspecifikke kundepriser går nu foran leverandøraftalen ved linjeoprettelse/-opdatering/optimering (som DB-funktionen) — DONE |
 | GP-3 (S2) | Kategori-/underkategori-avanceregler bruges aldrig på manuelle linjer (p_category null) | DONE — kategori/underkategori sendes med (`supplier-line-pricing-check`) |
 | GP-4 (S2) | Avance-fallback og forrang forskellig på hver sti (20/25 %/indstilling; regel slår kundeaftale) | [H] forrang + én resolver |
 | GP-5 (S2) | optimizeOfferPrices: egen matematik, skriver bruttokost, navne-match på tværs af enheder, ukontrollerede fejl | DONE — supplierLinePricing, kun EAN + samme enhed, effektiv kost, fejl tjekkes (UI U152) |
@@ -2113,3 +2113,17 @@ Claudes ordlyd/struktur vinder (stored-cost, work-order-status-read).
 - UX/a11y (all-or-nothing hunk-anvendelse): d370a50a, b5f2c07a, 1c6de3d7, cd64ab60. 11 andre sprunget (hunks passede ikke
   uændret på main) — ikke gættet.
 - UI grønne: U11, U21, U30, U43, U44, U62, U96, U117, U145, U151, U155, U163, U210, U13.
+
+### Regressions-baseline 2026-10-22 (ren ui-full, commit c967ef6d)
+
+- `npm run harness:ui-full` (alle grupper, 22:25 → 00:25): **PASS 187 · FLAKY 0 · FAIL 1 · TIMEOUT 0 · NOT_RUN 2**.
+  Resultat: `%TEMP%/elta-ui-e2e/full-2026-10-21T22-25-24-727Z.json`. Port 3217 fri efter afslutning; den nye port-vagt
+  stoppede to forældreløse harness-servere undervejs (ellers EADDRINUSE).
+- Klassificering:
+  - **U69 = produkt-regression** (min integration af Grok cca6d254): genindlæsning efter portal-booking satte loading →
+    spinner afmonterede bookingsboksen → "booking modtaget" forsvandt. Rettet: spinner kun ved første hentning pr. token.
+  - **U189/U196 = harness**: `route.abort: Route is already handled!` (kapløb i U189's route-handler) væltede batch-processen,
+    så U196 ikke kørte. Rettet: abort/continue fanger kapløbet.
+  - Efter rettelserne: U69, U23, U25, U98, U189, U196, U11 PASS → **190/190 grønne** (187 i fuld kørsel + 3 målrettet).
+- Den forrige kørsel (commit 5f16a249, 83 PASS / 103 NOT_RUN) var IKKE gyldig: forældreløs `next start -p 3217` fra en
+  timeout → EADDRINUSE i alle senere kørsler. Rettet i c967ef6d (port-vagt i ui-batches).

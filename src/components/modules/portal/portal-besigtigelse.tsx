@@ -41,7 +41,9 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
   const loadBookings = () => {
     const term = token
     const id = ++requestId.current
-    setLoading(true)
+    // U69-regression (2026-10-22): kun spinner ved FØRSTE hentning for et token — en genindlæsning efter booking må ikke
+    // afmontere bookingsboksen (så forsvandt "booking modtaget"-bekræftelsen)
+    if (bookingsKey.current !== term) setLoading(true)
     setLoadError(null)
     getPortalBesigtigelser(term).then((res) => {
       if (requestId.current !== id) return

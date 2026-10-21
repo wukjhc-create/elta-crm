@@ -4745,9 +4745,10 @@ ${m.text()}`) })
               if (!aborted && req.method() === 'POST' && req.headers()['next-action'] && (req.postData() ?? '').includes(bCase) && (req.postData() ?? '').includes('serviceCaseId')) {
                 aborted = true
                 await route.fetch().catch(() => null)
-                return route.abort()
+                // test-pålidelighed 2026-10-22: "Route is already handled" (kapløb) må ikke vælte hele batch-processen
+                return route.abort().catch(() => {})
               }
-              return route.continue()
+              return route.continue().catch(() => {})
             })
             await saveBtn.click({ timeout: 30_000 }).catch(() => {})
             let first: Array<{ id: string }> = []
