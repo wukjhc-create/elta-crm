@@ -307,7 +307,14 @@ async function matchOne(tx: BankTransactionRow): Promise<MatchOutcome> {
   const supabase = createAdminClient()
 
   // === Strategy A — reference match =================================
-  const referenceMatches = await findByReference(tx.reference_text)
+  const { hits: referenceMatches, namedNonPayable } = await findByReference(tx.reference_text)
+  // FR-6 (review 2026-10-22): teksten nævner en faktura, der ikke kan modtage betaling (typisk allerede betalt) — før faldt
+  // posten igennem til beløbsmatch og betalte en ANDEN faktura med samme beløb; dobbeltbetalingen blev aldrig opdaget.
+  // Nu til manuel afklaring (kobles den til den betalte faktura, registreres den som overbetaling — F-7).
+  if (referenceMatches.length === 0 && namedNonPayable.length > 0) {
+    await markAmbiguous(tx, namedNonPayable)
+    return { bankTxId: tx.id, status: 'ambiguous', invoiceId: null, amount: tx.amount, reason: 'named invoice cannot receive payment (already paid?)' }
+  }
   if (referenceMatches.length === 1) {
     return await applyMatch(tx, referenceMatches[0], 'reference')
   }
@@ -349,25 +356,35 @@ async function matchOne(tx: BankTransactionRow): Promise<MatchOutcome> {
 // Candidate finders
 // -----------------------------------------------------
 
-async function findByReference(refRaw: string | null): Promise<InvoiceRow[]> {
-  if (!refRaw) return []
+async function findByReference(refRaw: string | null): Promise<{ hits: InvoiceRow[]; namedNonPayable: string[] }> {
+  const none = { hits: [] as InvoiceRow[], namedNonPayable: [] as string[] }
+  if (!refRaw) return none
   const ref = refRaw.trim()
-  if (!ref) return []
+  if (!ref) return none
 
   const supabase = createAdminClient()
 
   // 1. Look for invoice numbers explicitly mentioned in the text.
   const numberMatches = ref.match(INVOICE_NUMBER_RE)
+  let namedNonPayable: string[] = []
   if (numberMatches && numberMatches.length > 0) {
-    const { data } = await supabase
+    const named = Array.from(new Set(numberMatches))
+    const { data, error: numErr } = await supabase
       .from('invoices')
       .select('*')
-      .in('invoice_number', Array.from(new Set(numberMatches)))
+      .in('invoice_number', named)
       .neq('payment_status', 'paid')
       .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
       // FC-8 (finans-review 2026-10-20): bankbetalinger er kroner — kun DKK-fakturaer kan matches (EUR 1.000 ≠ 1.000 kr)
       .or('currency.is.null,currency.eq.DKK')
-    if (data && data.length > 0) return data as InvoiceRow[]
+    // en læsefejl er ikke "ingen faktura nævnt" — posten bliver stående til næste kørsel (ingen beløbsgæt)
+    if (numErr) throw new Error(`reference-opslag fejlede: ${numErr.message}`)
+    if (data && data.length > 0) return { hits: data as InvoiceRow[], namedNonPayable: [] }
+    // FR-6: findes de nævnte numre som almindelige kronefakturaer, der bare ikke kan modtage betaling?
+    const { data: existing, error: exErr } = await supabase.from('invoices').select('id')
+      .in('invoice_number', named).or('invoice_type.is.null,invoice_type.neq.credit').or('currency.is.null,currency.eq.DKK')
+    if (exErr) throw new Error(`reference-opslag fejlede: ${exErr.message}`)
+    namedNonPayable = ((existing ?? []) as Array<{ id: string }>).map((r) => r.id)
   }
 
   // 2. Look for payment_reference values found in the text. We can't ILIKE
@@ -389,14 +406,14 @@ async function findByReference(refRaw: string | null): Promise<InvoiceRow[]> {
       .order('id')
       .range(from, to))
   } catch {
-    return []
+    return { hits: [], namedNonPayable }
   }
   const lower = ref.toLowerCase()
   const hits = (refCandidates as InvoiceRow[]).filter((inv) => {
     const r = (inv.payment_reference || '').trim()
     return r.length >= 4 && lower.includes(r.toLowerCase())
   })
-  return hits
+  return { hits, namedNonPayable }
 }
 
 async function findByAmount(amount: number): Promise<InvoiceRow[]> {
@@ -630,6 +647,12 @@ export async function manualMatchTransaction(
     .eq('id', invoiceId)
     .maybeSingle()
   if (!inv) throw new Error(`invoice ${invoiceId} not found`)
+  // FR-7 (review 2026-10-22): bankposter er kroner — som auto-match kun DKK-fakturaer (før: 7.460 kr mod en 1.000 EUR-faktura
+  // = "overbetaling" og fakturaen betalt)
+  const cur = (inv as { currency?: string | null }).currency
+  if (cur && cur !== 'DKK') {
+    return { bankTxId, status: 'unmatched', invoiceId: null, amount: Number(tx.amount), reason: 'non-DKK invoice' }
+  }
 
   return applyMatch(tx as BankTransactionRow, inv as InvoiceRow, 'manual')
 }

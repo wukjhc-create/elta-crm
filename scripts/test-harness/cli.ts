@@ -2493,10 +2493,17 @@ Total inkl. moms 11.718,75
       invIds.push(aId, bId)
       const cn = await admin.from('invoices').insert({ ...base, invoice_number: `HXC-${stamp}`, invoice_type: 'credit', credit_of_invoice_id: bId, total_amount: -2000, tax_amount: -500, final_amount: -2500 }).select('id').single()
       invIds.push((cn.data as { id: string }).id)
+      // FR-6 (2026-10-22): betalt faktura D nævnes i bankteksten; åben faktura E har samme beløb + kunde → må IKKE betales
+      const dNo = `F-9999-${String(stamp).slice(-4)}`
+      const d = await admin.from('invoices').insert({ ...base, invoice_number: dNo, status: 'paid', payment_status: 'paid', total_amount: 2400, tax_amount: 600, final_amount: 3000, amount_paid: 3000 }).select('id').single()
+      const e = await admin.from('invoices').insert({ ...base, invoice_number: `HXE-${stamp}`, total_amount: 2400, tax_amount: 600, final_amount: 3000 }).select('id').single()
+      const dId = (d.data as { id: string }).id, eId = (e.data as { id: string }).id
+      invIds.push(dId, eId)
       const today = new Date().toISOString().slice(0, 10)
       const t1 = await admin.from('bank_transactions').insert({ date: today, amount: 1000, reference_text: `Betaling HXREF${stamp}`, sender_name: 'Anden Person' }).select('id').single()
       const t2 = await admin.from('bank_transactions').insert({ date: today, amount: 10000, reference_text: null, sender_name: custName }).select('id').single()
-      txIds.push((t1.data as { id: string }).id, (t2.data as { id: string }).id)
+      const t3 = await admin.from('bank_transactions').insert({ date: today, amount: 3000, reference_text: `Faktura ${dNo}`, sender_name: custName }).select('id').single()
+      txIds.push((t1.data as { id: string }).id, (t2.data as { id: string }).id, (t3.data as { id: string }).id)
       const started = Date.now()
       const summary = await autoMatchTransactions()
       check('kørslen holder tidsbudgettet (< 55 s)', Date.now() - started < 55_000, `${Math.round((Date.now() - started) / 1000)} s · ${JSON.stringify({ scanned: summary.scanned, matched: summary.matched, deferred: summary.deferred ?? 0 })}`)
@@ -2506,6 +2513,21 @@ Total inkl. moms 11.718,75
       check('FIN-5: 10.000 matcher 12.500 − kredit 2.500 (afsender = kunden)', byId.get(txIds[1])?.matched_invoice_id === bId, JSON.stringify(byId.get(txIds[1])))
       const invB = (await admin.from('invoices').select('payment_status').eq('id', bId).single()).data as { payment_status: string } | null
       check('faktura B betalt efter kreditnota + indbetaling', invB?.payment_status === 'paid', JSON.stringify(invB))
+      const t3row = ((await admin.from('bank_transactions').select('match_status, matched_invoice_id, candidate_invoice_ids').eq('id', txIds[2]).single()).data ?? null) as { match_status: string; matched_invoice_id: string | null; candidate_invoice_ids: string[] | null } | null
+      check('FR-6: nævnt betalt faktura → manuel afklaring (ikke beløbsmatch)', t3row?.match_status === 'ambiguous' && !t3row.matched_invoice_id && (t3row.candidate_invoice_ids ?? []).includes(dId), JSON.stringify(t3row))
+      const invE = (await admin.from('invoices').select('payment_status').eq('id', eId).single()).data as { payment_status: string } | null
+      check('FR-6: åben faktura med samme beløb er urørt', invE?.payment_status === 'pending', JSON.stringify(invE))
+      // FR-7: manuel kobling af en kronepost til en EUR-faktura afvises (intet registreres)
+      const { manualMatchTransaction } = await import('../../src/lib/services/bank-payments')
+      const eur = await admin.from('invoices').insert({ ...base, currency: 'EUR', invoice_number: `HXF-${stamp}`, total_amount: 800, tax_amount: 200, final_amount: 1000 }).select('id').single()
+      const eurId = (eur.data as { id: string }).id
+      invIds.push(eurId)
+      const t4 = await admin.from('bank_transactions').insert({ date: today, amount: 7460, reference_text: 'EUR test', sender_name: custName }).select('id').single()
+      const t4Id = (t4.data as { id: string }).id
+      txIds.push(t4Id)
+      const mm = await manualMatchTransaction(t4Id, eurId)
+      const eurPays = ((await admin.from('invoice_payments').select('id').eq('invoice_id', eurId)).data ?? []).length
+      check('FR-7: manuel kobling til EUR-faktura afvises', mm.status === 'unmatched' && mm.reason === 'non-DKK invoice' && eurPays === 0, `${mm.status}/${mm.reason} betalinger=${eurPays}`)
     } finally {
       if (txIds.length) await admin.from('bank_transactions').delete().in('id', txIds)
       if (invIds.length) { await admin.from('invoice_payments').delete().in('invoice_id', invIds); await admin.from('invoices').delete().in('id', invIds.slice().reverse()) }

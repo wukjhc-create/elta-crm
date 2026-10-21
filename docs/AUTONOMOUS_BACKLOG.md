@@ -2138,8 +2138,8 @@ Claudes ordlyd/struktur vinder (stored-cost, work-order-status-read).
 | FR-3 (S2) | `outstandingByInvoice`: kreditnota-læsefejl → for højt udestående (markér betalt, rykkerbeløb) | DONE 2026-10-22 — kaster |
 | FR-4 (S2) | `recomputeOfferTotals`: læsefejl → 0 kr-totaler; `.limit(10000)` afkortet til 1.000 | DONE 2026-10-22 — `fetchAllRows` (kaster → null) |
 | FR-5 (S1) | Faktura-fra-tilbud: fejlprisvagten (Q13) sprang over ved læsefejl | DONE 2026-10-22 — kaster |
-| FR-6 (S2) | Bankpost med nummeret på en ALLEREDE BETALT faktura auto-matches på beløb til en anden faktura (F-7-hul) | TODO — eksplicit fakturanummer der kun rammer betalte fakturaer → `ambiguous`/overbetaling, ikke beløbsstrategi (bank-payments.ts `findByReference`) |
-| FR-7 (S2) | Manuel bankkobling tillader DKK-bankpost mod EUR-faktura (FC-8-rest) | TODO — søgning kun DKK/NULL; afvis ikke-DKK i `manualMatchTransaction` |
+| FR-6 (S2) | Bankpost med nummeret på en ALLEREDE BETALT faktura auto-matches på beløb til en anden faktura (F-7-hul) | DONE 2026-10-22 — nævnt faktura der findes, men ikke kan modtage betaling → `ambiguous` med den som kandidat (manuel kobling → overbetaling, F-7); reference-læsefejl kaster (posten venter) i stedet for beløbsgæt. Test: bank-auto-match-check FR-6 |
+| FR-7 (S2) | Manuel bankkobling tillader DKK-bankpost mod EUR-faktura (FC-8-rest) | DONE 2026-10-22 — søgning kun DKK/NULL; `manualMatchTransaction` afviser ikke-DKK (dansk besked). Manuel kobling med gemt betaling men fejlet fakturaopdatering viser nu advarslen (FR-1). Test: bank-auto-match-check FR-7 |
 | FR-8 (S3) | `unbilled-work.ts` fastpris-fakturaer pr. 200 sager uden `.range()` (1.000-loft) | TODO — `fetchAllRows` pr. bid |
 | FR-9 (S3) | Samme læsefejl-mønster i rate-/slut-/kreditplanlægning (invoice-stage.ts, invoice-credit.ts) | TODO — RC-1-genlæsning dækker oprettelse; tilbage er forhåndsvisning + 100 %-rategate |
 

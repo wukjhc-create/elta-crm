@@ -79,9 +79,12 @@ export async function manualMatchAction(
   revalidatePath('/dashboard/bank')
   const ok = outcome.status === 'matched' || outcome.status === 'partial' || outcome.status === 'overpayment'
   if (outcome.reason === 'already matched') return { ok: false, message: 'Posten er allerede matchet', outcome }
+  // FR-1: betalingen er gemt, men fakturaen kunne ikke opdateres — vis advarslen (ikke "Betaling registreret")
+  if (ok && outcome.reason.startsWith('Betalingen er registreret, men')) return { ok: false, message: outcome.reason, outcome }
   if (!ok) {
     const why = outcome.reason === 'not an incoming payment' ? 'posten er ikke en indbetaling'
       : outcome.reason.startsWith('already matched') ? 'posten blev netop matchet af en anden'
+      : outcome.reason === 'non-DKK invoice' ? 'fakturaen er ikke i kroner (bankposter kan kun kobles til DKK-fakturaer)'
       : 'fakturaen kan ikke modtage betaling (kun sendte, ikke-annullerede fakturaer)'
     return { ok: false, message: `Ikke matchet — ${why}`, outcome }
   }
@@ -98,6 +101,7 @@ export async function searchInvoicesForMatchAction(query: string, limit = 20) {
     .neq('payment_status', 'paid')
     // A-8: kun udstedte, ikke-annullerede almindelige fakturaer kan modtage betaling (samme regel som auto-match)
     .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
+    .or('currency.is.null,currency.eq.DKK') // FR-7: kun kronefakturaer (som auto-match)
     .order('created_at', { ascending: false })
     .limit(limit)
   if (q) req = req.ilike('invoice_number', `%${escapeLike(q)}%`)
