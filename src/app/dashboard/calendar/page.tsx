@@ -157,6 +157,15 @@ export default async function CalendarPage({ searchParams }: PageProps) {
         status: params.status ?? '',
       }}
       loadError={!workOrdersRes.success ? workOrdersRes.error ?? null : null}
+      relationsError={
+        woAllRes.success && woAllRes.employees_failed && woAllRes.cases_failed
+          ? 'Medarbejdere og sager kunne ikke hentes. Det tælles ikke som ikke tildelt.'
+          : woAllRes.success && woAllRes.employees_failed
+            ? 'Medarbejdere kunne ikke hentes. Det tælles ikke som ikke tildelt.'
+            : woAllRes.success && woAllRes.cases_failed
+              ? 'Sager kunne ikke hentes. Det tælles ikke som uden sag.'
+              : null
+      }
       absences={absencesRes.success ? (absencesRes.data ?? []) : []}
       // M-12 (pilot-review 2026-10-15): planlæggeren skal vide, at fravær mangler (før: tavst ingen fravær = alle ledige)
       absenceLoadFailed={canPlan && !absencesRes.success}

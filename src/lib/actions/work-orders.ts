@@ -631,7 +631,7 @@ export async function listWorkOrdersByDateRange(
      */
     includeOpenOutsideRange?: boolean
   }
-): Promise<ActionResult<WorkOrderForCalendar[]>> {
+): Promise<ActionResult<WorkOrderForCalendar[]> & { employees_failed?: boolean; cases_failed?: boolean }> {
   try {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
       return { success: false, error: 'Datoer skal være i formatet YYYY-MM-DD' }
@@ -699,15 +699,22 @@ export async function listWorkOrdersByDateRange(
 
     // R-4 (review 2026-10-16): i bidder — >~350 id'er i én .in() fejlede tavst (navne/kunder forsvandt i kalenderen)
     const { selectInChunks } = await import('@/lib/supabase/in-chunks')
+    // Grok e61ac5ec: et fejlet navne-/sagsopslag er ikke "ikke tildelt"/"uden sag" — jobbene vises, og UI'et siger det
+    let employeesFailed = false
+    let casesFailed = false
     const [empData, caseData] = await Promise.all([
-      selectInChunks<any>(empIds, (chunk) => supabase.from('employees').select('id, name, email').in('id', chunk)).catch(() => [] as any[]),
+      selectInChunks<any>(empIds, (chunk) => supabase.from('employees').select('id, name, email').in('id', chunk)).catch((e) => {
+        employeesFailed = true; logger.error('listWorkOrdersByDateRange employees failed', { error: e }); return [] as any[]
+      }),
       selectInChunks<any>(caseIds, (chunk) => supabase
         .from('service_cases')
         .select(`
           id, case_number, title, project_name, address, postal_code, city,
           customer:customers!service_cases_customer_id_fkey(id, company_name)
         `)
-        .in('id', chunk)).catch(() => [] as any[]),
+        .in('id', chunk)).catch((e) => {
+          casesFailed = true; logger.error('listWorkOrdersByDateRange cases failed', { error: e }); return [] as any[]
+        }),
     ])
     const empRes = { data: empData }
     const caseRes = { data: caseData }
@@ -745,7 +752,7 @@ export async function listWorkOrdersByDateRange(
       case: w.case_id ? caseMap.get(w.case_id) ?? null : null,
     }))
 
-    return { success: true, data: enriched }
+    return { success: true, data: enriched, employees_failed: employeesFailed, cases_failed: casesFailed }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

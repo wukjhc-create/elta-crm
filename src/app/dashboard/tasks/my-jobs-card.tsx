@@ -56,6 +56,13 @@ export async function MyJobsCard() {
         {/* fokus E 2026-10-15: egne job som kalenderfil (heldagsbegivenheder) */}
         <a href="/api/calendar/my-jobs" className="inline-flex items-center min-h-11 sm:min-h-0 px-2 sm:px-0 text-sm sm:text-xs text-emerald-700 hover:underline" data-testid="my-jobs-ics" download>Telefonkalender</a>
       </div>
+      {(res.employees_failed || res.cases_failed) && (
+        <p className="mb-3 text-sm text-red-700" data-testid="my-jobs-relations-error">
+          {res.cases_failed
+            ? 'Sager kunne ikke hentes. Det tælles ikke som uden sag.'
+            : 'Medarbejdere kunne ikke hentes. Det tælles ikke som ikke tildelt.'}
+        </p>
+      )}
       {timeCheckFailed && (
         <p className="mb-3 text-sm text-amber-800" data-testid="my-jobs-time-check-error">
           {noTimeRes?.error ?? 'Kunne ikke tjekke timer'}. Det tælles ikke som at tiden er registreret.
@@ -94,7 +101,7 @@ function JobGroup({ title, jobs, warn, emptyText }: { title: string; jobs: WorkO
           {jobs.map((w) => (
             <li key={w.id} className="flex items-stretch">
               <Link
-                href={w.case ? `/dashboard/orders/${w.case.id}?tab=planlaegning` : '/dashboard/calendar'}
+                href={w.case_id ? `/dashboard/orders/${w.case_id}?tab=planlaegning` : '/dashboard/calendar'}
                 className="flex flex-1 min-w-0 items-center gap-3 px-3 py-3 hover:bg-gray-50 active:bg-gray-100"
                 data-testid="my-job"
               >

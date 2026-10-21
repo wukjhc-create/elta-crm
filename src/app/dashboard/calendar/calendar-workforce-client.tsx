@@ -100,9 +100,12 @@ export function CalendarWorkforceClient({
   workOrders,
   filters,
   loadError,
+  relationsError = null,
   absences = [],
   absenceLoadFailed = false,
 }: {
+  /** Grok e61ac5ec: navne-/sagsopslaget fejlede — jobbene vises, men "ikke tildelt"/"uden sag" er ikke sandt */
+  relationsError?: string | null
   absences?: AbsenceRow[]
   absenceLoadFailed?: boolean
   view: CalendarView
@@ -379,6 +382,12 @@ export function CalendarWorkforceClient({
         <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900 flex items-center gap-2" role="alert" data-testid="calendar-absence-load-failed">
           <AlertCircle className="w-4 h-4" />
           Fravær kunne ikke hentes — kalenderen viser ikke ferie/sygdom lige nu. Genindlæs før du planlægger.
+        </div>
+      )}
+      {!loadError && relationsError && (
+        <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 flex items-center gap-2" data-testid="calendar-relations-error">
+          <AlertCircle className="w-4 h-4" />
+          {relationsError}
         </div>
       )}
       {loadError && (
