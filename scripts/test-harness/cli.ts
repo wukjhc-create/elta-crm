@@ -2291,6 +2291,13 @@ async function main() {
     log(`audit_logs checks: ${JSON.stringify(await stagingSql(`SELECT conname, pg_get_constraintdef(oid) d FROM pg_constraint WHERE conrelid = 'public.audit_logs'::regclass AND contype = 'c'`)).slice(0, 900)}`)
     return
   }
+  if (SUB === 'table-dependents') {
+    // READ-ONLY: views og funktioner der refererer en tabel (fx: table-dependents lead_activities)
+    const t = String(process.argv[3] ?? '').replace(/[^a-z0-9_]/g, '')
+    log(`views: ${JSON.stringify(await stagingSql(`SELECT schemaname, viewname FROM pg_views WHERE definition ILIKE '%${t}%' AND schemaname NOT IN ('pg_catalog','information_schema')`))}`)
+    log(`funktioner: ${JSON.stringify(await stagingSql(`SELECT p.proname, p.prosecdef FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prosrc ILIKE '%${t}%'`))}`)
+    return
+  }
   if (SUB === 'profiles-is-active') {
     // READ-ONLY (migrationspakke 2026-10-20): is_active-kolonnens definition + fordeling på staging (kun antal/roller)
     log(`kolonne: ${JSON.stringify(await stagingSql(`SELECT data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='is_active'`))}`)
@@ -2539,6 +2546,13 @@ Total inkl. moms 11.718,75
     const { runRateEngineCheck, formatRateEngineCheck } = await import('./rate-engine-check')
     const checks = await runRateEngineCheck({ admin, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })
     log(formatRateEngineCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
+  if (SUB === 'lead-activities-rls-check') {
+    const { runLeadActivitiesRlsCheck, formatLeadActivitiesRlsCheck } = await import('./lead-activities-rls-check')
+    const checks = await runLeadActivitiesRlsCheck({ admin, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })
+    log(formatLeadActivitiesRlsCheck(checks))
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
