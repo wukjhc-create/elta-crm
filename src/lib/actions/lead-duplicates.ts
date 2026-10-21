@@ -24,7 +24,8 @@ export async function getLeadCustomerCandidatesAction(leadId: string): Promise<A
     validateUUID(leadId, 'lead ID')
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('customers.view') || !hasPermission('leads.view')) return { success: false, error: 'Manglende tilladelse' }
-    const { data: lead } = await supabase.from('leads').select('id, company_name, contact_person, email, phone, custom_fields').eq('id', leadId).maybeSingle()
+    const { data: lead, error: leadErr } = await supabase.from('leads').select('id, company_name, contact_person, email, phone, custom_fields').eq('id', leadId).maybeSingle()
+    if (leadErr) return { success: false, error: 'Kunne ikke hente lead' }
     if (!lead) return { success: false, error: 'Lead ikke fundet' }
     if (typeof (lead.custom_fields as Record<string, unknown> | null)?.customer_id === 'string') return { success: true, data: [] }
 
@@ -49,10 +50,12 @@ export async function getLeadCustomerCandidatesAction(leadId: string): Promise<A
       type Row = { id: string; company_name: string; customer_number: string | null; email: string | null; phone: string | null; mobile: string | null }
       const data: Row[] = []
       for (let from = 0; from < 50_000; from += 1000) {
-        const { data: page } = await supabase.from('customers').select('id, company_name, customer_number, email, phone, mobile')
+        const { data: page, error: pageErr } = await supabase.from('customers').select('id, company_name, customer_number, email, phone, mobile')
           .eq('is_active', true).or('phone.not.is.null,mobile.not.is.null').order('id').range(from, from + 999)
-        data.push(...((page ?? []) as Row[]))
-        if (!page || page.length < 1000) break
+        if (pageErr) return { success: false, error: 'Kunne ikke finde mulige kunder' }
+        const rows = (page ?? []) as Row[]
+        data.push(...rows)
+        if (rows.length < 1000) break
       }
       for (const c of data) {
         if (!out.has(c.id) && (last8(c.phone) === phone || last8(c.mobile) === phone)) out.set(c.id, { id: c.id, name: c.company_name, customer_number: c.customer_number, email: c.email, reason: 'phone' })
@@ -60,8 +63,9 @@ export async function getLeadCustomerCandidatesAction(leadId: string): Promise<A
     }
     if (name.includes(' ') && name.length >= 5) {
       const safe = name.replace(/[%,()]/g, ' ').trim()
-      const { data } = await supabase.from('customers').select('id, company_name, customer_number, email')
+      const { data, error: nameErr } = await supabase.from('customers').select('id, company_name, customer_number, email')
         .or(`company_name.ilike.${pgQuote(safe)},contact_person.ilike.${pgQuote(safe)}`).eq('is_active', true).limit(10)
+      if (nameErr) return { success: false, error: 'Kunne ikke finde mulige kunder' }
       for (const c of (data ?? []) as Array<{ id: string; company_name: string; customer_number: string | null; email: string | null }>) {
         if (!out.has(c.id)) out.set(c.id, { id: c.id, name: c.company_name, customer_number: c.customer_number, email: c.email, reason: 'name' })
       }

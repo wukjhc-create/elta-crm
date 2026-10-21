@@ -16,13 +16,26 @@ export function LeadCustomerCandidates({ leadId }: { leadId: string }) {
   const [items, setItems] = useState<LeadCustomerCandidate[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
-    void getLeadCustomerCandidatesAction(leadId).then((r) => { if (alive && r.success && r.data) setItems(r.data) })
+    setItems([])
+    setLoadError(null)
+    void getLeadCustomerCandidatesAction(leadId).then((r) => {
+      if (!alive) return
+      if (r.success) setItems(r.data ?? [])
+      else setLoadError('Mulige kunder kunne ikke hentes. Det tælles ikke som ingen match.')
+    }).catch(() => {
+      if (!alive) return
+      setLoadError('Mulige kunder kunne ikke hentes. Det tælles ikke som ingen match.')
+    })
     return () => { alive = false }
   }, [leadId])
 
+  if (loadError) {
+    return <p className="text-xs text-red-700 break-words" data-testid="lead-candidates-load-error">{loadError}</p>
+  }
   if (!items.length) return null
   const emailMatch = items.some((c) => c.reason === 'email')
   return (
