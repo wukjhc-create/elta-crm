@@ -1201,6 +1201,10 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
         .range(f, t)).then((data) => ({ data, error: null })),
     ])
 
+    if (matRes.error || othRes.error || sagRes.error || invRes.error) {
+      return { ...base, message: 'Kunne ikke hente indkøbsoverblik' }
+    }
+
     const matRows = (matRes.data ?? []) as Array<{ total_cost: number | string | null; supplier_name_snapshot: string | null; source_incoming_invoice_line_id: string | null }>
     const othRows = (othRes.data ?? []) as Array<{ total_cost: number | string | null; supplier_name: string | null; source_incoming_invoice_line_id: string | null }>
     const matTotal = matRows.reduce((s, r) => s + Number(r.total_cost ?? 0), 0)
