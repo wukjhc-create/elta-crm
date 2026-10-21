@@ -1,3 +1,5 @@
+-- ERSTATTET 2026-10-21: den godkendte migration er supabase/migrations/00234_lead_activities_role_rls.sql (KUN SELECT).
+-- INSERT-delen herunder blev IKKE godkendt/anvendt og ligger kun som reference.
 -- =====================================================================================================================
 -- UDKAST (IKKE ANVENDT) — MP-2 lead_activities: læse-/skriveadgang = appens rollemodel (Henrik 2026-10-20: Option A
 -- godkendt i princippet). Endeligt filnavn tildeles ved godkendelse: supabase/migrations/00234_lead_activities_role_rls.sql

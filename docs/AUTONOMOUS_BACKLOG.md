@@ -2089,3 +2089,17 @@ beskeden; Groks docs/checkpoints aldrig taget med. Claudes sikkerheds-/rettighed
 Test: ~100 målrettede UI-kørsler grønne (fakturakontrol, indkøb, tilbud, sager, montør, kalender, portal, crawl
 U101–U110), gates grønne efter hvert batch; ingen regression fundet. Grok-unit-tests med kilde-grep tilpasset main hvor
 Claudes ordlyd/struktur vinder (stored-cost, work-order-status-read).
+
+### Migration 00234 — lead_activities SELECT (MP-2a) — PROD 2026-10-21
+
+- Godkendt af Henrik 2026-10-21 (staging først, derefter prod ved grøn staging). Fil: `supabase/migrations/00234_lead_activities_role_rls.sql`
+  (første ledige nummer efter 00233; udkasts-ID 00254/LD-2 kun som reference). Kun SELECT — INSERT, grants og data uændret.
+- Pre-check (staging + prod): SELECT "Users can view lead activities" USING (true); INSERT lead_activities_insert_role; eneste
+  bruger-session-læser getLeadActivities (leads.view); ingen views/funktioner refererer tabellen (prod-table-dependents).
+- Staging: `cli lead-activities-rls-check` 5/5 (admin/serviceleder/salg læser, bogholderi/montør 0, inserts som før, anon 42501,
+  præcis to politikker); UI U192/U115/U122/U182/U179; tsc/rls-matrix/rbac grønne.
+- Prod: `prod:apply-migration 00234 --approved-by-henrik` → COMMIT. Post-check: politikker som forventet, 5 rækker (uændret),
+  `prod-lead-activities-postcheck` admin ser 5, montør ser 0 (serviceleder/salg/bogholderi har ingen prod-profil → dækket på staging).
+- Rollback (gendanner tilstanden før; genåbner læsning for alle authenticated, ikke anon — kræver særskilt vurdering):
+  `DROP POLICY IF EXISTS lead_activities_select_role ON public.lead_activities;`
+  `CREATE POLICY "Users can view lead activities" ON public.lead_activities FOR SELECT TO authenticated USING (true);`

@@ -1,5 +1,7 @@
 # Godkendelsespakke: migrationsforslag MP-1 … MP-20 (tidl. udkast 00246/00247, 00252–00265 og FORSLAG) (2026-10-20)
 
+> **2026-10-21:** MP-2a (kun `lead_activities` SELECT) er blevet til migration **00234** og kørt på staging + prod (se AUTONOMOUS_BACKLOG "Migration 00234"). MP-2's `leads`-del og INSERT-stramningen er IKKE med og afventer stadig beslutning/godkendelse. Næste ledige nummer: 00235.
+
 **Status:** intet i dette dokument er kørt i prod eller på staging. Der er **ikke** oprettet eller anvendt nogen
 migrationsfil (Henrik 2026-10-20: "Do NOT create or apply any migration yet"). Alt er `BLOCKED_APPROVAL` eller
 `BLOCKED_PREREQUISITE`.
