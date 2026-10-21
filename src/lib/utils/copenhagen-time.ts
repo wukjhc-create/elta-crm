@@ -30,6 +30,39 @@ export function copenhagenLocalToIso(date: string, clock: string): string {
   return new Date(ms).toISOString()
 }
 
+// Grok (grok-next 401a1158/f705e14b/75f7a4ce m.fl.): visningshjælpere i dansk tid — kun visning
+/** Synlig dato i dansk lokaltid. Værdien i databasen ændres ikke. */
+export function copenhagenDateLabel(value: string | Date, month: 'short' | 'long' | 'numeric' = 'short'): string {
+  return new Date(value).toLocaleDateString('da-DK', {
+    timeZone: TZ,
+    day: 'numeric',
+    month,
+    year: 'numeric',
+  })
+}
+
+/** Synlig dato og klokkeslæt i dansk lokaltid. Værdien i databasen ændres ikke. */
+export function copenhagenDateTimeLabel(
+  value: string | Date,
+  month: 'short' | 'long' | 'numeric' = 'short',
+  withYear = true,
+): string {
+  return new Date(value).toLocaleString('da-DK', {
+    timeZone: TZ,
+    day: 'numeric',
+    month,
+    ...(withYear ? { year: 'numeric' as const } : {}),
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/** Kort dag/måned i dansk kalender, fx 16/1. Værdien i databasen ændres ikke. */
+export function copenhagenDayMonth(value: string | Date): string {
+  const { date } = copenhagenParts(value)
+  return `${Number(date.slice(8, 10))}/${Number(date.slice(5, 7))}`
+}
+
 /** ISO/Date -> { date: 'YYYY-MM-DD', clock: 'HH:mm' } i dansk lokaltid. */
 export function copenhagenParts(value: string | Date): { date: string; clock: string } {
   const p = parts(new Date(value).getTime())
