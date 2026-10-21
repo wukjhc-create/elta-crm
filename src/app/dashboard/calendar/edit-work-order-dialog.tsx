@@ -329,9 +329,9 @@ export function EditWorkOrderDialog({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Dato</label>
+                <label htmlFor="edit-wo-date" className="block text-xs font-medium text-gray-700 mb-1">Dato</label>
                 <input
                   type="date"
                   value={date}
@@ -351,7 +351,7 @@ export function EditWorkOrderDialog({
                 <EmployeeDayLoadHint employeeId={employeeId} date={date} excludeWorkOrderId={workOrder.id} startTime={startTime || null} estimatedHours={estHours || null} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label htmlFor="edit-wo-employee" className="block text-xs font-medium text-gray-700 mb-1">
                   Medarbejder
                 </label>
                 <select

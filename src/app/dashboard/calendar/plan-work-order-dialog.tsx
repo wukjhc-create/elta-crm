@@ -223,7 +223,7 @@ export function PlanWorkOrderDialog({
                 </div>
                 <button
                   onClick={() => setSelectedCaseId('')}
-                  className="ml-2 text-xs text-emerald-700 hover:underline"
+                  className="ml-2 text-xs text-emerald-700 hover:underline shrink-0"
                   type="button"
                 >
                   Skift
@@ -314,7 +314,7 @@ export function PlanWorkOrderDialog({
 
           {/* Dato */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Dato</label>
+            <label htmlFor="plan-wo-date" className="block text-xs font-medium text-gray-700 mb-1">Dato</label>
             <input
               type="date"
               value={date}
