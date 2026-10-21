@@ -131,12 +131,14 @@ export async function createStageInvoiceForCase(
 
   // 2. Slut-gate — ingen ny deposit/progress når slut findes
   // FIN-2 (finance-review 2026-10-17): en fuldt krediteret (annulleret) slutfaktura blokerer ikke længere
-  const { count: finalCount } = await supabase
+  const { count: finalCount, error: finalErr } = await supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
     .eq('case_id', input.case_id)
     .eq('is_final_invoice', true)
     .is('voided_at', null)
+  // FR-9 (review 2026-10-22): en læsefejl er ikke "ingen slutfaktura" / "0 % faktureret" — gaterne må ikke springes over
+  if (finalErr) return { ...empty, message: 'Kunne ikke læse sagens fakturaer — prøv igen' }
   if ((finalCount ?? 0) > 0) {
     return {
       ...empty,
@@ -145,18 +147,21 @@ export async function createStageInvoiceForCase(
   }
 
   // 3. Procent-sum-gate
-  const { data: existingStages } = await supabase
+  const { data: existingStages, error: stagesErr } = await supabase
     .from('invoices')
     .select('id, billing_percentage, status, total_amount, invoice_type, voided_at')
     .eq('case_id', input.case_id)
     .in('invoice_type', ['deposit', 'progress'])
     .neq('status', 'rejected' as never)              // status enum is draft/sent/paid; rejected is incoming-only
+  if (stagesErr) return { ...empty, message: 'Kunne ikke læse sagens rater — prøv igen' }
   // Krediteret andel tæller ikke med (fuldt krediteret rate = 0 %) — ellers
   // kan en fejlagtig rate ikke erstattes efter kreditering.
-  const stageCredits = await creditedByInvoice(
-    supabase,
-    (existingStages ?? []).map((r) => r.id as string)
-  )
+  let stageCredits: Map<string, number>
+  try {
+    stageCredits = await creditedByInvoice(supabase, (existingStages ?? []).map((r) => r.id as string))
+  } catch {
+    return { ...empty, message: 'Kunne ikke læse sagens kreditnotaer — prøv igen' }
+  }
   const cumulativeBefore = r2(
     (existingStages ?? []).reduce(
       (s, r) =>
@@ -264,7 +269,7 @@ export async function createStageInvoiceForCase(
   // Økonomi-review 2026-10-08: samtidige rater læste begge samme procent-sum og kunne tilsammen gå over 100 %. Efter
   // indsættelse summeres sagens rater i oprettelsesrækkefølge; bringer DENNE rate summen over 100 %, fjernes den igen.
   if (!input.allow_over) {
-    const { data: stagesNow } = await supabase
+    const { data: stagesNow, error: nowErr } = await supabase
       .from('invoices')
       .select('id, billing_percentage, total_amount')
       .eq('case_id', input.case_id)
@@ -272,7 +277,13 @@ export async function createStageInvoiceForCase(
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
     const rows = (stagesNow ?? []) as Array<{ id: string; billing_percentage: number | null; total_amount: number | null }>
-    const creditsNow = await creditedByInvoice(supabase, rows.map((r) => r.id))
+    // FR-9: kan 100 %-tjekket ikke gennemføres, rulles raten tilbage (hellere prøv igen end over 100 %)
+    const creditsNow = nowErr ? null : await creditedByInvoice(supabase, rows.map((r) => r.id)).catch(() => null)
+    if (!creditsNow) {
+      await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
+      await supabase.from('invoices').delete().eq('id', header.id)
+      return { ...empty, message: 'Kunne ikke kontrollere sagens samlede procent — raten er ikke oprettet. Prøv igen.' }
+    }
     let cum = 0
     let over = false
     for (const r of rows) {
@@ -290,9 +301,9 @@ export async function createStageInvoiceForCase(
   // og fratrækker den derfor ikke (kunden ville betale raten oveni). Efter indsættelse: findes der nu en (ikke annulleret)
   // slutfaktura, fjernes raten igen. Slutfakturaen gør det modsatte tjek efter sin indsættelse — én af dem ser altid den anden.
   {
-    const { count: finalNow } = await supabase.from('invoices').select('id', { count: 'exact', head: true })
+    const { count: finalNow, error: finalNowErr } = await supabase.from('invoices').select('id', { count: 'exact', head: true })
       .eq('case_id', input.case_id).eq('is_final_invoice', true).is('voided_at', null)
-    if ((finalNow ?? 0) > 0) {
+    if (finalNowErr || (finalNow ?? 0) > 0) {
       await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
       await supabase.from('invoices').delete().eq('id', header.id)
       return { ...empty, message: 'Der blev netop oprettet en slutfaktura på sagen — en ny rate er ikke tilladt. Genindlæs siden.' }
@@ -430,11 +441,13 @@ export async function createFinalInvoiceForCase(
   // X1 (økonomi-review 2026-10-07): fakturastatus er kun draft/sent/paid — det gamle filter på 'rejected' gjorde intet,
   // så en ALDRIG sendt forudbetalings-KLADDE blev trukket fra (kunden underfaktureret). Gæt ikke på om kladden sendes:
   // slutfakturaen afvises, så længe en forgænger eller en kreditnota på den er kladde.
-  const { data: predecessors } = await supabase
+  const { data: predecessors, error: predErr } = await supabase
     .from('invoices')
     .select('id, invoice_number, total_amount, invoice_type, status')
     .eq('case_id', input.case_id)
     .in('invoice_type', ['deposit', 'progress'])
+  // FR-9 (review 2026-10-22): en læsefejl er ikke "ingen forudbetalinger" — så blev intet trukket fra slutfakturaen
+  if (predErr) return { ...empty, message: 'Kunne ikke læse sagens rater — prøv igen' }
   const allPred = (predecessors ?? []) as Array<{
     id: string
     invoice_number: string
@@ -451,9 +464,10 @@ export async function createFinalInvoiceForCase(
   }
   const predRows = allPred
   {
-    const { data: draftCredits } = predRows.length
+    const { data: draftCredits, error: draftCredErr } = predRows.length
       ? await supabase.from('invoices').select('invoice_number').in('credit_of_invoice_id', predRows.map((p) => p.id)).eq('invoice_type', 'credit').eq('status', 'draft')
-      : { data: [] as Array<{ invoice_number: string }> }
+      : { data: [] as Array<{ invoice_number: string }>, error: null }
+    if (draftCredErr) return { ...empty, message: 'Kunne ikke læse sagens kreditnotaer — prøv igen' }
     if ((draftCredits ?? []).length) {
       return {
         ...empty,
@@ -463,7 +477,12 @@ export async function createFinalInvoiceForCase(
   }
   // Fradrag = forgængerens beløb MINUS det der allerede er krediteret på den
   // (før: fuldt fradrag selv efter kreditnota → kunden fik pengene to gange).
-  const creditedPred = await creditedByInvoice(supabase, predRows.map((p) => p.id))
+  let creditedPred: Map<string, number>
+  try {
+    creditedPred = await creditedByInvoice(supabase, predRows.map((p) => p.id))
+  } catch {
+    return { ...empty, message: 'Kunne ikke læse sagens kreditnotaer — prøv igen' }
+  }
   const netDeduction = (p: { id: string; total_amount: number | string | null }) =>
     netStageAmount(p.total_amount, creditedPred.get(p.id))
 
@@ -770,16 +789,17 @@ export async function createFinalInvoiceForCase(
   // som blev beregnet før indsættelsen → genlæs nu; har forgængerne eller deres krediteringer ændret sig, rulles
   // slutfakturaen tilbage (raten gør det modsatte tjek efter sin indsættelse)
   {
-    const { data: predNow } = await supabase.from('invoices').select('id')
+    const { data: predNow, error: predNowErr } = await supabase.from('invoices').select('id')
       .eq('case_id', input.case_id).in('invoice_type', ['deposit', 'progress'])
     const nowIds = ((predNow ?? []) as Array<{ id: string }>).map((p) => p.id).sort()
     const wasIds = predRows.map((p) => p.id).sort()
-    const creditedNow = await creditedByInvoice(supabase, nowIds)
-    const sameCredits = wasIds.every((id) => r2(creditedNow.get(id) ?? 0) === r2(creditedPred.get(id) ?? 0))
-    const { count: draftCreditsNow } = nowIds.length
+    // FR-9: kan genlæsningen ikke gennemføres, rulles slutfakturaen tilbage (ikke "uændret")
+    const creditedNow = predNowErr ? null : await creditedByInvoice(supabase, nowIds).catch(() => null)
+    const sameCredits = !!creditedNow && wasIds.every((id) => r2(creditedNow.get(id) ?? 0) === r2(creditedPred.get(id) ?? 0))
+    const { count: draftCreditsNow, error: draftNowErr } = nowIds.length
       ? await supabase.from('invoices').select('id', { count: 'exact', head: true }).in('credit_of_invoice_id', nowIds).eq('invoice_type', 'credit').eq('status', 'draft')
-      : { count: 0 }
-    if (nowIds.join(',') !== wasIds.join(',') || !sameCredits || (draftCreditsNow ?? 0) > 0) {
+      : { count: 0, error: null }
+    if (predNowErr || draftNowErr || nowIds.join(',') !== wasIds.join(',') || !sameCredits || (draftCreditsNow ?? 0) > 0) {
       await supabase.from('invoices').delete().eq('id', header.id)
       return { ...empty, message: 'En rate, et forskud eller en kreditnota blev netop oprettet på sagen — genindlæs og opret slutfakturaen igen' }
     }
@@ -1128,17 +1148,22 @@ export async function loadContractRemainderPlan(
   caseId: string,
   basis: number,
 ): Promise<ContractRemainderPlan> {
-  const { data: priors } = await supabase
+  // FR-9 (review 2026-10-22): en læsefejl er ikke "intet faktureret før" — så blev hele kontraktsummen restbeløbet
+  const readError: ContractRemainderPlan = { ok: false, code: 'read_error', message: 'Kunne ikke læse sagens tidligere fakturaer — prøv igen', basis, deducted: 0, remainder: 0 }
+  const { data: priors, error: priorsErr } = await supabase
     .from('invoices')
     .select('id, invoice_number, invoice_type, status, total_amount')
     .eq('case_id', caseId)
     .in('invoice_type', [...CONTRACT_PRIOR_TYPES])
+  if (priorsErr) return readError
   const rows = (priors ?? []) as Array<{ id: string; invoice_number: string; invoice_type: string; status: string; total_amount: number | string | null }>
   const ids = rows.map((r) => r.id)
-  const credited = await creditedByInvoice(supabase, ids)
-  const { data: draftCredits } = ids.length
+  let credited: Map<string, number>
+  try { credited = await creditedByInvoice(supabase, ids) } catch { return readError }
+  const { data: draftCredits, error: draftErr } = ids.length
     ? await supabase.from('invoices').select('id').in('credit_of_invoice_id', ids).eq('invoice_type', 'credit').eq('status', 'draft')
-    : { data: [] as Array<{ id: string }> }
+    : { data: [] as Array<{ id: string }>, error: null }
+  if (draftErr) return readError
   return planContractRemainder(basis, rows.map((r) => ({ ...r, credited: credited.get(r.id) ?? 0 })), (draftCredits ?? []).length > 0)
 }
 
@@ -1173,12 +1198,14 @@ async function creditedByInvoice(
   const out = new Map<string, number>()
   if (invoiceIds.length === 0) return out
   // X1: kun UDSTEDTE kreditnotaer (sendt/betalt) — en kladde er ikke en kreditering
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('invoices')
     .select('credit_of_invoice_id, total_amount')
     .in('credit_of_invoice_id', invoiceIds)
     .eq('invoice_type', 'credit')
     .in('status', ['sent', 'paid'])
+  // FR-9: kaster — kalderne afviser/ruller tilbage i stedet for at regne med 0 kr krediteret
+  if (error) throw new Error(`kreditnotaer kunne ikke læses: ${error.message}`)
   for (const c of (data ?? []) as Array<{ credit_of_invoice_id: string; total_amount: number | string }>) {
     out.set(c.credit_of_invoice_id, r2((out.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.total_amount ?? 0))))
   }
@@ -1219,7 +1246,12 @@ export async function listStageInvoicesForCase(
     due_date: string | null
   }
   const raw = (data ?? []) as unknown as RawRow[]
-  const credited = await creditedByInvoice(supabase, raw.map((r) => r.id))
+  let credited: Map<string, number>
+  try {
+    credited = await creditedByInvoice(supabase, raw.map((r) => r.id))
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : 'kreditnotaer kunne ikke læses' }
+  }
   const rows: StageInvoiceSummary[] = raw.map((r) => ({
     id: r.id,
     invoice_number: r.invoice_number,

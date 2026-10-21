@@ -154,7 +154,7 @@ export async function getCreditedAmountForInvoice(
   const total_incl = Number(origTyped.final_amount)
 
   // Find eksisterende kreditnotaer der peger på denne faktura
-  const { data: credits } = await supabase
+  const { data: credits, error: creditsErr } = await supabase
     .from('invoices')
     .select(
       'id, invoice_number, status, total_amount, tax_amount, final_amount, credit_reason, created_at'
@@ -162,6 +162,8 @@ export async function getCreditedAmountForInvoice(
     .eq('credit_of_invoice_id', invoiceId)
     .eq('invoice_type', 'credit')
     .order('created_at', { ascending: true })
+  // FR-9 (review 2026-10-22): en læsefejl er ikke "intet krediteret" — så kunne der krediteres over 100 %
+  if (creditsErr) return { ...empty, message: 'Kunne ikke læse fakturaens kreditnotaer — prøv igen' }
 
   type CR = {
     id: string
@@ -598,7 +600,7 @@ export async function createCreditNoteForInvoice(
   // Økonomi-review 2026-10-08 (#4): to samtidige kreditnotaer læste begge samme "resterende" og krediterede tilsammen
   // op til 200 %. Efter indsættelse summeres originalens kreditnotaer i oprettelsesrækkefølge (deterministisk for alle
   // samtidige kald); bringer DENNE kreditnota summen over originalens beløb, fjernes den igen.
-  const { data: allCredits } = await supabase
+  const { data: allCredits, error: allCreditsErr } = await supabase
     .from('invoices')
     .select('id, total_amount')
     .eq('credit_of_invoice_id', original.id)
@@ -606,7 +608,8 @@ export async function createCreditNoteForInvoice(
     .order('created_at', { ascending: true })
     .order('id', { ascending: true })
   let cumulative = 0
-  let overCredited = false
+  // FR-9: kan 100 %-tjekket ikke gennemføres, rulles kreditnotaen tilbage
+  let overCredited = !!allCreditsErr
   for (const c of (allCredits ?? []) as Array<{ id: string; total_amount: number | string | null }>) {
     cumulative = r2(cumulative + Math.abs(Number(c.total_amount) || 0))
     if (c.id === header.id) { overCredited = cumulative > r2(origTotalExVat) + 0.01; break }
@@ -616,7 +619,9 @@ export async function createCreditNoteForInvoice(
     await supabase.from('invoices').delete().eq('id', header.id)
     return {
       ...empty,
-      message: 'Fakturaen er netop krediteret i en anden handling — genindlæs og se det resterende beløb',
+      message: allCreditsErr
+        ? 'Kunne ikke kontrollere fakturaens samlede kreditering — kreditnotaen er ikke oprettet. Prøv igen.'
+        : 'Fakturaen er netop krediteret i en anden handling — genindlæs og se det resterende beløb',
     }
   }
 

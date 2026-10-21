@@ -26,7 +26,7 @@ export interface ContractDeduction { id: string; invoice_number: string; invoice
 
 export type ContractRemainderPlan =
   | { ok: true; basis: number; deductions: ContractDeduction[]; deducted: number; remainder: number }
-  | { ok: false; code: 'no_basis' | 'draft_prior' | 'fully_invoiced' | 'overbilled'; message: string; basis: number; deducted: number; remainder: number }
+  | { ok: false; code: 'no_basis' | 'draft_prior' | 'fully_invoiced' | 'overbilled' | 'read_error'; message: string; basis: number; deducted: number; remainder: number }
 
 // FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
 const r2 = roundMoney

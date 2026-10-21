@@ -43,7 +43,9 @@ export async function unbilledWorkByCase(supabase: SupabaseClient): Promise<Map<
     const fixed = cases.filter((c) => c.billing_model === 'fixed_price')
     if (fixed.length) {
       const invRows = await selectInChunks<{ case_id: string; total_amount: number | string | null; status: string | null; invoice_type: string | null; voided_at: string | null; currency: string | null }>(
-        fixed.map((c) => c.id), (chunk) => supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at, currency').in('case_id', chunk))
+        // FR-8 (review 2026-10-22): side for side pr. bid — 200 sager med rater/kreditnotaer kan overstige 1.000 fakturaer
+        fixed.map((c) => c.id), async (chunk) => ({ error: null, data: await fetchAllRows((f, t) => supabase.from('invoices')
+          .select('case_id, total_amount, status, invoice_type, voided_at, currency').in('case_id', chunk).order('id').range(f, t)) }))
       const byCase = new Map<string, typeof invRows>()
       for (const r of invRows) {
         if (r.currency && r.currency.toUpperCase() !== 'DKK') continue
