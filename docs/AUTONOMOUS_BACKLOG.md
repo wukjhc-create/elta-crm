@@ -2103,3 +2103,13 @@ Claudes ordlyd/struktur vinder (stored-cost, work-order-status-read).
 - Rollback (gendanner tilstanden før; genåbner læsning for alle authenticated, ikke anon — kræver særskilt vurdering):
   `DROP POLICY IF EXISTS lead_activities_select_role ON public.lead_activities;`
   `CREATE POLICY "Users can view lead activities" ON public.lead_activities FOR SELECT TO authenticated USING (true);`
+
+#### Grok-integration, opfølgning 2026-10-21 (montør/kalender, manuelt)
+
+- Dansk tid i visning: copenhagenDateLabel/-DateTimeLabel/-DayMonth (hjælpere) + 401a1158, f705e14b (planlægning/mails/
+  aflevering); 75f7a4ce = dublet (tidsregistreringer havde allerede dansk tid); 2af5544c kommende besigtigelser følger dansk dato.
+- Fejltilstande: ae27188d ("Mine job" advarer når timetjekket fejler), bac72d84 (Planlægning-fanen: første hentning fejler →
+  fejl + Prøv igen), e61ac5ec (kalender/"Mine job": fejlet medarbejder-/sagsopslag ≠ "ikke tildelt"/"uden sag").
+- UX/a11y (all-or-nothing hunk-anvendelse): d370a50a, b5f2c07a, 1c6de3d7, cd64ab60. 11 andre sprunget (hunks passede ikke
+  uændret på main) — ikke gættet.
+- UI grønne: U11, U21, U30, U43, U44, U62, U96, U117, U145, U151, U155, U163, U210, U13.
