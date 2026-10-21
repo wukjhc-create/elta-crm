@@ -40,6 +40,10 @@ export interface InvoiceAccountingState {
   integration_error?: string | null
   /** Fakturaspecifikke fejl der ville få eksporten afvist (beløbsafvigelse, ingen linjer/kunde). */
   blocking_issues: string[]
+  /** A-4: et eksportforsøg fik ukendt udfald — kræver at nogen tjekker e-conomic og frigiver, før der eksporteres igen */
+  export_uncertain?: boolean
+  /** A-4: tidspunktet for det usikre forsøg (så den der tjekker e-conomic ved hvilket forsøg) */
+  export_uncertain_since?: string | null
 }
 
 const PROVIDER = 'economic'
@@ -56,6 +60,8 @@ function describeEconomicSkip(result: { ok: boolean; reason?: string; externalId
   if (reason === 'ECONOMIC_NOT_CONFIGURED') return { already: false, notConfigured: true, message: 'e-conomic er ikke opsat endnu.' }
   if (reason === 'ECONOMIC_PUSH_DISABLED') return { already: false, notConfigured: false, message: 'Eksport til e-conomic er slået fra.' }
   if (reason === 'export in progress') return { already: false, notConfigured: false, message: 'Eksporten er allerede i gang — vent et øjeblik og genindlæs.' }
+  // A-4: et tidligere forsøg fik ukendt udfald — ingen ny postering, før nogen har tjekket kladderne i e-conomic
+  if (reason === 'export uncertain') return { already: false, notConfigured: false, message: 'Et tidligere eksportforsøg fik ukendt udfald — tjek kladderne i e-conomic, og frigiv eksporten, før den prøves igen.' }
   if (reason.startsWith('not exportable')) return { already: false, notConfigured: false, message: 'Fakturaen kan ikke eksporteres (kun sendte/betalte, ikke annullerede fakturaer og ikke kreditnotaer).' }
   return { already: false, notConfigured: false, message: 'Fakturaen blev ikke eksporteret.' }
 }
@@ -113,12 +119,22 @@ export async function getInvoiceAccountingStatusAction(
     integrationError = 'Kunne ikke tjekke e-conomic'
   }
 
+  // A-4: krav med usikkert udfald (netværk/timeout/5xx) — ikke "fejl, prøv igen", men "tjek e-conomic og frigiv"
+  const claimStr = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith('pending-') ? inv.external_invoice_id : null
+  let exportUncertain = false
+  let uncertainSince: string | null = null
+  if (claimStr) {
+    const { uncertainExportLock } = await import('@/lib/services/economic-client')
+    const lock = await uncertainExportLock(supabase, invoiceId)
+    exportUncertain = !!lock
+    uncertainSince = lock?.since ?? null
+  }
   // A-5 (review 2026-10-16): "draft-N" = kladde oprettet, bogføring fejlede — før vist som eksporteret for altid
   const draftOnly = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith('draft-')
   const exported = !!inv.external_invoice_id && inv.external_provider === PROVIDER && !draftOnly
   let status: InvoiceAccountingStatus
   if (exported) status = 'exported'
-  else if (draftOnly || log?.status === 'failed') status = 'error'
+  else if (exportUncertain || draftOnly || log?.status === 'failed') status = 'error'
   else if ((inv.status === 'sent' || inv.status === 'paid') && !inv.voided_at) status = 'ready'
   else status = 'not_exported'
 
@@ -145,7 +161,13 @@ export async function getInvoiceAccountingStatusAction(
     status,
     external_id: (inv.external_invoice_id as string | null) ?? null,
     exported_at: exported ? ((log?.created_at as string | null) ?? null) : null,
-    error: status === 'error' ? (draftOnly ? `Oprettet som kladde i e-conomic, men ikke bogført — bogfør kladden i e-conomic (${String(inv.external_invoice_id)}).` : ((log?.error_message as string | null) ?? null)) : null,
+    error: status === 'error'
+      ? (exportUncertain
+        ? 'Uvist om fakturaen blev oprettet i e-conomic. Kontrollér e-conomic før du frigiver eksporten.'
+        : draftOnly ? `Oprettet som kladde i e-conomic, men ikke bogført — bogfør kladden i e-conomic (${String(inv.external_invoice_id)}).` : ((log?.error_message as string | null) ?? null))
+      : null,
+    export_uncertain: exportUncertain,
+    export_uncertain_since: uncertainSince,
     provider: PROVIDER,
     integration_ready: integrationReady,
     integration_error: integrationError,
@@ -158,6 +180,35 @@ export interface ExportInvoiceResult {
   status: 'exported' | 'not_configured' | 'already_exported' | 'failed'
   message: string
   external_id?: string | null
+}
+
+/**
+ * A-4: frigiv en eksport med ukendt udfald — KUN efter at nogen har tjekket i e-conomic, at fakturaen IKKE blev oprettet.
+ * Rydder kun et "pending-"-krav med en UNCERTAIN-log; auditeres.
+ */
+export async function releaseUncertainInvoiceExportAction(invoiceId: string, confirmedChecked: boolean): Promise<{ ok: boolean; message: string }> {
+  try {
+    validateUUID(invoiceId, 'faktura-ID')
+    const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.economic')) return { ok: false, message: 'Manglende tilladelse: settings.economic' }
+    // Henrik 2026-10-21: kræver eksplicit bekræftelse af at e-conomic er tjekket (også server-side)
+    if (confirmedChecked !== true) return { ok: false, message: 'Bekræft at du har kontrolleret e-conomic, før eksporten frigives' }
+    const state = await getInvoiceAccountingStatusAction(invoiceId)
+    if (!state.ok || !state.export_uncertain || !state.external_id) return { ok: false, message: 'Der er ingen eksport med ukendt udfald at frigive' }
+    // invoices har kun SELECT-politik for authenticated (00160) — skrivning via admin-klienten bag gaten ovenfor
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const { data, error } = await createAdminClient().from('invoices').update({ external_invoice_id: null }).eq('id', invoiceId)
+      .eq('external_invoice_id', state.external_id).select('id')
+    if (error || !(data ?? []).length) return { ok: false, message: 'Eksporten kunne ikke frigives (ændret i mellemtiden?) — genindlæs' }
+    await insertAuditRow({
+      user_id: userId, entity_type: 'invoice', entity_id: invoiceId, action: 'economic_export_released',
+      action_description: 'Eksport med ukendt udfald frigivet efter manuelt tjek i e-conomic', changes: { claim: state.external_id, uncertain_since: state.export_uncertain_since ?? null, confirmed_checked: true },
+    })
+    return { ok: true, message: 'Eksporten er frigivet — du kan eksportere fakturaen igen' }
+  } catch (e) {
+    logger.error('releaseUncertainInvoiceExportAction failed', { error: e })
+    return { ok: false, message: 'Eksporten kunne ikke frigives' }
+  }
 }
 
 /**

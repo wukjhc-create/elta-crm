@@ -2562,6 +2562,13 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'economic-uncertain-check') {
+    const { runEconomicUncertainCheck, formatEconomicUncertainCheck } = await import('./economic-uncertain-check')
+    const checks = await runEconomicUncertainCheck({ admin })
+    log(formatEconomicUncertainCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'absence-rls-check') {
     const { runAbsenceRlsCheck, formatAbsenceRlsCheck } = await import('./absence-rls-check')
     const checks = await runAbsenceRlsCheck({ admin, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })

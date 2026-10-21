@@ -17,6 +17,7 @@ import {
 import {
   getInvoiceAccountingStatusAction,
   exportInvoiceToEconomicAction,
+  releaseUncertainInvoiceExportAction,
   getEconomicInvoicePreviewAction,
   type InvoiceAccountingState,
 } from '@/lib/actions/accounting'
@@ -87,6 +88,18 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
     })
   }
 
+  // A-4: ukendt eksportudfald frigives kun bevidst efter tjek i e-conomic
+  const handleRelease = () => {
+    if (!canExport) return
+    if (!window.confirm('Har du tjekket kladderne i e-conomic, og findes fakturaen IKKE dér?\n\nFindes den, må eksporten ikke frigives (så bogføres den to gange).')) return
+    startTransition(async () => {
+      const res = await releaseUncertainInvoiceExportAction(invoiceId, true)
+      setFlash({ ok: res.ok, text: res.message })
+      setTimeout(() => setFlash(null), 7000)
+      await load()
+    })
+  }
+
   if (loading || !state) {
     return (
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
@@ -112,7 +125,7 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
 
   const skin = STATUS_SKIN[state.status]
   const showExport =
-    canExport && state.integration_ready && state.status !== 'exported' && state.status !== 'needs_fix'
+    canExport && state.integration_ready && state.status !== 'exported' && state.status !== 'needs_fix' && !state.export_uncertain
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
@@ -273,6 +286,25 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
         {/* N46: betalingens kassekladde-postering (forhåndsvisning) */}
         {canExport && <InvoicePaymentEconomicPreview invoiceId={invoiceId} />}
 
+        {canExport && state.export_uncertain && (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={handleRelease}
+              disabled={pending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+              data-testid="invoice-economic-release"
+            >
+              {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <AlertCircle className="w-3.5 h-3.5" />}
+              Jeg har tjekket e-conomic — frigiv eksporten
+            </button>
+            {state.export_uncertain_since && (
+              <p className="text-[11px] text-amber-800 mt-1" data-testid="invoice-economic-uncertain-since">
+                Forsøget med uvist udfald: {new Date(state.export_uncertain_since).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+          </div>
+        )}
         {showExport && (
           <div className="pt-1">
             <button
