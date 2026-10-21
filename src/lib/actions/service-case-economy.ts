@@ -742,19 +742,21 @@ export async function getServiceCaseProjectEconomy(
     // IDOR-sweep 2026-10-09 (#5): kun sager i brugerens scope (salg: egne) — kontraktsum/udestående er ellers åbne
     if (!(await userCanViewCase(caseId, { supabase, userId, role }))) return { success: false, error: 'Du har ikke adgang til denne sag' }
 
-    const { data: sag } = await supabase
+    const { data: sag, error: sagErr } = await supabase
       .from('service_cases')
       .select('id, contract_sum, revised_sum, billing_model')
       .eq('id', caseId)
       .maybeSingle()
+    if (sagErr) return { success: false, error: 'Kunne ikke hente projektøkonomi' }
     if (!sag) return { success: false, error: 'Sag ikke fundet' }
 
     // Ét cost-free invoice-query (kun salgs-/status-felter).
-    const { data: invs } = await supabase
+    const { data: invs, error: invErr } = await supabase
       .from('invoices')
       .select('id, invoice_number, final_amount, total_amount, amount_paid, status, invoice_type, voided_at, currency, created_at')
       .eq('case_id', caseId)
       .order('created_at', { ascending: false })
+    if (invErr) return { success: false, error: 'Kunne ikke hente projektøkonomi' }
 
     const rows = (invs ?? []) as Array<{
       id: string; invoice_number: string | null; final_amount: number | string | null
