@@ -2544,16 +2544,17 @@ export async function deleteDraftInvoiceLineAction(invoiceId: string, lineId: st
  * "Bankoplysninger er ikke konfigureret" i stedet for reg.nr./konto (prod
  * 2026-10-01: mangler). Kun et ja/nej — ingen værdier.
  */
-export async function getInvoicePaymentInfoStatusAction(): Promise<{ ok: boolean; bankConfigured: boolean }> {
+export async function getInvoicePaymentInfoStatusAction(): Promise<{ ok: boolean; bankConfigured: boolean; message?: string }> {
   const { hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.view.all')) return { ok: false, bankConfigured: true }
   // Firmaindstillinger læses via service-role efter gaten (kræver ellers settings.view).
   const { createAdminClient } = await import('@/lib/supabase/admin')
-  const { data } = await createAdminClient()
+  const { data, error } = await createAdminClient()
     .from('company_settings')
     .select('bank_reg_no, bank_account')
     .limit(1)
     .maybeSingle()
+  if (error) return { ok: false, bankConfigured: true, message: 'Kunne ikke tjekke bankoplysninger' }
   // Samme kilde som fakturaens PDF/mail (env først, firmaindstillinger som fallback)
   const { invoiceBankInfo } = await import('@/lib/invoices/bank-info')
   return { ok: true, bankConfigured: invoiceBankInfo(data as { bank_reg_no?: string | null; bank_account?: string | null } | null).configured }
