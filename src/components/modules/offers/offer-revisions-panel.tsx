@@ -19,10 +19,22 @@ export function OfferRevisionsPanel({ offerId, status, supersededBy }: { offerId
   const router = useRouter()
   const [revs, setRevs] = useState<Rev[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
-    getOfferRevisionHistoryAction(offerId).then((r) => { if (r.success && r.data) setRevs(r.data) })
+    let alive = true
+    setRevs([])
+    setLoadError(null)
+    getOfferRevisionHistoryAction(offerId).then((r) => {
+      if (!alive) return
+      if (r.success && r.data) setRevs(r.data)
+      else setLoadError('Revisioner kunne ikke hentes. Det tælles ikke som ingen revisioner.')
+    }).catch(() => {
+      if (!alive) return
+      setLoadError('Revisioner kunne ikke hentes. Det tælles ikke som ingen revisioner.')
+    })
+    return () => { alive = false }
   }, [offerId])
 
   const canRevise = REVISABLE.has(status) && !supersededBy
@@ -55,7 +67,9 @@ export function OfferRevisionsPanel({ offerId, status, supersededBy }: { offerId
         </p>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {revs.length > 0 ? (
+      {loadError ? (
+        <p className="text-sm text-red-700 break-words" data-testid="offer-revisions-load-error">{loadError}</p>
+      ) : revs.length > 0 ? (
         <ul className="text-sm divide-y">
           {revs.map((r) => (
             <li key={r.id} className="py-1.5 flex items-center justify-between gap-2">
