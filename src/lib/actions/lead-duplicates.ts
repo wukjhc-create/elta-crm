@@ -83,10 +83,11 @@ export async function linkLeadToCustomerAction(leadId: string, customerId: strin
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('leads.edit')) return { success: false, error: 'Manglende tilladelse: leads.edit' }
     // kundens eksistens/synlighed afgøres af RLS-opslaget nedenfor (leads.edit-roller kan se kunder)
-    const [{ data: lead }, { data: cust }] = await Promise.all([
+    const [{ data: lead, error: leadErr }, { data: cust, error: custErr }] = await Promise.all([
       supabase.from('leads').select('id, custom_fields').eq('id', leadId).maybeSingle(),
       supabase.from('customers').select('id, company_name').eq('id', customerId).maybeSingle(),
     ])
+    if (leadErr || custErr) return { success: false, error: 'Kunne ikke hente lead eller kunde' }
     if (!lead) return { success: false, error: 'Lead ikke fundet' }
     if (!cust) return { success: false, error: 'Kunde ikke fundet' }
     const cf = (lead.custom_fields ?? {}) as Record<string, unknown>
