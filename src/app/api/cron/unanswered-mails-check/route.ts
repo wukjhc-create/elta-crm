@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server'
 import {
   createAutoTasksForUnansweredEmails,
   autoCloseRespondedTasks,
-} from '@/lib/actions/auto-tasks'
+} from '@/lib/services/auto-tasks'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
 

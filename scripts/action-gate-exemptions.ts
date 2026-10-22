@@ -22,8 +22,6 @@ const U = (reason: string): Exemption => ({ kind: 'self', reason })
 
 export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   // ---- server-only (kaldes kun fra andre server-actions/crons/services)
-  'auto-tasks.ts:createAutoTasksForUnansweredEmails': S('cron-/service-hjælper (unanswered-mails-check)'),
-  'auto-tasks.ts:autoCloseRespondedTasks': S('cron-/service-hjælper (unanswered-mails-check)'),
   'calculation-intelligence.ts:createSystemAlert': S('intern alarm-skrivning fra motorer'),
   'document-confirmations.ts:getConfirmationContext': S('læses server-side af den token-validerede bekræftelsesside'),
   'email.ts:logEmailEvent': S('logning fra afsendelsesflowet'),

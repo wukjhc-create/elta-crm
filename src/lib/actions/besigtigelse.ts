@@ -459,10 +459,16 @@ export async function saveBesigtigelsesnotat(
         .filter((t) => !t.service_case_id || t.service_case_id === input.serviceCaseId)
       if (toClose.length > 0) {
         const now = new Date().toISOString()
-        await supabase
+        // SEC-B7-forudsætning (2026-10-22): opgaverne tilhører typisk andre (booket af salg/portal) — systemlukningen sker
+        // med admin-klienten bag gaten ovenfor (service.edit + sags-scope), så den også virker når montørens egen skriveret
+        // på customer_tasks begrænses til egne opgaver. Kun status/afslutning på de netop udvalgte rækker.
+        const { createAdminClient } = await import('@/lib/supabase/admin')
+        const { error: closeErr } = await createAdminClient()
           .from('customer_tasks')
           .update({ status: 'done', completed_at: now, updated_at: now })
           .in('id', toClose.map((t) => t.id))
+          .neq('status', 'done')
+        if (closeErr) logger.warn('saveBesigtigelsesnotat: besigtigelsesopgaver kunne ikke lukkes', { error: closeErr, entityId: input.customerId })
       }
     } catch {
       // Non-critical — don't fail the whole operation

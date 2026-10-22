@@ -2584,6 +2584,14 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'sec-b7-rls-check') {
+    // SEC-B7 / forslag 00235: direkte REST-skrivninger pr. rolle ([NY] fejler indtil 00235 er anvendt)
+    const { runSecB7RlsCheck, formatSecB7RlsCheck } = await import('./sec-b7-rls-check')
+    const checks = await runSecB7RlsCheck({ admin, url: runtime.url, anonKey: runtime.anonKey })
+    log(formatSecB7RlsCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'economic-uncertain-check') {
     const { runEconomicUncertainCheck, formatEconomicUncertainCheck } = await import('./economic-uncertain-check')
     const checks = await runEconomicUncertainCheck({ admin })
