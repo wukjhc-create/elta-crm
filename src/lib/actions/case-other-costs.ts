@@ -45,6 +45,8 @@ const isCategory = (v: unknown): v is CaseOtherCostCategory =>
 // Read
 // =====================================================
 
+const OTHER_COST_SOURCES: readonly CaseOtherCostSource[] = ['manual', 'time_log', 'supplier_invoice']
+
 export async function listCaseOtherCosts(
   caseId: string
 ): Promise<ActionResult<{ rows: CaseOtherCostRow[]; summary: CaseOtherCostsSummary }>> {
@@ -249,7 +251,9 @@ export async function createCaseOtherCost(
         unit_sales_price: hasPermission(PRICE_FIELDS_PERMISSION) ? unit_sales_price : 0,
         receipt_url: input.receipt_url?.trim() || null,
         receipt_filename: input.receipt_filename?.trim() || null,
-        source: input.source ?? 'manual',
+        // SEC-B5 (scope-review 2026-10-22): som SC-13 for materialer — kilden sættes kun af kontoret (ellers kunne montøren
+        // markere en omkostning som konverteret leverandørkøb og få LF-5-undtagelsen for negativ kost)
+        source: hasPermission('other_costs.edit') && OTHER_COST_SOURCES.includes(input.source as CaseOtherCostSource) ? (input.source as CaseOtherCostSource) : 'manual',
         billable: input.billable ?? true,
         notes: input.notes?.trim() || null,
         created_by: userId,

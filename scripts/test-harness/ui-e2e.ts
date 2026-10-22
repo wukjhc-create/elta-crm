@@ -185,9 +185,23 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
-  montor: ['U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+}
+
+/**
+ * Kald en server-action DIREKTE som den indloggede bruger (som en angriber ville, uden om UI'et) — id fra byggets
+ * server-reference-manifest. Returnerer svarets rå RSC-tekst (søg efter "success"/fejltekst i den).
+ */
+async function callServerAction(page: import('playwright').Page, pageUrl: string, file: string, name: string, args: unknown[]): Promise<string> {
+  const manifest = JSON.parse(readFileSync(join(process.cwd(), '.next', 'server', 'server-reference-manifest.json'), 'utf8')) as { node: Record<string, { filename: string; exportedName: string }> }
+  const id = Object.entries(manifest.node).find(([, v]) => v.filename === file && v.exportedName === name)?.[0]
+  if (!id) return `NO_ACTION_ID ${name}`
+  return page.evaluate(async ({ id, args, pageUrl }) => {
+    const res = await fetch(pageUrl, { method: 'POST', headers: { 'Next-Action': id, Accept: 'text/x-component', 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify(args) })
+    return `HTTP ${res.status} ${await res.text()}`
+  }, { id, args, pageUrl })
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -4831,6 +4845,41 @@ ${m.text()}`) })
 
       // U188 CU-1 (kunde-review 2026-10-17): sagsløse kundedokumenter — montør ser dem kun for kunder med en sag i sit
       // scope (U11-sagens kunde), ikke for fremmede kunder; salg (customers.edit) ser dem for alle kunder
+      // U221 SEC-B1 (scope-review 2026-10-22): en sagsløs besigtigelsesrapport hos en FREMMED kunde — montøren kalder
+      // modtager- og send-actionen direkte (uden om UI'et) og afvises; samme rapport hos montørens egen kunde er tilladt.
+      // Ingen mail: afvisningen sker før opslag/afsendelse, og modtageren er en .test-adresse.
+      if (want('U221') && profitCustomerId && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        const fc = await c.admin.from('customers').insert([{ customer_number: `U221-${stamp}`, company_name: `[HARNESS] U221 fremmed ${stamp}`,
+          contact_person: 'Fremmed', email: `u221-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        const foreignId = (fc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const docIns = foreignId ? await c.admin.from('customer_documents').insert([
+          { customer_id: foreignId, service_case_id: null, title: `Besigtigelsesrapport U221 fremmed ${stamp}`, document_type: 'besigtigelse', file_url: '', file_name: `u221-f-${stamp}.pdf`, mime_type: 'application/pdf', storage_path: `customer-documents/${foreignId}/u221-${stamp}.pdf` },
+          { customer_id: profitCustomerId, service_case_id: null, title: `Besigtigelsesrapport U221 egen ${stamp}`, document_type: 'besigtigelse', file_url: '', file_name: `u221-e-${stamp}.pdf`, mime_type: 'application/pdf', storage_path: `customer-documents/${profitCustomerId}/u221-${stamp}.pdf` },
+        ]).select('id, customer_id') : null
+        const rows = (docIns?.data ?? []) as Array<{ id: string; customer_id: string }>
+        const foreignDoc = rows.find((x) => x.customer_id === foreignId)?.id ?? null
+        const ownDoc = rows.find((x) => x.customer_id === profitCustomerId)?.id ?? null
+        r.seed = !!foreignDoc && !!ownDoc
+        try {
+          const pageUrl = `${base}/dashboard/orders/${jobCaseId}`
+          await gotoSafe(m.page, pageUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+          const F = 'src/lib/actions/besigtigelse.ts'
+          const denied = 'Du har ikke adgang til dette dokument'
+          const optsForeign = await callServerAction(m.page, pageUrl, F, 'getBesigtigelseRecipientOptions', [foreignDoc])
+          r.modtagere_fremmed_afvist = optsForeign.includes(denied) && !optsForeign.includes(`u221-${stamp}@harness.test`)
+          const sendForeign = await callServerAction(m.page, pageUrl, F, 'sendExistingBesigtigelsesreport', [{ documentId: foreignDoc, recipients: [{ type: 'manual', email: `u221-ekstern-${stamp}@harness.test` }] }])
+          r.send_fremmed_afvist = sendForeign.includes(denied)
+          const optsOwn = await callServerAction(m.page, pageUrl, F, 'getBesigtigelseRecipientOptions', [ownDoc])
+          r.egen_kunde_tilladt = optsOwn.includes('"success":true')
+          if (!r.modtagere_fremmed_afvist || !r.send_fremmed_afvist || !r.egen_kunde_tilladt) console.log('[U221]', optsForeign.slice(0, 300), '|', sendForeign.slice(0, 300), '|', optsOwn.slice(0, 300))
+        } finally {
+          if (rows.length) await c.admin.from('customer_documents').delete().in('id', rows.map((x) => x.id))
+          if (foreignId) await c.admin.from('customers').delete().eq('id', foreignId)
+        }
+        out.push({ id: 'U221 SEC-B1 sagsløs besigtigelsesrapport: montør afvist hos fremmed kunde (direkte action-kald)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       if (want('U188') && profitCustomerId && jobCaseId) {
         const r: Record<string, boolean> = {}
         const fc = await c.admin.from('customers').insert([{ customer_number: `U188-${stamp}`, company_name: `[HARNESS] U188 fremmed ${stamp}`,

@@ -449,12 +449,16 @@ export async function uploadCaseDocument(caseId: string, formData: FormData): Pr
     if (file.size > CASE_UPLOAD_MAX_BYTES) return { success: false, error: 'Filen er for stor (max 20 MB)' }
     if (!CASE_UPLOAD_MIME.test(file.type || '')) return { success: false, error: 'Kun billeder (JPG, PNG, WEBP, HEIC) og PDF' }
 
-    const { data: sc, error: scErr } = await supabase.from('service_cases').select('id, customer_id').eq('id', caseId).maybeSingle()
+    const { data: sc, error: scErr } = await supabase.from('service_cases').select('id, customer_id, status').eq('id', caseId).maybeSingle()
     if (scErr) {
       logger.error('uploadCaseDocument case read failed', { error: scErr, entityId: caseId })
       return { success: false, error: 'Kunne ikke læse sagen. Dokumentet er ikke uploadet.' }
     }
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
+    // SEC-B6 (scope-review 2026-10-22): som aflevering/timer/materialer (FW-2) — en lukket sag får ikke nye dokumenter fra montøren
+    if ((sc as { status?: string | null }).status === 'closed' && !hasPermission('cases.edit')) {
+      return { success: false, error: 'Sagen er lukket — genåbn den først' }
+    }
     if (!sc.customer_id) return { success: false, error: 'Sagen har ingen kunde — kan ikke gemme dokument' }
 
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'jpg'

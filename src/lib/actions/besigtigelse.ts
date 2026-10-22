@@ -27,6 +27,29 @@ async function caseReadDenied(caseId: string | null | undefined): Promise<string
   }
   return null
 }
+
+/**
+ * SEC-B1 (montør-/scope-review 2026-10-22): et dokument UDEN sag var åbent for alle med service.view — montøren kunne
+ * sende enhver kundes sagsløse rapport til en vilkårlig adresse. Samme regel som getCustomerDocuments (CU-1): uden
+ * cases.view.all kun med customers.edit eller når kunden har en sag i brugerens scope.
+ */
+async function documentReadDenied(doc: { service_case_id?: string | null; customer_id?: string | null }): Promise<string | null> {
+  const denied = await caseReadDenied(doc.service_case_id)
+  if (denied || doc.service_case_id) return denied
+  const ctx = await getAuthenticatedClientWithRole()
+  if (ctx.hasPermission('cases.view.all') || ctx.hasPermission('customers.edit')) return null
+  if (!doc.customer_id) return 'Du har ikke adgang til dette dokument'
+  const { getCaseScope } = await import('@/lib/auth/case-scope')
+  const scope = await getCaseScope({ role: ctx.role, userId: ctx.userId, supabase: ctx.supabase })
+  if (scope.type === 'all') return null
+  for (let i = 0; i < scope.caseIds.length; i += 200) {
+    const { count, error } = await ctx.supabase.from('service_cases').select('id', { count: 'exact', head: true })
+      .eq('customer_id', doc.customer_id).in('id', scope.caseIds.slice(i, i + 200))
+    if (error) return 'Adgangen kunne ikke kontrolleres — prøv igen'
+    if ((count ?? 0) > 0) return null
+  }
+  return 'Du har ikke adgang til dette dokument'
+}
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
 import type { ActionResult } from '@/types/common.types'
@@ -779,7 +802,7 @@ export async function getBesigtigelseRecipientOptions(
       return { success: false, error: 'Dokumentet er ikke en besigtigelsesrapport' }
     }
     {
-      const denied = (await caseReadDenied(doc.service_case_id)) ?? (serviceCaseIdOverride ? await caseReadDenied(serviceCaseIdOverride) : null)
+      const denied = (await documentReadDenied(doc)) ?? (serviceCaseIdOverride ? await caseReadDenied(serviceCaseIdOverride) : null)
       if (denied) return { success: false, error: denied }
     }
 
@@ -1043,7 +1066,7 @@ export async function sendExistingBesigtigelsesreport(
     // F2 (security-review 2026-10-17): som getBesigtigelseRecipientOptions — kun sager i brugerens scope (før kunne
     // montøren sende enhver kundes rapport til en vilkårlig ekstern adresse)
     {
-      const denied = (await caseReadDenied(doc.service_case_id)) ?? (input.serviceCaseIdOverride ? await caseReadDenied(input.serviceCaseIdOverride) : null)
+      const denied = (await documentReadDenied(doc)) ?? (input.serviceCaseIdOverride ? await caseReadDenied(input.serviceCaseIdOverride) : null)
       if (denied) return { success: false, error: denied }
     }
 
@@ -1731,10 +1754,10 @@ export async function sendReadyChainStep(
     if (!row) return { success: false, error: 'Trin ikke fundet' }
     // F3 (security-review 2026-10-17): kun trin på dokumenter fra sager i brugerens scope
     {
-      const { data: d } = await supabase.from('customer_documents').select('service_case_id')
+      const { data: d } = await supabase.from('customer_documents').select('service_case_id, customer_id')
         .eq('id', (row as { customer_document_id: string | null }).customer_document_id ?? '').maybeSingle()
       if (!d) return { success: false, error: 'Trin ikke fundet' }
-      const denied = await caseReadDenied((d as { service_case_id: string | null }).service_case_id)
+      const denied = await documentReadDenied(d as { service_case_id: string | null; customer_id: string | null })
       if (denied) return { success: false, error: denied }
     }
 

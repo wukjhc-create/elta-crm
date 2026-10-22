@@ -2144,3 +2144,18 @@ Claudes ordlyd/struktur vinder (stored-cost, work-order-status-read).
 | FR-9 (S3) | Samme læsefejl-mønster i rate-/slut-/kreditplanlægning (invoice-stage.ts, invoice-credit.ts) | DONE 2026-10-22 — `creditedByInvoice` kaster; rate-/slutfaktura-gates afviser ved læsefejl; efter-indsættelses-tjek (rate 100 %, slutfaktura RC-1, kreditnota 100 %) RULLER TILBAGE ved læsefejl; restbeløbsplan returnerer `read_error` (ingen fuld kontraktsum som rest). Test: contract-final-check, stage-race-check, credit-race-check, U32–U36, U162, U183 |
 
 Test (FR-1..5): register-payment-check, bank-auto-match-check, credit-race-check, payment-summary-check + U29, U33, U35, U36, U180, U186, U191 grønne. Fejlinjektion (læsefejl) er ikke automatiseret — kode-review.
+
+### Scope-/montør-review 2026-10-22 (efter FR-1..9)
+
+| ID | Fund | Status |
+|---|---|---|
+| SEC-B1 (S2) | Montør kunne hente modtagere og MAILE enhver kundes SAGSLØSE besigtigelsesrapport til en vilkårlig adresse (F2-hul: scope kun tjekket når dokumentet havde sag) | DONE 2026-10-22 — `documentReadDenied`: uden sag kun med cases.view.all/customers.edit eller kunde med sag i brugerens scope (som CU-1). Test U221 (direkte action-kald som montør via `callServerAction`) |
+| SEC-B2 (S2/S3) | Lukning via sagens redigeringsformular sprang SC-2-værnet (job i gang), RC-3-tilbagerulning, annullering af planlagte job og status-audit over | TODO → næste commit |
+| SEC-B3 (S3) | `updateServiceCase` skrev alle nøgler (fakturamodel, underskrift, tjekliste, flag); revideret sum uden IV2-4-bekræftelse/audit | TODO → næste commit |
+| SEC-B4 (S4) | Ubrugte server-actions (updateChecklist, initializeChecklist, signOffServiceCase, uploadServiceCaseAttachment, getServiceCaseAttachments) omgik afleveringens værn | DONE 2026-10-22 — fjernet (0 kaldere), som DL-4/SC-11 |
+| SEC-B5 (S4) | Montør kunne sætte `source` på øvrige omkostninger (SC-13 kun for materialer) | DONE 2026-10-22 — kun other_costs.edit, værdien valideres |
+| SEC-B6 (S4) | Montør kunne uploade sagsdokumenter til en lukket sag | DONE 2026-10-22 — afvist uden cases.edit (FW-2-paritet) |
+| SEC-B7 (DB) | RLS: `work_orders_update_role` lader montøren PATCHe alle kolonner på egen arbejdsordre via REST; `customer_tasks`/`roof_drawings` skrivbare for alle roller | BLOCKED_APPROVAL — kræver migration (00235+), ikke foreslået endnu |
+| SEC-B8 (S4) | `getPortalTokens` uden permission-gate (kun offentlige token-kolonner) | TODO (lav) |
+
+Note: harness-build fejlede én gang med `UNKNOWN: unknown error, open node_modules/typescript/package.json` (Windows-fillås) → batch-timeout + NOT_RUN; miljø, ikke produkt — genkørsel grøn.
