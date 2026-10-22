@@ -2156,6 +2156,6 @@ Test (FR-1..5): register-payment-check, bank-auto-match-check, credit-race-check
 | SEC-B5 (S4) | Montør kunne sætte `source` på øvrige omkostninger (SC-13 kun for materialer) | DONE 2026-10-22 — kun other_costs.edit, værdien valideres |
 | SEC-B6 (S4) | Montør kunne uploade sagsdokumenter til en lukket sag | DONE 2026-10-22 — afvist uden cases.edit (FW-2-paritet) |
 | SEC-B7 (DB) | RLS: `work_orders_update_role` lader montøren PATCHe alle kolonner på egen arbejdsordre via REST; `customer_tasks`/`roof_drawings` skrivbare for alle roller | BLOCKED_APPROVAL — kræver migration (00235+), ikke foreslået endnu |
-| SEC-B8 (S4) | `getPortalTokens` uden permission-gate (kun offentlige token-kolonner) | TODO (lav) |
+| SEC-B8 (S4) | `getPortalTokens` uden permission-gate (kun offentlige token-kolonner) | INGEN ÆNDRING (verificeret 2026-10-22) — selve tokenet kun med offers.send via secretTokenReader; øvrige får offentlige kolonner via egen session (RLS) |
 
 Note: harness-build fejlede én gang med `UNKNOWN: unknown error, open node_modules/typescript/package.json` (Windows-fillås) → batch-timeout + NOT_RUN; miljø, ikke produkt — genkørsel grøn.
