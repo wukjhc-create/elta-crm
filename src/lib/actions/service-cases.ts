@@ -433,6 +433,14 @@ interface UpdateServiceCaseInput {
   access_notes?: string | null
 }
 
+const EDITABLE_CASE_FIELDS = new Set([
+  'title', 'description', 'customer_id', 'priority', 'assigned_to', 'status_note',
+  'address', 'postal_code', 'city', 'floor_door', 'latitude', 'longitude', 'contact_phone', 'ksr_number', 'ean_number',
+  'project_name', 'type', 'reference', 'requisition', 'formand_id', 'planned_hours', 'contract_sum', 'revised_sum', 'budget',
+  'start_date', 'end_date', 'site_contact_id', 'site_customer_id', 'access_notes',
+  'orderer_customer_id', 'end_customer_id', 'payer_customer_id',
+])
+
 export async function updateServiceCase(
   id: string,
   input: UpdateServiceCaseInput,
@@ -446,27 +454,16 @@ export async function updateServiceCase(
     validateUUID(id, 'sag ID')
 
     // Strip undefined keys so we don't NULL columns the caller did not touch.
+    // SEC-B3 (scope-review 2026-10-22): kun redigerbare sagsfelter — tjekliste, underskrift, lukketidspunkt, fakturamodel
+    // og flag har egne actions med værn/audit (før kunne et direkte kald sætte dem uden om)
     const payload: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(input)) {
-      if (v !== undefined) payload[k] = v
+      if (v !== undefined && EDITABLE_CASE_FIELDS.has(k)) payload[k] = v
     }
-    // Lukning kræver cases.close — samme regel som setServiceCaseStatus (Service-listens status-dropdown gik udenom)
-    if (payload.status === 'closed') {
-      if (!hasPermission('cases.close')) return { success: false, error: 'Manglende tilladelse: cases.close' }
-      const { data: prior } = await supabase.from('service_cases').select('status, closed_at').eq('id', id).maybeSingle()
-      if (prior && prior.status !== 'closed') {
-        // Lukke-værn (samme som setServiceCaseStatus)
-        const block = await unbilledCloseBlock(supabase, id)
-        if (block && !opts?.acknowledgeUnbilled) {
-          const { UNBILLED_PREFIX } = await import('@/lib/cases/close-guard')
-          return { success: false, error: `${UNBILLED_PREFIX}${block}` }
-        }
-        if (payload.closed_at === undefined) payload.closed_at = new Date().toISOString()
-      }
-    } else if (payload.status) {
-      // Sags-review 2026-10-09 (#10): genåbnet sag beholdt closed_at → talte stadig som lukket i rapporter/filtre
-      payload.closed_at = null
-    }
+    // SEC-B2 (scope-review 2026-10-22): status skiftes via setServiceCaseStatus EFTER feltopdateringen — samme lukke-værn
+    // (ufaktureret arbejde, arbejdsordre i gang, tilbagerulning ved samtidig start), annullering af planlagte job,
+    // compare-and-set og audit som sagens statusknap (før: kun ufaktureret-værnet og ingen audit)
+    const wantStatus = input.status
 
     // Sags-review 2026-10-09 (#4): skiftes sagens kunde, flyttes de parter der pegede på den GAMLE kunde med (bestiller/
     // slutkunde/betaler/anlæg). Før blev de stående → underskrifts-/besigtigelsesmails og kopier gik til den forkerte kunde.
@@ -483,17 +480,27 @@ export async function updateServiceCase(
 
     // IV2-4 (Henrik 2026-10-19): kontraktsummen ændres aldrig stille, når der er et accepteret tilbud eller fakturering —
     // brugeren bekræfter; ændringen auditeres altid. (Giver ingen adgang til kost-/avancefelter.)
-    let contractChange: { old: number | null; new: number | null } | null = null
-    if (payload.contract_sum !== undefined) {
+    // SEC-B3: revideret sum styrer også restbeløb/klar til fakturering/lukke-værn (effectiveContractSum) — samme værn
+    const contractChange: Record<string, { old: number | null; new: number | null }> = {}
+    const amountFields = (['contract_sum', 'revised_sum', 'budget', 'planned_hours'] as const).filter((f) => payload[f] !== undefined)
+    if (amountFields.length) {
       const { serviceCaseAmountsError } = await import('@/lib/validations/service-cases')
-      const amountErr = serviceCaseAmountsError({ contract_sum: payload.contract_sum as number | null })
+      const amountErr = serviceCaseAmountsError(Object.fromEntries(amountFields.map((f) => [f, payload[f] as number | null])))
       if (amountErr) return { success: false, error: amountErr }
-      const { data: cur } = await supabase.from('service_cases').select('contract_sum, source_offer_id').eq('id', id).maybeSingle()
-      const before = (cur as { contract_sum: number | null; source_offer_id: string | null } | null)
-      const oldSum = before?.contract_sum == null ? null : Number(before.contract_sum)
-      const newSum = payload.contract_sum == null ? null : Number(payload.contract_sum)
-      if (before && oldSum !== newSum) {
-        contractChange = { old: oldSum, new: newSum }
+    }
+    if (payload.contract_sum !== undefined || payload.revised_sum !== undefined) {
+      const { data: cur, error: curErr } = await supabase.from('service_cases').select('contract_sum, revised_sum, source_offer_id').eq('id', id).maybeSingle()
+      if (curErr) return { success: false, error: 'Kunne ikke læse sagen — prøv igen' }
+      const before = (cur as { contract_sum: number | null; revised_sum: number | null; source_offer_id: string | null } | null)
+      const num = (v: unknown) => (v == null ? null : Number(v))
+      for (const f of ['contract_sum', 'revised_sum'] as const) {
+        if (payload[f] === undefined || !before) continue
+        if (num(before[f]) !== num(payload[f])) contractChange[f] = { old: num(before[f]), new: num(payload[f]) }
+      }
+      const oldSum = contractChange.contract_sum?.old ?? contractChange.revised_sum?.old ?? null
+      const newSum = contractChange.contract_sum?.new ?? contractChange.revised_sum?.new ?? null
+      const label = contractChange.contract_sum ? 'Kontraktsum' : 'Revideret sum'
+      if (before && Object.keys(contractChange).length) {
         if (!opts?.acknowledgeContractChange) {
           const reasons: string[] = []
           if (before.source_offer_id) {
@@ -507,27 +514,34 @@ export async function updateServiceCase(
           if (reasons.length) {
             const { CONTRACT_PREFIX } = await import('@/lib/cases/contract-guard')
             const fmt = (n: number | null) => (n == null ? 'ingen' : `${n.toLocaleString('da-DK')} kr. ekskl. moms`)
-            return { success: false, error: `${CONTRACT_PREFIX}${reasons.join('. ')}. Kontraktsum ${fmt(oldSum)} → ${fmt(newSum)}.` }
+            return { success: false, error: `${CONTRACT_PREFIX}${reasons.join('. ')}. ${label} ${fmt(oldSum)} → ${fmt(newSum)}.` }
           }
         }
       }
     }
 
-    const { data, error } = await supabase
-      .from('service_cases')
-      .update(payload)
-      .eq('id', id)
-      .select('*')
-      .single()
+    const q = supabase.from('service_cases')
+    let { data, error } = Object.keys(payload).length
+      ? await q.update(payload).eq('id', id).select('*').single()
+      : await q.select('*').eq('id', id).single()
 
     if (error) {
       logger.error('Error updating service case', { error })
       return { success: false, error: 'Kunne ikke opdatere serviceopgave' }
     }
-    if (contractChange) {
+    if (Object.keys(contractChange).length) {
       const { logUpdate } = await import('@/lib/audit/audit-log-writer')
-      await logUpdate('service_case', id, (data as { case_number?: string | null })?.case_number ?? 'Sag', { contract_sum: contractChange },
+      await logUpdate('service_case', id, (data as { case_number?: string | null })?.case_number ?? 'Sag', contractChange,
         { acknowledged: !!opts?.acknowledgeContractChange })
+    }
+    if (wantStatus && wantStatus !== (data as { status?: string } | null)?.status) {
+      const st = await setServiceCaseStatus(id, wantStatus, null, { acknowledgeUnbilled: opts?.acknowledgeUnbilled })
+      if (!st.success) {
+        const { UNBILLED_PREFIX } = await import('@/lib/cases/close-guard')
+        // ufaktureret-værnet skal kunne genkendes af formularen (bekræft → gem igen med acknowledgeUnbilled)
+        return { success: false, error: st.error?.startsWith(UNBILLED_PREFIX) ? st.error : `Ændringerne er gemt, men status blev ikke ændret: ${st.error ?? 'ukendt fejl'}` }
+      }
+      data = st.data ?? data
     }
 
     revalidatePath('/dashboard/service-cases')

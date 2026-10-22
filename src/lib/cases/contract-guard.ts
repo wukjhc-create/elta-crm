@@ -12,5 +12,5 @@ export function isContractChangeError(error: string | null | undefined): error i
 /** Klient: spørg brugeren. true = gem alligevel. */
 export function confirmContractChange(error: string): boolean {
   if (typeof window === 'undefined') return false
-  return window.confirm(`${error.slice(CONTRACT_PREFIX.length)}\n\nOK = gem den nye kontraktsum`)
+  return window.confirm(`${error.slice(CONTRACT_PREFIX.length)}\n\nOK = gem ændringen`)
 }

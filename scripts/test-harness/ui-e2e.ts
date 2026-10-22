@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3356,6 +3356,73 @@ ${m.text()}`) })
           if (custId) await c.admin.from('customers').delete().eq('id', custId)
         }
         out.push({ id: 'U208 API-4 mulig eksisterende kunde bekræftes', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U222 SEC-B2/B3 (scope-review 2026-10-22): sagens redigeringsformular — lukning med arbejdsordre i gang afvises (SC-2),
+      // revideret sum på en faktureret sag kræver bekræftelse + audit (IV2-4), et direkte kald kan ikke sætte fakturamodel/
+      // flag, og en tilladt lukning auditeres som statusskift.
+      if (want('U222') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const cs = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U222 sag ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, contract_sum: 10000, revised_sum: 10000 }]).select('id, billing_model, low_profit')
+        const caseRow = (cs.data?.[0] as { id?: string; billing_model?: string | null; low_profit?: boolean | null } | undefined) ?? null
+        const caseId = caseRow?.id ?? null
+        if (caseId) listCaseIds.push(caseId)
+        const wo = caseId ? await c.admin.from('work_orders').insert([{ case_id: caseId, title: `U222 job ${stamp}`, status: 'in_progress' }]).select('id') : null
+        const woId = (wo?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const inv = caseId ? await c.admin.from('invoices').insert([{ invoice_number: `U222-${stamp}`, customer_id: profitCustomerId, case_id: caseId, status: 'sent',
+          sent_at: new Date().toISOString(), total_amount: 800, tax_amount: 200, final_amount: 1000, due_date: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10) }]).select('id') : null
+        const invId = (inv?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!caseId && !!woId && !!invId
+        const row = async () => ((await c.admin.from('service_cases').select('status, revised_sum, billing_model, low_profit, title').eq('id', caseId ?? '').maybeSingle()).data ?? {}) as { status?: string; revised_sum?: number; billing_model?: string | null; low_profit?: boolean | null; title?: string }
+        const save = async (fill: () => Promise<void>, accept: boolean) => {
+          await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}/edit`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.locator('select[name="status"]').waitFor({ timeout: 60_000 }).catch(() => {})
+          await fill()
+          const seen: string[] = []
+          const onDialog = (d: import('playwright').Dialog) => { seen.push(d.message()); void (accept ? d.accept() : d.dismiss()) }
+          a.page.on('dialog', onDialog)
+          await a.page.getByRole('button', { name: /^Gem ændringer$/ }).click({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForTimeout(5000)
+          a.page.off('dialog', onDialog)
+          return { seen, body: (await a.page.locator('body').textContent().catch(() => '')) ?? '' }
+        }
+        try {
+          // 1) lukning med job i gang → afvist, sagen åben
+          const s1 = await save(async () => { await a.page.locator('select[name="status"]').selectOption('closed').catch(() => {}) }, true)
+          r.lukning_med_job_afvist = (await row()).status === 'in_progress' && /arbejdsordre[^]*i gang/i.test(s1.body)
+          // 2) revideret sum: spørges, annuller → uændret; bekræft → gemt + audit
+          const s2 = await save(async () => { await a.page.locator('input[name="revised_sum"]').fill('8000').catch(() => {}) }, false)
+          r.revideret_spoerges = s2.seen.some((m) => /Revideret sum/.test(m) && /faktura/i.test(m))
+          r.revideret_annuller_uaendret = Number((await row()).revised_sum) === 10000
+          await save(async () => { await a.page.locator('input[name="revised_sum"]').fill('8000').catch(() => {}) }, true)
+          let rv = 0
+          for (let i = 0; i < 10 && rv !== 8000; i++) { rv = Number((await row()).revised_sum); if (rv !== 8000) await a.page.waitForTimeout(1000) }
+          r.revideret_gemt = rv === 8000
+          const aud = ((await c.admin.from('audit_logs').select('action, changes').eq('entity_id', caseId ?? '')).data ?? []) as Array<{ action: string; changes: Record<string, { old: unknown; new: unknown }> | null }>
+          r.revideret_auditeret = aud.some((x) => Number(x.changes?.revised_sum?.old) === 10000 && Number(x.changes?.revised_sum?.new) === 8000)
+          // 3) direkte kald: fakturamodel/flag ignoreres, almindeligt felt gemmes
+          const before = await row()
+          const raw = await callServerAction(a.page, `${base}/dashboard/orders/${caseId}/edit`, 'src/lib/actions/service-cases.ts', 'updateServiceCase',
+            [caseId, { title: `[HARNESS] U222 omdøbt ${stamp}`, billing_model: before.billing_model === 'fixed_price' ? 'time_and_materials' : 'fixed_price', low_profit: !before.low_profit, customer_signature: 'data:x' }])
+          const after = await row()
+          r.direkte_kald_svarer = raw.includes('"success":true')
+          r.felt_gemt = after.title === `[HARNESS] U222 omdøbt ${stamp}`
+          r.fakturamodel_uaendret = (after.billing_model ?? null) === (before.billing_model ?? null)
+          r.flag_uaendret = !!after.low_profit === !!before.low_profit
+          // 4) job afsluttet → lukning via formularen virker og auditeres som statusskift
+          await c.admin.from('work_orders').update({ status: 'done' }).eq('id', woId ?? '')
+          await save(async () => { await a.page.locator('select[name="status"]').selectOption('closed').catch(() => {}) }, true)
+          let st = ''
+          for (let i = 0; i < 10 && st !== 'closed'; i++) { st = (await row()).status ?? ''; if (st !== 'closed') await a.page.waitForTimeout(1000) }
+          r.lukket_efter_job = st === 'closed'
+          const aud2 = ((await c.admin.from('audit_logs').select('action, changes').eq('entity_id', caseId ?? '').eq('action', 'status_change')).data ?? []) as Array<{ changes: Record<string, { old: unknown; new: unknown }> | null }>
+          r.lukning_auditeret = aud2.some((x) => x.changes?.status?.new === 'closed')
+        } finally {
+          if (invId) await c.admin.from('invoices').delete().eq('id', invId)
+          if (woId) await c.admin.from('work_orders').delete().eq('id', woId)
+        }
+        out.push({ id: 'U222 SEC-B2/B3 sagsformular: lukke-værn, revideret sum, ingen massetildeling, status-audit', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U209 IV2-4 (Henrik 2026-10-19): kontraktsum på en sag fra et accepteret tilbud ændres kun efter bekræftelse og
