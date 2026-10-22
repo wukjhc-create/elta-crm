@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3683,6 +3683,65 @@ ${m.text()}`) })
 
       // U219 DE2-9 (Henrik 2026-10-20 GODKENDT): manuel konvertering tilbud → sag giver tilbuddets SÆLGER ansvaret —
       // også når en anden (admin) konverterer; auditeret; sælgeren kan åbne sagen. Egen konvertering: sælgeren selv.
+      // U223 A-4b (Henrik 2026-10-22): leverandørfaktura med uvist bogføringsudfald — dansk tilstand (ingen rå fejl), kun
+      // settings.economic (admin/bogholderi) kan frigive efter bekræftelse; frigivelsen rydder kravet, bogfører intet og
+      // auditeres (audit_logs + fakturaens historik). Serviceleder ser fakturaen, men får ingen frigiv-knap.
+      if (want('U223')) {
+        const r: Record<string, boolean> = {}
+        const claim = `pending-${Date.now() - 60 * 60_000}`
+        const ins = await c.admin.from('incoming_invoices').insert([{ source: 'manual', status: 'approved', invoice_number: `U223-${stamp}`, currency: 'DKK', external_invoice_id: claim }]).select('id')
+        const invId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const lg = invId ? await c.admin.from('accounting_sync_log').insert([{ provider: 'economic', entity_type: 'invoice', entity_id: invId, action: 'create', status: 'failed',
+          error_message: 'UNCERTAIN: fetch failed', request_meta: { http_status: 0, uncertain: true, claim, kind: 'supplier_invoice' } }]) : null
+        r.seed = !!invId && !lg?.error
+        try {
+          const sv = await login(await mkUser('serviceleder'))
+          try {
+            await gotoSafe(sv.page, `${base}/dashboard/incoming-invoices/${invId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await sv.page.getByTestId('posting-uncertain').first().waitFor({ timeout: 60_000 }).catch(() => {})
+            r.serviceleder_ser_tilstand = (await sv.page.getByTestId('posting-uncertain').count()) === 1
+            r.serviceleder_ingen_frigiv = (await sv.page.getByTestId('posting-release').count()) === 0
+            const raw = await callServerAction(sv.page, `${base}/dashboard/incoming-invoices/${invId}`, 'src/lib/actions/incoming-invoices.ts', 'releaseUncertainIncomingInvoicePostingAction', [invId, true])
+            r.serviceleder_direkte_kald_afvist = raw.includes('Manglende tilladelse: settings.economic')
+          } finally { await sv.ctx.close().catch(() => {}) }
+          await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${invId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('posting-release').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const body = (await a.page.locator('body').textContent().catch(() => '')) ?? ''
+          r.dansk_tilstand = body.includes('Uvist om leverandørfakturaen blev bogført i e-conomic')
+          r.ingen_raa_fejl = !/fetch failed|UNCERTAIN:/i.test(body)
+          r.ingen_bogfoer_knap = (await a.page.getByRole('button', { name: /^Bogfør til e-conomic$/ }).count()) === 0
+          r.tidspunkt_vist = (await a.page.getByTestId('posting-uncertain-since').count()) === 1
+          const claimNow = async () => ((await c.admin.from('incoming_invoices').select('external_invoice_id, status').eq('id', invId ?? '').maybeSingle()).data ?? null) as { external_invoice_id: string | null; status: string } | null
+          // bekræftelse kræves også på serveren
+          const noConfirm = await callServerAction(a.page, `${base}/dashboard/incoming-invoices/${invId}`, 'src/lib/actions/incoming-invoices.ts', 'releaseUncertainIncomingInvoicePostingAction', [invId, false])
+          r.server_kraever_bekraeftelse = noConfirm.includes('Bekræft at du har kontrolleret e-conomic') && (await claimNow())?.external_invoice_id === claim
+          a.page.once('dialog', (d) => { d.dismiss().catch(() => {}) })
+          await a.page.getByTestId('posting-release').first().click({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForTimeout(2000)
+          r.afvist_bekraeftelse_intet_sker = (await claimNow())?.external_invoice_id === claim
+          a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+          await a.page.getByTestId('posting-release').first().click({ timeout: 30_000 }).catch(() => {})
+          let after: string | null | undefined = claim
+          for (let i = 0; i < 15 && after; i++) { after = (await claimNow())?.external_invoice_id; if (after) await new Promise((res) => setTimeout(res, 1000)) }
+          const st = await claimNow()
+          r.frigivet = after === null && st?.status === 'approved'
+          const aud = ((await c.admin.from('audit_logs').select('changes').eq('entity_id', invId ?? '').eq('action', 'economic_posting_released')).data ?? []) as Array<{ changes: Record<string, unknown> | null }>
+          r.auditeret = aud.length === 1 && aud[0].changes?.claim === claim && aud[0].changes?.confirmed_checked === true
+          const hist = ((await c.admin.from('incoming_invoice_audit_log').select('id').eq('incoming_invoice_id', invId ?? '').eq('action', 'posting_released')).data ?? []).length
+          r.historik = hist === 1
+          const posts = ((await c.admin.from('accounting_sync_log').select('id').eq('entity_id', invId ?? '').eq('status', 'success')).data ?? []).length
+          r.intet_bogfoert = posts === 0
+        } finally {
+          if (invId) {
+            await c.admin.from('accounting_sync_log').delete().eq('entity_type', 'invoice').eq('entity_id', invId)
+            await c.admin.from('audit_logs').delete().eq('entity_id', invId)
+            await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', invId)
+            await c.admin.from('incoming_invoices').delete().eq('id', invId)
+          }
+        }
+        out.push({ id: 'U223 A-4b leverandørfaktura uvist udfald: dansk tilstand, frigivelse kun med ret + bekræftelse, audit, intet bogført', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U220 A-4 (Henrik 2026-10-21): e-conomic-eksport med uvist udfald — fakturaen viser dansk tilstand (ingen rå fejl),
       // eksport-knappen er væk, kun settings.economic (admin/bogholderi) kan frigive efter bekræftelse; frigivelsen
       // rydder kravet og auditeres. Serviceleder (ser fakturaer, men ikke settings.economic) får ingen frigiv-knap.

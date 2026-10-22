@@ -13,6 +13,7 @@ import {
   rejectIncomingInvoiceAction,
   setIncomingInvoiceCaseAction,
   postIncomingInvoiceToEconomicAction,
+  releaseUncertainIncomingInvoicePostingAction,
   getIncomingInvoiceFileUrlAction,
   revealIncomingInvoiceIbanAction,
   type IncomingInvoiceDetail,
@@ -58,8 +59,11 @@ export function IncomingInvoiceDetailClient({
   economicReady = false,
   canApprove = false,
   canAllocate = false,
+  canReleasePosting = false,
 }: {
   initial: IncomingInvoiceDetail
+  /** A-4b: settings.economic — må frigive en bogføring med uvist udfald */
+  canReleasePosting?: boolean
   canPost?: boolean
   canEditHeader?: boolean
   economicReady?: boolean
@@ -104,7 +108,18 @@ export function IncomingInvoiceDetailClient({
   // B-5: 'pending-…' er et igangværende/hængt bogføringskrav — ikke bogført
   const postingPending = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith('pending-')
   const alreadyPosted = !!inv.external_invoice_id && !postingPending
-  const canShowPost = canPost && inv.status === 'approved' && !alreadyPosted
+  // A-4b: uvist udfald → ingen "Bogfør" før nogen har tjekket e-conomic og frigivet
+  const postingUncertain = postingPending && !!detail.posting_uncertain
+  const canShowPost = canPost && inv.status === 'approved' && !alreadyPosted && !postingUncertain
+  const handleReleasePosting = async () => {
+    if (!window.confirm('Har du tjekket kladderne i e-conomic, og findes leverandørfakturaen IKKE dér?\n\nFindes den, må bogføringen ikke frigives (så bogføres den to gange).')) return
+    setMsg(null)
+    setPosting(true)
+    const res = await releaseUncertainIncomingInvoicePostingAction(inv.id, true)
+    setPosting(false)
+    setMsg({ ok: res.ok, text: res.message })
+    await refresh()
+  }
   const handlePost = async () => {
     // LF-10: bogføring i e-conomic kan ikke fortrydes herfra
     if (!window.confirm(`Bogfør faktura ${inv.invoice_number ?? ''} i e-conomic?\n\nDet kan ikke fortrydes herfra.`)) return
@@ -113,7 +128,7 @@ export function IncomingInvoiceDetailClient({
     const res = await postIncomingInvoiceToEconomicAction(inv.id)
     setPosting(false)
     setMsg({ ok: res.ok, text: res.message })
-    if (res.ok && res.status === 'posted') await refresh()
+    if ((res.ok && res.status === 'posted') || res.status === 'uncertain') await refresh()
   }
 
   // Sprint Ø9.0 — bilag åbnes via sikker resolver (signeret storage / ekstern
@@ -309,11 +324,25 @@ export function IncomingInvoiceDetailClient({
           <Row label="Kræver review"    value={review ? 'JA' : 'nej'} />
           <Row label="Modtaget"         value={fmtDate(inv.created_at)} />
           {inv.posted_at && <Row label="Bogført" value={fmtDate(inv.posted_at)} />}
-          {inv.external_invoice_id && (postingPending
+          {inv.external_invoice_id && (postingUncertain
+            ? <Row label="e-conomic" value={<span className="text-xs text-amber-800" data-testid="posting-uncertain">Uvist om leverandørfakturaen blev bogført i e-conomic. Kontrollér kladderne i e-conomic før du frigiver bogføringen.</span>} />
+            : postingPending
             ? <Row label="e-conomic" value={<span className="text-xs text-amber-700" data-testid="posting-pending">Bogføring i gang (eller afbrudt) — prøv Bogfør igen om lidt</span>} />
             : <Row label="e-conomic ID" value={<code className="text-xs">{inv.external_invoice_id}</code>} />)}
           {canPost && !alreadyPosted && inv.status !== 'rejected' && inv.status !== 'cancelled' && (
             <SupplierEconomicPreview invoiceId={inv.id} />
+          )}
+          {postingUncertain && canReleasePosting && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <Button size="sm" variant="outline" onClick={handleReleasePosting} disabled={posting || busy} data-testid="posting-release">
+                {posting ? 'Frigiver…' : 'Jeg har tjekket e-conomic — frigiv bogføringen'}
+              </Button>
+              {detail.posting_uncertain?.since && (
+                <p className="text-[11px] text-amber-800 mt-1" data-testid="posting-uncertain-since">
+                  Forsøget med uvist udfald: {new Date(detail.posting_uncertain.since).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+            </div>
           )}
           {canShowPost && (
             <div className="mt-3 pt-3 border-t border-gray-100">

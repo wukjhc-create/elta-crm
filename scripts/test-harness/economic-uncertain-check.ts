@@ -55,9 +55,49 @@ export async function runEconomicUncertainCheck(c: { admin: SupabaseClient }): P
       await c.admin.from('invoices').delete().in('id', ids)
     }
   }
+  // A-4b (Henrik 2026-10-22): samme lås for leverandørfakturaer (incoming_invoices)
+  const { pushSupplierInvoiceToEconomic } = await import('../../src/lib/services/economic-client')
+  const { rejectInvoice } = await import('../../src/lib/services/incoming-invoices')
+  const supIds: string[] = []
+  const mkSup = async (tag: string, claimAgoMin: number, logClaim?: string) => {
+    const claim = `pending-${Date.now() - claimAgoMin * 60_000}`
+    const { data, error } = await c.admin.from('incoming_invoices').insert({ source: 'manual', status: 'approved', invoice_number: `H-A4B-${tag}-${stamp}`, currency: 'DKK', external_invoice_id: claim }).select('id').single()
+    if (error || !data) throw new Error(`leverandørfaktura ${tag}: ${error?.message}`)
+    const id = (data as { id: string }).id
+    supIds.push(id)
+    if (logClaim !== 'none') {
+      const { error: lErr } = await c.admin.from('accounting_sync_log').insert({ provider: 'economic', entity_type: 'invoice', entity_id: id, action: 'create', status: 'failed',
+        error_message: `${EXPORT_UNCERTAIN_MARK} fetch failed`, request_meta: { http_status: 0, uncertain: true, claim: logClaim ?? claim, kind: 'supplier_invoice' } })
+      if (lErr) throw new Error(`log ${tag}: ${lErr.message}`)
+    }
+    return { id, claim }
+  }
+  const supClaimOf = async (id: string) => ((await c.admin.from('incoming_invoices').select('external_invoice_id, status').eq('id', id).maybeSingle()).data ?? null) as { external_invoice_id: string | null; status: string } | null
+  try {
+    const sa = await mkSup('frisk', 1)
+    const rsa = await pushSupplierInvoiceToEconomic(sa.id)
+    out.push({ id: 'S1 leverandør: usikkert krav blokerer ny bogføring, kravet bliver', ok: rsa.reason === 'export uncertain' && (await supClaimOf(sa.id))?.external_invoice_id === sa.claim, note: `reason=${rsa.reason}` })
+    const sb = await mkSup('gammel', 60)
+    const rsb = await pushSupplierInvoiceToEconomic(sb.id)
+    out.push({ id: 'S2 leverandør: gammelt usikkert krav tages ikke over (stale ignoreres)', ok: rsb.reason === 'export uncertain' && (await supClaimOf(sb.id))?.external_invoice_id === sb.claim, note: `reason=${rsb.reason}` })
+    const sc = await mkSup('andet-krav', 60, 'pending-1')
+    const lockC = await uncertainExportLock(c.admin, sc.id, 'incoming_invoices')
+    out.push({ id: 'S3 leverandør: log for et andet krav låser ikke', ok: lockC === null, note: `lås=${lockC ? 'ja' : 'nej'}` })
+    const sd = await mkSup('uden-log', 60, 'none')
+    const rsd = await pushSupplierInvoiceToEconomic(sd.id)
+    out.push({ id: 'S4 leverandør: uden UNCERTAIN-log normal sti (stoppet af opsætning/kill-switch — intet sendt)', ok: rsd.reason !== 'export uncertain', note: `reason=${rsd.reason}` })
+    const rj = await rejectInvoice(sa.id, '00000000-0000-0000-0000-000000000000', 'harness')
+    out.push({ id: 'S5 leverandør: usikker faktura kan ikke afvises (dansk tekst, ingen rå fejl)', ok: !rj.ok && /Uvist om leverandørfakturaen/.test(rj.message) && !/UNCERTAIN|fetch failed/.test(rj.message) && (await supClaimOf(sa.id))?.status === 'approved', note: rj.message })
+  } finally {
+    if (supIds.length) {
+      await c.admin.from('accounting_sync_log').delete().eq('entity_type', 'invoice').in('entity_id', supIds)
+      await c.admin.from('incoming_invoice_audit_log').delete().in('incoming_invoice_id', supIds)
+      await c.admin.from('incoming_invoices').delete().in('id', supIds)
+    }
+  }
   return out
 }
 
 export function formatEconomicUncertainCheck(checks: EuCheck[]): string {
-  return ['A-4 e-conomic uvist udfald — staging', ...checks.map((k) => `  ${k.ok ? 'PASS' : 'FAIL'}  ${k.id} — ${k.note}`)].join('\n')
+  return ['A-4/A-4b e-conomic uvist udfald — staging', ...checks.map((k) => `  ${k.ok ? 'PASS' : 'FAIL'}  ${k.id} — ${k.note}`)].join('\n')
 }

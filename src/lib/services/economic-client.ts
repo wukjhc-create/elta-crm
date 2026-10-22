@@ -149,14 +149,16 @@ interface FetchOptions {
 export const EXPORT_UNCERTAIN_MARK = 'UNCERTAIN:'
 /** Henrik 2026-10-21: brugerens tekst — aldrig udbyderens/netværkets rå fejl */
 export const EXPORT_UNCERTAIN_TEXT = 'Uvist om fakturaen blev oprettet i e-conomic. Kontrollér e-conomic før du frigiver eksporten.'
+/** A-4b (Henrik 2026-10-22): samme model for leverandørfakturaer */
+export const SUPPLIER_POSTING_UNCERTAIN_TEXT = 'Uvist om leverandørfakturaen blev bogført i e-conomic. Kontrollér kladderne i e-conomic før du frigiver bogføringen.'
 
 /**
  * A-4: er fakturaen låst af et krav med uvist udfald? Kun et "pending-"-krav MED en UNCERTAIN-log for præcis det krav
  * (request_meta.claim). Låsen gælder uanset opsætning/kill-switch og frigives kun manuelt.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function uncertainExportLock(client: any, invoiceId: string): Promise<{ claim: string; since: string } | null> {
-  const { data: inv } = await client.from('invoices').select('external_invoice_id').eq('id', invoiceId).maybeSingle()
+export async function uncertainExportLock(client: any, invoiceId: string, table: 'invoices' | 'incoming_invoices' = 'invoices'): Promise<{ claim: string; since: string } | null> {
+  // A-4b: samme lås for leverandørfakturaer (incoming_invoices) — loggen bruger entity_type 'invoice' + fakturaens id
+  const { data: inv } = await client.from(table).select('external_invoice_id').eq('id', invoiceId).maybeSingle()
   const claim = (inv as { external_invoice_id?: string | null } | null)?.external_invoice_id ?? null
   if (!claim || !claim.startsWith(EXPORT_CLAIM_PREFIX)) return null
   const { data } = await client.from('accounting_sync_log').select('created_at')
@@ -1037,6 +1039,12 @@ export async function pingEconomicConnection(): Promise<EconomicPingResult> {
 export async function pushSupplierInvoiceToEconomic(
   incomingInvoiceId: string
 ): Promise<EconomicResult<{ draftSupplierInvoiceNumber?: string }>> {
+  // A-4b (Henrik 2026-10-22): et krav med uvist udfald låser leverandørfakturaen — ingen bogføring (heller ikke
+  // stale-overtagelse efter 15 min) før en person har tjekket e-conomic og frigivet bevidst
+  if (await uncertainExportLock(createAdminClient(), incomingInvoiceId, 'incoming_invoices')) {
+    await logAttempt({ entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'skip', status: 'skipped', error_message: 'supplier posting uncertain — locked until manual release' })
+    return { ok: false, status: 'skipped', reason: 'export uncertain' }
+  }
   const settings = await loadReadySettings('invoice', incomingInvoiceId, 'create')
   if (!settings) {
     return { ok: false, status: 'skipped', reason: economicPushEnabled() ? 'ECONOMIC_NOT_CONFIGURED' : ECONOMIC_PUSH_DISABLED_CODE }
@@ -1137,8 +1145,24 @@ export async function pushSupplierInvoiceToEconomic(
       { method: 'POST', body }
     )
   } catch (err) {
-    await releaseSupClaim()
-    throw err
+    // A-4b: ukendt udfald — kravet bliver (ingen frigivelse → ingen dobbelt bogføring ved genforsøg)
+    res = { ok: false, status: 0, data: null, error: err instanceof Error ? err.message : String(err) }
+  }
+
+  if (exportOutcomeUncertain(res)) {
+    await logAttempt({
+      entity_type: 'invoice',
+      entity_id: incomingInvoiceId,
+      action: 'create',
+      status: 'failed',
+      error_message: `${EXPORT_UNCERTAIN_MARK} ${res.error || `HTTP ${res.status}`}`.slice(0, 500),
+      request_meta: { http_status: res.status, uncertain: true, claim: supClaimValue, kind: 'supplier_invoice' },
+    })
+    try {
+      const { logHealth } = await import('@/lib/services/system-health')
+      await logHealth('economic', 'warning', 'Leverandørfaktura-bogføring med ukendt udfald (netværk/timeout/5xx) — tjek kladder i e-conomic før genforsøg', { incomingInvoiceId })
+    } catch { /* never crash */ }
+    return { ok: false, status: 'failed', reason: 'export uncertain', error: SUPPLIER_POSTING_UNCERTAIN_TEXT }
   }
 
   if (!res.ok || !res.data?.draftSupplierInvoiceNumber) {

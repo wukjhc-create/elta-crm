@@ -1,5 +1,6 @@
 /**
- * A-4: hvilke e-conomic-udfald er USIKRE (kravet bliver, ingen automatisk genpostering)?
+ * A-4 + A-4b: hvilke e-conomic-udfald er USIKRE (kravet bliver, ingen automatisk genpostering)? Samme klassifikation
+ * bruges af kundefaktura-eksporten og leverandørfaktura-bogføringen (exportOutcomeUncertain).
  *   npx tsx scripts/economic-uncertain-test.ts
  */
 import { exportOutcomeUncertain } from '../src/lib/services/economic-client'
@@ -14,6 +15,7 @@ const t = (label: string, res: { ok: boolean; status: number; error?: string }, 
 t('succes', { ok: true, status: 201 }, false)
 t('netværksfejl/timeout (status 0)', { ok: false, status: 0, error: 'fetch failed' }, true)
 t('kill-switch (status 0 + kode) er sikkert — intet sendt', { ok: false, status: 0, error: ECONOMIC_PUSH_DISABLED_CODE }, false)
+t('afbrudt/timeout (AbortError, status 0)', { ok: false, status: 0, error: 'This operation was aborted' }, true)
 t('408 request timeout', { ok: false, status: 408 }, true)
 t('500 serverfejl', { ok: false, status: 500 }, true)
 t('503 utilgængelig', { ok: false, status: 503 }, true)

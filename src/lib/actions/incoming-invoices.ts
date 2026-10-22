@@ -10,6 +10,7 @@
 import { copenhagenParts, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
+import { validateUUID } from '@/lib/validations/common'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import {
   approveInvoice,
@@ -197,6 +198,8 @@ export interface IncomingInvoiceDetail {
     project_name: string | null
     customer_name: string | null
   } | null
+  /** A-4b: bogføringsforsøg med uvist udfald — tjek e-conomic og frigiv før nyt forsøg */
+  posting_uncertain?: { since: string } | null
   audit: Array<{
     id: string
     action: string
@@ -305,9 +308,17 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
       }
     : null
 
+  let postingUncertain: { since: string } | null = null
+  if (typeof invoice.external_invoice_id === 'string' && invoice.external_invoice_id.startsWith('pending-')) {
+    const { uncertainExportLock } = await import('@/lib/services/economic-client')
+    const lock = await uncertainExportLock(supabase, id, 'incoming_invoices')
+    postingUncertain = lock ? { since: lock.since } : null
+  }
+
   return {
     invoice,
     has_file: hasFile,
+    posting_uncertain: postingUncertain,
     lines: (linesRes.data ?? []) as IncomingInvoiceLineRow[],
     supplier: (supplierRes.data ?? null) as IncomingInvoiceDetail['supplier'],
     workOrder: (woRes.data ?? null) as IncomingInvoiceDetail['workOrder'],
@@ -990,7 +1001,7 @@ export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem
 
 export interface PostEconomicOutcome {
   ok: boolean
-  status: 'posted' | 'not_configured' | 'already_posted' | 'in_progress' | 'not_eligible' | 'failed' | 'denied'
+  status: 'posted' | 'not_configured' | 'already_posted' | 'in_progress' | 'not_eligible' | 'failed' | 'denied' | 'uncertain'
   message: string
   external_id?: string | null
 }
@@ -1051,6 +1062,13 @@ export async function postIncomingInvoiceToEconomicAction(id: string): Promise<P
   }
 
   const econ = await pushSupplierInvoiceToEconomic(id)
+  // A-4b: uvist udfald (nyt eller tidligere) — dansk tekst, ingen rå fejl; kravet er låst til manuel frigivelse
+  if (econ.reason === 'export uncertain') {
+    const { SUPPLIER_POSTING_UNCERTAIN_TEXT } = await import('@/lib/services/economic-client')
+    if (econ.status === 'failed') await audit(false, 'Bogføring med uvist udfald — afventer kontrol i e-conomic', { uncertain: true })
+    revalidatePath(`/dashboard/incoming-invoices/${id}`)
+    return { ok: false, status: 'uncertain', message: SUPPLIER_POSTING_UNCERTAIN_TEXT }
+  }
   if (econ.status === 'success') {
     await audit(true, `Manuelt bogført i e-conomic (${econ.externalId})`, { external_invoice_id: econ.externalId })
     revalidatePath(`/dashboard/incoming-invoices/${id}`)
@@ -1081,6 +1099,43 @@ export async function postIncomingInvoiceToEconomicAction(id: string): Promise<P
   // EC-12: menneskelig fejltekst (ingen rå e-conomic-svar til brugeren; detaljen står i audit-loggen)
   const { friendlyEconomicError } = await import('@/lib/services/accounting-health')
   return { ok: false, status: 'failed', message: `Bogføring fejlede: ${friendlyEconomicError(econ.error)}` }
+}
+
+/**
+ * A-4b (Henrik 2026-10-22): frigiv en leverandørfaktura-bogføring med uvist udfald — KUN efter at nogen har tjekket i
+ * e-conomic, at kladden IKKE blev oprettet. Rydder kun et "pending-"-krav med en matchende UNCERTAIN-log; bogfører intet
+ * (næste forsøg er et nyt, bevidst klik på "Bogfør"); auditeres i både audit_logs og fakturaens historik.
+ */
+export async function releaseUncertainIncomingInvoicePostingAction(id: string, confirmedChecked: boolean): Promise<{ ok: boolean; message: string }> {
+  try {
+    validateUUID(id, 'faktura-ID')
+    const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.economic')) return { ok: false, message: 'Manglende tilladelse: settings.economic' }
+    if (confirmedChecked !== true) return { ok: false, message: 'Bekræft at du har kontrolleret e-conomic, før bogføringen frigives' }
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const { uncertainExportLock } = await import('@/lib/services/economic-client')
+    const lock = await uncertainExportLock(admin, id, 'incoming_invoices')
+    if (!lock) return { ok: false, message: 'Der er ingen bogføring med uvist udfald at frigive' }
+    const { data, error } = await admin.from('incoming_invoices').update({ external_invoice_id: null }).eq('id', id)
+      .eq('external_invoice_id', lock.claim).select('id')
+    if (error || !(data ?? []).length) return { ok: false, message: 'Bogføringen kunne ikke frigives (ændret i mellemtiden?) — genindlæs' }
+    const { insertAuditRow } = await import('@/lib/audit/insert-audit-row')
+    await insertAuditRow({
+      user_id: userId, entity_type: 'incoming_invoice', entity_id: id, action: 'economic_posting_released',
+      action_description: 'Leverandørfaktura-bogføring med uvist udfald frigivet efter manuelt tjek i e-conomic',
+      changes: { claim: lock.claim, uncertain_since: lock.since, confirmed_checked: true },
+    })
+    await admin.from('incoming_invoice_audit_log').insert({
+      incoming_invoice_id: id, action: 'posting_released', actor_id: userId, ok: true,
+      message: 'Bogføring med uvist udfald frigivet efter kontrol i e-conomic (intet bogført)', new_value: { claim: lock.claim, uncertain_since: lock.since },
+    })
+    revalidatePath(`/dashboard/incoming-invoices/${id}`)
+    return { ok: true, message: 'Bogføringen er frigivet — du kan bogføre fakturaen igen' }
+  } catch (e) {
+    logger.error('releaseUncertainIncomingInvoicePostingAction failed', { error: e })
+    return { ok: false, message: 'Bogføringen kunne ikke frigives' }
+  }
 }
 
 // =====================================================

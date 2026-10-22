@@ -796,6 +796,12 @@ export async function approveInvoice(
   try {
     const { pushSupplierInvoiceToEconomic } = await import('@/lib/services/economic-client')
     const econ = await pushSupplierInvoiceToEconomic(invoiceId)
+    // A-4b: uvist udfald — godkendt, men bogføringen er låst til kontrol i e-conomic (dansk tekst, ingen rå fejl)
+    if (econ.reason === 'export uncertain') {
+      await auditLog({ incomingInvoiceId: invoiceId, action: 'posted', ok: false, message: 'e-conomic: uvist udfald — afventer kontrol og manuel frigivelse' })
+      const { SUPPLIER_POSTING_UNCERTAIN_TEXT } = await import('@/lib/services/economic-client')
+      return { ok: true, warning: true, message: `Godkendt — ${SUPPLIER_POSTING_UNCERTAIN_TEXT}` }
+    }
     if (econ.status === 'success') {
       await auditLog({
         incomingInvoiceId: invoiceId,
@@ -848,6 +854,9 @@ export async function rejectInvoice(invoiceId: string, rejecterId: string, reaso
   // Leverandørfaktura-review 2026-10-14 (#6): ikke mens den bogføres i e-conomic (krav 'pending-…'), og ikke når
   // linjer er konverteret til sagens kost — en afvist faktura må ikke efterlade materialer/udlæg på sagen
   if (typeof row.external_invoice_id === 'string' && row.external_invoice_id.startsWith('pending-')) {
+    // A-4b: uvist udfald kan ikke afvises herfra — den kan ligge som kladde i e-conomic
+    const { uncertainExportLock, SUPPLIER_POSTING_UNCERTAIN_TEXT } = await import('@/lib/services/economic-client')
+    if (await uncertainExportLock(supabase, invoiceId, 'incoming_invoices')) return { ok: false, message: SUPPLIER_POSTING_UNCERTAIN_TEXT }
     return { ok: false, message: 'Fakturaen er ved at blive bogført i e-conomic — prøv igen om lidt' }
   }
   const { count: converted } = await supabase
