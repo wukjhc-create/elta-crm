@@ -36,6 +36,13 @@ export interface TableWritePolicy {
   /** true hvis en ALL-policy droppes -> laesning genskabes uaendret som SELECT USING (true). */
   recreateOpenSelect: boolean
   why: string
+  /**
+   * Tabellens skrive-policies vedligeholdes nu af en dedikeret migration (rækkeafgrænsning + guard-triggere, som matrixens
+   * rolle-model ikke kan udtrykke). build-migration NÆGTER at generere policies for tabellen i en migration med nummer
+   * >= `migration` (historiske filer, fx 00173, genskabes stadig byte-identisk til CI-sammenligning). Fjern ALDRIG feltet
+   * uden at matrixen først kan udtrykke den dedikerede models regler — ellers kan de gamle brede policies genskabes.
+   */
+  supersededBy?: { migration: string; reason: string }
 }
 
 /** Anon-crons (P-003-familien: supplier-sync, unanswered-mails, rykker-resolvere, learning-feedback) laeser med
@@ -217,17 +224,17 @@ export const WAVE3A: TableWritePolicy[] = [
     dropPolicies: ['case_materials_all_auth'], recreateOpenSelect: true, why: 'materialer paa sag/arbejdsordre (cases.edit, work_orders.complete)' },
   { table: 'case_other_costs', insert: ['admin', 'serviceleder', 'montør'], update: ['admin', 'serviceleder'], delete: ['admin', 'serviceleder'],
     dropPolicies: ['case_other_costs_all_auth'], recreateOpenSelect: true, why: 'oevrige omkostninger paa sag (cases.edit, work_orders.complete)' },
-  // 00235 (SEC-B7) strammer customer_tasks + roof_drawings RÆKKE-vis (roller uændrede): se
-  // docs/runbooks/mp-00235-sec-b7-write-lockdown.md — denne post genererer 00173 og må ikke ændres (check:rls-matrix)
   { table: 'customer_tasks', insert: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'], update: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'],
     delete: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'], keepAnonGrants: P003,
     dropPolicies: ['Authenticated users can manage customer tasks'], recreateOpenSelect: true,
-    why: 'kundeopgaver oprettes/lukkes fra alle moduler (customers.view m.fl.); kun kendte roller' },
+    why: 'kundeopgaver oprettes/lukkes fra alle moduler (customers.view m.fl.); kun kendte roller',
+    supersededBy: { migration: '00235', reason: 'SEC-B7: rækkeafgrænsede skrive-policies + trg_customer_tasks_write_guard (docs/runbooks/mp-00235-sec-b7-write-lockdown.md)' } },
   { table: 'document_confirmations', insert: ['admin', 'serviceleder', 'montør'], update: ['admin', 'serviceleder', 'montør'], delete: [],
     dropPolicies: ['Authenticated full access'], recreateOpenSelect: true, why: 'bekraeftelses-anmodninger (service.edit); kundens svar sker med service-role' },
   { table: 'roof_drawings', insert: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'], update: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'],
     delete: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'], dropPolicies: ['Authenticated manage roof drawings'], recreateOpenSelect: true,
-    why: 'tagtegninger paa kundekortet (customers.view = alle roller)' },
+    why: 'tagtegninger paa kundekortet (customers.view = alle roller)',
+    supersededBy: { migration: '00235', reason: 'SEC-B7: sag/kunde-afgrænsede skrive-policies + trg_roof_drawings_update_guard (docs/runbooks/mp-00235-sec-b7-write-lockdown.md)' } },
   { table: 'service_case_attachments', insert: ['admin', 'serviceleder'], update: [], delete: ['admin', 'serviceleder'],
     dropPolicies: ['Auth users manage service case attachments'], recreateOpenSelect: true, why: 'sagsbilag (cases.edit)' },
   { table: 'projects', insert: ['admin', 'serviceleder'], update: ['admin', 'serviceleder'], delete: ['admin'], keepAnonGrants: P003,

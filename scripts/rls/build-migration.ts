@@ -7,9 +7,22 @@ import { writeFileSync } from 'fs'
 import { join } from 'path'
 import * as M from './write-matrix'
 
+/**
+ * SEC-B7 (Henrik 2026-10-24): tabeller hvis skrive-policies vedligeholdes af en dedikeret migration (`supersededBy`) må
+ * ikke regenereres i en ny migration — ellers ville matrixens brede rolle-policies stille overskrive rækkeafgrænsningen.
+ */
+export function assertNotSuperseded(nr: string, policies: M.TableWritePolicy[]): void {
+  for (const p of policies) {
+    if (p.supersededBy && Number(nr) >= Number(p.supersededBy.migration)) {
+      throw new Error(`${p.table}: skrive-policies vedligeholdes af migration ${p.supersededBy.migration} (${p.supersededBy.reason}) — generatoren må ikke regenerere dem i ${nr}`)
+    }
+  }
+}
+
 export function buildMigration(nr: string, wave: string): { file: string; sql: string } {
   const policies = (M as unknown as Record<string, M.TableWritePolicy[]>)[wave]
   if (!Array.isArray(policies)) throw new Error(`ukendt wave: ${wave}`)
+  assertNotSuperseded(nr, policies)
   const header = `-- =====================================================================
 -- ${nr} — P-009 RLS-skrivelås, ${wave} (${policies.map((p) => p.table).join(', ')})
 --
