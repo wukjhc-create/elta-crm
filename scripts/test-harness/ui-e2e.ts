@@ -5013,6 +5013,16 @@ ${m.text()}`) })
             const x3 = d3 ? await callServerAction(sp.page, custUrl, F, 'deleteRoofDrawing', [d3]) : ''
             r.salg_sletter = x3.includes('"success":true')
             if (!r.salg_opretter_uden_sag || !r.salg_gemmer || !r.salg_sletter) console.log('[U225 salg]', c3.slice(0, 300), '|', s3.slice(0, 200), '|', x3.slice(0, 200))
+            // MP-00236 app-forudsætning: lukket sag = ingen ny tagtegning, heller ikke for kontoret (genåbn først)
+            const cl = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U225 lukket ${stamp}`, customer_id: profitCustomerId, status: 'closed', closed_at: new Date().toISOString(),
+              priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+            const closedId = (cl.data?.[0] as { id?: string } | undefined)?.id ?? null
+            if (closedId) listCaseIds.push(closedId)
+            const c4 = closedId ? await callServerAction(sp.page, custUrl, F, 'createRoofDrawing', [{ customerId: profitCustomerId, serviceCaseId: closedId, title: `U225 lukket ${stamp}`,
+              imageBase64: png, imageWidth: 1, imageHeight: 1, panelProductCode: null, panelWidthMm: 1134, panelHeightMm: 1722 }]) : ''
+            const d4 = idOf(c4)
+            if (d4) created.push(d4)
+            r.lukket_sag_afvist = !!closedId && c4.includes('Sagen er lukket') && !d4
           } finally { await sp.ctx.close().catch(() => {}) }
           if (!r.montoer_opretter_paa_egen_sag || !r.montoer_gemmer || !r.montoer_sletter) console.log('[U225 montør]', c1.slice(0, 300), '|', s1.slice(0, 200), '|', x1.slice(0, 200))
         } finally {
@@ -5023,7 +5033,7 @@ ${m.text()}`) })
             await c.admin.from('roof_drawings').delete().in('id', created)
           }
         }
-        out.push({ id: 'U225 tagtegning app-flow efter 00235 (montør egen sag, salg uden sag)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+        out.push({ id: 'U225 tagtegning app-flow efter 00235 (montør egen sag, salg uden sag, lukket sag afvist)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U224 SEC-B7-forudsætning (2026-10-22): montøren gemmer en besigtigelsesrapport på sin egen sag — den bookede

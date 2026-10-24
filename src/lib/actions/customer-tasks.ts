@@ -54,6 +54,40 @@ async function taskWriteDenied(taskId: string): Promise<string | null> {
     return 'Ikke logget ind'
   }
 }
+
+/**
+ * MP-00236 (Henrik 2026-10-24) — sletteregel for opgaver (app-forudsætning før DB-migrationen). Udtrykt i rettigheder,
+ * så den følger med per-medarbejder-overrides:
+ *   - tasks.delete (admin/serviceleder): tilladte opgaver
+ *   - ellers aldrig system-/auto-opgaver (afslut/afvis dem i stedet)
+ *   - med tasks.create (salg/bogholderi): kun opgaver brugeren selv har oprettet
+ *   - uden tasks.create (montør): kun oprettet af OG tildelt én selv OG koblet til en sag i eget scope
+ */
+async function taskDeleteDenied(taskId: string): Promise<string | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(taskId)) return 'Ugyldigt opgave-id'
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('customers.view')) return 'Manglende tilladelse: customers.view'
+    if (ctx.hasPermission('tasks.delete')) return null
+    const { data, error } = await ctx.supabase.from('customer_tasks')
+      .select('assigned_to, created_by, auto_generated, service_case_id').eq('id', taskId).maybeSingle()
+    if (error) {
+      logger.error('taskDeleteDenied read failed', { error, entityId: taskId })
+      return 'Kunne ikke læse opgaven. Den er ikke slettet.'
+    }
+    const t = data as { assigned_to: string | null; created_by: string | null; auto_generated: boolean | null; service_case_id: string | null } | null
+    if (!t) return 'Opgaven blev ikke fundet'
+    if (t.auto_generated || !t.created_by) return 'Systemopgaver kan ikke slettes — afslut opgaven i stedet'
+    if (t.created_by !== ctx.userId) return 'Du kan kun slette opgaver, du selv har oprettet'
+    if (ctx.hasPermission('tasks.create')) return null
+    if (t.assigned_to !== ctx.userId) return 'Du kan kun slette opgaver, der er tildelt dig'
+    if (!t.service_case_id) return 'Opgaven er ikke koblet til en sag — afslut den i stedet'
+    const { userCanViewCase } = await import('@/lib/auth/case-scope')
+    return (await userCanViewCase(t.service_case_id, ctx)) ? null : 'Opgaven hører til en sag, du ikke har adgang til'
+  } catch {
+    return 'Ikke logget ind'
+  }
+}
 import type {
   CustomerTaskWithRelations,
   CreateCustomerTaskInput,
@@ -491,12 +525,14 @@ async function taskCreateRule(customerId: string): Promise<{ allowed: false; rea
 }
 
 /** PM2-5: hvad brugeren må på kundekortets opgaveliste (UI viser kun handlinger serveren tillader) */
-export async function getCustomerTaskAbilitiesAction(customerId: string): Promise<{ canCreate: boolean; canEditAll: boolean; userId: string | null }> {
+export async function getCustomerTaskAbilitiesAction(customerId: string): Promise<{ canCreate: boolean; canEditAll: boolean; userId: string | null; canDeleteAll?: boolean; canCreateAny?: boolean }> {
   try {
     if (!/^[0-9a-f-]{36}$/i.test(customerId)) return { canCreate: false, canEditAll: false, userId: null }
     const rule = await taskCreateRule(customerId)
     const ctx = await getAuthenticatedClientWithRole()
-    return { canCreate: rule.allowed, canEditAll: ctx.hasPermission('customers.edit'), userId: ctx.userId }
+    // MP-00236: sletteregelens rettigheder (lib/tasks/task-delete-rule)
+    return { canCreate: rule.allowed, canEditAll: ctx.hasPermission('customers.edit'), userId: ctx.userId,
+      canDeleteAll: ctx.hasPermission('tasks.delete'), canCreateAny: ctx.hasPermission('tasks.create') }
   } catch {
     return { canCreate: false, canEditAll: false, userId: null }
   }
@@ -526,8 +562,24 @@ export async function createCustomerTask(
     if (!prof || (prof as { is_active: boolean | null }).is_active === false) return { success: false, error: 'Den ansvarlige findes ikke eller er deaktiveret' }
   }
 
+  // MP-00236: en montør-opgave kobles til montørens sag hos kunden, når der er præcis én (så sletteregelen kan afgøre scope)
+  let serviceCaseId: string | null = null
+  if (rule.selfOnly) {
+    const { getWorkOrderEmployeeScope } = await import('@/lib/auth/case-scope')
+    const ctx = await getAuthenticatedClientWithRole()
+    const scope = await getWorkOrderEmployeeScope({ supabase: ctx.supabase, userId: ctx.userId, role: ctx.role })
+    if (scope.type === 'employee' && scope.employeeId) {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const { data: jobs } = await createAdminClient().from('work_orders').select('case_id, service_cases!inner(customer_id, status)')
+        .eq('assigned_employee_id', scope.employeeId).neq('status', 'cancelled').eq('service_cases.customer_id', input.customer_id).neq('service_cases.status', 'closed')
+      const caseIds = [...new Set(((jobs ?? []) as Array<{ case_id: string | null }>).map((j) => j.case_id).filter((x): x is string => !!x))]
+      if (caseIds.length === 1) serviceCaseId = caseIds[0]
+    }
+  }
+
   const { error } = await supabase.from('customer_tasks').insert({
     customer_id: input.customer_id,
+    service_case_id: serviceCaseId,
     offer_id: input.offer_id || null,
     title: input.title,
     description: input.description || null,
@@ -656,19 +708,22 @@ export async function completeCustomerTask(
 export async function deleteCustomerTask(
   taskId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const denied = (await gateDenied('customers.view')) ?? (await taskWriteDenied(taskId))
+  const denied = (await gateDenied('customers.view')) ?? (await taskDeleteDenied(taskId))
   if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data: deleted, error } = await supabase
     .from('customer_tasks')
     .delete()
     .eq('id', taskId)
+    .select('id')
 
   if (error) {
     logger.error('Failed to delete customer task', { error, entityId: taskId })
     return { success: false, error: formatError(error, 'Opgaven kunne ikke slettes') }
   }
+  // en blokeret sletning (RLS) må ikke ligne succes
+  if (!(deleted ?? []).length) return { success: false, error: 'Opgaven blev ikke slettet (ingen adgang eller allerede slettet) — genindlæs' }
 
   revalidatePath('/dashboard/customers')
   revalidatePath('/dashboard/tasks')

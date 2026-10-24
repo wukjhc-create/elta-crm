@@ -24,9 +24,12 @@ async function roofWriteDenied(
   serviceCaseId: string | null,
 ): Promise<string | null> {
   if (serviceCaseId) {
-    const { data: sc } = await ctx.supabase.from('service_cases').select('customer_id').eq('id', serviceCaseId).maybeSingle()
+    const { data: sc, error: scErr } = await ctx.supabase.from('service_cases').select('customer_id, status').eq('id', serviceCaseId).maybeSingle()
+    if (scErr) return 'Kunne ikke læse sagen — prøv igen'
     if (!sc) return 'Sagen blev ikke fundet'
     if (customerId && (sc as { customer_id: string | null }).customer_id !== customerId) return 'Sagen tilhører ikke kunden'
+    // MP-00236 (Henrik 2026-10-24): lukket sag = ingen opret/ret/slet af tagtegninger — også for kontoret; genåbn sagen først
+    if ((sc as { status: string | null }).status === 'closed') return 'Sagen er lukket — en administrator eller serviceleder skal genåbne den, før tagtegningen kan ændres'
   }
   if (ctx.hasPermission('customers.edit')) return null
   if (!serviceCaseId) return 'Manglende tilladelse: customers.edit'

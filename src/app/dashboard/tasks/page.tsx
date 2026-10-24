@@ -22,6 +22,10 @@ export default async function TasksPage() {
   const canManage = ctx.has('tasks.create') // admin + serviceleder
   // PM3-8 (rettigheds-audit 2026-10-19): sendTaskEmail kræver tasks.edit — uden den vises mailknappen ikke
   const canMail = ctx.has('tasks.edit')
+  // MP-00236: sletteregel pr. opgave (lib/tasks/task-delete-rule) — serveren håndhæver den samme regel
+  const { createClient } = await import('@/lib/supabase/server')
+  const currentUserId = (await (await createClient()).auth.getUser()).data.user?.id ?? null
+  const deleteAbilities = { canDeleteAll: ctx.has('tasks.delete'), canCreateAny: ctx.has('tasks.create'), userId: currentUserId }
   // Sprint 8C-1 — saa send-mail-dialogen kan vise advarsel + mailto-fallback
   // hvis Graph ikke er konfigureret i miljøet.
   const graphConfigured = isGraphConfigured()
@@ -35,6 +39,7 @@ export default async function TasksPage() {
       <TasksPageClient
         isMontor={ownOnly}
         canManage={canManage}
+        deleteAbilities={deleteAbilities}
         canMail={canMail}
         graphConfigured={graphConfigured}
       />

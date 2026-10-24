@@ -1,5 +1,6 @@
 'use client'
 
+import { taskDeleteAllowed, type TaskDeleteAbilities } from '@/lib/tasks/task-delete-rule'
 import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { isoToCopenhagenInput, copenhagenInputToIso } from '@/lib/utils/datetime-local'
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -81,6 +82,7 @@ const emptyForm: TaskFormData = {
 export function TasksPageClient({
   isMontor = false,
   canManage = true,
+  deleteAbilities,
   canMail = false,
   graphConfigured = false,
 }: {
@@ -89,6 +91,8 @@ export function TasksPageClient({
    *  delete handlinger der kraever tasks.create/edit/delete. */
   isMontor?: boolean
   canManage?: boolean
+  /** MP-00236 — sletteregel pr. opgave (uden = ingen sletteknap) */
+  deleteAbilities?: TaskDeleteAbilities
   /** PM3-8 — tasks.edit (sendTaskEmail afviser ellers); uden den vises mailknappen ikke */
   canMail?: boolean
   /** Sprint 8C-1 — om Microsoft Graph er konfigureret. Hvis false viser
@@ -563,6 +567,7 @@ export function TasksPageClient({
                 onDelete={() => handleDelete(task.id)}
                 onMailClick={canMail ? () => setMailTask(task) : undefined}
                 canManage={canManage}
+                canDelete={!!deleteAbilities && taskDeleteAllowed(task, deleteAbilities)}
               />
             ))}
           </div>
@@ -696,6 +701,7 @@ function TaskRow({
   onDelete,
   onMailClick,
   canManage = true,
+  canDelete = false,
 }: {
   task: CustomerTaskWithRelations
   deleteConfirm: string | null
@@ -714,6 +720,8 @@ function TaskRow({
   /** Sprint 7E fix — gates Edit/Delete-knapper. Montor kan complete + status,
    *  men ikke redigere eller slette tasks. */
   canManage?: boolean
+  /** MP-00236 — sletning følger sin egen regel (lib/tasks/task-delete-rule) */
+  canDelete?: boolean
 }) {
   const statusCfg = TASK_STATUS_CONFIG[task.status]
   const priorityCfg = TASK_PRIORITY_CONFIG[task.priority]
@@ -834,7 +842,7 @@ function TaskRow({
 
       {/* Actions */}
       <div className="flex items-center gap-1 justify-end">
-        {canManage && isDeleting ? (
+        {canDelete && isDeleting ? (
           <div className="flex items-center gap-1">
             <button
               onClick={onDelete}
@@ -864,14 +872,14 @@ function TaskRow({
             >
               <Pencil className="w-4 h-4" />
             </button>
-            <button
+            {canDelete && <button
               onClick={onDeleteConfirm}
               className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
               aria-label="Slet opgave"
               title="Slet"
             >
               <Trash2 className="w-4 h-4" />
-            </button>
+            </button>}
           </div>
         ) : null}
       </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { taskDeleteAllowed } from '@/lib/tasks/task-delete-rule'
 import { isoToCopenhagenInput, copenhagenInputToIso } from '@/lib/utils/datetime-local'
 import { useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
@@ -41,7 +42,7 @@ interface CustomerTasksProps {
   initial?: {
     tasks: CustomerTaskWithRelations[]
     profiles: Array<{ id: string; full_name: string | null; email: string }>
-    abilities: { canCreate: boolean; canEditAll: boolean; userId: string | null }
+    abilities: { canCreate: boolean; canEditAll: boolean; userId: string | null; canDeleteAll?: boolean; canCreateAny?: boolean }
   }
 }
 
@@ -55,9 +56,12 @@ export function CustomerTasks({ customerId, initial }: CustomerTasksProps) {
   const [editingTask, setEditingTask] = useState<CustomerTaskWithRelations | null>(null)
   const [showDone, setShowDone] = useState(false)
   // PM2-5: kun handlinger serveren tillader (opret efter rolle/montør-scope; ret/slet/udfør egne eller med customers.edit)
-  const [abilities, setAbilities] = useState<{ canCreate: boolean; canEditAll: boolean; userId: string | null }>(initial?.abilities ?? { canCreate: false, canEditAll: false, userId: null })
+  const [abilities, setAbilities] = useState<{ canCreate: boolean; canEditAll: boolean; userId: string | null; canDeleteAll?: boolean; canCreateAny?: boolean }>(initial?.abilities ?? { canCreate: false, canEditAll: false, userId: null })
   const canWrite = (t: CustomerTaskWithRelations) =>
     abilities.canEditAll || (!!abilities.userId && (t.assigned_to === abilities.userId || t.created_by === abilities.userId))
+  // MP-00236: sletning har sin egen regel (system-opgaver, egne oprettede, montør kun sags-koblede)
+  const canDelete = (t: CustomerTaskWithRelations) =>
+    taskDeleteAllowed(t, { canDeleteAll: !!abilities.canDeleteAll, canCreateAny: !!abilities.canCreateAny, userId: abilities.userId })
 
   const loadData = async () => {
     setIsLoading(true)
@@ -153,6 +157,7 @@ export function CustomerTasks({ customerId, initial }: CustomerTasksProps) {
               key={task.id}
               task={task}
               canWrite={canWrite(task)}
+              canDelete={canDelete(task)}
               onComplete={() => handleComplete(task.id)}
               onEdit={() => { setEditingTask(task); setShowForm(true) }}
               onDelete={() => handleDelete(task.id)}
@@ -174,6 +179,7 @@ export function CustomerTasks({ customerId, initial }: CustomerTasksProps) {
                       key={task.id}
                       task={task}
                       canWrite={canWrite(task)}
+                      canDelete={canDelete(task)}
                       onComplete={() => handleReopen(task.id)}
                       onEdit={() => { setEditingTask(task); setShowForm(true) }}
                       onDelete={() => handleDelete(task.id)}
@@ -206,12 +212,14 @@ export function CustomerTasks({ customerId, initial }: CustomerTasksProps) {
 function TaskRow({
   task,
   canWrite,
+  canDelete,
   onComplete,
   onEdit,
   onDelete,
 }: {
   task: CustomerTaskWithRelations
   canWrite: boolean
+  canDelete: boolean
   onComplete: () => void
   onEdit: () => void
   onDelete: () => void
@@ -269,9 +277,9 @@ function TaskRow({
         <button onClick={onEdit} className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1 hover:bg-gray-200 rounded" aria-label="Rediger opgave" data-testid="customer-task-edit">
           <Pencil className="w-3.5 h-3.5 text-gray-500" />
         </button>
-        <button onClick={onDelete} className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1 hover:bg-red-100 rounded" aria-label="Slet opgave" data-testid="customer-task-delete">
+        {canDelete && <button onClick={onDelete} className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1 hover:bg-red-100 rounded" aria-label="Slet opgave" data-testid="customer-task-delete">
           <Trash2 className="w-3.5 h-3.5 text-red-500" />
-        </button>
+        </button>}
       </div>}
     </div>
   )
