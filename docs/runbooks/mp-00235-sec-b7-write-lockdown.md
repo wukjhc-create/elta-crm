@@ -164,3 +164,31 @@ U11-afhængighed og blev NOT_RUN. Det er miljø/harness, ikke produkt. Genkørsl
 
 **Vedligehold:** `scripts/rls/write-matrix.ts` genererer 00173 (bredt). En fremtidig regenerering af de to tabeller fra
 matrixen må ikke overskrive 00235. Det er noteret i matrixen.
+
+## 11. PROD (anvendt 2026-10-24, Henrik: "00235 — APPROVED FOR PROD")
+
+1. **Generator-værn:** `supersededBy` + `assertNotSuperseded` + `checkSupersededGuard` i `check:rls-matrix`.
+   `scripts/rls/superseded-guard-test.ts` er grøn, inkl. mutationstest.
+2. **Historik og fil:** 00234 er i prod (`lead_activities_select_role`). Ingen 00235-objekter fandtes før anvendelsen.
+   Filen er uændret siden staging-commit c6c755d2: sha256 `4181019195d419d857c42281efd705fd03672fe88e2602de80f9a186eef30204`.
+3. **Snapshot før** (`prod-sec-b7-snapshot.ts`):
+   - work_orders: 3 rækker, checksum `4dfec1a3…`
+   - customer_tasks: 28 rækker, checksum `76cc82f7…`
+   - roof_drawings: 5 rækker, checksum `a3ab0d77…`
+   - 13 policies, identiske med staging før anvendelse.
+   - 00213-guarden afveg kun i linjeskift: prod = filens CRLF-tekst, staging = LF. Normaliseret er de identiske.
+4. **Precheck** (`prod-sec-b7-precheck.ts`) uændret.
+   **Effektiv før** (rollback-only): `[NY] 0/11 · [UÆNDRET] 12/12`. Hullerne fandtes i prod.
+5. **Anvendelse:** `prod:apply-migration -- 00235 --approved-by-henrik` → COMMIT.
+6. **Snapshot efter:**
+   - **Uændret:** rækker og checksummer, grants (inkl. anon/P-003) og 00234-politikkerne.
+   - **Ændret:** præcis de 6 forventede policies. work_orders-policies er uændrede.
+   - **Tilføjet:** 2 triggere og 5 funktioner. ACL er postgres/service_role/authenticated for hjælperne og
+     postgres/service_role for triggerfunktionerne.
+   - **00213-guarden:** kilden er lig migrationsfilen, og ACL'en er uændret.
+   - **Policy-tekster:** identiske med staging efter anvendelse.
+7. **Effektiv efter** (rollback-only, rigtige profiler — montør med planlagt job + admin):
+   - Resultat: `[NY] 11/11 · [UÆNDRET] 12/12`.
+   - serviceleder, salg og bogholderi: NOT_TESTABLE_PROD (ingen profiler i prod), dækket af staging 18/18 + 12/12.
+   - Snapshot efter prøven er identisk, så intet blev committet.
+8. **00234-postcheck:** uændret (admin ser 5, montør ser 0).

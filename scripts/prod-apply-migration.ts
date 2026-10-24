@@ -78,6 +78,7 @@ const APPROVED: Record<string, string> = {
   '00231': '2026-10-15', // momsmode (standard_25/zero/reverse_charge) på kunder, tilbud, fakturaer; eksisterende = standard_25, godkendt af Henrik i chat 2026-10-15 ("00231 GODKENDT SOM VAT-DATAMODEL")
   '00232': '2026-10-16', // eksplicit afregningsform (fixed_price/time_and_materials) på sager og tilbud; kun sikre sager backfilles (ingen kontraktsum → regning), tvetydige forbliver NULL og slutfakturaen blokeres til valgt — godkendt af Henrik 2026-10-16 ("00232 BILLING MODEL GODKENDT TIL PROD")
   '00234': '2026-10-21', // lead_activities: SELECT kun admin/serviceleder/salg (= leads.view); INSERT, grants og data uændret — godkendt af Henrik i chat 2026-10-21 ("MP-2a / MIGRATION 00234 — APPROVED … also approved for prod" efter grøn staging)
+  '00235': '2026-10-24', // SEC-B7 skrive-lockdown (customer_tasks/roof_drawings rækkeafgrænset + guard-triggere; work_orders-supplement til 00213) — godkendt af Henrik i chat 2026-10-24 ("00235 — APPROVED FOR PROD", efter grøn staging + generator-værn)
 }
 
 async function main() {
