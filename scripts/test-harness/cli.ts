@@ -4961,6 +4961,46 @@ COMMIT;`)
     }
     return
   }
+  if (SUB === 'dry-run-staging') {
+    // STAGING-ONLY: kør én migration i en transaktion der RULLES TILBAGE (sidste COMMIT; → ROLLBACK;) — validerer SQL'en
+    // mod den rigtige database uden at ændre noget. Snapshot før/efter skal være identisk (b7-snapshot).
+    const num = String(process.argv[3] || '')
+    if (!/^\d{5}$/.test(num)) { log('brug: cli.ts dry-run-staging <5-cifret nr>'); process.exit(2) }
+    const dir = resolve(process.cwd(), 'supabase', 'migrations')
+    const files = readdirSync(dir).filter((f) => f.startsWith(`${num}_`) && f.endsWith('.sql'))
+    if (files.length !== 1) { log(`forventede præcis én fil for ${num}, fandt ${files.length}`); process.exit(2) }
+    const sql = readFileSync(resolve(dir, files[0]), 'utf8')
+    const commits = sql.match(/^COMMIT;\s*$/gm) ?? []
+    if (commits.length !== 1 || !/^BEGIN;\s*$/m.test(sql)) { log('migrationen skal have præcis én BEGIN; og én COMMIT; på egne linjer'); process.exit(2) }
+    const dry = sql.replace(/^COMMIT;\s*$/m, 'ROLLBACK;')
+    log(`=== DRY RUN (ROLLBACK) ${files[0]} → staging:${ref} ===`)
+    try {
+      await stagingSql(dry)
+      log('✅ SQL kørt uden fejl og rullet tilbage')
+    } catch (e) {
+      log(`❌ dry run fejlede: ${e instanceof Error ? e.message : String(e)}`)
+      process.exitCode = 2
+    }
+    return
+  }
+  if (SUB === 'b7-snapshot') {
+    // STAGING READ-ONLY: politikker, grants, triggere, funktions-hash og række-checksummer for SEC-B7-tabellerne (JSON).
+    //   cli.ts b7-snapshot > fil.json  — sammenlign før/efter (rækker skal være uændrede; politikker kun som forventet)
+    const tables = ['work_orders', 'customer_tasks', 'roof_drawings']
+    const inList = tables.map((t) => `'${t}'`).join(',')
+    const snap: Record<string, unknown> = {}
+    snap.policies = await stagingSql(`SELECT tablename, policyname, cmd, roles::text roles, coalesce(qual,'') qual, coalesce(with_check,'') with_check FROM pg_policies WHERE schemaname='public' AND tablename IN (${inList}) ORDER BY tablename, cmd, policyname`)
+    snap.grants = await stagingSql(`SELECT table_name, grantee, string_agg(privilege_type, ',' ORDER BY privilege_type) p FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name IN (${inList}) AND grantee IN ('anon','authenticated','service_role') GROUP BY 1,2 ORDER BY 1,2`)
+    snap.triggers = await stagingSql(`SELECT event_object_table t, trigger_name, string_agg(event_manipulation, ',' ORDER BY event_manipulation) ev, action_timing FROM information_schema.triggers WHERE event_object_schema='public' AND event_object_table IN (${inList}) GROUP BY 1,2,4 ORDER BY 1,2`)
+    snap.functions = await stagingSql(`SELECT p.proname, md5(p.prosrc) src_md5, p.prosecdef secdef, coalesce(array_to_string(p.proacl, ','), '') acl FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname IN ('work_orders_montor_update_guard','customer_tasks_write_guard','roof_drawings_update_guard','montor_has_customer_job','case_belongs_to_customer','case_is_closed','user_can_see_case','user_role') ORDER BY 1`)
+    const rows: Record<string, unknown> = {}
+    for (const t of tables) {
+      rows[t] = (await stagingSql(`SELECT count(*)::int n, coalesce(md5(string_agg(md5(x::text), '' ORDER BY x.id)), '') checksum FROM public.${t} x`))[0]
+    }
+    snap.rows = rows
+    console.log(JSON.stringify(snap, null, 1))
+    return
+  }
   if (SUB === 'migrate-staging') {
     // STAGING-ONLY: anvend én navngiven migration fra supabase/migrations (guard er allerede passeret ovenfor).
     const num = String(process.argv[3] || '')

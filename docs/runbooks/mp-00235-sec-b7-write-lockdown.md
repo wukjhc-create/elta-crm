@@ -123,3 +123,44 @@ Største risiko: en app-sti jeg har overset, som skriver andres opgaver med brug
 
 Står nederst i SQL-filen. Den gendanner præcis policies og 00213-funktionen og dropper de nye triggere og hjælpere.
 Rollback kører kun ved en reel regression.
+
+## 10. Staging-resultat (anvendt 2026-10-24, Henrik: "APPROVED FOR STAGING ONLY")
+
+**Rækkefølge:** dry run → anvendelse → matrix → app-flows → data → gates → UI.
+
+1. **Dry run:** `cli.ts dry-run-staging 00235` kørte hele SQL'en i en transaktion med `ROLLBACK`. Ingen fejl, og snapshot før/efter
+   (`cli.ts b7-snapshot`) var byte-identisk.
+2. **Anvendelse:** `harness:migrate-staging -- 00235` → ✅.
+3. **Snapshot før → efter anvendelse:**
+   - **Rækker uændrede:**
+     - work_orders: 14, checksum `c3cdbf45…`
+     - customer_tasks: 84, checksum `70c6e3dc…`
+     - roof_drawings: 0
+   - **Grants uændrede**, inkl. anon på customer_tasks (P-003).
+   - **Policies:** kun de 6 forventede er ændret (customer_tasks insert/update/delete og roof_drawings insert/update/delete).
+     work_orders' policies er uændrede.
+   - **Triggere:** `trg_customer_tasks_write_guard` og `trg_roof_drawings_update_guard` er tilføjet.
+   - **Funktioner:**
+     - tilføjet: `montor_has_customer_job`, `case_belongs_to_customer`, `case_is_closed` (SECURITY DEFINER, ACL kun
+       postgres + authenticated)
+     - tilføjet: `customer_tasks_write_guard`, `roof_drawings_update_guard` (ACL kun postgres)
+     - ændret: `work_orders_montor_update_guard`
+4. **REST-matrix (`sec-b7-rls-check`):** `[NY] 18/18 · [UÆNDRET] 12/12` (før: `0/18 · 12/12`).
+5. **00213-tjek (`work-orders-guard-check`):** 8/8 uændret.
+6. **App-flows (UI):** alle bestået.
+   - besigtigelse og systemlukning: U224, U221, U197, U69
+   - tagtegning: U225 (ny — montør på egen sag opretter, gemmer og sletter; montør uden sag afvises; salg uden sag
+     opretter, gemmer og sletter)
+   - opgaver (kontor/roller): U175, U196, U201
+   - montør-flow: U11, U40, U63, U66, U71
+   - lukning og planlægning: U48, U222
+7. **Gates:** tsc, check:rls-matrix og check:rbac er grønne.
+
+**Legitime flows brudt:** ingen fundet.
+
+**Harness-bemærkning:** første UI-kørsel ramte 15-min-loftet, fordi build tog 819 s. De resterende tests mistede deres
+U11-afhængighed og blev NOT_RUN. Det er miljø/harness, ikke produkt. Genkørslen var grøn, og re-queue-fejlen er rettet i
+`ui-batches.ts`.
+
+**Vedligehold:** `scripts/rls/write-matrix.ts` genererer 00173 (bredt). En fremtidig regenerering af de to tabeller fra
+matrixen må ikke overskrive 00235. Det er noteret i matrixen.

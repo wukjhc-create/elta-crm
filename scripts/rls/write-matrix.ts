@@ -217,6 +217,8 @@ export const WAVE3A: TableWritePolicy[] = [
     dropPolicies: ['case_materials_all_auth'], recreateOpenSelect: true, why: 'materialer paa sag/arbejdsordre (cases.edit, work_orders.complete)' },
   { table: 'case_other_costs', insert: ['admin', 'serviceleder', 'montør'], update: ['admin', 'serviceleder'], delete: ['admin', 'serviceleder'],
     dropPolicies: ['case_other_costs_all_auth'], recreateOpenSelect: true, why: 'oevrige omkostninger paa sag (cases.edit, work_orders.complete)' },
+  // 00235 (SEC-B7) strammer customer_tasks + roof_drawings RÆKKE-vis (roller uændrede): se
+  // docs/runbooks/mp-00235-sec-b7-write-lockdown.md — denne post genererer 00173 og må ikke ændres (check:rls-matrix)
   { table: 'customer_tasks', insert: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'], update: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'],
     delete: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'], keepAnonGrants: P003,
     dropPolicies: ['Authenticated users can manage customer tasks'], recreateOpenSelect: true,

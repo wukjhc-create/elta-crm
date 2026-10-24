@@ -185,7 +185,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
-  montor: ['U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -4971,6 +4971,61 @@ ${m.text()}`) })
 
       // U188 CU-1 (kunde-review 2026-10-17): sagsløse kundedokumenter — montør ser dem kun for kunder med en sag i sit
       // scope (U11-sagens kunde), ikke for fremmede kunder; salg (customers.edit) ser dem for alle kunder
+      // U225 SEC-B7/00235 (2026-10-24): tagtegningens normale app-flow efter skrive-lockdown — montør opretter, gemmer og
+      // sletter en tegning på EGEN sag; salg (customers.edit) på kunden uden sag; montør afvises på kunden uden sag.
+      if (want('U225') && profitCustomerId && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+        const F = 'src/lib/actions/roof-drawings.ts'
+        const data = { referenceLine: null, mmPerPx: null, panelWidthMm: 1134, panelHeightMm: 1722, panelGapMm: 20, panels: [] }
+        const created: string[] = []
+        const idOf = (raw: string) => /"id":"([0-9a-f-]{36})"/.exec(raw)?.[1] ?? null
+        try {
+          const pageUrl = `${base}/dashboard/orders/${jobCaseId}`
+          await gotoSafe(m.page, pageUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+          const c1 = await callServerAction(m.page, pageUrl, F, 'createRoofDrawing', [{ customerId: profitCustomerId, serviceCaseId: jobCaseId, title: `U225 ${stamp}`,
+            imageBase64: png, imageWidth: 1, imageHeight: 1, panelProductCode: null, panelWidthMm: 1134, panelHeightMm: 1722 }])
+          const d1 = idOf(c1)
+          if (d1) created.push(d1)
+          r.montoer_opretter_paa_egen_sag = c1.includes('"success":true') && !!d1
+          const s1 = d1 ? await callServerAction(m.page, pageUrl, F, 'saveRoofDrawing', [{ id: d1, panelCount: 0, drawingData: data, title: `U225 gemt ${stamp}` }]) : ''
+          r.montoer_gemmer = s1.includes('"success":true')
+          const row = d1 ? ((await c.admin.from('roof_drawings').select('title, created_by, service_case_id').eq('id', d1).maybeSingle()).data as { title: string; created_by: string; service_case_id: string } | null) : null
+          r.gemt_i_db = row?.title === `U225 gemt ${stamp}` && row?.service_case_id === jobCaseId
+          const x1 = d1 ? await callServerAction(m.page, pageUrl, F, 'deleteRoofDrawing', [d1]) : ''
+          r.montoer_sletter = x1.includes('"success":true') && !((await c.admin.from('roof_drawings').select('id').eq('id', d1 ?? '').maybeSingle()).data)
+          const c2 = await callServerAction(m.page, pageUrl, F, 'createRoofDrawing', [{ customerId: profitCustomerId, serviceCaseId: null, title: `U225 nej ${stamp}`,
+            imageBase64: png, imageWidth: 1, imageHeight: 1, panelProductCode: null, panelWidthMm: 1134, panelHeightMm: 1722 }])
+          const d2 = idOf(c2)
+          if (d2) created.push(d2)
+          r.montoer_afvist_uden_sag = !c2.includes('"success":true')
+          const sp = await login(await mkUser('salg'))
+          try {
+            const custUrl = `${base}/dashboard/customers/${profitCustomerId}`
+            await gotoSafe(sp.page, custUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            const c3 = await callServerAction(sp.page, custUrl, F, 'createRoofDrawing', [{ customerId: profitCustomerId, serviceCaseId: null, title: `U225 salg ${stamp}`,
+              imageBase64: png, imageWidth: 1, imageHeight: 1, panelProductCode: null, panelWidthMm: 1134, panelHeightMm: 1722 }])
+            const d3 = idOf(c3)
+            if (d3) created.push(d3)
+            r.salg_opretter_uden_sag = c3.includes('"success":true') && !!d3
+            const s3 = d3 ? await callServerAction(sp.page, custUrl, F, 'saveRoofDrawing', [{ id: d3, panelCount: 0, drawingData: data }]) : ''
+            r.salg_gemmer = s3.includes('"success":true')
+            const x3 = d3 ? await callServerAction(sp.page, custUrl, F, 'deleteRoofDrawing', [d3]) : ''
+            r.salg_sletter = x3.includes('"success":true')
+            if (!r.salg_opretter_uden_sag || !r.salg_gemmer || !r.salg_sletter) console.log('[U225 salg]', c3.slice(0, 300), '|', s3.slice(0, 200), '|', x3.slice(0, 200))
+          } finally { await sp.ctx.close().catch(() => {}) }
+          if (!r.montoer_opretter_paa_egen_sag || !r.montoer_gemmer || !r.montoer_sletter) console.log('[U225 montør]', c1.slice(0, 300), '|', s1.slice(0, 200), '|', x1.slice(0, 200))
+        } finally {
+          if (created.length) {
+            const { data: left } = await c.admin.from('roof_drawings').select('id, image_storage_path').in('id', created)
+            const paths = ((left ?? []) as Array<{ image_storage_path: string | null }>).map((x) => x.image_storage_path).filter((x): x is string => !!x)
+            if (paths.length) await c.admin.storage.from('service-case-files').remove(paths).catch(() => {})
+            await c.admin.from('roof_drawings').delete().in('id', created)
+          }
+        }
+        out.push({ id: 'U225 tagtegning app-flow efter 00235 (montør egen sag, salg uden sag)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U224 SEC-B7-forudsætning (2026-10-22): montøren gemmer en besigtigelsesrapport på sin egen sag — den bookede
       // besigtigelsesopgave (oprettet af kontoret, tildelt en anden) lukkes stadig (systemlukning via admin-klienten bag
       // gaten), så funktionen ikke afhænger af montørens bredde skriveret på customer_tasks. Ingen mail (sendToCustomer=false).
