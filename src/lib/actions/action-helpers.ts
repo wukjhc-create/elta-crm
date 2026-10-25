@@ -11,7 +11,8 @@ import { permissionDeniedText } from '@/lib/auth/permission-text'
 import { cache } from 'react'
 import { getUser } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import { type Permission } from '@/lib/auth/permissions'
+import { effectivePermissionsFor } from '@/lib/auth/effective-access'
 import { safeErrorSummary } from '@/lib/utils/logger'
 import type { UserRole } from '@/types/auth.types'
 
@@ -82,6 +83,8 @@ export async function getAuthenticatedClientWithRole(): Promise<{
   supabase: Awaited<ReturnType<typeof createClient>>
   userId: string
   role: UserRole
+  /** PERM-1: effektive rettigheder (rolle + overrides) — uden overrides = rollens rettigheder */
+  permissions: ReadonlySet<Permission>
   hasPermission: (perm: Permission) => boolean
   requirePermission: (perm: Permission) => void
 }> {
@@ -89,8 +92,10 @@ export async function getAuthenticatedClientWithRole(): Promise<{
   const supabase = await createClient()
 
   const role = await readRoleCached(userId)
+  // PERM-1 fase 1: rolle + eksplicitte overrides (lib/auth/effective-access) — alle gates nedenfor bruger sættet
+  const permissions = await effectivePermissionsFor(userId, role)
 
-  const has = (perm: Permission) => hasPermission(role, perm)
+  const has = (perm: Permission) => permissions.has(perm)
   const req = (perm: Permission) => {
     if (!has(perm)) {
       throw new ActionError(
@@ -105,6 +110,7 @@ export async function getAuthenticatedClientWithRole(): Promise<{
     supabase,
     userId,
     role,
+    permissions,
     hasPermission: has,
     requirePermission: req,
   }

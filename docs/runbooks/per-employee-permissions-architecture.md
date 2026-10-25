@@ -162,3 +162,35 @@ Data-påvirkning: ingen. Nye tomme tabeller og en nullable kolonne. Ingen polici
 2. Om "team" skal være et rigtigt begreb nu (en ny tabel), eller om team-scope venter.
 3. Om `customers.view.related` skal være montørens standard. Det er en adfærdsændring: montører ser i dag alle kunder.
 4. Rækkefølge: fase 0–1 kan laves som kode uden migration (bortset fra 00237). Fase 2 kræver godkendelse af 00238.
+
+## 7. Status
+
+### Fase 1 — server-kerne (DONE 2026-10-25, kode, ingen migration)
+
+**Ny kode:**
+- `lib/auth/effective-permissions.ts`: rolle ∪ grants − revokes; `ingen_adgang` giver altid et tomt sæt;
+  `explainPermission` returnerer role/grant/revoke/none.
+- `lib/auth/effective-access.ts`: ét indlæsningspunkt for overrides. I fase 1 er der ingen lagring, så sættet er tomt.
+- `lib/auth/permission-templates.ts`: Henriks skabeloner.
+- `lib/auth/permission-groups.ts`: 8 grupper og scope-sæt. Team-scope kan tilføjes som et ekstra niveau uden
+  skemaændring.
+
+**Wiring:**
+- `getAuthenticatedClientWithRole().hasPermission`, `pageHasPermission` og `getPageRoleContext` bruger det effektive
+  sæt.
+- `ScopeContext` får en valgfri `hasPermission`, som case-scope bruger, når kalderen sender sit ctx.
+
+**Kompatibilitet:**
+- `scripts/effective-permissions-test.ts` beviser: uden overrides er effektive rettigheder = dagens rolle-rettigheder
+  for 5 roller × 112 nøgler (0 afvigelser).
+- Testen tjekker også skabelonernes værn (ingen følsomme nøgler, Salg/Serviceleder/Bogholderi = præcis rollen).
+- UI-batch på tværs af roller er grøn.
+
+**Ratchet i `check:rbac`:** direkte `hasPermission(role, …)` ≤ 70 og rolle-sammenligninger ≤ 58. Tallene må kun falde.
+
+**SIKKERHED:**
+- I fase 1 findes der endnu ingen overrides.
+- Når de kommer (fase 2), håndhæves en REVOKE af server-actions, sider og scope, men **ikke** af RLS ved direkte REST,
+  før tabellens policies er konverteret (fase 4).
+- De 70 + 58 direkte rolle-tjek ignorerer overrides, indtil de er konverteret.
+- Det må ikke markedsføres som fuld sikring.

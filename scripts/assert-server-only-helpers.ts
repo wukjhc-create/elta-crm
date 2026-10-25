@@ -82,6 +82,24 @@ if (!dBody.includes("hasPermission('cases.view.all')") || !dBody.includes('getCa
   fail('SEC-5: getCustomerDocuments begrænser ikke sagsdokumenter til brugerens scope')
 } else pass('SEC-5: kundedokumenter følger sags-scope')
 
+// PERM-1 (Henrik 2026-10-25): rettigheder skal gå gennem det effektive sæt (rolle + overrides). Direkte rolle-tjek
+// omgår overrides — ratchet: antallet må kun falde (sænk baseline, når kald konverteres).
+{
+  const RAW_HAS_BASELINE = 70
+  const ROLE_CMP_BASELINE = 58
+  const files = walk(join(ROOT, 'src')).filter((f) => /\.(ts|tsx)$/.test(f) && !f.replace(/\\/g, '/').endsWith('src/lib/auth/permissions.ts'))
+  let rawHas = 0, roleCmp = 0
+  for (const f of files) {
+    const src = readFileSync(f, 'utf8')
+    rawHas += (src.match(/hasPermission\(\s*[A-Za-z_.]*[rR]ole\b/g) ?? []).length
+    roleCmp += (src.match(/\b[A-Za-z_.]*[rR]ole\s*[!=]==\s*'(admin|serviceleder|montør|salg|bogholderi)'/g) ?? []).length
+  }
+  if (rawHas > RAW_HAS_BASELINE) fail(`PERM-1: ${rawHas} direkte hasPermission(role, …) (baseline ${RAW_HAS_BASELINE}) — brug ctx.hasPermission / pageHasPermission`)
+  else pass(`PERM-1: direkte hasPermission(role, …) = ${rawHas} (≤ ${RAW_HAS_BASELINE})`)
+  if (roleCmp > ROLE_CMP_BASELINE) fail(`PERM-1: ${roleCmp} rolle-sammenligninger (baseline ${ROLE_CMP_BASELINE}) — brug en rettighed`)
+  else pass(`PERM-1: rolle-sammenligninger = ${roleCmp} (≤ ${ROLE_CMP_BASELINE})`)
+}
+
 if (failures > 0) {
   console.log(`\n❌ ${failures} fejl`)
   process.exit(1)

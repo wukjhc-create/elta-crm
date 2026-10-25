@@ -13,7 +13,8 @@
 import { cache } from 'react'
 import { getUser } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import { type Permission } from '@/lib/auth/permissions'
+import { effectivePermissionsFor } from '@/lib/auth/effective-access'
 import type { UserRole } from '@/types/auth.types'
 
 /** Auth-review 2026-10-07: fail-safe uden rettigheder (før 'montør') — manglende bruger/profil eller deaktiveret profil */
@@ -35,9 +36,15 @@ async function getUserRoleForPageUncached(): Promise<UserRole> {
   return data.role as UserRole
 }
 
-export async function pageHasPermission(perm: Permission): Promise<boolean> {
+/** PERM-1 fase 1: sidens effektive rettigheder (rolle + overrides), request-cachet */
+const getPagePermissions = cache(async (): Promise<ReadonlySet<Permission>> => {
   const role = await getUserRoleForPage()
-  return hasPermission(role, perm)
+  const user = await getUser()
+  return user ? effectivePermissionsFor(user.id, role) : new Set()
+})
+
+export async function pageHasPermission(perm: Permission): Promise<boolean> {
+  return (await getPagePermissions()).has(perm)
 }
 
 /**
@@ -50,8 +57,9 @@ export async function getPageRoleContext(): Promise<{
   has: (perm: Permission) => boolean
 }> {
   const role = await getUserRoleForPage()
+  const permissions = await getPagePermissions()
   return {
     role,
-    has: (perm: Permission) => hasPermission(role, perm),
+    has: (perm: Permission) => permissions.has(perm),
   }
 }

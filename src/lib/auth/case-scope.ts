@@ -18,7 +18,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { UserRole } from '@/types/auth.types'
-import { hasPermission } from '@/lib/auth/permissions'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type CaseScope =
@@ -33,6 +33,13 @@ interface ScopeContext {
   role: UserRole
   userId: string
   supabase: SupabaseClient
+  /** PERM-1: effektiv rettigheds-tjek (fra getAuthenticatedClientWithRole) — uden den bruges rollen (uændret adfærd) */
+  hasPermission?: (perm: Permission) => boolean
+}
+
+/** PERM-1: overrides følger med når kalderen sender sit ctx; ellers rollens rettigheder */
+function can(ctx: ScopeContext, perm: Permission): boolean {
+  return ctx.hasPermission ? ctx.hasPermission(perm) : hasPermission(ctx.role, perm)
 }
 
 /**
@@ -48,11 +55,11 @@ interface ScopeContext {
  * - andre                                           → tom liste
  */
 export async function getCaseScope(ctx: ScopeContext): Promise<CaseScope> {
-  if (hasPermission(ctx.role, 'cases.view.all')) {
+  if (can(ctx, 'cases.view.all')) {
     return { type: 'all' }
   }
 
-  if (!hasPermission(ctx.role, 'cases.view.assigned')) {
+  if (!can(ctx, 'cases.view.assigned')) {
     return { type: 'specific', caseIds: [] }
   }
 
@@ -116,8 +123,8 @@ export type WorkOrderEmployeeScope = { type: 'all' } | { type: 'employee'; emplo
  * employeeId null = ingen adgang.
  */
 export async function getWorkOrderEmployeeScope(ctx: ScopeContext): Promise<WorkOrderEmployeeScope> {
-  if (hasPermission(ctx.role, 'work_orders.view.all')) return { type: 'all' }
-  if (!hasPermission(ctx.role, 'work_orders.view.assigned')) return { type: 'employee', employeeId: null }
+  if (can(ctx, 'work_orders.view.all')) return { type: 'all' }
+  if (!can(ctx, 'work_orders.view.assigned')) return { type: 'employee', employeeId: null }
   const empRes = await ctx.supabase
     .from('employees')
     .select('id')
@@ -158,8 +165,8 @@ export async function userCanViewCase(
 ): Promise<boolean> {
   // PF2-4 (performance-review 2026-10-17): samme regler som getCaseScope, men som opslag på ÉN sag (før blev hele
   // scopet — alle egne sager + alle montørens arbejdsordrer — hentet ved hvert kald, ~40 kaldesteder pr. sidevisning)
-  if (hasPermission(ctx.role, 'cases.view.all')) return true
-  if (!hasPermission(ctx.role, 'cases.view.assigned')) return false
+  if (can(ctx, 'cases.view.all')) return true
+  if (!can(ctx, 'cases.view.assigned')) return false
   const { data: own } = await ctx.supabase
     .from('service_cases')
     .select('id')
