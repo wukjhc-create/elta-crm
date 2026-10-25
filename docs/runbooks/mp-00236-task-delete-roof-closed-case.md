@@ -58,3 +58,21 @@ derfor ikke slettes af montøren. Alternativet er at lade montøren vælge sag i
 ## 5. Rollback
 
 Står nederst i SQL-filen og gendanner 00235-definitionerne af de fire policies.
+
+## 6. Staging-resultat (anvendt 2026-10-25, Henrik: "00236 — APPROVED FOR STAGING ONLY")
+
+- **Montør-sagsvalg (Henriks regel):**
+  - én åben sag → kobles automatisk
+  - flere → montøren skal vælge (server + dialog)
+  - ingen → ingen sag opfindes
+  - Test: U226.
+- **Dry run:** ROLLBACK, snapshot identisk. Herefter anvendt.
+- **Snapshot:**
+  - Uændret: rækker, checksummer, grants, triggere og funktioner.
+  - Ændret: præcis de 4 forventede policies (customer_tasks delete; roof_drawings insert/update/delete).
+- **REST:**
+  - `mp-00236-rls-check`: `[NY] 9/9 · [UÆNDRET] 7/7` (før: 0/9 · 7/7).
+  - `sec-b7-rls-check` (00235): stadig 18/18 · 12/12. `work-orders-guard-check` er grøn.
+- **UI (sammen med 00237):** 18/18 grønne, plus basistests (login for alle roller) i hver batch.
+  U226, U225, U224, U40, U175, U201, U196, U7, U8, U9, U29, U48, U222, U11, U63, U71.
+- **Legitime flows brudt:** ingen.
