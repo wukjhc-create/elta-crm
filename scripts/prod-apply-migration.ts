@@ -79,6 +79,8 @@ const APPROVED: Record<string, string> = {
   '00232': '2026-10-16', // eksplicit afregningsform (fixed_price/time_and_materials) på sager og tilbud; kun sikre sager backfilles (ingen kontraktsum → regning), tvetydige forbliver NULL og slutfakturaen blokeres til valgt — godkendt af Henrik 2026-10-16 ("00232 BILLING MODEL GODKENDT TIL PROD")
   '00234': '2026-10-21', // lead_activities: SELECT kun admin/serviceleder/salg (= leads.view); INSERT, grants og data uændret — godkendt af Henrik i chat 2026-10-21 ("MP-2a / MIGRATION 00234 — APPROVED … also approved for prod" efter grøn staging)
   '00235': '2026-10-24', // SEC-B7 skrive-lockdown (customer_tasks/roof_drawings rækkeafgrænset + guard-triggere; work_orders-supplement til 00213) — godkendt af Henrik i chat 2026-10-24 ("00235 — APPROVED FOR PROD", efter grøn staging + generator-værn)
+  '00236': '2026-10-25', // opgave-sletning efter Henriks regel + tagtegninger låst på lukket sag (customer_tasks DELETE, roof_drawings INSERT/UPDATE/DELETE) — godkendt af Henrik i chat 2026-10-25 ("00236 — APPROVED FOR PROD", efter grøn ui-full 197/197)
+  '00237': '2026-10-25', // SEC-B10 user_role() fail-closed (manglende/inaktiv profil = ingen_adgang, aldrig montør) — godkendt af Henrik i chat 2026-10-25 ("00237 — APPROVED FOR PROD", efter grøn ui-full 197/197 og 00236)
 }
 
 async function main() {

@@ -3,7 +3,9 @@
  *   E1  frisk krav + UNCERTAIN-log → createInvoiceInEconomic afviser ('export uncertain'), kravet bliver
  *   E2  GAMMELT krav (> 15 min, ville ellers blive overtaget) + UNCERTAIN-log → afvises stadig, kravet bliver
  *   E3  UNCERTAIN-log for et ANDET krav låser ikke dette krav (matcher præcist request_meta.claim)
- *   E4  krav uden UNCERTAIN-log → ingen lås (normal sti; her stoppet af opsætning/kill-switch — intet postes)
+ *   E4  EC-T1: FORÆLDET krav (> 15 min) uden afgørende log → låst ('stale_no_log'), ingen eksport/overtagelse
+ *   E6  EC-T1: FRISK krav uden log → ikke låst ("i gang"), intet postes
+ *   E7  EC-T1: forældet krav MED succes-log → ikke låst (EC-5 genskaber linket)
  * Intet sendes til e-conomic (låsen tjekkes før opsætning; staging har ingen e-conomic-adgang/kill-switch).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -38,14 +40,24 @@ export async function runEconomicUncertainCheck(c: { admin: SupabaseClient }): P
     const rb = await createInvoiceInEconomic(b.id)
     out.push({ id: 'E2 gammelt usikkert krav tages ikke over', ok: rb.reason === 'export uncertain' && (await claimOf(b.id)) === b.claim, note: `reason=${rb.reason}` })
 
-    const d = await mk('andet-krav', 60, 'pending-1')
+    const d = await mk('andet-krav', 1, 'pending-1')
     const lockD = await uncertainExportLock(c.admin, d.id)
-    out.push({ id: 'E3 log for et andet krav låser ikke', ok: lockD === null, note: `lås=${lockD ? 'ja' : 'nej'}` })
+    out.push({ id: 'E3 log for et andet krav låser ikke (frisk krav)', ok: lockD === null, note: `lås=${lockD ? 'ja' : 'nej'}` })
 
     const e = await mk('uden-log', 60, 'none')
     const lockE = await uncertainExportLock(c.admin, e.id)
     const re = await createInvoiceInEconomic(e.id)
-    out.push({ id: 'E4 krav uden UNCERTAIN-log er ikke låst', ok: lockE === null && re.reason !== 'export uncertain', note: `lås=${lockE ? 'ja' : 'nej'} reason=${re.reason}` })
+    out.push({ id: 'E4 EC-T1: forældet krav uden log = UVIST (låst, ingen overtagelse)', ok: lockE?.reason === 'stale_no_log' && re.reason === 'export uncertain' && (await claimOf(e.id)) === e.claim, note: `lås=${lockE?.reason ?? 'nej'} reason=${re.reason}` })
+
+    const f = await mk('frisk-uden-log', 1, 'none')
+    const lockF = await uncertainExportLock(c.admin, f.id)
+    const rf = await createInvoiceInEconomic(f.id)
+    out.push({ id: 'E6 EC-T1: frisk krav uden log = i gang (ikke låst, intet postes)', ok: lockF === null && rf.reason === 'export in progress' && (await claimOf(f.id)) === f.claim, note: `lås=${lockF ? 'ja' : 'nej'} reason=${rf.reason}` })
+
+    const g = await mk('gammel-med-succes', 60, 'none')
+    await c.admin.from('accounting_sync_log').insert({ provider: 'economic', entity_type: 'invoice', entity_id: g.id, action: 'create', status: 'success', external_id: 'draft-999001' })
+    const lockG = await uncertainExportLock(c.admin, g.id)
+    out.push({ id: 'E7 EC-T1: forældet krav med succes-log er ikke uvist', ok: lockG === null, note: `lås=${lockG?.reason ?? 'nej'}` })
 
     const lockA = await uncertainExportLock(c.admin, a.id)
     out.push({ id: 'E5 låsen angiver forsøgets tidspunkt og krav', ok: !!lockA && lockA.claim === a.claim && !!lockA.since, note: lockA ? `since=${lockA.since}` : 'ingen' })
@@ -80,12 +92,15 @@ export async function runEconomicUncertainCheck(c: { admin: SupabaseClient }): P
     const sb = await mkSup('gammel', 60)
     const rsb = await pushSupplierInvoiceToEconomic(sb.id)
     out.push({ id: 'S2 leverandør: gammelt usikkert krav tages ikke over (stale ignoreres)', ok: rsb.reason === 'export uncertain' && (await supClaimOf(sb.id))?.external_invoice_id === sb.claim, note: `reason=${rsb.reason}` })
-    const sc = await mkSup('andet-krav', 60, 'pending-1')
+    const sc = await mkSup('andet-krav', 1, 'pending-1')
     const lockC = await uncertainExportLock(c.admin, sc.id, 'incoming_invoices')
     out.push({ id: 'S3 leverandør: log for et andet krav låser ikke', ok: lockC === null, note: `lås=${lockC ? 'ja' : 'nej'}` })
     const sd = await mkSup('uden-log', 60, 'none')
     const rsd = await pushSupplierInvoiceToEconomic(sd.id)
-    out.push({ id: 'S4 leverandør: uden UNCERTAIN-log normal sti (stoppet af opsætning/kill-switch — intet sendt)', ok: rsd.reason !== 'export uncertain', note: `reason=${rsd.reason}` })
+    out.push({ id: 'S4 EC-T1 leverandør: forældet krav uden log = UVIST (låst)', ok: rsd.reason === 'export uncertain' && (await supClaimOf(sd.id))?.external_invoice_id === sd.claim, note: `reason=${rsd.reason}` })
+    const sf = await mkSup('frisk-uden-log', 1, 'none')
+    const rsf = await pushSupplierInvoiceToEconomic(sf.id)
+    out.push({ id: 'S6 EC-T1 leverandør: frisk krav uden log = i gang (intet sendt)', ok: rsf.reason === 'export in progress', note: `reason=${rsf.reason}` })
     const rj = await rejectInvoice(sa.id, '00000000-0000-0000-0000-000000000000', 'harness')
     out.push({ id: 'S5 leverandør: usikker faktura kan ikke afvises (dansk tekst, ingen rå fejl)', ok: !rj.ok && /Uvist om leverandørfakturaen/.test(rj.message) && !/UNCERTAIN|fetch failed/.test(rj.message) && (await supClaimOf(sa.id))?.status === 'approved', note: rj.message })
   } finally {
