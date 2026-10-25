@@ -194,3 +194,22 @@ Data-påvirkning: ingen. Nye tomme tabeller og en nullable kolonne. Ingen polici
   før tabellens policies er konverteret (fase 4).
 - De 70 + 58 direkte rolle-tjek ignorerer overrides, indtil de er konverteret.
 - Det må ikke markedsføres som fuld sikring.
+
+### 00238 — forslag klar (2026-10-25, ikke anvendt)
+
+- **SQL:** [`00238_permission_overrides.DRAFT.sql`](00238_permission_overrides.DRAFT.sql) (inkl. rollback).
+- **Indhold:**
+  - `permission_catalog` og `role_permission_defaults`: genereret fra `permissions.ts` af
+    `scripts/permissions/build-defaults.ts`. `--check` beviser seed = TS (112 nøgler, 267 rolle-nøgle-par).
+  - `user_permission_overrides`: grant/revoke, kilde, begrundelse og hvem/hvornår. Nøglen har FK til kataloget.
+  - `profiles.permission_template`: nullable, ingen backfill.
+  - `user_has_permission(text)`: override- og `is_active`-bevidst, fail-closed.
+- **Sikkerhed:** ingen REST-skrivning, så overrides skrives kun via server-action (`users.manage_roles`) + audit.
+  Læsning er egne overrides + admin.
+- **Erstatter** 00108's ubrugte `user_has_permission(text, uuid)`, som droppes. Det er bevist i prod, at den er ubrugt:
+  0 policies, funktioner, views eller app-kald.
+- **Påvirkning:** ingen eksisterende policies, data eller adfærd ændres. Ingen policy bruger funktionen før fase 4.
+- **Efter godkendelse:**
+  1. staging: dry run, anvend og verificér (katalog = TS, funktion = `hasPermission` for alle roller × nøgler)
+  2. admin-UI (fase 2)
+  3. prod efter særskilt godkendelse
