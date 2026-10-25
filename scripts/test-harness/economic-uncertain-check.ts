@@ -110,6 +110,45 @@ export async function runEconomicUncertainCheck(c: { admin: SupabaseClient }): P
       await c.admin.from('incoming_invoices').delete().in('id', supIds)
     }
   }
+  // EC-T1 del 2 (Henrik 2026-10-25): debitor- og betalings-låse (lås-funktionerne direkte — kill-switchen stopper selve
+  // oprettelsen/posteringen på staging før låsen nås)
+  const { customerSyncUncertainLock, paymentPostingUncertainLock, UNCERTAIN_RELEASED_MARK } = await import('../../src/lib/services/economic-client')
+  const custIds: string[] = []
+  const invIds2: string[] = []
+  const mkCust = async (tag: string, claim: string | null) => {
+    const { data, error } = await c.admin.from('customers').insert({ customer_number: `ECT1-${tag}-${stamp}`, company_name: `[HARNESS] ect1 ${tag} ${stamp}`, contact_person: 'X', email: `ect1-${tag}-${stamp}@harness.test`, external_customer_id: claim }).select('id').single()
+    if (error || !data) throw new Error(`kunde ${tag}: ${error?.message}`)
+    custIds.push((data as { id: string }).id)
+    return (data as { id: string }).id
+  }
+  try {
+    const old = `pending:${Date.now() - 60 * 60_000}:abc`
+    const c1 = await mkCust('gammel', old)
+    const l1 = await customerSyncUncertainLock(c.admin, c1)
+    out.push({ id: 'C1 debitor: forældet krav uden log = UVIST', ok: l1?.reason === 'stale_no_log' && l1.claim === old, note: `lås=${l1?.reason ?? 'nej'}` })
+    const c2 = await mkCust('frisk', `pending:${Date.now() - 60_000}:abc`)
+    const l2 = await customerSyncUncertainLock(c.admin, c2)
+    out.push({ id: 'C2 debitor: frisk krav uden log er ikke låst', ok: l2 === null, note: `lås=${l2?.reason ?? 'nej'}` })
+    const freshUnsure = `pending:${Date.now() - 60_000}:def:sent`
+    const c3 = await mkCust('uvist', freshUnsure)
+    await c.admin.from('accounting_sync_log').insert({ provider: 'economic', entity_type: 'customer', entity_id: c3, action: 'create', status: 'failed', error_message: `${EXPORT_UNCERTAIN_MARK} ECONOMIC_TIMEOUT`, request_meta: { uncertain: true, claim: freshUnsure } })
+    const l3 = await customerSyncUncertainLock(c.admin, c3)
+    out.push({ id: 'C3 debitor: UNCERTAIN-log for kravet låser (også frisk)', ok: l3?.reason === 'uncertain_log', note: `lås=${l3?.reason ?? 'nej'}` })
+
+    const { data: pinv, error: pErr } = await c.admin.from('invoices').insert({ invoice_number: `H-ECT1-P-${stamp}`, status: 'sent', total_amount: 80, tax_amount: 20, final_amount: 100 }).select('id').single()
+    if (pErr || !pinv) throw new Error(`faktura: ${pErr?.message}`)
+    const pid = (pinv as { id: string }).id
+    invIds2.push(pid)
+    out.push({ id: 'P1 betaling: ingen lås uden UNCERTAIN-log', ok: (await paymentPostingUncertainLock(c.admin, pid)) === null, note: '' })
+    await c.admin.from('accounting_sync_log').insert({ provider: 'economic', entity_type: 'invoice', entity_id: pid, action: 'mark_paid', status: 'failed', error_message: `${EXPORT_UNCERTAIN_MARK} ECONOMIC_TIMEOUT`, request_meta: { uncertain: true } })
+    out.push({ id: 'P2 betaling: UNCERTAIN-log låser', ok: !!(await paymentPostingUncertainLock(c.admin, pid)), note: '' })
+    await new Promise((r) => setTimeout(r, 20))
+    await c.admin.from('accounting_sync_log').insert({ provider: 'economic', entity_type: 'invoice', entity_id: pid, action: 'mark_paid', status: 'skipped', error_message: `${UNCERTAIN_RELEASED_MARK} test` })
+    out.push({ id: 'P3 betaling: frigivelses-markering ophæver låsen', ok: (await paymentPostingUncertainLock(c.admin, pid)) === null, note: '' })
+  } finally {
+    if (custIds.length) { await c.admin.from('accounting_sync_log').delete().eq('entity_type', 'customer').in('entity_id', custIds); await c.admin.from('customers').delete().in('id', custIds) }
+    if (invIds2.length) { await c.admin.from('accounting_sync_log').delete().eq('entity_type', 'invoice').in('entity_id', invIds2); await c.admin.from('invoices').delete().in('id', invIds2) }
+  }
   return out
 }
 

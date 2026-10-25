@@ -18,6 +18,8 @@ import {
   getInvoiceAccountingStatusAction,
   exportInvoiceToEconomicAction,
   releaseUncertainInvoiceExportAction,
+  releaseUncertainCustomerSyncAction,
+  releaseUncertainPaymentPostingAction,
   getEconomicInvoicePreviewAction,
   type InvoiceAccountingState,
 } from '@/lib/actions/accounting'
@@ -100,6 +102,21 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
     })
   }
 
+  // EC-T1: debitor-/betalingslåse frigives hver for sig efter bekræftet tjek i e-conomic
+  const handleReleaseOther = (kind: 'customer' | 'payment') => {
+    if (!canExport) return
+    const q = kind === 'customer'
+      ? 'Har du tjekket debitorerne i e-conomic, og findes kunden IKKE dér?\n\nFindes den, må debitoren ikke frigives (så oprettes den to gange).'
+      : 'Har du tjekket kassekladden i e-conomic, og findes betalingen IKKE dér?\n\nFindes den, må betalingen ikke frigives (så bogføres den to gange).'
+    if (!window.confirm(q)) return
+    startTransition(async () => {
+      const res = kind === 'customer' ? await releaseUncertainCustomerSyncAction(invoiceId, true) : await releaseUncertainPaymentPostingAction(invoiceId, true)
+      setFlash({ ok: res.ok, text: res.message })
+      setTimeout(() => setFlash(null), 7000)
+      await load()
+    })
+  }
+
   if (loading || !state) {
     return (
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
@@ -125,7 +142,7 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
 
   const skin = STATUS_SKIN[state.status]
   const showExport =
-    canExport && state.integration_ready && state.status !== 'exported' && state.status !== 'needs_fix' && !state.export_uncertain
+    canExport && state.integration_ready && state.status !== 'exported' && state.status !== 'needs_fix' && !state.export_uncertain && !state.customer_uncertain_since
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
@@ -305,6 +322,29 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
             )}
           </div>
         )}
+        {[
+          state.customer_uncertain_since ? { kind: 'customer' as const, since: state.customer_uncertain_since, text: 'Uvist om debitoren blev oprettet i e-conomic. Kontrollér debitorerne i e-conomic før du frigiver.', label: 'Jeg har tjekket e-conomic — frigiv debitoren' } : null,
+          state.payment_uncertain_since ? { kind: 'payment' as const, since: state.payment_uncertain_since, text: 'Uvist om betalingen blev bogført i e-conomic. Kontrollér kassekladden i e-conomic før du frigiver.', label: 'Jeg har tjekket kassekladden — frigiv betalingen' } : null,
+        ].filter((x): x is NonNullable<typeof x> => !!x).map((u) => (
+          <div key={u.kind} className="pt-1" data-testid={`invoice-economic-${u.kind}-uncertain`}>
+            <p className="text-xs text-amber-900">{u.text}</p>
+            <p className="text-[11px] text-amber-800 mt-0.5">
+              Forsøget med uvist udfald: {new Date(u.since).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </p>
+            {canExport && (
+              <button
+                type="button"
+                onClick={() => handleReleaseOther(u.kind)}
+                disabled={pending}
+                className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                data-testid={`invoice-economic-${u.kind}-release`}
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                {u.label}
+              </button>
+            )}
+          </div>
+        ))}
         {showExport && (
           <div className="pt-1">
             <button

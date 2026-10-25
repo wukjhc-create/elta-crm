@@ -172,6 +172,48 @@ export function claimTimestamp(claim: string): number | null {
 export const EXPORT_UNCERTAIN_MARK = 'UNCERTAIN:'
 /** Henrik 2026-10-21: brugerens tekst — aldrig udbyderens/netværkets rå fejl */
 export const EXPORT_UNCERTAIN_TEXT = 'Uvist om fakturaen blev oprettet i e-conomic. Kontrollér e-conomic før du frigiver eksporten.'
+/** EC-T1 (Henrik 2026-10-25): samme model for debitor-oprettelse og betalingspostering */
+export const CUSTOMER_SYNC_UNCERTAIN_TEXT = 'Uvist om debitoren blev oprettet i e-conomic. Kontrollér debitorerne i e-conomic før du frigiver.'
+export const PAYMENT_POSTING_UNCERTAIN_TEXT = 'Uvist om betalingen blev bogført i e-conomic. Kontrollér kassekladden i e-conomic før du frigiver.'
+export const UNCERTAIN_RELEASED_MARK = 'UNCERTAIN_RELEASED:'
+const CUSTOMER_CLAIM_PREFIX = 'pending:'
+const CUSTOMER_CLAIM_STALE_MS = 10 * 60_000
+
+/**
+ * EC-T1: debitor-krav med uvist udfald ('pending:<ms>:<rand>[:sent]' i customers.external_customer_id): UNCERTAIN-log for
+ * præcis kravet, eller et krav ældre end 10 min uden succes-log. Frigives kun manuelt.
+ */
+export async function customerSyncUncertainLock(client: any, customerId: string): Promise<{ claim: string; since: string; reason: 'uncertain_log' | 'stale_no_log' } | null> {
+  const { data: cust } = await client.from('customers').select('external_customer_id, external_provider').eq('id', customerId).maybeSingle()
+  const claim = (cust as { external_customer_id?: string | null } | null)?.external_customer_id ?? null
+  if (!claim || !claim.startsWith(CUSTOMER_CLAIM_PREFIX)) return null
+  const { data } = await client.from('accounting_sync_log').select('created_at')
+    .eq('entity_type', 'customer').eq('entity_id', customerId).eq('action', 'create').eq('status', 'failed')
+    .like('error_message', `${EXPORT_UNCERTAIN_MARK}%`).eq('request_meta->>claim', claim)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (data) return { claim, since: (data as { created_at: string }).created_at, reason: 'uncertain_log' }
+  const ts = Number(claim.slice(CUSTOMER_CLAIM_PREFIX.length).split(':')[0])
+  if (Number.isFinite(ts) && Date.now() - ts < CUSTOMER_CLAIM_STALE_MS) return null
+  const { data: done } = await client.from('accounting_sync_log').select('id')
+    .eq('entity_type', 'customer').eq('entity_id', customerId).eq('action', 'create').eq('status', 'success')
+    .not('external_id', 'is', null).limit(1).maybeSingle()
+  if (done) return null
+  return { claim, since: new Date(Number.isFinite(ts) ? ts : 0).toISOString(), reason: 'stale_no_log' }
+}
+
+/**
+ * EC-T1: betalingspostering (kassekladde) har intet krav-felt — låsen er log-baseret: seneste UNCERTAIN-markering for
+ * fakturaens mark_paid, der ikke er efterfulgt af en manuel frigivelse (UNCERTAIN_RELEASED).
+ */
+export async function paymentPostingUncertainLock(client: any, invoiceId: string): Promise<{ since: string } | null> {
+  const { data } = await client.from('accounting_sync_log').select('created_at, error_message')
+    .eq('entity_type', 'invoice').eq('entity_id', invoiceId).eq('action', 'mark_paid')
+    .or(`error_message.like.${EXPORT_UNCERTAIN_MARK}%,error_message.like.${UNCERTAIN_RELEASED_MARK}%`)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  const row = data as { created_at: string; error_message: string | null } | null
+  return row && (row.error_message ?? '').startsWith(EXPORT_UNCERTAIN_MARK) ? { since: row.created_at } : null
+}
+
 /** A-4b (Henrik 2026-10-22): samme model for leverandørfakturaer */
 export const SUPPLIER_POSTING_UNCERTAIN_TEXT = 'Uvist om leverandørfakturaen blev bogført i e-conomic. Kontrollér kladderne i e-conomic før du frigiver bogføringen.'
 
@@ -365,6 +407,11 @@ export async function createCustomerInEconomic(
   let claimed = false
   if (!current || current.startsWith(CLAIM_PREFIX)) {
     const staleClaim = !!current && Number(current.slice(CLAIM_PREFIX.length).split(':')[0]) < Date.now() - 10 * 60_000
+    // EC-T1 (Henrik 2026-10-25): et forældet krav uden afgørende log overtages IKKE — debitoren kan være oprettet
+    if (current && (await customerSyncUncertainLock(supabase, customerId))) {
+      await logAttempt({ entity_type: 'customer', entity_id: customerId, action: 'skip', status: 'skipped', error_message: 'customer sync uncertain — locked until manual release' })
+      return { ok: false, status: 'failed', reason: 'customer uncertain', error: CUSTOMER_SYNC_UNCERTAIN_TEXT }
+    }
     if (current && !staleClaim) {
       await logAttempt({ entity_type: 'customer', entity_id: customerId, action: 'create', status: 'skipped', error_message: 'debitor oprettes allerede (samtidig eksport)' })
       return { ok: false, status: 'failed', error: 'Debitoren oprettes allerede i e-conomic — prøv igen om et øjeblik' }
@@ -377,8 +424,20 @@ export async function createCustomerInEconomic(
       return { ok: false, status: 'failed', error: 'Debitoren oprettes allerede i e-conomic — prøv igen om et øjeblik' }
     }
   }
+  // EC-T1: REQUEST_STARTED-markør lige før skrive-kaldet (compare-and-set)
+  let liveMarker = claimMarker
+  if (claimed) {
+    const sent = `${claimMarker}:sent`
+    const { data: st } = await supabase.from('customers').update({ external_customer_id: sent }).eq('id', customerId).eq('external_customer_id', claimMarker).select('id')
+    if (!st || st.length !== 1) {
+      await supabase.from('customers').update({ external_customer_id: null }).eq('id', customerId).eq('external_customer_id', claimMarker)
+      await logAttempt({ entity_type: 'customer', entity_id: customerId, action: 'create', status: 'skipped', error_message: 'claim lost before request (nothing sent)' })
+      return { ok: false, status: 'failed', error: 'Debitoren oprettes allerede i e-conomic — prøv igen om et øjeblik' }
+    }
+    liveMarker = sent
+  }
   const releaseClaim = async () => {
-    if (claimed) await supabase.from('customers').update({ external_customer_id: null }).eq('id', customerId).eq('external_customer_id', claimMarker)
+    if (claimed) await supabase.from('customers').update({ external_customer_id: null }).eq('id', customerId).eq('external_customer_id', liveMarker)
   }
 
   const cfg = ready.config || {}
@@ -401,7 +460,21 @@ export async function createCustomerInEconomic(
   const res = await economicFetch<{ customerNumber: number }>(ready, '/customers', {
     method: 'POST',
     body,
-  }).catch(async (err: unknown) => { await releaseClaim(); throw err })
+  }).catch((err: unknown) => ({ ok: false as const, status: 0, data: null, error: err instanceof Error ? err.message : String(err) }))
+
+  // EC-T1: uvist udfald (netværk/timeout/408/5xx) — kravet bliver, UNCERTAIN-log, ingen automatisk genforsøg
+  if (exportOutcomeUncertain(res) && claimed) {
+    await logAttempt({
+      entity_type: 'customer', entity_id: customerId, action: 'create', status: 'failed',
+      error_message: `${EXPORT_UNCERTAIN_MARK} ${res.error || `HTTP ${res.status}`}`.slice(0, 500),
+      request_meta: { http_status: res.status, uncertain: true, claim: liveMarker },
+    })
+    try {
+      const { logHealth } = await import('@/lib/services/system-health')
+      await logHealth('economic', 'warning', 'Debitor-oprettelse med ukendt udfald — tjek debitorer i e-conomic før genforsøg', { customerId })
+    } catch { /* never crash */ }
+    return { ok: false, status: 'failed', reason: 'customer uncertain', error: CUSTOMER_SYNC_UNCERTAIN_TEXT }
+  }
 
   if (!res.ok || !res.data?.customerNumber) {
     await releaseClaim()
@@ -422,7 +495,7 @@ export async function createCustomerInEconomic(
     .from('customers')
     .update({ external_customer_id: externalId, external_provider: PROVIDER })
     .eq('id', customerId)
-  const { error: custLinkErr } = await (claimed ? linkQ.eq('external_customer_id', claimMarker) : linkQ.is('external_customer_id', null))
+  const { error: custLinkErr } = await (claimed ? linkQ.eq('external_customer_id', liveMarker) : linkQ.is('external_customer_id', null))
   if (custLinkErr) {
     logger.error('e-conomic: debitor oprettet, men linket kunne ikke gemmes', { entityId: customerId, metadata: { externalId }, error: custLinkErr })
   }
@@ -996,11 +1069,31 @@ export async function markInvoicePaidInEconomic(
   }
   const body = entry.body
 
+  // EC-T1: en betalingspostering med uvist udfald låser fakturaens betalingssync til manuel frigivelse
+  if (await paymentPostingUncertainLock(supabase, invoiceId)) {
+    await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'skip', status: 'skipped', error_message: 'payment posting uncertain — locked until manual release' })
+    return { ok: false, status: 'skipped', reason: 'payment uncertain' }
+  }
+
   const res = await economicFetch<{ voucherNumber: number; entryNumber?: number }>(
     ready,
     `/cash-books/${encodeURIComponent(String(cfg.cashbookNumber))}/entries/customer-payments`,
     { method: 'POST', body }
   )
+
+  // EC-T1: uvist udfald → UNCERTAIN-log (låser), intet automatisk genforsøg
+  if (exportOutcomeUncertain(res)) {
+    await logAttempt({
+      entity_type: 'invoice', entity_id: invoiceId, action: 'mark_paid', status: 'failed', external_id: inv.external_invoice_id,
+      error_message: `${EXPORT_UNCERTAIN_MARK} ${res.error || `HTTP ${res.status}`}`.slice(0, 500),
+      request_meta: { http_status: res.status, uncertain: true },
+    })
+    try {
+      const { logHealth } = await import('@/lib/services/system-health')
+      await logHealth('economic', 'warning', 'Betalingspostering med ukendt udfald — tjek kassekladden i e-conomic før genforsøg', { invoiceId })
+    } catch { /* never crash */ }
+    return { ok: false, status: 'failed', reason: 'payment uncertain', error: PAYMENT_POSTING_UNCERTAIN_TEXT }
+  }
 
   if (!res.ok) {
     await logAttempt({

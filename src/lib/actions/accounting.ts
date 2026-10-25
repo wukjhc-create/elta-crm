@@ -44,6 +44,10 @@ export interface InvoiceAccountingState {
   export_uncertain?: boolean
   /** A-4: tidspunktet for det usikre forsøg (så den der tjekker e-conomic ved hvilket forsøg) */
   export_uncertain_since?: string | null
+  /** EC-T1: debitor-oprettelsen for fakturaens kunde fik uvist udfald (blokerer eksport) */
+  customer_uncertain_since?: string | null
+  /** EC-T1: betalingsposteringen fik uvist udfald */
+  payment_uncertain_since?: string | null
 }
 
 const PROVIDER = 'economic'
@@ -93,17 +97,20 @@ export async function getInvoiceAccountingStatusAction(
   // Cost-free select — kun status/ekstern reference, ingen kost.
   const { data: inv } = await supabase
     .from('invoices')
-    .select('status, voided_at, external_invoice_id, external_provider')
+    .select('status, voided_at, external_invoice_id, external_provider, customer_id')
     .eq('id', invoiceId)
     .maybeSingle()
   if (!inv) return { ...fallback, message: 'Faktura ikke fundet' }
 
   // Seneste sync-log for fakturaen (kun ekstern reference/fejl — ingen kost).
+  // EC-T1: kun EKSPORT-forsøg (create) bestemmer eksportstatus — en betalingspostering (mark_paid) eller et skip gjorde
+  // før fakturaen til "fejl" og viste sync-loggens rå tekst
   const { data: log } = await supabase
     .from('accounting_sync_log')
     .select('status, external_id, error_message, created_at')
     .eq('entity_type', 'invoice')
     .eq('entity_id', invoiceId)
+    .eq('action', 'create')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -128,6 +135,15 @@ export async function getInvoiceAccountingStatusAction(
     const lock = await uncertainExportLock(supabase, invoiceId)
     exportUncertain = !!lock
     uncertainSince = lock?.since ?? null
+  }
+  // EC-T1: debitor- og betalings-låse med uvist udfald (vises med egen frigiv-knap)
+  let customerUncertainSince: string | null = null
+  let paymentUncertainSince: string | null = null
+  {
+    const { customerSyncUncertainLock, paymentPostingUncertainLock } = await import('@/lib/services/economic-client')
+    const custId = (inv as { customer_id?: string | null }).customer_id
+    if (custId) customerUncertainSince = (await customerSyncUncertainLock(supabase, custId))?.since ?? null
+    paymentUncertainSince = (await paymentPostingUncertainLock(supabase, invoiceId))?.since ?? null
   }
   // A-5 (review 2026-10-16): "draft-N" = kladde oprettet, bogføring fejlede — før vist som eksporteret for altid
   const draftOnly = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith('draft-')
@@ -164,10 +180,14 @@ export async function getInvoiceAccountingStatusAction(
     error: status === 'error'
       ? (exportUncertain
         ? 'Uvist om fakturaen blev oprettet i e-conomic. Kontrollér e-conomic før du frigiver eksporten.'
-        : draftOnly ? `Oprettet som kladde i e-conomic, men ikke bogført — bogfør kladden i e-conomic (${String(inv.external_invoice_id)}).` : ((log?.error_message as string | null) ?? null))
+        : draftOnly ? `Oprettet som kladde i e-conomic, men ikke bogført — bogfør kladden i e-conomic (${String(inv.external_invoice_id)}).`
+        : String(log?.error_message ?? '').startsWith('UNCERTAIN:') ? 'Uvist om fakturaen blev oprettet i e-conomic. Kontrollér e-conomic før du frigiver eksporten.'
+        : ((log?.error_message as string | null) ?? null))
       : null,
     export_uncertain: exportUncertain,
     export_uncertain_since: uncertainSince,
+    customer_uncertain_since: customerUncertainSince,
+    payment_uncertain_since: paymentUncertainSince,
     provider: PROVIDER,
     integration_ready: integrationReady,
     integration_error: integrationError,
@@ -208,6 +228,70 @@ export async function releaseUncertainInvoiceExportAction(invoiceId: string, con
   } catch (e) {
     logger.error('releaseUncertainInvoiceExportAction failed', { error: e })
     return { ok: false, message: 'Eksporten kunne ikke frigives' }
+  }
+}
+
+/**
+ * EC-T1 (Henrik 2026-10-25): frigiv en debitor-oprettelse med uvist udfald for fakturaens kunde — KUN efter tjek i
+ * e-conomic af at debitoren IKKE findes. Rydder kun det låste krav; opretter intet; auditeres.
+ */
+export async function releaseUncertainCustomerSyncAction(invoiceId: string, confirmedChecked: boolean): Promise<{ ok: boolean; message: string }> {
+  try {
+    validateUUID(invoiceId, 'faktura-ID')
+    const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.economic')) return { ok: false, message: 'Manglende tilladelse: settings.economic' }
+    if (confirmedChecked !== true) return { ok: false, message: 'Bekræft at du har kontrolleret e-conomic, før debitoren frigives' }
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const { data: inv } = await admin.from('invoices').select('customer_id').eq('id', invoiceId).maybeSingle()
+    const custId = (inv as { customer_id?: string | null } | null)?.customer_id
+    if (!custId) return { ok: false, message: 'Fakturaen har ingen kunde' }
+    const { customerSyncUncertainLock } = await import('@/lib/services/economic-client')
+    const lock = await customerSyncUncertainLock(admin, custId)
+    if (!lock) return { ok: false, message: 'Der er ingen debitor-oprettelse med ukendt udfald at frigive' }
+    const { data, error } = await admin.from('customers').update({ external_customer_id: null }).eq('id', custId).eq('external_customer_id', lock.claim).select('id')
+    if (error || !(data ?? []).length) return { ok: false, message: 'Debitoren kunne ikke frigives (ændret i mellemtiden?) — genindlæs' }
+    await insertAuditRow({
+      user_id: userId, entity_type: 'customer', entity_id: custId, action: 'economic_customer_sync_released',
+      action_description: 'Debitor-oprettelse med ukendt udfald frigivet efter manuelt tjek i e-conomic',
+      changes: { claim: lock.claim, uncertain_since: lock.since, uncertain_reason: lock.reason, via_invoice: invoiceId, confirmed_checked: true },
+    })
+    return { ok: true, message: 'Debitoren er frigivet — eksporten kan prøves igen' }
+  } catch (e) {
+    logger.error('releaseUncertainCustomerSyncAction failed', { error: e })
+    return { ok: false, message: 'Debitoren kunne ikke frigives' }
+  }
+}
+
+/**
+ * EC-T1: frigiv en betalingspostering med uvist udfald — KUN efter tjek af kassekladden i e-conomic. Skriver en
+ * frigivelses-markering i sync-loggen (låsen er log-baseret), poster intet; auditeres.
+ */
+export async function releaseUncertainPaymentPostingAction(invoiceId: string, confirmedChecked: boolean): Promise<{ ok: boolean; message: string }> {
+  try {
+    validateUUID(invoiceId, 'faktura-ID')
+    const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.economic')) return { ok: false, message: 'Manglende tilladelse: settings.economic' }
+    if (confirmedChecked !== true) return { ok: false, message: 'Bekræft at du har kontrolleret kassekladden i e-conomic, før betalingen frigives' }
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const { paymentPostingUncertainLock, UNCERTAIN_RELEASED_MARK } = await import('@/lib/services/economic-client')
+    const lock = await paymentPostingUncertainLock(admin, invoiceId)
+    if (!lock) return { ok: false, message: 'Der er ingen betalingspostering med ukendt udfald at frigive' }
+    const { error } = await admin.from('accounting_sync_log').insert({
+      provider: PROVIDER, entity_type: 'invoice', entity_id: invoiceId, action: 'mark_paid', status: 'skipped',
+      error_message: `${UNCERTAIN_RELEASED_MARK} manuel frigivelse efter kontrol i e-conomic`, request_meta: { released_by: userId, uncertain_since: lock.since },
+    })
+    if (error) return { ok: false, message: 'Betalingen kunne ikke frigives — prøv igen' }
+    await insertAuditRow({
+      user_id: userId, entity_type: 'invoice', entity_id: invoiceId, action: 'economic_payment_posting_released',
+      action_description: 'Betalingspostering med ukendt udfald frigivet efter manuelt tjek i e-conomic',
+      changes: { uncertain_since: lock.since, confirmed_checked: true },
+    })
+    return { ok: true, message: 'Betalingen er frigivet — den kan bogføres igen' }
+  } catch (e) {
+    logger.error('releaseUncertainPaymentPostingAction failed', { error: e })
+    return { ok: false, message: 'Betalingen kunne ikke frigives' }
   }
 }
 
