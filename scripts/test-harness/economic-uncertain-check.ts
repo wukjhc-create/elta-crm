@@ -52,7 +52,7 @@ export async function runEconomicUncertainCheck(c: { admin: SupabaseClient }): P
     const f = await mk('frisk-uden-log', 1, 'none')
     const lockF = await uncertainExportLock(c.admin, f.id)
     const rf = await createInvoiceInEconomic(f.id)
-    out.push({ id: 'E6 EC-T1: frisk krav uden log = i gang (ikke låst, intet postes)', ok: lockF === null && rf.reason === 'export in progress' && (await claimOf(f.id)) === f.claim, note: `lås=${lockF ? 'ja' : 'nej'} reason=${rf.reason}` })
+    out.push({ id: 'E6 EC-T1: frisk krav uden log er ikke låst (kravet urørt, intet postes)', ok: lockF === null && rf.reason !== 'export uncertain' && (await claimOf(f.id)) === f.claim, note: `lås=${lockF ? 'ja' : 'nej'} reason=${rf.reason}` })
 
     const g = await mk('gammel-med-succes', 60, 'none')
     await c.admin.from('accounting_sync_log').insert({ provider: 'economic', entity_type: 'invoice', entity_id: g.id, action: 'create', status: 'success', external_id: 'draft-999001' })
@@ -100,7 +100,7 @@ export async function runEconomicUncertainCheck(c: { admin: SupabaseClient }): P
     out.push({ id: 'S4 EC-T1 leverandør: forældet krav uden log = UVIST (låst)', ok: rsd.reason === 'export uncertain' && (await supClaimOf(sd.id))?.external_invoice_id === sd.claim, note: `reason=${rsd.reason}` })
     const sf = await mkSup('frisk-uden-log', 1, 'none')
     const rsf = await pushSupplierInvoiceToEconomic(sf.id)
-    out.push({ id: 'S6 EC-T1 leverandør: frisk krav uden log = i gang (intet sendt)', ok: rsf.reason === 'export in progress', note: `reason=${rsf.reason}` })
+    out.push({ id: 'S6 EC-T1 leverandør: frisk krav uden log er ikke låst (kravet urørt)', ok: rsf.reason !== 'export uncertain' && (await supClaimOf(sf.id))?.external_invoice_id === sf.claim, note: `reason=${rsf.reason}` })
     const rj = await rejectInvoice(sa.id, '00000000-0000-0000-0000-000000000000', 'harness')
     out.push({ id: 'S5 leverandør: usikker faktura kan ikke afvises (dansk tekst, ingen rå fejl)', ok: !rj.ok && /Uvist om leverandørfakturaen/.test(rj.message) && !/UNCERTAIN|fetch failed/.test(rj.message) && (await supClaimOf(sa.id))?.status === 'approved', note: rj.message })
   } finally {

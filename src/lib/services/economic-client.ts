@@ -139,6 +139,29 @@ interface FetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   query?: Record<string, string | number | undefined>
+  /** EC-T1: overstyr timeout (kun tests) */
+  timeoutMs?: number
+}
+
+/**
+ * EC-T1 (Henrik 2026-10-25): afgrænset timeout pr. kald — læs 10 s, skriv 25 s. En skrive-timeout/afbrydelse er UVIST
+ * (status 0 → exportOutcomeUncertain): kravet bliver, ingen automatisk genforsøg, manuel kontrol og frigivelse.
+ * En læse-timeout er en almindelig fejl (ingen dobbeltskrivnings-risiko) og kan prøves igen.
+ */
+export const ECONOMIC_READ_TIMEOUT_MS = 10_000
+export const ECONOMIC_WRITE_TIMEOUT_MS = 25_000
+export const ECONOMIC_TIMEOUT_CODE = 'ECONOMIC_TIMEOUT'
+
+/**
+ * EC-T1 livscyklus uden skemaændring: CLAIMED = 'pending-<ms>' → REQUEST_STARTED = 'pending-<ms>-sent' (sættes med
+ * compare-and-set lige før skrive-kaldet) → SUCCESS (link) / BUSINESS_REJECTED (frigivet) / UNCERTAIN (låst + log).
+ * Markøren gør det senere muligt at skelne "krav uden afsendt kald" fra "kaldet kan have nået e-conomic" — indtil det
+ * er bevist, behandles ethvert forældet krav uden afgørende log som UVIST (fail safe).
+ */
+export const CLAIM_SENT_SUFFIX = '-sent'
+export function claimTimestamp(claim: string): number | null {
+  const ts = Number(claim.slice(EXPORT_CLAIM_PREFIX.length).split('-')[0])
+  return Number.isFinite(ts) && ts > 0 ? ts : null
 }
 
 /**
@@ -153,10 +176,13 @@ export const EXPORT_UNCERTAIN_TEXT = 'Uvist om fakturaen blev oprettet i e-conom
 export const SUPPLIER_POSTING_UNCERTAIN_TEXT = 'Uvist om leverandørfakturaen blev bogført i e-conomic. Kontrollér kladderne i e-conomic før du frigiver bogføringen.'
 
 /**
- * A-4: er fakturaen låst af et krav med uvist udfald? Kun et "pending-"-krav MED en UNCERTAIN-log for præcis det krav
- * (request_meta.claim). Låsen gælder uanset opsætning/kill-switch og frigives kun manuelt.
+ * A-4: er fakturaen låst af et krav med uvist udfald? Låsen gælder uanset opsætning/kill-switch og frigives kun manuelt.
+ *  - 'uncertain_log': et "pending-"-krav MED en UNCERTAIN-log for præcis det krav (request_meta.claim)
+ *  - 'stale_no_log' (EC-T1, Henrik 2026-10-25): et krav ældre end 15 min UDEN afgørende log — fravær af log betyder IKKE,
+ *    at skrivningen ikke skete (fx funktions-timeout midt i kaldet). Findes en succes-log, er det ikke uvist (EC-5
+ *    genskaber linket i stedet).
  */
-export async function uncertainExportLock(client: any, invoiceId: string, table: 'invoices' | 'incoming_invoices' = 'invoices'): Promise<{ claim: string; since: string } | null> {
+export async function uncertainExportLock(client: any, invoiceId: string, table: 'invoices' | 'incoming_invoices' = 'invoices'): Promise<{ claim: string; since: string; reason: 'uncertain_log' | 'stale_no_log' } | null> {
   // A-4b: samme lås for leverandørfakturaer (incoming_invoices) — loggen bruger entity_type 'invoice' + fakturaens id
   const { data: inv } = await client.from(table).select('external_invoice_id').eq('id', invoiceId).maybeSingle()
   const claim = (inv as { external_invoice_id?: string | null } | null)?.external_invoice_id ?? null
@@ -165,13 +191,23 @@ export async function uncertainExportLock(client: any, invoiceId: string, table:
     .eq('entity_type', 'invoice').eq('entity_id', invoiceId).eq('action', 'create').eq('status', 'failed')
     .like('error_message', `${EXPORT_UNCERTAIN_MARK}%`).eq('request_meta->>claim', claim)
     .order('created_at', { ascending: false }).limit(1).maybeSingle()
-  return data ? { claim, since: (data as { created_at: string }).created_at } : null
+  if (data) return { claim, since: (data as { created_at: string }).created_at, reason: 'uncertain_log' }
+  const ts = claimTimestamp(claim)
+  if (ts !== null && Date.now() - ts < EXPORT_CLAIM_STALE_MS) return null // igangværende (håndteres som "i gang")
+  const { data: done } = await client.from('accounting_sync_log').select('id')
+    .eq('entity_type', 'invoice').eq('entity_id', invoiceId).eq('action', 'create').eq('status', 'success')
+    .not('external_id', 'is', null).limit(1).maybeSingle()
+  if (done) return null
+  return { claim, since: new Date(ts ?? 0).toISOString(), reason: 'stale_no_log' }
 }
 export function exportOutcomeUncertain(res: { ok: boolean; status: number; error?: string }): boolean {
   if (res.ok) return false
   if (res.status === 0) return res.error !== ECONOMIC_PUSH_DISABLED_CODE
   return res.status === 408 || res.status >= 500
 }
+
+/** EC-T1: kun til unit-tests (scripts/economic-timeout-test.ts) */
+export function economicFetchForTests<T = unknown>(...args: Parameters<typeof economicFetch<T>>) { return economicFetch<T>(...args) }
 
 async function economicFetch<T = unknown>(
   settings: AccountingSettings & { api_token: string; agreement_grant_token: string },
@@ -190,7 +226,12 @@ async function economicFetch<T = unknown>(
     }
   }
 
+  // EC-T1: afgrænset timeout (læs 10 s / skriv 25 s) — også mens svaret læses
+  const isWrite = (opts.method ?? 'GET') !== 'GET'
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? (isWrite ? ECONOMIC_WRITE_TIMEOUT_MS : ECONOMIC_READ_TIMEOUT_MS))
   let response: Response
+  let raw: string
   try {
     response = await fetch(url.toString(), {
       method: opts.method ?? 'GET',
@@ -201,13 +242,16 @@ async function economicFetch<T = unknown>(
         Accept: 'application/json',
       },
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: controller.signal,
     })
+    raw = await response.text()
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = controller.signal.aborted ? ECONOMIC_TIMEOUT_CODE : err instanceof Error ? err.message : String(err)
     return { ok: false, status: 0, data: null, error: msg }
+  } finally {
+    clearTimeout(timer)
   }
 
-  const raw = await response.text()
   let data: T | null = null
   if (raw) {
     try { data = JSON.parse(raw) as T } catch { /* keep raw */ }
@@ -430,7 +474,7 @@ export async function createInvoiceInEconomic(
   // Økonomi-review 2026-10-08 (#2): igangværende eksport (krav) — en samtidig kørsel må ikke bogføre igen
   const pendingClaim = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith(EXPORT_CLAIM_PREFIX)
     ? inv.external_invoice_id : null
-  if (pendingClaim && Date.now() - Number(pendingClaim.slice(EXPORT_CLAIM_PREFIX.length)) < EXPORT_CLAIM_STALE_MS) {
+  if (pendingClaim && Date.now() - (claimTimestamp(pendingClaim) ?? 0) < EXPORT_CLAIM_STALE_MS) {
     await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'skip', status: 'skipped', error_message: 'export in progress' })
     return { ok: false, status: 'skipped', reason: 'export in progress' }
   }
@@ -560,7 +604,16 @@ export async function createInvoiceInEconomic(
     await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'skip', status: 'skipped', error_message: 'export claimed by another run' })
     return { ok: false, status: 'skipped', reason: 'export in progress' }
   }
-  const releaseClaim = () => supabase.from('invoices').update({ external_invoice_id: null }).eq('id', invoiceId).eq('external_invoice_id', claimValue)
+  // EC-T1: REQUEST_STARTED-markør (compare-and-set) lige før skrive-kaldet — mistes kravet her, sendes intet
+  const sentClaim = `${claimValue}${CLAIM_SENT_SUFFIX}`
+  const { data: started } = await supabase.from('invoices').update({ external_invoice_id: sentClaim })
+    .eq('id', invoiceId).eq('external_invoice_id', claimValue).select('id')
+  if (!started || started.length !== 1) {
+    await supabase.from('invoices').update({ external_invoice_id: null }).eq('id', invoiceId).eq('external_invoice_id', claimValue)
+    await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'skip', status: 'skipped', error_message: 'claim lost before request (nothing sent)' })
+    return { ok: false, status: 'skipped', reason: 'export in progress' }
+  }
+  const releaseClaim = () => supabase.from('invoices').update({ external_invoice_id: null }).eq('id', invoiceId).eq('external_invoice_id', sentClaim)
 
   let draftRes: Awaited<ReturnType<typeof economicFetch<{ draftInvoiceNumber: number }>>>
   try {
@@ -580,7 +633,7 @@ export async function createInvoiceInEconomic(
       action: 'create',
       status: 'failed',
       error_message: `${EXPORT_UNCERTAIN_MARK} ${draftRes.error || `HTTP ${draftRes.status}`}`.slice(0, 500),
-      request_meta: { http_status: draftRes.status, uncertain: true, claim: claimValue },
+      request_meta: { http_status: draftRes.status, uncertain: true, claim: sentClaim },
     })
     try {
       const { logHealth } = await import('@/lib/services/system-health')
@@ -644,7 +697,7 @@ export async function createInvoiceInEconomic(
   // EC-5: linket SKAL gemmes (ellers blev kravet forældet og en ny kørsel postede igen). Bundet til eget krav; ét
   // genforsøg; derefter kritisk log — succes-loggen nedenfor gør, at et senere forsøg genskaber linket (se ovenfor).
   const saveLink = () => supabase.from('invoices').update({ external_invoice_id: externalId, external_provider: PROVIDER })
-    .eq('id', invoiceId).eq('external_invoice_id', claimValue).select('id')
+    .eq('id', invoiceId).eq('external_invoice_id', sentClaim).select('id')
   let linkRes = await saveLink()
   if (linkRes.error || !linkRes.data?.length) linkRes = await saveLink()
   if (linkRes.error || !linkRes.data?.length) {
@@ -1070,7 +1123,7 @@ export async function pushSupplierInvoiceToEconomic(
   // klik på "Bogfør" (eller dobbeltklik) bogførte samme omkostning to gange
   const supPending = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith(EXPORT_CLAIM_PREFIX)
     ? inv.external_invoice_id : null
-  if (supPending && Date.now() - Number(supPending.slice(EXPORT_CLAIM_PREFIX.length)) < EXPORT_CLAIM_STALE_MS) {
+  if (supPending && Date.now() - (claimTimestamp(supPending) ?? 0) < EXPORT_CLAIM_STALE_MS) {
     return { ok: false, status: 'skipped', reason: 'export in progress' }
   }
   if (inv.external_invoice_id && !supPending && inv.external_provider === 'economic') {
@@ -1135,7 +1188,16 @@ export async function pushSupplierInvoiceToEconomic(
     await logAttempt({ entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'skip', status: 'skipped', error_message: 'export claimed by another run' })
     return { ok: false, status: 'skipped', reason: 'export in progress' }
   }
-  const releaseSupClaim = () => supabase.from('incoming_invoices').update({ external_invoice_id: null }).eq('id', incomingInvoiceId).eq('external_invoice_id', supClaimValue)
+  // EC-T1: REQUEST_STARTED-markør (compare-and-set) lige før skrive-kaldet
+  const supSentClaim = `${supClaimValue}${CLAIM_SENT_SUFFIX}`
+  const { data: supStarted } = await supabase.from('incoming_invoices').update({ external_invoice_id: supSentClaim })
+    .eq('id', incomingInvoiceId).eq('external_invoice_id', supClaimValue).select('id')
+  if (!supStarted || supStarted.length !== 1) {
+    await supabase.from('incoming_invoices').update({ external_invoice_id: null }).eq('id', incomingInvoiceId).eq('external_invoice_id', supClaimValue)
+    await logAttempt({ entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'skip', status: 'skipped', error_message: 'claim lost before request (nothing sent)' })
+    return { ok: false, status: 'skipped', reason: 'export in progress' }
+  }
+  const releaseSupClaim = () => supabase.from('incoming_invoices').update({ external_invoice_id: null }).eq('id', incomingInvoiceId).eq('external_invoice_id', supSentClaim)
 
   let res: Awaited<ReturnType<typeof economicFetch<{ draftSupplierInvoiceNumber: number }>>>
   try {
@@ -1156,7 +1218,7 @@ export async function pushSupplierInvoiceToEconomic(
       action: 'create',
       status: 'failed',
       error_message: `${EXPORT_UNCERTAIN_MARK} ${res.error || `HTTP ${res.status}`}`.slice(0, 500),
-      request_meta: { http_status: res.status, uncertain: true, claim: supClaimValue, kind: 'supplier_invoice' },
+      request_meta: { http_status: res.status, uncertain: true, claim: supSentClaim, kind: 'supplier_invoice' },
     })
     try {
       const { logHealth } = await import('@/lib/services/system-health')
@@ -1189,7 +1251,7 @@ export async function pushSupplierInvoiceToEconomic(
     })
     .eq('id', incomingInvoiceId)
     // Leverandørfaktura-review 2026-10-14 (#6): kun hvis kravet stadig er vores (ikke afvist/overtaget imens)
-    .eq('external_invoice_id', supClaimValue)
+    .eq('external_invoice_id', supSentClaim)
 
   await logAttempt({
     entity_type: 'invoice',

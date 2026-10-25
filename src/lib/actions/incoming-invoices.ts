@@ -1124,7 +1124,7 @@ export async function releaseUncertainIncomingInvoicePostingAction(id: string, c
     await insertAuditRow({
       user_id: userId, entity_type: 'incoming_invoice', entity_id: id, action: 'economic_posting_released',
       action_description: 'Leverandørfaktura-bogføring med uvist udfald frigivet efter manuelt tjek i e-conomic',
-      changes: { claim: lock.claim, uncertain_since: lock.since, confirmed_checked: true },
+      changes: { claim: lock.claim, uncertain_since: lock.since, uncertain_reason: lock.reason, confirmed_checked: true },
     })
     await admin.from('incoming_invoice_audit_log').insert({
       incoming_invoice_id: id, action: 'posting_released', actor_id: userId, ok: true,
