@@ -18,6 +18,7 @@ import {
 import {
   getCustomerTasks,
   createCustomerTask,
+  getTaskCaseOptionsAction,
   completeCustomerTask,
   deleteCustomerTask,
   updateCustomerTask,
@@ -197,6 +198,7 @@ export function CustomerTasks({ customerId, initial }: CustomerTasksProps) {
           customerId={customerId}
           profiles={profiles}
           task={editingTask}
+          montorCaseRule={!abilities.canCreateAny}
           onClose={() => { setShowForm(false); setEditingTask(null) }}
           onSuccess={() => { setShowForm(false); setEditingTask(null); loadData() }}
         />
@@ -293,15 +295,32 @@ function TaskForm({
   customerId,
   profiles,
   task,
+  montorCaseRule = false,
   onClose,
   onSuccess,
 }: {
   customerId: string
   profiles: Array<{ id: string; full_name: string | null; email: string }>
   task: CustomerTaskWithRelations | null
+  /** MP-00236: montør (uden tasks.create) — flere åbne sager hos kunden kræver et sagsvalg */
+  montorCaseRule?: boolean
   onClose: () => void
   onSuccess: () => void
 }) {
+  const [caseOptions, setCaseOptions] = useState<Array<{ id: string; case_number: string | null; title: string | null }>>([])
+  const [caseId, setCaseId] = useState('')
+  const [caseError, setCaseError] = useState<string | null>(null)
+  useEffect(() => {
+    if (task || !montorCaseRule) return
+    let cancelled = false
+    getTaskCaseOptionsAction(customerId).then((r) => {
+      if (cancelled) return
+      setCaseOptions(r.cases)
+      setCaseError(r.error ?? null)
+    }).catch(() => { if (!cancelled) setCaseError('Kunne ikke læse sagerne') })
+    return () => { cancelled = true }
+  }, [customerId, task, montorCaseRule])
+  const needsCaseChoice = !task && caseOptions.length > 1
   const toast = useToast()
   const [isSaving, setIsSaving] = useState(false)
   const [title, setTitle] = useState(task?.title || '')
@@ -339,8 +358,14 @@ function TaskForm({
       }
     } else {
       // Create
+      if (needsCaseChoice && !caseId) {
+        toast.error('Vælg sag', 'Kunden har flere åbne sager — vælg hvilken sag opgaven hører til')
+        setIsSaving(false)
+        return
+      }
       const input: CreateCustomerTaskInput = {
         customer_id: customerId,
+        service_case_id: needsCaseChoice ? caseId : undefined,
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
@@ -385,6 +410,25 @@ function TaskForm({
               autoFocus
             />
           </div>
+
+          {needsCaseChoice && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sag *</label>
+              <select
+                value={caseId}
+                onChange={(e) => setCaseId(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                required
+                data-testid="task-case-select"
+              >
+                <option value="">Vælg sag…</option>
+                {caseOptions.map((c) => (
+                  <option key={c.id} value={c.id}>{[c.case_number, c.title].filter(Boolean).join(' — ') || 'Sag'}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {caseError && <p className="text-xs text-red-700">{caseError}</p>}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Beskrivelse</label>

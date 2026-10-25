@@ -185,7 +185,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
-  montor: ['U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -4971,6 +4971,53 @@ ${m.text()}`) })
 
       // U188 CU-1 (kunde-review 2026-10-17): sagsløse kundedokumenter — montør ser dem kun for kunder med en sag i sit
       // scope (U11-sagens kunde), ikke for fremmede kunder; salg (customers.edit) ser dem for alle kunder
+      // U226 MP-00236 (Henrik 2026-10-25): montør opretter opgave hos kunde med FLERE åbne sager → skal vælge sag; gyldigt
+      // valg kobles; fremmed sag afvises; dialogen viser sagsvalget. Én åben sag kobles automatisk (dækket af U224/U225-data).
+      if (want('U226') && profitCustomerId && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        const { data: wo1 } = await c.admin.from('work_orders').select('assigned_employee_id').eq('case_id', jobCaseId).not('assigned_employee_id', 'is', null).limit(1).maybeSingle()
+        const empId = (wo1 as { assigned_employee_id: string } | null)?.assigned_employee_id ?? null
+        const cs = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U226 sag 2 ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const case2 = (cs.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (case2) listCaseIds.push(case2)
+        const wo2 = case2 && empId ? await c.admin.from('work_orders').insert([{ case_id: case2, customer_id: profitCustomerId, title: `U226 ${stamp}`, status: 'planned', scheduled_date: '2026-11-01', assigned_employee_id: empId }]).select('id') : null
+        const wo2Id = (wo2?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const fc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U226 fremmed ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const foreignCase = (fc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (foreignCase) listCaseIds.push(foreignCase)
+        r.seed = !!empId && !!case2 && !!wo2Id && !!foreignCase
+        const made: string[] = []
+        try {
+          const pageUrl = `${base}/dashboard/customers/${profitCustomerId}`
+          await gotoSafe(m.page, pageUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+          const F = 'src/lib/actions/customer-tasks.ts'
+          const opts = await callServerAction(m.page, pageUrl, F, 'getTaskCaseOptionsAction', [profitCustomerId])
+          r.to_sager_tilbydes = opts.includes(jobCaseId) && opts.includes(case2 ?? 'x') && !opts.includes(foreignCase ?? 'x')
+          const noChoice = await callServerAction(m.page, pageUrl, F, 'createCustomerTask', [{ customer_id: profitCustomerId, title: `U226 uden valg ${stamp}` }])
+          r.uden_valg_afvist = noChoice.includes('vælg hvilken sag')
+          const foreign = await callServerAction(m.page, pageUrl, F, 'createCustomerTask', [{ customer_id: profitCustomerId, service_case_id: foreignCase, title: `U226 fremmed ${stamp}` }])
+          r.fremmed_sag_afvist = foreign.includes('ikke en af dine åbne sager')
+          const ok = await callServerAction(m.page, pageUrl, F, 'createCustomerTask', [{ customer_id: profitCustomerId, service_case_id: case2, title: `U226 valgt ${stamp}` }])
+          const { data: rows } = await c.admin.from('customer_tasks').select('id, title, service_case_id').eq('customer_id', profitCustomerId).like('title', `U226 % ${stamp}`)
+          for (const x of (rows ?? []) as Array<{ id: string }>) made.push(x.id)
+          const chosen = ((rows ?? []) as Array<{ title: string; service_case_id: string | null }>).find((x) => x.title === `U226 valgt ${stamp}`)
+          r.valgt_sag_koblet = ok.includes('"success":true') && chosen?.service_case_id === case2
+          r.ingen_foraeldreloese = ((rows ?? []) as Array<{ title: string }>).length === 1
+          // dialogen viser sagsvalget
+          await gotoSafe(m.page, `${pageUrl}?tab=opgaver`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await m.page.getByRole('button', { name: /Ny opgave|Tilføj opgave|Opret opgave/ }).first().click({ timeout: 30_000 }).catch(() => {})
+          await m.page.getByTestId('task-case-select').first().waitFor({ timeout: 30_000 }).catch(() => {})
+          r.dialog_viser_sagsvalg = (await m.page.getByTestId('task-case-select').count()) === 1
+          if (!r.to_sager_tilbydes || !r.uden_valg_afvist || !r.valgt_sag_koblet) console.log('[U226]', opts.slice(0, 200), '|', noChoice.slice(0, 200), '|', ok.slice(0, 200))
+        } finally {
+          if (made.length) await c.admin.from('customer_tasks').delete().in('id', made)
+          if (wo2Id) { await c.admin.from('work_order_profit').delete().eq('work_order_id', wo2Id); await c.admin.from('work_orders').delete().eq('id', wo2Id) }
+        }
+        out.push({ id: 'U226 montør-opgave: flere åbne sager kræver sagsvalg (MP-00236)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U225 SEC-B7/00235 (2026-10-24): tagtegningens normale app-flow efter skrive-lockdown — montør opretter, gemmer og
       // sletter en tegning på EGEN sag; salg (customers.edit) på kunden uden sag; montør afvises på kunden uden sag.
       if (want('U225') && profitCustomerId && jobCaseId) {

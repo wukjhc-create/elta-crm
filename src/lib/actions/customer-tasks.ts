@@ -524,6 +524,41 @@ async function taskCreateRule(customerId: string): Promise<{ allowed: false; rea
   return { allowed: false, reason: 'Manglende tilladelse: tasks.create' }
 }
 
+/**
+ * MP-00236 (Henrik 2026-10-25): montørens åbne sager hos kunden (ikke-annulleret job tildelt montøren, sagen ikke lukket).
+ * Én → kobles automatisk; flere → montøren SKAL vælge; ingen → opgaven oprettes uden sag (der opfindes ingen sag).
+ */
+async function montorOpenCasesForCustomer(customerId: string): Promise<Array<{ id: string; case_number: string | null; title: string | null }>> {
+  const { getWorkOrderEmployeeScope } = await import('@/lib/auth/case-scope')
+  const ctx = await getAuthenticatedClientWithRole()
+  const scope = await getWorkOrderEmployeeScope({ supabase: ctx.supabase, userId: ctx.userId, role: ctx.role })
+  if (scope.type !== 'employee' || !scope.employeeId) return []
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { data, error } = await createAdminClient().from('work_orders')
+    .select('case_id, service_cases!inner(id, case_number, title, customer_id, status)')
+    .eq('assigned_employee_id', scope.employeeId).neq('status', 'cancelled')
+    .eq('service_cases.customer_id', customerId).neq('service_cases.status', 'closed')
+  if (error) throw new Error('Kunne ikke læse dine sager hos kunden')
+  const byId = new Map<string, { id: string; case_number: string | null; title: string | null }>()
+  for (const row of (data ?? []) as Array<{ service_cases: { id: string; case_number: string | null; title: string | null } | Array<{ id: string; case_number: string | null; title: string | null }> }>) {
+    const sc = Array.isArray(row.service_cases) ? row.service_cases[0] : row.service_cases
+    if (sc) byId.set(sc.id, { id: sc.id, case_number: sc.case_number, title: sc.title })
+  }
+  return [...byId.values()].sort((a, b) => String(a.case_number ?? '').localeCompare(String(b.case_number ?? '')))
+}
+
+/** MP-00236: sagsvalg i opret-dialogen — kun for montør-reglen (selfOnly); andre får en tom liste */
+export async function getTaskCaseOptionsAction(customerId: string): Promise<{ cases: Array<{ id: string; case_number: string | null; title: string | null }>; error?: string }> {
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(customerId)) return { cases: [] }
+    const rule = await taskCreateRule(customerId)
+    if (!rule.allowed || !rule.selfOnly) return { cases: [] }
+    return { cases: await montorOpenCasesForCustomer(customerId) }
+  } catch (e) {
+    return { cases: [], error: e instanceof Error ? e.message : 'Kunne ikke læse sagerne' }
+  }
+}
+
 /** PM2-5: hvad brugeren må på kundekortets opgaveliste (UI viser kun handlinger serveren tillader) */
 export async function getCustomerTaskAbilitiesAction(customerId: string): Promise<{ canCreate: boolean; canEditAll: boolean; userId: string | null; canDeleteAll?: boolean; canCreateAny?: boolean }> {
   try {
@@ -562,18 +597,19 @@ export async function createCustomerTask(
     if (!prof || (prof as { is_active: boolean | null }).is_active === false) return { success: false, error: 'Den ansvarlige findes ikke eller er deaktiveret' }
   }
 
-  // MP-00236: en montør-opgave kobles til montørens sag hos kunden, når der er præcis én (så sletteregelen kan afgøre scope)
+  // MP-00236 (Henrik 2026-10-25): montør-opgaven kobles til en sag — én åben sag: automatisk; flere: montøren SKAL vælge
+  // (ingen forældreløse opgaver); ingen: uden sag (der opfindes ingen sag)
   let serviceCaseId: string | null = null
   if (rule.selfOnly) {
-    const { getWorkOrderEmployeeScope } = await import('@/lib/auth/case-scope')
-    const ctx = await getAuthenticatedClientWithRole()
-    const scope = await getWorkOrderEmployeeScope({ supabase: ctx.supabase, userId: ctx.userId, role: ctx.role })
-    if (scope.type === 'employee' && scope.employeeId) {
-      const { createAdminClient } = await import('@/lib/supabase/admin')
-      const { data: jobs } = await createAdminClient().from('work_orders').select('case_id, service_cases!inner(customer_id, status)')
-        .eq('assigned_employee_id', scope.employeeId).neq('status', 'cancelled').eq('service_cases.customer_id', input.customer_id).neq('service_cases.status', 'closed')
-      const caseIds = [...new Set(((jobs ?? []) as Array<{ case_id: string | null }>).map((j) => j.case_id).filter((x): x is string => !!x))]
-      if (caseIds.length === 1) serviceCaseId = caseIds[0]
+    let options: Array<{ id: string }>
+    try { options = await montorOpenCasesForCustomer(input.customer_id) } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Kunne ikke læse dine sager hos kunden' }
+    }
+    if (options.length === 1) serviceCaseId = options[0].id
+    else if (options.length > 1) {
+      if (!input.service_case_id) return { success: false, error: 'Kunden har flere åbne sager — vælg hvilken sag opgaven hører til' }
+      if (!options.some((o) => o.id === input.service_case_id)) return { success: false, error: 'Den valgte sag er ikke en af dine åbne sager hos kunden' }
+      serviceCaseId = input.service_case_id
     }
   }
 

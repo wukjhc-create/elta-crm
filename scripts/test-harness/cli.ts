@@ -2584,6 +2584,20 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'mp-00237-check') {
+    const { runMp00237Check, formatMp00237Check } = await import('./mp-00237-check')
+    const checks = await runMp00237Check({ admin, url: runtime.url, anonKey: runtime.anonKey })
+    log(formatMp00237Check(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
+  if (SUB === 'mp-00236-rls-check') {
+    const { runMp00236RlsCheck, formatMp00236RlsCheck } = await import('./mp-00236-rls-check')
+    const checks = await runMp00236RlsCheck({ admin, url: runtime.url, anonKey: runtime.anonKey })
+    log(formatMp00236RlsCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'sec-b7-rls-check') {
     // SEC-B7 / forslag 00235: direkte REST-skrivninger pr. rolle ([NY] fejler indtil 00235 er anvendt)
     const { runSecB7RlsCheck, formatSecB7RlsCheck } = await import('./sec-b7-rls-check')

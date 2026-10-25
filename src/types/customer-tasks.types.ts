@@ -59,6 +59,8 @@ export interface CustomerTaskWithRelations extends CustomerTask {
 
 export interface CreateCustomerTaskInput {
   customer_id: string
+  /** MP-00236: montørens valg af sag, når kunden har flere åbne sager med job tildelt montøren */
+  service_case_id?: string
   offer_id?: string
   title: string
   description?: string
