@@ -114,6 +114,11 @@ async function findOrCreateCustomerByEmail(
     return { id: existing.id as string, existed: true }
   }
 
+  // PERM-1 fase 4 / 00239 (som S-9 i createCustomerFromEmail): en NY kunde kræver customers.create — inbox.view er
+  // triage, ikke kunde-oprettelse (databasen håndhæver det samme)
+  const deniedCreate = await gateDenied('customers.create')
+  if (deniedCreate) return { error: deniedCreate }
+
   // Sprint 9E Phase 5d — faelles insertCustomerWithRetry. Tilfoejer retry
   // mod 23505 customer_number-collisions, hvilket den gamle path manglede.
   const { data: created, error } = await insertCustomerWithRetry<{ id: string }>(
@@ -143,6 +148,12 @@ export async function createCustomerAndCaseFromEmail(
   const denied = await gateDenied('inbox.view')
   if (denied) return { success: false, error: denied }
   validateUUID(input.emailId, 'emailId')
+  // PERM-1 fase 4 / 00239: kan flowet oprette en sag, kræves cases.create — tjekket FØR første skrivning, så en
+  // afvisning aldrig efterlader en halv oprettelse (kunde uden sag)
+  if (input.createCase || input.mode === 'payer_plus_site') {
+    const deniedCase = await gateDenied('cases.create')
+    if (deniedCase) return { success: false, error: deniedCase }
+  }
 
   const { supabase, userId } = await getAuthenticatedClient()
 

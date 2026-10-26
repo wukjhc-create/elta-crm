@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3785,6 +3785,103 @@ ${m.text()}`) })
           if (empId) await c.admin.from('employees').delete().eq('id', empId)
         }
         out.push({ id: 'U229 PERM-1 scenarie-matrix A–G (montør: baseline, ekstra adgang, fjernet adgang, inaktiv, nulstil)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U230 PERM-1 fase 4 / 00239 (Henrik 2026-10-26: "cases.create MUST MEAN CREATE", "customers.create MUST MEAN
+      // CUSTOMER CREATE"): de app-flows der før lænede sig på bredere rettigheder, gennem rigtige sessioner.
+      //   forslag: serviceleder godkender/afviser (kontrolleret server-sti, auditeret) · salg og montør+cases.create afvist
+      //   hurtig-opret kunde+tilbud: montør+offers.create kan IKKE oprette en ny kunde · serviceleder kan
+      //   opret fra mail: montør+inbox.view kan IKKE oprette kunde/sag (intet halvt oprettet) · serviceleder kan
+      if (want('U230') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const P = 'src/lib/actions/proposals.ts'
+        const ok = (raw: string) => raw.includes('"success":true')
+        const sl = await mkUser('serviceleder')
+        const sa = await mkUser('salg')
+        const mo = await mkUser('montør')
+        const grant = async (perm: string) => c.admin.from('user_permission_overrides').insert({ profile_id: mo.id, permission: perm, effect: 'grant', source: 'manual', reason: 'U230' })
+        const ungrant = async () => c.admin.from('user_permission_overrides').delete().eq('profile_id', mo.id)
+        const mkProposal = async (label: string) => {
+          const { data } = await c.admin.from('service_cases').insert({ title: `[HARNESS] U230 ${label} ${stamp}`, customer_id: profitCustomerId, created_by: adminUser.id, is_proposal: true }).select('id').single()
+          const id = (data as { id?: string } | null)?.id ?? ''
+          if (id) { listCaseIds.push(id); myCases.push(id) }
+          return id
+        }
+        const isProposal = async (id: string) => ((await c.admin.from('service_cases').select('is_proposal').eq('id', id).maybeSingle()).data as { is_proposal?: boolean } | null)?.is_proposal
+        const madeCustomers: string[] = [], madeOffers: string[] = [], madeEmails: string[] = [], myCases: string[] = []
+        const custByEmail = async (email: string) => ((await c.admin.from('customers').select('id').eq('email', email)).data ?? []) as Array<{ id: string }>
+        const slp = await login(sl), sap = await login(sa), mop = await login(mo)
+        try {
+          const home = `${base}/dashboard/tasks`
+          for (const pg of [slp.page, sap.page, mop.page]) await gotoSafe(pg, home, { waitUntil: 'networkidle', timeout: 180_000 })
+
+          // forslag — serviceleder (inbox.view + cases.create)
+          const p1 = await mkProposal('godkend'), p2 = await mkProposal('afvis'), p3 = await mkProposal('nægtet')
+          r.seed = !!p1 && !!p2 && !!p3
+          r.sl_godkend_ok = ok(await callServerAction(slp.page, home, P, 'promoteCaseProposal', [p1])) && (await isProposal(p1)) === false
+          r.sl_afvis_ok = ok(await callServerAction(slp.page, home, P, 'rejectCaseProposal', [p2])) && (await isProposal(p2)) === undefined
+          const aud = ((await c.admin.from('audit_logs').select('action').in('entity_id', [p1, p2]).eq('user_id', sl.id)).data ?? []) as Array<{ action: string }>
+          r.forslag_auditeret = aud.some((x) => x.action === 'case_proposal_promoted') && aud.some((x) => x.action === 'case_proposal_rejected')
+          r.sl_afvis_rigtig_sag_afvist = !ok(await callServerAction(slp.page, home, P, 'rejectCaseProposal', [p1])) && (await isProposal(p1)) === false
+          // salg (cases.create, ingen inbox.view): forslags-køen er ikke salgs
+          r.salg_godkend_afvist = !ok(await callServerAction(sap.page, home, P, 'promoteCaseProposal', [p3])) && (await isProposal(p3)) === true
+          r.salg_afvis_afvist = !ok(await callServerAction(sap.page, home, P, 'rejectCaseProposal', [p3])) && (await isProposal(p3)) === true
+          // montør med ekstra cases.create: må oprette, ikke godkende/afvise
+          await grant('cases.create')
+          r.montoer_cases_create_godkend_afvist = !ok(await callServerAction(mop.page, home, P, 'promoteCaseProposal', [p3])) && (await isProposal(p3)) === true
+          r.montoer_cases_create_afvis_afvist = !ok(await callServerAction(mop.page, home, P, 'rejectCaseProposal', [p3])) && (await isProposal(p3)) === true
+          await ungrant()
+
+          // hurtig-opret kunde + tilbud
+          const qcEmail = (who: string) => `u230-${who}-${stamp}@harness.test`
+          const quick = (pg: import('playwright').Page, who: string) => callServerAction(pg, home, 'src/lib/actions/offers.ts', 'quickCreateCustomerAndOffer',
+            [{ companyName: `[HARNESS] U230 ${who} ${stamp}`, contactPerson: 'U230', email: qcEmail(who), offerTitle: `[HARNESS] U230 tilbud ${who} ${stamp}` }])
+          await grant('offers.create')
+          const qm = await quick(mop.page, 'montoer')
+          r.montoer_offers_create_ny_kunde_afvist = !ok(qm) && /customers\.create/.test(qm) && (await custByEmail(qcEmail('montoer'))).length === 0
+          await ungrant()
+          const qs = await quick(slp.page, 'sl')
+          const slCust = await custByEmail(qcEmail('sl'))
+          for (const x of slCust) madeCustomers.push(x.id)
+          const slOffers = slCust.length ? ((await c.admin.from('offers').select('id').eq('customer_id', slCust[0].id)).data ?? []) as Array<{ id: string }> : []
+          for (const x of slOffers) madeOffers.push(x.id)
+          r.sl_hurtig_opret_ok = ok(qs) && slCust.length === 1 && slOffers.length === 1
+          if (!r.sl_hurtig_opret_ok) console.log('[U230] hurtig-opret', slCust.length, slOffers.length, qs.slice(-400))
+
+          // opret kunde + sag fra mail
+          const mkMail = async (who: string) => {
+            const { data } = await c.admin.from('incoming_emails').insert({ sender_email: `u230-mail-${who}-${stamp}@harness.test`, subject: `[HARNESS] U230 mail ${who}`, graph_message_id: `harness-u230-${who}-${stamp}` }).select('id').single()
+            const id = (data as { id?: string } | null)?.id ?? ''
+            if (id) madeEmails.push(id)
+            return id
+          }
+          const fromMail = (pg: import('playwright').Page, emailId: string, who: string, createCase: boolean) => callServerAction(pg, home, 'src/lib/actions/create-from-email.ts', 'createCustomerAndCaseFromEmail',
+            [{ emailId, mode: 'payer_only', payer: { companyName: `[HARNESS] U230 mailkunde ${who} ${stamp}`, email: `u230-mk-${who}-${stamp}@harness.test` }, createCase }])
+          const m1 = await mkMail('montoer')
+          await grant('inbox.view')
+          const fm1 = await fromMail(mop.page, m1, 'montoer', true)
+          const fm2 = await fromMail(mop.page, m1, 'montoer', false)
+          await ungrant()
+          r.montoer_inbox_view_sag_afvist = !ok(fm1) && /cases\.create/.test(fm1)
+          // afvises allerede af mailens læse-scope (00180: montør ser kun mails på egne sager) — før customers.create-gaten
+          r.montoer_inbox_view_kunde_afvist = !ok(fm2)
+          r.montoer_intet_halvt_oprettet = (await custByEmail(`u230-mk-montoer-${stamp}@harness.test`)).length === 0
+          const m2 = await mkMail('sl')
+          const fs = await fromMail(slp.page, m2, 'sl', true)
+          const slMailCust = await custByEmail(`u230-mk-sl-${stamp}@harness.test`)
+          for (const x of slMailCust) madeCustomers.push(x.id)
+          const slCase = slMailCust.length ? ((await c.admin.from('service_cases').select('id').eq('customer_id', slMailCust[0].id)).data ?? []) as Array<{ id: string }> : []
+          for (const x of slCase) { listCaseIds.push(x.id); myCases.push(x.id) }
+          r.sl_opret_fra_mail_ok = ok(fs) && slMailCust.length === 1 && slCase.length === 1
+        } finally {
+          for (const x of [slp, sap, mop]) await x.ctx.close().catch(() => {})
+          await ungrant()
+          if (madeOffers.length) await c.admin.from('offers').delete().in('id', madeOffers)
+          if (myCases.length) await c.admin.from('service_cases').delete().in('id', myCases)
+          if (madeEmails.length) await c.admin.from('incoming_emails').delete().in('id', madeEmails)
+          if (madeCustomers.length) await c.admin.from('customers').delete().in('id', madeCustomers)
+        }
+        out.push({ id: 'U230 PERM-1 fase 4: forslag via kontrolleret server-sti; offers.create/inbox.view opretter ikke kunder/sager', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U228 PERM-1 fase 2 (Henrik 2026-10-26): Team → Medarbejder → Rettigheder. Admin tildeler/fratager med begrundelse

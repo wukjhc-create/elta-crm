@@ -1,15 +1,19 @@
 -- =====================================================================
 -- 00239 — PERM-1 fase 4, bølge 1: customers + service_cases SKRIVNING følger effektive rettigheder
 --
--- GODKENDT 2026-10-26 TIL STAGING (Henrik; beslutning A: montør-rest fjernes fra INSERT · B: salg UPDATE uændret = bevidst teknisk gæld til næste bølge). PROD KRÆVER SÆRSKILT GODKENDELSE.
+-- GODKENDT TIL STAGING 2026-10-26 (Henrik). Revideret 2026-10-26 efter staging-review ("cases.create MUST MEAN
+-- CREATE", "customers.create MUST MEAN CUSTOMER CREATE"). PROD KRÆVER SÆRSKILT GODKENDELSE.
 -- Forslag: docs/runbooks/mp-00239-customers-cases-permission-rls.md
 -- Kræver: 00238 (user_has_permission(text), i prod 2026-10-26).
 --
--- Kun INSERT/UPDATE/DELETE konverteres fra user_role() IN (...) til user_has_permission('…'). SELECT er UÆNDRET
--- (prod 2026-10-26: customers har to USING(true)-politikker + én created_by-politik; service_cases USING(true)).
--- Nul overrides → samme rollesæt som i dag for alle app-stier (nøgle-mapping nedenfor), MED ÉN BEVIDST UNDTAGELSE til
--- beslutning: montør fjernes fra INSERT på begge tabeller (rest fra før G9, 2026-10-01 — ingen app-sti indsætter som
--- montør; en montør med ekstra adgang customers.create/cases.create kan stadig — se U229 B/C).
+-- Kun INSERT/UPDATE/DELETE konverteres fra user_role() IN (...) til user_has_permission('…'). SELECT er UÆNDRET.
+-- Hver politik bruger KUN den rettighed, handlingen hedder — ingen "proxy"-nøgler:
+--   customers      INSERT customers.create · UPDATE customers.edit · DELETE customers.delete
+--   service_cases  INSERT cases.create · UPDATE cases.edit / cases.close / service.close · DELETE cases.delete
+-- App-flows med en anden rettighed (hurtig-opret med tilbud, opret fra mail) kræver nu selv customers.create/
+-- cases.create; godkend/afvis sag-forslag går via kontrolleret server-sti (service-role, inbox.view, auditeret).
+-- Bevidste ændringer mod prod (uden overrides): montør mister rå REST-INSERT (beslutning A); salg mister rå REST-
+-- UPDATE af sager og sletning af forslag (ingen app-sti brugte det — forslags-køen kræver inbox.view).
 -- `(SELECT public.user_has_permission(...))` evalueres én gang pr. sætning (initPlan).
 -- =====================================================================
 
@@ -20,25 +24,18 @@ DO $$
 DECLARE missing text;
 BEGIN
   SELECT string_agg(k, ', ') INTO missing
-  FROM unnest(ARRAY['customers.create', 'customers.edit', 'customers.delete', 'offers.create', 'inbox.view',
+  FROM unnest(ARRAY['customers.create', 'customers.edit', 'customers.delete',
                     'cases.create', 'cases.edit', 'cases.close', 'cases.delete', 'service.close']) AS k
   WHERE NOT EXISTS (SELECT 1 FROM public.permission_catalog c WHERE c.permission = k);
   IF missing IS NOT NULL THEN RAISE EXCEPTION '00239: ukendte rettighedsnøgler: %', missing; END IF;
 END $$;
 
 -- ---------------------------------------------------------------------
--- customers
---   INSERT  customers.create OR offers.create OR inbox.view   (= {admin, serviceleder, salg} uden overrides)
---           offers.create: quickCreateCustomerAndOffer · inbox.view: opret kunde + sag fra mail
---   UPDATE  customers.edit                                     (= {admin, serviceleder, salg} — som i dag)
---   DELETE  customers.delete                                   (= {admin} — som i dag)
+-- customers  (uden overrides: INSERT/UPDATE {admin, serviceleder, salg} · DELETE {admin})
 -- ---------------------------------------------------------------------
 DROP POLICY IF EXISTS customers_insert_role ON public.customers;
-CREATE POLICY customers_insert_role ON public.customers FOR INSERT TO authenticated WITH CHECK (
-  (SELECT public.user_has_permission('customers.create'))
-  OR (SELECT public.user_has_permission('offers.create'))
-  OR (SELECT public.user_has_permission('inbox.view'))
-);
+CREATE POLICY customers_insert_role ON public.customers FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.user_has_permission('customers.create')));
 DROP POLICY IF EXISTS customers_update_role ON public.customers;
 CREATE POLICY customers_update_role ON public.customers FOR UPDATE TO authenticated
   USING ((SELECT public.user_has_permission('customers.edit')))
@@ -48,36 +45,27 @@ CREATE POLICY customers_delete_role ON public.customers FOR DELETE TO authentica
   USING ((SELECT public.user_has_permission('customers.delete')));
 
 -- ---------------------------------------------------------------------
--- service_cases
---   INSERT  cases.create OR inbox.view                          (= {admin, serviceleder, salg})
---   UPDATE  cases.edit OR cases.close OR service.close OR cases.create (= {admin, serviceleder, salg} — PRÆCIS som i dag)
---           (valgfri stramning, beslutning B i forslaget: salg kun på forslag — `cases.create AND is_proposal = true`)
---   DELETE  cases.delete OR (cases.create AND is_proposal = true) (= admin · serviceleder/salg kun forslag — som i dag)
+-- service_cases  (uden overrides: INSERT {admin, serviceleder, salg} · UPDATE {admin, serviceleder} · DELETE {admin})
+--   UPDATE: cases.edit (redigering, status) · cases.close (lukning) · service.close (afregningsmodel)
 -- ---------------------------------------------------------------------
 DROP POLICY IF EXISTS service_cases_insert_role ON public.service_cases;
-CREATE POLICY service_cases_insert_role ON public.service_cases FOR INSERT TO authenticated WITH CHECK (
-  (SELECT public.user_has_permission('cases.create'))
-  OR (SELECT public.user_has_permission('inbox.view'))
-);
+CREATE POLICY service_cases_insert_role ON public.service_cases FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.user_has_permission('cases.create')));
 DROP POLICY IF EXISTS service_cases_update_role ON public.service_cases;
 CREATE POLICY service_cases_update_role ON public.service_cases FOR UPDATE TO authenticated
   USING (
     (SELECT public.user_has_permission('cases.edit'))
     OR (SELECT public.user_has_permission('cases.close'))
     OR (SELECT public.user_has_permission('service.close'))
-    OR (SELECT public.user_has_permission('cases.create'))
   )
   WITH CHECK (
     (SELECT public.user_has_permission('cases.edit'))
     OR (SELECT public.user_has_permission('cases.close'))
     OR (SELECT public.user_has_permission('service.close'))
-    OR (SELECT public.user_has_permission('cases.create'))
   );
 DROP POLICY IF EXISTS service_cases_delete_role ON public.service_cases;
-CREATE POLICY service_cases_delete_role ON public.service_cases FOR DELETE TO authenticated USING (
-  (SELECT public.user_has_permission('cases.delete'))
-  OR ((SELECT public.user_has_permission('cases.create')) AND is_proposal = true)
-);
+CREATE POLICY service_cases_delete_role ON public.service_cases FOR DELETE TO authenticated
+  USING ((SELECT public.user_has_permission('cases.delete')));
 
 NOTIFY pgrst, 'reload schema';
 

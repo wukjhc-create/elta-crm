@@ -1,6 +1,6 @@
 # Forslag 00239 — fase 4, bølge 1: customers og service_cases håndhæver effektive rettigheder i databasen
 
-**Status:** STAGING-ANVENDT 2026-10-26 (Henrik godkendte staging; beslutning A = fjern montør-rest, B = behold salg UPDATE). PROD kræver særskilt godkendelse.
+**Status:** STAGING-ANVENDT og REVIDERET 2026-10-26 (se §10 — afløser §3, §8-B og §9's matrix). PROD kræver særskilt godkendelse.
 **SQL:** [`supabase/migrations/00239_customers_cases_permission_rls.sql`](../../supabase/migrations/00239_customers_cases_permission_rls.sql) (inkl. rollback; udkast: [`00239_…DRAFT.sql`](00239_customers_cases_permission_rls.DRAFT.sql))
 **Kræver:** 00238 (i prod 2026-10-26).
 **Kerneregel (Henrik):** uden overrides skal al nuværende kunde- og sagsadfærd i appen være præcis uændret.
@@ -145,3 +145,66 @@ Står nederst i SQL-filen og gendanner præcis prod-definitionerne fra 2026-10-2
   (U48/U222), montørens sagsvalg (U226) samt U228/U229.
 - tsc, check:rls-matrix, check:rbac og superseded-guard-test: alle exit 0. Port 3217 er fri.
 - Migrationsfil: sha256 `26f5cfbcbd9cb5b36bba893665cf675c03d58de8ce7bbaa7ffc7399c72e85093`.
+
+## 10. Revision 2026-10-26 (Henrik: "cases.create MUST MEAN CREATE", "customers.create MUST MEAN CUSTOMER CREATE")
+
+Første staging-version brugte "proxy"-nøgler (offers.create/inbox.view åbnede kunde-INSERT; cases.create åbnede sags-UPDATE
+og sletning af forslag). Revideret: **hver politik bruger kun handlingens egen rettighed**, og de app-flows der lænede sig
+på proxy-nøglerne er flyttet:
+
+| Politik | Betingelse | Uden overrides |
+|---|---|---|
+| customers INSERT | `customers.create` | admin, serviceleder, salg |
+| customers UPDATE | `customers.edit` | admin, serviceleder, salg |
+| customers DELETE | `customers.delete` | admin |
+| service_cases INSERT | `cases.create` | admin, serviceleder, salg |
+| service_cases UPDATE | `cases.edit` / `cases.close` / `service.close` | admin, serviceleder |
+| service_cases DELETE | `cases.delete` (også forslag) | admin |
+
+**Inventar af app-skrivestier (bruger-klient):**
+- Kunde-INSERT: createCustomer, quickCreateCustomer, importCustomersAction, convertLeadToCustomerAction,
+  createCustomerFromEmail — alle krævede allerede `customers.create`.
+  - `quickCreateCustomerAndOffer` (offers.create): en NY kunde kræver nu også `customers.create`; en eksisterende kunde
+    kan stadig vælges.
+  - `createCustomerAndCaseFromEmail` (inbox.view): en ny kunde kræver `customers.create` (som S-9); kan flowet oprette
+    en sag, kræves `cases.create`, tjekket før første skrivning, så der aldrig efterlades en halv oprettelse.
+  - email-intelligence og den offentlige kontaktformular bruger service-role (uændret).
+- Sags-INSERT: createServiceCase, createServiceCaseFromEmail, offer→sag kræver `cases.create`. Mail-flowet: se ovenfor.
+- Sags-UPDATE: updateServiceCase, low_profit, auto_invoice, site, parter (`cases.edit`), status (`cases.edit`/
+  `cases.close`), afregningsmodel (`service.close`). Overdragelse og auto-start bruger service-role.
+- Godkend/afvis sag-forslag (`promoteCaseProposal`/`rejectCaseProposal`) brugte `cases.create` og bruger-klienten.
+  Nu går de via en kontrolleret server-sti: service-role, kun rækker med `is_proposal = true`, og hver handling
+  auditeres (`case_proposal_promoted`/`case_proposal_rejected`).
+  - Afvis kræver `inbox.view` (forslags-køen ligger under /dashboard/mail; siden, listen og tælleren kræver allerede
+    inbox.view).
+  - Godkend kræver `inbox.view` + `cases.create`.
+  - Der er ingen ny katalognøgle.
+- Ingen databasefunktion eller trigger skriver customers/service_cases med kalderens rettigheder. Kun engangs-backfills.
+
+**Salg (punkt 3):**
+- Salgs normale arbejde er uændret: opret og ret kunder, opret sager, tilbud→sag.
+- Salg mister rå REST-UPDATE af sager og REST-sletning af forslag. Ingen app-sti brugte det: salg har ikke `inbox.view`
+  og kan derfor ikke åbne forslags-køen.
+- Dermed er beslutning B's tekniske gæld fjernet i stedet for udskudt.
+
+**Bevidste ændringer mod prod (uden overrides):**
+- montør: kunde-/sags-INSERT ✗ (beslutning A).
+- salg: sags-UPDATE ✗ og slet forslag ✗ (ingen app-sti).
+- Alle andre celler er uændrede.
+
+**Staging-resultat for revisionen (2026-10-26):**
+- Før-fingerprint → dry run (ROLLBACK) → fingerprint identisk → anvendt.
+- Diff mod første staging-version: 4 politikker. Mod niveauet før 00239 (= prod): præcis de 6 tilsigtede politikker.
+  0 funktioner, 0 grants, 0 tabeller. Anvendelsen ændrede hverken rækker eller profiler.
+- `mp-00239-rls-check`: 51/51. Den dækker:
+  - rollematrix
+  - SELECT uændret
+  - G: én GRANT ad gangen
+  - C: montør-scenarier, inkl. at offers.create og inbox.view alene ikke giver kunde-INSERT
+  - S: salg
+  - inaktiv og manglende profil
+- U230 (app-stierne, rigtige sessioner) PASS.
+- 00235–00238-matricer og rls-lockdown WAVE1/WAVE3A er grønne.
+- UI `sales,montor`: 107 tests, PASS 107, FLAKY 0, FAIL 0, TIMEOUT 0, NOT_RUN 0.
+- tsc, rls-matrix, rbac og guard: exit 0.
+- sha256 `b0eb6262c7f7dfe3ebbe7b2d081eda5181cde75c2bc27eba0b72edd6534f7b55`.

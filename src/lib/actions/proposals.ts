@@ -12,6 +12,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
@@ -157,19 +158,38 @@ export async function getProposalsCount(): Promise<number> {
   }
 }
 
+/**
+ * PERM-1 fase 4 / 00239: forslags-køen hører til indbakken (siden og listen kræver inbox.view). Godkend gør forslaget
+ * til en rigtig sag og kræver derfor også cases.create; afvis kræver kun køens rettighed. Databasen giver IKKE
+ * cases.create sags-UPDATE/-DELETE (cases.create betyder kun "opret"), så skrivningen sker med service-role her —
+ * begrænset til ét forslag (is_proposal = true) og auditeret.
+ */
+async function adminDb() {
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  return createAdminClient()
+}
+
 export async function promoteCaseProposal(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'sag-ID')
-    const { supabase, userId } = await requireGate('cases.create')
-    const { error } = await supabase
+    const ctx = await requireGate('inbox.view')
+    ctx.requirePermission('cases.create')
+    const { userId } = ctx
+    const { data, error } = await (await adminDb())
       .from('service_cases')
       .update({ is_proposal: false })
       .eq('id', id)
       .eq('is_proposal', true)
+      .select('id, title')
     if (error) {
       logger.error('promoteCaseProposal failed', { error, entityId: id, userId })
       return { success: false, error: 'Kunne ikke godkende sag-forslag' }
     }
+    if (!data || data.length === 0) return { success: false, error: 'Sag-forslaget findes ikke (eller er allerede godkendt)' }
+    await insertAuditRow({
+      user_id: userId, entity_type: 'service_case', entity_id: id, entity_name: (data[0] as { title?: string }).title ?? null,
+      action: 'case_proposal_promoted', action_description: 'Sag-forslag godkendt', changes: { is_proposal: { from: true, to: false } },
+    })
     revalidatePath('/dashboard/mail/proposals')
     revalidatePath('/dashboard/service-cases')
     revalidatePath('/dashboard/orders')
@@ -203,24 +223,35 @@ export async function promoteOfferProposal(id: string): Promise<ActionResult> {
 export async function rejectCaseProposal(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'sag-ID')
-    const { supabase, userId } = await requireGate('cases.create')
+    const { userId } = await requireGate('inbox.view')
+    const db = await adminDb()
     // SC-4 (scope-review 2026-10-20): kun et sag-FORSLAG — ellers kunne id'et på en rigtig sag frakoble alle dens mails
-    const { data: prop } = await supabase.from('service_cases').select('id').eq('id', id).eq('is_proposal', true).maybeSingle()
+    const { data: prop } = await db.from('service_cases').select('id, title').eq('id', id).eq('is_proposal', true).maybeSingle()
     if (!prop) return { success: false, error: 'Sag-forslaget findes ikke (eller er allerede godkendt)' }
     // Defensiv: ryd incoming_emails.service_case_id-referencer foer DELETE.
-    await supabase
+    const { error: unlinkErr } = await db
       .from('incoming_emails')
       .update({ service_case_id: null })
       .eq('service_case_id', id)
-    const { error } = await supabase
+    if (unlinkErr) {
+      logger.error('rejectCaseProposal unlink failed', { error: unlinkErr, entityId: id, userId })
+      return { success: false, error: 'Kunne ikke afvise sag-forslag' }
+    }
+    const { data: deleted, error } = await db
       .from('service_cases')
       .delete()
       .eq('id', id)
       .eq('is_proposal', true)
+      .select('id')
     if (error) {
       logger.error('rejectCaseProposal failed', { error, entityId: id, userId })
       return { success: false, error: 'Kunne ikke afvise sag-forslag' }
     }
+    if (!deleted || deleted.length === 0) return { success: false, error: 'Sag-forslaget findes ikke (eller er allerede godkendt)' }
+    await insertAuditRow({
+      user_id: userId, entity_type: 'service_case', entity_id: id, entity_name: (prop as { title?: string }).title ?? null,
+      action: 'case_proposal_rejected', action_description: 'Sag-forslag afvist (slettet)', changes: {},
+    })
     revalidatePath('/dashboard/mail/proposals')
     return { success: true }
   } catch (err) {

@@ -3,9 +3,11 @@
  * Direkte REST med rigtige sessioner:
  *   M  nul overrides: 5 roller × INSERT/UPDATE/DELETE på begge tabeller = forventet matrix (dagens rollesæt, minus
  *      montør i INSERT — beslutning A)
- *   C  montør: baseline nægtet → grant customers.create tilladt → fjernet nægtet igen (+ cases.create samme mønster),
- *      Elektriker-skabelon tilladt, inaktiv og manglende profil nægtet
- *   S  salg: fjernet customers.edit → UPDATE nægtet · fjernet cases.create → forslag kan ikke slettes
+ *   G  én GRANT ad gangen på en montør uden overrides: præcis hvad hver nøgle selvstændigt åbner (7 operationer)
+ *   C  montør: baseline nægtet → grant → tilladt → fjernet → nægtet igen (customers.create og cases.create; cases.create
+ *      giver ALDRIG sags-UPDATE/-DELETE), offers.create / inbox.view alene giver ingen kunde-INSERT, Elektriker-
+ *      skabelon, inaktiv og manglende profil nægtet
+ *   S  salg: fjernet customers.edit → UPDATE nægtet · fjernet customers.create/cases.create → opret nægtet
  *   R  SELECT uændret (alle roller ser kunder og sager)
  *   npx tsx scripts/test-harness/cli.ts mp-00239-rls-check
  * Midlertidige auth-brugere, kunder, sager og overrides ryddes altid.
@@ -18,15 +20,29 @@ import { PERMISSION_TEMPLATES, templateOverrides } from '../../src/lib/auth/perm
 export interface M239Check { id: string; ok: boolean; note: string }
 
 const ROLES = ['admin', 'serviceleder', 'salg', 'montør', 'bogholderi'] as const
-// Forventet uden overrides (Henrik 2026-10-26: = prod-rollesæt; montør fjernet fra INSERT; salg UPDATE uændret)
+// Forventet uden overrides (Henrik 2026-10-26, revideret: hver politik bruger kun handlingens egen rettighed)
 const EXPECT: Record<string, readonly string[]> = {
   'customers INSERT': ['admin', 'serviceleder', 'salg'],
   'customers UPDATE': ['admin', 'serviceleder', 'salg'],
   'customers DELETE': ['admin'],
   'service_cases INSERT': ['admin', 'serviceleder', 'salg'],
-  'service_cases UPDATE': ['admin', 'serviceleder', 'salg'],
+  'service_cases UPDATE': ['admin', 'serviceleder'],
   'service_cases DELETE (sag)': ['admin'],
-  'service_cases DELETE (forslag)': ['admin', 'serviceleder', 'salg'],
+  'service_cases DELETE (forslag)': ['admin'],
+}
+const OPS = ['kunde INSERT', 'kunde UPDATE', 'kunde DELETE', 'sag INSERT', 'sag UPDATE', 'sag DELETE', 'forslag DELETE'] as const
+// Hvad hver GRANT selvstændigt åbner (montør-grundrollen har ingen af operationerne)
+const GRANTS: Record<string, readonly (typeof OPS)[number][]> = {
+  'customers.create': ['kunde INSERT'],
+  'customers.edit': ['kunde UPDATE'],
+  'customers.delete': ['kunde DELETE'],
+  'cases.create': ['sag INSERT'],
+  'cases.edit': ['sag UPDATE'],
+  'cases.close': ['sag UPDATE'],
+  'service.close': ['sag UPDATE'],
+  'cases.delete': ['sag DELETE', 'forslag DELETE'],
+  'offers.create': [],
+  'inbox.view': [],
 }
 
 export async function runMp00239RlsCheck(c: { admin: SupabaseClient; url: string; anonKey: string }): Promise<M239Check[]> {
@@ -124,32 +140,60 @@ export async function runMp00239RlsCheck(c: { admin: SupabaseClient; url: string
     }
     add('R SELECT uændret: alle roller ser kunde og sag', Object.values(seen).every((v) => v === '1/1'), JSON.stringify(seen))
 
-    // ---- C: montør med overrides
+    // ---- G: én GRANT ad gangen
+    const runOps = async (cl: SupabaseClient, uid: string) => {
+      const r: string[] = []
+      if (await insCustomer(cl, uid)) r.push('kunde INSERT')
+      if (await updCustomer(cl, base)) r.push('kunde UPDATE')
+      if (await delCustomer(cl, await seedCustomer())) r.push('kunde DELETE')
+      if (await insCase(cl, uid, base)) r.push('sag INSERT')
+      if (await updCase(cl, await seedCase(base, false))) r.push('sag UPDATE')
+      if (await delCase(cl, await seedCase(base, false))) r.push('sag DELETE')
+      if (await delCase(cl, await seedCase(base, true))) r.push('forslag DELETE')
+      return r
+    }
+    const g = await tempUser('montør')
+    const gBase = await runOps(g.cl, g.uid)
+    add('G montør uden overrides: ingen af de 7 operationer', gBase.length === 0, `faktisk: ${gBase.join(', ') || '(ingen)'}`)
+    for (const [key, want] of Object.entries(GRANTS)) {
+      await ov(g.uid, key, 'grant')
+      const got = await runOps(g.cl, g.uid)
+      await unov(g.uid, key)
+      add(`G grant ${key} → ${want.join(', ') || '(intet)'}`, got.length === want.length && want.every((o) => got.includes(o)), `faktisk: ${got.join(', ') || '(intet)'}`)
+    }
+    const gAfter = await runOps(g.cl, g.uid)
+    add('G alle grants fjernet → ingen operationer igen', gAfter.length === 0, `faktisk: ${gAfter.join(', ') || '(ingen)'}`)
+
+    // ---- C: montør — de krævede scenarier
     const m = await tempUser('montør')
     add('C1 montør baseline: opret kunde NÆGTET', !(await insCustomer(m.cl, m.uid)))
-    add('C1 montør baseline: opret sag NÆGTET', !(await insCase(m.cl, m.uid, base)))
+    add('C1 montør baseline: opret / ret / slet sag NÆGTET', !(await insCase(m.cl, m.uid, base)) && !(await updCase(m.cl, await seedCase(base, false))) && !(await delCase(m.cl, await seedCase(base, true))))
     await ov(m.uid, 'customers.create', 'grant')
     add('C2 grant customers.create → opret kunde TILLADT', await insCustomer(m.cl, m.uid))
     add('C2 … sag stadig NÆGTET (kun den ene nøgle)', !(await insCase(m.cl, m.uid, base)))
     await unov(m.uid, 'customers.create')
     add('C3 grant fjernet → opret kunde NÆGTET igen', !(await insCustomer(m.cl, m.uid)))
+    await ov(m.uid, 'offers.create', 'grant')
+    add('C3b grant offers.create alene → rå REST kunde-INSERT NÆGTET', !(await insCustomer(m.cl, m.uid)))
+    await unov(m.uid, 'offers.create')
+    await ov(m.uid, 'inbox.view', 'grant')
+    add('C3c grant inbox.view alene → rå REST kunde-INSERT NÆGTET', !(await insCustomer(m.cl, m.uid)))
+    add('C3c … og sag-INSERT NÆGTET', !(await insCase(m.cl, m.uid, base)))
+    await unov(m.uid, 'inbox.view')
     await ov(m.uid, 'cases.create', 'grant')
     add('C4 grant cases.create → opret sag TILLADT', await insCase(m.cl, m.uid, base))
+    add('C4 … ret sag stadig NÆGTET', !(await updCase(m.cl, await seedCase(base, false))))
+    add('C4 … ret sag-forslag stadig NÆGTET', !(await updCase(m.cl, await seedCase(base, true))))
+    add('C4 … slet forslag stadig NÆGTET', !(await delCase(m.cl, await seedCase(base, true))))
+    add('C4 … slet sag stadig NÆGTET', !(await delCase(m.cl, await seedCase(base, false))))
     add('C4 … kunde stadig NÆGTET', !(await insCustomer(m.cl, m.uid)))
-    // konsekvens af paritets-mappingen (beslutning B): cases.create giver også UPDATE og sletning af forslag
-    const gUpd = await updCase(m.cl, await seedCase(base, false))
-    const gDelProp = await delCase(m.cl, await seedCase(base, true))
-    const gDelCase = await delCase(m.cl, await seedCase(base, false))
-    add('C4 … cases.create: slet almindelig sag NÆGTET (cases.delete kræves)', !gDelCase)
-    add('C4 info: cases.create giver også sags-UPDATE + slet forslag (som salg i dag)', true, `update=${gUpd ? 'tilladt' : 'nægtet'} slet-forslag=${gDelProp ? 'tilladt' : 'nægtet'}`)
     await unov(m.uid, 'cases.create')
     add('C5 grant fjernet → opret sag NÆGTET igen', !(await insCase(m.cl, m.uid, base)))
-    add('C5 … sags-UPDATE NÆGTET igen', !(await updCase(m.cl, await seedCase(base, false))))
     for (const o of templateOverrides(PERMISSION_TEMPLATES.elektriker)) await ov(m.uid, o.permission, o.effect, 'template')
     add('C6 Elektriker-skabelon → opret kunde TILLADT', await insCustomer(m.cl, m.uid))
     add('C6 Elektriker-skabelon → opret sag TILLADT', await insCase(m.cl, m.uid, base))
-    add('C6 Elektriker-skabelon → ret kunde NÆGTET (customers.edit ikke i skabelonen)', !(await updCustomer(m.cl, base)))
-    add('C6 Elektriker-skabelon → slet kunde NÆGTET', !(await delCustomer(m.cl, await seedCustomer())))
+    add('C6 Elektriker-skabelon → ret/slet kunde NÆGTET', !(await updCustomer(m.cl, base)) && !(await delCustomer(m.cl, await seedCustomer())))
+    add('C6 Elektriker-skabelon → ret sag / slet forslag NÆGTET', !(await updCase(m.cl, await seedCase(base, false))) && !(await delCase(m.cl, await seedCase(base, true))))
     await c.admin.from('profiles').update({ is_active: false }).eq('id', m.uid)
     add('C7 inaktiv (med skabelon-grants) → opret kunde NÆGTET', !(await insCustomer(m.cl, m.uid)))
     add('C7 inaktiv (med skabelon-grants) → opret sag NÆGTET', !(await insCase(m.cl, m.uid, base)))
@@ -162,15 +206,19 @@ export async function runMp00239RlsCheck(c: { admin: SupabaseClient; url: string
     add('C8 manglende profil → opret sag NÆGTET', !(await insCase(ghost.cl, ghost.uid, base)))
 
     // ---- S: salg med fjernet adgang
-    const s = await tempUser('salg')
-    add('S0 salg baseline: ret kunde + slet forslag TILLADT', (await updCustomer(s.cl, base)) && (await delCase(s.cl, await seedCase(base, true))))
-    await ov(s.uid, 'customers.edit', 'revoke')
-    add('S1 revoke customers.edit → ret kunde NÆGTET', !(await updCustomer(s.cl, base)))
-    await unov(s.uid)
-    await ov(s.uid, 'cases.create', 'revoke')
-    add('S2 revoke cases.create → slet forslag NÆGTET', !(await delCase(s.cl, await seedCase(base, true))))
-    await unov(s.uid)
-    add('S3 overrides fjernet → salg som før', (await updCustomer(s.cl, base)) && (await delCase(s.cl, await seedCase(base, true))))
+    const sa = await tempUser('salg')
+    add('S0 salg baseline: opret/ret kunde + opret sag TILLADT', (await insCustomer(sa.cl, sa.uid)) && (await updCustomer(sa.cl, base)) && (await insCase(sa.cl, sa.uid, base)))
+    add('S0 salg baseline: ret sag / slet forslag NÆGTET (ingen cases.edit/cases.delete)', !(await updCase(sa.cl, await seedCase(base, false))) && !(await delCase(sa.cl, await seedCase(base, true))))
+    await ov(sa.uid, 'customers.edit', 'revoke')
+    add('S1 revoke customers.edit → ret kunde NÆGTET', !(await updCustomer(sa.cl, base)))
+    await unov(sa.uid)
+    await ov(sa.uid, 'customers.create', 'revoke')
+    add('S2 revoke customers.create → opret kunde NÆGTET (offers.create åbner ikke)', !(await insCustomer(sa.cl, sa.uid)))
+    await unov(sa.uid)
+    await ov(sa.uid, 'cases.create', 'revoke')
+    add('S3 revoke cases.create → opret sag NÆGTET', !(await insCase(sa.cl, sa.uid, base)))
+    await unov(sa.uid)
+    add('S4 overrides fjernet → salg som før', (await updCustomer(sa.cl, base)) && (await insCase(sa.cl, sa.uid, base)))
   } finally {
     for (const u of users) await c.admin.from('user_permission_overrides').delete().eq('profile_id', u)
     if (cases.length) await c.admin.from('service_cases').delete().in('id', cases)

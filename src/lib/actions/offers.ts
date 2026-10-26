@@ -481,6 +481,11 @@ export async function quickCreateCustomerAndOffer(
       if (existing) {
         customerId = existing.id
       } else {
+        // PERM-1 fase 4 / 00239: offers.create giver ikke kunde-oprettelse — en ny kunde kræver customers.create
+        // (databasen håndhæver det samme; uden overrides har alle med offers.create også customers.create)
+        if (!hasPermission('customers.create')) {
+          return { success: false, error: 'Manglende tilladelse: customers.create (vælg en eksisterende kunde)' }
+        }
         // Sprint 9E Phase 5d — faelles helper med retry mod 23505.
         const { data: newCustomer, error: custError } = await insertCustomerWithRetry<{
           id: string
