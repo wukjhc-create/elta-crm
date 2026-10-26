@@ -5,7 +5,9 @@
  *   - betingede grene: forslag-sletning (is_proposal), montør kun -> status 'done', egne timer (user_id = uid),
  *     INSERT med fremmed created_by/user_id afvises
  *   - anon: ingen skrivning
- *   - laesning uaendret: alle personaer kan stadig laese probe-raekken
+ *   - laesning: alle personaer kan laese probe-raekken — undtagen hvor en senere laese-scope-migration bevidst har
+ *     begraenset det (spec.visibleTo); dér skal laesningen svare praecis til scopet, og skrivning kan kun ramme synlige
+ *     raekker (PostgreSQL: UPDATE/DELETE ser kun SELECT-synlige raekker; INSERT testes uden RETURNING)
  * Alle probe-raekker ryddes i finally (service-role).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -30,6 +32,11 @@ type Spec = {
   ownUpdate?: Record<string, unknown>
   /** laesning er bevidst begraenset (laese-side, fx 00175 messages: kun egne) — daekket af harness:rls-read */
   readRestricted?: boolean
+  /** roller der efter senere laese-scope-migrationer kan SE en generisk probe-raekke (udeladt = alle) */
+  visibleTo?: M.Role[]
+  /** kolonne som en BEFORE-trigger tvangssaetter til auth.uid() (fx 00217 messages.from_user_id): INSERT med fremmed
+   *  uid maa gerne lykkes, men raekken skal gemmes med kalderens uid — forfalskning = fejl */
+  forgeColumn?: string
   /** primaernoegle hvis ikke 'id' */
   pk?: string
 }
@@ -51,7 +58,8 @@ const SPECS: Record<string, Spec> = {
     update: { email: 'rls-upd@harness.test' },
   },
   customer_documents: { payload: (_u, c) => ({ customer_id: c.s.customer, title: '[HARNESS] rls', file_url: '', file_name: 'rls.txt', document_type: 'other' }), update: { description: '[HARNESS] rls-update' } },
-  incoming_emails: { payload: (_u, c) => ({ sender_email: `rls-${c.stamp}-${c.n()}@harness.test`, subject: '[HARNESS] rls', graph_message_id: `harness-rls-${c.stamp}-${c.n()}` }), update: { is_read: true } },
+  // 00180/00186: montør ser kun mails på egne sager, bogholderi kun kunde-/fakturamails — probe-raekken har ingen af delene
+  incoming_emails: { payload: (_u, c) => ({ sender_email: `rls-${c.stamp}-${c.n()}@harness.test`, subject: '[HARNESS] rls', graph_message_id: `harness-rls-${c.stamp}-${c.n()}` }), update: { is_read: true }, visibleTo: ['admin', 'serviceleder', 'salg'] },
   // ---- runde 2A ----
   invoice_lines: { payload: (_u, c) => ({ invoice_id: c.s.invoice, description: '[HARNESS] rls' }), update: { description: '[HARNESS] rls-update' } },
   // unik (invoice_id, predecessor_invoice_id) -> ny faktura fra puljen pr. raekke
@@ -93,11 +101,13 @@ const SPECS: Record<string, Spec> = {
   service_case_attachments: { payload: (_u, c) => ({ service_case_id: c.s.case, file_name: 'rls.txt', file_url: '' }), update: { file_name: 'rls2.txt' } },
   projects: { payload: (uid, c) => ({ project_number: `HARN-RLS-P-${c.stamp}-${c.n()}`, name: '[HARNESS] rls', customer_id: c.s.customer, created_by: uid }), update: { name: '[HARNESS] rls-update' } },
   project_tasks: { payload: (uid, c) => ({ project_id: c.s.project, title: '[HARNESS] rls', created_by: uid }), update: { title: '[HARNESS] rls-update' } },
-  quick_jobs: { payload: (_u, c) => ({ code: `harn_rls_${c.stamp}_${c.n()}`, name: '[HARNESS] rls' }), update: { name: '[HARNESS] rls-update' } },
+  // 00200 kost-lockdown: kun admin/serviceleder/bogholderi læser (salgs UPDATE-politik rammer derfor ingen raekker)
+  quick_jobs: { payload: (_u, c) => ({ code: `harn_rls_${c.stamp}_${c.n()}`, name: '[HARNESS] rls' }), update: { name: '[HARNESS] rls-update' }, visibleTo: ['admin', 'serviceleder', 'bogholderi'] },
   leads: { payload: (uid, c) => ({ company_name: '[HARNESS] rls', contact_person: 'R', email: `rls-${c.stamp}-${c.n()}@harness.test`, created_by: uid }), update: { notes: '[HARNESS] rls-update' } },
-  lead_activities: { payload: (uid, c) => ({ lead_id: c.s.lead, activity_type: 'note', description: '[HARNESS] rls', performed_by: uid }), update: { description: '[HARNESS] rls-update' } },
+  // 00234: kun admin/serviceleder/salg læser lead-aktiviteter (montør må stadig skrive dem)
+  lead_activities: { payload: (uid, c) => ({ lead_id: c.s.lead, activity_type: 'note', description: '[HARNESS] rls', performed_by: uid }), update: { description: '[HARNESS] rls-update' }, visibleTo: ['admin', 'serviceleder', 'salg'] },
   // modtager = en profil der IKKE er en af personaerne (sink), saa probe-raekker ikke tilhoerer den testede persona
-  messages: { payload: (uid, c) => ({ subject: '[HARNESS] rls', body: 'x', from_user_id: uid, to_user_id: c.s.sinkUid }), update: { read_at: new Date().toISOString() }, ownRow: (uid) => ({ to_user_id: uid }), readRestricted: true },
+  messages: { payload: (uid, c) => ({ subject: '[HARNESS] rls', body: 'x', from_user_id: uid, to_user_id: c.s.sinkUid }), update: { read_at: new Date().toISOString() }, ownRow: (uid) => ({ to_user_id: uid }), readRestricted: true, forgeColumn: 'from_user_id' },
   sent_quotes: { payload: (_u, c) => ({ quote_reference: `HARN-RLS-Q-${c.stamp}-${c.n()}`, template_type: 'sales', customer_email: `rls-${c.stamp}@harness.test`, title: '[HARNESS] rls' }), update: { title: '[HARNESS] rls-update' } },
   offer_signatures: { payload: (_u, c) => ({ offer_id: c.s[`of${c.n() % 40}`], signer_name: '[HARNESS] rls', signer_email: `rls-${c.stamp}@harness.test` }), update: { signer_name: '[HARNESS] rls-update' }, readRestricted: true },
   offer_packages: { payload: (_u, c) => ({ slug: `harn-rls-${c.stamp}-${c.n()}`, name: '[HARNESS] rls', job_type: 'harness', is_active: false }), update: { name: '[HARNESS] rls-update' } },
@@ -213,21 +223,36 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
       for (const [role, cl] of personas) {
         const uid = uids.get(role)!
         const other = [...uids.values()].find((u) => u !== uid)!
-        // INSERT (egen uid i payload)
-        const ins = await cl.from(p.table).insert([await P(uid)]).select(pk)
-        expect(`${role}:insert`, !ins.error && track(p.table, ins.data), has(p.insert, role) || has(p.insertConditional?.roles, role))
+        const visible = spec?.visibleTo ? has(spec.visibleTo, role) : true
+        // INSERT (egen uid i payload) — uden for laese-scopet uden RETURNING (klient-genereret id, så raekken kan ryddes)
+        if (visible) {
+          const ins = await cl.from(p.table).insert([await P(uid)]).select(pk)
+          expect(`${role}:insert`, !ins.error && track(p.table, ins.data), has(p.insert, role) || has(p.insertConditional?.roles, role))
+        } else {
+          const id = randomUUID()
+          const ins = await cl.from(p.table).insert([{ ...await P(uid), [pk]: id }])
+          if (!ins.error) created.push({ table: p.table, id })
+          expect(`${role}:insert`, !ins.error, has(p.insert, role) || has(p.insertConditional?.roles, role))
+        }
         // INSERT med fremmed uid (ekstra betingelse / betinget gren)
         if ((p.insertExtraSql && has(p.insert, role)) || (p.insertConditional && has(p.insertConditional.roles, role) && !has(p.insert, role))) {
           const bad = await cl.from(p.table).insert([await P(other)]).select(pk)
-          expect(`${role}:insert(fremmed)`, !bad.error && track(p.table, bad.data), false)
+          let forged = !bad.error && track(p.table, bad.data)
+          if (forged && spec?.forgeColumn) {
+            // trigger har tvangssat kolonnen: kun en forfalskning hvis raekken faktisk er gemt med den fremmede uid
+            const id = (bad.data as Array<Record<string, string>>)[0][pk]
+            const { data: stored } = await c.admin.from(p.table).select(spec.forgeColumn).eq(pk, id).single()
+            forged = (stored as Record<string, string> | null)?.[spec.forgeColumn] !== uid
+          }
+          expect(`${role}:insert(fremmed)`, forged, false)
         }
-        // UPDATE paa en andens raekke
+        // UPDATE paa en andens raekke (kan kun ramme raekker rollen kan se)
         const target = await seed(p.table, await P(c.ownerUid === uid ? other : c.ownerUid))
         const upd = await cl.from(p.table).update(U).eq(pk, target).select(pk)
-        expect(`${role}:update`, !upd.error && (upd.data ?? []).length === 1, has(p.update, role))
-        // laesning uaendret
+        expect(`${role}:update`, !upd.error && (upd.data ?? []).length === 1, has(p.update, role) && visible)
+        // laesning: uaendret, eller praecis det bevidste laese-scope
         const sel = await cl.from(p.table).select(pk).eq(pk, target)
-        if (!spec?.readRestricted) expect(`${role}:select`, !sel.error && (sel.data ?? []).length === 1, true)
+        if (!spec?.readRestricted) expect(`${role}:select`, !sel.error && (sel.data ?? []).length === 1, visible)
         // betinget UPDATE (fx montør -> done)
         if (p.updateConditional && spec?.condUpdate) {
           const t2 = await seed(p.table, { ...await P(c.ownerUid), ...(spec.condOwnOnly && spec.ownRow ? spec.ownRow(uid, ctx) : {}) })
@@ -255,7 +280,7 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
         }
         // DELETE paa en andens / almindelig raekke
         const del = await cl.from(p.table).delete().eq(pk, target).select(pk)
-        expect(`${role}:delete`, !del.error && (del.data ?? []).length === 1, has(p.delete, role))
+        expect(`${role}:delete`, !del.error && (del.data ?? []).length === 1, has(p.delete, role) && visible)
       }
       // anon
       const aIns = await c.anon.from(p.table).insert([await P(c.ownerUid)]).select(pk)
