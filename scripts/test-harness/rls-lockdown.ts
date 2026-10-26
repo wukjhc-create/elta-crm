@@ -198,6 +198,8 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
     if (tables.has('automation_executions')) ctx.s.rule = await seed('automation_rules', { name: `[HARNESS] rls-base ${stamp}`, trigger: 'harness.rls', action: 'harness.noop', active: false, dry_run: true })
 
     for (const p of policies) {
+      // dedikeret migration (00235/00239) ejer tabellens skrive-policies — verificeres af sec-b7-/mp-00239-tjekkene
+      if (p.supersededBy) { out.push({ id: p.table, ok: true, note: `springes over: ejes af ${p.supersededBy.migration}` }); continue }
       const spec: Spec | undefined = SPECS[p.table]
       if (!spec && !auto) { out.push({ id: `${p.table}`, ok: false, note: 'ingen test-spec (og ingen sql til auto-spec)' }); continue }
       // Haandskrevet spec hvis den findes, ellers metadata-genereret probe (auto-spec.ts)

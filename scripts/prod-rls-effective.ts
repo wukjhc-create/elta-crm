@@ -10,7 +10,8 @@ import { withProdReadOnly, maskDbError } from './prod-readonly'
 import * as M from './rls/write-matrix'
 
 const waves = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(M).filter((k) => /^WAVE/.test(k))
-const policies = waves.flatMap((w) => (M as unknown as Record<string, M.TableWritePolicy[]>)[w] ?? [])
+// tabeller med dedikeret migration (supersededBy) verificeres af deres egne tjek
+const policies = waves.flatMap((w) => (M as unknown as Record<string, M.TableWritePolicy[]>)[w] ?? []).filter((p) => !p.supersededBy)
 const problems: string[] = []
 
 async function main() {

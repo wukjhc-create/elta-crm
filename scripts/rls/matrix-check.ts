@@ -50,6 +50,9 @@ export function checkMatrix(): { failures: string[]; warnings: string[] } {
 export const DEDICATED_WRITE_POLICIES: Record<string, { migration: string; mustContain: string[] }> = {
   customer_tasks: { migration: '00235', mustContain: ['CREATE POLICY customer_tasks_insert_role', 'created_by = auth.uid()', 'trg_customer_tasks_write_guard'] },
   roof_drawings: { migration: '00235', mustContain: ['CREATE POLICY roof_drawings_insert_role', 'case_belongs_to_customer', 'trg_roof_drawings_update_guard'] },
+  // PERM-1 fase 4 (Henrik 2026-10-26): skrivning følger effektive rettigheder
+  customers: { migration: '00239', mustContain: ['CREATE POLICY customers_insert_role', "user_has_permission('customers.create')", "user_has_permission('customers.delete')"] },
+  service_cases: { migration: '00239', mustContain: ['CREATE POLICY service_cases_insert_role', "user_has_permission('cases.create')", "user_has_permission('cases.delete')"] },
 }
 
 export function checkSupersededGuard(): string[] {

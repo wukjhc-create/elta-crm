@@ -11,7 +11,8 @@ import * as M from './rls/write-matrix'
 
 const wave = process.argv[2] || 'WAVE1'
 const mode = process.argv[3] === 'post' ? 'post' : 'pre'
-const policies = (M as unknown as Record<string, M.TableWritePolicy[]>)[wave]
+// tabeller med dedikeret migration (supersededBy) verificeres af deres egne tjek — ikke af bølge-forventningen
+const policies = ((M as unknown as Record<string, M.TableWritePolicy[]>)[wave] ?? []).filter((p) => !p.supersededBy)
 /** Runder der genkører allerede låste tabeller (før-tilstand = rolle-policies fra en tidligere runde). */
 const REWAVES = new Set(['WAVE5'])
 const problems: string[] = []

@@ -1,7 +1,7 @@
 # Forslag 00239 — fase 4, bølge 1: customers og service_cases håndhæver effektive rettigheder i databasen
 
-**Status:** FORSLAG — ikke anvendt. Kræver Henriks godkendelse til staging og derefter prod.
-**SQL:** [`00239_customers_cases_permission_rls.DRAFT.sql`](00239_customers_cases_permission_rls.DRAFT.sql) (inkl. rollback)
+**Status:** STAGING-ANVENDT 2026-10-26 (Henrik godkendte staging; beslutning A = fjern montør-rest, B = behold salg UPDATE). PROD kræver særskilt godkendelse.
+**SQL:** [`supabase/migrations/00239_customers_cases_permission_rls.sql`](../../supabase/migrations/00239_customers_cases_permission_rls.sql) (inkl. rollback; udkast: [`00239_…DRAFT.sql`](00239_customers_cases_permission_rls.DRAFT.sql))
 **Kræver:** 00238 (i prod 2026-10-26).
 **Kerneregel (Henrik):** uden overrides skal al nuværende kunde- og sagsadfærd i appen være præcis uændret.
 
@@ -102,3 +102,46 @@ Inventaret er i `docs/runbooks/per-employee-permissions-architecture.md`.
 ## 7. Rollback
 
 Står nederst i SQL-filen og gendanner præcis prod-definitionerne fra 2026-10-26.
+
+## 8. Beslutninger (Henrik 2026-10-26)
+
+- **A — fjern montør-resten fra INSERT.** Kunde-/sagsoprettelse kræver nu den effektive rettighed i databasen. En montør
+  med ekstra adgang (`customers.create`/`cases.create`, fx Elektriker-skabelonen) kan oprette; uden kan ikke.
+- **B — salg UPDATE uændret i 00239.** Bevidst teknisk gæld til næste bølge (PERM-4b), hvor sags-/kundescope og
+  alle afhængige stier gennemgås samlet.
+
+## 9. Staging-resultat 2026-10-26
+
+1. Generator-værn: `supersededBy 00239` på customers (WAVE1) og service_cases (WAVE3A); `DEDICATED_WRITE_POLICIES`;
+   `superseded-guard-test` generaliseret (alle dedikerede tabeller); `rls-lockdown`, `prod-verify-rls-wave` og
+   `prod-rls-effective` springer dedikerede tabeller over.
+2. Før-fingerprint → 3. dry run (ROLLBACK) uden fejl → 4. fingerprint **identisk** (byte for byte).
+5. Anvendt. 6. Skema-diff: **præcis 6 politikker** ændret (customers INSERT/UPDATE/DELETE, service_cases
+   INSERT/UPDATE/DELETE); 0 funktioner, 0 grants, 0 tabeller; rækker og profiler uændrede.
+7–8. `cli.ts mp-00239-rls-check` 33/33 (matrix nedenfor + override-scenarier + oprydning).
+
+| Nul overrides | admin | serviceleder | salg | montør | bogholderi |
+|---|---|---|---|---|---|
+| customers INSERT | ✓ | ✓ | ✓ | ✗ (var ✓ — A) | ✗ |
+| customers UPDATE | ✓ | ✓ | ✓ | ✗ | ✗ |
+| customers DELETE | ✓ | ✗ | ✗ | ✗ | ✗ |
+| service_cases INSERT | ✓ | ✓ | ✓ | ✗ (var ✓ — A) | ✗ |
+| service_cases UPDATE | ✓ | ✓ | ✓ | ✗ | ✗ |
+| service_cases DELETE sag | ✓ | ✗ | ✗ | ✗ | ✗ |
+| service_cases DELETE forslag | ✓ | ✓ | ✓ | ✗ | ✗ |
+| SELECT (begge) | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+**Konsekvenser at kende (ikke regressioner):**
+- `cases.create` giver også sags-UPDATE og sletning af forslag (paritetsmapping fra `promoteCaseProposal`/
+  `rejectCaseProposal`). En montør med Elektriker-skabelonen kan derfor via REST opdatere enhver sag og slette forslag
+  — samme som salg i dag. Strammes i PERM-4b.
+- customers INSERT er også åben for `offers.create`/`inbox.view`. Fjernes kun `customers.create` fra en salgsmedarbejder,
+  kan vedkommende stadig oprette kunder (via hurtig-opret med tilbud og fra mail).
+
+**Øvrige staging-tjek 2026-10-26:**
+- sec-b7 18/18 + 12/12 · mp-00236 9/9 + 7/7 · mp-00237 2/2 + 4/4 · mp-00238 16/16.
+- UI-regression `harness:ui-full -- sales,montor`: 106 tests, PASS 106, FLAKY 0, FAIL 0, TIMEOUT 0, NOT_RUN 0.
+  Det inkluderer kunde-opret, hurtig-opret med tilbud, tilbud→sag (U219), sagsopret (U202), forslag, lukning
+  (U48/U222), montørens sagsvalg (U226) samt U228/U229.
+- tsc, check:rls-matrix, check:rbac og superseded-guard-test: alle exit 0. Port 3217 er fri.
+- Migrationsfil: sha256 `26f5cfbcbd9cb5b36bba893665cf675c03d58de8ce7bbaa7ffc7399c72e85093`.

@@ -60,6 +60,7 @@ export const WAVE1: TableWritePolicy[] = [
     dropPolicies: ['Users can create customers', 'Users can update customers', 'Users can delete customers'],
     recreateOpenSelect: false,
     why: 'opret: customers.create + offers.create + opret-fra-mail (inbox.view, inkl. montør) · ret: customers.edit/tools.pricing · slet: customers.delete',
+    supersededBy: { migration: '00239', reason: 'PERM-1 fase 4: skrivning via user_has_permission (effektive rettigheder) — docs/runbooks/mp-00239-customers-cases-permission-rls.md' },
   },
   {
     table: 'customer_contacts',
@@ -214,7 +215,8 @@ export const WAVE3A: TableWritePolicy[] = [
   { table: 'service_cases', insert: ['admin', 'serviceleder', 'salg', 'montør'], update: ['admin', 'serviceleder', 'salg'], delete: ['admin'],
     deleteConditional: { roles: ['serviceleder', 'salg'], sql: 'is_proposal = true', desc: 'afvis sags-forslag (cases.create)' },
     dropPolicies: ['Authenticated users can create service cases', 'Authenticated users can update service cases', 'Authenticated users can delete service cases'],
-    recreateOpenSelect: false, why: 'opret: cases.create + opret-fra-mail (inbox.view) · ret: cases.edit/close + sag-fra-tilbud/mail (cases.create) · slet: cases.delete + afvis forslag' },
+    recreateOpenSelect: false, why: 'opret: cases.create + opret-fra-mail (inbox.view) · ret: cases.edit/close + sag-fra-tilbud/mail (cases.create) · slet: cases.delete + afvis forslag',
+    supersededBy: { migration: '00239', reason: 'PERM-1 fase 4: skrivning via user_has_permission (effektive rettigheder) — docs/runbooks/mp-00239-customers-cases-permission-rls.md' } },
   { table: 'case_notes', insert: ['admin', 'serviceleder', 'salg', 'montør'], update: ['admin', 'serviceleder'], delete: ['admin', 'serviceleder'],
     updateConditional: { roles: ['montør'], usingSql: 'created_by = auth.uid()', checkSql: 'created_by = auth.uid()', desc: 'egne noter (cases.edit.own)' },
     deleteConditional: { roles: ['montør'], sql: 'created_by = auth.uid()', desc: 'egne noter (cases.edit.own)' },
