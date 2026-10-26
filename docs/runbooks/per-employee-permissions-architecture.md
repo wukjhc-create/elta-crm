@@ -267,3 +267,39 @@ idempotente.
   RLS montør at indsætte kunder og sager; derfor virker B og C.
 - "Fjernet adgang" håndhæves ikke ved direkte REST, før tabellen er konverteret (fase 4).
 - Der er 52 + 57 tilbageværende direkte rolle-tjek.
+
+### 00238 i PROD (2026-10-26, Henrik: "Henrik godkender hermed 00238 til PROD", pilot = rollback-only)
+
+**Før anvendelse:**
+- sha256 `6765d56e…a9b0` = staging-testet fil.
+- 00238 var ikke anvendt: 0 tabeller, ingen kolonne, kun 00108-signaturen.
+- 0 live referencer til 00108's funktion.
+- Fingerprint: 403 policies, 164 funktioner, 358 grants og 161 tabeller, plus checksummer for 17 forretningstabeller.
+
+**Prod dry run** (`prod:apply-migration -- 00238 --approved-by-henrik --dry-run` — COMMIT erstattet af ROLLBACK):
+fingerprint identisk.
+
+**Anvendt → diff = staging:**
+- +3 tabeller, +3 SELECT-policies og +6 grants.
+- `user_has_permission(text)` tilføjet; `(text, uuid)` fjernet.
+- Forretningsrækker uændrede. `profiles` ændrer sig kun ved den nye NULL-kolonne; checksummen ekskl. kolonnen er
+  uændret.
+- Profiler pr. rolle uændrede.
+
+**Rollback-only effektiv kontrol + pilot** (`scripts/prod-mp-00238-effective.ts`, rigtig montør og admin):
+`[NY] 8/8 · [UÆNDRET] 5/5`.
+- Nul overrides = rolle for admin (112) og montør (22). Serviceleder, salg og bogholderi: NOT_TESTABLE_PROD
+  (dækket af staging).
+- Inaktiv og manglende profil giver 0 rettigheder.
+- service_role kan skrive overrides. Montør og admin afvises med 42501 ved direkte skrivning.
+- **Pilot:**
+  - baseline 22
+  - grant → 23
+  - fjern → 22
+  - revoke materials.view → 21
+  - nulstil → præcis baseline
+  - 4 audit-rækker skrevet
+  - ROLLBACK
+- Fingerprint efter pilot identisk; 0 overrides og 0 pilot-audit-rækker.
+
+**Øvrige tjek:** 00235/00236/00237/00234-tjekkene er stadig grønne.

@@ -81,6 +81,7 @@ const APPROVED: Record<string, string> = {
   '00235': '2026-10-24', // SEC-B7 skrive-lockdown (customer_tasks/roof_drawings rækkeafgrænset + guard-triggere; work_orders-supplement til 00213) — godkendt af Henrik i chat 2026-10-24 ("00235 — APPROVED FOR PROD", efter grøn staging + generator-værn)
   '00236': '2026-10-25', // opgave-sletning efter Henriks regel + tagtegninger låst på lukket sag (customer_tasks DELETE, roof_drawings INSERT/UPDATE/DELETE) — godkendt af Henrik i chat 2026-10-25 ("00236 — APPROVED FOR PROD", efter grøn ui-full 197/197)
   '00237': '2026-10-25', // SEC-B10 user_role() fail-closed (manglende/inaktiv profil = ingen_adgang, aldrig montør) — godkendt af Henrik i chat 2026-10-25 ("00237 — APPROVED FOR PROD", efter grøn ui-full 197/197 og 00236)
+  '00238': '2026-10-26', // PERM-1 lagring af per-medarbejder-rettigheder (katalog, rollestandarder, overrides, user_has_permission fail-closed) — godkendt af Henrik i chat 2026-10-26 ("Henrik godkender hermed 00238 til PROD", pilot = option 2 rollback-only)
 }
 
 async function main() {
@@ -91,8 +92,13 @@ async function main() {
   const dir = resolve(process.cwd(), 'supabase', 'migrations')
   const files = readdirSync(dir).filter((f) => f.startsWith(`${num}_`) && f.endsWith('.sql'))
   if (files.length !== 1) throw new Error(`forventede praecis én fil for ${num}, fandt ${files.length}`)
-  const sql = readFileSync(resolve(dir, files[0]), 'utf8')
-  if (!/^\s*BEGIN;/m.test(sql) || !/^\s*COMMIT;/m.test(sql)) throw new Error('migrationen er ikke én eksplicit transaktion')
+  const fileSql = readFileSync(resolve(dir, files[0]), 'utf8')
+  if (!/^\s*BEGIN;/m.test(fileSql) || !/^\s*COMMIT;/m.test(fileSql)) throw new Error('migrationen er ikke én eksplicit transaktion')
+  // --dry-run (2026-10-26): hele migrationen køres i sin transaktion, men den afsluttende COMMIT erstattes af ROLLBACK —
+  // validerer SQL'en mod production uden at noget består (sammenlign prod-db-fingerprint før/efter)
+  const dryRun = process.argv.includes('--dry-run')
+  if (dryRun && (fileSql.match(/^\s*COMMIT;\s*$/gm) ?? []).length !== 1) throw new Error('dry-run kræver præcis én COMMIT; på egen linje')
+  const sql = dryRun ? fileSql.replace(/^\s*COMMIT;\s*$/m, 'ROLLBACK;') : fileSql
 
   const j = JSON.parse(readFileSync(resolve(process.cwd(), HARNESS_SECRETS_FILE), 'utf8'))
   const url = String(j.prodDbUrl || '').trim()
@@ -103,9 +109,9 @@ async function main() {
   const client = new Client({ connectionString: url, ssl: { rejectUnauthorized: false }, application_name: `elta-apply-${num}`, statement_timeout: 60000 })
   await client.connect()
   try {
-    console.log(`[prod-apply] ${files[0]} -> prod:${ref.slice(0, 6)}… (godkendt ${APPROVED[num]})`)
+    console.log(`[prod-apply] ${files[0]} -> prod:${ref.slice(0, 6)}… (godkendt ${APPROVED[num]})${dryRun ? ' — DRY RUN (ROLLBACK)' : ''}`)
     await client.query(sql)
-    console.log('[prod-apply] ✅ COMMIT gennemfoert')
+    console.log(dryRun ? '[prod-apply] ✅ DRY RUN: SQL kørt uden fejl og rullet tilbage — intet ændret' : '[prod-apply] ✅ COMMIT gennemfoert')
   } catch (e) {
     try { await client.query('ROLLBACK') } catch { /* noop */ }
     throw e
