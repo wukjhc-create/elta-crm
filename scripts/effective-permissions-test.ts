@@ -7,6 +7,7 @@ import { PERMISSIONS, hasPermission, type Permission } from '../src/lib/auth/per
 import { computeEffectivePermissions, rolePermissions, explainPermission, NO_ACCESS_ROLE } from '../src/lib/auth/effective-permissions'
 import { PERMISSION_TEMPLATES, SENSITIVE_PERMISSION_PATTERNS, templateOverrides } from '../src/lib/auth/permission-templates'
 import { permissionGroup, SCOPE_SETS } from '../src/lib/auth/permission-groups'
+import { permissionLabel } from '../src/lib/auth/permission-text'
 import type { UserRole } from '../src/types/auth.types'
 
 let bad = 0
@@ -66,6 +67,10 @@ t('alle nøgler har præcis én gruppe', ungrouped.length === 0, ungrouped.join(
 const scopeKeys = SCOPE_SETS.flatMap((s) => s.levels.map((l) => l.key))
 t('scope-sæt bruger kun eksisterende nøgler', scopeKeys.every((k) => k in PERMISSIONS))
 t('ingen nøgle i to scope-sæt', new Set(scopeKeys).size === scopeKeys.length)
+
+// 6. admin-UI'et viser danske etiketter (ingen engelske/tekniske ord) for alle nøgler
+const englishLabels = KEYS.filter((k) => /\b(view|edit|own|all|add|case|mark|draft|cost|prices|payroll|credentials|manage)\b|_/.test(permissionLabel(k)))
+t('alle nøgler har en dansk etiket', englishLabels.length === 0, englishLabels.join(','))
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ effektive rettigheder: kompatible og skabeloner ok')
 process.exitCode = bad ? 1 : 0

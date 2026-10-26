@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { APP_NAME } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useUserRole } from '@/lib/hooks/use-user-role'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import type { Permission } from '@/lib/auth/permissions'
 import { useVisiblePolling } from '@/lib/hooks/use-visible-polling'
 import { getTaskCounts } from '@/lib/actions/customer-tasks'
 
@@ -463,7 +463,7 @@ function isNavActive(pathname: string, item: NavItem): boolean {
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { role } = useUserRole()
+  const { role, can } = useUserRole()
   const [taskCount, setTaskCount] = useState(0)
   const [overdueCount, setOverdueCount] = useState(0)
 
@@ -488,13 +488,13 @@ export function Sidebar() {
     items: section.items.filter((item) => {
       if (item.adminOnly) return role === 'admin'
       if (!item.permission) return true
-      return hasPermission(role, item.permission)
+      return can(item.permission)
     }),
   })).filter((section) => section.items.length > 0)
 
   const filteredSecondary = secondaryNavigation.filter((item) => {
     if (!item.permission) return true
-    return hasPermission(role, item.permission)
+    return can(item.permission)
   })
 
   return (

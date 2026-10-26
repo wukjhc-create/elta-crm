@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3683,6 +3683,205 @@ ${m.text()}`) })
 
       // U219 DE2-9 (Henrik 2026-10-20 GODKENDT): manuel konvertering tilbud → sag giver tilbuddets SÆLGER ansvaret —
       // også når en anden (admin) konverterer; auditeret; sælgeren kan åbne sagen. Egen konvertering: sælgeren selv.
+      // U229 PERM-1 scenarie-matrix (Henrik 2026-10-26): rigtig montør gennem app og server-actions.
+      //   A baseline = dagens montør · B ekstra customers.create (knap + opret kunde i formularen) · C ekstra cases.create
+      //   (side + opret sag) · D fjernet customers.view (menu skjult, side og action afvist) · E gendan standard ·
+      //   F inaktiv: overrides giver ingen adgang · G nulstil til skabelon/standard
+      if (want('U229')) {
+        const r: Record<string, boolean> = {}
+        const mu = await mkUser('montør')
+        const em = await c.admin.from('employees').insert([{ name: `[HARNESS] U229 ${stamp}`, email: mu.email, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300, profile_id: mu.id }]).select('id')
+        const empId = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!empId
+        const EP = 'src/lib/actions/employee-permissions.ts'
+        const empUrl = `${base}/dashboard/employees/${empId}?tab=login`
+        const setPerm = async (perm: string, effect: 'grant' | 'revoke' | null) => callServerAction(a.page, empUrl, EP, 'setEmployeePermissionAction', [empId, perm, effect, effect ? 'U229 scenarie' : null])
+        const myPerms = async (pg: import('playwright').Page) => {
+          const raw = await callServerAction(pg, `${base}/dashboard/tasks`, 'src/lib/actions/my-permissions.ts', 'getMyEffectivePermissionsAction', [])
+          const m = /\[("[^\]]*")\]/.exec(raw)
+          return m ? (JSON.parse(`[${m[1]}]`) as string[]) : null
+        }
+        const madeCustomers: string[] = []
+        const mp = await login(mu)
+        try {
+          await gotoSafe(a.page, empUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(mp.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+          // A baseline
+          const base0 = await myPerms(mp.page)
+          r.A_baseline_22_montoer_rettigheder = !!base0 && base0.length === 22 && !base0.includes('customers.create')
+
+          // B ekstra customers.create → "Ny Kunde" + opret i formularen; intet andet ændret
+          r.B_grant_ok = (await setPerm('customers.create', 'grant')).includes('"ok":true')
+          const afterB = await myPerms(mp.page)
+          r.B_kun_en_ekstra = !!afterB && afterB.length === 23 && afterB.includes('customers.create')
+          await gotoSafe(mp.page, `${base}/dashboard/customers`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const nyKunde = mp.page.getByRole('button', { name: /^Ny Kunde$/ })
+          await nyKunde.waitFor({ timeout: 30_000 }).catch(() => {})
+          r.B_knap_vises = (await nyKunde.count()) === 1
+          await nyKunde.click().catch(() => {})
+          const cname = `[HARNESS] U229 kunde ${stamp}`
+          // hurtig-opret-dialogen (customer-create-dialog) åbner som privatkunde: navn + e-mail
+          await mp.page.locator('#customer-create-name').fill(cname).catch(() => {})
+          await mp.page.locator('#customer-create-email').fill(`u229-kunde-${stamp}@harness.test`).catch(() => {})
+          await mp.page.getByRole('button', { name: /^Opret kunde$/ }).click().catch(() => {})
+          let cust: { id: string } | null = null
+          for (let i = 0; i < 15 && !cust; i++) {
+            cust = ((await c.admin.from('customers').select('id').eq('company_name', cname).maybeSingle()).data as { id: string } | null)
+            if (!cust) await mp.page.waitForTimeout(1000)
+          }
+          if (cust) madeCustomers.push(cust.id)
+          r.B_kunde_oprettet = !!cust
+
+          // C ekstra cases.create → /dashboard/orders/new + opret sag
+          r.C_grant_ok = (await setPerm('cases.create', 'grant')).includes('"ok":true')
+          await gotoSafe(mp.page, `${base}/dashboard/orders/new`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const ctitle = `[HARNESS] U229 sag ${stamp}`
+          await mp.page.locator('input[name="title"]').waitFor({ timeout: 60_000 }).catch(() => {})
+          r.C_side_aaben = (await mp.page.locator('input[name="title"]').count()) === 1
+          await mp.page.locator('input[name="title"]').fill(ctitle).catch(() => {})
+          await mp.page.getByRole('button', { name: /^Opret sag$/ }).click().catch(() => {})
+          await mp.page.waitForURL(/\/dashboard\/orders\/(?!new)[^/?]+/, { timeout: 90_000 }).catch(() => {})
+          const crow = ((await c.admin.from('service_cases').select('id, created_by').eq('title', ctitle).maybeSingle()).data) as { id?: string; created_by?: string } | null
+          if (crow?.id) listCaseIds.push(crow.id)
+          r.C_sag_oprettet_i_eget_scope = !!crow?.id && crow.created_by === mu.id
+
+          // D fjernet customers.view → menu skjult, side "ingen adgang", action afvist
+          r.D_revoke_ok = (await setPerm('customers.view', 'revoke')).includes('"ok":true')
+          await gotoSafe(mp.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await mp.page.waitForTimeout(2500)
+          r.D_menu_skjult = (await mp.page.locator('nav a[href="/dashboard/customers"]').count()) === 0
+          await gotoSafe(mp.page, `${base}/dashboard/customers`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.D_side_afvist = (await mp.page.getByText(/Du har ikke adgang/).count()) > 0
+          const custAct = await callServerAction(mp.page, `${base}/dashboard/tasks`, 'src/lib/actions/customers.ts', 'getCustomers', [{}])
+          r.D_action_afvist = !custAct.includes('"success":true')
+
+          // E gendan standard → adgang tilbage
+          r.E_fjern_ok = (await setPerm('customers.view', null)).includes('"ok":true')
+          await gotoSafe(mp.page, `${base}/dashboard/customers`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.E_side_igen = (await mp.page.getByText(/Du har ikke adgang/).count()) === 0
+
+          // F inaktiv: grants giver ingen adgang
+          await c.admin.from('profiles').update({ is_active: false }).eq('id', mu.id)
+          const inactive = await myPerms(mp.page)
+          const ghostCreate = await callServerAction(mp.page, `${base}/dashboard/tasks`, 'src/lib/actions/leads.ts', 'getLeads', [{}])
+          r.F_inaktiv_ingen_rettigheder = (inactive === null || inactive.length === 0) && !ghostCreate.includes('"success":true')
+          await c.admin.from('profiles').update({ is_active: true }).eq('id', mu.id)
+
+          // G nulstil → tilbage til montør-standard
+          r.G_nulstil_ok = (await callServerAction(a.page, empUrl, EP, 'resetEmployeePermissionsAction', [empId])).includes('"ok":true')
+          const afterG = await myPerms(mp.page)
+          r.G_standard_igen = !!afterG && afterG.length === 22 && !afterG.includes('customers.create') && !afterG.includes('cases.create')
+          const ov = ((await c.admin.from('user_permission_overrides').select('permission').eq('profile_id', mu.id)).data ?? []).length
+          r.G_overrides_ryddet = ov === 0
+          const aud = ((await c.admin.from('audit_logs').select('action').eq('entity_id', mu.id)).data ?? []) as Array<{ action: string }>
+          r.alle_aendringer_auditeret = aud.filter((x) => x.action === 'permission_override_set').length === 3 && aud.filter((x) => x.action === 'permission_override_removed').length === 1 && aud.filter((x) => x.action === 'permission_overrides_reset').length === 1
+          if (!r.A_baseline_22_montoer_rettigheder) console.log('[U229] baseline', base0?.length)
+        } finally {
+          await mp.ctx.close().catch(() => {})
+          await c.admin.from('profiles').update({ is_active: true }).eq('id', mu.id)
+          await c.admin.from('user_permission_overrides').delete().eq('profile_id', mu.id)
+          await c.admin.from('audit_logs').delete().eq('entity_id', mu.id)
+          if (madeCustomers.length) await c.admin.from('customers').delete().in('id', madeCustomers)
+          if (empId) await c.admin.from('employees').delete().eq('id', empId)
+        }
+        out.push({ id: 'U229 PERM-1 scenarie-matrix A–G (montør: baseline, ekstra adgang, fjernet adgang, inaktiv, nulstil)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U228 PERM-1 fase 2 (Henrik 2026-10-26): Team → Medarbejder → Rettigheder. Admin tildeler/fratager med begrundelse
+      // (auditeret), effekten ses i appen (action + side), nulstil og skabelon virker; serviceleder har ingen adgang.
+      if (want('U228')) {
+        const r: Record<string, boolean> = {}
+        const mu = await mkUser('montør')
+        const em = await c.admin.from('employees').insert([{ name: `[HARNESS] U228 ${stamp}`, email: mu.email, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300, profile_id: mu.id }]).select('id')
+        const empId = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!empId
+        const ovRows = async () => ((await c.admin.from('user_permission_overrides').select('permission, effect, source, reason').eq('profile_id', mu.id)).data ?? []) as Array<{ permission: string; effect: string; source: string; reason: string | null }>
+        const audits = async (action: string) => ((await c.admin.from('audit_logs').select('id').eq('entity_id', mu.id).eq('action', action)).data ?? []).length
+        const mp = await login(mu)
+        try {
+          const leadsUrl = `${base}/dashboard/tasks`
+          await gotoSafe(mp.page, leadsUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+          const before = await callServerAction(mp.page, leadsUrl, 'src/lib/actions/leads.ts', 'getLeads', [{}])
+          r.foer_ingen_leads_adgang = !before.includes('"success":true')
+
+          const empUrl = `${base}/dashboard/employees/${empId}?tab=login`
+          await gotoSafe(a.page, empUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('employee-permissions-panel').waitFor({ timeout: 60_000 }).catch(() => {})
+          r.panel_vises = (await a.page.getByTestId('employee-permissions-panel').count()) === 1
+          r.grupperet = (await a.page.locator('[data-testid^="employee-permissions-group-"]').count()) === 8
+          // tildel leads.view (gruppe Kunder)
+          await a.page.getByTestId('employee-permissions-group-customers').locator('summary').click().catch(() => {})
+          a.page.once('dialog', (d) => { d.accept('Pilot: elektrikeren håndterer egne leads').catch(() => {}) })
+          await a.page.getByTestId('perm-grant-leads.view').click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByTestId('employee-permissions-flash').waitFor({ timeout: 30_000 }).catch(() => {})
+          let rows = await ovRows()
+          r.grant_gemt_med_begrundelse = rows.some((x) => x.permission === 'leads.view' && x.effect === 'grant' && x.source === 'manual' && !!x.reason)
+          r.grant_auditeret = (await audits('permission_override_set')) >= 1
+          let src = ''
+          for (let i = 0; i < 15 && !src.includes('Ekstra adgang'); i++) {
+            src = (await a.page.getByTestId('perm-source-leads.view').textContent().catch(() => '')) ?? ''
+            if (!src.includes('Ekstra adgang')) await a.page.waitForTimeout(1000)
+          }
+          r.kilde_vises_ekstra_adgang = src.includes('Ekstra adgang')
+          r.haandhaevelse_vist = ((await a.page.getByTestId('employee-permissions-enforcement').textContent().catch(() => '')) ?? '').includes('app og API')
+          // skærmbillede til gennemgang (Henrik): panelet med gruppen Kunder åben efter en ekstra adgang
+          {
+            const { join: pj } = await import('path')
+            const dir = pj((await import('os')).tmpdir(), 'elta-ui-e2e')
+            await a.page.getByTestId('employee-permissions-panel').screenshot({ path: pj(dir, 'u228-rettigheder-panel.png') }).catch(() => {})
+          }
+          const after = await callServerAction(mp.page, leadsUrl, 'src/lib/actions/leads.ts', 'getLeads', [{}])
+          r.effekt_action_tilladt = after.includes('"success":true')
+          await gotoSafe(mp.page, `${base}/dashboard/leads`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.effekt_side_tilladt = (await mp.page.getByText(/Du har ikke adgang/).count()) === 0
+
+          // fratag customers.view → /dashboard/cti viser "ingen adgang" for montøren
+          a.page.once('dialog', (d) => { d.accept('Test af fratagelse').catch(() => {}) })
+          await a.page.getByTestId('perm-revoke-customers.view').click({ timeout: 30_000 }).catch(() => {})
+          for (let i = 0; i < 10 && !(await ovRows()).some((x) => x.permission === 'customers.view'); i++) await a.page.waitForTimeout(1000)
+          rows = await ovRows()
+          r.revoke_gemt = rows.some((x) => x.permission === 'customers.view' && x.effect === 'revoke')
+          await gotoSafe(mp.page, `${base}/dashboard/cti`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.effekt_revoke_side = (await mp.page.getByText(/Du har ikke adgang/).count()) > 0
+
+          // nulstil (ingen skabelon → alle afvigelser væk)
+          await a.page.waitForTimeout(1500)
+          a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+          await a.page.getByTestId('employee-permissions-reset').click({ timeout: 30_000 }).catch(() => {})
+          for (let i = 0; i < 10 && (await ovRows()).length; i++) await a.page.waitForTimeout(1000)
+          r.nulstillet = (await ovRows()).length === 0 && (await audits('permission_overrides_reset')) === 1
+
+          // skabelon Elektriker
+          await a.page.waitForTimeout(1500)
+          await a.page.getByTestId('employee-permissions-template').selectOption('elektriker').catch(() => {})
+          a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+          await a.page.getByTestId('employee-permissions-apply-template').click({ timeout: 30_000 }).catch(() => {})
+          for (let i = 0; i < 10 && !(await ovRows()).length; i++) await a.page.waitForTimeout(1000)
+          rows = await ovRows()
+          const prof = ((await c.admin.from('profiles').select('role, permission_template').eq('id', mu.id).maybeSingle()).data ?? {}) as { role?: string; permission_template?: string | null }
+          r.skabelon_anvendt = prof.role === 'montør' && prof.permission_template === 'elektriker' && rows.length === 2 && rows.every((x) => x.source === 'template')
+            && rows.some((x) => x.permission === 'customers.create') && rows.some((x) => x.permission === 'cases.create')
+          r.skabelon_auditeret = (await audits('permission_template_applied')) === 1
+
+          // serviceleder: ingen adgang (hverken fane eller direkte kald)
+          const sv = await login(await mkUser('serviceleder'))
+          try {
+            await gotoSafe(sv.page, empUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            await sv.page.waitForTimeout(1500)
+            r.serviceleder_intet_panel = (await sv.page.getByTestId('employee-permissions-panel').count()) === 0
+            const raw = await callServerAction(sv.page, empUrl, 'src/lib/actions/employee-permissions.ts', 'setEmployeePermissionAction', [empId, 'bank.view', 'grant', 'forsøg'])
+            r.serviceleder_direkte_kald_afvist = !raw.includes('"ok":true') && !(await ovRows()).some((x) => x.permission === 'bank.view')
+          } finally { await sv.ctx.close().catch(() => {}) }
+        } finally {
+          await mp.ctx.close().catch(() => {})
+          await c.admin.from('user_permission_overrides').delete().eq('profile_id', mu.id)
+          await c.admin.from('audit_logs').delete().eq('entity_id', mu.id)
+          await c.admin.from('profiles').update({ permission_template: null }).eq('id', mu.id)
+          if (empId) await c.admin.from('employees').delete().eq('id', empId)
+        }
+        out.push({ id: 'U228 PERM-1 Rettigheder: tildel/fratag med begrundelse + audit, effekt i appen, nulstil, skabelon, kun admin', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U227 EC-T1 del 2 (Henrik 2026-10-25): debitor-oprettelse og betalingspostering med uvist udfald vises på fakturaen
       // med dansk tekst; kun settings.economic frigiver hver for sig efter bekræftelse; frigivelsen auditeres og poster intet.
       if (want('U227')) {

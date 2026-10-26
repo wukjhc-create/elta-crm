@@ -12,7 +12,6 @@ import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
 import { useConfirm } from '@/components/shared/confirm-dialog'
 import { useUserRole } from '@/lib/hooks/use-user-role'
-import { hasPermission } from '@/lib/auth/permissions'
 import {
   Pencil,
   Trash2,
@@ -70,9 +69,9 @@ export function LeadDetailClient({ lead, activities, followUpEnabled = false }: 
   const [newNote, setNewNote] = useState('')
   const [isAddingNote, setIsAddingNote] = useState(false)
   const [isConverting, setIsConverting] = useState(false)
-  const { role } = useUserRole()
-  const canConvert = hasPermission(role, 'customers.create') && hasPermission(role, 'leads.edit')
-  const canCreateOffer = hasPermission(role, 'offers.create')
+  const { can } = useUserRole()
+  const canConvert = can('customers.create') && can('leads.edit')
+  const canCreateOffer = can('offers.create')
   const linkedCustomerId = typeof (lead.custom_fields as Record<string, unknown> | null)?.customer_id === 'string'
     ? ((lead.custom_fields as Record<string, unknown>).customer_id as string) : null
 
@@ -192,7 +191,7 @@ export function LeadDetailClient({ lead, activities, followUpEnabled = false }: 
                 <FilePlus className="w-4 h-4" /> Opret tilbud
               </button>
             )}
-            {hasPermission(role, 'leads.edit') && (
+            {can('leads.edit') && (
             <button
               onClick={() => setShowEditForm(true)}
               className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50"
@@ -201,7 +200,7 @@ export function LeadDetailClient({ lead, activities, followUpEnabled = false }: 
               Rediger
             </button>
             )}
-            {hasPermission(role, 'leads.delete') && (
+            {can('leads.delete') && (
             <button
               onClick={handleDelete}
               disabled={isDeleting}
@@ -228,7 +227,7 @@ export function LeadDetailClient({ lead, activities, followUpEnabled = false }: 
                   <button
                     key={status}
                     onClick={() => handleStatusChange(status)}
-                    disabled={isUpdatingStatus || lead.status === status || !hasPermission(role, 'leads.edit') || !isValidLeadTransition(lead.status as LeadStatus, status)}
+                    disabled={isUpdatingStatus || lead.status === status || !can('leads.edit') || !isValidLeadTransition(lead.status as LeadStatus, status)}
                     title={lead.status !== status && !isValidLeadTransition(lead.status as LeadStatus, status) ? `Kan ikke gå direkte fra ${LEAD_STATUS_LABELS[lead.status as LeadStatus] ?? lead.status} til ${LEAD_STATUS_LABELS[status]}` : undefined}
                     data-testid={`lead-status-${status}`}
                     className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
@@ -268,7 +267,7 @@ export function LeadDetailClient({ lead, activities, followUpEnabled = false }: 
                     </p>
                   </div>
                   {/* DE2-5 (dead-end-review 2026-10-20): mail-modulet kræver inbox.view — salg fik "ingen adgang" */}
-                  {hasPermission(role, 'inbox.view') && <a
+                  {can('inbox.view') && <a
                     href={`/dashboard/mail?filter=${web ? 'webform' : 'all'}&emailId=${encodeURIComponent(cf.source_email_id)}`}
                     className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 shrink-0"
                     data-testid="lead-source-mail-link"
@@ -468,7 +467,7 @@ export function LeadDetailClient({ lead, activities, followUpEnabled = false }: 
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {followUpEnabled && <LeadFollowUpPanel lead={lead} canEdit={hasPermission(role, 'leads.edit')} />}
+            {followUpEnabled && <LeadFollowUpPanel lead={lead} canEdit={can('leads.edit')} />}
             {/* Deal info */}
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Salgsdetaljer</h2>

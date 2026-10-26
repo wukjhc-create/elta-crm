@@ -21,7 +21,7 @@ const FUNCS: Array<[string, boolean | null]> = [
   ['public.handle_new_user()', null],
   ['public.log_audit_event(uuid, text, text, text, uuid, text, text, text, jsonb, jsonb, text, text)', true],
   ['public.user_employee_id(uuid)', true],
-  ['public.user_has_permission(text, uuid)', true],
+  ['public.user_has_permission(text)', true], // 00238: erstatter 00108's (text, uuid)
   ['public.user_has_role(text[], uuid)', true],
   ['public.user_permissions(uuid)', true],
   ['public.user_role(uuid)', true],

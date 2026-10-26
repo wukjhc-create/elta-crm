@@ -9,7 +9,7 @@ import { NotificationDropdown } from './notification-dropdown'
 import { Menu, X } from 'lucide-react'
 import { APP_NAME } from '@/lib/constants'
 import { useUserRole } from '@/lib/hooks/use-user-role'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import type { Permission } from '@/lib/auth/permissions'
 
 // Pilot-review 2026-10-14 (P-1): samme rettigheder som sidebaren — før så montør/salg/bogholderi Mail/Tilbud og fik
 // "ingen adgang"
@@ -38,10 +38,10 @@ export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const { role, fullName, email } = useUserRole()
+  const { fullName, email, can } = useUserRole()
   // NEXT-11 (M-20): avataren viste altid "U" — initialer fra profilens navn (ellers e-mail)
   const initials = ((fullName ?? '').trim().split(/\s+/).filter(Boolean).map((p) => p[0]).slice(0, 2).join('') || (email ?? '?')[0] || '?').toUpperCase()
-  const visibleMobileLinks = mobileNavLinks.filter((l) => !l.permission || hasPermission(role, l.permission))
+  const visibleMobileLinks = mobileNavLinks.filter((l) => !l.permission || can(l.permission))
 
   const handleLogout = async () => {
     try {

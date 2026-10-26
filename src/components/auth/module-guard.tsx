@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { getUserRoleForPage } from '@/lib/auth/page-guard'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import { getUserRoleForPage, pageHasPermission } from '@/lib/auth/page-guard'
+import type { Permission } from '@/lib/auth/permissions'
 import { NoAccess } from '@/components/auth/no-access'
 
 /**
@@ -14,8 +14,8 @@ import { NoAccess } from '@/components/auth/no-access'
 export async function ModuleGuard(
   props: { children: ReactNode } & ({ permission: Permission; adminOnly?: never } | { adminOnly: true; permission?: never }),
 ) {
-  const role = await getUserRoleForPage()
-  const allowed = props.adminOnly ? role === 'admin' : hasPermission(role, props.permission)
+  // PERM-1: modul-adgang følger de effektive rettigheder (rolle + overrides); adminOnly er fortsat rollen
+  const allowed = props.adminOnly ? (await getUserRoleForPage()) === 'admin' : await pageHasPermission(props.permission)
   if (!allowed) {
     return <NoAccess permission={props.adminOnly ? 'admin' : props.permission} />
   }

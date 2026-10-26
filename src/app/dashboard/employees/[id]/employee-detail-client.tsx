@@ -23,6 +23,7 @@ import {
   EmployeeHistoryView,
 } from '@/components/modules/employees/employee-profile-sections'
 import { EmployeeTabBar, EmployeeEconomyTab, EmployeeJobTab, useEmployeeTab, type EmployeeTab } from './employee-tabs'
+import { EmployeePermissionsPanel } from '@/components/modules/employees/employee-permissions-panel'
 
 const fmtDate = (s: string | null | undefined) => (s ? s.slice(0, 10) : '—')
 const fmtDateLong = (s: string | null | undefined) => {
@@ -46,6 +47,7 @@ export function EmployeeDetailClient({
   canSeePayroll = false,
   canEditEmployee = false,
   canManageLogin = false,
+  canManagePermissions = false,
   rateGap = null,
 }: {
   rateGap?: RateGap | null
@@ -54,6 +56,8 @@ export function EmployeeDetailClient({
   canEditPayroll?: boolean
   canEditEmployee?: boolean
   canManageLogin?: boolean
+  /** PERM-1: users.manage_roles */
+  canManagePermissions?: boolean
 }) {
   const roleLabel = ROLE_LABEL.get(employee.role as any) ?? employee.role
   // Privacy (Henrik 2026-10-03): faner — følsomme data kun i "Økonomi & løn" (hentes først når fanen åbnes)
@@ -167,6 +171,8 @@ export function EmployeeDetailClient({
       {tab === 'oekonomi' && canSeePayroll && <EmployeeEconomyTab employeeId={employee.id} />}
 
       {tab === 'login' && canManageLogin && <EmployeeLoginSummary employeeId={employee.id} />}
+      {/* PERM-1 fase 2: individuelle rettigheder — kun users.manage_roles (serveren håndhæver også) */}
+      {tab === 'login' && canManagePermissions && <EmployeePermissionsPanel employeeId={employee.id} />}
     </div>
   )
 }

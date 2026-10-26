@@ -85,8 +85,8 @@ if (!dBody.includes("hasPermission('cases.view.all')") || !dBody.includes('getCa
 // PERM-1 (Henrik 2026-10-25): rettigheder skal gå gennem det effektive sæt (rolle + overrides). Direkte rolle-tjek
 // omgår overrides — ratchet: antallet må kun falde (sænk baseline, når kald konverteres).
 {
-  const RAW_HAS_BASELINE = 70
-  const ROLE_CMP_BASELINE = 58
+  const RAW_HAS_BASELINE = 52
+  const ROLE_CMP_BASELINE = 57
   const files = walk(join(ROOT, 'src')).filter((f) => /\.(ts|tsx)$/.test(f) && !f.replace(/\\/g, '/').endsWith('src/lib/auth/permissions.ts'))
   let rawHas = 0, roleCmp = 0
   for (const f of files) {

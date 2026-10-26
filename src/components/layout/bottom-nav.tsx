@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Calendar, Users, Inbox, ScanLine, ClipboardCheck, Wrench, FileText, Target } from 'lucide-react'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import type { Permission } from '@/lib/auth/permissions'
 import { cn } from '@/lib/utils'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 
@@ -30,9 +30,9 @@ const montørNavItems = [
 
 export function BottomNav() {
   const pathname = usePathname()
-  const { role } = useUserRole()
+  const { role, can } = useUserRole()
 
-  const navItems = role === 'montør' ? montørNavItems : defaultNavItems.filter((i) => hasPermission(role, i.permission)).slice(0, 4)
+  const navItems = role === 'montør' ? montørNavItems : defaultNavItems.filter((i) => can(i.permission)).slice(0, 4)
 
   // M-3 (mobil-review 2026-10-14): z-40 — modaler (z-50) skal dække navigationen (før skjult Send-knap og tab af input)
   return (

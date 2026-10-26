@@ -2584,6 +2584,13 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'mp-00238-check') {
+    const { runMp00238Check, formatMp00238Check } = await import('./mp-00238-check')
+    const checks = await runMp00238Check({ admin, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })
+    log(formatMp00238Check(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00237-check') {
     const { runMp00237Check, formatMp00237Check } = await import('./mp-00237-check')
     const checks = await runMp00237Check({ admin, url: runtime.url, anonKey: runtime.anonKey })
@@ -4973,6 +4980,46 @@ COMMIT;`)
       walk(root.Plan)
       log(`  ${t.padEnd(8)} ${String(root['Execution Time'].toFixed(1)).padStart(8)} ms  ${nodes.join(' > ')}`)
     }
+    return
+  }
+  if (SUB === 'db-fingerprint') {
+    // STAGING READ-ONLY: hele public-skemaets politikker/funktioner/grants (md5 pr. objekt) + eksakte rækketal og
+    // checksummer for forretningstabeller + profiler pr. rolle. JSON på stdout — sammenlign før/efter en migration.
+    const fp: Record<string, unknown> = {}
+    fp.policies = await stagingSql(`SELECT tablename || '.' || policyname || '.' || cmd k, md5(coalesce(roles::text,'') || coalesce(qual,'') || coalesce(with_check,'')) h FROM pg_policies WHERE schemaname='public' ORDER BY 1`)
+    fp.functions = await stagingSql(`SELECT p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' k, md5(p.prosrc || coalesce(array_to_string(p.proacl, ','), '') || p.prosecdef::text) h FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname='public' ORDER BY 1`)
+    fp.grants = await stagingSql(`SELECT table_name || '.' || grantee k, string_agg(privilege_type, ',' ORDER BY privilege_type) h FROM information_schema.role_table_grants WHERE table_schema='public' AND grantee IN ('anon','authenticated','service_role') GROUP BY 1 ORDER BY 1`)
+    fp.tables = await stagingSql(`SELECT table_name k FROM information_schema.tables WHERE table_schema='public' ORDER BY 1`)
+    const business = ['customers', 'leads', 'offers', 'offer_line_items', 'service_cases', 'work_orders', 'customer_tasks', 'invoices', 'invoice_payments', 'time_logs', 'case_materials', 'case_other_costs', 'incoming_invoices', 'employees', 'profiles', 'roof_drawings']
+    const rows: Record<string, unknown> = {}
+    for (const t of business) rows[t] = (await stagingSql(`SELECT count(*)::int n, coalesce(md5(string_agg(md5(x::text), '' ORDER BY x.id)), '') checksum FROM public.${t} x`))[0]
+    fp.rows = rows
+    fp.profile_roles = await stagingSql(`SELECT role::text k, count(*)::int n, count(*) FILTER (WHERE is_active)::int active FROM public.profiles GROUP BY 1 ORDER BY 1`)
+    console.log(JSON.stringify(fp))
+    return
+  }
+  if (SUB === 'row-checksum-excluding') {
+    // STAGING READ-ONLY: række-checksum i SAMME format som db-fingerprint, men over tabellens kolonner minus de angivne
+    // (bevis for at en ADD COLUMN ikke ændrede eksisterende data)
+    const t = String(process.argv[3] || '').replace(/[^a-z0-9_]/g, '')
+    const ex = process.argv.slice(4).map((c) => c.replace(/[^a-z0-9_]/g, ''))
+    const cols = ((await stagingSql(`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='${t}' ORDER BY ordinal_position`)) as Array<{ column_name: string }>)
+      .map((c) => c.column_name).filter((c) => !ex.includes(c))
+    const r = (await stagingSql(`SELECT count(*)::int n, coalesce(md5(string_agg(md5(ROW(${cols.map((c) => `x."${c}"`).join(', ')})::text), '' ORDER BY x.id)), '') checksum,
+      ${ex.map((c) => `count(*) FILTER (WHERE x."${c}" IS NOT NULL)::int AS "nonnull_${c}"`).join(', ') || '0 AS none'} FROM public.${t} x`))[0]
+    log(JSON.stringify({ table: t, excluded: ex, ...r }))
+    return
+  }
+  if (SUB === 'fn-references') {
+    // STAGING READ-ONLY: hvem refererer et funktionsnavn (antal policies/funktioner/views) + signaturer
+    const fn = String(process.argv[3] || '')
+    if (!/^[a-z_0-9]+$/.test(fn)) { log('brug: cli.ts fn-references <funktionsnavn>'); process.exit(2) }
+    const r = (await stagingSql(`SELECT
+      (SELECT count(*)::int FROM pg_policies WHERE coalesce(qual,'') || coalesce(with_check,'') LIKE '%${fn}%') policies,
+      (SELECT count(*)::int FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace WHERE ns.nspname='public' AND p.proname <> '${fn}' AND p.prosrc LIKE '%${fn}%') functions,
+      (SELECT count(*)::int FROM pg_views WHERE schemaname='public' AND definition LIKE '%${fn}%') views,
+      (SELECT string_agg(pg_get_function_identity_arguments(p.oid), ' | ') FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace WHERE ns.nspname='public' AND p.proname = '${fn}') signatures`))[0]
+    log(JSON.stringify({ fn, ...r }))
     return
   }
   if (SUB === 'dry-run-staging') {

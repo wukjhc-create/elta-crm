@@ -7,7 +7,7 @@ import { LeadForm } from '@/components/modules/leads/lead-form'
 import { CustomerCreateDialog } from '@/components/modules/customers/customer-create-dialog'
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { useUserRole } from '@/lib/hooks/use-user-role'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import type { Permission } from '@/lib/auth/permissions'
 import { MessageForm } from '@/components/modules/messages/message-form'
 import type { CompanySettings } from '@/types/company-settings.types'
 
@@ -65,8 +65,8 @@ export function QuickActions({ companySettings }: QuickActionsProps) {
   const router = useRouter()
   const [activeForm, setActiveForm] = useState<ActionType>(null)
   // M-13 (mobil-review 2026-10-14): kun genveje brugeren har ret til (bogholderi udfyldte formularer der blev afvist)
-  const { role } = useUserRole()
-  const actions = ACTIONS.filter((a) => !a.permission || (!!role && hasPermission(role, a.permission)))
+  const { can } = useUserRole()
+  const actions = ACTIONS.filter((a) => !a.permission || can(a.permission))
 
   return (
     <>

@@ -213,3 +213,57 @@ Data-påvirkning: ingen. Nye tomme tabeller og en nullable kolonne. Ingen polici
   1. staging: dry run, anvend og verificér (katalog = TS, funktion = `hasPermission` for alle roller × nøgler)
   2. admin-UI (fase 2)
   3. prod efter særskilt godkendelse
+
+### 00238 staging + fase 2 (2026-10-26, Henrik: "00238 — APPROVED FOR STAGING")
+
+**Før anvendelse:**
+- 00238 var næste og ikke anvendt.
+- 00108's `user_has_permission(text, uuid)` havde 0 referencer (policies, funktioner, views, app). Kun
+  `prod-verify-00162.ts` nævnte den; scriptet er opdateret til den nye signatur.
+- Seed = kode: 112 nøgler og 267 par.
+- Fingerprint: 409 policies, 164 funktioner, 363 grants og 164 tabeller.
+
+**Dry run:** ROLLBACK, fingerprint identisk.
+
+**Første anvendelse:** service_role manglede rettigheder på de nye tabeller (INSERT gav 42501), så server-actionen
+kunne ikke skrive. Rettet med eksplicitte `GRANT … TO service_role` i migrationen og genanvendt; alle sætninger er
+idempotente.
+
+**Endelig fil:** `supabase/migrations/00238_permission_overrides.sql`, sha256 `6765d56e…a9b0` (= genanvendt version).
+
+**Ændringer på staging (fingerprint-diff):**
+- +3 tabeller, +3 SELECT-policies og +6 grants (authenticated SELECT; service_role til server-actionen).
+- Funktionen `user_has_permission(text)` er tilføjet, og 00108's `(text, uuid)` er fjernet.
+- Uændret: alle øvrige policies, funktioner, grants og forretningsrækker. `profiles` adskiller sig kun ved den nye
+  NULL-kolonne: checksummen over de oprindelige kolonner er lig før (`888782f8…`), og 0 rækker har værdien sat.
+
+**Staging-tjek (`mp-00238-check`):** 16/16.
+- A: 5 roller × 112 nøgler = kode, 0 afvigelser.
+- B: grant, revoke, gendan, FK, skabelon-nulstil, inaktiv og manglende profil.
+- C: REST-skrivning afvist for ejer, admin og serviceleder; læsning = egne + admin.
+- D: én signatur, anon afvist.
+
+**UI-tests:**
+- **U228:** admin giver/fjerner adgang med begrundelse og audit. Effekten ses i action og side. Nulstil, skabelon og
+  dansk kildevisning virker. Serviceleder har intet panel, og et direkte kald afvises.
+- **U229, scenarie A–G:**
+  - A: montør-baseline = 22 rettigheder.
+  - B: ekstra customers.create → "Ny Kunde" vises, og kunden oprettes. Kun den ene rettighed ændres.
+  - C: ekstra cases.create → siden åbnes, og sagen oprettes i eget scope.
+  - D: fjernet customers.view → menupunkt skjult, side og action afvist.
+  - E: gendan → adgang tilbage.
+  - F: inaktiv → overrides giver intet.
+  - G: nulstil → standard, overrides ryddet, alle ændringer auditeret.
+- **Øvrige:** U4, U13, U100, U11, U40 og U175 er grønne.
+
+**Klientlag (start på fase 3):**
+- `useUserRole().can()` bruger de effektive rettigheder.
+- Sidebar, bundmenu, header, genveje, Ctrl+K, kundeliste, lead-detalje og kunde-detalje er konverteret.
+- `ModuleGuard` (direkte URL) bruger de effektive rettigheder.
+- Ratchet: direkte `hasPermission(role, …)` 70 → **52**, rolle-sammenligninger 58 → **57**.
+
+**Kendte begrænsninger:**
+- RLS følger stadig grundrollen. "Ekstra adgang" virker kun, hvor tabellens RLS allerede tillader rollen. Fx tillader
+  RLS montør at indsætte kunder og sager; derfor virker B og C.
+- "Fjernet adgang" håndhæves ikke ved direkte REST, før tabellen er konverteret (fase 4).
+- Der er 52 + 57 tilbageværende direkte rolle-tjek.

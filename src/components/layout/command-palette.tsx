@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { orIlikeContains } from '@/lib/validations/postgrest-filter'
 import { useUserRole } from '@/lib/hooks/use-user-role'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import type { Permission } from '@/lib/auth/permissions'
 import {
   Search,
   LayoutDashboard,
@@ -39,7 +39,7 @@ interface CommandItem {
 export function CommandPalette() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const { role } = useUserRole()
+  const { can } = useUserRole()
   // P-8: kun seneste søgning må skrive resultaterne
   const searchSeq = useRef(0)
   const [query, setQuery] = useState('')
@@ -94,7 +94,7 @@ export function CommandPalette() {
     { id: 'settings-suppliers', permission: 'settings.view', label: 'Leverandører', section: 'Indstillinger', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/settings/suppliers'), keywords: ['grossist', 'ao', 'lemvigh'] },
   ]
 
-  const commands = allCommands.filter((c) => !c.permission || hasPermission(role, c.permission))
+  const commands = allCommands.filter((c) => !c.permission || can(c.permission))
 
   // Live search: tasks + customers
   useEffect(() => {
@@ -114,7 +114,7 @@ export function CommandPalette() {
     const seq = ++searchSeq.current
     searchTimer.current = setTimeout(async () => {
       const q = query.trim()
-      const may = (perm: Permission) => hasPermission(role, perm)
+      const may = (perm: Permission) => can(perm)
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
 
@@ -197,7 +197,7 @@ export function CommandPalette() {
     }, 300)
 
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
-  }, [query, open, navigate, role])
+  }, [query, open, navigate, can])
 
   const filtered = query.trim()
     ? [

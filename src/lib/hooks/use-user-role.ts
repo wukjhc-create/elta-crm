@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { UserRole } from '@/types/auth.types'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
 
 /**
  * useUserRole — fetches current user's role on the client.
@@ -24,20 +25,28 @@ import type { UserRole } from '@/types/auth.types'
  * If we ever want to eliminate the flash, the right fix is to pass
  * the role from a server component via context, NOT module-scope cache.
  */
-export function useUserRole(): { role: UserRole; loading: boolean; fullName: string | null; email: string | null } {
+/**
+ * PERM-1 fase 3: `can(perm)` bruger brugerens EFFEKTIVE rettigheder (rolle + overrides) fra serveren. Indtil de er hentet,
+ * bruges rollens standard (identisk uden overrides) — UI'et er aldrig mere åbent end serveren tillader, da hver action/side
+ * håndhæver selv.
+ */
+export function useUserRole(): { role: UserRole; loading: boolean; fullName: string | null; email: string | null; can: (perm: Permission) => boolean } {
   // Always start with the most restrictive default so SSR and client
   // hydration produce identical HTML for the initial render.
   const [role, setRole] = useState<UserRole>('montør')
   const [loading, setLoading] = useState(true)
   const [fullName, setFullName] = useState<string | null>(null)
   const [email, setEmail] = useState<string | null>(null)
+  const [perms, setPerms] = useState<ReadonlySet<string> | null>(null)
 
   useEffect(() => {
     let mounted = true
     async function fetchRole() {
       try {
         const { getProfile } = await import('@/lib/actions/settings')
-        const result = await getProfile()
+        const { getMyEffectivePermissionsAction } = await import('@/lib/actions/my-permissions')
+        const [result, effective] = await Promise.all([getProfile(), getMyEffectivePermissionsAction().catch(() => null)])
+        if (mounted && effective) setPerms(new Set(effective))
         if (mounted && result.success && result.data) {
           setRole(result.data.role as UserRole)
           setFullName((result.data as { full_name?: string | null }).full_name ?? null)
@@ -55,5 +64,6 @@ export function useUserRole(): { role: UserRole; loading: boolean; fullName: str
     }
   }, [])
 
-  return { role, loading, fullName, email }
+  const can = useCallback((perm: Permission) => (perms ? perms.has(perm) : hasPermission(role, perm)), [perms, role])
+  return { role, loading, fullName, email, can }
 }

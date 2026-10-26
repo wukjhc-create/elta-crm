@@ -19,7 +19,6 @@ import { Pagination } from '@/components/shared/pagination'
 import { ExportButton } from '@/components/shared/export-button'
 import { CustomerImportDialog } from './customer-import-dialog'
 import { useUserRole } from '@/lib/hooks/use-user-role'
-import { hasPermission } from '@/lib/auth/permissions'
 import type { CustomerWithRelations } from '@/types/customers.types'
 
 interface PaginationData {
@@ -76,10 +75,10 @@ export function CustomersPageClient({
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
   const [showImport, setShowImport] = useState(false)
-  const { role } = useUserRole()
-  const canImport = !!role && hasPermission(role, 'customers.create')
+  const { can } = useUserRole()
+  const canImport = can('customers.create')
   // PM2-3 (Henrik 2026-10-19): fuld kundeeksport kun admin + bogholderi (reports.export) — håndhævet i exportCustomers
-  const canExportAll = !!role && hasPermission(role, 'reports.export')
+  const canExportAll = can('reports.export')
   const [searchInput, setSearchInput] = useState(filters.search || '')
 
   const updateURL = useCallback(

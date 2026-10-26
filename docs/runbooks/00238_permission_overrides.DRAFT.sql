@@ -60,6 +60,10 @@ CREATE POLICY user_permission_overrides_select ON public.user_permission_overrid
 REVOKE ALL ON public.permission_catalog, public.role_permission_defaults, public.user_permission_overrides FROM anon;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.permission_catalog, public.role_permission_defaults, public.user_permission_overrides FROM authenticated;
 GRANT SELECT ON public.permission_catalog, public.role_permission_defaults, public.user_permission_overrides TO authenticated;
+-- Server-action (admin-klient bag users.manage_roles) skriver overrides som service_role; nye tabeller arver ikke
+-- service_role-rettigheder i dette projekt (staging 2026-10-26: INSERT gav 42501) → eksplicit grant.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_permission_overrides TO service_role;
+GRANT SELECT ON public.permission_catalog, public.role_permission_defaults TO service_role;
 
 -- 00108's ubrugte user_has_permission(text, uuid DEFAULT auth.uid()) ville gøre et kald med ét argument tvetydigt (to
 -- overloads matcher). Prod 2026-10-25 (scripts/prod-fn-references.ts): 0 policies, 0 funktioner, 0 views, 0 app-kald.

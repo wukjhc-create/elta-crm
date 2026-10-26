@@ -4,7 +4,7 @@ import { useEffect, useState, type ComponentProps } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useUserRole } from '@/lib/hooks/use-user-role'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import type { Permission } from '@/lib/auth/permissions'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
@@ -88,8 +88,7 @@ interface CustomerDetailClientProps {
 export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false, initialActivity, initialPaymentHealth, initialTasks, initialNotes, initialMailbox }: CustomerDetailClientProps) {
   const router = useRouter()
   // M-10 (mobil-review 2026-10-14): kun handlinger brugeren har ret til (bogholderi/salg fik knapper der altid fejlede)
-  const { role } = useUserRole()
-  const can = (p: Permission) => !!role && hasPermission(role, p)
+  const { can } = useUserRole()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)

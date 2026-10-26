@@ -27,6 +27,7 @@ export default async function EmployeeDetailPage({
   const canEditPayroll = ctx.has('employees.payroll.edit')
   const canEditEmployee = ctx.has('employees.edit')
   const canManageLogin = ctx.has('users.edit')
+  const canManagePermissions = ctx.has('users.manage_roles')
 
   const { id } = await params
   if (!UUID_RE.test(id)) notFound()
@@ -52,6 +53,7 @@ export default async function EmployeeDetailPage({
       canEditPayroll={canEditPayroll}
       canEditEmployee={canEditEmployee}
       canManageLogin={canManageLogin}
+      canManagePermissions={canManagePermissions}
       rateGap={(await getEmployeeRateGapsAction())[employee.id] ?? null}
     />
   )
