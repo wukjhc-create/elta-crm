@@ -2180,3 +2180,4 @@ Note: harness-build fejlede én gang med `UNKNOWN: unknown error, open node_modu
 
 - `npm run harness:ui-full`: **PASS 197 · FLAKY 0 · FAIL 0 · TIMEOUT 0 · NOT_RUN 0**. Port 3217 fri efter afslutning.
 - Derefter i prod (Henriks betingelse opfyldt): 00236 → 00237, hver med før/efter-snapshot og rollback-only effektiv kontrol.
+| PERM-4a | Fase 4 bølge 1: 00239 customers + service_cases skrivning via user_has_permission (SELECT uændret) | FORSLAG KLAR 2026-10-26 → BLOCKED_APPROVAL — docs/runbooks/mp-00239-customers-cases-permission-rls.md + DRAFT.sql; beslutninger A (montør ud af INSERT, anbefalet) og B (salg UPDATE paritet nu) |
