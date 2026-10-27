@@ -35,9 +35,17 @@ export async function getCustomerFlow(
 ): Promise<CustomerFlowData> {
   // Kunde-review 2026-10-09 (#1): gate (før ingen) + kundens egen adresse fra databasen (klientens ignoreres); egne/
   // pladsholder-/formular-adresser matches ikke på leads/mails
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
   const __offerOr = await (await import('@/lib/offers/offer-scope')).currentOfferScopeOr() // API-2: salg kun egne tilbud
   if (!hasPermission('customers.view') || !/^[0-9a-f-]{36}$/i.test(customerId)) return { steps: [] }
+  // 00240-scope: kun kunder brugeren må se (før intet scope-tjek — montør kunne hente flowstatus for enhver kunde)
+  const { userCanViewCustomer } = await import('@/lib/auth/customer-scope')
+  if (!(await userCanViewCustomer(customerId, { supabase, userId, role, hasPermission }))) return { steps: [] }
+  // 00241/00242-forudsætning: besigtigelses-/rapport-/fuldmagtstrinnet bygger på kundens opgaver og dokumenter uanset
+  // hvem de tilhører (typisk salg). De læses med admin-klienten EFTER kunde-tjekket; kun trin-status forlader funktionen
+  // (ingen filer, URL'er eller beskrivelser) — ellers ville trinnene stå som "ikke startet" for montør/salg efter RLS-scope
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const flowReader = createAdminClient()
 
   try {
     void customerEmail
@@ -55,14 +63,14 @@ export async function getCustomerFlow(
         .ilike('email', escapeLike(customerEmail))
         .order('created_at', { ascending: false })
         .limit(5),
-      supabase
+      flowReader
         .from('customer_tasks')
         .select('id, title, status, description, created_at, completed_at')
         .eq('customer_id', customerId)
         .ilike('title', '%esigtigelse%')
         .order('created_at', { ascending: false })
         .limit(5),
-      supabase
+      flowReader
         .from('customer_documents')
         .select('id, title, description, document_type, file_url, storage_path, created_at')
         .eq('customer_id', customerId)

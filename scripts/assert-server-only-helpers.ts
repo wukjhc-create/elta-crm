@@ -22,6 +22,8 @@ const SERVER_ONLY_MODULES = [
   // 00240: globale (admin-)opslag til kundenummer/dubletter og fail-closed sags-værn
   'src/lib/customers/customer-duplicates.ts',
   'src/lib/cases/case-write-guard.ts',
+  'src/lib/invoices/invoice-scope.ts',
+  'src/lib/documents/document-read-access.ts',
 ]
 
 let failures = 0

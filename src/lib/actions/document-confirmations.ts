@@ -214,7 +214,7 @@ export async function createConfirmationRequests(
       return { success: false, error: 'Kun besigtigelsesrapporter kan sendes til bekræftelse' }
     }
     {
-      const denied = await confirmationGateDenied('service.edit', (doc.service_case_id as string | null) ?? null)
+      const denied = await confirmationGateDenied('service.edit', { service_case_id: (doc.service_case_id as string | null) ?? null, customer_id: (doc.customer_id as string | null) ?? null, source_email_id: null })
       if (denied) return { success: false, error: denied }
     }
 
@@ -566,7 +566,7 @@ export async function listConfirmationsForDocument(
   try {
     validateUUID(documentId, 'documentId')
     // AS-6 (sikkerheds-review 2026-10-18): sagens scope tjekkes (før null → enhver med service.view så modtagere/noter)
-    { const denied = await confirmationGateDenied('service.view', await caseOfDocument(documentId)); if (denied) return { success: false, error: denied } }
+    { const denied = await confirmationGateDenied('service.view', await parentOfDocument(documentId)); if (denied) return { success: false, error: denied } }
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -645,7 +645,7 @@ export async function markConfirmationMailSent(
 ): Promise<ActionResult<void>> {
   try {
     validateUUID(confirmationId, 'confirmationId')
-    { const denied = await confirmationGateDenied('service.edit', await caseOfConfirmation(confirmationId)); if (denied) return { success: false, error: denied } }
+    { const denied = await confirmationGateDenied('service.edit', await parentOfConfirmation(confirmationId)); if (denied) return { success: false, error: denied } }
     const { supabase } = await getAuthenticatedClient()
     const { error } = await supabase
       .from('document_confirmations')
@@ -669,7 +669,7 @@ export async function markConfirmationMailFailed(
   try {
     validateUUID(confirmationId, 'confirmationId')
     // AS-6: før kun login (salg/bogholderi kunne markere ventende bekræftelser som fejlet)
-    { const denied = await confirmationGateDenied('service.edit', await caseOfConfirmation(confirmationId)); if (denied) return { success: false, error: denied } }
+    { const denied = await confirmationGateDenied('service.edit', await parentOfConfirmation(confirmationId)); if (denied) return { success: false, error: denied } }
     const { supabase } = await getAuthenticatedClient()
     const { error } = await supabase
       .from('document_confirmations')
@@ -703,7 +703,7 @@ export async function revokeConfirmation(input: {
 }): Promise<ActionResult<void>> {
   try {
     validateUUID(input.confirmationId, 'confirmationId')
-    { const denied = await confirmationGateDenied('service.edit', await caseOfConfirmation(input.confirmationId)); if (denied) return { success: false, error: denied } }
+    { const denied = await confirmationGateDenied('service.edit', await parentOfConfirmation(input.confirmationId)); if (denied) return { success: false, error: denied } }
     const { supabase, userId } = await getAuthenticatedClient()
     const now = new Date().toISOString()
 
@@ -812,13 +812,22 @@ function mapToListItem(r: {
 /**
  * IDOR-sweep 2026-10-09 (#7): rettighed + (valgfrit) sag i brugerens scope. Returnerer fejltekst eller null.
  */
-async function confirmationGateDenied(permission: 'service.view' | 'service.edit', serviceCaseId: string | null): Promise<string | null> {
+async function confirmationGateDenied(
+  permission: 'service.view' | 'service.edit',
+  parent: string | ConfirmationParent | null,
+): Promise<string | null> {
   try {
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission(permission)) return `Manglende tilladelse: ${permission}`
-    if (serviceCaseId) {
+    if (typeof parent === 'string') {
       const { userCanViewCase } = await import('@/lib/auth/case-scope')
-      if (!(await userCanViewCase(serviceCaseId, ctx))) return 'Du har ikke adgang til denne sag'
+      if (!(await userCanViewCase(parent, ctx))) return 'Du har ikke adgang til denne sag'
+    } else if (parent) {
+      // O4 (Henrik 2026-10-27): sagsløse bekræftelser følger dokumentets kunde-scope (CU-1) — før blev der slet ikke
+      // tjekket scope når hverken bekræftelsen eller dokumentet havde en sag. Ukendt forælder afvises (fail-closed).
+      const { customerDocumentReadDenied } = await import('@/lib/documents/document-read-access')
+      const denied = await customerDocumentReadDenied(parent, ctx)
+      if (denied) return denied
     }
     return null
   } catch {
@@ -826,17 +835,21 @@ async function confirmationGateDenied(permission: 'service.view' | 'service.edit
   }
 }
 
-/** AS-6: sagen bag en bekræftelse/et dokument (admin-opslag; scope afgøres af confirmationGateDenied) */
-async function caseOfConfirmation(confirmationId: string): Promise<string | null> {
+/** Forælder-dokumentets scope-felter (sag/kunde) — null-felter = ingen kendt forælder → afvises for begrænsede roller */
+type ConfirmationParent = { service_case_id: string | null; customer_id: string | null; source_email_id: string | null }
+
+/** AS-6/O4: sag + kunde bag en bekræftelse (admin-opslag; scope afgøres af confirmationGateDenied) */
+async function parentOfConfirmation(confirmationId: string): Promise<ConfirmationParent> {
   const { data } = await createAdminClient().from('document_confirmations').select('service_case_id, customer_document_id').eq('id', confirmationId).maybeSingle()
   const row = data as { service_case_id?: string | null; customer_document_id?: string | null } | null
-  if (row?.service_case_id) return row.service_case_id
-  return row?.customer_document_id ? caseOfDocument(row.customer_document_id) : null
+  const doc = row?.customer_document_id ? await parentOfDocument(row.customer_document_id) : { service_case_id: null, customer_id: null, source_email_id: null }
+  return { ...doc, service_case_id: row?.service_case_id ?? doc.service_case_id }
 }
 
-async function caseOfDocument(documentId: string): Promise<string | null> {
-  const { data } = await createAdminClient().from('customer_documents').select('service_case_id').eq('id', documentId).maybeSingle()
-  return (data as { service_case_id?: string | null } | null)?.service_case_id ?? null
+async function parentOfDocument(documentId: string): Promise<ConfirmationParent> {
+  const { data } = await createAdminClient().from('customer_documents').select('service_case_id, customer_id, source_email_id').eq('id', documentId).maybeSingle()
+  const d = data as Partial<ConfirmationParent> | null
+  return { service_case_id: d?.service_case_id ?? null, customer_id: d?.customer_id ?? null, source_email_id: d?.source_email_id ?? null }
 }
 
 /** PT-14: dokumentets kunde er deaktiveret (eller findes ikke) → linket må ikke bruges */

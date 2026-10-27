@@ -2598,6 +2598,14 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'mp-00240-f1-check') {
+    const { runMp00240F1Check } = await import('./mp-00240-f1-check')
+    const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
+    const checks = await runMp00240F1Check({ admin, url: runtime.url, anonKey: runtime.anonKey })
+    log(formatMp00240ScopeCheck(checks).replace('MP-00240 forudsætninger — scope-motor + kontrollerede stier (app-laget, staging)', 'MP-00240 F1/L1 — faktura-scope + dokument-læseregel (app-laget, staging)'))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00240-sql-probe') {
     // STAGING ROLLBACK-ONLY: 00240-udkastet (docs/runbooks/mp-00240-draft.sql) i en DO-blok der altid afbrydes
     const { runMp00240SqlProbe } = await import('./mp-00240-sql-probe')
@@ -4699,6 +4707,19 @@ Total inkl. moms 11.718,75
     }
     log(fails ? `❌ ${fails} fejl` : '✅ K5 autolink-scenarie bestået')
     process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'policies-json') {
+    // Staging (read-only): alle politikker (navn/cmd/roller/USING/CHECK) for kommaseparerede tabeller — = scripts/prod-policies-json.ts
+    const { tablePoliciesQuery } = await import('./column-detail')
+    for (const r of await stagingSql(tablePoliciesQuery(String(process.argv[3] || '')))) log(JSON.stringify(r))
+    return
+  }
+  if (SUB === 'column-detail') {
+    // Staging (read-only): præcis kolonnedefinition (type/nullable/default + FK/delete-adfærd + indeks) — = scripts/prod-column-detail.ts
+    const { columnDetailQueries } = await import('./column-detail')
+    for (const [k, sql] of Object.entries(columnDetailQueries(String(process.argv[3] || ''), String(process.argv[4] || ''))))
+      log(`${k} ${JSON.stringify(await stagingSql(sql))}`)
     return
   }
   if (SUB === 'table-columns') {

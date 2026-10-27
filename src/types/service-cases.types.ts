@@ -209,6 +209,13 @@ export interface ServiceCaseWithRelations extends ServiceCase {
     contact_person: string | null
     email: string | null
     phone: string | null
+    /** Kun i getServiceCase — fallback-adresse til "Naviger" når sagen selv mangler adresse */
+    shipping_address?: string | null
+    shipping_postal_code?: string | null
+    shipping_city?: string | null
+    billing_address?: string | null
+    billing_postal_code?: string | null
+    billing_city?: string | null
   } | null
   /** Sprint 8G — leveringskunde (separat customer-row hvis forskellig fra betaler). */
   site_customer?: {
@@ -217,6 +224,13 @@ export interface ServiceCaseWithRelations extends ServiceCase {
     contact_person: string | null
     email: string | null
     phone: string | null
+    /** Kun i getServiceCase — fallback-adresse til "Naviger" når sagen selv mangler adresse */
+    shipping_address?: string | null
+    shipping_postal_code?: string | null
+    shipping_city?: string | null
+    billing_address?: string | null
+    billing_postal_code?: string | null
+    billing_city?: string | null
   } | null
   /** Sprint 8G — kontaktperson på stedet. */
   site_contact?: {

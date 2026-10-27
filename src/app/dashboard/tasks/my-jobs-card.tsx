@@ -128,7 +128,8 @@ function JobGroup({ title, jobs, warn, emptyText }: { title: string; jobs: WorkO
                   rel="noopener noreferrer"
                   className="shrink-0 flex flex-col items-center justify-center px-3 text-emerald-700 hover:bg-emerald-50 border-l text-[11px]"
                   data-testid="my-job-navigate"
-                  aria-label={`Navigér til ${w.case.address}`}
+                  aria-label={`Navigér til ${w.case.address}${w.case.address_is_customer ? ' (kundens adresse)' : ''}`}
+                  title={w.case.address_is_customer ? 'Sagen har ingen adresse — kundens adresse bruges' : undefined}
                 >
                   <Navigation className="w-4 h-4" />
                   Navigér

@@ -28,6 +28,7 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { netInvoicedExVat, summarizeCaseInvoices, type InvoiceAmountRow, type CaseInvoiceRow } from '@/lib/invoices/net-invoiced'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { selectInChunks, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
+import { invoiceCaseScope, invoiceReader, invoiceInScope } from '@/lib/invoices/invoice-scope'
 
 export interface ServiceCaseEconomy {
   case_id: string
@@ -619,19 +620,22 @@ export async function getServiceCaseBillingStatus(
       .eq('id', caseId)
       .maybeSingle()
     if (!sag) return { success: false, error: 'Sag ikke fundet' }
+    // 00240-F1: sagen er i brugerens scope (tjekket ovenfor) → faktura-/arbejdstal læses for HELE sagen; RLS
+    // (can_view_case_finance/can_view_time_log) ville skære salg ned til egne oprettede sager. Kun salgs-/statustal ud.
+    const db = invoiceReader(hasPermission('invoices.view.all') ? { type: 'all' } : { type: 'cases', caseIds: [caseId] }, supabase)
 
-    const { data: wos } = await supabase.from('work_orders').select('id').eq('case_id', caseId)
+    const { data: wos } = await db.from('work_orders').select('id').eq('case_id', caseId)
     const woIds = (wos ?? []).map((w) => w.id as string)
 
     const [tlRes, matRes, othRes, invRes] = await Promise.all([
       woIds.length === 0
         ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
         : // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
-          fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).neq('approval_status', 'rejected').order('id').range(f, t)).then((data) => ({ data })),
+          fetchAllRows((f, t) => db.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).neq('approval_status', 'rejected').order('id').range(f, t)).then((data) => ({ data })),
       // PF2-5 (performance-review 2026-10-17): side for side (1.000-loftet gav "Fuldt faktureret" på store sager)
-      fetchAllRows((f, t) => supabase.from('case_materials').select('id, total_sales_price, billable, invoice_line_id').eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data })),
-      fetchAllRows((f, t) => supabase.from('case_other_costs').select('id, total_sales_price, billable, invoice_line_id').eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data })),
-      fetchAllRows((f, t) => supabase.from('invoices').select('id, total_amount, status, invoice_type, voided_at, currency').eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data })),
+      fetchAllRows((f, t) => db.from('case_materials').select('id, total_sales_price, billable, invoice_line_id').eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data })),
+      fetchAllRows((f, t) => db.from('case_other_costs').select('id, total_sales_price, billable, invoice_line_id').eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data })),
+      fetchAllRows((f, t) => db.from('invoices').select('id, total_amount, status, invoice_type, voided_at, currency').eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data })),
     ])
 
     // X1: samme optælling og prisregel som lukke-værnet og fakturaen (summarizeUnbilled → priceTimeLog)
@@ -750,8 +754,8 @@ export async function getServiceCaseProjectEconomy(
     if (sagErr) return { success: false, error: 'Kunne ikke hente projektøkonomi' }
     if (!sag) return { success: false, error: 'Sag ikke fundet' }
 
-    // Ét cost-free invoice-query (kun salgs-/status-felter).
-    const { data: invs, error: invErr } = await supabase
+    // Ét cost-free invoice-query (kun salgs-/status-felter). 00240-F1: sagen er i scope (tjekket ovenfor)
+    const { data: invs, error: invErr } = await invoiceReader(hasPermission('invoices.view.all') ? { type: 'all' } : { type: 'cases', caseIds: [caseId] }, supabase)
       .from('invoices')
       .select('id, invoice_number, final_amount, total_amount, amount_paid, status, invoice_type, voided_at, currency, created_at')
       .eq('case_id', caseId)
@@ -849,6 +853,7 @@ export async function getServiceCaseEconomyBatch(
       if (ids.length === 0) return { success: true, data: {} }
     }
 
+    const invDb = invoiceReader(hasPermission('invoices.view.all') ? { type: 'all' } : { type: 'cases', caseIds: ids }, supabase)
     // X4n: i bidder af 200 — ordrelistens fakturafilter sender op til 500 sager; én .in() sprængte URL-grænsen (~350)
     // → ingen kontrakt/faktureret/udestående på nogen række
     const [caseRows, invRows] = await Promise.all([
@@ -857,7 +862,8 @@ export async function getServiceCaseEconomyBatch(
         const out: Array<Record<string, unknown>> = []
         for (let k = 0; k < ids.length; k += IN_CHUNK_SIZE) {
           const chunk = ids.slice(k, k + IN_CHUNK_SIZE)
-          out.push(...await fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('invoices')
+          // 00240-F1: ids er afgrænset til brugerens sags-scope ovenfor
+          out.push(...await fetchAllRows<Record<string, unknown>>((from, to) => invDb.from('invoices')
             .select('id, case_id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at, currency')
             .in('case_id', chunk).order('id').range(from, to)))
         }
@@ -916,19 +922,16 @@ export interface OutstandingPortfolio {
  */
 export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<OutstandingPortfolio>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
     if (!hasPermission('invoices.view.own_cases')) {
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
     }
+    // 00240-F1: kun fakturaer på sager i brugerens scope (før: alt RLS lod igennem)
+    const invScope = await invoiceCaseScope({ supabase, userId, role, hasPermission })
 
     // Udstedte, ikke-voided fakturaer (cost-free felter).
     // sags-review: side for side (før højst 1.000 fakturaer → totaler for lave)
-    const invs = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
-      .from('invoices')
-      .select('id, case_id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at, currency')
-      .in('status', ['sent', 'paid'])
-      .order('id')
-      .range(from, to))
+    const invs = await issuedInvoicesInScope(invScope, supabase)
 
     // X1: inkl. fuldt krediterede originaler (udlignes af kreditnotaen) — før blev de filtreret fra, mens
     // kreditnotaen talte med → forkert udestående
@@ -1030,23 +1033,18 @@ const BILLING_FOLLOWUP_CAP = 500
  */
 export async function getBillingFollowupSummaryAction(): Promise<ActionResult<BillingFollowupSummary>> {
   try {
-    const { supabase, hasPermission, userId } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
     if (!hasPermission('invoices.view.own_cases')) {
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
     }
-    // 00240-F1: uden invoices.view.all ser brugeren kun fakturaer på EGNE sager (can_view_case_finance: created_by) —
-    // afsluttede sager uden for det sæt talte før som "klar til slutfaktura" (deres fakturaer var skjulte)
-    const ownCasesOnly = !hasPermission('invoices.view.all')
+    // 00240-F1: uden invoices.view.all kun sager i brugerens EFFEKTIVE sags-scope — både fakturaer og afsluttede
+    // kandidat-sager (før: created_by, og afsluttede sager uden for sættet talte som "klar til slutfaktura")
+    const invScope = await invoiceCaseScope({ supabase, userId, role, hasPermission })
     const { caseMatchesBillingFilter } = await import('@/lib/invoices/case-billing-status')
 
     // 1) Udstedte, ikke-voided fakturaer (cost-free) → aggreger pr. sag.
     // sags-review: side for side (før højst 1.000 fakturaer → totaler for lave)
-    const invs = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
-      .from('invoices')
-      .select('id, case_id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at, currency')
-      .in('status', ['sent', 'paid'])
-      .order('id')
-      .range(from, to))
+    const invs = await issuedInvoicesInScope(invScope, supabase)
 
     // X1: samme regler som sagslisten (summarizeCaseInvoices) — rest mod netto ekskl. moms
     const byCase = new Map<string, CaseInvoiceRow[]>()
@@ -1075,13 +1073,22 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
         .in('id', chunk))
       addRows(data as never)
     }
-    const { data: closedRows, error: closedErr } = await supabase
-      .from('service_cases')
-      .select('id, status, contract_sum, revised_sum, billing_model')
-      .eq('status', 'closed')
-      .match(ownCasesOnly ? { created_by: userId } : {})
-      .limit(BILLING_FOLLOWUP_CAP)
-    if (closedErr) return { success: false, error: 'Kunne ikke hente faktureringsopfølgning' }
+    let closedRows: Array<Record<string, unknown>> = []
+    if (invScope.type === 'all' || invScope.type === 'all_cases') {
+      const { data, error: closedErr } = await supabase
+        .from('service_cases')
+        .select('id, status, contract_sum, revised_sum, billing_model')
+        .eq('status', 'closed')
+        .limit(BILLING_FOLLOWUP_CAP)
+      if (closedErr) return { success: false, error: 'Kunne ikke hente faktureringsopfølgning' }
+      closedRows = data ?? []
+    } else if (invScope.type === 'cases' && invScope.caseIds.length) {
+      closedRows = (await selectInChunks<Record<string, unknown>>(invScope.caseIds, (chunk) => supabase
+        .from('service_cases')
+        .select('id, status, contract_sum, revised_sum, billing_model')
+        .eq('status', 'closed')
+        .in('id', chunk))).slice(0, BILLING_FOLLOWUP_CAP)
+    }
     addRows((closedRows ?? []) as never)
 
     const capped = invoicedIds.length > BILLING_FOLLOWUP_CAP || (closedRows?.length ?? 0) >= BILLING_FOLLOWUP_CAP
@@ -1457,4 +1464,29 @@ export async function getServiceCaseUnconvertedSupplierLinesAction(
   } catch (e) {
     return { ...base, message: formatError(e, 'Kunne ikke hente ukonverterede leverandørlinjer') }
   }
+}
+
+/**
+ * 00240-F1: udstedte (sendt/betalt) fakturaer inden for brugerens faktura-scope — cost-free kolonner, side for side.
+ * 'cases' læses med admin-klienten afgrænset til scope-sagerne (RLS ville skære salg ned til created_by).
+ */
+async function issuedInvoicesInScope(
+  scope: Awaited<ReturnType<typeof invoiceCaseScope>>,
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
+): Promise<Array<Record<string, unknown>>> {
+  const cols = 'id, case_id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at, currency'
+  if (scope.type === 'none') return []
+  const db = invoiceReader(scope, supabase)
+  if (scope.type === 'all' || scope.type === 'all_cases') {
+    const rows = await fetchAllRows<Record<string, unknown>>((from, to) => db.from('invoices').select(cols)
+      .in('status', ['sent', 'paid']).order('id').range(from, to))
+    return rows.filter((r) => invoiceInScope(scope, r.case_id as string | null))
+  }
+  const out: Array<Record<string, unknown>> = []
+  for (let k = 0; k < scope.caseIds.length; k += IN_CHUNK_SIZE) {
+    const chunk = scope.caseIds.slice(k, k + IN_CHUNK_SIZE)
+    out.push(...await fetchAllRows<Record<string, unknown>>((from, to) => db.from('invoices').select(cols)
+      .in('status', ['sent', 'paid']).in('case_id', chunk).order('id').range(from, to)))
+  }
+  return out
 }

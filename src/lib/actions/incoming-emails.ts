@@ -1475,7 +1475,9 @@ export async function sendQuickReply(
       return { success: false, error: 'Mailen er ikke koblet til en kunde — kan ikke vedhæfte filer' }
     }
     const { prepareGraphAttachmentsFromDocumentIds } = await import('@/lib/services/outbound-attachments')
-    const prep = await prepareGraphAttachmentsFromDocumentIds(safeAttachmentIds, email.customer_id)
+    const { customerDocumentReadDenied } = await import('@/lib/documents/document-read-access')
+    // L1 (scope-review 2026-10-27): også her kun dokumenter afsenderen selv må læse (PERM-1-tildelt inbox.send)
+    const prep = await prepareGraphAttachmentsFromDocumentIds(safeAttachmentIds, email.customer_id, (doc) => customerDocumentReadDenied(doc, gate))
     if (!prep.ok) {
       return { success: false, error: prep.error || 'Kunne ikke klargøre vedhæftninger' }
     }

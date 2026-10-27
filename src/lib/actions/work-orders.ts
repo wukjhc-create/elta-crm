@@ -37,6 +37,8 @@ export interface WorkOrderForCalendar extends WorkOrderRow {
     address?: string | null
     postal_code?: string | null
     city?: string | null
+    /** Sagen mangler egen adresse — address/postal_code/city er (leverings)kundens */
+    address_is_customer?: boolean
   } | null
 }
 
@@ -715,7 +717,8 @@ export async function listWorkOrdersByDateRange(
         .from('service_cases')
         .select(`
           id, case_number, title, project_name, address, postal_code, city,
-          customer:customers!service_cases_customer_id_fkey(id, company_name)
+          customer:customers!service_cases_customer_id_fkey(id, company_name, shipping_address, shipping_postal_code, shipping_city, billing_address, billing_postal_code, billing_city),
+          site_customer:customers!service_cases_site_customer_id_fkey(shipping_address, shipping_postal_code, shipping_city, billing_address, billing_postal_code, billing_city)
         `)
         .in('id', chunk)).catch((e) => {
           casesFailed = true; logger.error('listWorkOrdersByDateRange cases failed', { error: e }); return [] as any[]
@@ -735,6 +738,16 @@ export async function listWorkOrdersByDateRange(
       ])
     )
 
+    // Pilot (montør-flow 2026-10-27): sager uden egen adresse fik ingen "Navigér" — leveringskundens/kundens
+    // leverings- eller fakturaadresse (i den rækkefølge), markeret som kundens
+    const fallbackAddress = (c: any): { address: string; postal_code: string | null; city: string | null } | null => {
+      for (const cust of [c.site_customer, c.customer]) {
+        if (!cust) continue
+        if (cust.shipping_address) return { address: cust.shipping_address, postal_code: cust.shipping_postal_code ?? null, city: cust.shipping_city ?? null }
+        if (cust.billing_address) return { address: cust.billing_address, postal_code: cust.billing_postal_code ?? null, city: cust.billing_city ?? null }
+      }
+      return null
+    }
     const caseMap = new Map(
       (caseRes.data || []).map((c: any) => [
         c.id as string,
@@ -744,9 +757,13 @@ export async function listWorkOrdersByDateRange(
           title: (c.title as string) ?? '',
           project_name: (c.project_name as string | null) ?? null,
           customer_name: (c.customer?.company_name as string | null) ?? null,
-          address: (c.address as string | null) ?? null,
-          postal_code: (c.postal_code as string | null) ?? null,
-          city: (c.city as string | null) ?? null,
+          ...(c.address || !fallbackAddress(c)
+            ? {
+                address: (c.address as string | null) ?? null,
+                postal_code: (c.postal_code as string | null) ?? null,
+                city: (c.city as string | null) ?? null,
+              }
+            : { ...fallbackAddress(c)!, address_is_customer: true }),
         },
       ])
     )

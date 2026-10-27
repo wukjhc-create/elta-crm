@@ -446,8 +446,11 @@ export async function saveBesigtigelsesnotat(
     try {
       // Planlægnings-review 2026-10-09 (#3): kun kundevendte besigtigelser (booket / portal-anmodning) på DENNE sag
       // (eller uden sag) — før lukkede "%esigtigelse%" også andre sagers bookinger og den interne
-      // "Planlæg besigtigelse eller montage"-opgave, og completed_at blev ikke sat
-      const { data: tasks } = await supabase
+      // "Planlæg besigtigelse eller montage"-opgave, og completed_at blev ikke sat.
+      // 00242-forudsætning (O2, 2026-10-27): opgaverne er typisk tildelt salg — læses med admin-klienten bag samme gate
+      // som lukningen nedenfor (service.edit + sags-scope), så de ikke forsvinder når montørens opgave-læsning scopes
+      const { createAdminClient: taskReader } = await import('@/lib/supabase/admin')
+      const { data: tasks } = await taskReader()
         .from('customer_tasks')
         .select('id, title, auto_rule, service_case_id')
         .eq('customer_id', input.customerId)

@@ -304,7 +304,10 @@ export interface PreparedAttachmentsResult {
  */
 export async function prepareGraphAttachmentsFromDocumentIds(
   documentIds: string[],
-  customerId: string
+  customerId: string,
+  /** Scope-review 2026-10-27 (L1): pr. dokument læseadgang for afsenderen (fx customerDocumentReadDenied) — uden den
+   *  kunne en montør vedhæfte ENHVER af kundens dokumenter (andre sagers, mail-vedhæftninger) via opgave-mail */
+  readDenied?: (doc: { service_case_id: string | null; customer_id: string | null; source_email_id: string | null }) => Promise<string | null>,
 ): Promise<PreparedAttachmentsResult> {
   if (!documentIds || documentIds.length === 0) {
     return { ok: true, attachments: [], metadata: [] }
@@ -322,7 +325,7 @@ export async function prepareGraphAttachmentsFromDocumentIds(
 
   const { data: docs, error } = await supabase
     .from('customer_documents')
-    .select('id, customer_id, file_name, storage_path, file_url, mime_type, file_size')
+    .select('id, customer_id, service_case_id, source_email_id, file_name, storage_path, file_url, mime_type, file_size')
     .in('id', documentIds)
 
   if (error) {
@@ -343,6 +346,12 @@ export async function prepareGraphAttachmentsFromDocumentIds(
       metadata: { expected: customerId, got: otherCustomer.customer_id },
     })
     return { ok: false, attachments: [], metadata: [], error: 'Vedhæftning tilhører anden kunde' }
+  }
+  if (readDenied) {
+    for (const d of docs) {
+      const denied = await readDenied(d as { service_case_id: string | null; customer_id: string | null; source_email_id: string | null })
+      if (denied) return { ok: false, attachments: [], metadata: [], error: denied }
+    }
   }
 
   // Total-size check

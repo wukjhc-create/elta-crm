@@ -292,7 +292,9 @@ export async function sendTaskEmail(
 
     if (attachmentIds.length > 0) {
       const { prepareGraphAttachmentsFromDocumentIds } = await import('@/lib/services/outbound-attachments')
-      const prep = await prepareGraphAttachmentsFromDocumentIds(attachmentIds, task.customer_id)
+      const { customerDocumentReadDenied } = await import('@/lib/documents/document-read-access')
+      // L1 (scope-review 2026-10-27): kun dokumenter afsenderen selv må læse (sag i scope / CU-1 / mail-vedhæftning)
+      const prep = await prepareGraphAttachmentsFromDocumentIds(attachmentIds, task.customer_id, (doc) => customerDocumentReadDenied(doc, ctx))
       if (!prep.ok) {
         // Marker message-rowen som failed inden vi returnerer fejl
         await supabase

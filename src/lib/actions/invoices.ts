@@ -50,6 +50,7 @@ import { copenhagenParts, calendarDaysSince, copenhagenLocalToIso } from '@/lib/
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import { selectInChunks, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
+import { canViewCaseInvoices, invoiceCaseScope, invoiceInScope, invoiceReader } from '@/lib/invoices/invoice-scope'
 import {
   computePaymentHealth,
   type HealthInvoice,
@@ -1272,9 +1273,13 @@ export async function getCaseInvoiceHistoryAction(
     }
   }
 
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.view.own_cases')) {
     return { ok: false, entries: [], message: 'Manglende tilladelse: invoices.view.own_cases' }
+  }
+  // 00240-F1: kun sager i brugerens scope (før: enhver sag — RLS på audit_logs viste egne hændelser)
+  if (!(await canViewCaseInvoices(caseId, { supabase, userId, role, hasPermission }))) {
+    return { ok: false, entries: [], message: 'Du har ikke adgang til denne sag' }
   }
 
   // entity_type='invoice' + metadata @> { case_id } — jsonb containment.
@@ -1404,12 +1409,16 @@ export async function listCaseInvoicesAction(
     }
   }
 
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.view.own_cases')) {
     return { ok: false, items: [], message: 'Manglende tilladelse: invoices.view.own_cases' }
   }
+  // 00240-F1: invoices.view.all, eller own_cases + sagen i brugerens effektive scope (før: kun RLS = created_by)
+  if (!(await canViewCaseInvoices(caseId, { supabase, userId, role, hasPermission }))) {
+    return { ok: false, items: [], message: 'Du har ikke adgang til denne sag' }
+  }
 
-  const { data: rows, error } = await supabase
+  const { data: rows, error } = await invoiceReader(hasPermission('invoices.view.all') ? { type: 'all' } : { type: 'cases', caseIds: [caseId] }, supabase)
     .from('invoices')
     .select(
       'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, customer_id'
@@ -2138,7 +2147,7 @@ export async function getCustomerInvoiceOverviewAction(
     return { ok: false, permitted: true, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
 
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.view.own_cases')) {
     return {
       ok: false,
@@ -2146,9 +2155,12 @@ export async function getCustomerInvoiceOverviewAction(
       message: 'Du har ikke adgang til fakturaoplysninger på kunden.',
     }
   }
+  // 00240-F1: kun kundens fakturaer på sager i brugerens scope (sagsløse kun ved invoices.view.all)
+  const invScope = await invoiceCaseScope({ supabase, userId, role, hasPermission })
+  const invDb = invoiceReader(invScope, supabase)
 
   // FC-6 (finans-review 2026-10-20): alle kundens fakturaer (før .limit(500) → for lave tal for store partnerkunder)
-  const { data: rows, error } = await fetchAllRows<Record<string, unknown> & { id: string }>((from, to) => supabase
+  const { data: rows, error } = await fetchAllRows<Record<string, unknown> & { id: string }>((from, to) => invDb
     .from('invoices')
     .select(
       'id, invoice_number, invoice_type, status, payment_status, final_amount, amount_paid, currency, created_at, sent_at, paid_at, due_date, voided_at, last_reminder_at, case_id'
@@ -2163,12 +2175,12 @@ export async function getCustomerInvoiceOverviewAction(
     return { ok: false, permitted: true, message: 'Kunne ikke hente kundens fakturaer' }
   }
 
-  const list = rows ?? []
+  const list = (rows ?? []).filter((r) => invoiceInScope(invScope, r.case_id as string | null))
   // B-3: åbent beløb pr. faktura (indbetalt + kreditnotaer fratrukket)
   const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
   let credited = new Map<string, number>()
   try {
-    credited = await creditedByOriginal(supabase, list.map((r) => r.id as string))
+    credited = await creditedByOriginal(invDb, list.map((r) => r.id as string))
   } catch (err) {
     logger.error('getCustomerInvoiceOverviewAction: credit lookup failed', { entityId: customerId, error: err })
   }
@@ -2307,7 +2319,7 @@ export async function getCustomerInvoiceOverviewAction(
 // — economy.cost_prices IKKE krævet. KUN salgs/faktura-data.
 // =====================================================
 
-const HEALTH_SELECT = 'id, status, invoice_type, final_amount, amount_paid, due_date, voided_at, paid_at, sent_at'
+const HEALTH_SELECT = 'id, status, invoice_type, final_amount, amount_paid, due_date, voided_at, paid_at, sent_at, case_id'
 
 export interface CustomerPaymentHealthResult {
   ok: boolean
@@ -2325,23 +2337,26 @@ export async function getCustomerPaymentHealthAction(
   } catch (err) {
     return { ok: false, permitted: true, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.view.own_cases')) {
     return { ok: false, permitted: false, message: 'Ingen adgang til fakturastatus' }
   }
+  // 00240-F1: kun fakturaer på sager i brugerens scope (sagsløse kun ved invoices.view.all)
+  const invScope = await invoiceCaseScope({ supabase, userId, role, hasPermission })
+  const invDb = invoiceReader(invScope, supabase)
   // B-3 (pilot-review 2026-10-15): alle kundens fakturaer (før .limit(500) uden rækkefølge) og åbent beløb
   // (indbetalt + kreditnotaer fratrukket) — samme tal som dashboard og fakturaoverblik
   let data: Array<HealthInvoice & { id: string; amount_paid?: number | null }>
   let credited = new Map<string, number>()
   try {
-    data = await fetchAllRows((f, t) => supabase
+    data = (await fetchAllRows<HealthInvoice & { id: string; amount_paid?: number | null; case_id?: string | null }>((f, t) => invDb
       .from('invoices')
       .select(HEALTH_SELECT)
       .eq('customer_id', customerId)
       .order('id')
-      .range(f, t))
+      .range(f, t))).filter((r) => invoiceInScope(invScope, r.case_id))
     const { creditedByOriginal } = await import('@/lib/invoices/open-amount')
-    credited = await creditedByOriginal(supabase, data.map((r) => r.id))
+    credited = await creditedByOriginal(invDb, data.map((r) => r.id))
   } catch (error) {
     logger.error('getCustomerPaymentHealthAction: query failed', { entityId: customerId, error })
     return { ok: false, permitted: true, message: 'Kunne ikke hente betalingsstatus' }

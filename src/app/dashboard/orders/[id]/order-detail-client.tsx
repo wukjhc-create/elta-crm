@@ -156,9 +156,16 @@ export function OrderDetailClient({
   const customerName =
     sag.customer?.company_name || sag.customer?.contact_person || '—'
 
-  const fullAddress = [sag.address, sag.floor_door, sag.postal_code, sag.city]
+  const caseAddress = [sag.address, sag.floor_door, sag.postal_code, sag.city]
     .filter(Boolean)
     .join(', ')
+  // Pilot (montør-flow 2026-10-27): sager uden egen adresse fik ingen "Naviger" — brug leveringskundens/kundens
+  // leverings- eller fakturaadresse (i den rækkefølge) og vis tydeligt at det er kundens adresse
+  const customerAddress = caseAddress ? '' : [sag.site_customer, sag.customer]
+    .flatMap((c) => c ? [[c.shipping_address, c.shipping_postal_code, c.shipping_city], [c.billing_address, c.billing_postal_code, c.billing_city]] : [])
+    .map((parts) => parts[0] ? parts.filter(Boolean).join(', ') : '')
+    .find(Boolean) ?? ''
+  const fullAddress = caseAddress || customerAddress
 
   return (
     // Q-9 (review 2026-10-16): layoutet har allerede padding — ingen ekstra p-6 på telefon (mere plads til indholdet)
@@ -286,6 +293,7 @@ export function OrderDetailClient({
               sag={sag}
               customerName={customerName}
               fullAddress={fullAddress}
+              addressIsCustomerFallback={!caseAddress && !!customerAddress}
               formand={formand}
               creator={creator}
               canSeeBilling={canSeeBilling}
@@ -355,6 +363,7 @@ function OverblikTab({
   sag,
   customerName,
   fullAddress,
+  addressIsCustomerFallback = false,
   formand,
   creator,
   canSeeBilling = false,
@@ -370,6 +379,8 @@ function OverblikTab({
   sag: ServiceCaseWithRelations
   customerName: string
   fullAddress: string
+  /** Sagen mangler egen adresse — fullAddress er kundens */
+  addressIsCustomerFallback?: boolean
   formand: { id: string; name: string } | null
   creator: { id: string; full_name: string | null } | null
   canSeeBilling?: boolean
@@ -470,6 +481,7 @@ function OverblikTab({
             fullAddress ? (
               <span className="inline-flex flex-wrap items-center gap-2">
                 {fullAddress}
+                {addressIsCustomerFallback && <span className="text-xs text-gray-500" data-testid="order-address-fallback">(kundens adresse)</span>}
                 {/* N9b: rutevejledning — koordinater hvis kendt, ellers adressen */}
                 <a
                   target="_blank"

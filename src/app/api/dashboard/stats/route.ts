@@ -104,6 +104,15 @@ export async function GET() {
     // nye mails kun med inbox.view (RLS lader salg læse alle mails)
     const { hasPermission } = await import('@/lib/auth/permissions')
     const canSeeInbox = hasPermission(await getUserRoleForPage(), 'inbox.view')
+    // 00240-F1 (Henrik 2026-10-27): fakturatal kræver invoices.view.all — ELLER own_cases + sagen i brugerens effektive
+    // sags-scope. Før: ingen tilladelse tjekket, kun RLS (salg: created_by). Uden 'all' beregnes tallene af de scopede
+    // fakturaer (scopedInvoiceStats) i stedet for de globale forespørgsler nedenfor.
+    const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+    const authCtx = await getAuthenticatedClientWithRole()
+    const { invoiceCaseScope } = await import('@/lib/invoices/invoice-scope')
+    const invScope = await invoiceCaseScope({ supabase, userId: authCtx.userId, role: authCtx.role, hasPermission: authCtx.hasPermission })
+    const globalInvoices = invScope.type === 'all'
+    const scopedInv = globalInvoices ? null : await scopedInvoiceStats(invScope, supabase, todayDateIso, todayStart, todayEnd)
     const [
       newEmails,
       newCustomers,
@@ -138,16 +147,16 @@ export async function GET() {
       safe(supabase.from('offers').select('id', { count: 'exact', head: true }).or(__offerOr)
         .eq('status', 'draft')
         .eq('is_proposal', false)),
-      safe(supabase.from('invoices').select('id', { count: 'exact', head: true })
+      scopedInv ? Promise.resolve(scopedInv.sent) : safe(supabase.from('invoices').select('id', { count: 'exact', head: true })
         .eq('status', 'sent')),
       // Forfalden = forfaldsdato FØR i dag, ikke kreditnota/annulleret (samme regel som fakturalisten)
-      safe(supabase.from('invoices').select('id', { count: 'exact', head: true })
+      scopedInv ? Promise.resolve(0) : safe(supabase.from('invoices').select('id', { count: 'exact', head: true })
         .eq('status', 'sent')
         .neq('payment_status', 'paid')
         .neq('invoice_type', 'credit')
         .is('voided_at', null)
         .lt('due_date', todayDateIso)),
-      safe(supabase.from('invoice_payments').select('id', { count: 'exact', head: true })
+      scopedInv ? Promise.resolve(scopedInv.paymentsToday) : safe(supabase.from('invoice_payments').select('id', { count: 'exact', head: true })
         .gte('recorded_at', todayStart)
         .lte('recorded_at', todayEnd)),
       safe(supabase.from('system_health_log').select('id', { count: 'exact', head: true })
@@ -165,14 +174,14 @@ export async function GET() {
           .order('received_at', { ascending: false })
           .limit(8)
         : Promise.resolve({ data: [] as Array<{ id: string; subject: string | null; sender_name: string | null; sender_email: string; received_at: string; customer_id: string | null }> }),
-      supabase
+      scopedInv ? Promise.resolve({ data: scopedInv.latest }) : supabase
         .from('invoices')
         .select('id, invoice_number, final_amount, currency, status, payment_status, created_at')
         .order('created_at', { ascending: false })
         .limit(8),
       // DB-6 (dashboard-review 2026-10-18): alle forfaldne (side for side) — tallet talte før også fuldt krediterede
       // fakturaer med, og listen blev filtreret efter .limit(10), så den kunne vise færre end der var
-      fetchAllRows<{ id: string; invoice_number: string; final_amount: number; amount_paid: number; currency: string | null; due_date: string | null; customer_id: string | null }>((from, to) => supabase
+      scopedInv ? Promise.resolve({ data: scopedInv.overdue, ok: true }) : fetchAllRows<{ id: string; invoice_number: string; final_amount: number; amount_paid: number; currency: string | null; due_date: string | null; customer_id: string | null }>((from, to) => supabase
         .from('invoices')
         .select('id, invoice_number, final_amount, amount_paid, currency, due_date, customer_id')
         .eq('status', 'sent')
@@ -187,7 +196,7 @@ export async function GET() {
     // Rapport-review 2026-10-09 (#1): vist beløb = åbent beløb (− betalt − kreditnotaer); fuldt dækkede udelades
     const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
     const overdueRows = overdueRes.data ?? []
-    const credited = await creditedByOriginal(supabase, overdueRows.map((r) => r.id as string)).catch(() => new Map<string, number>())
+    const credited = await creditedByOriginal(scopedInv?.reader ?? supabase, overdueRows.map((r) => r.id as string)).catch(() => new Map<string, number>())
     // DB-6: samme regler som cockpittet/Fakturaøkonomi — kun DKK, åbent beløb ≥ 0,50 (FIN-11)
     const overdueOpen = overdueRows.filter((r) => String(r.currency ?? 'DKK').toUpperCase() === 'DKK'
       && openAmount(r as { id: string; final_amount: number; amount_paid: number }, credited) >= 0.5)
@@ -269,4 +278,46 @@ export async function GET() {
     // API-7 (review 2026-10-17): ingen rå database-fejltekst til klienten (detaljen står i loggen)
     return NextResponse.json({ error: 'Kunne ikke hente nøgletal' }, { status: 500 })
   }
+}
+
+type ScopedInvoiceRow = { id: string; invoice_number: string; final_amount: number; amount_paid: number; currency: string | null; status: string; payment_status: string; invoice_type: string | null; voided_at: string | null; due_date: string | null; created_at: string; customer_id: string | null; case_id: string | null }
+
+/**
+ * 00240-F1: dashboardets fakturatal for brugere UDEN invoices.view.all — kun fakturaer på sager i scopet (admin-læsning
+ * afgrænset til scope-sagerne; RLS ville skære salg ned til created_by). Samme regler som de globale forespørgsler.
+ */
+async function scopedInvoiceStats(
+  scope: Exclude<Awaited<ReturnType<typeof import('@/lib/invoices/invoice-scope').invoiceCaseScope>>, { type: 'all' }>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  todayDateIso: string,
+  todayStart: string,
+  todayEnd: string,
+) {
+  const { invoiceReader, invoiceInScope } = await import('@/lib/invoices/invoice-scope')
+  const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+  const { IN_CHUNK_SIZE } = await import('@/lib/supabase/in-chunks')
+  const reader = invoiceReader(scope, supabase)
+  const cols = 'id, invoice_number, final_amount, amount_paid, currency, status, payment_status, invoice_type, voided_at, due_date, created_at, customer_id, case_id'
+  let rows: ScopedInvoiceRow[] = []
+  if (scope.type === 'all_cases') {
+    rows = await fetchAllRows<ScopedInvoiceRow>((f, t) => reader.from('invoices').select(cols).not('case_id', 'is', null).order('id').range(f, t))
+  } else if (scope.type === 'cases') {
+    for (let k = 0; k < scope.caseIds.length; k += IN_CHUNK_SIZE) {
+      const chunk = scope.caseIds.slice(k, k + IN_CHUNK_SIZE)
+      rows.push(...await fetchAllRows<ScopedInvoiceRow>((f, t) => reader.from('invoices').select(cols).in('case_id', chunk).order('id').range(f, t)))
+    }
+  }
+  rows = rows.filter((r) => invoiceInScope(scope, r.case_id))
+  const overdue = rows
+    .filter((r) => r.status === 'sent' && r.payment_status !== 'paid' && r.invoice_type !== 'credit' && !r.voided_at && !!r.due_date && r.due_date < todayDateIso)
+    .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)) || a.id.localeCompare(b.id))
+  const latest = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8)
+  let paymentsToday = 0
+  const ids = rows.map((r) => r.id)
+  for (let k = 0; k < ids.length; k += IN_CHUNK_SIZE) {
+    const { count } = await reader.from('invoice_payments').select('id', { count: 'exact', head: true })
+      .in('invoice_id', ids.slice(k, k + IN_CHUNK_SIZE)).gte('recorded_at', todayStart).lte('recorded_at', todayEnd)
+    paymentsToday += count ?? 0
+  }
+  return { reader, sent: rows.filter((r) => r.status === 'sent').length, overdue, latest, paymentsToday }
 }
