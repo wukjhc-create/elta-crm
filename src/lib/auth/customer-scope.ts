@@ -29,7 +29,8 @@ export async function customerScopeLevel(ctx: ScopeContext): Promise<ScopeLevel>
 
 async function myEmployeeId(ctx: ScopeContext): Promise<string | null> {
   const { data, error } = await ctx.supabase
-    .from('employees').select('id').eq('profile_id', ctx.userId).eq('active', true).maybeSingle()
+    .from('employees').select('id').eq('profile_id', ctx.userId).eq('active', true)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle() // som case-scope: dublet-rækker må ikke give 0 adgang
   if (error) throw new Error(`employees: ${error.message}`)
   return (data?.id as string | undefined) ?? null
 }

@@ -2598,6 +2598,22 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'mp-00240-sql-probe') {
+    // STAGING ROLLBACK-ONLY: 00240-udkastet (docs/runbooks/mp-00240-draft.sql) i en DO-blok der altid afbrydes
+    const { runMp00240SqlProbe } = await import('./mp-00240-sql-probe')
+    const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
+    const rawSql = async (sql: string) => {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      })
+      return { ok: r.ok, status: r.status, text: await r.text() }
+    }
+    const checks = await runMp00240SqlProbe({ admin, url: runtime.url, anonKey: runtime.anonKey, rawSql })
+    log(formatMp00240ScopeCheck(checks).replace('MP-00240 forudsætninger — scope-motor + kontrollerede stier (app-laget, staging)', 'MP-00240 SQL-udkast — rollback-only prøve (staging, intet anvendt)'))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00239-rls-check') {
     const { runMp00239RlsCheck, formatMp00239RlsCheck } = await import('./mp-00239-rls-check')
     const checks = await runMp00239RlsCheck({ admin, url: runtime.url, anonKey: runtime.anonKey })

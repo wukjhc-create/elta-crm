@@ -94,6 +94,9 @@ export async function getCaseScope(ctx: ScopeContext): Promise<CaseScope> {
     .select('id')
     .eq('profile_id', ctx.userId)
     .eq('active', true)
+    // montør-flow-audit 2026-10-27: to aktive rækker for samme profil gav maybeSingle-fejl → INGEN job/sager; ældste vinder
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle()
   const employeeId = (empRes.data?.id as string | undefined) ?? null
 
@@ -144,6 +147,9 @@ export async function getWorkOrderEmployeeScope(ctx: ScopeContext): Promise<Work
     .select('id')
     .eq('profile_id', ctx.userId)
     .eq('active', true)
+    // montør-flow-audit 2026-10-27: to aktive rækker for samme profil gav maybeSingle-fejl → INGEN job/sager; ældste vinder
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle()
   return { type: 'employee', employeeId: (empRes.data?.id as string | undefined) ?? null }
 }
@@ -194,6 +200,9 @@ export async function userCanViewCase(
     .select('id')
     .eq('profile_id', ctx.userId)
     .eq('active', true)
+    // montør-flow-audit 2026-10-27: to aktive rækker for samme profil gav maybeSingle-fejl → INGEN job/sager; ældste vinder
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle()
   const employeeId = (emp?.id as string | undefined) ?? null
   if (employeeId) {

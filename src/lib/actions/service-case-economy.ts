@@ -1030,10 +1030,13 @@ const BILLING_FOLLOWUP_CAP = 500
  */
 export async function getBillingFollowupSummaryAction(): Promise<ActionResult<BillingFollowupSummary>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId } = await getAuthenticatedClientWithRole()
     if (!hasPermission('invoices.view.own_cases')) {
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
     }
+    // 00240-F1: uden invoices.view.all ser brugeren kun fakturaer på EGNE sager (can_view_case_finance: created_by) —
+    // afsluttede sager uden for det sæt talte før som "klar til slutfaktura" (deres fakturaer var skjulte)
+    const ownCasesOnly = !hasPermission('invoices.view.all')
     const { caseMatchesBillingFilter } = await import('@/lib/invoices/case-billing-status')
 
     // 1) Udstedte, ikke-voided fakturaer (cost-free) → aggreger pr. sag.
@@ -1076,6 +1079,7 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
       .from('service_cases')
       .select('id, status, contract_sum, revised_sum, billing_model')
       .eq('status', 'closed')
+      .match(ownCasesOnly ? { created_by: userId } : {})
       .limit(BILLING_FOLLOWUP_CAP)
     if (closedErr) return { success: false, error: 'Kunne ikke hente faktureringsopfølgning' }
     addRows((closedRows ?? []) as never)
