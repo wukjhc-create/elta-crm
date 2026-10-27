@@ -28,19 +28,12 @@ export interface CustomerImportPreview {
 
 type Ctx = Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>
 
-async function loadExisting(supabase: Ctx['supabase']) {
-  const emails = new Set<string>(), vats = new Set<string>(), phones = new Set<string>()
-  for (let from = 0; from < 20000; from += 1000) {
-    const { data, error } = await supabase.from('customers').select('email, vat_number, phone, mobile').order('id').range(from, from + 999)
-    if (error) throw new Error('Kunne ikke hente eksisterende kunder')
-    for (const c of (data ?? []) as Array<{ email: string | null; vat_number: string | null; phone: string | null; mobile: string | null }>) {
-      if (c.email) emails.add(c.email.trim().toLowerCase())
-      if (c.vat_number) vats.add(c.vat_number.replace(/^DK\s*/i, '').replace(/\s/g, ''))
-      for (const p of [phoneDigits(c.phone), phoneDigits(c.mobile)]) if (p.length >= 8) phones.add(p)
-    }
-    if (!data || data.length < 1000) break
-  }
-  return { emails, vats, phones }
+// 00240 forudsætning 2: dublet-nøglerne læses globalt (kontrolleret sti) — en kunde uden for brugerens scope er stadig en
+// dublet. Kun normaliserede nøgler, ingen kunderækker returneres.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function loadExisting(_supabase: Ctx['supabase']) {
+  const { loadCustomerDedupeKeys } = await import('@/lib/customers/customer-duplicates')
+  return loadCustomerDedupeKeys(phoneDigits)
 }
 
 async function analyse(ctx: Ctx, csvText: string) {
@@ -121,9 +114,8 @@ export async function importCustomersAction(csvText: string): Promise<ActionResu
       // Kunde-review 2026-10-08 (#5): to samtidige importer af samme fil oprettede alle nye kunder to gange — tjek igen
       // umiddelbart før indsættelse (dubletter blev kun beregnet én gang før løkken)
       if (v.email) {
-        const { escapeLike } = await import('@/lib/validations/postgrest-filter')
-        const { data: exists } = await ctx.supabase.from('customers').select('id').ilike('email', escapeLike(String(v.email))).limit(1).maybeSingle()
-        if (exists) { lateDuplicates += 1; continue }
+        const { findCustomerByEmail } = await import('@/lib/customers/customer-email')
+        if (await findCustomerByEmail(ctx.supabase, String(v.email))) { lateDuplicates += 1; continue }
       }
       const { data, error } = await insertCustomerWithRetry(ctx.supabase, (customerNumber) => ({
         customer_number: customerNumber,

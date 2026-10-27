@@ -7,7 +7,7 @@ import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import type { OfferStatus } from '@/types/offers.types'
 
-import { CONVERTIBLE_STATUSES, convertOfferToCase } from '@/lib/services/offer-to-case'
+import { CONVERTIBLE_STATUSES, convertOfferToCase, convertedOutOfScopeMessage, findCaseForOffer } from '@/lib/services/offer-to-case'
 
 export type OfferConversionStatus =
   | 'not_converted'      // ikke konverteret (og ikke klar — fx kladde/afvist)
@@ -46,25 +46,22 @@ export async function getServiceCaseFromOffer(
     const { supabase } = await getAuthenticatedClient()
     { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
-    const { data, error } = await supabase
-      .from('service_cases')
-      .select('id, case_number')
-      .eq('source_offer_id', offerId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) {
+    // 00240: globalt opslag — en sag uden for brugerens scope skjuler ikke, at tilbuddet er konverteret
+    let data: Awaited<ReturnType<typeof findCaseForOffer>>
+    try {
+      data = await findCaseForOffer(supabase, offerId)
+    } catch (error) {
       logger.error('getServiceCaseFromOffer failed', { error })
       return { success: false, error: 'Kunne ikke slå sag op' }
     }
 
     if (!data) return { success: true, data: null }
+    if (!data.visible) return { success: false, error: convertedOutOfScopeMessage(data.case_number) }
     return {
       success: true,
       data: {
-        case_id: data.id as string,
-        case_number: data.case_number as string,
+        case_id: data.id,
+        case_number: data.case_number,
       },
     }
   } catch (error) {
@@ -119,6 +116,7 @@ export async function getOfferConversionPreview(
     }
     { const { offerScopeDeniedFor } = await import('@/lib/offers/offer-scope'); const scopeDenied = await offerScopeDeniedFor(offerId); if (scopeDenied) return { success: false, error: scopeDenied } } // API-2
 
+    const warnings0: string[] = []
     // Cost-free select — final_amount (salgssum) må vises; INGEN kost-kolonner.
     const { data: offer, error: offerErr } = await supabase
       .from('offers')
@@ -128,13 +126,10 @@ export async function getOfferConversionPreview(
     if (offerErr || !offer) return { success: false, error: 'Tilbud ikke fundet' }
 
     // Eksisterende koblet sag (sandhedskilde: source_offer_id).
-    const { data: linked } = await supabase
-      .from('service_cases')
-      .select('id, case_number')
-      .eq('source_offer_id', offerId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    // 00240: globalt opslag — en usynlig sag må ikke få UI'et til at tilbyde "Opret sag" igen
+    const linkedAny = await findCaseForOffer(supabase, offerId)
+    if (linkedAny && !linkedAny.visible) warnings0.push(convertedOutOfScopeMessage(linkedAny.case_number))
+    const linked = linkedAny?.visible ? { id: linkedAny.id, case_number: linkedAny.case_number } : null
 
     // Kunde- og partnernavne (cost-free).
     const ids = Array.from(new Set([
@@ -169,7 +164,7 @@ export async function getOfferConversionPreview(
       { role: 'Betaler', name: offer.payer_customer_id ? (nameById.get(offer.payer_customer_id as string) ?? null) : customerName },
     ]
 
-    const warnings: string[] = []
+    const warnings: string[] = [...warnings0]
     if (!offer.customer_id) warnings.push('Tilbuddet har ingen kunde — sagen kan ikke kobles til en kunde.')
     if (!offer.title) warnings.push('Tilbuddet har ingen titel — sagen får en standardtitel.')
 
@@ -241,6 +236,9 @@ export async function createServiceCaseFromOffer(
 
     const core = await convertOfferToCase(supabase, offerId, userId)
     if (!core.success || !core.data) return { success: false, error: core.error ?? 'Kunne ikke oprette sag' }
+    if (!core.data.created && core.data.visible === false) {
+      return { success: false, error: convertedOutOfScopeMessage(core.data.case_number) }
+    }
     if (!core.data.created || !core.data.audit) {
       return { success: true, data: { case_id: core.data.case_id, case_number: core.data.case_number, created: false } }
     }

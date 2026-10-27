@@ -67,7 +67,18 @@ export async function actorForChat(admin: SupabaseClient, chatId: number): Promi
   const { data: p } = await admin.from('profiles').select('id, role, is_active').eq('id', link.profile_id).maybeSingle()
   const prof = p as { id: string; role: UserRole; is_active: boolean | null } | null
   if (!prof) return null
-  return { profileId: prof.id, role: prof.role, isActive: !!prof.is_active, channel: 'telegram' }
+  // 00240/PERM-1: effektive rettigheder (rolle + overrides) — webhooken har ingen session, så overrides læses med
+  // admin-klienten. Læsefejl (andet end "tabellen findes ikke") = ingen rettigheder (fail-closed).
+  const { computeEffectivePermissions } = await import('@/lib/auth/effective-permissions')
+  const { overridesTableMissing } = await import('@/lib/auth/effective-access')
+  const { PERMISSIONS } = await import('@/lib/auth/permissions')
+  const { data: ov, error: ovErr } = await admin.from('user_permission_overrides').select('permission, effect').eq('profile_id', prof.id)
+  const permissions = ovErr && !overridesTableMissing(ovErr)
+    ? new Set<never>()
+    : computeEffectivePermissions(prof.is_active ? prof.role : 'ingen_adgang', ((ov ?? []) as Array<{ permission: string; effect: string }>)
+      .filter((o) => o.permission in PERMISSIONS && (o.effect === 'grant' || o.effect === 'revoke'))
+      .map((o) => ({ permission: o.permission as keyof typeof PERMISSIONS, effect: o.effect as 'grant' | 'revoke' })))
+  return { profileId: prof.id, role: prof.role, isActive: !!prof.is_active, channel: 'telegram', permissions }
 }
 
 /** Telegram-chatten for en CRM-bruger (til påmindelser) — kun aktive, ikke-afbrudte koblinger. */

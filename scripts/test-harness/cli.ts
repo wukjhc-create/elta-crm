@@ -2591,6 +2591,13 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'mp-00240-scope-check') {
+    const { runMp00240ScopeCheck, formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
+    const checks = await runMp00240ScopeCheck({ admin, url: runtime.url, anonKey: runtime.anonKey })
+    log(formatMp00240ScopeCheck(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00239-rls-check') {
     const { runMp00239RlsCheck, formatMp00239RlsCheck } = await import('./mp-00239-rls-check')
     const checks = await runMp00239RlsCheck({ admin, url: runtime.url, anonKey: runtime.anonKey })

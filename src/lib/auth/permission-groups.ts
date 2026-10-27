@@ -31,6 +31,7 @@ export function permissionGroup(p: Permission): PermissionGroupKey | null {
 
 /** Scope-niveauer (lav → høj). Tilføj senere fx 'cases.view.team' mellem de to — ingen skemaændring. */
 export const SCOPE_SETS: Array<{ label: string; levels: Array<{ key: Permission; label: string }> }> = [
+  { label: 'Se kunder', levels: [{ key: 'customers.view', label: 'Egne/relaterede' }, { key: 'customers.view.all', label: 'Alle' }] },
   { label: 'Se sager', levels: [{ key: 'cases.view.assigned', label: 'Egne/tildelte' }, { key: 'cases.view.all', label: 'Alle' }] },
   { label: 'Ret sager', levels: [{ key: 'cases.edit.own', label: 'Egne/tildelte' }, { key: 'cases.edit', label: 'Alle' }] },
   { label: 'Se arbejdsordrer', levels: [{ key: 'work_orders.view.assigned', label: 'Tildelte' }, { key: 'work_orders.view.all', label: 'Alle' }] },

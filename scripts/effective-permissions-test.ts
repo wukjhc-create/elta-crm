@@ -58,7 +58,9 @@ const el = computeEffectivePermissions('montør', templateOverrides(PERMISSION_T
 t('Elektriker = montør + customers.create + cases.create (ikke customers.edit)', el.has('customers.create') && el.has('cases.create') && el.has('cases.edit.own') && !el.has('customers.edit'))
 const om = computeEffectivePermissions('montør', templateOverrides(PERMISSION_TEMPLATES.overmontor))
 t('Overmontør ⊇ Elektriker', [...el].every((k) => om.has(k)))
-t('Overmontør: alle sager/arbejdsordrer, planlægning, opgaver, timegodkendelse', ['cases.view.all', 'work_orders.view.all', 'calendar.view.all', 'calendar.plan', 'work_orders.plan', 'tasks.create', 'time_logs.approve'].every((k) => om.has(k as Permission)))
+t('00240: Montør/Elektriker uden customers.view.all; Salg/Serviceleder/Bogholderi/Admin med', !rolePermissions('montør').has('customers.view.all') && !el.has('customers.view.all')
+  && ['admin', 'serviceleder', 'salg', 'bogholderi'].every((r) => rolePermissions(r).has('customers.view.all')))
+t('Overmontør: alle kunder/sager/arbejdsordrer, planlægning, opgaver, timegodkendelse', ['customers.view.all', 'cases.view.all', 'work_orders.view.all', 'calendar.view.all', 'calendar.plan', 'work_orders.plan', 'tasks.create', 'time_logs.approve'].every((k) => om.has(k as Permission)))
 t('Overmontør: ingen løn/kost/regnskab/indstillinger', !['employees.payroll.view', 'economy.cost_prices', 'invoices.view.all', 'settings.view', 'materials.view.cost_prices', 'offers.view.cost_prices'].some((k) => om.has(k as Permission)))
 
 // 5. grupper og scope-sæt

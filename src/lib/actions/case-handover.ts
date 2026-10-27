@@ -44,8 +44,9 @@ async function handoverAccess(ctx: Ctx, caseId: string) {
 /** FW-2 (montør-review 2026-10-17): afleveringen er frosset på en lukket sag (før kunne fotos slettes/afkrydsning fjernes
  *  efter lukning/fakturering — ingen spor). Returnerer en fejltekst eller null. */
 async function closedCaseBlock(caseId: string): Promise<string | null> {
-  const { data } = await (await admin()).from('service_cases').select('status').eq('id', caseId).maybeSingle()
-  return (data as { status?: string } | null)?.status === 'closed' ? 'Sagen er lukket — genåbn den først' : null
+  // 00240: fail-closed — ulæselig/manglende sag afviser
+  const { caseWriteBlock } = await import('@/lib/cases/case-write-guard')
+  return caseWriteBlock(caseId)
 }
 
 async function admin() {

@@ -26,7 +26,6 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'document-confirmations.ts:getConfirmationContext': S('læses server-side af den token-validerede bekræftelsesside'),
   'email.ts:logEmailEvent': S('logning fra afsendelsesflowet'),
   'email.ts:trackEmailOpen': S('åbningssporing fra tracking-route'),
-  'email.ts:logIncomingEmail': S('logning fra mail-synk'),
   'learning.ts:recordProjectFeedback': S('intern læringshjælper'),
   'partner-portal.ts:validatePartnerToken': S('token-validering brugt server-side af partnerportalen'),
   'portal.ts:validatePortalToken': S('token-validering brugt server-side af portalen'),

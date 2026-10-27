@@ -381,9 +381,10 @@ export async function updateWorkOrderPlanning(
     // SC-10 (sags-review 2026-10-17): samme regler som ved oprettelse — ikke på lukket sag eller forslag-sag
     const woCaseId = (curWo as { case_id: string | null }).case_id
     if (woCaseId) {
-      const { data: wc } = await supabase.from('service_cases').select('status, is_proposal').eq('id', woCaseId).maybeSingle()
-      if ((wc as { status?: string } | null)?.status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
-      if ((wc as { is_proposal?: boolean } | null)?.is_proposal) return { success: false, error: 'Sagen er et forslag — godkend den først' }
+      // 00240: fail-closed (admin-læsning af sagens egen status; ulæselig sag = afvist)
+      const { caseWriteBlock } = await import('@/lib/cases/case-write-guard')
+      const blocked = await caseWriteBlock(woCaseId, { blockProposal: true })
+      if (blocked) return { success: false, error: blocked }
     }
 
     const { data, error } = await supabase
@@ -455,8 +456,10 @@ export async function changeWorkOrderStatus(
 
     // Pilot-review 2026-10-15 (#9): ingen statusskift på en lukket sags arbejdsordrer (som ved oprettelse/timer)
     if (cur.case_id) {
-      const { data: cs } = await supabase.from('service_cases').select('status').eq('id', cur.case_id as string).maybeSingle()
-      if ((cs as { status?: string } | null)?.status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+      // 00240: fail-closed (admin-læsning; ulæselig sag = afvist)
+      const { caseWriteBlock } = await import('@/lib/cases/case-write-guard')
+      const blocked = await caseWriteBlock(cur.case_id as string)
+      if (blocked) return { success: false, error: blocked }
     }
 
     if (!ALLOWED_TRANSITIONS[cur.status as WorkOrderStatus]?.includes(next)) {
@@ -514,8 +517,10 @@ export async function changeWorkOrderStatus(
     // RC-3 (samtidigheds-review 2026-10-18): sagen kan være lukket mellem tjekket ovenfor og opdateringen — så rulles
     // statusskiftet tilbage (sagens lukning gør det modsatte tjek efter sin opdatering)
     if (cur.case_id && next === 'in_progress') {
-      const { data: csNow } = await supabase.from('service_cases').select('status').eq('id', cur.case_id as string).maybeSingle()
-      if ((csNow as { status?: string } | null)?.status === 'closed') {
+      // 00240: fail-closed — kan sagen ikke læses, rulles statusskiftet også tilbage
+      const { readCaseWriteState } = await import('@/lib/cases/case-write-guard')
+      const csNow = await readCaseWriteState(cur.case_id as string)
+      if (!csNow || csNow.status === 'closed') {
         const { error: rbErr } = await supabase.from('work_orders').update({ status: cur.status, completed_at: (cur as { completed_at?: string | null }).completed_at ?? null }).eq('id', workOrderId).eq('status', next)
         // PR4-15: fejlet tilbagerulning meldes (ellers står arbejdsordren "i gang" på en lukket sag uden at nogen ved det)
         if (rbErr) {

@@ -522,12 +522,9 @@ export async function sendBesigtigelsePdf(
     if (!isBesigtigelseDocument(doc.document_type, doc.title) || doc.source_email_id || !doc.storage_path) {
       return { success: false, error: 'Dokumentet er ikke en besigtigelsesrapport' }
     }
-    if (doc.service_case_id) {
-      const ctx = await getAuthenticatedClientWithRole()
-      if (!(await userCanViewCase(doc.service_case_id, ctx))) {
-        return { success: false, error: 'Du har ikke adgang til denne sag' }
-      }
-    }
+    // 00240 (scope-audit): også en SAGSLØS rapport kræver adgang (før blev enhver kundes sagsløse rapport sendt)
+    const docDenied = await documentReadDenied(doc)
+    if (docDenied) return { success: false, error: docDenied }
 
     // Get customer
     const { data: customer, error: custErr } = await supabase

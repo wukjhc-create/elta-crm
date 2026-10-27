@@ -138,12 +138,34 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   // Læs med brugerens session (RLS-scope) — kun rækker brugeren må se, kan besluttes
   const { data: visible, error: readErr } = await supabase
     .from('time_logs')
-    .select('id, employee_id, work_order_id, billable, start_time, end_time, approval_status, invoice_line_id, pay_rate_type, employee_rate_id, employee:employees(profile_id), work_order:work_orders(case:service_cases(status))')
+    .select('id, employee_id, work_order_id, billable, start_time, end_time, approval_status, invoice_line_id, pay_rate_type, employee_rate_id, employee:employees(profile_id)')
     .in('id', unique)
   if (readErr) return { success: false, error: 'Kunne ikke hente timer' }
-  type V = { id: string; employee_id: string; work_order_id: string | null; billable: boolean | null; start_time: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; pay_rate_type: string | null; employee_rate_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null; work_order: { case: unknown } | Array<{ case: unknown }> | null }
+  type V = { id: string; employee_id: string; work_order_id: string | null; billable: boolean | null; start_time: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; pay_rate_type: string | null; employee_rate_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null}
   // TT-11 (timer-review 2026-10-18): en lukket sags kost/avance må ikke ændres af en senere godkendelse/afvisning
-  const caseClosed = (v: V) => (one(one(v.work_order)?.case as { status?: string } | Array<{ status?: string }> | null)?.status ?? null) === 'closed'
+  // 00240: fail-closed — sagens status læses med admin-klienten (et af RLS skjult embed betød før "ikke lukket");
+  // en registrering på en arbejdsordre hvis sag ikke kan læses, behandles som lukket
+  const woIds = [...new Set(((visible ?? []) as unknown as V[]).map((v) => v.work_order_id).filter((x): x is string => !!x))]
+  const woCase = new Map<string, string | null>()
+  if (woIds.length) {
+    const { createAdminClient: adminForGuard } = await import('@/lib/supabase/admin')
+    for (let k = 0; k < woIds.length; k += 200) {
+      const { data: wos, error: woErr } = await adminForGuard().from('work_orders').select('id, case_id').in('id', woIds.slice(k, k + 200))
+      if (woErr) return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
+      for (const w of (wos ?? []) as Array<{ id: string; case_id: string | null }>) woCase.set(w.id, w.case_id)
+    }
+  }
+  const { readCaseStatuses } = await import('@/lib/cases/case-write-guard')
+  const caseStates = await readCaseStatuses([...woCase.values()].filter((x): x is string => !!x))
+  if (!caseStates) return { success: false, error: 'Kunne ikke hente sagernes status' }
+  const caseClosed = (v: V) => {
+    if (!v.work_order_id) return false
+    if (!woCase.has(v.work_order_id)) return true
+    const cid = woCase.get(v.work_order_id)
+    if (!cid) return false
+    const st = caseStates.get(cid)
+    return !st || st.status === 'closed'
+  }
   const eligible = ((visible ?? []) as unknown as V[]).filter((v) =>
     v.end_time !== null && v.approval_status !== decision && one(v.employee)?.profile_id !== userId
     // HR-review 2026-10-08 (#4): fakturerede timer kan ikke afvises (de forsvandt fra kost/avance, men stod på fakturaen)

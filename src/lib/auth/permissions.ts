@@ -39,6 +39,9 @@ export const PERMISSIONS = {
 
   // Customer permissions
   'customers.view': ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'],
+  // 00240 (Henrik 2026-10-27, D1/D2): HELE kunderegistret. Uden den: egne + relaterede kunder (lib/auth/scope-model.ts).
+  // Salg har den (globalt kundeopslag i tilbud/dubletter/moms); montør/Elektriker ikke; Overmontør via skabelonen.
+  'customers.view.all': ['admin', 'serviceleder', 'salg', 'bogholderi'],
   'customers.create': ['admin', 'serviceleder', 'salg'],
   'customers.edit': ['admin', 'serviceleder', 'salg'],
   'customers.delete': ['admin'],

@@ -295,10 +295,12 @@ export async function createTimeLog(
     if (wo.status === 'cancelled') {
       return { success: false, error: 'Kan ikke registrere timer på en annulleret arbejdsordre' }
     }
-    {
-      // Sags-review 2026-10-09 (#6): ingen nye timer på en lukket sag
-      const cs = (wo as { case?: { status?: string } | Array<{ status?: string }> | null }).case
-      if ((Array.isArray(cs) ? cs[0] : cs)?.status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+    if ((wo as { case_id?: string | null }).case_id) {
+      // Sags-review 2026-10-09 (#6): ingen nye timer på en lukket sag. 00240: fail-closed — sagens egen status læses med
+      // admin-klienten (et embed der er skjult af RLS betød før "ikke lukket")
+      const { caseWriteBlock } = await import('@/lib/cases/case-write-guard')
+      const blocked = await caseWriteBlock((wo as { case_id: string }).case_id)
+      if (blocked) return { success: false, error: blocked }
     }
 
     // Validate employee exists + active.
@@ -467,11 +469,17 @@ export async function updateTimeLog(
     }
     {
       // Pilot-review 2026-10-15 (#9): som ved oprettelse — ingen ændring af timer på en lukket sag (genåbn først)
-      const { data: woCase } = await supabase.from('work_orders').select('status, case:service_cases(status)').eq('id', cur.work_order_id as string).maybeSingle()
-      const cs = (woCase as { case?: { status?: string } | Array<{ status?: string }> | null } | null)?.case
-      if ((Array.isArray(cs) ? cs[0] : cs)?.status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+      // 00240: fail-closed — arbejdsordre og sag læses med admin-klienten (efter scope-tjekket ovenfor); ulæselig = afvist
+      const { createAdminClient: adminForGuard } = await import('@/lib/supabase/admin')
+      const { data: woCase, error: woCaseErr } = await adminForGuard().from('work_orders').select('status, case_id').eq('id', cur.work_order_id as string).maybeSingle()
+      if (woCaseErr || !woCase) return { success: false, error: 'Arbejdsordren kunne ikke læses — handlingen er afvist' }
+      if ((woCase as { case_id: string | null }).case_id) {
+        const { caseWriteBlock } = await import('@/lib/cases/case-write-guard')
+        const blocked = await caseWriteBlock((woCase as { case_id: string }).case_id)
+        if (blocked) return { success: false, error: blocked }
+      }
       // FW-12 (montør-review 2026-10-17): samme værn som ved oprettelse — ikke på en annulleret arbejdsordre
-      if ((woCase as { status?: string } | null)?.status === 'cancelled') return { success: false, error: 'Kan ikke ændre timer på en annulleret arbejdsordre' }
+      if ((woCase as { status?: string }).status === 'cancelled') return { success: false, error: 'Kan ikke ændre timer på en annulleret arbejdsordre' }
     }
     // Henrik 2026-10-15: en GODKENDT registrering kan kun ændres af en godkender (montøren retter afviste/afventende;
     // godkendt tid må ikke ændres bag om godkenderen). Fakturerede er låst ovenfor for alle.

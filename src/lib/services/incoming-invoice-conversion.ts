@@ -440,8 +440,12 @@ export async function convertApprovedInvoiceLines(
   }
   // LF-6: ingen fordeling til en lukket sag (samme regel som "Tilføj materiale")
   {
-    const { data: sag } = await supabase.from('service_cases').select('status, is_proposal').eq('id', caseId).maybeSingle()
+    const { data: sag, error: sagErr } = await supabase.from('service_cases').select('status, is_proposal').eq('id', caseId).maybeSingle()
     const sg = sag as { status?: string; is_proposal?: boolean | null } | null
+    // 00240: fail-closed — en ulæselig/manglende sag får ingen kost fordelt
+    if (sagErr || !sg) {
+      return { ok: false, message: 'Sagen kunne ikke læses — intet er fordelt', invoiceStatusFlipped: false, perLine: [], caseId }
+    }
     if (sg?.status === 'closed') {
       return { ok: false, message: 'Sagen er lukket — genåbn den først', invoiceStatusFlipped: false, perLine: [], caseId }
     }

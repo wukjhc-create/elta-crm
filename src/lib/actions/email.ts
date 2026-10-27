@@ -1267,6 +1267,9 @@ export async function logIncomingEmail(
     raw_email?: string
   }
 ): Promise<{ success: boolean; error?: string }> {
+  // 00240 (scope-audit): server action uden gate — enhver bruger kunne indsætte en "indgående" mail i en tilbudstråd
+  const denied = await permissionDenied('inbox.view')
+  if (denied) return { success: false, error: denied }
   try {
     const supabase = await createClient()
 
@@ -1385,6 +1388,10 @@ export async function getEmailStats(options?: {
   open_rate: number
   click_rate: number
 }> {
+  // 00240 (scope-audit): før uden gate med vilkårligt tilbuds-/kunde-id — kun indstillingssidens statistik (settings.view)
+  if (await permissionDenied('settings.view')) {
+    return { total_sent: 0, total_opened: 0, total_clicked: 0, total_bounced: 0, open_rate: 0, click_rate: 0 }
+  }
   try {
     const { supabase } = await getAuthenticatedClient()
 

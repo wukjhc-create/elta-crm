@@ -14,9 +14,15 @@ import { logger } from '@/lib/utils/logger'
 
 type Db = { from: (t: string) => any }
 
-export async function caseIsClosed(db: Db, caseId: string): Promise<boolean> {
-  const { data } = await db.from('service_cases').select('status').eq('id', caseId).maybeSingle()
-  return (data as { status?: string } | null)?.status === 'closed'
+/**
+ * SC-9: må sagens kostrækker IKKE ændres? 00240 forudsætning 4: fail-closed — sagens status læses med admin-klienten
+ * (efter kalderens scope-tjek), og en ulæselig/manglende sag tæller som lukket. `db` bevares for kompatibilitet.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function caseIsClosed(_db: Db, caseId: string): Promise<boolean> {
+  const { readCaseWriteState } = await import('@/lib/cases/case-write-guard')
+  const st = await readCaseWriteState(caseId)
+  return !st || st.status === 'closed'
 }
 
 export async function workOrderBelongsToCase(db: Db, workOrderId: string, caseId: string): Promise<boolean> {

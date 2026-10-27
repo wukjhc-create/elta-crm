@@ -737,9 +737,14 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
 
     // Dublet-værn: eksisterende kunde med samme mail
     // LD-13: aktiv kunde foretrækkes, når flere har samme mail (før tilfældig rækkefølge)
-    const { data: same } = await supabase.from('customers').select('id').ilike('email', escapeLike(email))
-      .order('is_active', { ascending: false }).order('created_at', { ascending: true }).limit(1).maybeSingle()
-    let customerId = (same?.id as string | undefined) ?? null
+    // 00240: globalt dublet-opslag (kontrolleret sti) — en skjult kunde kobles ikke, og der oprettes ingen dublet
+    const { findCustomerByEmail } = await import('@/lib/customers/customer-email')
+    const same = await findCustomerByEmail(supabase, email)
+    if (same && same.visible === false) {
+      const { hiddenCustomerMessage } = await import('@/lib/customers/customer-duplicates')
+      return { success: false, error: hiddenCustomerMessage(email, same) }
+    }
+    let customerId = same?.id ?? null
     let created = false
     if (!customerId) {
       const { insertCustomerWithRetry } = await import('@/lib/customers/customer-number')

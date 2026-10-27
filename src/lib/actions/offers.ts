@@ -478,6 +478,11 @@ export async function quickCreateCustomerAndOffer(
       const { findCustomerByEmail } = await import('@/lib/customers/customer-email')
       const existing = await findCustomerByEmail(supabase, input.email)
 
+      if (existing && existing.visible === false) {
+        // 00240: kunden findes, men er uden for brugerens scope — ingen kobling ad bagdøren og ingen stille dublet
+        const { hiddenCustomerMessage } = await import('@/lib/customers/customer-duplicates')
+        return { success: false, error: hiddenCustomerMessage(input.email, existing) }
+      }
       if (existing) {
         customerId = existing.id
       } else {

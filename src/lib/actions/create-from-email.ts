@@ -103,15 +103,15 @@ async function findOrCreateCustomerByEmail(
     return { error: 'Ugyldig email på betaler' }
   }
 
-  const { data: existing } = await supabase
-    .from('customers')
-    .select('id, company_name')
-    .ilike('email', escapeLike(emailLower))
-    .limit(1)
-    .maybeSingle()
-
+  // 00240: globalt opslag (kontrolleret sti) — en kunde uden for brugerens scope kobles ikke og dubleres ikke
+  const { findCustomerByEmail } = await import('@/lib/customers/customer-email')
+  const existing = await findCustomerByEmail(supabase, emailLower)
+  if (existing && existing.visible === false) {
+    const { hiddenCustomerMessage } = await import('@/lib/customers/customer-duplicates')
+    return { error: hiddenCustomerMessage(emailLower, existing) }
+  }
   if (existing) {
-    return { id: existing.id as string, existed: true }
+    return { id: existing.id, existed: true }
   }
 
   // PERM-1 fase 4 / 00239 (som S-9 i createCustomerFromEmail): en NY kunde kræver customers.create — inbox.view er

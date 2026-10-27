@@ -848,15 +848,16 @@ export async function createCustomerFromEmail(
   const phone = formPhone || extractPhoneNumber(email.body_text) || extractPhoneNumber(email.body_preview)
 
   // 4. Check for existing customer by email
-  const { data: existingCustomer } = await supabase
-    .from('customers')
-    .select('id, company_name, customer_number')
-    .ilike('email', escapeLike(senderEmail))
-    .limit(1)
-    .maybeSingle()
+  // 00240: globalt opslag (kontrolleret sti) — en kunde uden for brugerens scope kobles ikke og dubleres ikke
+  const { findCustomerByEmail } = await import('@/lib/customers/customer-email')
+  const existingCustomer = await findCustomerByEmail(supabase, senderEmail)
+  if (existingCustomer && existingCustomer.visible === false) {
+    const { hiddenCustomerMessage } = await import('@/lib/customers/customer-duplicates')
+    return { success: false, error: hiddenCustomerMessage(senderEmail, existingCustomer) }
+  }
 
   // RC-7: fælles sti for "kunden findes allerede" (også når en samtidig oprettelse vandt kapløbet, se nedenfor)
-  const linkToExisting = async (existingCustomer: { id: string; company_name: string }) => {
+  const linkToExisting = async (existingCustomer: { id: string; company_name: string | null }) => {
     // Link the email to existing customer
     // T-4 (review 2026-10-16): kun en mail uden kunde (eller allerede denne kunde) — før blev en mail koblet til en
     // anden kunde overskrevet; fejl/0 rækker meldes (før altid succes); linked_at sættes
@@ -878,7 +879,7 @@ export async function createCustomerFromEmail(
 
     revalidatePath('/dashboard/mail')
     revalidatePath('/dashboard/customers')
-    return { success: true, customerId: existingCustomer.id, isExisting: true, customerName: existingCustomer.company_name }
+    return { success: true, customerId: existingCustomer.id, isExisting: true, customerName: existingCustomer.company_name ?? undefined }
   }
   if (existingCustomer) return linkToExisting(existingCustomer)
 
@@ -906,9 +907,9 @@ export async function createCustomerFromEmail(
   // oprettede to. Genkontrol efter oprettelsen: findes en ÆLDRE kunde med samme mail, fjernes vores netop oprettede
   // (endnu uden lead/kobling) og mailen kobles til den ældste — begge kald ender på samme kunde.
   {
-    const { data: same } = await supabase.from('customers').select('id, company_name, created_at')
-      .ilike('email', escapeLike(senderEmail)).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(2)
-    const rows = (same ?? []) as Array<{ id: string; company_name: string }>
+    // 00240: genkontrollen er global (en ældre kunde uden for brugerens scope vinder også)
+    const { oldestCustomersByEmail } = await import('@/lib/customers/customer-duplicates')
+    const rows = await oldestCustomersByEmail(supabase, senderEmail.trim().toLowerCase(), 2)
     if (rows.length > 1 && rows[0].id !== newCustomer.id) {
       const { createAdminClient } = await import('@/lib/supabase/admin')
       const { error: delErr } = await createAdminClient().from('customers').delete()

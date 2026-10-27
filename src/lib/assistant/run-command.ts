@@ -9,7 +9,7 @@
  * håndhæves (RLS gælder ikke for admin-klienten).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { hasPermission } from '@/lib/auth/permissions'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
 import type { UserRole } from '@/types/auth.types'
 import { parseAssistantCommand, type ParsedCommand } from './command-parser'
 import { resolveTarget } from './resolve-target'
@@ -18,10 +18,26 @@ import { callbackSavedReply } from './callback-reply'
 import { reminderSavedReply } from './reminder-reply'
 import { noteSavedReply } from './note-reply'
 import { getCaseScope } from '@/lib/auth/case-scope'
+import { filterVisibleCustomerIds } from '@/lib/auth/customer-scope'
 import { copenhagenParts, copenhagenLocalToIso, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { escapeLike } from '@/lib/validations/postgrest-filter'
 
-export type AssistantActor = { profileId: string; role: UserRole; isActive: boolean; channel: 'telegram' | 'test' }
+export type AssistantActor = {
+  profileId: string; role: UserRole; isActive: boolean; channel: 'telegram' | 'test'
+  /** 00240/PERM-1: EFFEKTIVE rettigheder (rolle ∪ grants − revokes), indlæst af actorForChat med admin-klienten */
+  permissions?: ReadonlySet<Permission>
+}
+
+/** Effektiv rettighed for aktøren — deaktiveret = intet; uden indlæst sæt (kun test-aktører) bruges rollen */
+export function actorCan(actor: AssistantActor, perm: Permission): boolean {
+  if (!actor.isActive) return false
+  return actor.permissions ? actor.permissions.has(perm) : hasPermission(actor.role, perm)
+}
+
+/** Scope-kontekst for aktøren (admin-klient — reglerne i case-/customer-scope filtrerer selv på aktøren) */
+export function actorScopeCtx(admin: SupabaseClient, actor: AssistantActor) {
+  return { role: actor.role, userId: actor.profileId, supabase: admin, hasPermission: (p: Permission) => actorCan(actor, p) }
+}
 
 /** p_snooze/p_done = personlig påmindelse (personal_reminders), øvrige = kundeopgave/kunde */
 export type AssistantButton = { label: string; action: 'call_now' | 'open_customer' | 'snooze' | 'done' | 'p_snooze' | 'p_done'; ref: string }
@@ -61,7 +77,7 @@ async function audit(admin: SupabaseClient, actor: AssistantActor, action: strin
 
 export async function runAssistantCommand(admin: SupabaseClient, actor: AssistantActor, input: string, now: Date = new Date()): Promise<AssistantReply> {
   if (!actor.isActive) return { ok: false, text: 'Din CRM-bruger er deaktiveret.' }
-  if (!hasPermission(actor.role, 'customers.edit')) {
+  if (!actorCan(actor, 'customers.edit')) {
     await audit(admin, actor, 'denied', null, null, { reason: 'role', role: actor.role })
     return { ok: false, text: 'ELTA Assistant er endnu kun åben for kontor-roller.' }
   }
@@ -140,10 +156,12 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
   }
   // Assistent-review 2026-10-08 (#1): sags-scope som i CRM (salg: egne sager, montør: sager med egne job)
   const caseFilter = async (ids: string[]) => {
-    const scope = await getCaseScope({ role: actor.role, userId: actor.profileId, supabase: admin })
+    const scope = await getCaseScope(actorScopeCtx(admin, actor))
     return new Set(scope.type === 'all' ? ids : ids.filter((id) => scope.caseIds.includes(id)))
   }
-  const res = await resolveTarget(admin, cmd.target, caseFilter)
+  // 00240: kunder uden for aktørens kunde-scope findes ikke (heller ikke som kandidat)
+  const customerFilter = async (ids: string[]) => filterVisibleCustomerIds(ids, actorScopeCtx(admin, actor))
+  const res = await resolveTarget(admin, cmd.target, caseFilter, customerFilter)
   if (res.status === 'none') return { ok: false, text: lookupReply(cmd.target, 'none', []) }
   if (res.status === 'ambiguous') {
     await audit(admin, actor, 'ambiguous', null, cmd.target, { intent: cmd.intent, candidates: res.candidates.map((c) => c.id) })
@@ -179,7 +197,7 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
       const [{ data }, { data: wo }] = await Promise.all([
         admin.from('service_cases').select('case_number, title, status, start_date, end_date').eq('id', target.id).single(),
         // kun med arbejdsordre-rettighed (salg har ingen work_orders.view)
-        hasPermission(actor.role, 'work_orders.view.all') || hasPermission(actor.role, 'work_orders.view.assigned')
+        actorCan(actor, 'work_orders.view.all') || actorCan(actor, 'work_orders.view.assigned')
           ? admin.from('work_orders').select('title, scheduled_date, status').eq('case_id', target.id).in('status', ['planned', 'in_progress']).not('scheduled_date', 'is', null).order('scheduled_date').limit(1).maybeSingle()
           : Promise.resolve({ data: null }),
       ])
@@ -188,14 +206,19 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
       await audit(admin, actor, 'lookup', target.id, target.label, { kind: 'case' })
       const lines = c ? [`${c.case_number} ${c.title ?? ''}`.trim(), `Status: ${c.status}`] : [target.label]
       if (c?.start_date) lines.push(`Start: ${c.start_date}`)
-      const mayViewWo = hasPermission(actor.role, 'work_orders.view.all') || hasPermission(actor.role, 'work_orders.view.assigned')
+      const mayViewWo = actorCan(actor, 'work_orders.view.all') || actorCan(actor, 'work_orders.view.assigned')
       if (mayViewWo) lines.push(next ? `Næste arbejdsordre: ${next.scheduled_date} — ${next.title}${next.status === 'in_progress' ? ' (i gang)' : ''}` : 'Ingen planlagt arbejdsordre')
       return { ok: true, text: lines.join('\n'), buttons: target.customerId ? [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId }] : undefined }
     }
-    const [{ count: openTasks }, { count: openCases }] = await Promise.all([
+    // 00240: åbne sager tælles kun inden for aktørens sags-scope (salg: egne) — ingen tælle-læk
+    const caseScope = await getCaseScope(actorScopeCtx(admin, actor))
+    const openCaseQ = admin.from('service_cases').select('id').eq('customer_id', target.id).is('closed_at', null).limit(1000)
+    const [{ count: openTasks }, { data: openCaseRows }] = await Promise.all([
       admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', target.id).neq('status', 'done'),
-      admin.from('service_cases').select('id', { count: 'exact', head: true }).eq('customer_id', target.id).is('closed_at', null),
+      openCaseQ,
     ])
+    const openCases = ((openCaseRows ?? []) as Array<{ id: string }>)
+      .filter((r) => caseScope.type === 'all' || caseScope.caseIds.includes(r.id)).length
     await audit(admin, actor, 'lookup', target.id, target.label, { kind: 'customer' })
     return { ok: true, text: `${target.label}\nÅbne opgaver: ${openTasks ?? 0} · åbne sager: ${openCases ?? 0}`, buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.id }] }
   }
@@ -271,7 +294,7 @@ Bekræftelse til kunden er IKKE sendt — send fra CRM.`,
   const source = actor.channel === 'telegram' ? 'telegram' : 'assistant'
   if (target.kind === 'case') {
     // samme regel som CRM: cases.edit (kontor) — cases.edit.own kræver sags-scope, som assistenten ikke har i fase 1
-    if (!hasPermission(actor.role, 'cases.edit')) {
+    if (!actorCan(actor, 'cases.edit')) {
       await audit(admin, actor, 'denied', target.id, target.label, { reason: 'cases.edit', intent: 'note' })
       return { ok: false, text: 'Du har ikke ret til at skrive noter på sager.' }
     }

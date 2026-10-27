@@ -395,21 +395,29 @@ export async function checkDuplicateCustomer(
       return { success: false, error: 'Manglende tilladelse: customers.create' }
     }
 
-    let query = supabase
-      .from('customers')
-      .select('id, company_name, customer_number, email')
-      .or(`email.ilike.${pgQuote(sanitizeSearchTerm(email))},company_name.ilike.${pgQuote(sanitizeSearchTerm(companyName))}`)
-      .limit(5)
-
-    if (excludeId) {
-      query = query.neq('id', excludeId)
-    }
-
-    const { data, error } = await query
-    if (error) {
+    // 00240 forudsætning 2: globalt opslag (en kunde uden for brugerens scope er stadig en dublet); skjulte træf
+    // vises kun med kundenummer — navn/mail/id udleveres ikke
+    const { findCustomerMatchesByEmailOrName } = await import('@/lib/customers/customer-duplicates')
+    let matches
+    try {
+      matches = await findCustomerMatchesByEmailOrName(supabase,
+        `email.ilike.${pgQuote(sanitizeSearchTerm(email))},company_name.ilike.${pgQuote(sanitizeSearchTerm(companyName))}`,
+        { excludeId, limit: 5 })
+    } catch {
       return { success: false, error: 'Kunne ikke tjekke for dubletter' }
     }
-    return { success: true, data: data || [] }
+    const visibleIds = matches.filter((m) => m.visible).map((m) => m.id)
+    const emails = new Map<string, string>()
+    if (visibleIds.length) {
+      const { data } = await supabase.from('customers').select('id, email').in('id', visibleIds)
+      for (const r of (data ?? []) as Array<{ id: string; email: string | null }>) emails.set(r.id, r.email ?? '')
+    }
+    return {
+      success: true,
+      data: matches.map((m) => m.visible
+        ? { id: m.id, company_name: m.company_name ?? '', customer_number: m.customer_number ?? '', email: emails.get(m.id) ?? '' }
+        : { id: '', company_name: 'Kunde uden for din adgang', customer_number: m.customer_number ?? '', email: '' }),
+    }
   } catch (err) {
     return { success: false, error: formatError(err, 'Fejl ved dublet-tjek') }
   }

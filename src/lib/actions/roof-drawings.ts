@@ -31,10 +31,18 @@ async function roofWriteDenied(
     // MP-00236 (Henrik 2026-10-24): lukket sag = ingen opret/ret/slet af tagtegninger — også for kontoret; genåbn sagen først
     if ((sc as { status: string | null }).status === 'closed') return 'Sagen er lukket — en administrator eller serviceleder skal genåbne den, før tagtegningen kan ændres'
   }
-  if (ctx.hasPermission('customers.edit')) return null
-  if (!serviceCaseId) return 'Manglende tilladelse: customers.edit'
-  const { userCanViewCase } = await import('@/lib/auth/case-scope')
-  return (await userCanViewCase(serviceCaseId, ctx)) ? null : 'Du har ikke adgang til denne sag'
+  // 00240 (scope-audit): en tegning på en sag kræver altid sags-scope — customers.edit gav før salg adgang til at
+  // ændre tegninger på andres sager
+  if (serviceCaseId) {
+    const { userCanViewCase } = await import('@/lib/auth/case-scope')
+    return (await userCanViewCase(serviceCaseId, ctx)) ? null : 'Du har ikke adgang til denne sag'
+  }
+  if (!ctx.hasPermission('customers.edit')) return 'Manglende tilladelse: customers.edit'
+  if (customerId) {
+    const { userCanViewCustomer } = await import('@/lib/auth/customer-scope')
+    if (!(await userCanViewCustomer(customerId, ctx))) return 'Du har ikke adgang til denne kunde'
+  }
+  return null
 }
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { validateUUID } from '@/lib/validations/common'
@@ -173,6 +181,9 @@ export async function listRoofDrawings(
       query = query.eq('service_case_id', input.serviceCaseId)
     } else if (input.customerId) {
       validateUUID(input.customerId, 'kunde-ID')
+      // 00240 (scope-audit): kundevisningen kræver kunde-scope (før: sagsløse tegninger for en vilkårlig kunde)
+      const { userCanViewCustomer } = await import('@/lib/auth/customer-scope')
+      if (!(await userCanViewCustomer(input.customerId, ctx))) return { success: false, error: 'Du har ikke adgang til denne kunde' }
       query = query.eq('customer_id', input.customerId)
     }
 

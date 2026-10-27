@@ -19,6 +19,9 @@ const SERVER_ONLY_MODULES = [
   'src/lib/actions/mail-route-resolvers.ts',
   'src/lib/actions/system-alerts-admin.ts',
   'src/lib/audit/audit-log-writer.ts',
+  // 00240: globale (admin-)opslag til kundenummer/dubletter og fail-closed sags-værn
+  'src/lib/customers/customer-duplicates.ts',
+  'src/lib/cases/case-write-guard.ts',
 ]
 
 let failures = 0

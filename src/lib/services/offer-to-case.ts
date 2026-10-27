@@ -25,32 +25,47 @@ const OFFER_STARTUP_TASKS = [
   'Afklar faktura- og betalingsplan',
 ] as const
 
+/**
+ * 00240 forudsætning 3: sagen der allerede er oprettet fra tilbuddet — slået op GLOBALT (admin-klient), så en sag uden
+ * for kalderens læse-scope stadig forhindrer en dublet (før: usynlig sag → "Opret sag" igen → 23505). `visible` afgøres
+ * med kalderens egen klient (RLS = samme semantik som 00240). Returnerer kun id/nummer.
+ */
+export async function findCaseForOffer(callerDb: SupabaseLike, offerId: string): Promise<{ id: string; case_number: string; visible: boolean } | null> {
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { data, error } = await createAdminClient()
+    .from('service_cases')
+    .select('id, case_number')
+    .eq('source_offer_id', offerId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(`sag for tilbud kunne ikke slås op: ${error.message}`)
+  if (!data) return null
+  const { data: seen, error: seenErr } = await callerDb.from('service_cases').select('id').eq('id', data.id).maybeSingle()
+  return { id: data.id as string, case_number: data.case_number as string, visible: !seenErr && !!seen }
+}
+
+/** Dansk besked når tilbuddet er konverteret til en sag uden for brugerens scope (kun sagsnummeret afsløres) */
+export function convertedOutOfScopeMessage(caseNumber: string): string {
+  return `Tilbuddet er allerede oprettet som sag ${caseNumber}, som du ikke har adgang til. Kontakt kontoret.`
+}
+
 export interface OfferToCaseCoreResult {
   case_number: string
   case_id: string
   created: boolean
+  /** 00240: false = sagen findes, men er uden for kalderens læse-scope */
+  visible?: boolean
   audit?: { offer_id: string; offer_number: string | null; customer_id: string | null; contract_sum: number | null; document_count: number; startup_task_count: number }
 }
 
 export async function convertOfferToCase(supabase: SupabaseLike, offerId: string, userId: string): Promise<ActionResult<OfferToCaseCoreResult>> {
     // 1. Idempotency check — reuse existing sag (server-side dublet-guard).
+    // 00240: globalt opslag (kontrolleret sti) — også en sag uden for kalderens scope
     {
-      const { data: existing } = await supabase
-        .from('service_cases')
-        .select('id, case_number')
-        .eq('source_offer_id', offerId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const existing = await findCaseForOffer(supabase, offerId)
       if (existing) {
-        return {
-          success: true,
-          data: {
-            case_id: existing.id as string,
-            case_number: existing.case_number as string,
-            created: false,
-          },
-        }
+        return { success: true, data: { case_id: existing.id, case_number: existing.case_number, created: false, visible: existing.visible } }
       }
     }
 
@@ -173,8 +188,8 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       // Sags-review 2026-10-09 (#8): samtidig konvertering (portal-accept + manuel) → unikt indeks på source_offer_id
       // afviste den ene. Returnér den sag der blev oprettet i stedet for en fejl.
       if ((insertErr as { code?: string } | null)?.code === '23505') {
-        const { data: winner } = await supabase.from('service_cases').select('id, case_number').eq('source_offer_id', offerId).limit(1).maybeSingle()
-        if (winner) return { success: true, data: { case_id: winner.id as string, case_number: winner.case_number as string, created: false } }
+        const winner = await findCaseForOffer(supabase, offerId)
+        if (winner) return { success: true, data: { case_id: winner.id, case_number: winner.case_number, created: false, visible: winner.visible } }
       }
       logger.error('createServiceCaseFromOffer insert failed', { error: insertErr })
       return { success: false, error: 'Kunne ikke oprette sag' }

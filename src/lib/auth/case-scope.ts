@@ -18,7 +18,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { UserRole } from '@/types/auth.types'
-import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import type { Permission } from '@/lib/auth/permissions'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type CaseScope =
@@ -29,7 +29,7 @@ export type WorkOrderScope =
   | { type: 'all' }
   | { type: 'specific'; workOrderIds: string[]; employeeId: string | null }
 
-interface ScopeContext {
+export interface ScopeContext {
   role: UserRole
   userId: string
   supabase: SupabaseClient
@@ -37,9 +37,17 @@ interface ScopeContext {
   hasPermission?: (perm: Permission) => boolean
 }
 
-/** PERM-1: overrides følger med når kalderen sender sit ctx; ellers rollens rettigheder */
-function can(ctx: ScopeContext, perm: Permission): boolean {
-  return ctx.hasPermission ? ctx.hasPermission(perm) : hasPermission(ctx.role, perm)
+/**
+ * PERM-1 / 00240: scope afgøres ALTID af EFFEKTIVE rettigheder (rolle ∪ grants − revokes). Sender kalderen ikke sit
+ * hasPermission med, indlæses brugerens overrides (request-cachet) — før faldt ~34 kaldesteder tilbage til rollen alene,
+ * så fx en Overmontør (cases.view.all via skabelon) blev behandlet som montør, og en REVOKE blev ignoreret.
+ * Kan overrides ikke læses, giver effectivePermissionsFor INGEN rettigheder (fail-closed).
+ */
+export async function scopePermissions(ctx: ScopeContext): Promise<(perm: Permission) => boolean> {
+  if (ctx.hasPermission) return ctx.hasPermission
+  const { effectivePermissionsFor } = await import('./effective-access')
+  const set = await effectivePermissionsFor(ctx.userId, ctx.role)
+  return (perm) => set.has(perm)
 }
 
 /**
@@ -55,11 +63,12 @@ function can(ctx: ScopeContext, perm: Permission): boolean {
  * - andre                                           → tom liste
  */
 export async function getCaseScope(ctx: ScopeContext): Promise<CaseScope> {
-  if (can(ctx, 'cases.view.all')) {
+  const can = await scopePermissions(ctx)
+  if (can('cases.view.all')) {
     return { type: 'all' }
   }
 
-  if (!can(ctx, 'cases.view.assigned')) {
+  if (!can('cases.view.assigned')) {
     return { type: 'specific', caseIds: [] }
   }
 
@@ -104,6 +113,10 @@ export async function getCaseScope(ctx: ScopeContext): Promise<CaseScope> {
     }
   }
 
+  // Kilde 3 (00240 D4, Henrik 2026-10-27): sager konverteret fra et tilbud brugeren selv har oprettet
+  // (service_cases.source_offer_id → offers.created_by) — fx salgs tilbud der accepteres i portalen/konverteres af andre
+  for (const id of await casesFromMyOffers(ctx)) caseIdSet.add(id)
+
   return { type: 'specific', caseIds: Array.from(caseIdSet) }
 }
 
@@ -123,8 +136,9 @@ export type WorkOrderEmployeeScope = { type: 'all' } | { type: 'employee'; emplo
  * employeeId null = ingen adgang.
  */
 export async function getWorkOrderEmployeeScope(ctx: ScopeContext): Promise<WorkOrderEmployeeScope> {
-  if (can(ctx, 'work_orders.view.all')) return { type: 'all' }
-  if (!can(ctx, 'work_orders.view.assigned')) return { type: 'employee', employeeId: null }
+  const can = await scopePermissions(ctx)
+  if (can('work_orders.view.all')) return { type: 'all' }
+  if (!can('work_orders.view.assigned')) return { type: 'employee', employeeId: null }
   const empRes = await ctx.supabase
     .from('employees')
     .select('id')
@@ -165,8 +179,9 @@ export async function userCanViewCase(
 ): Promise<boolean> {
   // PF2-4 (performance-review 2026-10-17): samme regler som getCaseScope, men som opslag på ÉN sag (før blev hele
   // scopet — alle egne sager + alle montørens arbejdsordrer — hentet ved hvert kald, ~40 kaldesteder pr. sidevisning)
-  if (can(ctx, 'cases.view.all')) return true
-  if (!can(ctx, 'cases.view.assigned')) return false
+  const can = await scopePermissions(ctx)
+  if (can('cases.view.all')) return true
+  if (!can('cases.view.assigned')) return false
   const { data: own } = await ctx.supabase
     .from('service_cases')
     .select('id')
@@ -181,16 +196,36 @@ export async function userCanViewCase(
     .eq('active', true)
     .maybeSingle()
   const employeeId = (emp?.id as string | undefined) ?? null
-  if (!employeeId) return false
-  const { data: wo } = await ctx.supabase
-    .from('work_orders')
-    .select('id')
-    .eq('case_id', caseId)
-    .eq('assigned_employee_id', employeeId)
-    .neq('status', 'cancelled') // FW-11
-    .limit(1)
+  if (employeeId) {
+    const { data: wo } = await ctx.supabase
+      .from('work_orders')
+      .select('id')
+      .eq('case_id', caseId)
+      .eq('assigned_employee_id', employeeId)
+      .neq('status', 'cancelled') // FW-11
+      .limit(1)
+      .maybeSingle()
+    if (wo) return true
+  }
+  // 00240 D4: sagen er konverteret fra et tilbud brugeren selv har oprettet
+  const { data: fromOffer } = await ctx.supabase
+    .from('service_cases')
+    .select('id, src:offers!service_cases_source_offer_id_fkey!inner(created_by)')
+    .eq('id', caseId)
+    .eq('src.created_by', ctx.userId)
     .maybeSingle()
-  return !!wo
+  return !!fromOffer
+}
+
+/** 00240 D4: id'er på sager hvis source_offer_id er et tilbud oprettet af brugeren (side for side) */
+async function casesFromMyOffers(ctx: ScopeContext): Promise<string[]> {
+  const rows = await fetchAllRows<{ id: string }>((from, to) => ctx.supabase
+    .from('service_cases')
+    .select('id, src:offers!service_cases_source_offer_id_fkey!inner(created_by)')
+    .eq('src.created_by', ctx.userId)
+    .order('id')
+    .range(from, to))
+  return rows.map((r) => r.id).filter(Boolean)
 }
 
 /**

@@ -51,7 +51,13 @@ const CASE_NUMBER = /^svc-\d+$/i
 /** Hvilke af disse sags-id'er må brugeren se? (samme sags-scope som CRM'et — assistenten kører med admin-klienten) */
 export type CaseScopeFilter = (caseIds: string[]) => Promise<Set<string>>
 
-export async function resolveTarget(client: SupabaseClient, rawTerm: string, caseFilter?: CaseScopeFilter): Promise<TargetResolution> {
+export async function resolveTarget(client: SupabaseClient, rawTerm: string, caseFilter?: CaseScopeFilter, customerFilter?: CaseScopeFilter): Promise<TargetResolution> {
+  // 00240: kunder uden for brugerens kunde-scope fjernes FØR rangering (findes ikke, heller ikke som kandidat)
+  const visibleCustomers = async (rows: CustomerRow[]) => {
+    if (!customerFilter) return rows
+    const ok = await customerFilter(rows.map((r) => r.id))
+    return rows.filter((r) => ok.has(r.id))
+  }
   const term = rawTerm.replace(/\s+/g, ' ').trim()
   if (term.length < 2) return { status: 'none' }
 
@@ -82,7 +88,8 @@ export async function resolveTarget(client: SupabaseClient, rawTerm: string, cas
     .order('company_name')
     .limit(MAX_CANDIDATES + 1)
   if (exactErr) throw exactErr
-  if ((exactRows ?? []).length > 0) return rankCustomers(term, (exactRows ?? []) as CustomerRow[])
+  const exactVisible = await visibleCustomers((exactRows ?? []) as CustomerRow[])
+  if (exactVisible.length > 0) return rankCustomers(term, exactVisible)
 
   const { data, error } = await client
     .from('customers')
@@ -92,5 +99,5 @@ export async function resolveTarget(client: SupabaseClient, rawTerm: string, cas
     .order('company_name')
     .limit(20)
   if (error) throw error
-  return rankCustomers(term, (data ?? []) as CustomerRow[])
+  return rankCustomers(term, await visibleCustomers((data ?? []) as CustomerRow[]))
 }

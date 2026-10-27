@@ -27,8 +27,8 @@ const ELEKTRIKER_GRANTS: Permission[] = ['customers.create', 'cases.create']
 
 export const PERMISSION_TEMPLATES: Record<TemplateKey, PermissionTemplate> = {
   montor: {
+    // 00240: kunder/sager = egne + relaterede (customers.view / cases.view.assigned uden .all)
     key: 'montor', label: 'Montør', baseRole: 'montør', grants: [], revokes: [],
-    pending: ['kunde-scope = kun relaterede kunder (customers.view.related) — kræver rollout-beslutning'],
   },
   elektriker: {
     key: 'elektriker', label: 'Elektriker', baseRole: 'montør',
@@ -38,7 +38,8 @@ export const PERMISSION_TEMPLATES: Record<TemplateKey, PermissionTemplate> = {
   },
   overmontor: {
     key: 'overmontor', label: 'Overmontør', baseRole: 'montør',
-    grants: [...ELEKTRIKER_GRANTS, 'cases.view.all', 'work_orders.view.all', 'work_orders.plan', 'calendar.view.all', 'calendar.plan', 'tasks.create', 'time_logs.approve'],
+    // 00240 D5: alle kunder + alle sager (planlægning/backlog viser kunder på alle sager)
+    grants: [...ELEKTRIKER_GRANTS, 'customers.view.all', 'cases.view.all', 'work_orders.view.all', 'work_orders.plan', 'calendar.view.all', 'calendar.plan', 'tasks.create', 'time_logs.approve'],
     revokes: [],
   },
   salg: { key: 'salg', label: 'Salg', baseRole: 'salg', grants: [], revokes: [] },

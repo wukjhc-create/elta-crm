@@ -146,6 +146,13 @@ export async function sendQuoteAction(
       return { success: false, error: 'Ugyldigt mail-id' }
     }
 
+    // 00240 (scope-audit): en indsendt kunde-id (portal-deling/modtager-rute læses med admin-klienten) skal være i scope
+    if (input.customerId) {
+      const ctx = await getAuthenticatedClientWithRole()
+      const { userCanViewCustomer } = await import('@/lib/auth/customer-scope')
+      if (!(await userCanViewCustomer(input.customerId, ctx))) return { success: false, error: 'Kunde ikke fundet' }
+    }
+
     const result = await generateAndSendQuote(input, userId, incomingEmailId)
 
     revalidatePath('/dashboard/mail')
@@ -283,7 +290,14 @@ export async function getCustomerForQuote(
   customerId: string
 ): Promise<ActionResult<QuoteCustomerData>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // 00240 (scope-audit): før uden rettigheds-tjek — enhver bruger kunne læse en vilkårlig kundes kontaktdata på id
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('offers.send')) return { success: false, error: 'Manglende tilladelse: offers.send' }
+    const { validateUUID } = await import('@/lib/validations/common')
+    validateUUID(customerId, 'kunde ID')
+    const { userCanViewCustomer } = await import('@/lib/auth/customer-scope')
+    if (!(await userCanViewCustomer(customerId, ctx))) return { success: false, error: 'Kunde ikke fundet' }
+    const { supabase } = ctx
 
     const { data, error } = await supabase
       .from('customers')

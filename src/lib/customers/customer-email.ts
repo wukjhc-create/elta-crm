@@ -4,7 +4,6 @@
  * eksisterende kunde. UI-tjekket (checkDuplicateCustomer) er kun bekvemmelighed.
  * Design + migrationsforslag (unikt indeks = BLOCKED_APPROVAL): docs/runbooks/customer-email-duplicates-proposal.md
  */
-import { escapeLike } from '@/lib/validations/postgrest-filter'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any
@@ -16,6 +15,8 @@ export interface ExistingCustomerRef {
   company_name: string | null
   customer_number: string | null
   is_active: boolean | null
+  /** 00240: false = kunden findes, men er uden for kalderens scope (navn fjernet) — må ikke kobles til af kalderen */
+  visible?: boolean
 }
 
 /** Trim + små bogstaver (null/undefined → '') */
@@ -37,22 +38,13 @@ export function duplicateEmailMessage(email: string, existing: ExistingCustomerR
 }
 
 /**
- * Find en kunde med samme (normaliserede) e-mail — aktive foretrækkes. null for pladsholdere.
+ * Find en kunde med samme (normaliserede) e-mail i HELE registeret — aktive foretrækkes. null for pladsholdere.
+ * 00240: opslaget er globalt (kontrolleret admin-sti, lib/customers/customer-duplicates.ts), så en kunde uden for
+ * kalderens scope stadig findes som dublet; `visible` + fjernet navn afgøres med KALDERENS klient (`db`).
  * NB: ilike ser ikke mellemrum gemt omkring mailen i ældre rækker (lukkes af migrationen/backfill).
  */
 export async function findCustomerByEmail(db: Db, email: string | null | undefined, opts: { excludeId?: string } = {}): Promise<ExistingCustomerRef | null> {
   if (isPlaceholderEmail(email)) return null
-  let q = db
-    .from('customers')
-    .select('id, company_name, customer_number, is_active')
-    .ilike('email', escapeLike(normalizeCustomerEmail(email)))
-  if (opts.excludeId) q = q.neq('id', opts.excludeId)
-  const { data, error } = await q
-    .order('is_active', { ascending: false })
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  if (error) throw new Error(`findCustomerByEmail: ${error.message}`)
-  return (data as ExistingCustomerRef | null) ?? null
+  const { findCustomerMatchByEmail } = await import('./customer-duplicates')
+  return findCustomerMatchByEmail(db, normalizeCustomerEmail(email), { excludeId: opts.excludeId })
 }

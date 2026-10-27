@@ -19,7 +19,6 @@
 
 import { retryOnUniqueViolation } from '@/lib/utils/retry'
 import { logger } from '@/lib/utils/logger'
-import { escapeLike } from '@/lib/validations/postgrest-filter'
 import {
   DUPLICATE_EMAIL_CODE,
   duplicateEmailMessage,
@@ -29,8 +28,6 @@ import {
   type ExistingCustomerRef,
 } from '@/lib/customers/customer-email'
 
-const CUSTOMER_NUMBER_PREFIX = 'C'
-const CUSTOMER_NUMBER_PADDING = 6
 // Hver runde vinder mindst én samtidig skribent (harness:concurrency C6: 8 parallelle).
 const DEFAULT_MAX_ATTEMPTS = 10
 
@@ -41,40 +38,15 @@ const DEFAULT_MAX_ATTEMPTS = 10
 type SupabaseClientLike = any
 
 /**
- * Generér naeste customer_number ved at slaa op paa eksisterende
- * C-prefixede numre. Defensiv mod ikke-standard formater.
- *
- * Note: ikke atomic — race-vinduet mellem SELECT og INSERT haandteres
- * af insertCustomerWithRetry. Brug aldrig denne funktion alene til
- * concurrent inserts.
+ * Generér naeste customer_number ud fra HELE registeret.
+ * 00240 forudsætning 1: beregnes ALTID via den kontrollerede admin-sti (customer-duplicates.ts) — aldrig med kalderens
+ * klient, ellers ville en bruger med begrænset kunde-scope beregne det samme (allerede brugte) nummer ved hvert forsøg.
+ * Klient-parameteren bevares for kompatibilitet. Ikke atomisk — race-vinduet haandteres af insertCustomerWithRetry.
  */
-export async function generateNextCustomerNumber(
-  supabase: SupabaseClientLike
-): Promise<string> {
-  const { data } = await supabase
-    .from('customers')
-    .select('customer_number')
-    .like('customer_number', `${CUSTOMER_NUMBER_PREFIX}%`)
-    .order('customer_number', { ascending: false })
-    .limit(20)
-
-  const rows = (data as Array<{ customer_number?: string | null }> | null) || []
-  if (rows.length === 0) {
-    return `${CUSTOMER_NUMBER_PREFIX}${'1'.padStart(CUSTOMER_NUMBER_PADDING, '0')}`
-  }
-
-  let maxNum = 0
-  for (const row of rows) {
-    const raw = row.customer_number
-    if (!raw || raw.length < 2 || raw[0] !== CUSTOMER_NUMBER_PREFIX) continue
-    const suffix = raw.substring(1)
-    if (!/^\d+$/.test(suffix)) continue
-    const n = parseInt(suffix, 10)
-    if (Number.isFinite(n) && n > maxNum) maxNum = n
-  }
-
-  const nextNum = maxNum + 1
-  return CUSTOMER_NUMBER_PREFIX + nextNum.toString().padStart(CUSTOMER_NUMBER_PADDING, '0')
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function generateNextCustomerNumber(_supabase?: SupabaseClientLike): Promise<string> {
+  const { nextCustomerNumberGlobal } = await import('@/lib/customers/customer-duplicates')
+  return nextCustomerNumberGlobal()
 }
 
 export interface InsertCustomerWithRetryOptions {
@@ -166,14 +138,9 @@ export async function insertCustomerWithRetry<TResult = unknown>(
   const newId = (result.data as { id?: string } | null)?.id
   if (!allowDup && newId && !result.error && !isPlaceholderEmail(probeEmail)) {
     try {
-      const { data: same } = await supabase
-        .from('customers')
-        .select('id, company_name, customer_number, is_active, created_at')
-        .ilike('email', escapeLike(probeEmail))
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
-        .limit(5)
-      const rows = (same ?? []) as Array<ExistingCustomerRef & { created_at: string }>
+      // 00240: genkontrollen er global (en ældre kunde uden for kalderens scope skal også vinde)
+      const { oldestCustomersByEmail } = await import('@/lib/customers/customer-duplicates')
+      const rows: ExistingCustomerRef[] = await oldestCustomersByEmail(supabase, probeEmail, 1)
       const winner = rows[0]
       if (winner && winner.id !== newId) {
         // RLS: kun admin må slette kunder — den netop oprettede række (præcis dette id) fjernes med admin-klienten,

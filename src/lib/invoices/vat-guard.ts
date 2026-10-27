@@ -40,10 +40,14 @@ export function vatModeBlockMessage(mode: string | null | undefined): string | n
  * Returnerer blokeringsbesked eller null (= 25 % — fortsæt).
  */
 export async function caseVatBlock(supabase: SupabaseClient, caseId: string): Promise<string | null> {
-  const { data: sc } = await supabase.from('service_cases').select('source_offer_id, customer_id, payer_customer_id').eq('id', caseId).maybeSingle()
-  const row = (sc ?? {}) as { source_offer_id?: string | null; customer_id?: string | null; payer_customer_id?: string | null }
+  // 00240 forudsætning 4: en ulæselig sag/tilbud/kunde er IKKE "25 % — fortsæt" (fail-closed)
+  const UNREADABLE = 'Momsgrundlaget kunne ikke læses (sag/tilbud/kunde) — fakturaen er ikke oprettet. Prøv igen.'
+  const { data: sc, error: scErr } = await supabase.from('service_cases').select('source_offer_id, customer_id, payer_customer_id').eq('id', caseId).maybeSingle()
+  if (scErr || !sc) return UNREADABLE
+  const row = sc as { source_offer_id?: string | null; customer_id?: string | null; payer_customer_id?: string | null }
   if (row.source_offer_id) {
-    const { data: offer } = await supabase.from('offers').select('tax_percentage, vat_mode').eq('id', row.source_offer_id).maybeSingle()
+    const { data: offer, error: offErr } = await supabase.from('offers').select('tax_percentage, vat_mode').eq('id', row.source_offer_id).maybeSingle()
+    if (offErr) return UNREADABLE
     const o = (offer ?? {}) as { tax_percentage?: number | string | null; vat_mode?: string | null }
     if (o.vat_mode) {
       const m = vatModeBlockMessage(o.vat_mode)
@@ -56,7 +60,8 @@ export async function caseVatBlock(supabase: SupabaseClient, caseId: string): Pr
   }
   const custId = row.payer_customer_id ?? row.customer_id
   if (custId) {
-    const { data: cust } = await supabase.from('customers').select('vat_mode').eq('id', custId).maybeSingle()
+    const { data: cust, error: custErr } = await supabase.from('customers').select('vat_mode').eq('id', custId).maybeSingle()
+    if (custErr) return UNREADABLE
     return vatModeBlockMessage((cust as { vat_mode?: string | null } | null)?.vat_mode)
   }
   return null

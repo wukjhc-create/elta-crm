@@ -5,8 +5,7 @@
  */
 import { safeEqual } from '@/lib/security/safe-equal' // AS-10
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { hasPermission } from '@/lib/auth/permissions'
-import { runAssistantCommand, type AssistantActor, type AssistantButton } from '@/lib/assistant/run-command'
+import { actorCan, actorScopeCtx, runAssistantCommand, type AssistantActor, type AssistantButton } from '@/lib/assistant/run-command'
 import { ASSISTANT_RULES } from '@/lib/assistant/rules'
 import { actorForChat, consumeLinkCode } from './link'
 import { sendTelegram } from './transport'
@@ -70,7 +69,7 @@ export async function handleTelegramUpdate(admin: SupabaseClient, update: Telegr
     const data = String(update.callback_query.data ?? '')
     if (typeof chatId !== 'number') return { handled: 'ignored' }
     const actor = await actorForChat(admin, chatId)
-    if (!actor || !actor.isActive || !hasPermission(actor.role, 'customers.edit')) {
+    if (!actor || !actor.isActive || !actorCan(actor, 'customers.edit')) {
       await audit(admin, actor, 'button_denied', null, { reason: actor ? 'role_or_inactive' : 'unlinked' })
       await reply(chatId, !actor ? 'Denne chat er ikke forbundet. Forbind din CRM-bruger under Indstillinger → Profil.' : !actor.isActive ? 'Din CRM-bruger er deaktiveret.' : 'ELTA Assistant er endnu kun åben for kontor-roller.')
       return { handled: 'denied' }
@@ -100,6 +99,13 @@ export async function handleTelegramUpdate(admin: SupabaseClient, update: Telegr
       return { handled: 'p_snooze' }
     }
     if (action === 'call_now') {
+      // 00240: kun en kunde i aktørens kunde-scope (ref kommer fra knap-data — et indsendt uuid giver ikke adgang)
+      const { userCanViewCustomer } = await import('@/lib/auth/customer-scope')
+      if (!(await userCanViewCustomer(ref, actorScopeCtx(admin, actor)))) {
+        await audit(admin, actor, 'button_denied', ref, { reason: 'customer_scope', action })
+        await reply(chatId, 'Kunden findes ikke.')
+        return { handled: 'call_now' }
+      }
       const { data: c } = await admin.from('customers').select('company_name, contact_person, phone, mobile').eq('id', ref).maybeSingle()
       const cu = c as { company_name: string | null; contact_person: string | null; phone: string | null; mobile: string | null } | null
       await audit(admin, actor, 'call_now', ref, {})
@@ -145,7 +151,7 @@ export async function handleTelegramUpdate(admin: SupabaseClient, update: Telegr
       return { handled: 'unlinked' }
     }
     // Assistent-review 2026-10-08 (#6): deaktiverede brugere og roller uden assistent-adgang transskriberes aldrig
-    if (!vActor.isActive || !hasPermission(vActor.role, 'customers.edit')) {
+    if (!vActor.isActive || !actorCan(vActor, 'customers.edit')) {
       await audit(admin, vActor, 'voice_rejected', null, { reason: vActor.isActive ? 'role' : 'inactive' })
       await reply(vChat, !vActor.isActive ? 'Din CRM-bruger er deaktiveret.' : 'ELTA Assistant er endnu kun åben for kontor-roller.')
       return { handled: 'voice_rejected' }

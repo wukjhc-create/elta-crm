@@ -158,6 +158,15 @@ export async function applyEmployeePermissionTemplateAction(employeeId: string, 
     if (!tpl) return { ok: false, message: 'Ukendt skabelon' }
     const st = await loadState(g.admin, g.profileId)
     if (!st.available) return { ok: false, message: 'Rettigheds-overrides er ikke aktiveret i dette miljø endnu' }
+    // 00240: en skabelon kan bruge en nøgle der endnu ikke findes i miljøets katalog (fx customers.view.all før 00240) —
+    // så afvises den FØR noget ændres (før: rolle skiftet + afvigelser slettet, derefter FK-fejl = halvt anvendt)
+    const tplKeys = [...new Set(templateOverrides(tpl).map((o) => o.permission))]
+    if (tplKeys.length) {
+      const { data: cat, error: cErr } = await g.admin.from('permission_catalog').select('permission').in('permission', tplKeys)
+      if (cErr) return { ok: false, message: 'Skabelonen kunne ikke anvendes' }
+      const missing = tplKeys.filter((k) => !(cat ?? []).some((r: { permission: string }) => r.permission === k))
+      if (missing.length) return { ok: false, message: `Skabelonen kræver en databaseopdatering, der ikke er kørt endnu (${missing.join(', ')}) — intet er ændret` }
+    }
     const { lastAdminBlock, activeAdminCount } = await import('@/lib/auth/role-guard')
     const block = await lastAdminBlock(g.admin, g.profileId, { role: tpl.baseRole })
     if (block) return { ok: false, message: block }
