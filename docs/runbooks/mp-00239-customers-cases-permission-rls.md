@@ -208,3 +208,34 @@ på proxy-nøglerne er flyttet:
 - UI `sales,montor`: 107 tests, PASS 107, FLAKY 0, FAIL 0, TIMEOUT 0, NOT_RUN 0.
 - tsc, rls-matrix, rbac og guard: exit 0.
 - sha256 `b0eb6262c7f7dfe3ebbe7b2d081eda5181cde75c2bc27eba0b72edd6534f7b55`.
+
+## 11. PROD 2026-10-27 (Henrik: "Jeg godkender hermed den REVIDEREDE 00239 til PROD", inkl. ændret beslutning B)
+
+1. sha256 bekræftet: `b0eb6262…7b55` (arbejdsfil = HEAD).
+2. Pre-fingerprint. Prods 10 politikker på begge tabeller var hash-identiske med staging-udgangspunktet.
+3. Dry run med tvungen ROLLBACK (`prod:apply-migration -- 00239 --approved-by-henrik --dry-run`) uden fejl.
+4. Fingerprint efter dry run: byte-identisk.
+5. Anvendt (COMMIT).
+6. Post-diff:
+   - præcis 6 politikker ændret
+   - 0 funktioner, 0 grants, 0 tabeller
+   - forretningsrækker og profiler identiske
+   - SELECT-politikker uændrede
+   - prod = den reviderede staging-version for begge tabeller
+7. Rollback-only effektiv kontrol (`scripts/prod-mp-00239-effective.ts`, rigtige admin- og montør-profiler):
+   [NY] 16/16 og [UÆNDRET] 19/19. serviceleder, salg og bogholderi er NOT_TESTABLE_PROD (ingen profiler; dækket af
+   staging 51/51 + U230). Fingerprint efter kontrollen var identisk, så intet er efterladt.
+8. Montør baseline:
+   - kunde-INSERT og sags-INSERT ✗
+   - grant customers.create ✓ → fjernet ✗
+   - grant cases.create ✓ → fjernet ✗; cases.create giver hverken UPDATE, DELETE eller slet forslag
+   - offers.create alene ✗ · inbox.view alene ✗
+   - Elektriker-skabelon: opret ✓, ret sag ✗
+   - inaktiv, manglende profil og anon ✗
+   - admin uændret (alle 7 skriveoperationer + SELECT)
+9. Genkørte prod-tjek, alle grønne:
+   - 00234: lead_activities admin 5 / montør 0
+   - 00235: 11/11 + 12/12
+   - 00236: 6/6 + 4/4
+   - 00237: 3/3 + 5/5
+   - 00238: 8/8 + 5/5

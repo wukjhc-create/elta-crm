@@ -378,3 +378,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+- 2026-10-27: 00239 i prod (PERM-1 fase 4 bølge 1): customers/service_cases SKRIVNING følger effektive rettigheder —
+  hver politik bruger kun handlingens egen nøgle (customers.create/edit/delete, cases.create = KUN opret,
+  cases.edit|close|service.close = ret, cases.delete = slet inkl. forslag). offers.create/inbox.view giver ingen
+  kunde-INSERT; godkend/afvis sag-forslag går via kontrolleret server-sti (proposals.ts: inbox.view [+cases.create],
+  service-role, auditeret). SELECT er stadig åben — read-scoping (own/related/all) er næste bølge

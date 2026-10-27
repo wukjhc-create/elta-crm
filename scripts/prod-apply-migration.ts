@@ -82,6 +82,7 @@ const APPROVED: Record<string, string> = {
   '00236': '2026-10-25', // opgave-sletning efter Henriks regel + tagtegninger låst på lukket sag (customer_tasks DELETE, roof_drawings INSERT/UPDATE/DELETE) — godkendt af Henrik i chat 2026-10-25 ("00236 — APPROVED FOR PROD", efter grøn ui-full 197/197)
   '00237': '2026-10-25', // SEC-B10 user_role() fail-closed (manglende/inaktiv profil = ingen_adgang, aldrig montør) — godkendt af Henrik i chat 2026-10-25 ("00237 — APPROVED FOR PROD", efter grøn ui-full 197/197 og 00236)
   '00238': '2026-10-26', // PERM-1 lagring af per-medarbejder-rettigheder (katalog, rollestandarder, overrides, user_has_permission fail-closed) — godkendt af Henrik i chat 2026-10-26 ("Henrik godkender hermed 00238 til PROD", pilot = option 2 rollback-only)
+  '00239': '2026-10-27', // PERM-1 fase 4 bølge 1, REVIDERET: customers + service_cases skrivning via handlingens egen rettighed (montør-rest ud af INSERT; salg uden rå sags-UPDATE/forslag-DELETE; offers.create/inbox.view giver ikke kunde-INSERT; cases.create kun opret) — godkendt af Henrik i chat 2026-10-27 ("Jeg godkender hermed den REVIDEREDE 00239 til PROD")
 }
 
 async function main() {
