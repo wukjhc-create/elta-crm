@@ -571,6 +571,12 @@ export async function deleteCustomerDocumentAction(documentId: string): Promise<
     const d = doc as { id: string; title: string | null; description: string | null; document_type: string; storage_path: string | null; customer_id: string; service_case_id: string | null; offer_id: string | null; sent_quote_id: string | null; source_email_id: string | null }
     const blocked = documentDeleteBlockReason(d)
     if (blocked) return { success: false, error: blocked }
+    // Scope-review 2026-10-27 (P6): documents.delete giver ikke adgang til dokumenter uden for scopet (PERM-1-tildeling)
+    {
+      const { customerDocumentReadDenied } = await import('@/lib/documents/document-read-access')
+      const scopeDenied = await customerDocumentReadDenied(d, await getAuthenticatedClientWithRole())
+      if (scopeDenied) return { success: false, error: scopeDenied }
+    }
     // DL-1: et dokument med bekræftelser (hvem bekræftede hvad og hvornår) slettes aldrig — rækkerne ville forsvinde kaskade
     {
       const { count: confirmations } = await admin.from('document_confirmations').select('id', { count: 'exact', head: true }).eq('customer_document_id', d.id)

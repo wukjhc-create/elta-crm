@@ -812,6 +812,13 @@ export async function bookBesigtigelse(
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Ikke logget ind' }
+    // Scope-review 2026-10-27 (P6): customers.edit giver ikke adgang til kunder uden for scopet (PERM-1-tildeling)
+    {
+      const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+      const ctx = await getAuthenticatedClientWithRole()
+      const { userCanViewCustomer } = await import('@/lib/auth/customer-scope')
+      if (!(await userCanViewCustomer(customerId, ctx))) return { success: false, error: 'Du har ikke adgang til denne kunde' }
+    }
 
     // Format date for display (e.g. "18. marts 2026")
     const dateObj = new Date(date)

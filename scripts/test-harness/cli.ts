@@ -2598,6 +2598,22 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'mp-00241-00242-sql-probe') {
+    // STAGING ROLLBACK-ONLY: 00240+00241+00242-udkastene i én DO-blok der altid afbrydes (intet anvendes)
+    const { runMp0024142SqlProbe } = await import('./mp-00241-00242-sql-probe')
+    const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
+    const rawSql = async (sql: string) => {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      })
+      return { ok: r.ok, status: r.status, text: await r.text() }
+    }
+    const checks = await runMp0024142SqlProbe({ admin, url: runtime.url, anonKey: runtime.anonKey, rawSql })
+    log(formatMp00240ScopeCheck(checks).replace('MP-00240 forudsætninger — scope-motor + kontrollerede stier (app-laget, staging)', 'MP-00241/00242 SQL-udkast — rollback-only prøve (staging, intet anvendt)'))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00240-f1-check') {
     const { runMp00240F1Check } = await import('./mp-00240-f1-check')
     const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')

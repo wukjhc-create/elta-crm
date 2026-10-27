@@ -1,48 +1,62 @@
-# 00241 / 00242 — read scope on child tables (DESIGN — no SQL written, nothing applied)
+# 00241 / 00242 — read scope on child tables
 
-**Status 2026-10-27:** design and inventory only. This follows 00240 (D6: separate migrations).
-- Builds on the 00240 helpers `my_customer_scope_ids()` / `my_case_scope_ids()` from [`mp-00240-draft.sql`](mp-00240-draft.sql).
-- Those helpers do **not** contain the `*.view.all` branch, so every child-table policy ORs in `user_has_permission('customers.view.all' | 'cases.view.all')` itself.
-- Requires 00240 to be applied first.
+**Status 2026-10-27:** decisions O1–O6 and F1 approved by Henrik. SQL drafts written and tested rollback-only on staging. **Nothing has been applied.**
 
-**Principle:** each RLS predicate **follows the app's existing rule** for the table; it does not invent a new one. Where the app rule is narrower than "parent in scope", the table is marked **NARROWER**.
+- Drafts: [`mp-00241-draft.sql`](mp-00241-draft.sql) (customer-keyed) and [`mp-00242-draft.sql`](mp-00242-draft.sql) (case-keyed + invoices + parity).
+- Both require 00240 ([`mp-00240-draft.sql`](mp-00240-draft.sql)); the helpers `my_customer_scope_ids()` / `my_case_scope_ids()` come from there.
+- Each needs its own approval per environment. Order: CODE → TEST → PUSH → MIGRATION → POST-CHECK; 00240 first.
 
-**Who actually loses rows** (no overrides):
-- On customer-keyed tables only montør/Elektriker lose rows, because salg/bogholderi have `customers.view.all`.
-- On case-keyed tables, salg and montør both lose rows.
+## Approved rules (Henrik 2026-10-27)
 
-## 00241 — customer-keyed
+| Area | Rule | Where in SQL |
+|---|---|---|
+| **O1** work orders | Montør/Elektriker: **only their own** (assigned to their own employee row), even when they can see the case. Overmontør (`work_orders.view.all`), admin and serviceleder: all. Roles without `work_orders.view.*` (salg, bogholderi): orders on cases in their case scope. Bogholderi has `cases.view.all`, so it sees all, including case-less orders. | 00242 §1 |
+| **O2** tasks | Own tasks (assigned/created; requires `tasks.menu`, so inactive users see nothing). Tasks on a case in my scope (the case's task tab). `customers.view.all` sees all, as through the customer tab today. Montør gets **no** global task list. D3: only an OPEN task creates a customer relation (00240). | 00242 §3 |
+| **O3** documents | On a case: case scope. Without a case: `customers.view` + customer in scope + CU-1 (`cases.view.all` \| `customers.edit` \| the customer has a case in my scope). A mail attachment additionally requires `customers.emails.view`. `customer_id` is NOT NULL, so "neither customer nor case" cannot occur. | 00241 §4 |
+| **O4** confirmations | On a case: case scope. Without a case: the document must be visible (EXISTS as invoker). An unknown parent is denied (fail-closed). | 00241 §6; app: `document-confirmations.ts` |
+| **O5** parity | `customer_tasks.service_case_id` is identical in prod and staging: uuid NULL, FK `→ service_cases(id) ON DELETE SET NULL`, partial index `idx_customer_tasks_service_case`. Rows set: prod 6/28, staging 48/120. It is in **no** migration file. 00242 §0a is idempotent: a no-op where it matches, and the guard stops on a different type or FK. Old migrations are not rewritten. | 00242 §0a |
+| **O6** contacts | Follow the parent customer's effective scope. Montør/Elektriker: only contacts of customers they can currently see. Salg/admin/serviceleder/bogholderi: all (`customers.view.all`). No hidden global directory: the readers (mail recipients, route resolver, CTI lookup, contact picker) stay on the user client, so RLS limits them. | 00241 §2 |
+| **F1** invoices | `invoices.view.all` → all. `invoices.view.own_cases` → only invoices on cases in my **effective** case scope (D4 included). Case-less invoices only with view.all. Lines and payments follow the invoice. `can_view_case_finance()` follows the same rule. Never cost, margin, payroll or purchase price (invoice tables have none). | 00242 §4; app: `lib/invoices/invoice-scope.ts` |
 
-| Table | Today | Proposed SELECT | App rule / note |
-|---|---|---|---|
-| `customer_contacts` (customer_id NOT NULL) | `true` (00170) | `customers.view.all OR customer_id = ANY(my_customer_scope_ids())` | Case parties are already in customer scope. Ungated readers `mail-recipients.ts:72`, `mail-route-resolvers.ts:584` and `relatel/lookup.ts:41` will return fewer rows for restricted users (**O6**) |
-| `customer_notes` (customer_id NOT NULL) | `true` (00196) | same | Montør cannot write notes, so there is no RETURNING risk |
-| `customer_documents` (customer_id NOT NULL, service_case_id nullable) | `true` (00170) | `cases.view.all OR (service_case_id = ANY(my_case_scope_ids())) OR (service_case_id IS NULL AND ((customers.edit AND (customers.view.all OR customer_id = ANY(my_customer_scope_ids()))) OR EXISTS (case in my_case_scope_ids with s.customer_id = customer_documents.customer_id)))` | **NARROWER**. Matches CU-1/SEC-5 (`customer-documents.ts:96-117`, `besigtigelse.ts:36`). CU-1 uses only `service_cases.customer_id` (not the 6 party FKs or D3) (**O3**). `source_email_id` rows are hidden in the app without `customers.emails.view`; RLS optional (**O3**). Fuldmagt masking stays in the app (column level) |
-| `roof_drawings` (customer_id NOT NULL, service_case_id nullable) | `true` (00173) | `(service_case_id IS NOT NULL AND (cases.view.all OR service_case_id = ANY(my_case_scope_ids()))) OR (service_case_id IS NULL AND (customers.view.all OR customer_id = ANY(my_customer_scope_ids())))` | Matches F4 plus the 2026-10-27 customer-scope fix (`roof-drawings.ts`). All 5 prod drawings are case-less, so montør keeps them only through customer scope |
-| `document_confirmations` (customer_document_id NOT NULL, service_case_id nullable; token column already REVOKEd 00177) | `true` (00173) | `(service_case_id IS NOT NULL AND (cases.view.all OR service_case_id = ANY(my_case_scope_ids()))) OR (service_case_id IS NULL AND EXISTS (SELECT 1 FROM customer_documents d WHERE d.id = customer_document_id))` (the EXISTS runs as invoker, so it inherits the document rule) | Case-less confirmations are **stricter** than today's app gate (`service.view` alone) (**O4**). Portal/token flows use service role and are unaffected |
+Additionally in 00242:
+- `current_employee_id()` becomes deterministic (oldest active row, the same as the app's scope engine). Before, it was `LIMIT 1` without `ORDER BY`. Prod has 0 profiles with duplicate active rows, so the issue is latent.
+- Two indexes: `customer_tasks.assigned_to` and `work_orders.assigned_employee_id`.
 
-## 00242 — case-keyed
+## Test: `mp-00241-00242-sql-probe` (staging, rollback-only) — 101/101
 
-| Table | Today | Proposed SELECT | App rule / note |
-|---|---|---|---|
-| `work_orders` (case_id/customer_id nullable, assigned_employee_id) | `true` (00181) | `work_orders.view.all OR cases.view.all OR assigned_employee_id = current_employee_id() OR (NOT work_orders.view.assigned AND case_id = ANY(my_case_scope_ids())) OR (case_id IS NULL AND customer_id = ANY(my_customer_scope_ids()))` | **NARROWER for montør** (only own orders, = `listWorkOrdersForCase` / `getWorkOrderEmployeeScope`). Salg and others without `work_orders.view.*` see orders on cases in scope (the order header count, economy). The negative permission condition needs a decision (**O1**). The montør header badge becomes "my orders" |
-| `case_notes` (case_id NOT NULL) | `true` (00073) | `cases.view.all OR case_id = ANY(my_case_scope_ids())` | = `getCaseNotes`. No risk |
-| `case_materials`, `case_other_costs` (case_id NOT NULL) | `true` (00173) | same | = `listCaseMaterials` / `listCaseOtherCosts` (no work-order restriction). Salg's unbilled-work and close-readiness counts shrink to scope (consistent) |
-| `service_case_attachments` (service_case_id NOT NULL) | `true` (00173) | `cases.view.all OR service_case_id = ANY(my_case_scope_ids())` | All app reads use the admin client behind `handoverAccess`. This only closes the direct-REST hole |
-| `customer_tasks` (customer_id NOT NULL, service_case_id, assigned_to, created_by) | `true` (00173) | `assigned_to = auth.uid() OR created_by = auth.uid() OR (tasks.view AND customers.view.all) OR customer_id = ANY(my_customer_scope_ids()) OR (service_case_id IS NOT NULL AND service_case_id = ANY(my_case_scope_ids()))` | **The app rules disagree with each other.** Global list W-8 is role-keyed `role === 'montør'` → assigned only; customer tab TK-5 → all of the customer's tasks; case tab TK-4 → all of the case's tasks; besigtigelse auto-close (`besigtigelse.ts:451`) reads all open tasks on the customer. A strict W-8 in RLS would break three flows (**O2**). `customer_tasks.service_case_id` has schema drift: it is in prod but in no migration file (**O5**) |
+- 00240, 00241 and 00242 run in **one** DO block that always aborts.
+- Child fixtures are created inside the block. Fingerprint (policies, functions, indexes, column) identical before and after.
+- Personas: admin, bogholderi, salg (D4), montør, Elektriker, Overmontør, inactive, anon.
+- 12 tables: contacts, customer notes, documents, roof drawings, confirmations, work orders, case notes, case attachments, tasks, invoices, invoice lines, payments.
+- Every persona sees **exactly** the expected fixture rows.
+- **PARITY:** montør's documents in RLS == the app's `customerDocumentReadDenied` (7/7).
+- **Performance** (count(*) over the whole table):
+  - montør: documents 13.5 ms, contacts 5.3 ms, tasks 3.2 ms.
+  - salg: ≤ 6.9 ms.
+  - admin, documents: 139 ms. That is the full scan of a large staging document table, not the policy; admin's branches are InitPlans.
 
-## Cross-cutting
+## App prerequisites (done, commit 8097cf71 + follow-up)
 
-- **Embed nulls:** once a task is `done`, D3 no longer grants its customer, so a montør's finished tasks show the customer embed as `null`. UI fallback "Kunde skjult" needed before 00242 (code only).
-- **Counts change** (expected, no leak): order header badge, task badge, close-readiness, unbilled work, economy for users without `cases.view.all`.
-- **Performance:** each policy evaluates one InitPlan per statement (same mechanism as 00240; probe: <7 ms on staging). Double work where the app already filters (besigtigelse, roof drawings) is harmless.
-- **Tests:** extend `mp-00240-sql-probe` with child-table assertions (DB == app rule per table, including the NARROWER cases). Use the same rollback-only DO block.
+- **F1:** case invoice list and history, customer invoice overview, payment status, portfolio, billing follow-up and dashboard numbers. All use own_cases + scope. Admin reads only after the scope check, limited to the scope's cases. The PDF route's API-1 RLS check was removed, since the lists now show the same invoices.
+- **L1 (leak):** task and inbox mail could attach any of the customer's documents. Now `customerDocumentReadDenied` is checked per document.
+- **O4:** case-less confirmations check the document's customer scope (before: no scope check).
+- **Reads RLS would cut:**
+  - besigtigelse auto-close and the customer flow read tasks/documents with admin after the scope check (status only out).
+  - The customer flow also got a customer scope check.
+  - Mine timer looks up the job name for your own hours (on a colleague's order).
+- **P6:** besigtigelse booking (`customers.edit`) and document delete (`documents.delete`) also check scope (PERM-1 grants).
 
-## Open decisions (Henrik)
+## Known differences/follow-ups (not blockers for 00241/00242)
 
-- **O1** `work_orders`: should montør see only their own orders (as the app does; needs the condition "without `work_orders.view.assigned`" so salg sees orders on cases in scope), or every order on cases in scope?
-- **O2** `customer_tasks`: should RLS follow "own + customer/case in scope" (proposed; matches all current reads), or should a strict W-8 be enforced? Strict W-8 first requires changing the customer tab, the case tab and the besigtigelse auto-close. Also: the montør rule should become a permission, not `role === 'montør'`.
-- **O3** Case-less `customer_documents`: keep CU-1 narrow (case customer only), or widen to `my_customer_scope_ids()` (6 party FKs + work order + open task)? Should `source_email_id` hiding also be enforced in RLS?
-- **O4** Case-less `document_confirmations`: tighten from `service.view` alone to the document rule?
-- **O5** Add an idempotent `ADD COLUMN IF NOT EXISTS customer_tasks.service_case_id` (+ FK) to 00242 so the migrations match prod?
-- **O6** Ungated user-client contact readers (mail recipients / route resolver / CTI): accept fewer rows, or move them to the admin client with an explicit scope check?
+1. **Customer list with payment columns + CSV export** (`v_customers_with_payment_summary`, security_invoker): salg sees invoices only on cases salg created until 00242 changes `invoices` RLS. After 00242 this is correct with no app change. It shows fewer, never more.
+2. **`time_logs`** (`can_view_time_log`: salg = created_by, role-keyed): not part of 00242. Salg's billing status reads hours with admin after the scope check. Direct REST still follows the old rule (narrower, not a leak).
+3. **audit_logs invoice history:** RLS shows non-admin users only their own events. Unchanged (not widened).
+4. **Email linker on the cron path** (`email-sync-orchestrator` → `linkEmail` with `createClient()` without a session = anon) when `MAIL_AUTOLINK` is off. It finds no customers and is already broken today, independent of 00240. Should use the admin client (system matching that returns nothing to a user). Not changed, because it is live mail logic.
+5. **Task list W-8** decides montør's scope with `role === 'montør'`, not a permission. Elektriker/Overmontør (base role montør) get only their own tasks in the list. RLS (O2) is wider, so it drops nothing.
+
+## Order / readiness
+
+1. Push code (requires a green UI regression, currently blocked by RAM on the development PC).
+2. 00240 staging: fingerprint → dry run (ROLLBACK) → apply → post-check. **Approved for staging when the conditions are met.**
+3. 00241 + 00242 staging: **requires Henrik's separate approval.** Run `mp-00241-00242-sql-probe` again right before.
+4. Prod for each migration: separate approval.
