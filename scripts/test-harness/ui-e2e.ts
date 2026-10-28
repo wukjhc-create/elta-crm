@@ -5416,7 +5416,8 @@ ${m.text()}`) })
           const d2 = idOf(c2)
           if (d2) created.push(d2)
           r.montoer_afvist_uden_sag = !c2.includes('"success":true')
-          const sp = await login(await mkUser('salg'))
+          const su = await mkUser('salg')
+          const sp = await login(su)
           try {
             const custUrl = `${base}/dashboard/customers/${profitCustomerId}`
             await gotoSafe(sp.page, custUrl, { waitUntil: 'networkidle', timeout: 180_000 })
@@ -5430,9 +5431,10 @@ ${m.text()}`) })
             const x3 = d3 ? await callServerAction(sp.page, custUrl, F, 'deleteRoofDrawing', [d3]) : ''
             r.salg_sletter = x3.includes('"success":true')
             if (!r.salg_opretter_uden_sag || !r.salg_gemmer || !r.salg_sletter) console.log('[U225 salg]', c3.slice(0, 300), '|', s3.slice(0, 200), '|', x3.slice(0, 200))
-            // MP-00236 app-forudsætning: lukket sag = ingen ny tagtegning, heller ikke for kontoret (genåbn først)
+            // MP-00236 app-forudsætning: lukket sag = ingen ny tagtegning, heller ikke for kontoret (genåbn først). Sagen er
+            // sælgerens egen (00240: en urelateret sag er usynlig for salg og afvises allerede af scopet)
             const cl = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U225 lukket ${stamp}`, customer_id: profitCustomerId, status: 'closed', closed_at: new Date().toISOString(),
-              priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+              priority: 'medium', source: 'manual', created_by: su.id }]).select('id')
             const closedId = (cl.data?.[0] as { id?: string } | undefined)?.id ?? null
             if (closedId) listCaseIds.push(closedId)
             const c4 = closedId ? await callServerAction(sp.page, custUrl, F, 'createRoofDrawing', [{ customerId: profitCustomerId, serviceCaseId: closedId, title: `U225 lukket ${stamp}`,

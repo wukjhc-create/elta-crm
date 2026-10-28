@@ -1,6 +1,8 @@
 # 00241 / 00242 — read scope on child tables
 
-**Status 2026-10-27:** decisions O1–O6 and F1 approved by Henrik. SQL drafts written and tested rollback-only on staging. **Nothing has been applied.**
+**Status 2026-10-28:** Henrik approved 00240 → 00241 → 00242 for **staging** (each only after the previous stage is verified green). **Prod requires separate approval per migration.**
+- 00240 **applied on staging** 2026-10-28 (fingerprint diff = exactly the expected 16 objects, 0 row changes; scope-check 38/38, sql-probe 28/28, f1-check 17/17, mp-00239-rls-check 55/55, child probe 102/102).
+- Migration files: `supabase/migrations/00240_…`, `00241_…`, `00242_…` (body byte-identical to the tested drafts).
 
 - Drafts: [`mp-00241-draft.sql`](mp-00241-draft.sql) (customer-keyed) and [`mp-00242-draft.sql`](mp-00242-draft.sql) (case-keyed + invoices + parity).
 - Both require 00240 ([`mp-00240-draft.sql`](mp-00240-draft.sql)); the helpers `my_customer_scope_ids()` / `my_case_scope_ids()` come from there.

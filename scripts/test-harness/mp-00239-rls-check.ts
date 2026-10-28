@@ -8,7 +8,9 @@
  *      giver ALDRIG sags-UPDATE/-DELETE), offers.create / inbox.view alene giver ingen kunde-INSERT, Elektriker-
  *      skabelon, inaktiv og manglende profil nægtet
  *   S  salg: fjernet customers.edit → UPDATE nægtet · fjernet customers.create/cases.create → opret nægtet
- *   R  SELECT uændret (alle roller ser kunder og sager)
+ *   R  efter 00240 (læse-scope): montør ser IKKE en urelateret kunde/sag, men ser dem når en sag tildeles ham; de
+ *      øvrige roller ser dem. G/C-fixturerne ligger derfor i montørens scope (tildelt sag / egen kunde), og B-tjekket
+ *      viser at en skrive-grant ikke rækker ud over læse-scopet (UPDATE/DELETE kræver at rækken er synlig)
  *   npx tsx scripts/test-harness/cli.ts mp-00239-rls-check
  * Midlertidige auth-brugere, kunder, sager og overrides ryddes altid.
  */
@@ -54,13 +56,13 @@ export async function runMp00239RlsCheck(c: { admin: SupabaseClient; url: string
   const adminUid = ((await c.admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1).single()).data as { id: string }).id
 
   const custPayload = (uid: string) => { const k = ++n; return { customer_number: `HARN-239-${stamp}-${k}`, company_name: '[HARNESS] 239', contact_person: 'R', email: `m239-${stamp}-${k}@harness.test`, created_by: uid, custom_fields: { harness: '239' } } }
-  const seedCustomer = async () => {
-    const { data, error } = await c.admin.from('customers').insert(custPayload(adminUid)).select('id').single()
+  const seedCustomer = async (owner = adminUid) => {
+    const { data, error } = await c.admin.from('customers').insert(custPayload(owner)).select('id').single()
     if (error) throw new Error(`seed customer: ${error.message}`)
     customers.push(data.id); return data.id as string
   }
-  const seedCase = async (customerId: string, isProposal: boolean) => {
-    const { data, error } = await c.admin.from('service_cases').insert({ title: '[HARNESS] 239', customer_id: customerId, created_by: adminUid, is_proposal: isProposal }).select('id').single()
+  const seedCase = async (customerId: string, isProposal: boolean, assignee: string | null = null) => {
+    const { data, error } = await c.admin.from('service_cases').insert({ title: '[HARNESS] 239', customer_id: customerId, created_by: adminUid, is_proposal: isProposal, assigned_to: assignee }).select('id').single()
     if (error) throw new Error(`seed case: ${error.message}`)
     cases.push(data.id); return data.id as string
   }
@@ -130,29 +132,43 @@ export async function runMp00239RlsCheck(c: { admin: SupabaseClient; url: string
       add(`M ${k}: ${want.join(', ')}`, g.length === want.length && want.every((r) => g.includes(r)), `faktisk: ${g.join(', ') || '(ingen)'}`)
     }
 
-    // ---- R: SELECT uændret
-    const seen: Record<string, string> = {}
-    for (const role of ROLES) {
-      const cl = p.get(role as never)!
-      const a = await cl.from('customers').select('id').eq('id', base)
-      const b = await cl.from('service_cases').select('id').eq('customer_id', base).limit(1)
-      seen[role] = `${(a.data ?? []).length}/${(b.data ?? []).length}`
+    // ---- R: læse-scope (00240) — urelateret kunde/sag: montør ser intet, de øvrige ser dem; tildelt sag → montør ser
+    const rCust = await seedCustomer()
+    await seedCase(rCust, false)
+    const seenRows = async () => {
+      const seen: Record<string, string> = {}
+      for (const role of ROLES) {
+        const cl = p.get(role as never)!
+        const a = await cl.from('customers').select('id').eq('id', rCust)
+        const b = await cl.from('service_cases').select('id').eq('customer_id', rCust)
+        seen[role] = `${(a.data ?? []).length}/${(b.data ?? []).length}`
+      }
+      return seen
     }
-    add('R SELECT uændret: alle roller ser kunde og sag', Object.values(seen).every((v) => v === '1/1'), JSON.stringify(seen))
+    const seen = await seenRows()
+    // salg: kunder ALL (customers.view.all), sager kun OWN/RELATED → ser kunden, ikke den urelaterede sag
+    const wantR: Record<string, string> = { admin: '1/1', serviceleder: '1/1', salg: '1/0', 'montør': '0/0', bogholderi: '1/1' }
+    add('R urelateret: montør 0/0, salg 1/0 (kunde ja, sag nej), øvrige 1/1', Object.entries(seen).every(([r, v]) => v === wantR[r]), JSON.stringify(seen))
+    await seedCase(rCust, false, personaUids[ROLES.indexOf('montør')])
+    const seen2 = await seenRows()
+    add('R sag tildelt montør → montør ser kunden og (kun) den tildelte sag', seen2['montør'] === '1/1' && seen2['admin'] === '1/2', JSON.stringify(seen2))
 
     // ---- G: én GRANT ad gangen
+    // Fixturerne ligger i montørens læse-scope: base-kunden via en sag tildelt ham, slet-kunden er hans egen, sagerne er
+    // tildelt ham — ellers ville UPDATE/DELETE ramme 0 rækker uanset grant (00240)
     const runOps = async (cl: SupabaseClient, uid: string) => {
       const r: string[] = []
       if (await insCustomer(cl, uid)) r.push('kunde INSERT')
       if (await updCustomer(cl, base)) r.push('kunde UPDATE')
-      if (await delCustomer(cl, await seedCustomer())) r.push('kunde DELETE')
+      if (await delCustomer(cl, await seedCustomer(uid))) r.push('kunde DELETE')
       if (await insCase(cl, uid, base)) r.push('sag INSERT')
-      if (await updCase(cl, await seedCase(base, false))) r.push('sag UPDATE')
-      if (await delCase(cl, await seedCase(base, false))) r.push('sag DELETE')
-      if (await delCase(cl, await seedCase(base, true))) r.push('forslag DELETE')
+      if (await updCase(cl, await seedCase(base, false, uid))) r.push('sag UPDATE')
+      if (await delCase(cl, await seedCase(base, false, uid))) r.push('sag DELETE')
+      if (await delCase(cl, await seedCase(base, true, uid))) r.push('forslag DELETE')
       return r
     }
     const g = await tempUser('montør')
+    await seedCase(base, false, g.uid)
     const gBase = await runOps(g.cl, g.uid)
     add('G montør uden overrides: ingen af de 7 operationer', gBase.length === 0, `faktisk: ${gBase.join(', ') || '(ingen)'}`)
     for (const [key, want] of Object.entries(GRANTS)) {
@@ -164,10 +180,20 @@ export async function runMp00239RlsCheck(c: { admin: SupabaseClient; url: string
     const gAfter = await runOps(g.cl, g.uid)
     add('G alle grants fjernet → ingen operationer igen', gAfter.length === 0, `faktisk: ${gAfter.join(', ') || '(ingen)'}`)
 
+    // ---- B: en skrive-grant rækker ikke ud over læse-scopet (urelateret kunde/sag: 0 rækker)
+    const outCust = await seedCustomer()
+    await ov(g.uid, 'customers.edit', 'grant'); await ov(g.uid, 'customers.delete', 'grant')
+    await ov(g.uid, 'cases.edit', 'grant'); await ov(g.uid, 'cases.delete', 'grant')
+    add('B grant customers.edit/delete → urelateret kunde: ret/slet NÆGTET', !(await updCustomer(g.cl, outCust)) && !(await delCustomer(g.cl, await seedCustomer())))
+    add('B grant cases.edit/delete → urelateret sag: ret/slet NÆGTET', !(await updCase(g.cl, await seedCase(outCust, false))) && !(await delCase(g.cl, await seedCase(outCust, false))))
+    add('B … samme grants → egen/tildelt: ret kunde + ret sag TILLADT', (await updCustomer(g.cl, base)) && (await updCase(g.cl, await seedCase(base, false, g.uid))))
+    await unov(g.uid)
+
     // ---- C: montør — de krævede scenarier
     const m = await tempUser('montør')
+    await seedCase(base, false, m.uid)
     add('C1 montør baseline: opret kunde NÆGTET', !(await insCustomer(m.cl, m.uid)))
-    add('C1 montør baseline: opret / ret / slet sag NÆGTET', !(await insCase(m.cl, m.uid, base)) && !(await updCase(m.cl, await seedCase(base, false))) && !(await delCase(m.cl, await seedCase(base, true))))
+    add('C1 montør baseline: opret / ret / slet sag NÆGTET', !(await insCase(m.cl, m.uid, base)) && !(await updCase(m.cl, await seedCase(base, false, m.uid))) && !(await delCase(m.cl, await seedCase(base, true, m.uid))))
     await ov(m.uid, 'customers.create', 'grant')
     add('C2 grant customers.create → opret kunde TILLADT', await insCustomer(m.cl, m.uid))
     add('C2 … sag stadig NÆGTET (kun den ene nøgle)', !(await insCase(m.cl, m.uid, base)))
@@ -182,18 +208,18 @@ export async function runMp00239RlsCheck(c: { admin: SupabaseClient; url: string
     await unov(m.uid, 'inbox.view')
     await ov(m.uid, 'cases.create', 'grant')
     add('C4 grant cases.create → opret sag TILLADT', await insCase(m.cl, m.uid, base))
-    add('C4 … ret sag stadig NÆGTET', !(await updCase(m.cl, await seedCase(base, false))))
-    add('C4 … ret sag-forslag stadig NÆGTET', !(await updCase(m.cl, await seedCase(base, true))))
-    add('C4 … slet forslag stadig NÆGTET', !(await delCase(m.cl, await seedCase(base, true))))
-    add('C4 … slet sag stadig NÆGTET', !(await delCase(m.cl, await seedCase(base, false))))
+    add('C4 … ret sag stadig NÆGTET', !(await updCase(m.cl, await seedCase(base, false, m.uid))))
+    add('C4 … ret sag-forslag stadig NÆGTET', !(await updCase(m.cl, await seedCase(base, true, m.uid))))
+    add('C4 … slet forslag stadig NÆGTET', !(await delCase(m.cl, await seedCase(base, true, m.uid))))
+    add('C4 … slet sag stadig NÆGTET', !(await delCase(m.cl, await seedCase(base, false, m.uid))))
     add('C4 … kunde stadig NÆGTET', !(await insCustomer(m.cl, m.uid)))
     await unov(m.uid, 'cases.create')
     add('C5 grant fjernet → opret sag NÆGTET igen', !(await insCase(m.cl, m.uid, base)))
     for (const o of templateOverrides(PERMISSION_TEMPLATES.elektriker)) await ov(m.uid, o.permission, o.effect, 'template')
     add('C6 Elektriker-skabelon → opret kunde TILLADT', await insCustomer(m.cl, m.uid))
     add('C6 Elektriker-skabelon → opret sag TILLADT', await insCase(m.cl, m.uid, base))
-    add('C6 Elektriker-skabelon → ret/slet kunde NÆGTET', !(await updCustomer(m.cl, base)) && !(await delCustomer(m.cl, await seedCustomer())))
-    add('C6 Elektriker-skabelon → ret sag / slet forslag NÆGTET', !(await updCase(m.cl, await seedCase(base, false))) && !(await delCase(m.cl, await seedCase(base, true))))
+    add('C6 Elektriker-skabelon → ret/slet kunde NÆGTET', !(await updCustomer(m.cl, base)) && !(await delCustomer(m.cl, await seedCustomer(m.uid))))
+    add('C6 Elektriker-skabelon → ret sag / slet forslag NÆGTET', !(await updCase(m.cl, await seedCase(base, false, m.uid))) && !(await delCase(m.cl, await seedCase(base, true, m.uid))))
     await c.admin.from('profiles').update({ is_active: false }).eq('id', m.uid)
     add('C7 inaktiv (med skabelon-grants) → opret kunde NÆGTET', !(await insCustomer(m.cl, m.uid)))
     add('C7 inaktiv (med skabelon-grants) → opret sag NÆGTET', !(await insCase(m.cl, m.uid, base)))

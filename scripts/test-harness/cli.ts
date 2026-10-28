@@ -5057,12 +5057,38 @@ COMMIT;`)
     fp.functions = await stagingSql(`SELECT p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' k, md5(p.prosrc || coalesce(array_to_string(p.proacl, ','), '') || p.prosecdef::text) h FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname='public' ORDER BY 1`)
     fp.grants = await stagingSql(`SELECT table_name || '.' || grantee k, string_agg(privilege_type, ',' ORDER BY privilege_type) h FROM information_schema.role_table_grants WHERE table_schema='public' AND grantee IN ('anon','authenticated','service_role') GROUP BY 1 ORDER BY 1`)
     fp.tables = await stagingSql(`SELECT table_name k FROM information_schema.tables WHERE table_schema='public' ORDER BY 1`)
+    fp.indexes = await stagingSql(`SELECT tablename || '.' || indexname k, md5(indexdef) h FROM pg_indexes WHERE schemaname='public' ORDER BY 1`)
+    fp.permission_catalog = await stagingSql(`SELECT permission k FROM public.permission_catalog ORDER BY 1`)
+    fp.role_permission_defaults = await stagingSql(`SELECT role::text || '.' || permission k FROM public.role_permission_defaults ORDER BY 1`)
     const business = ['customers', 'leads', 'offers', 'offer_line_items', 'service_cases', 'work_orders', 'customer_tasks', 'invoices', 'invoice_payments', 'time_logs', 'case_materials', 'case_other_costs', 'incoming_invoices', 'employees', 'profiles', 'roof_drawings']
     const rows: Record<string, unknown> = {}
     for (const t of business) rows[t] = (await stagingSql(`SELECT count(*)::int n, coalesce(md5(string_agg(md5(x::text), '' ORDER BY x.id)), '') checksum FROM public.${t} x`))[0]
     fp.rows = rows
     fp.profile_roles = await stagingSql(`SELECT role::text k, count(*)::int n, count(*) FILTER (WHERE is_active)::int active FROM public.profiles GROUP BY 1 ORDER BY 1`)
     console.log(JSON.stringify(fp))
+    return
+  }
+  if (SUB === 'view-security') {
+    // STAGING READ-ONLY: alle public-views med security_invoker-flag + hvilke tabeller de læser. En view UDEN
+    // security_invoker over en scope-tabel omgår læse-scopet (00240–00242) for den der har SELECT på viewet.
+    const r = await stagingSql(`SELECT c.relname v, coalesce(c.reloptions::text, '') opts,
+        has_table_privilege('authenticated', c.oid, 'SELECT') auth_select, has_table_privilege('anon', c.oid, 'SELECT') anon_select,
+        (SELECT string_agg(DISTINCT t.relname, ',' ORDER BY t.relname) FROM pg_depend d JOIN pg_rewrite rw ON rw.oid = d.objid
+           JOIN pg_class t ON t.oid = d.refobjid WHERE rw.ev_class = c.oid AND t.oid <> c.oid AND t.relkind IN ('r','v','m')) reads
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('v','m') ORDER BY 1`)
+    for (const x of r as Array<{ v: string; opts: string; auth_select: boolean; anon_select: boolean; reads: string }>) {
+      log(`  ${x.opts.includes('security_invoker=true') ? 'invoker ' : 'DEFINER '} auth=${x.auth_select ? 'ja' : 'nej'} anon=${x.anon_select ? 'ja' : 'nej'}  ${x.v.padEnd(40)} [${x.reads}]`)
+    }
+    // SECURITY DEFINER-funktioner som authenticated/anon kan kalde og som læser kunde-/sagstabeller (omgår RLS)
+    const f = await stagingSql(`SELECT p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' fn, pg_get_function_result(p.oid) ret,
+        has_function_privilege('authenticated', p.oid, 'EXECUTE') auth_exec, has_function_privilege('anon', p.oid, 'EXECUTE') anon_exec
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.prosecdef AND p.prosrc ~ '\\m(customers|service_cases|customer_contacts|customer_documents|work_orders|customer_tasks|invoices)\\M'
+        AND (has_function_privilege('authenticated', p.oid, 'EXECUTE') OR has_function_privilege('anon', p.oid, 'EXECUTE')) ORDER BY 1`)
+    log('SECURITY DEFINER (kaldbar) der læser scope-tabeller:')
+    for (const x of f as Array<{ fn: string; ret: string; auth_exec: boolean; anon_exec: boolean }>) {
+      log(`  auth=${x.auth_exec ? 'ja' : 'nej'} anon=${x.anon_exec ? 'ja' : 'nej'}  ${x.fn} → ${x.ret.slice(0, 80)}`)
+    }
     return
   }
   if (SUB === 'row-checksum-excluding') {
