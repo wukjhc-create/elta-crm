@@ -30,6 +30,17 @@ export function draftBodyOf(file: string): string {
   return body
 }
 
+/**
+ * Hvilke af 00240/00241/00242 er allerede ANVENDT på staging (markør-politikker)? Anvendte udkast køres ikke igen i
+ * prøven — så samme prøve er post-check efter apply (fixtures rulles stadig tilbage, intet ændres).
+ */
+export async function appliedScopeStages(rawSql: RawSql): Promise<{ s240: boolean; s241: boolean; s242: boolean }> {
+  const r = await rawSql(`SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND policyname IN ('customers_select_scope', 'customer_contacts_select_scope', 'work_orders_select_scope')`)
+  if (!r.ok) throw new Error(`kunne ikke læse politikker: ${r.text.slice(0, 200)}`)
+  const names = new Set((JSON.parse(r.text) as Array<{ policyname: string }>).map((x) => x.policyname))
+  return { s240: names.has('customers_select_scope'), s241: names.has('customer_contacts_select_scope'), s242: names.has('work_orders_select_scope') }
+}
+
 const TABLES = ['customer_contacts', 'customer_notes', 'customer_documents', 'roof_drawings', 'document_confirmations', 'work_orders',
   'case_notes', 'service_case_attachments', 'customer_tasks', 'invoices', 'invoice_lines', 'invoice_payments'] as const
 
@@ -43,6 +54,8 @@ export async function runMp0024142SqlProbe(c: { admin: SupabaseClient; url: stri
       'idx', (SELECT json_agg(indexname ORDER BY indexname) FROM pg_indexes WHERE schemaname='public' AND tablename IN ('customer_tasks','work_orders')),
       'col', (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='customer_tasks' AND column_name='service_case_id')) f`)).text
   const before = await fingerprint()
+  const stages = await appliedScopeStages(c.rawSql)
+  add(`anvendt på staging før prøven: 00240=${stages.s240 ? 'ja' : 'nej'} · 00241=${stages.s241 ? 'ja' : 'nej'} · 00242=${stages.s242 ? 'ja' : 'nej'}`, true)
   const { fx, cleanup } = await setup240(c)
   try {
     const { loginPersonas } = await import('./role-matrix')
@@ -134,9 +147,9 @@ export async function runMp0024142SqlProbe(c: { admin: SupabaseClient; url: stri
 DECLARE res jsonb := '{}'::jsonb; t0 timestamptz; ms jsonb := '{}'::jsonb;
 BEGIN
   ${ins.join('\n  ')}
-  EXECUTE $draft$${draftBodyOf('mp-00240-draft.sql')}$draft$;
-  EXECUTE $draft$${draftBodyOf('mp-00241-draft.sql')}$draft$;
-  EXECUTE $draft$${draftBodyOf('mp-00242-draft.sql')}$draft$;
+  ${stages.s240 ? '-- 00240 allerede anvendt' : `EXECUTE $draft$${draftBodyOf('mp-00240-draft.sql')}$draft$;`}
+  ${stages.s241 ? '-- 00241 allerede anvendt' : `EXECUTE $draft$${draftBodyOf('mp-00241-draft.sql')}$draft$;`}
+  ${stages.s242 ? '-- 00242 allerede anvendt' : `EXECUTE $draft$${draftBodyOf('mp-00242-draft.sql')}$draft$;`}
   CREATE FUNCTION pg_temp.p242(p_uid uuid, p_anon boolean DEFAULT false) RETURNS jsonb LANGUAGE plpgsql AS $f$
   DECLARE r jsonb; rn jsonb := '[]'::jsonb; plan jsonb; tm jsonb := '{}'::jsonb;
   BEGIN
@@ -184,7 +197,7 @@ $probe$;`
       add('udkastene kørte i rollback-only-prøven', false, r.ok ? 'blev IKKE afbrudt (!)' : r.text.slice(0, 600))
       return out
     }
-    add('00240 + 00241 + 00242 kørte uden fejl i rollback-only-prøven', true)
+    add('udkast (de ikke-anvendte af 00240/00241/00242) + matrix kørte uden fejl i rollback-only-prøven', true)
     type Res = Record<string, Record<string, unknown> & { ms?: Record<string, number> }>
     const res = JSON.parse(m[1].replace(/\\"/g, '"')) as Res
     const vis = (persona: string, t: string) => new Set(((res[persona]?.[t] as string[] | undefined) ?? []).map((x) => label.get(x) ?? x))

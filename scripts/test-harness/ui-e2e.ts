@@ -3514,31 +3514,37 @@ ${m.text()}`) })
         out.push({ id: 'U207 API-2 salg kun egne tilbud', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${of.error ? ` · SEED: ${of.error.message}` : ''}` })
       }
 
-      // U206 API-1: faktura-PDF følger fakturalistens regel (RLS can_view_case_finance: salg kun sager de har OPRETTET) —
-      // før kunne en sælger der blot var TILDELT en andens sag hente sagens faktura-PDF
+      // U206 API-1 → F1 (Henrik 2026-10-27): faktura-PDF følger fakturalistens regel = invoices.view.own_cases + sagen i
+      // brugerens EFFEKTIVE sags-scope (tildelt indgår). En sag uden relation til sælgeren giver stadig 404
       if (want('U206') && profitCustomerId) {
         const r: Record<string, boolean> = {}
         const sx = await mkUser('salg')
         const cs = await c.admin.from('service_cases').insert([
           { title: `[HARNESS] U206 tildelt ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id, assigned_to: sx.id },
           { title: `[HARNESS] U206 egen ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: sx.id, assigned_to: sx.id },
+          { title: `[HARNESS] U206 fremmed ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id, assigned_to: adminUser.id },
         ]).select('id, title')
         const caseRows = (cs.data ?? []) as Array<{ id: string; title: string }>
         for (const x of caseRows) listCaseIds.push(x.id)
         const assignedCase = caseRows.find((x) => x.title.includes('tildelt'))?.id
         const ownCase = caseRows.find((x) => x.title.includes('egen'))?.id
-        const inv = assignedCase && ownCase ? await c.admin.from('invoices').insert([
+        const foreignCase = caseRows.find((x) => x.title.includes('fremmed'))?.id
+        const inv = assignedCase && ownCase && foreignCase ? await c.admin.from('invoices').insert([
           { invoice_number: `U206-A-${stamp}`, customer_id: profitCustomerId, case_id: assignedCase, status: 'sent', total_amount: 100, tax_amount: 25, final_amount: 125, due_date: new Date().toISOString().slice(0, 10) },
           { invoice_number: `U206-B-${stamp}`, customer_id: profitCustomerId, case_id: ownCase, status: 'sent', total_amount: 100, tax_amount: 25, final_amount: 125, due_date: new Date().toISOString().slice(0, 10) },
+          { invoice_number: `U206-C-${stamp}`, customer_id: profitCustomerId, case_id: foreignCase, status: 'sent', total_amount: 100, tax_amount: 25, final_amount: 125, due_date: new Date().toISOString().slice(0, 10) },
         ]).select('id, invoice_number') : null
         const invRows = (inv?.data ?? []) as Array<{ id: string; invoice_number: string }>
         const invAssigned = invRows.find((x) => x.invoice_number.startsWith('U206-A'))?.id
         const invOwn = invRows.find((x) => x.invoice_number.startsWith('U206-B'))?.id
-        r.seed = !!invAssigned && !!invOwn
+        const invForeign = invRows.find((x) => x.invoice_number.startsWith('U206-C'))?.id
+        r.seed = !!invAssigned && !!invOwn && !!invForeign
         const sp = await login(sx)
         try {
-          const ra = invAssigned ? await gotoSafe(sp.page, `${base}/api/invoices/${invAssigned}/pdf`, { waitUntil: 'load', timeout: 120_000 }).catch(() => null) : null
-          r.tildelt_andens_sag_404 = ra?.status() === 404
+          const rf = invForeign ? await gotoSafe(sp.page, `${base}/api/invoices/${invForeign}/pdf`, { waitUntil: 'load', timeout: 120_000 }).catch(() => null) : null
+          r.fremmed_sag_404 = rf?.status() === 404
+          const ra = invAssigned ? await sp.page.context().request.get(`${base}/api/invoices/${invAssigned}/pdf`, { timeout: 180_000 }).catch(() => null) : null
+          r.tildelt_andens_sag_200 = ra?.status() === 200
           const ro = invOwn ? await sp.page.context().request.get(`${base}/api/invoices/${invOwn}/pdf`, { timeout: 180_000 }).catch(() => null) : null
           r.egen_sag_200 = ro?.status() === 200
         } finally {

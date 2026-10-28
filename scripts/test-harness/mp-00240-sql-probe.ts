@@ -44,6 +44,9 @@ export async function runMp00240SqlProbe(c: { admin: SupabaseClient; url: string
     return r.text
   }
   const before = await fingerprint()
+  const { appliedScopeStages } = await import('./mp-00241-00242-sql-probe')
+  const applied240 = (await appliedScopeStages(c.rawSql)).s240
+  add(`00240 anvendt på staging før prøven: ${applied240 ? 'ja (post-check: udkastet køres ikke igen)' : 'nej (udkastet køres og rulles tilbage)'}`, true)
   const { fx, cleanup } = await setup240(c)
   try {
     const { loginPersonas } = await import('./role-matrix')
@@ -78,7 +81,7 @@ export async function runMp00240SqlProbe(c: { admin: SupabaseClient; url: string
     const sql = `DO $probe$
 DECLARE res jsonb := '{}'::jsonb;
 BEGIN
-  EXECUTE $draft$${draftBody()}$draft$;
+  ${applied240 ? '-- 00240 allerede anvendt' : `EXECUTE $draft$${draftBody()}$draft$;`}
   CREATE FUNCTION pg_temp.p240(p_uid uuid, p_anon boolean DEFAULT false) RETURNS jsonb LANGUAGE plpgsql AS $f$
   DECLARE r jsonb; plan jsonb; ins jsonb := '{}'::jsonb; x uuid;
   BEGIN
