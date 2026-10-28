@@ -2859,6 +2859,12 @@ Total inkl. moms 11.718,75
     const { loginPersonas } = await import('./role-matrix')
     const personas = await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })
     log(`staging-total: ${(await stagingSql(`SELECT count(*)::int n FROM public.${table}`))[0].n}`)
+    if (table === 'customer_documents') {
+      // fordeling efter læsereglens grene (00241 O3): sag / sagsløs / mail-vedhæftning
+      const d = (await stagingSql(`SELECT count(*) FILTER (WHERE service_case_id IS NOT NULL)::int paa_sag, count(*) FILTER (WHERE service_case_id IS NULL AND source_email_id IS NULL)::int sagsloes,
+        count(*) FILTER (WHERE service_case_id IS NULL AND source_email_id IS NOT NULL)::int sagsloes_mail FROM public.customer_documents`))[0]
+      log(`  fordeling: ${JSON.stringify(d)}`)
+    }
     for (const [r, cl] of personas) {
       const q = await cl.from(table).select(cols, { count: 'exact', head: true })
       log(`  ${r.padEnd(12)} count=${q.count ?? '-'} ${q.error ? `FEJL ${q.error.code}: ${q.error.message}` : ''}`)

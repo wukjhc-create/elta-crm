@@ -5509,11 +5509,13 @@ ${m.text()}`) })
           const pageUrl = `${base}/dashboard/orders/${jobCaseId}`
           await gotoSafe(m.page, pageUrl, { waitUntil: 'networkidle', timeout: 180_000 })
           const F = 'src/lib/actions/besigtigelse.ts'
-          const denied = 'Du har ikke adgang til dette dokument'
+          // 00241: dokumentet hos den fremmede kunde er usynligt for montøren (RLS) → actionen afviser allerede ved opslaget
+          // ("Dokument ikke fundet"); før 00241 afviste app-tjekket ("ikke adgang"). Begge er en afvisning uden data ud.
+          const isDenied = (raw: string) => !raw.includes('"success":true') && (raw.includes('Du har ikke adgang til dette dokument') || raw.includes('Dokument ikke fundet'))
           const optsForeign = await callServerAction(m.page, pageUrl, F, 'getBesigtigelseRecipientOptions', [foreignDoc])
-          r.modtagere_fremmed_afvist = optsForeign.includes(denied) && !optsForeign.includes(`u221-${stamp}@harness.test`)
+          r.modtagere_fremmed_afvist = isDenied(optsForeign) && !optsForeign.includes(`u221-${stamp}@harness.test`)
           const sendForeign = await callServerAction(m.page, pageUrl, F, 'sendExistingBesigtigelsesreport', [{ documentId: foreignDoc, recipients: [{ type: 'manual', email: `u221-ekstern-${stamp}@harness.test` }] }])
-          r.send_fremmed_afvist = sendForeign.includes(denied)
+          r.send_fremmed_afvist = isDenied(sendForeign)
           const optsOwn = await callServerAction(m.page, pageUrl, F, 'getBesigtigelseRecipientOptions', [ownDoc])
           r.egen_kunde_tilladt = optsOwn.includes('"success":true')
           if (!r.modtagere_fremmed_afvist || !r.send_fremmed_afvist || !r.egen_kunde_tilladt) console.log('[U221]', optsForeign.slice(0, 300), '|', sendForeign.slice(0, 300), '|', optsOwn.slice(0, 300))
@@ -7581,11 +7583,18 @@ ${m.text()}`) })
           if (!r.gemt_som_manuel_af_admin) u142Diag = JSON.stringify({ err: rowsErr?.message ?? null, n: (rows ?? []).length, row: row ? { source: row.source, by_admin: row.created_by === adminUser.id } : null })
           const { data: cu } = await c.admin.from('customers').select('notes').eq('id', profitCustomerId).single()
           r.fritekst_uroert = (cu as { notes: string }).notes === `FRITEKST ${stamp}`
+          // 00240/00241: montøren ser kun kunder han arbejder for — en sag tildelt ham gør kunden (og dens noter) synlig
+          const mc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] U142 montørsag ${stamp}`, customer_id: profitCustomerId, status: 'new',
+            priority: 'medium', source: 'manual', created_by: adminUser.id, assigned_to: montor.id }]).select('id')
+          const mcId = (mc.data?.[0] as { id?: string } | undefined)?.id ?? null
+          if (mcId) listCaseIds.push(mcId)
           const mo = await login(montor)
           await gotoSafe(mo.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
           const mbox = mo.page.getByTestId('customer-notes-timeline')
           const seen = await mbox.waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
-          r.montor_laeser_ikke_skriver = seen && (await mbox.getByText(text).count()) > 0 && (await mbox.getByLabel('Ny kundenote').count()) === 0 && (await mbox.getByLabel('Slet note').count()) === 0
+          const mNote = await mbox.getByText(text).count(), mInput = await mbox.getByLabel('Ny kundenote').count(), mDel = await mbox.getByLabel('Slet note').count()
+          r.montor_laeser_ikke_skriver = seen && mNote > 0 && mInput === 0 && mDel === 0
+          if (!r.montor_laeser_ikke_skriver) u142Diag += ` montoer=${JSON.stringify({ seen, mNote, mInput, mDel, montorsag: !!mcId, url: mo.page.url().replace(base, '') })}`
           await mo.ctx.close().catch(() => {})
         } finally {
           await c.admin.from('customer_notes').delete().eq('customer_id', profitCustomerId)

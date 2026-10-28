@@ -2,6 +2,7 @@
 
 **Status 2026-10-28:** Henrik approved 00240 → 00241 → 00242 for **staging** (each only after the previous stage is verified green). **Prod requires separate approval per migration.**
 - 00240 **applied on staging** 2026-10-28 (fingerprint diff = exactly the expected 16 objects, 0 row changes; scope-check 38/38, sql-probe 28/28, f1-check 17/17, mp-00239-rls-check 55/55, child probe 102/102).
+- 00241 **applied on staging** 2026-10-28 (fingerprint diff = 5 SELECT policies replaced + `my_case_customer_ids()`, 0 row changes; child probe 102/102, sec-b7 18+12, document/fuldmagt/confirmation/mail-attachment/storage checks green; UI montør+portal-mail 80/80 — U142/U221 fixtures updated: a montør must be related to the customer, a foreign document is now invisible = "Dokument ikke fundet").
 - Migration files: `supabase/migrations/00240_…`, `00241_…`, `00242_…` (body byte-identical to the tested drafts).
 
 - Drafts: [`mp-00241-draft.sql`](mp-00241-draft.sql) (customer-keyed) and [`mp-00242-draft.sql`](mp-00242-draft.sql) (case-keyed + invoices + parity).
