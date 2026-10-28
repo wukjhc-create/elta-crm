@@ -5209,8 +5209,6 @@ ${m.text()}`) })
           for (let i = 0; i < 20; i++) { left = await docs(); if (!left.some((d) => d.id === up?.id)) break; await new Promise((res) => setTimeout(res, 1000)) }
           r.raekke_slettet = !!up && !left.some((d) => d.id === up.id)
           r.beskyttet_bevaret = left.some((d) => d.id === protId)
-          const dl = up?.storage_path ? await c.admin.storage.from('attachments').download(up.storage_path) : null
-          r.fil_fjernet = !!dl && !!dl.error
           // audit skrives efter sletningen — poll (samme race som U29)
           let audOk = false
           for (let i = 0; i < 20 && !audOk; i++) {
@@ -5219,6 +5217,9 @@ ${m.text()}`) })
             if (!audOk) await new Promise((res) => setTimeout(res, 500))
           }
           r.audit = audOk
+          // filen fjernes EFTER rækken (og før audit) — tjek storage når audit-rækken findes, ellers rammer vi racet
+          const dl = up?.storage_path ? await c.admin.storage.from('attachments').download(up.storage_path) : null
+          r.fil_fjernet = !!dl && !!dl.error
           // negativ rolle: montør på sin egen sag (U11) ser ingen slet-knap
           if (jobCaseId) {
             const ins = await c.admin.from('customer_documents').insert([{ customer_id: profitCustomerId, service_case_id: jobCaseId, title: `Montørfil ${stamp}`,

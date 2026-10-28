@@ -3,7 +3,9 @@
 **Status 2026-10-28:** Henrik approved 00240 → 00241 → 00242 for **staging** (each only after the previous stage is verified green). **Prod requires separate approval per migration.**
 - 00240 **applied on staging** 2026-10-28 (fingerprint diff = exactly the expected 16 objects, 0 row changes; scope-check 38/38, sql-probe 28/28, f1-check 17/17, mp-00239-rls-check 55/55, child probe 102/102).
 - 00241 **applied on staging** 2026-10-28 (fingerprint diff = 5 SELECT policies replaced + `my_case_customer_ids()`, 0 row changes; child probe 102/102, sec-b7 18+12, document/fuldmagt/confirmation/mail-attachment/storage checks green; UI montør+portal-mail 80/80 — U142/U221 fixtures updated: a montør must be related to the customer, a foreign document is now invisible = "Dokument ikke fundet").
-- Migration files: `supabase/migrations/00240_…`, `00241_…`, `00242_…` (body byte-identical to the tested drafts).
+- 00242 **applied on staging** 2026-10-28 (fingerprint diff = 9 SELECT policies replaced (work_orders, case_notes, case_materials, case_other_costs, service_case_attachments, customer_tasks, invoices, invoice_lines, invoice_payments), `can_view_case_finance()` and `current_employee_id()` changed, 1 index; customer_tasks columns/FK/index identical, so §0a O5 parity was a no-op). Checks: child probe 102/102, f1-check 17/17 (stage-aware), scope 38/38, mp-00239 55/55, invoice-rls/payment-summary/work-orders-guard/time-logs/rejected-hours/dashboard-stats/cost-lockdown/assistant-case-scope/wo-profit green; UI sales+montør+economy 139/140, where U174 `fil_fjernet` is a test race (storage checked before the action removes the file; the test now checks after the audit row).
+  - **Deviation found after apply:** 00242 created `idx_work_orders_assigned_employee`, which duplicates the existing `idx_work_orders_assignee` (00086) on `work_orders(assigned_employee_id)`. Functionally harmless (extra write cost). The line has been **removed** from the 00242 file and draft, so prod does not get the duplicate. Staging still has both until Henrik approves `DROP INDEX IF EXISTS public.idx_work_orders_assigned_employee` on staging.
+- Migration files: `supabase/migrations/00240_…`, `00241_…`, `00242_…` (body byte-identical to the tested drafts; 00242 minus the duplicate index, see above).
 
 - Drafts: [`mp-00241-draft.sql`](mp-00241-draft.sql) (customer-keyed) and [`mp-00242-draft.sql`](mp-00242-draft.sql) (case-keyed + invoices + parity).
 - Both require 00240 ([`mp-00240-draft.sql`](mp-00240-draft.sql)); the helpers `my_customer_scope_ids()` / `my_case_scope_ids()` come from there.
@@ -23,7 +25,7 @@
 
 Additionally in 00242:
 - `current_employee_id()` becomes deterministic (oldest active row, the same as the app's scope engine). Before, it was `LIMIT 1` without `ORDER BY`. Prod has 0 profiles with duplicate active rows, so the issue is latent.
-- Two indexes: `customer_tasks.assigned_to` and `work_orders.assigned_employee_id`.
+- One index: `customer_tasks.assigned_to` (already in prod under the same name, so a no-op there). `work_orders.assigned_employee_id` is already covered by `idx_work_orders_assignee` (00086).
 
 ## Test: `mp-00241-00242-sql-probe` (staging, rollback-only) — 101/101
 

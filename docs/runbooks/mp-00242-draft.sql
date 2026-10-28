@@ -128,7 +128,7 @@ CREATE POLICY invoice_lines_select_scope ON public.invoice_lines
 
 -- 5. indeks til politikkerne
 CREATE INDEX IF NOT EXISTS idx_customer_tasks_assigned_to ON public.customer_tasks (assigned_to);
-CREATE INDEX IF NOT EXISTS idx_work_orders_assigned_employee ON public.work_orders (assigned_employee_id);
+-- work_orders.assigned_employee_id har allerede idx_work_orders_assignee (00086) — intet nyt indeks (dublet fjernet 2026-10-28)
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;

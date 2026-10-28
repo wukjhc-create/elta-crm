@@ -27,7 +27,7 @@ export async function runMp00240F1Check(c: { admin: SupabaseClient; url: string;
       invoices.push(data.id); return data.id as string
     }
     const invD4 = await mkInv(fx.cases.salgD4, 1)
-    await mkInv(fx.cases.hidden, 2)
+    const invHidden = await mkInv(fx.cases.hidden, 2)
     await mkInv(null, 3)
 
     // ---- F: salg
@@ -38,8 +38,12 @@ export async function runMp00240F1Check(c: { admin: SupabaseClient; url: string;
     add('F salg: urelateret sag → ingen fakturaer', !(await canViewCaseInvoices(fx.cases.hidden, salg)))
     add('F salg: sagsløs faktura uden for scope', !invoiceInScope(sc, null))
     {
+      // Før 00242 skjulte RLS (can_view_case_finance: kun OPRETTEDE sager) D4-fakturaen → appen læser med admin efter
+      // scope-tjekket. Efter 00242 følger RLS samme regel som appen (F1) → salg ser den også direkte, og den urelaterede ikke.
       const { data: viaRls } = await fx.s.cl.from('invoices').select('id').eq('id', invD4).maybeSingle()
-      add('F (dokumentation) RLS i dag skjuler D4-fakturaen for salg → admin-læsning efter scope-tjek er nødvendig', !viaRls)
+      const { data: pol } = await fx.s.cl.from('invoices').select('id').eq('id', invHidden).maybeSingle()
+      const applied242 = !!viaRls
+      add(`F RLS ${applied242 ? 'efter 00242: D4-faktura synlig, urelateret skjult (= app)' : 'før 00242: D4-faktura skjult (app læser med admin efter scope-tjek)'}`, applied242 ? !pol : !viaRls && !pol)
     }
     // salg uden own_cases (REVOKE) → intet
     {
