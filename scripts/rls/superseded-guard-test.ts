@@ -5,7 +5,7 @@
  */
 import * as M from './write-matrix'
 import { buildMigration } from './build-migration'
-import { checkSupersededGuard, WAVES } from './matrix-check'
+import { checkSupersededGuard, checkSelectReplacedGuard, WAVES } from './matrix-check'
 
 let bad = 0
 const t = (label: string, ok: boolean, note = '') => { if (!ok) bad++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${note ? ` — ${note}` : ''}`) }
@@ -41,5 +41,19 @@ entries.forEach(({ p }, i) => { p.supersededBy = saved[i] })
 t('uden markering FEJLER regression-checket', mutated.length >= entries.length, mutated.map((f) => f.slice(0, 70)).join(' | '))
 t('markering genskabt efter mutation', checkSupersededGuard().length === 0)
 
-console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ generator-værn for dedikerede migrationer (00235, 00239) ok')
+// 4. læse-scope-værn (Henrik 2026-10-29 "No broad fallback policy"): ingen åben SELECT genskabes efter erstatningen
+t('læse-værn grønt', checkSelectReplacedGuard().length === 0, checkSelectReplacedGuard().slice(0, 2).join(' | '))
+for (const [nr, wave, table] of [['00242', 'WAVE5', 'work_orders'], ['00241', 'WAVE1', 'customer_contacts'], ['00300', 'WAVE3A', 'case_materials']]) {
+  let msg = ''
+  try { buildMigration(nr, wave) } catch (e) { msg = e instanceof Error ? e.message : String(e) }
+  t(`build-migration ${nr} ${wave} afvises (${table}: åben SELECT)`, /læsning erstattet|vedligeholdes af migration/.test(msg), msg.slice(0, 90))
+}
+t('historisk 00181 (WAVE5) genereres stadig med åben SELECT', (() => { try { return buildMigration('00181', 'WAVE5').sql.includes('work_orders_select_authenticated ON public.work_orders FOR SELECT TO authenticated USING (true)') } catch { return false } })())
+const savedSel = M.SELECT_REPLACED.work_orders
+delete (M.SELECT_REPLACED as Record<string, unknown>).work_orders
+const mutSel = checkSelectReplacedGuard()
+M.SELECT_REPLACED.work_orders = savedSel
+t('uden work_orders i SELECT_REPLACED FEJLER læse-værnet', mutSel.some((f) => f.startsWith('work_orders:')), mutSel.slice(0, 1).join(''))
+
+console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ generator-værn for dedikerede migrationer (00235, 00239) og erstattet læsning (00192–00242) ok')
 process.exitCode = bad ? 1 : 0

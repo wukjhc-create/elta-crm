@@ -5173,6 +5173,18 @@ COMMIT;`)
     log('✅ anvendt (kør verifikation: npm run harness:verify-00159)')
     return
   }
+  if (SUB === 'staging-cleanup-00242-dup-index') {
+    // STAGING-ONLY oprydning (Henrik 2026-10-29: "Drop the duplicate staging index … Keep the existing idx_work_orders_assignee").
+    // Den oprindeligt anvendte 00242 oprettede idx_work_orders_assigned_employee = dublet af idx_work_orders_assignee (00086)
+    log(`=== STAGING-OPRYDNING 00242-dublet → staging:${ref} ===`)
+    const before = await stagingSql(`SELECT indexname FROM pg_indexes WHERE schemaname='public' AND tablename='work_orders' AND indexdef ILIKE '%(assigned_employee_id)%' ORDER BY 1`)
+    log(`før: ${JSON.stringify(before)}`)
+    await stagingSql('DROP INDEX IF EXISTS public.idx_work_orders_assigned_employee;')
+    const after = await stagingSql(`SELECT indexname FROM pg_indexes WHERE schemaname='public' AND tablename='work_orders' AND indexdef ILIKE '%(assigned_employee_id)%' ORDER BY 1`)
+    log(`efter: ${JSON.stringify(after)}`)
+    process.exitCode = JSON.stringify(after) === JSON.stringify([{ indexname: 'idx_work_orders_assignee' }]) ? 0 : 2
+    return
+  }
   if (SUB === 'verify-read-lockdown') {
     // STAGING: samme tjek som prod:verify-read-lockdown (00175/00176/00177/00179), mod staging via mgmt-API.
     const { READ_LOCKDOWN_NRS, runReadLockdownChecks } = await import('../rls/read-lockdown-checks')

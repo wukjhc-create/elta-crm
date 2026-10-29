@@ -26,13 +26,14 @@ runMain(() => withProdRollbackProbe('mp-00239-effective', async ({ q, as, add, n
     if (!actives.some((x) => x.role === role)) notTestable(`${role}: ingen aktiv profil i prod`, 'dækket af staging mp-00239-rls-check 51/51 + U230')
   }
 
-  // testrækker (som ejer, i prøvens savepoint) — faste id'er pr. kørsel
+  // testrækker (som ejer, i prøvens savepoint) — faste id'er pr. kørsel. Sag + forslag er tildelt montøren, så rækkerne
+  // ligger i hans læse-scope (00240): et NÆGTET skyldes rettigheden, ikke synligheden (scope-prøver: prod-read-scope-effective.ts)
   const tag = `ROLLBACK-239-${Date.now()}`
   const cust = randomUUID(), caseId = randomUUID(), propId = randomUUID()
   const seed = [
     `INSERT INTO public.customers (id, customer_number, company_name, contact_person, email, created_by) VALUES ('${cust}', '${tag}', '[ROLLBACK] 239', 'R', '${tag.toLowerCase()}@rollback.invalid', '${admin.uid}')`,
-    `INSERT INTO public.service_cases (id, title, customer_id, created_by, is_proposal) VALUES ('${caseId}', '[ROLLBACK] 239 sag', '${cust}', '${admin.uid}', false)`,
-    `INSERT INTO public.service_cases (id, title, customer_id, created_by, is_proposal) VALUES ('${propId}', '[ROLLBACK] 239 forslag', '${cust}', '${admin.uid}', true)`,
+    `INSERT INTO public.service_cases (id, title, customer_id, created_by, is_proposal, assigned_to) VALUES ('${caseId}', '[ROLLBACK] 239 sag', '${cust}', '${admin.uid}', false, '${montor.uid}')`,
+    `INSERT INTO public.service_cases (id, title, customer_id, created_by, is_proposal, assigned_to) VALUES ('${propId}', '[ROLLBACK] 239 forslag', '${cust}', '${admin.uid}', true, '${montor.uid}')`,
   ]
   const grant = (uid: string, perm: string, source = 'manual') =>
     `INSERT INTO public.user_permission_overrides (profile_id, permission, effect, source, reason) VALUES ('${uid}', '${perm}', 'grant', '${source}', 'rollback-prøve 00239')`

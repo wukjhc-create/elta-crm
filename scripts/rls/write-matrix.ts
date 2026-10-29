@@ -477,6 +477,33 @@ export function policyNames(t: string) {
   return { ins: `${t}_insert_role`, upd: `${t}_update_role`, del: `${t}_delete_role`, sel: `${t}_select_authenticated` }
 }
 
+/**
+ * Tabeller hvis LÆSNING er erstattet af en senere migration (kost-lockdown 00192/00200/00223, læse-scope 00241/00242).
+ * build-migration NÆGTER `recreateOpenSelect` for dem i en migration ≥ `migration`: en permissiv
+ * `<tabel>_select_authenticated USING (true)` ved siden af scope-politikken ville åbne alt igen (politikker OR'es).
+ * prod-verify-rls-wave forventer `policy` i stedet for den åbne læsning. Fjern ALDRIG en post uden en ny læse-model.
+ */
+export const SELECT_REPLACED: Record<string, { migration: string; policy: string }> = {
+  work_order_profit: { migration: '00192', policy: 'work_order_profit_select_cost_roles' },
+  calc_component_materials: { migration: '00200', policy: 'calc_component_materials_select_cost_roles' },
+  calc_components: { migration: '00200', policy: 'calc_components_select_cost_roles' },
+  kalkia_calculations: { migration: '00200', policy: 'kalkia_calculations_select_cost_roles' },
+  kalkia_nodes: { migration: '00200', policy: 'kalkia_nodes_select_cost_roles' },
+  kalkia_variant_materials: { migration: '00200', policy: 'kalkia_variant_materials_select_cost_roles' },
+  materials_catalog: { migration: '00200', policy: 'materials_catalog_select_cost_roles' },
+  calculation_settings: { migration: '00223', policy: 'calculation_settings_select_scoped' },
+  customer_contacts: { migration: '00241', policy: 'customer_contacts_select_scope' },
+  customer_documents: { migration: '00241', policy: 'customer_documents_select_scope' },
+  document_confirmations: { migration: '00241', policy: 'document_confirmations_select_scope' },
+  roof_drawings: { migration: '00241', policy: 'roof_drawings_select_scope' },
+  customer_tasks: { migration: '00242', policy: 'customer_tasks_select_scope' },
+  work_orders: { migration: '00242', policy: 'work_orders_select_scope' },
+  case_materials: { migration: '00242', policy: 'case_materials_select_scope' },
+  case_other_costs: { migration: '00242', policy: 'case_other_costs_select_scope' },
+  service_case_attachments: { migration: '00242', policy: 'service_case_attachments_select_scope' },
+  invoice_lines: { migration: '00242', policy: 'invoice_lines_select_scope' },
+}
+
 /** Genererer migration-SQL for et saet tabeller (idempotent). */
 export function generateSql(policies: TableWritePolicy[]): string {
   const out: string[] = []

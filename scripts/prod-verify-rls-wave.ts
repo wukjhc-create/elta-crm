@@ -69,7 +69,12 @@ async function main() {
         AND (roles @> ARRAY['authenticated']::name[] OR roles @> ARRAY['public']::name[])`)) as any[]).map((x) => x.policyname)
       const foreign = writePols.filter((x) => ![n.ins, n.upd, n.del].includes(x))
       if (foreign.length) wrong.push(`fremmede skrive-policies: ${foreign.join(',')}`)
-      if (p.recreateOpenSelect && !have.includes(n.sel)) wrong.push(`${n.sel} mangler`)
+      // læsning erstattet senere (kost-lockdown / læse-scope): den åbne SELECT må IKKE findes, erstatningen skal
+      const rep = M.SELECT_REPLACED[p.table]
+      if (p.recreateOpenSelect && rep) {
+        if (!have.includes(rep.policy)) wrong.push(`${rep.policy} mangler (læsning erstattet i ${rep.migration})`)
+        if (have.includes(n.sel)) wrong.push(`${n.sel} (åben læsning) burde ikke findes — erstattet i ${rep.migration}`)
+      } else if (p.recreateOpenSelect && !have.includes(n.sel)) wrong.push(`${n.sel} mangler`)
       expect(wrong.length === 0, `${p.table}: præcis de genererede skrive-policies${wrong.length ? ` (${wrong.join('; ')})` : ''}`)
       // extraSql: trigger-funktioner skal vaere SECURITY DEFINER, have laast search_path og ingen EXECUTE for klienter
       for (const fn of (p.extraSql ?? []).map((x) => /ALTER FUNCTION public\.(\w+)\(\)\s+SECURITY DEFINER/i.exec(x)?.[1]).filter(Boolean) as string[]) {

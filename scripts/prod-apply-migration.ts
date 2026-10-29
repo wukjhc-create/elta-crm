@@ -83,6 +83,11 @@ const APPROVED: Record<string, string> = {
   '00237': '2026-10-25', // SEC-B10 user_role() fail-closed (manglende/inaktiv profil = ingen_adgang, aldrig montør) — godkendt af Henrik i chat 2026-10-25 ("00237 — APPROVED FOR PROD", efter grøn ui-full 197/197 og 00236)
   '00238': '2026-10-26', // PERM-1 lagring af per-medarbejder-rettigheder (katalog, rollestandarder, overrides, user_has_permission fail-closed) — godkendt af Henrik i chat 2026-10-26 ("Henrik godkender hermed 00238 til PROD", pilot = option 2 rollback-only)
   '00239': '2026-10-27', // PERM-1 fase 4 bølge 1, REVIDERET: customers + service_cases skrivning via handlingens egen rettighed (montør-rest ud af INSERT; salg uden rå sags-UPDATE/forslag-DELETE; offers.create/inbox.view giver ikke kunde-INSERT; cases.create kun opret) — godkendt af Henrik i chat 2026-10-27 ("Jeg godkender hermed den REVIDEREDE 00239 til PROD")
+  // PERM-1 læse-scope — godkendt af Henrik i chat 2026-10-29 ("00240 — APPROVED FOR PROD"; 00241/00242 betinget af at
+  // forrige migration er fuldt grøn). 00242 = den rettede fil uden dublet-indekset på work_orders.assigned_employee_id
+  '00240': '2026-10-29', // customers + service_cases læse-scope (own/related/all)
+  '00241': '2026-10-29', // kontakter/dokumenter/noter/tagtegninger/bekræftelser følger kunde-/sags-scope (O3/O4/O6)
+  '00242': '2026-10-29', // arbejdsordrer/opgaver/sagsbørn/fakturaer følger sags-scope (O1/O2/F1)
 }
 
 async function main() {

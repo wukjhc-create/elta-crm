@@ -19,10 +19,24 @@ export function assertNotSuperseded(nr: string, policies: M.TableWritePolicy[]):
   }
 }
 
+/**
+ * Læse-scope (Henrik 2026-10-29: "No broad fallback policy"): `recreateOpenSelect` må ikke genskabe en åben SELECT på en
+ * tabel hvis læsning er erstattet (M.SELECT_REPLACED) — historiske filer før erstatningen genskabes stadig byte-identisk.
+ */
+export function assertSelectNotReplaced(nr: string, policies: M.TableWritePolicy[]): void {
+  for (const p of policies) {
+    const rep = M.SELECT_REPLACED[p.table]
+    if (p.recreateOpenSelect && rep && Number(nr) >= Number(rep.migration)) {
+      throw new Error(`${p.table}: læsning erstattet af ${rep.policy} (${rep.migration}) — generatoren må ikke genskabe en åben SELECT i ${nr}`)
+    }
+  }
+}
+
 export function buildMigration(nr: string, wave: string): { file: string; sql: string } {
   const policies = (M as unknown as Record<string, M.TableWritePolicy[]>)[wave]
   if (!Array.isArray(policies)) throw new Error(`ukendt wave: ${wave}`)
   assertNotSuperseded(nr, policies)
+  assertSelectNotReplaced(nr, policies)
   const header = `-- =====================================================================
 -- ${nr} — P-009 RLS-skrivelås, ${wave} (${policies.map((p) => p.table).join(', ')})
 --

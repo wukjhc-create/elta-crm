@@ -382,4 +382,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   hver politik bruger kun handlingens egen nøgle (customers.create/edit/delete, cases.create = KUN opret,
   cases.edit|close|service.close = ret, cases.delete = slet inkl. forslag). offers.create/inbox.view giver ingen
   kunde-INSERT; godkend/afvis sag-forslag går via kontrolleret server-sti (proposals.ts: inbox.view [+cases.create],
-  service-role, auditeret). SELECT er stadig åben — read-scoping (own/related/all) er næste bølge
+  service-role, auditeret). (Opdateret 2026-10-29: læse-scope er nu i prod, se næste note)
+- 2026-10-29: 00240–00242 i prod (læse-scope): kunder/sager (own/related/all via `my_customer_scope_ids()`/
+  `my_case_scope_ids()`), kontakter/dokumenter/tagtegninger/bekræftelser, arbejdsordrer (montør kun egne), opgaver,
+  sagsbørn og fakturaer (F1: `invoices.view.own_cases` = kun sager i effektivt scope) følger scopet. UPDATE/DELETE rammer
+  kun synlige rækker — en skrive-grant rækker ALDRIG ud over læse-scopet. Nye læsepolitikker på wave-tabeller SKAL i
+  `SELECT_REPLACED` (scripts/rls/write-matrix.ts) — check:rls-matrix fejler ellers. Prod-tjek:
+  `scripts/prod-read-scope-effective.ts` (rollback-only). Runbook: docs/runbooks/mp-00241-00242-child-scope-design.md

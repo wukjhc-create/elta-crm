@@ -43,6 +43,7 @@ export function checkMatrix(): { failures: string[]; warnings: string[] } {
     else if (readFileSync(file, 'utf8').replace(/\r\n/g, '\n') !== sql) failures.push(`${nr}: migrationsfilen afviger fra matrixen — kør npx tsx scripts/rls/build-migration.ts ${nr} ${wave}`)
   }
   failures.push(...checkSupersededGuard())
+  failures.push(...checkSelectReplacedGuard())
   return { failures, warnings }
 }
 
@@ -53,6 +54,33 @@ export const DEDICATED_WRITE_POLICIES: Record<string, { migration: string; mustC
   // PERM-1 fase 4 (Henrik 2026-10-26): skrivning følger effektive rettigheder
   customers: { migration: '00239', mustContain: ['CREATE POLICY customers_insert_role', "user_has_permission('customers.create')", "user_has_permission('customers.delete')"] },
   service_cases: { migration: '00239', mustContain: ['CREATE POLICY service_cases_insert_role', "user_has_permission('cases.create')", "user_has_permission('cases.delete')"] },
+}
+
+/**
+ * Læse-scope-værn (00241/00242 + kost-lockdown): generatoren må ikke kunne genskabe en åben SELECT på en tabel hvis
+ * læsning er erstattet. Fanger også en NY *_select_scope-migration på en wave-tabel, der ikke er ført ind i SELECT_REPLACED.
+ */
+export function checkSelectReplacedGuard(): string[] {
+  const failures: string[] = []
+  const dir = join(process.cwd(), 'supabase', 'migrations')
+  const files = readdirSync(dir).filter((f) => /^\d{5}_.*\.sql$/.test(f))
+  const waveOf = (table: string) => WAVES.filter(({ wave }) => (M as unknown as Record<string, M.TableWritePolicy[]>)[wave].some((p) => p.table === table && p.recreateOpenSelect))
+  for (const [table, rep] of Object.entries(M.SELECT_REPLACED)) {
+    const file = files.find((f) => f.startsWith(`${rep.migration}_`))
+    if (!file) failures.push(`${table}: migration ${rep.migration} (læse-erstatning) mangler`)
+    else if (!new RegExp(`CREATE POLICY "?${rep.policy}"?\\s+ON\\s+(public\\.)?"?${table}"?`, 'i').test(readFileSync(join(dir, file), 'utf8'))) failures.push(`${table}: ${file} opretter ikke ${rep.policy}`)
+    for (const { wave } of waveOf(table)) {
+      let refused = false
+      try { buildMigration(rep.migration, wave) } catch { refused = true }
+      if (!refused) failures.push(`${table}: build-migration ${rep.migration} ${wave} blev IKKE afvist — en åben SELECT kunne genskabes ved siden af ${rep.policy}`)
+    }
+  }
+  for (const f of files) {
+    for (const m of readFileSync(join(dir, f), 'utf8').matchAll(/CREATE POLICY "?(\w+_select_scope)"?\s+ON\s+(?:public\.)?"?(\w+)"?/gi)) {
+      if (waveOf(m[2]).length && !M.SELECT_REPLACED[m[2]]) failures.push(`${m[2]}: ${f} erstatter læsningen (${m[1]}), men tabellen mangler i SELECT_REPLACED — generatoren kunne genskabe den åbne SELECT`)
+    }
+  }
+  return failures
 }
 
 export function checkSupersededGuard(): string[] {

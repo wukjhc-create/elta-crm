@@ -1,11 +1,63 @@
 # 00241 / 00242 — read scope on child tables
 
-**Status 2026-10-28:** Henrik approved 00240 → 00241 → 00242 for **staging** (each only after the previous stage is verified green). **Prod requires separate approval per migration.**
+**Status 2026-10-29: 00240, 00241 and 00242 are APPLIED IN PROD and green** (see "PROD 2026-10-29" below). Staging was applied 2026-10-28.
 - 00240 **applied on staging** 2026-10-28 (fingerprint diff = exactly the expected 16 objects, 0 row changes; scope-check 38/38, sql-probe 28/28, f1-check 17/17, mp-00239-rls-check 55/55, child probe 102/102).
 - 00241 **applied on staging** 2026-10-28 (fingerprint diff = 5 SELECT policies replaced + `my_case_customer_ids()`, 0 row changes; child probe 102/102, sec-b7 18+12, document/fuldmagt/confirmation/mail-attachment/storage checks green; UI montør+portal-mail 80/80 — U142/U221 fixtures updated: a montør must be related to the customer, a foreign document is now invisible = "Dokument ikke fundet").
 - 00242 **applied on staging** 2026-10-28 (fingerprint diff = 9 SELECT policies replaced (work_orders, case_notes, case_materials, case_other_costs, service_case_attachments, customer_tasks, invoices, invoice_lines, invoice_payments), `can_view_case_finance()` and `current_employee_id()` changed, 1 index; customer_tasks columns/FK/index identical, so §0a O5 parity was a no-op). Checks: child probe 102/102, f1-check 17/17 (stage-aware), scope 38/38, mp-00239 55/55, invoice-rls/payment-summary/work-orders-guard/time-logs/rejected-hours/dashboard-stats/cost-lockdown/assistant-case-scope/wo-profit green; UI sales+montør+economy 139/140, where U174 `fil_fjernet` is a test race (storage checked before the action removes the file; the test now checks after the audit row).
   - **Deviation found after apply:** 00242 created `idx_work_orders_assigned_employee`, which duplicates the existing `idx_work_orders_assignee` (00086) on `work_orders(assigned_employee_id)`. Functionally harmless (extra write cost). The line has been **removed** from the 00242 file and draft, so prod does not get the duplicate. Staging still has both until Henrik approves `DROP INDEX IF EXISTS public.idx_work_orders_assigned_employee` on staging.
+  - **Staging cleanup (recorded separately, Henrik 2026-10-29):** `npx tsx scripts/test-harness/cli.ts staging-cleanup-00242-dup-index` ran `DROP INDEX IF EXISTS public.idx_work_orders_assigned_employee`. Before: `idx_work_orders_assigned_employee`, `idx_work_orders_assignee`. After: only `idx_work_orders_assignee`. The fingerprint diff was exactly 1 (`- indexes work_orders.idx_work_orders_assigned_employee`).
 - Migration files: `supabase/migrations/00240_…`, `00241_…`, `00242_…` (body byte-identical to the tested drafts; 00242 minus the duplicate index, see above).
+
+## PROD 2026-10-29 (Henrik: "00240 — APPROVED FOR PROD"; 00241/00242 conditional on the previous stage being fully green)
+
+The committed files were run (git = HEAD) with these sha256 hashes:
+- 00240: `234d524d…cb056`
+- 00241: `0e4edcc0…2e108`
+- 00242: `9edb8b59…0f32`, the corrected version with no duplicate line.
+
+Each stage ran:
+1. pre-fingerprint;
+2. `prod:apply-migration -- <nr> --approved-by-henrik --dry-run` (ROLLBACK);
+3. fingerprint, **identical**;
+4. COMMIT;
+5. post-fingerprint;
+6. probes;
+7. fingerprint again after the probes, **identical** (nothing left behind).
+
+`prod-db-fingerprint.ts` was extended to cover indexes, permission_catalog, role_permission_defaults and child-table rows (incl. user_permission_overrides).
+
+**Results:**
+
+| Stage | Diff (prod) | Rows | Probe `prod-read-scope-effective.ts` |
+|---|---|---|---|
+| 00240 | = staging's 16 (2 SELECT policies replace 4, 2 functions, 3 indexes, 1 catalogue key, 4 role defaults) | only the 5 permission rows | [NY] 34/34 · [UÆNDRET] 7/7 |
+| 00241 | 9 = staging's 11 minus the customer_notes pair (the table does not exist in prod, so no policy and no fallback) | 0 | [NY] 72/72 · [UÆNDRET] 15/15 |
+| 00242 | 20 = 9 SELECT policies, `can_view_case_finance()`, `current_employee_id()`, **0 indexes** (only `idx_work_orders_assignee` on the work-order column) | 0 | [NY] 162/162 · [UÆNDRET] 33/33 |
+
+All 16 scope policies are hash-identical to staging. The cumulative diff for 00240–00242 is 47 objects, and no business rows changed.
+
+**Personas:**
+- **Real profiles:** 3 admins and 2 montørs (one without an employee row).
+- **Simulated on a montør profile:** salg, serviceleder and bogholderi, using the role's defaults as rollback overrides. These roles are NOT_TESTABLE_PROD as real profiles.
+- Elektriker and Overmontør templates; inactive, missing profile and anon.
+
+**Other checks (all green):**
+- montør real data matches an independently computed scope (customers 2/2, cases 0/0 and 3/3);
+- 0 child rows without a visible parent;
+- 0 foreign work orders;
+- B rule: write grants never reach hidden rows;
+- function ACL authenticated only;
+- no `USING (true)` SELECT/ALL policy on the 15 scope tables;
+- views over scope tables are security_invoker;
+- callable SECURITY DEFINER functions return only booleans or own scope;
+- mp-00239 16/16+19/19, sec-b7 11/11+12/12, 00236–00238, 00185 personas, cost lockdown wave 2 post 38/38, rls-effective, waves 1–5 post.
+
+**Script fixes (test expectations, not behaviour):**
+- `prod-mp-00239-effective`: the seed case is assigned to the montør (within read scope).
+- `prod-rls-effective`: `has_any_column_privilege`. With column-level SELECT, the expectation is the visible rows, not all rows.
+- `prod-verify-rls-wave`: expects the replacing read policy instead of the old open one (`SELECT_REPLACED`).
+
+**Generator guard (new):** `SELECT_REPLACED` in `write-matrix.ts`, together with `assertSelectNotReplaced` in `build-migration.ts` and `checkSelectReplacedGuard` in the `check:rls-matrix` gate, stops a regenerated write wave from recreating `<table>_select_authenticated USING (true)` next to the scope or cost policy. The gate also caught that roof_drawings and customer_tasks were missing from the list.
 
 - Drafts: [`mp-00241-draft.sql`](mp-00241-draft.sql) (customer-keyed) and [`mp-00242-draft.sql`](mp-00242-draft.sql) (case-keyed + invoices + parity).
 - Both require 00240 ([`mp-00240-draft.sql`](mp-00240-draft.sql)); the helpers `my_customer_scope_ids()` / `my_case_scope_ids()` come from there.

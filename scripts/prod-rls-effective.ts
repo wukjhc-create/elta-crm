@@ -31,8 +31,10 @@ async function main() {
       // UPDATE/DELETE rammer kun rækker rollens SELECT-policy viser (fx montør-mailscope 00180) → forventning = synlige
       const visible = new Map<string, number>()
       for (const p of policies) {
-        // kun hvis rollen overhovedet må læse tabellen (læse-lockdown fjerner SELECT-grant) — ellers gammel forventning
-        const canRead = Boolean((await run(`SELECT has_table_privilege('authenticated', 'public.${p.table}', 'SELECT') ok`))[0].ok)
+        // kun hvis rollen overhovedet må læse tabellen (læse-lockdown fjerner SELECT-grant) — ellers gammel forventning.
+        // Kolonne-niveau-SELECT (fx document_confirmations uden token-kolonnen, 00177) tæller som læsbar: efter 00240–00242
+        // rammer UPDATE/DELETE kun rækker i læse-scopet, så forventningen er de synlige rækker
+        const canRead = Boolean((await run(`SELECT has_any_column_privilege('authenticated', 'public.${p.table}', 'SELECT') ok`))[0].ok)
         if (canRead) visible.set(p.table, Number((await run(`SELECT count(*)::int n FROM public.${p.table}`))[0].n))
       }
       const res: string[] = []
