@@ -46,6 +46,7 @@ export function OrderDocumentsTab({
 }) {
   const [documents, setDocuments] = useState<CaseDocument[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -66,8 +67,12 @@ export function OrderDocumentsTab({
   }
 
   const load = useCallback(async () => {
-    const data = await getDocumentsForCase(caseId)
-    setDocuments(data)
+    try {
+      setDocuments(await getDocumentsForCase(caseId))
+      setLoadError(null)
+    } catch {
+      setLoadError('Kunne ikke hente sagens dokumenter')
+    }
   }, [caseId])
 
   useEffect(() => {
@@ -75,8 +80,9 @@ export function OrderDocumentsTab({
     setIsLoading(true)
     getDocumentsForCase(caseId)
       .then((data) => {
-        if (!cancelled) setDocuments(data)
+        if (!cancelled) { setDocuments(data); setLoadError(null) }
       })
+      .catch(() => { if (!cancelled) setLoadError('Kunne ikke hente sagens dokumenter') })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
       })
@@ -172,7 +178,12 @@ export function OrderDocumentsTab({
       {deleteMsg && (
         <p className={`text-sm ${deleteMsg.ok ? 'text-emerald-700' : 'text-red-600'}`} role="status" data-testid="case-document-delete-msg">{deleteMsg.text}</p>
       )}
-      {documents.length === 0 && (
+      {loadError && (
+        <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900" role="alert" data-testid="case-documents-error">
+          {loadError}. Det tælles ikke som ingen dokumenter. <button type="button" className="underline" onClick={() => { void load() }}>Prøv igen</button>
+        </div>
+      )}
+      {documents.length === 0 && !loadError && (
         <div className="bg-white rounded-lg border p-12 text-center text-gray-500">
           <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">Ingen dokumenter på denne sag</p>

@@ -371,7 +371,7 @@ export async function getUpcomingTasks(limit: number = DASHBOARD_LIMITS.UPCOMING
     .from('customer_tasks')
     .select('id, title, due_date, priority, status, customer:customers(id, company_name)')
     .neq('status', 'done')
-    .not('due_date', 'is', null), { role: ctx.role, userId: ctx.userId, hasPermission: ctx.hasPermission as never })
+    .not('due_date', 'is', null), { userId: ctx.userId, hasPermission: ctx.hasPermission as never })
   if (!q) return []
   const { data } = await q
     .order('due_date', { ascending: true })

@@ -51,7 +51,7 @@ export function OrderInspectionTab({
     let active = true
     getDocumentsForCase(caseId).then((docs) => {
       if (active) setReports(docs.filter(isBesigtigelseReport))
-    })
+    }).catch(() => { /* rapportlisten er et tilvalg — dokumentfanen viser læsefejlen */ })
     return () => {
       active = false
     }

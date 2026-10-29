@@ -16,9 +16,9 @@ export const dynamic = 'force-dynamic'
 export default async function TasksPage() {
   // Sprint 7E fix — montor faar begraenset task-view.
   const ctx = await getPageRoleContext()
-  const isMontor = ctx.role === 'montør'
-  // X-13: uden tasks.view (salg/bogholderi) vises kun egne opgaver — samme visning som montørens "Mine opgaver"
-  const ownOnly = isMontor || !ctx.has('tasks.view')
+  // X-13/W-8: kun egne opgaver uden customers.view.all (montør) eller uden tasks.view (salg/bogholderi) — taskListScope
+  const { taskListScope } = await import('@/lib/tasks/task-scope')
+  const ownOnly = taskListScope(ctx.has as (p: never) => boolean) !== 'all'
   const canManage = ctx.has('tasks.create') // admin + serviceleder
   // PM3-8 (rettigheds-audit 2026-10-19): sendTaskEmail kræver tasks.edit — uden den vises mailknappen ikke
   const canMail = ctx.has('tasks.edit')

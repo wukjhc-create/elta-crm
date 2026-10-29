@@ -30,6 +30,29 @@ import { hasPermission, type Permission } from '@/lib/auth/permissions'
  * bruges rollens standard (identisk uden overrides) — UI'et er aldrig mere åbent end serveren tillader, da hver action/side
  * håndhæver selv.
  */
+/**
+ * Pilot-ydelse 2026-10-29 (U232): 36 komponenter bruger hooket, og hver mount hentede profil + rettigheder selv —
+ * målt 5–8 dobbeltkald af getProfile og getMyEffectivePermissionsAction pr. sidevisning. Samtidige mounts deler nu ÉN
+ * forespørgsel, genbrugt i højst 5 s. Kun i browseren (useEffect kører aldrig på serveren), så intet deles mellem brugere
+ * i SSR; det korte vindue gør, at et brugerskift i samme fane aldrig får en gammel profil.
+ */
+type RoleFetch = { profile: Awaited<ReturnType<typeof import('@/lib/actions/settings').getProfile>> | null; effective: string[] | null }
+let shared: { at: number; promise: Promise<RoleFetch> } | null = null
+const SHARE_MS = 5_000
+function fetchRoleShared(): Promise<RoleFetch> {
+  if (shared && Date.now() - shared.at < SHARE_MS) return shared.promise
+  const promise = (async (): Promise<RoleFetch> => {
+    const { getProfile } = await import('@/lib/actions/settings')
+    const { getMyEffectivePermissionsAction } = await import('@/lib/actions/my-permissions')
+    const [profile, effective] = await Promise.all([getProfile().catch(() => null), getMyEffectivePermissionsAction().catch(() => null)])
+    return { profile, effective: effective ? [...effective] : null }
+  })()
+  shared = { at: Date.now(), promise }
+  // en fejlet forespørgsel må ikke genbruges
+  promise.then((r) => { if (!r.profile && shared?.promise === promise) shared = null }, () => { if (shared?.promise === promise) shared = null })
+  return promise
+}
+
 export function useUserRole(): { role: UserRole; loading: boolean; fullName: string | null; email: string | null; can: (perm: Permission) => boolean } {
   // Always start with the most restrictive default so SSR and client
   // hydration produce identical HTML for the initial render.
@@ -43,11 +66,9 @@ export function useUserRole(): { role: UserRole; loading: boolean; fullName: str
     let mounted = true
     async function fetchRole() {
       try {
-        const { getProfile } = await import('@/lib/actions/settings')
-        const { getMyEffectivePermissionsAction } = await import('@/lib/actions/my-permissions')
-        const [result, effective] = await Promise.all([getProfile(), getMyEffectivePermissionsAction().catch(() => null)])
+        const { profile: result, effective } = await fetchRoleShared()
         if (mounted && effective) setPerms(new Set(effective))
-        if (mounted && result.success && result.data) {
+        if (mounted && result?.success && result.data) {
           setRole(result.data.role as UserRole)
           setFullName((result.data as { full_name?: string | null }).full_name ?? null)
           setEmail((result.data as { email?: string | null }).email ?? null)

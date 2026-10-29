@@ -13,7 +13,16 @@ const dateLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('
 
 export async function MyHoursCard() {
   const res = await getMyWeekHoursAction(0)
-  if (!res.ok || !res.linked) return null
+  // Pilot-review 2026-10-29: uden rettighed/medarbejderrække skjules kortet; en læsefejl vises (før forsvandt kortet)
+  if (!res.ok) {
+    if (/^Manglende tilladelse/.test(res.message ?? '')) return null
+    return (
+      <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900 mb-6" role="alert" data-testid="my-hours-card-error">
+        {res.message ?? 'Kunne ikke hente dine timer'}. Det betyder ikke, at du har 0 timer — prøv igen om lidt.
+      </div>
+    )
+  }
+  if (!res.linked) return null
   const { week } = res
   return (
     <section className="bg-white rounded-lg border p-4 sm:p-5 mb-6" data-testid="my-hours-card">

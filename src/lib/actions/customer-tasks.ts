@@ -17,6 +17,7 @@ import { APP_URL } from '@/lib/constants'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { userSafeOr } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
+import { taskListScope, type TaskListScope } from '@/lib/tasks/task-scope'
 
 /**
  * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
@@ -163,7 +164,7 @@ export async function getCustomerTasks(
     .from('customer_tasks')
     .select('*')
     .eq('customer_id', customerId)
-  if (ctx.role === 'montør') q = q.eq('assigned_to', ctx.userId)
+  if (taskListScope(ctx.hasPermission as (p: never) => boolean) === 'assigned') q = q.eq('assigned_to', ctx.userId)
   const { data, error } = await q
     .order('created_at', { ascending: false })
 
@@ -229,21 +230,17 @@ export async function getAllTasks(options?: {
   /** PF-7 (performance-review 2026-10-16): udelad udførte opgaver i databasen (før hentet og skjult i klienten) */
   excludeDone?: boolean
 }): Promise<CustomerTaskWithRelations[]> {
-  // Sprint 7E fix — scope tasks per rolle.
-  // Montor maa kun se tasks tildelt til egen profile.id (assigned_to).
-  // Andre roller (admin/serviceleder/salg/bogholderi) ser alle tasks.
-  let role: string = 'montør'
+  // Afgrænsning efter effektive rettigheder (taskListScope): tildelte / egne / alle
+  let scope: TaskListScope = 'assigned'
   let userId: string | null = null
-  let canViewAll = false
   let supabase: Awaited<ReturnType<typeof createClient>>
   try {
     const ctx = await getAuthenticatedClientWithRole()
-    role = ctx.role
     userId = ctx.userId
     supabase = ctx.supabase
     // W-8 (pilot-review 2026-10-15): før ingen rettighedskontrol — alle indloggede så alle opgaver. Fuld liste kræver
     // tasks.view; andre (salg/bogholderi) ser kun opgaver de har oprettet eller er tildelt
-    canViewAll = ctx.hasPermission('tasks.view')
+    scope = taskListScope(ctx.hasPermission as (p: never) => boolean)
   } catch {
     // Ikke logget ind — returnér tom liste.
     return []
@@ -273,10 +270,10 @@ export async function getAllTasks(options?: {
     .order('created_at', { ascending: false })
 
   // Sprint 7E — montor scope
-  if (role === 'montør') {
+  if (scope === 'assigned') {
     if (!userId) return []
     query = query.eq('assigned_to', userId)
-  } else if (!canViewAll) {
+  } else if (scope === 'own') {
     if (!userId) return []
     query = query.or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
   }
@@ -287,7 +284,7 @@ export async function getAllTasks(options?: {
   if (options?.priority && options.priority !== 'all') {
     query = query.eq('priority', options.priority)
   }
-  if (options?.assignedTo && options.assignedTo !== 'all' && role !== 'montør') {
+  if (options?.assignedTo && options.assignedTo !== 'all' && scope !== 'assigned') {
     // Montor's filter ignoreres — assigned_to er allerede fast til userId.
     query = query.eq('assigned_to', options.assignedTo)
   }
@@ -319,29 +316,27 @@ export async function getAllTasks(options?: {
  * "Udførte (N)"-knappen, når listen ikke henter de udførte (HEAD-count, ingen rækker).
  */
 export async function countDoneTasks(options?: { priority?: string; assignedTo?: string; search?: string }): Promise<number> {
-  let role: string = 'montør'
+  let scope: TaskListScope = 'assigned'
   let userId: string | null = null
-  let canViewAll = false
   let supabase: Awaited<ReturnType<typeof createClient>>
   try {
     const ctx = await getAuthenticatedClientWithRole()
-    role = ctx.role
     userId = ctx.userId
     supabase = ctx.supabase
-    canViewAll = ctx.hasPermission('tasks.view')
+    scope = taskListScope(ctx.hasPermission as (p: never) => boolean)
   } catch {
     return 0
   }
   let q = supabase.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('status', 'done')
-  if (role === 'montør') {
+  if (scope === 'assigned') {
     if (!userId) return 0
     q = q.eq('assigned_to', userId)
-  } else if (!canViewAll) {
+  } else if (scope === 'own') {
     if (!userId) return 0
     q = q.or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
   }
   if (options?.priority && options.priority !== 'all') q = q.eq('priority', options.priority)
-  if (options?.assignedTo && options.assignedTo !== 'all' && role !== 'montør') q = q.eq('assigned_to', options.assignedTo)
+  if (options?.assignedTo && options.assignedTo !== 'all' && scope !== 'assigned') q = q.eq('assigned_to', options.assignedTo)
   if (options?.search) q = q.ilike('title', `%${escapeLike(options.search)}%`)
   const { count, error } = await q
   if (error) {
@@ -362,16 +357,14 @@ export async function countDoneTasks(options?: { priority?: string; assignedTo?:
  * and the same definitions (active = not done, overdue = active + past due).
  */
 export async function getTaskCounts(): Promise<{ active: number; overdue: number }> {
-  let role: string = 'montør'
+  let scope: TaskListScope = 'assigned'
   let userId: string | null = null
-  let canViewAll = false
   let supabase: Awaited<ReturnType<typeof createClient>>
   try {
     const ctx = await getAuthenticatedClientWithRole()
-    role = ctx.role
     userId = ctx.userId
     supabase = ctx.supabase
-    canViewAll = ctx.hasPermission('tasks.view')
+    scope = taskListScope(ctx.hasPermission as (p: never) => boolean)
   } catch {
     return { active: 0, overdue: 0 }
   }
@@ -391,11 +384,11 @@ export async function getTaskCounts(): Promise<{ active: number; overdue: number
     .lt('due_date', nowIso)
 
   // Sprint 7E — montør scope: only tasks assigned to the current user.
-  if (role === 'montør') {
+  if (scope === 'assigned') {
     if (!userId) return { active: 0, overdue: 0 }
     activeQuery = activeQuery.eq('assigned_to', userId)
     overdueQuery = overdueQuery.eq('assigned_to', userId)
-  } else if (!canViewAll) {
+  } else if (scope === 'own') {
     // W-8: samme afgrænsning som getAllTasks (egne oprettede/tildelte)
     if (!userId) return { active: 0, overdue: 0 }
     activeQuery = activeQuery.or(`assigned_to.eq.${userId},created_by.eq.${userId}`)

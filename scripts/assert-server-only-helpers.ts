@@ -12,6 +12,9 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { taskListScope } from '../src/lib/tasks/task-scope'
+import { computeEffectivePermissions } from '../src/lib/auth/effective-permissions'
+import { PERMISSION_TEMPLATES, templateOverrides } from '../src/lib/auth/permission-templates'
 
 const ROOT = process.cwd()
 const SERVER_ONLY_MODULES = [
@@ -91,7 +94,7 @@ if (!dBody.includes("hasPermission('cases.view.all')") || !dBody.includes('getCa
 // omgår overrides — ratchet: antallet må kun falde (sænk baseline, når kald konverteres).
 {
   const RAW_HAS_BASELINE = 52
-  const ROLE_CMP_BASELINE = 57
+  const ROLE_CMP_BASELINE = 48
   const files = walk(join(ROOT, 'src')).filter((f) => /\.(ts|tsx)$/.test(f) && !f.replace(/\\/g, '/').endsWith('src/lib/auth/permissions.ts'))
   let rawHas = 0, roleCmp = 0
   for (const f of files) {
@@ -103,6 +106,22 @@ if (!dBody.includes("hasPermission('cases.view.all')") || !dBody.includes('getCa
   else pass(`PERM-1: direkte hasPermission(role, …) = ${rawHas} (≤ ${RAW_HAS_BASELINE})`)
   if (roleCmp > ROLE_CMP_BASELINE) fail(`PERM-1: ${roleCmp} rolle-sammenligninger (baseline ${ROLE_CMP_BASELINE}) — brug en rettighed`)
   else pass(`PERM-1: rolle-sammenligninger = ${roleCmp} (≤ ${ROLE_CMP_BASELINE})`)
+}
+
+// W-8 (2026-10-29): opgavelistens afgrænsning via effektive rettigheder må ikke ændre standardrollernes liste
+{
+  const scopeOf = (role: string, tpl?: keyof typeof PERMISSION_TEMPLATES) => {
+    const eff = computeEffectivePermissions(role, tpl ? templateOverrides(PERMISSION_TEMPLATES[tpl]) : [])
+    return taskListScope(((p: string) => eff.has(p as never)) as (p: never) => boolean)
+  }
+  const want: Array<[string, string, keyof typeof PERMISSION_TEMPLATES | undefined, string]> = [
+    ['montør', 'montør', undefined, 'assigned'], ['Elektriker', 'montør', 'elektriker', 'assigned'], ['admin', 'admin', undefined, 'all'],
+    ['serviceleder', 'serviceleder', undefined, 'all'], ['salg', 'salg', undefined, 'own'], ['bogholderi', 'bogholderi', undefined, 'own'],
+    ['ingen_adgang', 'ingen_adgang', undefined, 'assigned'],
+  ]
+  const bad = want.filter(([, role, tpl, exp]) => scopeOf(role, tpl) !== exp).map(([n, role, tpl, exp]) => `${n}=${scopeOf(role, tpl)} (forventet ${exp})`)
+  if (bad.length) fail(`W-8: opgaveliste-scope ændret for standardroller: ${bad.join(', ')}`)
+  else pass(`W-8: opgaveliste-scope uændret for standardroller (montør/Elektriker tildelte, salg/bogholderi egne, admin/serviceleder alle); Overmontør=${scopeOf('montør', 'overmontor')}`)
 }
 
 if (failures > 0) {

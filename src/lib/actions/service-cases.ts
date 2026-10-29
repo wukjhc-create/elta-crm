@@ -1098,7 +1098,8 @@ export async function getDocumentsForCase(
 
     if (error) {
       logger.error('getDocumentsForCase failed', { error, entityId: serviceCaseId })
-      return []
+      // Pilot-review 2026-10-29: en læsefejl må ikke ligne "ingen dokumenter" — fanen viser fejlen
+      throw new Error('Kunne ikke hente sagens dokumenter')
     }
 
     // Phase β.2.3: lazy-refresh file_url via signed-URL helper for hver row
@@ -1116,8 +1117,9 @@ export async function getDocumentsForCase(
     }
     // IDOR-sweep 2026-10-09 (#2): ingen CPR/underskrift fra fuldmagter i listen
     return rows.map((r, idx) => ({ ...r, description: safeDocumentDescription(r.description), file_url: freshByIdx[idx] ?? r.file_url ?? '' }))
-  } catch {
-    return []
+  } catch (e) {
+    logger.error('getDocumentsForCase failed', { error: e, entityId: serviceCaseId })
+    throw new Error('Kunne ikke hente sagens dokumenter')
   }
 }
 
@@ -1383,9 +1385,9 @@ export async function getEmployeesForOrderSelect(): Promise<
     if (ownOnly) q = q.eq('profile_id', userId)
     const { data, error } = await q.order('name')
     if (error) {
-      // employees table may be optional in some envs; return empty rather than fail.
+      // Pilot-review 2026-10-29: før success + [] → tom medarbejdervælger, så timer ikke kunne registreres uden forklaring
       logger.warn('Error fetching employees for order select', { error })
-      return { success: true, data: [] }
+      return { success: false, error: 'Kunne ikke hente medarbejdere' }
     }
     const list = (data || []).map((e: any) => ({
       id: e.id as string,
@@ -1855,7 +1857,8 @@ export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNot
       .limit(500)
     if (error) {
       logger.warn('Could not fetch case notes', { error })
-      return { success: true, data: [] }
+      // Pilot-review 2026-10-29: før success + [] → "Ingen noter endnu" ved læsefejl
+      return { success: false, error: 'Kunne ikke hente sagens noter' }
     }
 
     const rows = data || []

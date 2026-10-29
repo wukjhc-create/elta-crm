@@ -29,15 +29,25 @@ export function CaseBillingStatusCard({
 }) {
   const [data, setData] = useState<CaseBillingStatus | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getServiceCaseBillingStatus(caseId).then((r) => {
       if (r.success && r.data) setData(r.data)
+      else setError(r.success ? 'ingen data' : r.error ?? 'ukendt fejl')
       setLoaded(true)
-    })
+    }).catch(() => { setError('netværksfejl'); setLoaded(true) })
   }, [caseId])
 
-  if (!loaded || !data) return null
+  if (!loaded) return null
+  // Pilot-review 2026-10-29: kortet forsvandt tavst ved læsefejl — vis fejlen (kortet vises kun med invoices.view.own_cases)
+  if (!data) {
+    return (
+      <div className="rounded-lg ring-1 ring-red-200 bg-red-50 p-4 text-sm text-red-900" data-testid="case-billing-status-error">
+        Kunne ikke hente faktureringsstatus: {error}
+      </div>
+    )
+  }
 
   const parts: string[] = []
   if (data.unbilled_time_logs > 0) parts.push(`${data.unbilled_time_logs} timerække${data.unbilled_time_logs > 1 ? 'r' : ''}`)

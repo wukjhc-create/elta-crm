@@ -185,7 +185,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
-  montor: ['U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -5173,6 +5173,170 @@ ${m.text()}`) })
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-kalender.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U11 montør-dagen (job, foto, afslut, kalender)', ok: !seedErr && Object.values(r).every(Boolean),
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
+      // U231 PILOTDAG (Henrik 2026-10-29) — ÉN sammenhængende kæde på tværs af roller efter læse-scope 00240–00242:
+      // salgs tilbud → sag fra tilbuddet (D4) → arbejdsordre til montøren → timer + materiale → faktura. Montøren (mobil
+      // 375 px) finder jobbet, åbner sagen og kunden, ser materialet uden priser og afvises på en fremmed sag; salg ser
+      // D4-sagen og dens faktureringsstatus (F1) men ikke den fremmede; bogholderiet ser begge fakturaer
+      if (want('U231') && profitCustomerId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U231-${stamp}`
+        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
+        const sx = await mkUser('salg')
+        const bh = await mkUser('bogholderi')
+        const created: { offer?: string; wo?: string; inv: string[]; tl: string[]; mat: string[] } = { inv: [], tl: [], mat: [] }
+        try {
+          const off = await c.admin.from('offers').insert([{ offer_number: `${tag}-T`, title: `[HARNESS] ${tag} tilbud`, created_by: sx.id, customer_id: profitCustomerId, status: 'accepted' }]).select('id')
+          created.offer = (off.data?.[0] as { id?: string } | undefined)?.id
+          const cs = created.offer ? await c.admin.from('service_cases').insert([
+            { title: `[HARNESS] ${tag} sag fra tilbud`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id, source_offer_id: created.offer },
+            { title: `[HARNESS] ${tag} fremmed`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id },
+          ]).select('id, title') : null
+          const rows = (cs?.data ?? []) as Array<{ id: string; title: string }>
+          for (const x of rows) listCaseIds.push(x.id)
+          const d4 = rows.find((x) => x.title.includes('tilbud'))?.id
+          const foreign = rows.find((x) => x.title.includes('fremmed'))?.id
+          const woTitle = `[HARNESS] ${tag} job`
+          // dashboard/loading.tsx streamer svaret → notFound() giver HTTP 200; afvisningen bevises på indholdet
+          const foreignTitle = `[HARNESS] ${tag} fremmed`
+          const deniedPage = async (pg: import('playwright').Page) => {
+            await pg.getByText('Siden blev ikke fundet').first().waitFor({ timeout: 45_000 }).catch(() => {})
+            return (await pg.getByText('Siden blev ikke fundet').count()) > 0 && (await pg.getByText(foreignTitle).count()) === 0
+          }
+          const wo = d4 ? await c.admin.from('work_orders').insert([{ case_id: d4, customer_id: profitCustomerId, title: woTitle, scheduled_date: today, assigned_employee_id: jobEmployeeId, status: 'planned' }]).select('id') : null
+          created.wo = (wo?.data?.[0] as { id?: string } | undefined)?.id
+          // satser: U11 sætter dem; uden satser afviser 00230 timerne (dansk fejl) — sæt dem kun hvis de mangler
+          await c.admin.from('employees').update({ hourly_rate: 495, cost_rate: 300 }).eq('id', jobEmployeeId).is('hourly_rate', null)
+          const t0 = new Date(`${today}T06:00:00Z`).getTime()
+          const tl = created.wo ? await c.admin.from('time_logs').insert([{ employee_id: jobEmployeeId, work_order_id: created.wo, start_time: new Date(t0).toISOString(), end_time: new Date(t0 + 2 * 3600_000).toISOString(), billable: true, description: `${tag} montage` }]).select('id') : null
+          created.tl = ((tl?.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+          const matDesc = `${tag} kabel 3x1,5`
+          const mat = d4 ? await c.admin.from('case_materials').insert([{ case_id: d4, description: matDesc, quantity: 10, unit: 'm', unit_cost: 10, unit_sales_price: 15, billable: true, source: 'manual', created_by: adminUser.id }]).select('id') : null
+          created.mat = ((mat?.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+          const due = new Date().toISOString().slice(0, 10)
+          const inv = d4 && foreign ? await c.admin.from('invoices').insert([
+            { invoice_number: `${tag}-A`, customer_id: profitCustomerId, case_id: d4, status: 'sent', total_amount: 100, tax_amount: 25, final_amount: 125, due_date: due },
+            { invoice_number: `${tag}-F`, customer_id: profitCustomerId, case_id: foreign, status: 'sent', total_amount: 100, tax_amount: 25, final_amount: 125, due_date: due },
+          ]).select('id') : null
+          created.inv = ((inv?.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+          r.seed = !!d4 && !!foreign && !!created.wo && created.tl.length === 1 && created.mat.length === 1 && created.inv.length === 2
+
+          // ---- montør, mobil 375 px
+          const mp = await login(montor)
+          try {
+            await mp.page.setViewportSize({ width: 375, height: 812 })
+            await gotoSafe(mp.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const job = mp.page.getByTestId('my-job').filter({ hasText: woTitle }).first()
+            r.m_mine_job = (await job.count()) === 1
+            await job.click({ timeout: 30_000 }).catch(() => {})
+            await mp.page.waitForURL(new RegExp(`/dashboard/orders/${d4}`), { timeout: 60_000 }).catch(() => {})
+            r.m_job_aabner_sagen = mp.page.url().includes(`/dashboard/orders/${d4}`)
+            r.m_sag_uden_vandret_scroll = (await mp.page.evaluate(() => document.documentElement.scrollWidth).catch(() => 9999)) <= 376
+            await gotoSafe(mp.page, `${base}/dashboard/orders/${d4}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await mp.page.getByText(matDesc).first().waitFor({ timeout: 30_000 }).catch(() => {})
+            const matsText = (await mp.page.locator('main').innerText().catch(() => '')) ?? ''
+            r.m_materiale_uden_pris = matsText.includes(matDesc) && !/15,00\s*kr|150,00\s*kr/.test(matsText)
+            await gotoSafe(mp.page, `${base}/dashboard/orders/${d4}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await mp.page.getByText(`${tag} montage`).first().waitFor({ timeout: 30_000 }).catch(() => {})
+            r.m_timer_paa_rigtig_ao = (await mp.page.getByText(`${tag} montage`).count()) > 0
+            const rc = await gotoSafe(mp.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const custText = (await mp.page.locator('main').innerText().catch(() => '')) ?? ''
+            r.m_kunde_aabner = !!rc && rc.status() === 200 && !/ikke adgang|Kunne ikke hente/i.test(custText)
+            if (foreign) await gotoSafe(mp.page, `${base}/dashboard/orders/${foreign}`, { waitUntil: 'networkidle', timeout: 120_000 })
+            r.m_fremmed_sag_afvist = !!foreign && await deniedPage(mp.page)
+            await mp.page.screenshot({ caret: 'initial', path: join(shots, 'u231-montoer-mobil.png'), fullPage: true }).catch(() => {})
+          } finally { await mp.ctx.close().catch(() => {}) }
+
+          // ---- salg: D4-sagen + faktureringsstatus (F1), fremmed sag afvist
+          const sp = await login(sx)
+          try {
+            const rd = await gotoSafe(sp.page, `${base}/dashboard/orders/${d4}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            r.s_d4_sag_200 = rd?.status() === 200
+            await sp.page.getByText(/Delvist faktureret|Fuldt faktureret|Klar til fakturering/).first().waitFor({ timeout: 45_000 }).catch(() => {})
+            r.s_faktureringsstatus = (await sp.page.getByText(/Delvist faktureret|Fuldt faktureret|Klar til fakturering/).count()) > 0
+            if (foreign) await gotoSafe(sp.page, `${base}/dashboard/orders/${foreign}`, { waitUntil: 'networkidle', timeout: 120_000 })
+            r.s_fremmed_sag_afvist = !!foreign && await deniedPage(sp.page)
+          } finally { await sp.ctx.close().catch(() => {}) }
+
+          // ---- bogholderi: fakturaoverblik med begge
+          const bp = await login(bh)
+          try {
+            await gotoSafe(bp.page, `${base}/dashboard/invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await bp.page.getByText(`${tag}-A`).first().waitFor({ timeout: 45_000 }).catch(() => {})
+            r.b_ser_begge_fakturaer = (await bp.page.getByText(`${tag}-A`).count()) > 0 && (await bp.page.getByText(`${tag}-F`).count()) > 0
+          } finally { await bp.ctx.close().catch(() => {}) }
+        } finally {
+          if (created.inv.length) await c.admin.from('invoices').delete().in('id', created.inv)
+          if (created.tl.length) await c.admin.from('time_logs').delete().in('id', created.tl)
+          if (created.mat.length) await c.admin.from('case_materials').delete().in('id', created.mat)
+          if (created.wo) await c.admin.from('work_orders').delete().eq('id', created.wo)
+        }
+        out.push({ id: 'U231 pilotdag på tværs af roller (tilbud→sag→AO→timer/materiale→faktura; montør mobil, salg F1, bogholderi)', ok: Object.values(r).every(Boolean),
+          note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U232 PILOT-YDELSE (Henrik 2026-10-29): mål de tungeste brugerflader pr. rolle (staging-volumen) — server-tid
+      // (TTFB), fuld indlæsning og antal server-action-kald efter load (afslører klient-N+1/dobbeltkald). Varm måling:
+      // hver side indlæses to gange, den anden tæller. Fejler kun ved klare udslag (server-tid > 10 s)
+      if (want('U232') && profitCustomerId && jobCaseId) {
+        const rows: string[] = []
+        let worst = 0
+        // action-id → navn fra byggets manifest, så dobbeltkald kan navngives
+        const manifest = JSON.parse(readFileSync(join(process.cwd(), '.next', 'server', 'server-reference-manifest.json'), 'utf8')) as { node: Record<string, { exportedName: string }> }
+        const nameOf = (id: string) => manifest.node[id]?.exportedName ?? id.slice(0, 8)
+        const measure = async (page: import('playwright').Page, label: string, path: string) => {
+          let actions = 0
+          let ids: string[] = []
+          const onReq = (req: import('playwright').Request) => { const id = req.method() === 'POST' ? req.headers()['next-action'] : undefined; if (id) { actions++; ids.push(id) } }
+          let t = { ttfb: -1, load: -1 }
+          for (let i = 0; i < 2; i++) {
+            actions = 0
+            ids = []
+            page.on('request', onReq)
+            await gotoSafe(page, `${base}${path}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            page.off('request', onReq)
+            t = await page.evaluate(() => {
+              const n = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+              return n ? { ttfb: Math.round(n.responseStart - n.requestStart), load: Math.round(n.loadEventEnd - n.startTime) } : { ttfb: -1, load: -1 }
+            }).catch(() => ({ ttfb: -1, load: -1 }))
+          }
+          worst = Math.max(worst, t.ttfb)
+          const counts = new Map<string, number>()
+          for (const id of ids) counts.set(nameOf(id), (counts.get(nameOf(id)) ?? 0) + 1)
+          const dup = [...counts].filter(([, n]) => n > 1).map(([k, n]) => `${k}×${n}`).join(',')
+          rows.push(`${label}: ttfb=${t.ttfb}ms load=${t.load}ms actions=${actions}${dup ? ` dobbelt[${dup}]` : ''} alle[${[...counts.keys()].join(',')}]`)
+        }
+        await measure(a.page, 'admin kundeliste', '/dashboard/customers')
+        await measure(a.page, 'admin kundeside', `/dashboard/customers/${profitCustomerId}`)
+        await measure(a.page, 'admin sagsside', `/dashboard/orders/${jobCaseId}`)
+        await measure(a.page, 'admin kalender', '/dashboard/calendar')
+        await measure(a.page, 'admin fakturaoverblik', '/dashboard/invoices')
+        await measure(a.page, 'admin dashboard', '/dashboard')
+        // global søgning: tid fra indtastning til første resultat (debounce inkluderet)
+        {
+          const box = a.page.getByPlaceholder('Søg leads, kunder, tilbud, projekter...').first()
+          await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const t0 = Date.now()
+          await box.fill('harness').catch(() => {})
+          const resp = await a.page.waitForResponse((r) => r.request().method() === 'POST' && !!r.request().headers()['next-action'], { timeout: 30_000 }).catch(() => null)
+          rows.push(`admin global søgning: ${resp ? Date.now() - t0 : -1}ms (inkl. debounce)`)
+        }
+        const mp = await login(montor)
+        try {
+          await measure(mp.page, 'montør Mine job', '/dashboard/tasks')
+          await measure(mp.page, 'montør sagsside', `/dashboard/orders/${jobCaseId}?tab=planlaegning`)
+          await measure(mp.page, 'montør kalender', '/dashboard/calendar')
+        } finally { await mp.ctx.close().catch(() => {}) }
+        const sx = await mkUser('salg')
+        const sp = await login(sx)
+        try {
+          await measure(sp.page, 'salg kundeliste', '/dashboard/customers')
+          await measure(sp.page, 'salg kundeside', `/dashboard/customers/${profitCustomerId}`)
+        } finally { await sp.ctx.close().catch(() => {}) }
+        console.log(`[U232] ${rows.join(' | ')}`)
+        writeFileSync(join(shots, 'u232-ydelse.txt'), rows.join('\n'))
+        out.push({ id: 'U232 pilot-ydelse (server-tid, indlæsning, action-kald pr. side)', ok: worst > 0 && worst < 10_000, note: rows.join(' | ') })
       }
 
       // U174 X-12: slet dokument på sag — admin sletter uploadet fil (række + storage + audit), beskyttet dokument har ingen

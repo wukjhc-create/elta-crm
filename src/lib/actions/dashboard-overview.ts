@@ -675,7 +675,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           `, { count: 'exact' })
           .neq('status', 'done')
           .gte('due_date', nowIso)
-          .ilike('title', '%esigtigelse%'), { role: roleCtx.role, userId: roleCtx.userId, hasPermission: roleCtx.hasPermission as never })
+          .ilike('title', '%esigtigelse%'), { userId: roleCtx.userId, hasPermission: roleCtx.hasPermission as never })
         if (!visitsQ) return
         const { data, count: visitCount } = await visitsQ
           .order('due_date', { ascending: true })

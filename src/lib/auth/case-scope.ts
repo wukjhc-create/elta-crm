@@ -21,6 +21,18 @@ import type { UserRole } from '@/types/auth.types'
 import type { Permission } from '@/lib/auth/permissions'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
+/**
+ * Pilot-review 2026-10-29: en LÆSEFEJL i et scope-opslag må aldrig betyde "ingen adgang" — før blev en fejlet
+ * employees-/work_orders-/service_cases-læsning til et tomt scope, og kaldere viste "Ingen job / Ingen timer / Ingen
+ * materialer". Kastes i stedet; formatError viser den danske tekst (kaldere uden try/catch rammer fejlsiden).
+ */
+export class ScopeReadError extends Error {
+  constructor(what: string) {
+    super(`Kunne ikke kontrollere adgangen (${what}) — prøv igen. Det betyder ikke, at der intet er.`)
+    this.name = 'ScopeReadError'
+  }
+}
+
 export type CaseScope =
   | { type: 'all' }
   | { type: 'specific'; caseIds: string[] }
@@ -151,6 +163,7 @@ export async function getWorkOrderEmployeeScope(ctx: ScopeContext): Promise<Work
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
+  if (empRes.error) throw new ScopeReadError('medarbejder')
   return { type: 'employee', employeeId: (empRes.data?.id as string | undefined) ?? null }
 }
 
@@ -188,14 +201,15 @@ export async function userCanViewCase(
   const can = await scopePermissions(ctx)
   if (can('cases.view.all')) return true
   if (!can('cases.view.assigned')) return false
-  const { data: own } = await ctx.supabase
+  const { data: own, error: ownErr } = await ctx.supabase
     .from('service_cases')
     .select('id')
     .eq('id', caseId)
     .or(`assigned_to.eq.${ctx.userId},created_by.eq.${ctx.userId}`)
     .maybeSingle()
+  if (ownErr) throw new ScopeReadError('sag')
   if (own) return true
-  const { data: emp } = await ctx.supabase
+  const { data: emp, error: empErr } = await ctx.supabase
     .from('employees')
     .select('id')
     .eq('profile_id', ctx.userId)
@@ -204,9 +218,10 @@ export async function userCanViewCase(
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
+  if (empErr) throw new ScopeReadError('medarbejder')
   const employeeId = (emp?.id as string | undefined) ?? null
   if (employeeId) {
-    const { data: wo } = await ctx.supabase
+    const { data: wo, error: woErr } = await ctx.supabase
       .from('work_orders')
       .select('id')
       .eq('case_id', caseId)
@@ -214,15 +229,17 @@ export async function userCanViewCase(
       .neq('status', 'cancelled') // FW-11
       .limit(1)
       .maybeSingle()
+    if (woErr) throw new ScopeReadError('arbejdsordre')
     if (wo) return true
   }
   // 00240 D4: sagen er konverteret fra et tilbud brugeren selv har oprettet
-  const { data: fromOffer } = await ctx.supabase
+  const { data: fromOffer, error: offErr } = await ctx.supabase
     .from('service_cases')
     .select('id, src:offers!service_cases_source_offer_id_fkey!inner(created_by)')
     .eq('id', caseId)
     .eq('src.created_by', ctx.userId)
     .maybeSingle()
+  if (offErr) throw new ScopeReadError('tilbud')
   return !!fromOffer
 }
 

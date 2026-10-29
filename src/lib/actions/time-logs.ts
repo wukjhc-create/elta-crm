@@ -76,9 +76,11 @@ export async function listTimeLogsForWorkOrder(
       // PF3-2: én opslag på arbejdsordren i stedet for alle montørens id'er
       const woScope = await getWorkOrderEmployeeScope({ role, userId, supabase })
       if (woScope.type === 'employee') {
-        const { data: wo } = woScope.employeeId
+        const { data: wo, error: woErr } = woScope.employeeId
           ? await supabase.from('work_orders').select('assigned_employee_id').eq('id', workOrderId).maybeSingle()
-          : { data: null }
+          : { data: null, error: null }
+        // Pilot-review 2026-10-29: før blev en læsefejl til "ingen timer" — montøren kunne registrere dem igen
+        if (woErr) return { success: false, error: 'Kunne ikke hente arbejdsordren' }
         if (!wo || (wo as { assigned_employee_id: string | null }).assigned_employee_id !== woScope.employeeId) {
           return { success: true, data: [] }
         }

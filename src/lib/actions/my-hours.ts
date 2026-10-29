@@ -22,7 +22,7 @@ export async function getMyWeekHoursAction(weekOffset = 0): Promise<MyWeekHoursR
   }
   const offset = Number.isInteger(weekOffset) && Math.abs(weekOffset) <= 52 ? weekOffset : 0
 
-  const { data: emp } = await supabase
+  const { data: emp, error: empErr } = await supabase
     .from('employees')
     .select('id, name')
     .eq('profile_id', userId)
@@ -30,6 +30,8 @@ export async function getMyWeekHoursAction(weekOffset = 0): Promise<MyWeekHoursR
     .order('created_at', { ascending: true }) // montør-flow-audit 2026-10-27: ved to aktive rækker vinder den ældste (som scope-motoren)
     .limit(1)
     .maybeSingle()
+  // Pilot-review 2026-10-29: en læsefejl er ikke "ingen medarbejderrække" (kortet forsvandt tavst)
+  if (empErr) return { ok: false, message: 'Kunne ikke hente dine timer lige nu' }
   if (!emp) return { ok: true, linked: false }
 
   const weekStart = danishWeekStart(new Date(), offset)

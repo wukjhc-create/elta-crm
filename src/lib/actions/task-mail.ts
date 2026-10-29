@@ -77,7 +77,7 @@ export async function sendTaskEmail(
 ): Promise<SendTaskEmailResult> {
   try {
     const ctx = await getAuthenticatedClientWithRole()
-    const { supabase, userId, role, hasPermission } = ctx
+    const { supabase, userId, hasPermission } = ctx
 
     if (!hasPermission('tasks.edit')) {
       return { success: false, error: 'Du har ikke adgang til at sende mail fra opgaver' }
@@ -145,7 +145,8 @@ export async function sendTaskEmail(
       return { success: false, error: 'Opgave ikke fundet' }
     }
 
-    if (role === 'montør' && task.assigned_to !== userId) {
+    const { taskListScope } = await import('@/lib/tasks/task-scope')
+    if (taskListScope(hasPermission as (p: never) => boolean) === 'assigned' && task.assigned_to !== userId) {
       return { success: false, error: 'Du kan kun sende mail fra opgaver, der er tildelt dig' }
     }
 
