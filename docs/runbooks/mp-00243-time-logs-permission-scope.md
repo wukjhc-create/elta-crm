@@ -1,6 +1,6 @@
-# 00243: time_logs follow effective permissions (staging applied 2026-10-30, prod requires approval)
+# 00243: time_logs follow effective permissions (STAGING + PROD applied 2026-10-30)
 
-**Status 2026-10-30:** STAGING applied (Henrik's approval 2026-10-30, staging only). **PROD: not applied; needs separate approval** (see the prod-approval section at the bottom).
+**Status 2026-10-30:** STAGING applied, then **PROD applied** after Henrik's separate approval ("00243 — APPROVED FOR PROD", 2026-10-30; without the optional anon cleanup). See "Prod record" at the bottom.
 
 **Change since the proposal of 2026-10-29:** the salg branch originally used `my_case_scope_ids()` (F1 scope), which *widened* salg (assigned/D4 cases). Henrik's condition was that "no current standard role gains broader time-log access". The branch now uses exactly 00161's rule (`service_cases.created_by = auth.uid()`), keyed on `invoices.view.own_cases` instead of the role. Widening to F1 is a separate decision.
 
@@ -112,3 +112,35 @@ Note (not part of 00243): `anon` has table-level INSERT/UPDATE/DELETE/TRUNCATE o
   - **Pre:** `prod-db-fingerprint`, dry run via `prod-apply-migration --dry-run`, rollback-only probe.
   - **Post:** fingerprint diff (exactly 2 function bodies), `prod-read-scope-effective`, time_logs section, `prod-pilot-readiness`.
 - **Not necessary for the pilot:** prod has no overrides today, so behaviour in prod would be identical before and after.
+
+## Prod record 2026-10-30 (Henrik's sequence)
+| Step | Result |
+|---|---|
+| 1. Committed file = staging-tested | Body between `BEGIN;` and `COMMIT;` identical to `mp-00243-draft.sql`; statements: guard + 2× `CREATE OR REPLACE FUNCTION` + NOTIFY (no anon cleanup) |
+| 2. Pre-fingerprint (`prod-db-fingerprint`) | Taken twice, identical |
+| 3. Dry run, forced rollback (`prod-apply-migration 00243 --dry-run`) | SQL + guard ran without errors, rolled back |
+| 4. Fingerprint after dry run | Identical (0 diffs / 2,234 keys) |
+| 5. Rollback-only probe (`scripts/prod-mp-00243-effective.ts`) | **[NY] 8/8 · [UÆNDRET] 27/27**; fingerprint identical afterwards |
+| 6. Apply (`prod-apply-migration 00243 --approved-by-henrik`) | COMMIT |
+| 7. Post-fingerprint | **Exactly 2 diffs:** `can_view_time_log`, `can_write_time_log`. Policies, grants, tables, indexes, permission tables, row counts/checksums unchanged |
+
+- **Function hashes:** prod after apply = staging (view `392b7742…`, write `1fb3090e…`). SECURITY DEFINER and ACL unchanged.
+- **Post-apply probe:** 35/35. Current = migration body; old (00161) == new for admin, serviceleder, bogholderi, salg and montør with zero overrides.
+- **Personas:** real admin and montør (P5); serviceleder, bogholderi and salg simulated by a rolled-back role change on existing profiles (prod has no such profiles).
+- **Override checks (rollback-only):**
+  - grant works, revoke works, removing the override restores the role default (montør grant/revoke, bogholderi revoke, salg grant `view.all`);
+  - Elektriker/Overmontør templates = montør;
+  - inactive / anon / missing profile = nothing.
+- **Salg:** a case assigned to salg but not created by salg gives no hours (no F1 widening).
+- **Approval and cost:** `approval_status` and the cost columns give 42501 for all 22 sessions.
+
+### Rerun checks after apply
+- `prod-read-scope-effective` 162/162 + 33/33.
+- `prod-time-logs-colleague`: 0 colleague logs visible to the montør. `prod-time-logs-update-privs` and `prod-time-logs-exposure`: unchanged.
+- `prod-cost-column-privs`, `prod-cost-table-read-policies`, `prod-anon-cost-exposure`: closed. `prod-role-check-cost-wave2 post`: 38 as expected. `prod-verify-00185 post`: as expected.
+- `prod-flow-check-00198-00202` (rejected hours, rollback): 4/4.
+  - The script's fixture employee needed `cost_rate` (00230 requirement); fixture-only change.
+- Staging: `time-overlap-rejected-check`, `rejected-hours-check`, `time-logs-grants-check`, both cost-lockdown checks and `cost-columns-check` 75/75: all green.
+- `prod-pilot-readiness`: unchanged (exit 2 = the known data blockers for P3 and P4; P5 ready).
+
+**Rollback:** the two 00161 definitions (`CREATE OR REPLACE`), the same text as `oldTimeLogFunctions()` in `scripts/test-harness/mp-00243-sql-probe.ts`.

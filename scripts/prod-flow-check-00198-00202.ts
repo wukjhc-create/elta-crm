@@ -39,7 +39,7 @@ async function main() {
     // --- 00202 ---
     const sc = (await client.query(`INSERT INTO service_cases (case_number, customer_id, title, status, created_by)
       VALUES ($1, $2, '[FLOW-CHECK] 00202', 'in_progress', $3) RETURNING id`, [`FC-${stamp}`, cust, admin])).rows[0].id as string
-    const emp = (await client.query(`INSERT INTO employees (name, email, role, active, hourly_rate) VALUES ('[FLOW-CHECK]', $1, 'montør', true, 500) RETURNING id`, [`fce-${stamp}@flow-check.invalid`])).rows[0].id as string
+    const emp = (await client.query(`INSERT INTO employees (name, email, role, active, hourly_rate, cost_rate) VALUES ('[FLOW-CHECK]', $1, 'montør', true, 500, 300) RETURNING id`, [`fce-${stamp}@flow-check.invalid`])).rows[0].id as string
     const wo = (await client.query(`INSERT INTO work_orders (title, case_id, customer_id, status, assigned_employee_id) VALUES ('[FLOW-CHECK]', $1, $2, 'done', $3) RETURNING id`, [sc, cust, emp])).rows[0].id as string
     await client.query(`INSERT INTO time_logs (employee_id, work_order_id, start_time, end_time, billable, approval_status)
       VALUES ($1, $2, now() - interval '2 days', now() - interval '2 days' + interval '2 hours', true, 'approved')`, [emp, wo])

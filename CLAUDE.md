@@ -390,7 +390,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   `SELECT_REPLACED` (scripts/rls/write-matrix.ts) — check:rls-matrix fejler ellers. Prod-tjek:
   `scripts/prod-read-scope-effective.ts` (rollback-only). Runbook: docs/runbooks/mp-00241-00242-child-scope-design.md
 - 2026-10-30: 00243 (time_logs RLS via effektive rettigheder: `can_view_time_log`/`can_write_time_log` bruger
-  `user_has_permission`) er KUN på STAGING — prod kræver Henriks særskilte godkendelse. Standardroller uden overrides
+  `user_has_permission`) er i STAGING og PROD (prod 2026-10-30 efter Henriks godkendelse; prod-tjek
+  `scripts/prod-mp-00243-effective.ts`, rollback-only). Standardroller uden overrides
   er bevist identiske med 00161 (salg = kun sager de selv har oprettet, ingen F1-udvidelse). Probe:
   `cli.ts mp-00243-sql-probe` (rollback-only), fingerprint `cli.ts mp-00243-fingerprint`
   - `MAIL_AUTOLINK_MODE` = off | suggest | link, default off (tom → gammelt `MAIL_AUTOLINK_ENABLED`). suggest = kun
