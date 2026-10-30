@@ -2614,6 +2614,13 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'pilot-session-check') {
+    // STAGING read-only: samme forespørgsler som scripts/prod-pilot-session-check.ts (afprøvning mod harness-data)
+    const { runPilotSessionCheck, sinceSql } = await import('./pilot-session-check')
+    const { sql, label } = sinceSql(process.argv.slice(process.argv.indexOf(SUB) + 1))
+    process.exitCode = (await runPilotSessionCheck(stagingSql, 'staging', sql, label)) ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00243-sql-probe') {
     // STAGING ROLLBACK-ONLY: gammel (00161) vs. 00243-udkast for time_logs i én DO-blok der altid afbrydes
     const { runMp00243SqlProbe } = await import('./mp-00243-sql-probe')

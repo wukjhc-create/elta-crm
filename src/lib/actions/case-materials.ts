@@ -27,6 +27,7 @@ import type {
   CaseMaterialSource,
   CaseMaterialsSummary,
 } from '@/types/case-materials.types'
+import { trackActionResult } from '@/lib/pilot/action-failure-log'
 
 const SELECT_COLUMNS = `
   id, case_id, work_order_id, supplier_product_id, material_id,
@@ -165,7 +166,12 @@ export interface CreateCaseMaterialInput {
  */
 const PRICE_VISIBILITY_PERMISSION = 'materials.view.cost_prices' as const
 
-export async function createCaseMaterial(
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er createCaseMaterialImpl */
+export async function createCaseMaterial(input: CreateCaseMaterialInput) {
+  return trackActionResult('case_materials.create', await createCaseMaterialImpl(input), input?.case_id)
+}
+
+async function createCaseMaterialImpl(
   input: CreateCaseMaterialInput
 ): Promise<ActionResult<CaseMaterialRow>> {
   try {

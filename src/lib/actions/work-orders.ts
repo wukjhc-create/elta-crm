@@ -16,6 +16,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import type { WorkOrderRow, WorkOrderStatus } from '@/types/workforce.types'
+import { trackActionResult } from '@/lib/pilot/action-failure-log'
 
 // =====================================================
 // Types
@@ -419,7 +420,12 @@ export async function updateWorkOrderPlanning(
 
 const WO_STATUS_DA: Record<string, string> = { planned: 'Planlagt', in_progress: 'I gang', done: 'Afsluttet', cancelled: 'Annulleret' }
 
-export async function changeWorkOrderStatus(
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er changeWorkOrderStatusImpl */
+export async function changeWorkOrderStatus(workOrderId: string, next: WorkOrderStatus) {
+  return trackActionResult('work_orders.status', await changeWorkOrderStatusImpl(workOrderId, next), workOrderId)
+}
+
+async function changeWorkOrderStatusImpl(
   workOrderId: string,
   next: WorkOrderStatus
 ): Promise<ActionResult<WorkOrderRow>> {

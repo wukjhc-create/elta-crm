@@ -94,6 +94,7 @@ import type {
   CreateCustomerTaskInput,
   UpdateCustomerTaskInput,
 } from '@/types/customer-tasks.types'
+import { trackActionResult } from '@/lib/pilot/action-failure-log'
 
 // =====================================================
 // HELPERS
@@ -708,7 +709,12 @@ export async function updateCustomerTask(
   return { success: true }
 }
 
-export async function completeCustomerTask(
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er completeCustomerTaskImpl */
+export async function completeCustomerTask(taskId: string) {
+  return trackActionResult('tasks.complete', await completeCustomerTaskImpl(taskId), taskId)
+}
+
+async function completeCustomerTaskImpl(
   taskId: string
 ): Promise<{ success: boolean; error?: string }> {
   const denied = (await gateDenied('customers.view')) ?? (await taskWriteDenied(taskId))

@@ -398,3 +398,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
     audit_logs (`email_link_suggested`, metadata.mode='suggest'), rører aldrig incoming_emails; link kræver godkendelse.
     Evaluering: `scripts/prod-autolink-suggest-eval.ts`
   - UI-harness: `UI_MONTOR_START_JOB_ENABLED=false` kører som prod (U233 pilotkæden uden "→ Start")
+- 2026-10-30: Pilot P5 (operatørkort docs/runbooks/pilot-p5-operator-card.md). Mislykkede skrivehandlinger i montør-flowet
+  (timer, AO-status, materiale, dokument, opgave, aflevering) logges som `system_health_log` service `user_action`
+  (warning, ikke i ALL_SERVICES → ingen driftsstatus/mail) via `trackActionResult` (lib/pilot/action-failure-log). Tjek
+  efter session: `npx tsx scripts/prod-pilot-session-check.ts [--hours N|--since YYYY-MM-DD]` (read-only; staging:
+  `cli.ts pilot-session-check`). SUGGEST-forslag: docs/runbooks/mail-autolink-suggest-activation-proposal.md (ikke aktiveret)

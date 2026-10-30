@@ -40,6 +40,7 @@ import type { ActionResult } from '@/types/common.types'
 import { type TimeLogRow, type PayRateType, PAY_RATE_TYPE_LABEL } from '@/types/workforce.types'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TIME_LOG_PUBLIC_COLUMNS } from '@/lib/time-logs/columns'
+import { trackActionResult } from '@/lib/pilot/action-failure-log'
 
 export interface TimeLogWithEmployee extends TimeLogRow {
   /** MB-7 (mobil-review 2026-10-17): må den indloggede ændre rækken (egen, eller time_logs.edit.all)? */
@@ -243,7 +244,12 @@ export async function suggestTimeLogStartAction(employeeId: string, date: string
   }
 }
 
-export async function createTimeLog(
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er createTimeLogImpl */
+export async function createTimeLog(input: CreateTimeLogInput) {
+  return trackActionResult('time_logs.create', await createTimeLogImpl(input), input?.work_order_id)
+}
+
+async function createTimeLogImpl(
   input: CreateTimeLogInput
 ): Promise<ActionResult<TimeLogRow & { absence_warning?: string | null }>> {
   try {

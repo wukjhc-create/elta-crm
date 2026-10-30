@@ -10,6 +10,8 @@ export type HealthService =
   | 'cron'
   // R-9: klient-crashes fra error boundaries
   | 'ui'
+  // Pilot 2026-10-30: mislykkede skrivehandlinger (lib/pilot/action-failure-log) — ikke i ALL_SERVICES
+  | 'user_action'
 
 export type HealthStatus = 'ok' | 'warning' | 'error'
 

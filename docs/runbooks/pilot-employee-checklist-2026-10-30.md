@@ -79,6 +79,7 @@ Tick off as the montør goes. The column "Expected" is what the montør should s
 
 ## 5. What is NOT part of the pilot
 - Start job (`MONTOR_START_JOB_ENABLED`): OFF.
-- MAIL_AUTOLINK: OFF. Suggest mode is implemented and tested, but not activated.
+- MAIL_AUTOLINK: OFF. Suggest mode is implemented and tested, but not activated. Proposal: [mail-autolink-suggest-activation-proposal.md](mail-autolink-suggest-activation-proposal.md).
 - SMS/Relatel, e-conomic push and Telegram: unchanged (off).
-- 00243 (time_logs DB rights): staging only. Prod requires Henrik's approval. The pilot works without it: standard roles have identical rights.
+- 00243 (time_logs DB rights): applied in PROD 2026-10-30 (standard roles unchanged, verified 35/35).
+- Short version for the pilot day: [pilot-p5-operator-card.md](pilot-p5-operator-card.md). Post-session check: `npx tsx scripts/prod-pilot-session-check.ts`.

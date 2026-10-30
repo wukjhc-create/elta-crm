@@ -5343,6 +5343,28 @@ ${m.text()}`) })
               if (!tl) await new Promise((res) => setTimeout(res, 1000))
             }
             r.m6_timer_paa_egen_ao = !!tl && tl.employee_id === jobEmployeeId && Number(tl.hours) === 2 && tl.approval_status === 'pending'
+            // 3b. samme tidsrum igen → X4 afviser, og forsøget spores i system_health_log 'user_action' (pilot-sessionstjekket)
+            const failSince = new Date(Date.now() - 5_000).toISOString()
+            await gotoSafe(pg, `${base}/dashboard/orders/${created.cs}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await pg.getByRole('button', { name: /Registrér timer/ }).first().click({ timeout: 30_000 }).catch(() => {})
+            await pg.locator('input[type="time"]').first().fill('19:30').catch(() => {})
+            await pg.locator('input[type="time"]').nth(1).fill('20:30').catch(() => {})
+            await pg.getByPlaceholder('Hvad blev der lavet?').fill(`${tag} dublet`).catch(() => {})
+            await pg.getByRole('button', { name: 'Gem timer' }).click({ timeout: 30_000 }).catch(() => {})
+            type HL = { metadata?: { action?: string; reason?: string; user_id?: string; entity_id?: string } }
+            let fl = null as HL | null
+            for (let i = 0; i < 20 && !fl; i++) {
+              const rows = ((await c.admin.from('system_health_log').select('metadata').eq('service', 'user_action').gte('created_at', failSince)).data ?? []) as HL[]
+              fl = rows.find((x) => x.metadata?.user_id === montor.id && x.metadata?.entity_id === created.wo) ?? null
+              if (!fl) await new Promise((res) => setTimeout(res, 1000))
+            }
+            const tlCount = (await c.admin.from('time_logs').select('id', { count: 'exact', head: true }).eq('work_order_id', created.wo!)).count ?? 0
+            r.m6b_afvist_forsoeg_spores = tlCount === 1 && fl?.metadata?.action === 'time_logs.create' && fl.metadata.reason === 'overlap'
+            if (!r.m6b_afvist_forsoeg_spores) {
+              console.log(`[ui-e2e] U233 m6b diag: time_logs=${tlCount} logget=${JSON.stringify(fl?.metadata ?? null)} overlap-tekst=${await pg.getByText(/Overlapper/).count()} start=${await pg.locator('input[type="time"]').first().inputValue().catch(() => '?')}`)
+              await pg.screenshot({ caret: 'initial', path: join(shots, `u233-m6b-${Date.now()}.png`), fullPage: true }).catch(() => {})
+            }
+            await pg.keyboard.press('Escape').catch(() => {})
             // 4. beskrivelse på Overblik
             await gotoSafe(pg, `${base}/dashboard/orders/${created.cs}?tab=overblik`, { waitUntil: 'networkidle', timeout: 180_000 })
             await pg.getByText(desc).first().waitFor({ timeout: 30_000 }).catch(() => {})

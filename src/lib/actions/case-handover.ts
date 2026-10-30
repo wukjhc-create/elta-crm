@@ -15,6 +15,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { DEFAULT_CHECKLIST, canCloseCase, type ChecklistItem, type ServiceCaseAttachment } from '@/types/service-cases.types'
 import type { ActionResult } from '@/types/common.types'
+import { trackActionResult } from '@/lib/pilot/action-failure-log'
 
 const PHOTO_MAX_BYTES = 15 * 1024 * 1024
 const PHOTO_MIME = /^image\/(jpeg|png|webp|heic|heif)$/i
@@ -100,7 +101,12 @@ export async function getCaseHandoverAction(caseId: string): Promise<ActionResul
 }
 
 /** Opret standard-tjeklisten hvis sagen ingen har. */
-export async function startCaseHandoverAction(caseId: string): Promise<ActionResult<ChecklistItem[]>> {
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er startCaseHandoverActionImpl */
+export async function startCaseHandoverAction(caseId: string) {
+  return trackActionResult('handover.start', await startCaseHandoverActionImpl(caseId), caseId)
+}
+
+async function startCaseHandoverActionImpl(caseId: string): Promise<ActionResult<ChecklistItem[]>> {
   try {
     const ctx = await getAuthenticatedClientWithRole()
     const { canEdit } = await handoverAccess(ctx, caseId)
@@ -146,7 +152,12 @@ async function setItem(caseId: string, key: string, completed: boolean, attachme
   return { ok: false as const, error: 'Tjeklisten blev ændret samtidig — prøv igen' }
 }
 
-export async function toggleHandoverItemAction(caseId: string, key: string, completed: boolean): Promise<ActionResult<ChecklistItem[]>> {
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er toggleHandoverItemActionImpl */
+export async function toggleHandoverItemAction(caseId: string, key: string, completed: boolean) {
+  return trackActionResult('handover.toggle', await toggleHandoverItemActionImpl(caseId, key, completed), caseId)
+}
+
+async function toggleHandoverItemActionImpl(caseId: string, key: string, completed: boolean): Promise<ActionResult<ChecklistItem[]>> {
   try {
     const ctx = await getAuthenticatedClientWithRole()
     const { canEdit } = await handoverAccess(ctx, caseId)
@@ -169,7 +180,12 @@ export async function toggleHandoverItemAction(caseId: string, key: string, comp
   }
 }
 
-export async function uploadHandoverPhotoAction(caseId: string, formData: FormData): Promise<ActionResult<ServiceCaseAttachment>> {
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er uploadHandoverPhotoActionImpl */
+export async function uploadHandoverPhotoAction(caseId: string, formData: FormData) {
+  return trackActionResult('handover.photo', await uploadHandoverPhotoActionImpl(caseId, formData), caseId)
+}
+
+async function uploadHandoverPhotoActionImpl(caseId: string, formData: FormData): Promise<ActionResult<ServiceCaseAttachment>> {
   try {
     const ctx = await getAuthenticatedClientWithRole()
     const { canEdit } = await handoverAccess(ctx, caseId)
@@ -253,7 +269,12 @@ export async function deleteHandoverPhotoAction(caseId: string, attachmentId: st
 }
 
 /** Kundens underskrift ved aflevering (lukker IKKE sagen). Kontor (cases.close) eller montør på egen sag. */
-export async function signCaseHandoverAction(caseId: string, signature: string, signerName: string): Promise<ActionResult> {
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er signCaseHandoverActionImpl */
+export async function signCaseHandoverAction(caseId: string, signature: string, signerName: string) {
+  return trackActionResult('handover.sign', await signCaseHandoverActionImpl(caseId, signature, signerName), caseId)
+}
+
+async function signCaseHandoverActionImpl(caseId: string, signature: string, signerName: string): Promise<ActionResult> {
   try {
     const ctx = await getAuthenticatedClientWithRole()
     const { canEdit } = await handoverAccess(ctx, caseId)

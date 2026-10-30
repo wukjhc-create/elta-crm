@@ -20,6 +20,7 @@ import { logger } from '@/lib/utils/logger'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { documentDeleteBlockReason } from '@/lib/documents/document-deletable'
+import { trackActionResult } from '@/lib/pilot/action-failure-log'
 
 /**
  * Storage-review 2026-10-08 (S1): fil-adgang går via service-klienten bag action-gaten — så bucket-politikkerne kan
@@ -342,7 +343,12 @@ export async function getDocumentDownloadUrls(
 /**
  * Upload a file as a customer document (manual upload from CRM)
  */
-export async function uploadCustomerDocument(
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er uploadCustomerDocumentImpl */
+export async function uploadCustomerDocument(customerId: string, formData: FormData) {
+  return trackActionResult('customer_documents.upload', await uploadCustomerDocumentImpl(customerId, formData), customerId)
+}
+
+async function uploadCustomerDocumentImpl(
   customerId: string,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
@@ -434,7 +440,12 @@ const CASE_UPLOAD_MIME = /^(image\/(jpeg|png|webp|heic|heif)|application\/pdf)$/
  * scope (samme scope som ordrelisten). Kun billeder/PDF ≤ 20 MB. RLS: customer_documents INSERT og
  * attachments-bucket tillader de samme roller.
  */
-export async function uploadCaseDocument(caseId: string, formData: FormData): Promise<ActionResult<{ id: string }>> {
+/** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er uploadCaseDocumentImpl */
+export async function uploadCaseDocument(caseId: string, formData: FormData) {
+  return trackActionResult('case_documents.upload', await uploadCaseDocumentImpl(caseId, formData), caseId)
+}
+
+async function uploadCaseDocumentImpl(caseId: string, formData: FormData): Promise<ActionResult<{ id: string }>> {
   try {
     validateUUID(caseId, 'sags-ID')
     const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
