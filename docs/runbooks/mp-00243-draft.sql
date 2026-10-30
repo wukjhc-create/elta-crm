@@ -1,5 +1,5 @@
 -- =====================================================================
--- 00243 (UDKAST — IKKE ANVENDT): time_logs følger effektive rettigheder + sags-/arbejdsordre-scope
+-- 00243: time_logs følger effektive rettigheder (rolle ∪ grants − revokes) i stedet for rå rolle — uden at udvide nogen standardrolle
 -- Forslag: docs/runbooks/mp-00243-time-logs-permission-scope.md. Kræver Henriks godkendelse pr. miljø.
 -- Kun de to hjælpefunktioner udskiftes; politikkerne (00208) kalder dem uændret. CREATE OR REPLACE bevarer ACL.
 -- =====================================================================
@@ -7,7 +7,7 @@ BEGIN;
 
 DO $guard$
 BEGIN
-  IF to_regprocedure('public.my_case_scope_ids()') IS NULL OR to_regprocedure('public.current_employee_id()') IS NULL
+  IF to_regprocedure('public.current_employee_id()') IS NULL
      OR to_regprocedure('public.user_has_permission(text)') IS NULL THEN
     RAISE EXCEPTION '00243: forudsætninger (00238/00240/00242) mangler';
   END IF;
@@ -30,9 +30,11 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
           p_employee_id = public.current_employee_id()
           OR EXISTS (SELECT 1 FROM public.work_orders w
                       WHERE w.id = p_work_order_id AND w.assigned_employee_id = public.current_employee_id())))
+    -- salg (faktura-nøglen): kun arbejdsordrer på sager brugeren selv har OPRETTET — præcis som 00161 (ingen udvidelse).
+    -- At gå til hele sags-scopet (F1: også tildelte/D4-sager) er en særskilt beslutning for Henrik.
     OR (public.user_has_permission('invoices.view.own_cases') AND EXISTS (
-          SELECT 1 FROM public.work_orders w
-           WHERE w.id = p_work_order_id AND w.case_id = ANY (public.my_case_scope_ids())))
+          SELECT 1 FROM public.work_orders w JOIN public.service_cases s ON s.id = w.case_id
+           WHERE w.id = p_work_order_id AND s.created_by = auth.uid()))
 $$;
 
 CREATE OR REPLACE FUNCTION public.can_write_time_log(p_employee_id uuid, p_work_order_id uuid)

@@ -185,7 +185,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
-  montor: ['U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -308,9 +308,11 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     return users[users.length - 1]
   }
 
+  // N11: staging har RLS 00181 -> montør må starte eget job (prod: flaget er OFF indtil 00181 er godkendt).
+  // UI_MONTOR_START_JOB_ENABLED=false → kør som prod (U233 pilotkæden uden "→ Start"; U11 springer start-trinnet over)
+  const startJobFlag = (process.env.UI_MONTOR_START_JOB_ENABLED ?? 'true') === 'true'
   const env: Record<string, string> = { ...(process.env as Record<string, string>), NEXT_PUBLIC_APP_URL: base, NEXT_TELEMETRY_DISABLED: '1', PORT: String(port),
-    // N11: staging har RLS 00181 -> montør må starte eget job (prod: flaget er OFF indtil 00181 er godkendt)
-    MONTOR_START_JOB_ENABLED: 'true',
+    MONTOR_START_JOB_ENABLED: startJobFlag ? 'true' : 'false',
     // 00203 (staging only): tilbudsrevisioner
     // UI_OFFER_REVISIONS_ENABLED=false → kør som prod (flag OFF) for regression
     OFFER_REVISIONS_ENABLED: process.env.UI_OFFER_REVISIONS_ENABLED ?? 'true',
@@ -4981,18 +4983,20 @@ ${m.text()}`) })
         await m.page.waitForURL(/tab=planlaegning/, { timeout: 60_000 }).catch(() => {})
         await m.page.getByRole('button', { name: '✓ Afslut' }).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.afslut_knap = (await m.page.getByRole('button', { name: '✓ Afslut' }).count()) === 1
-        // N11: montør kan starte eget job; aldrig annullere/slette
-        r.start_ikke_slet = (await m.page.getByRole('button', { name: '→ Start' }).count()) === 1
+        // N11: montør kan starte eget job (kun med flaget til); aldrig annullere/slette
+        r.start_ikke_slet = (await m.page.getByRole('button', { name: '→ Start' }).count()) === (startJobFlag ? 1 : 0)
           && (await m.page.getByRole('button', { name: 'Slet', exact: true }).count()) === 0 && (await m.page.getByRole('button', { name: /Annullér/ }).count()) === 0
 
-        // Start jobbet (N11) -> in_progress i DB
-        await m.page.getByRole('button', { name: '→ Start' }).first().click({ timeout: 30_000 }).catch(() => {})
-        let started = ''
-        for (let i = 0; i < 30 && started !== 'in_progress'; i++) { // 30 s: start kan tage >15 s på en presset dev-maskine
-          started = String(((await c.admin.from('work_orders').select('status').eq('id', woId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
-          if (started !== 'in_progress') await new Promise((res) => setTimeout(res, 1000))
+        // Start jobbet (N11) -> in_progress i DB. Flaget FRA (som prod): intet start-trin, jobbet bliver i Planlagt
+        if (startJobFlag) {
+          await m.page.getByRole('button', { name: '→ Start' }).first().click({ timeout: 30_000 }).catch(() => {})
+          let started = ''
+          for (let i = 0; i < 30 && started !== 'in_progress'; i++) { // 30 s: start kan tage >15 s på en presset dev-maskine
+            started = String(((await c.admin.from('work_orders').select('status').eq('id', woId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+            if (started !== 'in_progress') await new Promise((res) => setTimeout(res, 1000))
+          }
+          r.startet = started === 'in_progress'
         }
-        r.startet = started === 'in_progress'
 
         // Tidsregistrering (medarbejdere/tid): 07:30–11:45 i dag, dansk tid → præcis UTC i DB og 4,25 t (G0-sommertidsfix)
         {
@@ -5273,6 +5277,172 @@ ${m.text()}`) })
           if (created.wo) await c.admin.from('work_orders').delete().eq('id', created.wo)
         }
         out.push({ id: 'U231 pilotdag på tværs af roller (tilbud→sag→AO→timer/materiale→faktura; montør mobil, salg F1, bogholderi)', ok: Object.values(r).every(Boolean),
+          note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U233 PILOT-KÆDE MOBIL (Henrik 2026-10-30): den første rigtige pilot uden Start job. Montøren (375 px) går hele
+      // vejen: Mine job → Navigér → sag → beskrivelse → foto/dokument → timer på egen AO → materiale (uden pris) → opgave
+      // udført → aflevering m. underskrift → "✓ Afslut" direkte fra Planlagt → Mine timer. Kør "som prod" med
+      // UI_MONTOR_START_JOB_ENABLED=false (så må "→ Start" ikke findes); med flaget til tjekkes kun at kæden virker.
+      if (want('U233') && profitCustomerId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U233-${stamp}`
+        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
+        const created: { cs?: string; wo?: string; task?: string; mat?: string } = {}
+        const desc = `${tag} beskrivelse: skift tavle i bryggers`
+        const woTitle = `[HARNESS] ${tag} pilotjob`
+        const matDesc = `${tag} kabel 5x2,5`
+        try {
+          const cs = await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} pilotsag`, customer_id: profitCustomerId, description: desc,
+            address: `Pilotvej ${String(stamp).slice(-3)}`, postal_code: '8000', city: 'Aarhus C', status: 'new', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+          created.cs = (cs.data?.[0] as { id?: string } | undefined)?.id
+          if (created.cs) listCaseIds.push(created.cs)
+          const wo = created.cs ? await c.admin.from('work_orders').insert([{ case_id: created.cs, customer_id: profitCustomerId, title: woTitle, scheduled_date: today, assigned_employee_id: jobEmployeeId, status: 'planned' }]).select('id') : null
+          created.wo = (wo?.data?.[0] as { id?: string } | undefined)?.id
+          const tk = created.cs ? await c.admin.from('customer_tasks').insert([{ customer_id: profitCustomerId, service_case_id: created.cs, title: `[HARNESS] ${tag} opgave`, status: 'pending', assigned_to: montor.id, created_by: adminUser.id }]).select('id') : null
+          created.task = (tk?.data?.[0] as { id?: string } | undefined)?.id
+          const mt = created.cs ? await c.admin.from('case_materials').insert([{ case_id: created.cs, description: matDesc, quantity: 5, unit: 'm', unit_cost: 20, unit_sales_price: 31, billable: true, source: 'manual', created_by: adminUser.id }]).select('id') : null
+          created.mat = (mt?.data?.[0] as { id?: string } | undefined)?.id
+          // fremmed sag på samme kunde uden montørens AO → må ikke kunne åbnes
+          const foreignTitle = `[HARNESS] ${tag} fremmed`
+          const fs = await c.admin.from('service_cases').insert([{ title: foreignTitle, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+          const foreign = (fs.data?.[0] as { id?: string } | undefined)?.id
+          if (foreign) listCaseIds.push(foreign)
+          await c.admin.from('employees').update({ hourly_rate: 495, cost_rate: 300 }).eq('id', jobEmployeeId).is('hourly_rate', null)
+          r.seed = !!created.cs && !!created.wo && !!created.task && !!created.mat && !!foreign
+
+          const mp = await login(montor)
+          try {
+            await mp.page.setViewportSize({ width: 375, height: 812 })
+            const pg = mp.page
+            // 1. Mine job + Navigér
+            await gotoSafe(pg, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const row = pg.locator('li', { hasText: woTitle }).first()
+            await row.waitFor({ timeout: 60_000 }).catch(() => {})
+            r.m1_mine_job = (await row.count()) === 1 && /Planlagt/.test(await row.innerText().catch(() => ''))
+            const href = (await row.getByTestId('my-job-navigate').getAttribute('href').catch(() => '')) ?? ''
+            r.m2_navigér = href.startsWith('https://www.google.com/maps/dir/') && decodeURIComponent(href).includes(`Pilotvej ${String(stamp).slice(-3)}, 8000, Aarhus C`)
+            // 2. åbn jobbet → sagens planlægning; Start findes kun når flaget er til
+            await row.getByTestId('my-job').click({ timeout: 30_000 }).catch(() => {})
+            await pg.waitForURL(new RegExp(`/dashboard/orders/${created.cs}`), { timeout: 60_000 }).catch(() => {})
+            r.m3_job_aabner_sagen = pg.url().includes(`/dashboard/orders/${created.cs}`)
+            await pg.getByRole('button', { name: '✓ Afslut' }).first().waitFor({ timeout: 60_000 }).catch(() => {})
+            r.m4_afslut_uden_start = (await pg.getByRole('button', { name: '✓ Afslut' }).count()) === 1
+              && (await pg.getByRole('button', { name: '→ Start' }).count()) === (startJobFlag ? 1 : 0)
+            r.m5_ingen_vandret_scroll = (await pg.evaluate(() => document.documentElement.scrollWidth).catch(() => 9999)) <= 376
+            // 3. timer på egen arbejdsordre (19:00–21:00 — U11 har 07:30–11:45 på samme medarbejder, og X4 afviser overlap)
+            await pg.getByRole('button', { name: /Registrér timer/ }).first().click({ timeout: 30_000 }).catch(() => {})
+            await pg.locator('input[type="time"]').first().fill('19:00').catch(() => {})
+            await pg.locator('input[type="time"]').nth(1).fill('21:00').catch(() => {})
+            await pg.getByPlaceholder('Hvad blev der lavet?').fill(`${tag} tavleskift`).catch(() => {})
+            await pg.getByRole('button', { name: 'Gem timer' }).click({ timeout: 30_000 }).catch(() => {})
+            type TL = { hours?: number; employee_id?: string; approval_status?: string }
+            let tl = null as TL | null
+            for (let i = 0; i < 20 && !tl; i++) {
+              tl = ((await c.admin.from('time_logs').select('hours, employee_id, approval_status').eq('work_order_id', created.wo!).maybeSingle()).data as TL | null)
+              if (!tl) await new Promise((res) => setTimeout(res, 1000))
+            }
+            r.m6_timer_paa_egen_ao = !!tl && tl.employee_id === jobEmployeeId && Number(tl.hours) === 2 && tl.approval_status === 'pending'
+            // 4. beskrivelse på Overblik
+            await gotoSafe(pg, `${base}/dashboard/orders/${created.cs}?tab=overblik`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await pg.getByText(desc).first().waitFor({ timeout: 30_000 }).catch(() => {})
+            r.m7_beskrivelse = (await pg.getByText(desc).count()) > 0
+            // 5. foto på Dokumenter
+            await gotoSafe(pg, `${base}/dashboard/orders/${created.cs}?tab=dokumenter`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+            await pg.getByTestId('case-upload-input').setInputFiles({ name: 'pilot-foto.png', mimeType: 'image/png', buffer: png }).catch(() => {})
+            await pg.getByTestId('case-upload-msg').waitFor({ timeout: 60_000 }).catch(() => {})
+            const docs = (await c.admin.from('customer_documents').select('id', { count: 'exact', head: true }).eq('service_case_id', created.cs!)).count ?? 0
+            r.m8_foto_uploadet = docs === 1 && (await pg.getByTestId('case-documents-error').count()) === 0
+            // 6. materiale uden priser
+            await gotoSafe(pg, `${base}/dashboard/orders/${created.cs}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await pg.getByText(matDesc).first().waitFor({ timeout: 30_000 }).catch(() => {})
+            const matsText = (await pg.locator('main').innerText().catch(() => '')) ?? ''
+            r.m9_materiale_uden_pris = matsText.includes(matDesc) && !/31,00\s*kr|155,00\s*kr|20,00\s*kr|100,00\s*kr/.test(matsText)
+            // montøren tilføjer selv et materiale → lander på DENNE sag, uden prisfelter i dialogen
+            const ownMat = `${tag} montør-dåse`
+            await pg.getByRole('button', { name: /Tilføj materiale/ }).first().click({ timeout: 30_000 }).catch(() => {})
+            const dlg = pg.locator('[aria-labelledby="case-material-dialog-title"]')
+            await dlg.getByPlaceholder('F.eks. Solpanel 425W LR4-72HPH').fill(ownMat).catch(() => {})
+            await dlg.locator('input[inputmode="decimal"]').nth(0).fill('3').catch(() => {})
+            const dlgPrices = (await dlg.getByText(/Kostpris pr\. enhed|Salgspris pr\. enhed|Sum kost/).count())
+            await dlg.getByRole('button', { name: 'Tilføj', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+            type MR = { case_id?: string; quantity?: number; created_by?: string }
+            let om = null as MR | null
+            for (let i = 0; i < 20 && !om; i++) {
+              om = ((await c.admin.from('case_materials').select('case_id, quantity, created_by').eq('description', ownMat).maybeSingle()).data as MR | null)
+              if (!om) await new Promise((res) => setTimeout(res, 1000))
+            }
+            r.m9b_materiale_paa_rigtig_sag = !!om && om.case_id === created.cs && Number(om.quantity) === 3 && om.created_by === montor.id && dlgPrices === 0
+            if (om) await c.admin.from('case_materials').delete().eq('description', ownMat)
+            // 7. opgave → udført
+            await gotoSafe(pg, `${base}/dashboard/orders/${created.cs}?tab=opgaver`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await pg.getByText(`[HARNESS] ${tag} opgave`).first().waitFor({ timeout: 30_000 }).catch(() => {})
+            await pg.getByTitle('Markér som udført').first().click({ timeout: 30_000 }).catch(() => {})
+            let tst = ''
+            for (let i = 0; i < 15 && tst !== 'done'; i++) {
+              tst = String(((await c.admin.from('customer_tasks').select('status').eq('id', created.task!).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+              if (tst !== 'done') await new Promise((res) => setTimeout(res, 1000))
+            }
+            r.m10_opgave_udfoert = tst === 'done'
+            // 8. aflevering: tjekliste + underskrift
+            await gotoSafe(pg, `${base}/dashboard/orders/${created.cs}?tab=aflevering`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await pg.getByTestId('handover-start').click({ timeout: 60_000 }).catch(() => {})
+            await pg.getByTestId('handover-open-signature').click({ timeout: 30_000 }).catch(() => {})
+            await pg.getByPlaceholder('Fulde navn').fill('Pilot Kunde').catch(() => {})
+            const canvas = pg.getByTestId('handover-signature').locator('canvas')
+            const confirmBtn = pg.getByRole('button', { name: /Bekræft underskrift/ })
+            for (let attempt = 0; attempt < 2; attempt++) {
+              await canvas.scrollIntoViewIfNeeded().catch(() => {})
+              await pg.waitForTimeout(400)
+              const sbox = await canvas.boundingBox().catch(() => null)
+              if (sbox) {
+                await pg.mouse.move(sbox.x + 15, sbox.y + 20); await pg.mouse.down()
+                await pg.mouse.move(sbox.x + 120, sbox.y + 45, { steps: 8 }); await pg.mouse.move(sbox.x + 200, sbox.y + 20, { steps: 8 }); await pg.mouse.up()
+              }
+              if (await confirmBtn.isEnabled().catch(() => false)) break
+            }
+            await confirmBtn.click({ timeout: 30_000 }).catch(() => {})
+            let signed = ''
+            for (let i = 0; i < 15 && !signed; i++) {
+              signed = String(((await c.admin.from('service_cases').select('customer_signature_name').eq('id', created.cs!).maybeSingle()).data as { customer_signature_name?: string } | null)?.customer_signature_name ?? '')
+              if (!signed) await new Promise((res) => setTimeout(res, 1000))
+            }
+            r.m11_aflevering_underskrift = signed === 'Pilot Kunde'
+            // 9. "✓ Afslut" direkte fra Planlagt (uden Start)
+            await gotoSafe(pg, `${base}/dashboard/orders/${created.cs}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const before = String(((await c.admin.from('work_orders').select('status').eq('id', created.wo!).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+            let confirmed = false
+            pg.once('dialog', (d) => { confirmed = /Afslut arbejdsordren/.test(d.message()); d.accept().catch(() => {}) })
+            await pg.getByRole('button', { name: '✓ Afslut' }).first().click({ timeout: 30_000 }).catch(() => {})
+            let st = ''
+            for (let i = 0; i < 15 && st !== 'done'; i++) {
+              st = String(((await c.admin.from('work_orders').select('status').eq('id', created.wo!).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+              if (st !== 'done') await new Promise((res) => setTimeout(res, 1000))
+            }
+            r.m12_afsluttet_fra_planlagt = st === 'done' && confirmed && (startJobFlag || before === 'planned')
+            // 10. Mine job/Mine timer bagefter
+            await gotoSafe(pg, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await pg.getByTestId('my-hours-card').waitFor({ timeout: 45_000 }).catch(() => {})
+            const openRow = pg.getByTestId('my-jobs-card').locator('li', { hasText: woTitle }).filter({ hasText: /Planlagt|I gang/ })
+            r.m13_job_ikke_aaben = (await openRow.count()) === 0
+            r.m14_mine_timer_vist = (await pg.getByTestId('my-hours-card').count()) === 1 && (await pg.getByTestId('my-hours-card-error').count()) === 0
+            // 11. ingen adgang til fremmed sag (samme kunde, ingen AO til montøren); dashboard/loading streamer → bevis på indhold
+            if (foreign) await gotoSafe(pg, `${base}/dashboard/orders/${foreign}`, { waitUntil: 'networkidle', timeout: 120_000 })
+            await pg.getByText('Siden blev ikke fundet').first().waitFor({ timeout: 45_000 }).catch(() => {})
+            r.m15_fremmed_sag_afvist = !!foreign && (await pg.getByText('Siden blev ikke fundet').count()) > 0 && (await pg.getByText(foreignTitle).count()) === 0
+            await pg.screenshot({ caret: 'initial', path: join(shots, 'u233-pilot-mobil.png'), fullPage: true }).catch(() => {})
+          } finally { await mp.ctx.close().catch(() => {}) }
+        } finally {
+          if (created.wo) {
+            await c.admin.from('time_logs').delete().eq('work_order_id', created.wo)
+            await c.admin.from('work_orders').delete().eq('id', created.wo)
+          }
+          if (created.task) await c.admin.from('customer_tasks').delete().eq('id', created.task)
+          if (created.mat) await c.admin.from('case_materials').delete().eq('id', created.mat)
+          if (created.cs) await c.admin.from('customer_documents').delete().eq('service_case_id', created.cs)
+        }
+        out.push({ id: `U233 pilot-kæde mobil (Start job ${startJobFlag ? 'TIL' : 'FRA som prod'}): job→navigér→sag→beskrivelse→foto→timer→materiale→opgave→aflevering→afslut`, ok: Object.values(r).every(Boolean),
           note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 

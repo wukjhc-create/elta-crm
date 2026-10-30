@@ -2614,6 +2614,28 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'mp-00243-sql-probe') {
+    // STAGING ROLLBACK-ONLY: gammel (00161) vs. 00243-udkast for time_logs i én DO-blok der altid afbrydes
+    const { runMp00243SqlProbe } = await import('./mp-00243-sql-probe')
+    const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
+    const rawSql = async (sql: string) => {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      })
+      return { ok: r.ok, status: r.status, text: await r.text() }
+    }
+    const checks = await runMp00243SqlProbe({ admin, url: runtime.url, anonKey: runtime.anonKey, rawSql })
+    log(formatMp00240ScopeCheck(checks).replace('MP-00240 forudsætninger — scope-motor + kontrollerede stier (app-laget, staging)', 'MP-00243 time_logs — gammel vs. ny, rollback-only prøve (staging)'))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
+  if (SUB === 'mp-00243-fingerprint') {
+    // STAGING read-only: fingeraftryk af time_logs-funktioner/politikker/grants/triggere (før/efter apply)
+    const { FP_00243_SQL } = await import('./mp-00243-sql-probe')
+    log(JSON.stringify(await stagingSql(FP_00243_SQL)))
+    return
+  }
   if (SUB === 'mp-00240-f1-check') {
     const { runMp00240F1Check } = await import('./mp-00240-f1-check')
     const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
@@ -4728,6 +4750,91 @@ Total inkl. moms 11.718,75
       if (custIds.length) await admin.from('customers').delete().in('id', custIds)
     }
     log(fails ? `❌ ${fails} fejl` : '✅ K5 autolink-scenarie bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'autolink-suggest-scenario') {
+    // MAIL_AUTOLINK_MODE=suggest (staging): skygge-forslaget skriver KUN audit — incoming_emails urørt, ingen kobling,
+    // manuel kobling ignoreres, ingen dubletter ved genkørsel, confidence/begrundelse registreret. + tilstands-parsing.
+    const { suggestAutoLink, mailAutolinkMode } = await import('../../src/lib/services/email-autolink')
+    const stamp = Date.now()
+    const owner = ((await admin.from('profiles').select('id').limit(1)).data as Array<{ id: string }> | null)?.[0]?.id
+    const dom = (k: string) => `k5s${k}${stamp}.dk`
+    const custIds: string[] = []
+    const mailIds: string[] = []
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    // tilstand: default off, gammelt flag = link, ukendt = off
+    check('tilstand: tom → off', mailAutolinkMode({}) === 'off')
+    check('tilstand: suggest/link/off læses', mailAutolinkMode({ MAIL_AUTOLINK_MODE: 'suggest' }) === 'suggest' && mailAutolinkMode({ MAIL_AUTOLINK_MODE: ' LINK ' }) === 'link' && mailAutolinkMode({ MAIL_AUTOLINK_MODE: 'off', MAIL_AUTOLINK_ENABLED: 'true' }) === 'off')
+    check('tilstand: gammelt MAIL_AUTOLINK_ENABLED=true → link (uændret)', mailAutolinkMode({ MAIL_AUTOLINK_ENABLED: 'true' }) === 'link')
+    check('tilstand: ukendt værdi → off (fail-safe)', mailAutolinkMode({ MAIL_AUTOLINK_MODE: 'ja', MAIL_AUTOLINK_ENABLED: 'true' }) === 'off')
+    const mkCust = async (key: string, email: string) => {
+      const { data, error } = await admin.from('customers').insert([{ customer_number: `K5S-${stamp}-${key}`, company_name: `[HARNESS] K5S ${key}`, contact_person: 'x', email, created_by: owner }]).select('id')
+      if (error) throw new Error(error.message)
+      const id = (data as Array<{ id: string }>)[0].id
+      custIds.push(id)
+      return id
+    }
+    const mkMail = async (sender: string, subject: string, extra: Record<string, unknown> = {}) => {
+      const { data, error } = await admin.from('incoming_emails').insert([{ sender_email: sender, subject, body_text: 'Hej', received_at: new Date().toISOString(), is_archived: false, link_status: 'pending', customer_id: null, ...extra }]).select('id')
+      if (error) throw new Error(error.message)
+      const id = (data as Array<{ id: string }>)[0].id
+      mailIds.push(id)
+      return id
+    }
+    const snap = async (id: string) => JSON.stringify((await admin.from('incoming_emails').select('*').eq('id', id).single()).data)
+    const audits = async (id: string) => ((await admin.from('audit_logs').select('action, metadata').eq('entity_id', id)).data ?? []) as Array<{ action: string; metadata: Record<string, unknown> }>
+    try {
+      const A = await mkCust('A', `kunde@${dom('a')}`)
+      const C = await mkCust('C', `info@${dom('c')}`)
+      const D = await mkCust('D', `dublet@${dom('d')}`)
+      const E = await mkCust('E', `dublet@${dom('d')}`)
+      // 1. præcis match → forslag (høj), INTET koblet, rækken byte-identisk
+      const m1 = await mkMail(`kunde@${dom('a')}`, 'K5S præcis')
+      const b1 = await snap(m1)
+      const d1 = await suggestAutoLink(m1, `kunde@${dom('a')}`, null, 'K5S præcis', null, null)
+      const a1 = await audits(m1)
+      check('præcis → beslutning link, men rækken er urørt', d1?.action === 'link' && (await snap(m1)) === b1)
+      check('  audit: forslag, høj sikkerhed, would_auto_link, kandidat A', a1.length === 1 && a1[0].action === 'email_link_suggested' && a1[0].metadata?.mode === 'suggest' && a1[0].metadata?.confidence === 'high' && a1[0].metadata?.would_auto_link === true && JSON.stringify(a1[0].metadata?.candidate_customer_ids) === JSON.stringify([A]) && typeof a1[0].metadata?.reason === 'string', JSON.stringify(a1))
+      // 2. genkørsel (backfill) → ingen dublet
+      await suggestAutoLink(m1, `kunde@${dom('a')}`, null, 'K5S præcis', null, null)
+      check('genkørsel → stadig ét forslag', (await audits(m1)).length === 1)
+      // 3. kun domæne → middel
+      const m3 = await mkMail(`anden@${dom('c')}`, 'K5S domæne')
+      const b3 = await snap(m3)
+      await suggestAutoLink(m3, `anden@${dom('c')}`, null, 'K5S domæne', null, null)
+      const a3 = await audits(m3)
+      check('kun domæne → forslag middel med C, urørt række', (await snap(m3)) === b3 && a3[0]?.metadata?.confidence === 'medium' && JSON.stringify(a3[0]?.metadata?.candidate_customer_ids) === JSON.stringify([C]) && a3[0]?.metadata?.would_auto_link === false, JSON.stringify(a3))
+      // 4. tvetydig → lav, begge kandidater
+      const m4 = await mkMail(`dublet@${dom('d')}`, 'K5S tvetydig')
+      await suggestAutoLink(m4, `dublet@${dom('d')}`, null, 'K5S tvetydig', null, null)
+      const a4 = await audits(m4)
+      check('tvetydig → forslag lav med D+E', a4[0]?.metadata?.confidence === 'low' && JSON.stringify(((a4[0]?.metadata?.candidate_customer_ids as string[]) ?? []).slice().sort()) === JSON.stringify([D, E].sort()), JSON.stringify(a4))
+      // 5. manuelt koblet → intet forslag, intet ændret
+      const m5 = await mkMail(`kunde@${dom('a')}`, 'K5S manuel', { customer_id: E, link_status: 'linked', linked_by: 'manual' })
+      const b5 = await snap(m5)
+      const d5 = await suggestAutoLink(m5, `kunde@${dom('a')}`, null, 'K5S manuel', null, null)
+      check('manuel kobling → intet forslag, urørt', d5 === null && (await audits(m5)).length === 0 && (await snap(m5)) === b5)
+      // 6. intet match → ingen audit
+      const m6 = await mkMail(`ukendt${stamp}@gmail.com`, 'K5S intet')
+      const d6 = await suggestAutoLink(m6, `ukendt${stamp}@gmail.com`, null, 'K5S intet', null, null)
+      check('intet match → ingen audit', d6?.action === 'none' && (await audits(m6)).length === 0)
+      // 7. FormSubmit → aldrig forslag på afsender
+      const m7 = await mkMail('submissions@formsubmit.co', 'Ny henvendelse K5S')
+      const d7 = await suggestAutoLink(m7, 'submissions@formsubmit.co', null, 'Ny henvendelse K5S', null, null)
+      check('FormSubmit → intet forslag', d7?.action === 'none' && (await audits(m7)).length === 0)
+      // 8. ingen kunde-kommunikation/oprettelse: forslag skriver kun audit_logs
+      const { count } = await admin.from('customers').select('id', { count: 'exact', head: true }).like('customer_number', `K5S-${stamp}-%`)
+      check('ingen nye kunder oprettet af forslag', count === 4, `kunder=${count}`)
+    } finally {
+      if (mailIds.length) {
+        await admin.from('audit_logs').delete().in('entity_id', mailIds)
+        await admin.from('incoming_emails').delete().in('id', mailIds)
+      }
+      if (custIds.length) await admin.from('customers').delete().in('id', custIds)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ K5 suggest-scenarie bestået')
     process.exitCode = fails ? 1 : 0
     return
   }

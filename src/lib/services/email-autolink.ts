@@ -1,7 +1,13 @@
 /**
  * K5 — automatisk kobling af synkede mails til kunder med sikker confidence-model (Henrik 2026-10-06).
  *
- * Erstatter linkEmail() i sync-cronen, NÅR MAIL_AUTOLINK_ENABLED='true' (default fra → uændret prod-adfærd).
+ * Tilstand (MAIL_AUTOLINK_MODE, Henrik 2026-10-30; default 'off' = uændret live-adfærd):
+ *   off     → kun den eksisterende linkEmail() (som i dag)
+ *   suggest → SKYGGE: K5-beslutningen beregnes server-side (admin-klient) FØR linkEmail() og skrives KUN som forslag i
+ *             audit_logs (confidence + begrundelse). incoming_emails røres ikke; linkEmail() kører uændret bagefter, så
+ *             brugere ser ingen forskel. Bruges til at evaluere K5 mod den faktiske kobling, før 'link' godkendes.
+ *   link    → K5 erstatter linkEmail() (kræver særskilt godkendelse efter evaluering af suggest)
+ * Det gamle MAIL_AUTOLINK_ENABLED='true' svarer til 'link'. Ukendt værdi → 'off' (fail-safe).
  * Forskelle fra linkEmail():
  *   - kører med admin-klienten (cronen har ingen bruger-session; som anon koblede linkeren næsten intet)
  *   - beslutningen træffes af decideAutoLink(): præcis e-mail/kontakt eller entydig samtale → kobles;
@@ -13,7 +19,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { isFreeMailDomain, NON_CUSTOMER_SENDER_DOMAINS } from '@/lib/email/free-mail-domains'
-import { extractOriginalSender, classifyNoise } from '@/lib/services/email-linker'
+import { extractOriginalSender, classifyNoise, linkEmail } from '@/lib/services/email-linker'
 import { decideAutoLink, type AutoLinkDecision, type AutoLinkSignals } from '@/lib/mail/autolink-policy'
 import { logger } from '@/lib/utils/logger'
 import type { LinkResult, EmailLinkStatus } from '@/types/mail-bridge.types'
@@ -23,8 +29,27 @@ type Admin = ReturnType<typeof createAdminClient>
 /** Afsender-domæner der aldrig matches som kunde: eget domæne og formular-relæet (kunden står i formularen) */
 const CANDIDATE_LIMIT = 5
 
+export type MailAutolinkMode = 'off' | 'suggest' | 'link'
+
+export function mailAutolinkMode(env: Record<string, string | undefined> = process.env): MailAutolinkMode {
+  const raw = (env.MAIL_AUTOLINK_MODE ?? '').trim().toLowerCase()
+  if (raw === 'off' || raw === 'suggest' || raw === 'link') return raw
+  if (raw) {
+    logger.warn('autolink: ukendt MAIL_AUTOLINK_MODE — bruger off', { metadata: { value: raw.slice(0, 20) } })
+    return 'off'
+  }
+  return env.MAIL_AUTOLINK_ENABLED === 'true' ? 'link' : 'off'
+}
+
 export function isAutoLinkEnabled(): boolean {
-  return process.env.MAIL_AUTOLINK_ENABLED === 'true'
+  return mailAutolinkMode() === 'link'
+}
+
+/** Sikkerhed for en K5-beslutning: præcis/samtale = høj, ét firmadomæne = middel, tvetydigt = lav */
+export function autoLinkConfidence(decision: AutoLinkDecision): 'high' | 'medium' | 'low' {
+  if (decision.action === 'link') return 'high'
+  if (decision.action === 'suggest' && decision.matchedOn === 'domain') return 'medium'
+  return 'low'
 }
 
 function senderDomain(email: string): string {
@@ -104,10 +129,83 @@ async function audit(admin: Admin, emailId: string, subject: string, decision: A
     action: linked ? 'email_auto_linked' : 'email_link_suggested',
     action_description: linked ? `Mail koblet automatisk (${decision.reason})` : `Forslag til manuel kobling (${decision.reason})`,
     metadata: linked
-      ? { source: 'k5', customer_id: decision.customerId, matched_on: decision.matchedOn }
-      : { source: 'k5', candidate_customer_ids: decision.candidateIds, matched_on: decision.matchedOn },
+      ? { source: 'k5', mode: 'link', customer_id: decision.customerId, matched_on: decision.matchedOn, confidence: autoLinkConfidence(decision), reason: decision.reason }
+      : { source: 'k5', mode: 'link', candidate_customer_ids: decision.candidateIds, matched_on: decision.matchedOn, confidence: autoLinkConfidence(decision), reason: decision.reason },
   })
   if (error) logger.error('autolink: audit-log fejlede', { entity: 'incoming_emails', entityId: emailId, error })
+}
+
+/**
+ * SUGGEST (skygge): beregn K5-beslutningen og gem den som forslag i audit_logs. Skriver ALDRIG til incoming_emails og
+ * kaster aldrig (fejl logges) — den eksisterende kobling kører uændret bagefter. Allerede koblede mails og mails der
+ * allerede har et skygge-forslag springes over (backfill/genkørsel giver ikke dubletter).
+ */
+export async function suggestAutoLink(
+  emailId: string,
+  senderEmail: string,
+  senderName: string | null,
+  subject: string,
+  bodyHtml: string | null,
+  bodyText: string | null
+): Promise<AutoLinkDecision | null> {
+  try {
+    const admin = createAdminClient()
+    const { data: row, error: rowErr } = await admin
+      .from('incoming_emails').select('customer_id, conversation_id').eq('id', emailId).maybeSingle()
+    if (rowErr || !row) {
+      logger.warn('autolink-forslag: mail ikke fundet', { entity: 'incoming_emails', entityId: emailId, error: rowErr })
+      return null
+    }
+    if (row.customer_id) return null
+    const { data: prior, error: priorErr } = await admin
+      .from('audit_logs').select('id').eq('entity_type', 'incoming_email').eq('entity_id', emailId)
+      .eq('action', 'email_link_suggested').contains('metadata', { mode: 'suggest' }).limit(1)
+    if (priorErr) {
+      logger.warn('autolink-forslag: dublet-tjek fejlede — springer over', { entity: 'incoming_emails', entityId: emailId, error: priorErr })
+      return null
+    }
+    if (prior?.length) return null
+
+    const extracted = extractOriginalSender(senderEmail, senderName, subject, bodyHtml, bodyText)
+    const { signals } = await gatherAutoLinkSignals(admin, emailId, extracted.email, (row.conversation_id as string | null) ?? null)
+    const decision = decideAutoLink(signals)
+    if (decision.action === 'none') return decision
+    const confidence = autoLinkConfidence(decision)
+    const candidates = decision.action === 'link' ? [decision.customerId] : decision.candidateIds
+    const { error } = await admin.from('audit_logs').insert({
+      user_id: null,
+      user_name: 'Mail-automatik',
+      entity_type: 'incoming_email',
+      entity_id: emailId,
+      entity_name: 'Indgående mail',
+      action: 'email_link_suggested',
+      action_description: `Forslag (${confidence === 'high' ? 'høj' : confidence === 'medium' ? 'middel' : 'lav'} sikkerhed: ${decision.reason}) — ikke koblet`,
+      metadata: {
+        source: 'k5', mode: 'suggest', candidate_customer_ids: candidates, matched_on: decision.matchedOn,
+        confidence, reason: decision.reason, would_auto_link: decision.action === 'link',
+      },
+    })
+    if (error) logger.error('autolink-forslag: audit-log fejlede', { entity: 'incoming_emails', entityId: emailId, error })
+    return decision
+  } catch (e) {
+    logger.error('autolink-forslag fejlede', { entity: 'incoming_emails', entityId: emailId, error: e })
+    return null
+  }
+}
+
+/** Orkestratorens ene indgang: vælger sti efter MAIL_AUTOLINK_MODE (off = præcis som før). */
+export async function linkIncomingEmail(
+  emailId: string,
+  senderEmail: string,
+  senderName: string | null,
+  subject: string,
+  bodyHtml: string | null,
+  bodyText: string | null
+): Promise<LinkResult> {
+  const mode = mailAutolinkMode()
+  if (mode === 'link') return autoLinkEmail(emailId, senderEmail, senderName, subject, bodyHtml, bodyText)
+  if (mode === 'suggest') await suggestAutoLink(emailId, senderEmail, senderName, subject, bodyHtml, bodyText)
+  return linkEmail(emailId, senderEmail, senderName, subject, bodyHtml, bodyText)
 }
 
 /** Samme signatur som linkEmail(), så orkestratoren kan vælge via flaget. */
