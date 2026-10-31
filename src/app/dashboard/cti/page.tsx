@@ -6,6 +6,9 @@ import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
 import { lookupCaller } from '@/lib/integrations/relatel/lookup'
 import { formatPhoneForDisplay } from '@/lib/integrations/relatel/phone'
+import { buildCallCard } from '@/lib/integrations/telephony/call-card'
+import { relatelLiveCallEnabled, relatelSmsEnabled } from '@/lib/integrations/telephony/flags'
+import { CallCardPanel } from './call-card-panel'
 
 export const metadata: Metadata = { title: 'Opkald', description: 'Hvem ringer? Opslag på telefonnummer' }
 export const dynamic = 'force-dynamic'
@@ -21,18 +24,23 @@ export default async function CtiPage({ searchParams }: { searchParams: Promise<
   if (!(await pageHasPermission('customers.view'))) return <NoAccess permission="customers.view" />
   const { number: raw } = await searchParams
   const res = await lookupCaller(await createClient(), raw)
+  const card = buildCallCard(res, { liveCall: relatelLiveCallEnabled(), sms: relatelSmsEnabled() })
 
   return (
     <div className="p-6 space-y-5 max-w-4xl">
-      <div className="flex items-center gap-3">
-        <Phone className="h-5 w-5 text-gray-500" />
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Opkald</h1>
-          <p className="text-sm text-gray-500">
-            {res.number ? formatPhoneForDisplay(res.number) : raw ? `Ugyldigt nummer: ${raw}` : 'Angiv et nummer, fx ?number=4571999999'}
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Phone className="h-5 w-5 text-gray-500" />
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">Opkald</h1>
+            <p className="text-sm text-gray-500">
+              {res.number ? formatPhoneForDisplay(res.number) : raw ? `Ugyldigt nummer: ${raw}` : 'Angiv et nummer, fx ?number=4571999999'}
+            </p>
+          </div>
         </div>
+        <Link href="/dashboard/cti/queue" className="text-sm text-blue-700 hover:underline">Tilbageringninger</Link>
       </div>
+      {res.number && <CallCardPanel card={card} />}
 
       {res.number && res.matches.length === 0 && (
         <div className="rounded-lg border bg-white p-4 text-sm text-gray-700">

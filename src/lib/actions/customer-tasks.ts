@@ -605,6 +605,12 @@ export async function createCustomerTask(
       if (!options.some((o) => o.id === input.service_case_id)) return { success: false, error: 'Den valgte sag er ikke en af dine åbne sager hos kunden' }
       serviceCaseId = input.service_case_id
     }
+  } else if (input.service_case_id) {
+    if (!/^[0-9a-f-]{36}$/i.test(input.service_case_id)) return { success: false, error: 'Ugyldig sag' }
+    const { data: sc, error: scErr } = await supabase.from('service_cases').select('id').eq('id', input.service_case_id).eq('customer_id', input.customer_id).maybeSingle()
+    if (scErr) return { success: false, error: 'Sagen kunne ikke læses. Opgaven er ikke oprettet.' }
+    if (!sc) return { success: false, error: 'Sagen hører ikke til kunden' }
+    serviceCaseId = input.service_case_id
   }
 
   const { error } = await supabase.from('customer_tasks').insert({
