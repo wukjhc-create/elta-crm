@@ -29,6 +29,7 @@ import { getOpenAutoTasksForEmail } from '@/lib/actions/auto-tasks'
 import { runMailAgentAction } from '@/lib/actions/agent-inbox'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { AIMailAssistantPanel } from '@/components/mail/ai-mail-assistant-panel'
+import { MailActionCardView } from '@/components/mail/mail-action-card'
 import { CreateFromMailDialog } from '@/components/mail/create-from-mail-dialog'
 import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import { sanitizeEmailHtml } from '@/lib/utils/sanitize-email-html'
@@ -390,6 +391,8 @@ export function MailDetail({
             </div>
           </div>
         )}
+
+        <MailActionCardView email={email} />
 
         {/* Sprint 8D-1: Service case picker */}
         {email.link_status === 'linked' && email.customers && (
