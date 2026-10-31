@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { IntegrationsSettingsClient } from './integrations-settings-client'
+import { IntegrationStatusBoard } from '@/components/settings/integration-status-board'
 
 import { ManageOnly } from '@/components/auth/manage-only'
 import { pageHasPermission } from '@/lib/auth/page-guard'
@@ -28,6 +29,8 @@ export default async function IntegrationsSettingsPage() {
           <p className="text-gray-600 mt-1">Tredjepartsapps og forbindelser</p>
         </div>
       </div>
+
+      <IntegrationStatusBoard />
 
       <ManageOnly canManage={canManage} what="integrationerne"><IntegrationsSettingsClient /></ManageOnly>
     </div>
