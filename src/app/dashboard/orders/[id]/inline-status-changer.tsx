@@ -10,7 +10,7 @@ import {
   SERVICE_CASE_STATUS_COLORS,
   type ServiceCaseStatus,
 } from '@/types/service-cases.types'
-import { isUnbilledCloseError, confirmCloseDespiteUnbilled } from '@/lib/cases/close-guard'
+import { runCloseWithConfirmations } from '@/lib/cases/close-guard'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
 export function InlineStatusChanger({
@@ -32,12 +32,9 @@ export function InlineStatusChanger({
     if (next === current) return
     setError(null)
     setIsWorking(true)
-    let res = await setServiceCaseStatus(caseId, next, null)
-    if (!res.success && isUnbilledCloseError(res.error)) {
-      if (!confirmCloseDespiteUnbilled(res.error)) { setIsWorking(false); return }
-      res = await setServiceCaseStatus(caseId, next, null, { acknowledgeUnbilled: true })
-    }
+    const res = await runCloseWithConfirmations((opts) => setServiceCaseStatus(caseId, next, null, opts))
     setIsWorking(false)
+    if (!res) return
     if (!res.success) {
       setError(humanizeErrorText(res.error) || 'Kunne ikke ændre status')
       return

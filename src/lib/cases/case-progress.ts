@@ -26,6 +26,8 @@ export interface CloseReadinessInput {
   caseStatus: string | null | undefined
   workOrderStatuses: string[]
   unbilled: Pick<UnbilledSummary, 'count' | 'openTimer'>
+  /** Påkrævede afleveringspunkter der ikke er udfyldt (lib/cases/handover-close-guard) — 0/udeladt = ingen hindring */
+  handoverOpenRequired?: number
 }
 
 export interface CloseReadiness {
@@ -47,6 +49,7 @@ export function caseCloseReadiness(input: CloseReadinessInput): CloseReadiness {
   if (openJobs > 0) return { ...base, ready: false, reason: `${openJobs} job er ikke afsluttet` }
   if (input.unbilled.openTimer) return { ...base, ready: false, reason: 'Der kører en timer på sagen' }
   if (input.unbilled.count > 0) return { ...base, ready: false, reason: `${input.unbilled.count} post(er) er ikke faktureret` }
+  if ((input.handoverOpenRequired ?? 0) > 0) return { ...base, ready: false, reason: `Afleveringen mangler ${input.handoverOpenRequired} påkræve${input.handoverOpenRequired === 1 ? 't' : 'de'} punkt${input.handoverOpenRequired === 1 ? '' : 'er'}` }
   return { ...base, ready: true, reason: 'Alle job er udført, og alt er faktureret' }
 }
 

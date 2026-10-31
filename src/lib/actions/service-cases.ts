@@ -444,7 +444,7 @@ const EDITABLE_CASE_FIELDS = new Set([
 export async function updateServiceCase(
   id: string,
   input: UpdateServiceCaseInput,
-  opts?: { acknowledgeUnbilled?: boolean; acknowledgeContractChange?: boolean }
+  opts?: { acknowledgeUnbilled?: boolean; acknowledgeContractChange?: boolean; handoverOverride?: { reason: string } }
 ): Promise<ActionResult<ServiceCase>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -535,11 +535,12 @@ export async function updateServiceCase(
         { acknowledged: !!opts?.acknowledgeContractChange })
     }
     if (wantStatus && wantStatus !== (data as { status?: string } | null)?.status) {
-      const st = await setServiceCaseStatus(id, wantStatus, null, { acknowledgeUnbilled: opts?.acknowledgeUnbilled })
+      const st = await setServiceCaseStatus(id, wantStatus, null, { acknowledgeUnbilled: opts?.acknowledgeUnbilled, handoverOverride: opts?.handoverOverride })
       if (!st.success) {
         const { UNBILLED_PREFIX } = await import('@/lib/cases/close-guard')
-        // ufaktureret-værnet skal kunne genkendes af formularen (bekræft → gem igen med acknowledgeUnbilled)
-        return { success: false, error: st.error?.startsWith(UNBILLED_PREFIX) ? st.error : `Ændringerne er gemt, men status blev ikke ændret: ${st.error ?? 'ukendt fejl'}` }
+        const { HANDOVER_PREFIX } = await import('@/lib/cases/handover-close-guard')
+        // ufaktureret-/aflevering-værnet skal kunne genkendes af formularen (bekræft → gem igen med kvittering/begrundelse)
+        return { success: false, error: st.error?.startsWith(UNBILLED_PREFIX) || st.error?.startsWith(HANDOVER_PREFIX) ? st.error : `Ændringerne er gemt, men status blev ikke ændret: ${st.error ?? 'ukendt fejl'}` }
       }
       data = st.data ?? data
     }
@@ -1532,11 +1533,12 @@ export async function getCaseCloseReadinessAction(caseId: string): Promise<Actio
     validateUUID(caseId, 'sags-ID')
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.close')) return { success: true, data: null }
-    const { data: sc } = await supabase.from('service_cases').select('status').eq('id', caseId).maybeSingle()
+    const { data: sc } = await supabase.from('service_cases').select('status, checklist').eq('id', caseId).maybeSingle()
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
     const { caseCloseReadiness } = await import('@/lib/cases/case-progress')
+    const { openRequiredHandoverItems } = await import('@/lib/cases/handover-close-guard')
     const work = await loadCaseWork(supabase, caseId)
-    return { success: true, data: caseCloseReadiness({ caseStatus: (sc as { status?: string }).status, ...work }) }
+    return { success: true, data: caseCloseReadiness({ caseStatus: (sc as { status?: string }).status, ...work, handoverOpenRequired: openRequiredHandoverItems((sc as { checklist?: unknown }).checklist).length }) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
   }
@@ -1579,10 +1581,10 @@ export async function setServiceCaseStatus(
   id: string,
   status: ServiceCaseStatus,
   note?: string | null,
-  opts?: { acknowledgeUnbilled?: boolean }
+  opts?: { acknowledgeUnbilled?: boolean; handoverOverride?: { reason: string } }
 ): Promise<ActionResult<ServiceCase>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, role } = await getAuthenticatedClientWithRole()
     // Status-skift kan inkludere 'closed' — saa krav er enten cases.edit eller cases.close.
     const required = status === 'closed' ? 'cases.close' : 'cases.edit'
     if (!hasPermission(required)) {
@@ -1590,16 +1592,25 @@ export async function setServiceCaseStatus(
     }
 
     // Read prior status for audit log
-    const { data: prior } = await supabase
+    const { data: prior, error: priorErr } = await supabase
       .from('service_cases')
-      .select('status, case_number')
+      .select('status, case_number, checklist')
       .eq('id', id)
       .maybeSingle()
 
     const update: Record<string, unknown> = { status }
     if (note != null) update.status_note = note
     let closedDespite: string | null = null
+    let handoverOverride: { reason: string; openItems: Array<{ key: string; label: string }> } | null = null
     if (status === 'closed' && !prior?.status?.toString()?.includes('closed')) {
+      // Aflevering-værn (pilot-sim 2026-10-31, S2): påkrævede afleveringspunkter skal være udfyldt — en underskrift alene
+      // er ikke en komplet aflevering. Fail-closed hvis sagen ikke kan læses. Kun admin/serviceleder kan lukke alligevel
+      // (begrundelse + audit med de manglende punkter); en cases.close-grant til en anden rolle giver ikke undtagelsen.
+      if (priorErr || !prior) return { success: false, error: 'Sagen kunne ikke læses — prøv igen' }
+      const { handoverCloseDecision } = await import('@/lib/cases/handover-close-guard')
+      const hv = handoverCloseDecision({ checklist: (prior as { checklist?: unknown }).checklist, role, override: opts?.handoverOverride ?? null })
+      if (!hv.ok) return { success: false, error: hv.error }
+      handoverOverride = hv.override
       // Lukke-værn: ikke stille lukning med ufaktureret arbejde
       const block = await unbilledCloseBlock(supabase, id)
       if (block && !opts?.acknowledgeUnbilled) {
@@ -1651,8 +1662,12 @@ export async function setServiceCaseStatus(
       id,
       (data?.case_number as string) ?? id,
       'status_change',
-      `Status ændret: ${prior?.status ?? '—'} → ${status}${note ? ` (${note})` : ''}${closedDespite ? ` — lukket trods: ${closedDespite}` : ''}${cancelledPlanned ? ` — ${cancelledPlanned} planlagt(e) arbejdsordre(r) annulleret` : ''}`,
-      { status: { old: prior?.status ?? null, new: status }, ...(closedDespite ? { unbilled_at_close: { old: null, new: closedDespite } } : {}) }
+      `Status ændret: ${prior?.status ?? '—'} → ${status}${note ? ` (${note})` : ''}${closedDespite ? ` — lukket trods: ${closedDespite}` : ''}${handoverOverride ? ` — lukket UDEN komplet aflevering (mangler: ${handoverOverride.openItems.map((i) => i.label).join(', ')}; begrundelse: ${handoverOverride.reason})` : ''}${cancelledPlanned ? ` — ${cancelledPlanned} planlagt(e) arbejdsordre(r) annulleret` : ''}`,
+      {
+        status: { old: prior?.status ?? null, new: status },
+        ...(closedDespite ? { unbilled_at_close: { old: null, new: closedDespite } } : {}),
+        ...(handoverOverride ? { handover_incomplete_at_close: { old: null, new: { reason: handoverOverride.reason, open_items: handoverOverride.openItems.map((i) => i.key), by_role: role } } } : {}),
+      }
     )
 
     revalidatePath('/dashboard/orders')
@@ -1667,7 +1682,7 @@ export async function setServiceCaseStatus(
 
 export async function markServiceCaseDone(
   id: string,
-  opts?: { acknowledgeUnbilled?: boolean }
+  opts?: { acknowledgeUnbilled?: boolean; handoverOverride?: { reason: string } }
 ): Promise<ActionResult<ServiceCase>> {
   const __denied = await permissionDenied('cases.close')
   if (__denied) return { success: false, error: __denied }

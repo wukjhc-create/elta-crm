@@ -9,7 +9,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Loader2, PlayCircle } from 'lucide-react'
 import { getCaseCloseReadinessAction, getCaseStartHintAction, setServiceCaseStatus } from '@/lib/actions/service-cases'
-import { isUnbilledCloseError, confirmCloseDespiteUnbilled } from '@/lib/cases/close-guard'
+import { runCloseWithConfirmations } from '@/lib/cases/close-guard'
 import type { CloseReadiness } from '@/lib/cases/case-progress'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
@@ -31,12 +31,9 @@ export function CaseCloseReadiness({ caseId, status }: { caseId: string; status:
 
   const close = async () => {
     setBusy(true); setError(null)
-    let res = await setServiceCaseStatus(caseId, 'closed', null)
-    if (!res.success && isUnbilledCloseError(res.error)) {
-      if (!confirmCloseDespiteUnbilled(res.error)) { setBusy(false); return }
-      res = await setServiceCaseStatus(caseId, 'closed', null, { acknowledgeUnbilled: true })
-    }
+    const res = await runCloseWithConfirmations((opts) => setServiceCaseStatus(caseId, 'closed', null, opts))
     setBusy(false)
+    if (!res) return
     if (!res.success) { setError(humanizeErrorText(res.error) ?? 'Kunne ikke lukke sagen'); return }
     startTransition(() => router.refresh())
   }

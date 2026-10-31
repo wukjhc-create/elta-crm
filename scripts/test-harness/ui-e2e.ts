@@ -185,8 +185,9 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
-  montor: ['U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
@@ -5468,6 +5469,116 @@ ${m.text()}`) })
           note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U240–U254 PILOT-SIM (Henrik 2026-10-31): computerstyret pilot — fulde ELTA-arbejdsgange gennem UI'et med 6 roller,
+      // indblandede fejl, DB-verifikation og målinger (scripts/test-harness/pilot-sim.ts). PILOT_SIM_PER_SLOT workflows pr. slot.
+      for (let slot = 0; slot < 15; slot++) {
+        if (!want(`U${240 + slot}`)) continue
+        const { runPilotSim } = await import('./pilot-sim')
+        await runPilotSim({ admin: c.admin, base, stamp, shots, startJobFlag, login, mkUser, gotoSafe, callServerAction, listCaseIds,
+          newContext: (opts) => browser.newContext(opts), push: (x) => { out.push(x) } }, slot, Number(process.env.PILOT_SIM_PER_SLOT ?? 2))
+      }
+
+      // U255 AFLEVERING-VÆRN (Henrik 2026-10-31, pilot-sim S2): 1) underskrift gemmes trods åben tjekliste; 2) normal lukning
+      // afvises (admin i UI'et + direkte kald); 3) komplet aflevering → lukning virker; 4) begrænset rolle (salg MED
+      // cases.close-grant) kan ikke omgå; 5) admin-undtagelse i UI'et kræver bekræftelse + begrundelse og audit-logges med de
+      // manglende punkter; serviceleder uden begrundelse afvises, med begrundelse lukkes
+      if (want('U255') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U255-${stamp}`
+        const { DEFAULT_CHECKLIST } = await import('../../src/types/service-cases.types')
+        const started = DEFAULT_CHECKLIST.map((i) => ({ ...i }))
+        const complete = DEFAULT_CHECKLIST.map((i) => ({ ...i, completed: i.required ? true : i.completed, completed_at: i.required ? new Date().toISOString() : null }))
+        const sx = await mkUser('salg')
+        const sl = await mkUser('serviceleder')
+        const mkCase = async (title: string, checklist: unknown) => {
+          const res = await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} ${title}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: sx.id, checklist }]).select('id, case_number')
+          const row = res.data?.[0] as { id: string; case_number: string } | undefined
+          if (row) listCaseIds.push(row.id)
+          return row
+        }
+        const caseOpen = await mkCase('åben aflevering', started)
+        const caseDone = await mkCase('komplet aflevering', complete)
+        const caseUi = await mkCase('UI-undtagelse', started)
+        await c.admin.from('user_permission_overrides').insert([{ profile_id: sx.id, permission: 'cases.close', effect: 'grant', source: 'manual', reason: 'U255 test', created_by: adminUser.id }])
+        const status = async (id: string) => String(((await c.admin.from('service_cases').select('status').eq('id', id).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+        const sigPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+        r.seed = !!caseOpen && !!caseDone && !!caseUi
+        try {
+          const ap = await login(adminUser)
+          try {
+            const url = `${base}/dashboard/orders/${caseOpen!.id}?tab=aflevering`
+            await gotoSafe(ap.page, url, { waitUntil: 'networkidle', timeout: 180_000 })
+            // 1. underskrift gemmes trods åben tjekliste
+            const sig = await callServerAction(ap.page, url, 'src/lib/actions/case-handover.ts', 'signCaseHandoverAction', [caseOpen!.id, sigPng, 'Test Kunde'])
+            const after = ((await c.admin.from('service_cases').select('signed_at, customer_signature_name, checklist, status').eq('id', caseOpen!.id).maybeSingle()).data ?? {}) as { signed_at?: string; customer_signature_name?: string; checklist?: Array<{ required: boolean; completed: boolean }>; status?: string }
+            r.t1_underskrift_gemt_trods_aaben_tjekliste = /"success":true/.test(sig) && after.customer_signature_name === 'Test Kunde' && !!after.signed_at
+              && (after.checklist ?? []).filter((i) => i.required && !i.completed).length === 3 && after.status === 'in_progress'
+            // 2a. admin: "Markér afsluttet" i UI'et → advarsel med de manglende punkter; annullér → sagen forbliver åben
+            await gotoSafe(ap.page, `${base}/dashboard/orders/${caseOpen!.id}?tab=handlinger`, { waitUntil: 'networkidle', timeout: 180_000 })
+            let msg = ''
+            ap.page.once('dialog', (d) => { msg = d.message(); d.dismiss().catch(() => {}) })
+            await ap.page.getByRole('button', { name: 'Markér afsluttet' }).click({ timeout: 60_000 }).catch(() => {})
+            for (let i = 0; i < 20 && !msg; i++) await ap.page.waitForTimeout(500)
+            r.t2a_admin_ui_advarsel_og_annuller = /Afleveringen er ikke komplet/.test(msg) && /Foto af inverter/.test(msg) && (await status(caseOpen!.id)) === 'in_progress'
+            r.t2b_ingen_klar_til_lukning_banner = (await ap.page.getByTestId('case-ready-to-close').count()) === 0
+            // 2c. direkte kald uden undtagelse → afvist
+            const plain = await callServerAction(ap.page, url, 'src/lib/actions/service-cases.ts', 'markServiceCaseDone', [caseOpen!.id, { acknowledgeUnbilled: true }])
+            r.t2c_admin_kald_uden_undtagelse_afvist = !/"success":true/.test(plain) && /HANDOVER: Afleveringen er ikke komplet/.test(plain) && (await status(caseOpen!.id)) === 'in_progress'
+            // 3. komplet aflevering → normal lukning virker
+            const doneUrl = `${base}/dashboard/orders/${caseDone!.id}`
+            await gotoSafe(ap.page, doneUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            const ok3 = await callServerAction(ap.page, doneUrl, 'src/lib/actions/service-cases.ts', 'markServiceCaseDone', [caseDone!.id, { acknowledgeUnbilled: true }])
+            r.t3_komplet_aflevering_lukker = /"success":true/.test(ok3) && (await status(caseDone!.id)) === 'closed'
+            // 5a. admin-undtagelse i UI'et: bekræft + begrundelse → lukket + audit med manglende punkter og begrundelse
+            await gotoSafe(ap.page, `${base}/dashboard/orders/${caseUi!.id}?tab=handlinger`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const seen: string[] = []
+            const onDialog = (d: import('playwright').Dialog) => { seen.push(d.type()); (d.type() === 'prompt' ? d.accept('Kunden sender panelfotos senere') : d.accept()).catch(() => {}) }
+            ap.page.on('dialog', onDialog)
+            await ap.page.getByRole('button', { name: 'Markér afsluttet' }).click({ timeout: 60_000 }).catch(() => {})
+            let st = ''
+            for (let i = 0; i < 30 && st !== 'closed'; i++) { st = await status(caseUi!.id); if (st !== 'closed') await ap.page.waitForTimeout(500) }
+            ap.page.off('dialog', onDialog)
+            // audit skrives EFTER statusskiftet (og annullering af planlagte job) — vent på rækken, ikke kun på status
+            type AudRow = { action_description: string; changes: { handover_incomplete_at_close?: { new?: { reason?: string; open_items?: string[]; by_role?: string } } } | null }
+            let aud: AudRow[] = []
+            for (let i = 0; i < 20 && !aud.length; i++) {
+              aud = ((await c.admin.from('audit_logs').select('action, action_description, changes').eq('entity_id', caseUi!.id).eq('action', 'status_change')).data ?? []) as AudRow[]
+              if (!aud.length) await ap.page.waitForTimeout(500)
+            }
+            const h = aud.map((x) => x.changes?.handover_incomplete_at_close?.new).find(Boolean)
+            r.t5a_admin_ui_bekraeft_begrundelse_lukket = st === 'closed' && seen.includes('confirm') && seen.includes('prompt')
+            r.t5b_audit_med_punkter_og_begrundelse = h?.reason === 'Kunden sender panelfotos senere' && (h?.open_items ?? []).join(',') === 'inverter_photo,tavle_photo,panel_photo' && h?.by_role === 'admin'
+              && aud.some((x) => /UDEN komplet aflevering/.test(x.action_description))
+            if (!r.t5b_audit_med_punkter_og_begrundelse) console.log(`[ui-e2e] U255 t5b diag: ${JSON.stringify(aud).slice(0, 700)}`)
+          } finally { await ap.ctx.close().catch(() => {}) }
+          // 4. salg MED cases.close-grant kan ikke omgå (heller ikke med begrundelse)
+          const sp = await login(sx)
+          try {
+            const url = `${base}/dashboard/orders/${caseOpen!.id}`
+            await gotoSafe(sp.page, url, { waitUntil: 'networkidle', timeout: 180_000 })
+            const plain = await callServerAction(sp.page, url, 'src/lib/actions/service-cases.ts', 'setServiceCaseStatus', [caseOpen!.id, 'closed', null, { acknowledgeUnbilled: true }])
+            const forced = await callServerAction(sp.page, url, 'src/lib/actions/service-cases.ts', 'setServiceCaseStatus', [caseOpen!.id, 'closed', null, { acknowledgeUnbilled: true, handoverOverride: { reason: 'Jeg lukker den bare alligevel' } }])
+            r.t4_begraenset_rolle_kan_ikke_omgaa = !/"success":true/.test(plain) && !/"success":true/.test(forced) && /kun admin eller serviceleder/.test(forced) && !/HANDOVER:/.test(forced)
+              && (await status(caseOpen!.id)) === 'in_progress'
+            if (!r.t4_begraenset_rolle_kan_ikke_omgaa) console.log(`[ui-e2e] U255 t4 diag: ${forced.slice(0, 300)}`)
+          } finally { await sp.ctx.close().catch(() => {}) }
+          // 5c. serviceleder: undtagelse uden/for kort begrundelse afvises; med begrundelse → lukket
+          const lp = await login(sl)
+          try {
+            const url = `${base}/dashboard/orders/${caseOpen!.id}`
+            await gotoSafe(lp.page, url, { waitUntil: 'networkidle', timeout: 180_000 })
+            const noReason = await callServerAction(lp.page, url, 'src/lib/actions/service-cases.ts', 'markServiceCaseDone', [caseOpen!.id, { acknowledgeUnbilled: true, handoverOverride: { reason: ' ' } }])
+            r.t5c_serviceleder_uden_begrundelse_afvist = !/"success":true/.test(noReason) && /begrundelse/i.test(noReason) && (await status(caseOpen!.id)) === 'in_progress'
+            const withReason = await callServerAction(lp.page, url, 'src/lib/actions/service-cases.ts', 'markServiceCaseDone', [caseOpen!.id, { acknowledgeUnbilled: true, handoverOverride: { reason: 'Kunden har afvist panelfoto' } }])
+            r.t5d_serviceleder_med_begrundelse_lukket = /"success":true/.test(withReason) && (await status(caseOpen!.id)) === 'closed'
+          } finally { await lp.ctx.close().catch(() => {}) }
+        } finally {
+          await c.admin.from('user_permission_overrides').delete().eq('profile_id', sx.id)
+          for (const x of [caseOpen, caseDone, caseUi]) if (x) await c.admin.from('audit_logs').delete().eq('entity_id', x.id)
+        }
+        out.push({ id: 'U255 aflevering-værn ved lukning (underskrift≠komplet; lukning afvist; komplet lukker; rolle-værn; undtagelse m. begrundelse+audit)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U232 PILOT-YDELSE (Henrik 2026-10-29): mål de tungeste brugerflader pr. rolle (staging-volumen) — server-tid
       // (TTFB), fuld indlæsning og antal server-action-kald efter load (afslører klient-N+1/dobbeltkald). Varm måling:
       // hver side indlæses to gange, den anden tæller. Fejler kun ved klare udslag (server-tid > 10 s)
@@ -9115,6 +9226,7 @@ ${m.text()}`) })
     if (u87SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u87SupplierId); await c.admin.from('suppliers').delete().eq('id', u87SupplierId) }
     if (u81OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u81OfferId); await c.admin.from('offers').delete().eq('id', u81OfferId) }
     if (u77OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u77OfferId); await c.admin.from('offers').delete().eq('id', u77OfferId) }
+    await (await import('./pilot-sim')).cleanupPilotSimActors(c.admin).catch((e) => console.log(`[pilot-sim] aktør-oprydning: ${String(e).slice(0, 160)}`))
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('case_materials').delete().eq('case_id', id); await c.admin.from('case_other_costs').delete().eq('case_id', id); { const { data: ws } = await c.admin.from('work_orders').select('id').eq('case_id', id); for (const w of (ws ?? []) as Array<{ id: string }>) await c.admin.from('time_logs').delete().eq('work_order_id', w.id) } await c.admin.from('work_orders').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (u57OfferId) await c.admin.from('offers').delete().eq('id', u57OfferId)
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)

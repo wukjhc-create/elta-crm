@@ -403,3 +403,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   (warning, ikke i ALL_SERVICES → ingen driftsstatus/mail) via `trackActionResult` (lib/pilot/action-failure-log). Tjek
   efter session: `npx tsx scripts/prod-pilot-session-check.ts [--hours N|--since YYYY-MM-DD]` (read-only; staging:
   `cli.ts pilot-session-check`). SUGGEST-forslag: docs/runbooks/mail-autolink-suggest-activation-proposal.md (ikke aktiveret)
+- 2026-10-31: Pilot-sim (staging, `UI_E2E_GROUP=pilot-sim` / U240–U254, scripts/test-harness/pilot-sim.ts; målinger:
+  `npx tsx scripts/test-harness/pilot-sim-report.ts`). 30 fulde workflows × 6 roller gennem UI'et. Fund S2 rettet:
+  aflevering-værn ved lukning (lib/cases/handover-close-guard) — underskrift ≠ komplet aflevering; `setServiceCaseStatus`
+  afviser lukning med åbne PÅKRÆVEDE tjeklistepunkter; kun basisrolle admin/serviceleder kan lukke alligevel med
+  begrundelse (audit `changes.handover_incomplete_at_close`); en cases.close-grant til andre roller giver ingen undtagelse.
+  UI-kald går via `runCloseWithConfirmations` (lib/cases/close-guard). Test: scripts/handover-close-guard-test.ts + U255

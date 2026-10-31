@@ -21,7 +21,7 @@ import {
   SERVICE_CASE_TYPE_LABELS,
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
-import { isUnbilledCloseError, confirmCloseDespiteUnbilled } from '@/lib/cases/close-guard'
+import { isUnbilledCloseError, confirmCloseDespiteUnbilled, isHandoverCloseError, askHandoverOverrideReason } from '@/lib/cases/close-guard'
 import { isContractChangeError, confirmContractChange } from '@/lib/cases/contract-guard'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
@@ -142,12 +142,17 @@ export function EditOrderForm({
         budget: data.budget,
       }
       // IV2-4: kontraktsum-ændring på accepteret tilbud/fakturering og lukning med ufaktureret arbejde bekræftes
-      const ack: { acknowledgeUnbilled?: boolean; acknowledgeContractChange?: boolean } = {}
+      const ack: { acknowledgeUnbilled?: boolean; acknowledgeContractChange?: boolean; handoverOverride?: { reason: string } } = {}
       let result = await updateServiceCase(sag.id, payload)
-      for (let i = 0; i < 2 && !result.success; i++) {
+      for (let i = 0; i < 3 && !result.success; i++) {
         if (isContractChangeError(result.error)) {
           if (!confirmContractChange(result.error)) return
           ack.acknowledgeContractChange = true
+        } else if (isHandoverCloseError(result.error) && !ack.handoverOverride) {
+          // aflevering-værnet: advarsel + bekræftelse + obligatorisk begrundelse (kun admin/serviceleder får spørgsmålet)
+          const reason = askHandoverOverrideReason(result.error)
+          if (!reason) return
+          ack.handoverOverride = { reason }
         } else if (isUnbilledCloseError(result.error)) {
           if (!confirmCloseDespiteUnbilled(result.error)) return
           ack.acknowledgeUnbilled = true
