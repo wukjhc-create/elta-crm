@@ -5,10 +5,12 @@ Updated: 2026-11-01. Delivery branch only. Do not merge to main from this file.
 ## Git
 
 - Branch: `grok-features`
-- HEAD: `ccc8409dd91eea13c0b90b8e5da3ea3ab98be333` — `test(features): cover the grok-features batch`
+- Published handover: `fa5dd73a67b5b1b054962a7415869cba43cc2d5f` — `docs(handover): record the grok-features batch for review`
+- Product HEAD under that commit: `ccc8409dd91eea13c0b90b8e5da3ea3ab98be333` — `test(features): cover the grok-features batch`
+- Branch tip: the child of `fa5dd73a` that only corrects this section. A file cannot contain the hash of the commit that contains the file. Use `git rev-parse origin/grok-features`.
 - Base used: `ab2cddfae670f932770b5fc2074ed5b234e2e5cf` — `feat(pilot): P5-pilot klar`
 - `origin/main` at handover: `9cfd2d44ef291f6854d6b67ad9a023c191d13518` (1 commit ahead of the base: `fix(cases): aflevering-værn ved lukning`). This branch does not contain that commit.
-- Remote: `origin/grok-features`. Never merged to main from here.
+- Remote: `origin/grok-features` (created 2026-11-01). Never merged to main from here.
 
 Feature commits on the branch:
 
