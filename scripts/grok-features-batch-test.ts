@@ -19,7 +19,8 @@ import { composeTimeline, kindForNote, kindForTask } from '../src/lib/timeline/c
 import { invoiceTrafficLight } from '../src/lib/invoice-control/traffic-light'
 import type { InvoiceControl } from '../src/lib/invoice-control/engine'
 import { previewCommunication } from '../src/lib/automation/comm-preview'
-import { casesMissingPowerOfAttorney, explainCrmQuestion, followUpPreview, interpretCrmQuestion } from '../src/lib/assistant/crm-questions'
+import { casesMissingPowerOfAttorney, explainCrmQuestion, followUpPreview, interpretCrmQuestion, planAssistantTask } from '../src/lib/assistant/crm-questions'
+import { mailNoteText, planMailCardCommand } from '../src/lib/mail/action-card-execute'
 import { lookupKnownProducts } from '../src/lib/suppliers/product-lookup'
 import { integrationBoard } from '../src/lib/integrations/status-board'
 import type { CallerLookup } from '../src/lib/integrations/relatel/lookup'
@@ -203,12 +204,23 @@ eq('forhåndsvisning sender aldrig', preview.every((p) => p.wouldSend === false 
 eq('pause-fri forhåndsvisning sender heller ikke', previewCommunication([{ ruleId: 'callback.reminder', entityId: 't1', customerId: 'c1', label: 'Kjeld', ageDays: 0, reason: 'nu' }]).every((p) => p.wouldSend === false), true)
 eq('opfølgning bruger samme forhåndsvisning', followUpPreview([{ ruleId: 'inspection.reminder', entityId: 'b1', customerId: 'c1', label: 'Besigtigelse', ageDays: 2, reason: 'i morgen var i går' }])[0]?.wouldSend, false)
 
-eq('skrivende spørgsmål udføres ikke', interpretCrmQuestion('Opret opgave for Lars på sag 2309').kind, 'write')
+eq('opgaveforslag er ikke en fri skrivning', interpretCrmQuestion('Opret opgave for Lars på sag 2309').kind, 'propose_task')
+eq('opgaveforslag husker sag og navn', [interpretCrmQuestion('Opret opgave for Lars på sag 2309').caseNumber, interpretCrmQuestion('Opret opgave for Lars på sag 2309').assigneeName], ['2309', 'Lars'])
+eq('ny kunde er stadig en afvist skrivning', interpretCrmQuestion('Opret kunde Lars').kind, 'write')
 eq('flyt er en skrivende handling', interpretCrmQuestion('Flyt besigtigelse til fredag kl. 10').kind, 'write')
-eq('skriv forklares uden udførelse', explainCrmQuestion({ kind: 'write', name: null, todayOnly: false, text: 'x' }).includes('godkender ikke'), true)
+eq('skriv forklares uden udførelse', explainCrmQuestion({ kind: 'write', name: null, todayOnly: false, text: 'x', caseNumber: null, assigneeName: null }).includes('godkender'), true)
+eq('ubekræftet opgave udføres ikke', planAssistantTask({ confirmed: false, caseNumber: '2309', caseMatches: 1, assigneeName: 'Lars', assigneeMatches: 1 }).execute, false)
+eq('flere medarbejdere vælges ikke', planAssistantTask({ confirmed: true, caseNumber: '2309', caseMatches: 1, assigneeName: 'Lars', assigneeMatches: 2 }).execute, false)
+eq('én sag og én medarbejder kan bekræftes', planAssistantTask({ confirmed: true, caseNumber: '2309', caseMatches: 1, assigneeName: 'Lars', assigneeMatches: 1 }).execute, true)
 eq('i dag begrænser tilbageringninger', interpretCrmQuestion('Hvem ringede i dag, som vi ikke har ringet tilbage til?').todayOnly, true)
 eq('fuldmagtsspørgsmål', interpretCrmQuestion('Hvilke sager mangler en fuldmagt?').kind, 'missing_poa')
-eq('historik udtrækker navnet', interpretCrmQuestion('Hvad skete der med kunde Kjeld Rønnekilde?'), { kind: 'history', name: 'Kjeld Rønnekilde', todayOnly: false, text: 'Hvad skete der med kunde Kjeld Rønnekilde?' })
+eq('historik udtrækker navnet', interpretCrmQuestion('Hvad skete der med kunde Kjeld Rønnekilde?'), { kind: 'history', name: 'Kjeld Rønnekilde', todayOnly: false, text: 'Hvad skete der med kunde Kjeld Rønnekilde?', caseNumber: null, assigneeName: null })
+eq('mail uden bekræftelse skriver ikke', planMailCardCommand({ confirmed: false, command: 'attach_mail', customerId: 'c1', caseId: 's1', emailCustomerId: null }).execute, false)
+eq('fuldmagt oprettes ikke fra filnavnet', planMailCardCommand({ confirmed: true, command: 'save_attachment', customerId: 'c1', caseId: 's1', emailCustomerId: 'c1' }).execute, false)
+eq('status og ny sag udføres ikke', planMailCardCommand({ confirmed: true, command: 'change_status', customerId: 'c1', caseId: 's1', emailCustomerId: 'c1' }).execute || planMailCardCommand({ confirmed: true, command: 'create_case', customerId: 'c1', caseId: null, emailCustomerId: 'c1' }).execute, false)
+eq('anden kundes mail knyttes ikke', planMailCardCommand({ confirmed: true, command: 'attach_mail', customerId: 'c1', caseId: 's1', emailCustomerId: 'c2' }).execute, false)
+eq('bekræftet knytning er tilladt', planMailCardCommand({ confirmed: true, command: 'attach_mail', customerId: 'c1', caseId: 's1', emailCustomerId: null }).execute, true)
+eq('noten opfinder ikke en gyldig fuldmagt', mailNoteText('Fuldmagt', ['fuldmagt.pdf']).includes('ikke oprettet en fuldmagt'), true)
 const poaCases = [
   { id: 's2309', caseNumber: '2309', title: 'DCC', customerId: 'c1', status: 'in_progress' },
   { id: 's1', caseNumber: '1', title: 'Lukket', customerId: 'c1', status: 'closed' },

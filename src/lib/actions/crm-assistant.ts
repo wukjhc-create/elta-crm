@@ -6,6 +6,8 @@
  */
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { permissionDeniedText } from '@/lib/auth/permission-text'
+import { createCustomerTask } from '@/lib/actions/customer-tasks'
+import { userCanViewCustomer } from '@/lib/auth/customer-scope'
 import {
   casesMissingPowerOfAttorney,
   copenhagenDate,
@@ -13,6 +15,7 @@ import {
   followUpPreview,
   historyLines,
   interpretCrmQuestion,
+  planAssistantTask,
   selectOutstandingCallbacks,
   type CallbackRow,
   type PoaCaseRow,
@@ -23,15 +26,23 @@ import { getCustomerCommunicationTimeline } from '@/lib/actions/communication-ti
 import { orIlikeContains } from '@/lib/validations/postgrest-filter'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
+export interface CrmTaskProposal {
+  kind: 'create_task'
+  caseNumber: string
+  assigneeName: string | null
+  title: string
+}
+
 export interface CrmAnswer {
   ok: boolean
   text: string
   items: Array<{ title: string; detail: string; href: string | null }>
   sends: false
+  proposal: CrmTaskProposal | null
 }
 
-function answer(ok: boolean, text: string, items: CrmAnswer['items'] = []): CrmAnswer {
-  return { ok, text, items, sends: false }
+function answer(ok: boolean, text: string, items: CrmAnswer['items'] = [], proposal: CrmTaskProposal | null = null): CrmAnswer {
+  return { ok, text, items, sends: false, proposal }
 }
 
 function ageDays(iso: string | null, today: string): number {
@@ -44,6 +55,7 @@ export async function answerCrmQuestion(question: string): Promise<CrmAnswer> {
   const ctx = await getAuthenticatedClientWithRole()
   if (!ctx.hasPermission('customers.view')) return answer(false, permissionDeniedText('customers.view'))
   const parsed = interpretCrmQuestion(question)
+  if (parsed.kind === 'propose_task') return proposeTask(ctx.supabase, parsed.caseNumber, parsed.assigneeName)
   if (parsed.kind === 'help' || parsed.kind === 'unknown' || parsed.kind === 'write') {
     return answer(parsed.kind !== 'unknown', explainCrmQuestion(parsed))
   }
@@ -149,4 +161,102 @@ async function followups(supabase: Awaited<ReturnType<typeof getAuthenticatedCli
     detail: `${item.followUp} Kanal: ${item.channel}.`,
     href: item.customerId ? `/dashboard/customers/${item.customerId}` : null,
   })))
+}
+
+type AssistantClient = Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']
+
+async function resolveTaskTarget(supabase: AssistantClient, caseNumber: string | null, assigneeName: string | null): Promise<
+  | { ok: false; reason: string; items: CrmAnswer['items'] }
+  | { ok: true; caseId: string; caseNumber: string; customerId: string; title: string; assigneeId: string | null; assigneeLabel: string | null }
+> {
+  const plan = planAssistantTask({ confirmed: false, caseNumber, caseMatches: caseNumber ? 1 : 0, assigneeName, assigneeMatches: assigneeName ? 1 : 0 })
+  if (!caseNumber) return { ok: false, reason: plan.reason, items: [] }
+  const cases = await supabase
+    .from('service_cases')
+    .select('id, case_number, title, customer_id')
+    .eq('case_number', caseNumber)
+    .eq('is_proposal', false)
+    .limit(5)
+  if (cases.error) return { ok: false, reason: 'Sagen kunne ikke læses. Intet er oprettet.', items: [] }
+  const rows = (cases.data ?? []) as Array<{ id: string; case_number: string | null; title: string | null; customer_id: string | null }>
+  if (rows.length !== 1) {
+    const blocked = planAssistantTask({ confirmed: true, caseNumber, caseMatches: rows.length, assigneeName, assigneeMatches: 0 })
+    return {
+      ok: false,
+      reason: blocked.reason,
+      items: rows.filter((r) => r.customer_id).map((r) => ({ title: `${r.case_number ?? caseNumber} — ${r.title ?? 'Sag'}`, detail: 'Sag', href: `/dashboard/orders/${r.id}` })),
+    }
+  }
+  const sag = rows[0]
+  if (!sag.customer_id) return { ok: false, reason: 'Sagen har ingen kunde. Intet er oprettet.', items: [] }
+  let assigneeId: string | null = null
+  let assigneeLabel: string | null = null
+  if (assigneeName) {
+    const people = await supabase.from('profiles').select('id, full_name').eq('is_active', true).or(orIlikeContains(['full_name'], assigneeName)).limit(8)
+    if (people.error) return { ok: false, reason: 'Medarbejderen kunne ikke læses. Intet er oprettet.', items: [] }
+    const hits = (people.data ?? []) as Array<{ id: string; full_name: string | null }>
+    const decided = planAssistantTask({ confirmed: true, caseNumber, caseMatches: 1, assigneeName, assigneeMatches: hits.length })
+    if (!decided.execute && hits.length !== 1) {
+      return { ok: false, reason: decided.reason, items: hits.map((p) => ({ title: p.full_name ?? 'Medarbejder', detail: 'Flere match', href: null })) }
+    }
+    assigneeId = hits[0]?.id ?? null
+    assigneeLabel = hits[0]?.full_name ?? assigneeName
+  }
+  return {
+    ok: true,
+    caseId: sag.id,
+    caseNumber: sag.case_number ?? caseNumber,
+    customerId: sag.customer_id,
+    title: `Opgave på sag ${sag.case_number ?? caseNumber}`,
+    assigneeId,
+    assigneeLabel,
+  }
+}
+
+async function proposeTask(supabase: AssistantClient, caseNumber: string | null, assigneeName: string | null): Promise<CrmAnswer> {
+  const resolved = await resolveTaskTarget(supabase, caseNumber, assigneeName)
+  if (!resolved.ok) return answer(resolved.reason.startsWith('Sagen kunne ikke') || resolved.reason.startsWith('Medarbejderen kunne ikke') ? false : true, resolved.reason, resolved.items)
+  const who = resolved.assigneeLabel ? ` til ${resolved.assigneeLabel}` : ''
+  return answer(true, `Forslag: opret “${resolved.title}”${who}. Intet er oprettet, før du bekræfter.`, [{
+    title: resolved.title,
+    detail: resolved.assigneeLabel ?? 'Tildeles dig selv',
+    href: `/dashboard/orders/${resolved.caseId}`,
+  }], {
+    kind: 'create_task',
+    caseNumber: resolved.caseNumber,
+    assigneeName,
+    title: resolved.title,
+  })
+}
+
+export async function confirmAssistantTask(input: {
+  confirmed: boolean
+  caseNumber: string | null
+  assigneeName: string | null
+}): Promise<{ success: boolean; wrote: boolean; message: string }> {
+  const ctx = await getAuthenticatedClientWithRole()
+  if (!ctx.hasPermission('customers.view')) return { success: false, wrote: false, message: permissionDeniedText('customers.view') }
+  if (!input.confirmed) return { success: false, wrote: false, message: 'Bekræft opgaven, før den oprettes.' }
+  const resolved = await resolveTaskTarget(ctx.supabase, input.caseNumber, input.assigneeName)
+  if (!resolved.ok) return { success: false, wrote: false, message: resolved.reason }
+  if (!(await userCanViewCustomer(resolved.customerId, ctx))) return { success: false, wrote: false, message: 'Du har ikke adgang til kunden. Intet er oprettet.' }
+  const ready = planAssistantTask({
+    confirmed: true,
+    caseNumber: resolved.caseNumber,
+    caseMatches: 1,
+    assigneeName: input.assigneeName,
+    assigneeMatches: input.assigneeName ? 1 : 0,
+  })
+  if (!ready.execute) return { success: false, wrote: false, message: ready.reason }
+  const created = await createCustomerTask({
+    customer_id: resolved.customerId,
+    service_case_id: resolved.caseId,
+    title: resolved.title,
+    description: 'Oprettet fra CRM-assistenten efter bekræftelse.',
+    assigned_to: resolved.assigneeId ?? undefined,
+    priority: 'normal',
+  })
+  return created.success
+    ? { success: true, wrote: true, message: 'Opgaven er oprettet.' }
+    : { success: false, wrote: false, message: created.error ?? 'Opgaven blev ikke oprettet.' }
 }

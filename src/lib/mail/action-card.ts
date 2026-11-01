@@ -191,16 +191,16 @@ function suggest(input: MailActionInput, card: Omit<MailActionCard, 'suggestions
     items.push({ id: 'choose_customer', label: 'Vælg kunde', reason: card.customerReason, href: null, requiresConfirmation: true, executed: false })
   }
   if (card.likelyCase && caseLabel) {
-    items.push({ id: 'attach_mail', label: `Knyt mailen til sag ${caseLabel}`, reason: card.caseReason, href: `/dashboard/orders/${card.likelyCase.id}`, requiresConfirmation: true, executed: false })
+    items.push({ id: 'attach_mail', label: `Knyt mailen til sag ${caseLabel}`, reason: `${card.caseReason} Bekræft for at knytte den med den eksisterende sagskobling.`, href: `/dashboard/orders/${card.likelyCase.id}`, requiresConfirmation: true, executed: false })
   }
   if (poa) {
-    items.push({ id: 'save_attachment', label: 'Gem vedhæftningen som fuldmagt', reason: 'Filnavn eller emne siger fuldmagt. Filen arkiveres ikke automatisk.', href: customerHref, requiresConfirmation: true, executed: false })
-    items.push({ id: 'create_task', label: 'Opret opgave: gennemgå fuldmagt', reason: 'Forslag. Der oprettes ingen opgave her.', href: customerHref, requiresConfirmation: true, executed: false })
-    items.push({ id: 'add_note', label: 'Noter at fuldmagten er modtaget', reason: 'Forslag. Der skrives ingen note her.', href: customerHref, requiresConfirmation: true, executed: false })
+    items.push({ id: 'save_attachment', label: 'Gem ikke vedhæftningen som fuldmagt', reason: 'Filnavnet er ikke dokumentets indhold. Fuldmagten oprettes på sagen, når den er gennemgået.', href: customerHref, requiresConfirmation: true, executed: false })
+    items.push({ id: 'create_task', label: 'Opret opgave: gennemgå fuldmagt', reason: 'Bekræft for at oprette opgaven. Filen læses ikke.', href: customerHref, requiresConfirmation: true, executed: false })
+    items.push({ id: 'add_note', label: 'Noter at filnavnet ligner en fuldmagt', reason: 'Bekræft for at gemme noten. Der står ikke, at fuldmagten er gyldig.', href: customerHref, requiresConfirmation: true, executed: false })
   } else {
-    items.push({ id: 'create_task', label: 'Opret opgave ud fra mailen', reason: 'Forslag. Der oprettes ingen opgave her.', href: customerHref, requiresConfirmation: true, executed: false })
+    items.push({ id: 'create_task', label: 'Opret opgave ud fra mailen', reason: 'Bekræft for at oprette opgaven.', href: customerHref, requiresConfirmation: true, executed: false })
   }
-  items.push({ id: 'change_status', label: 'Skift ikke status automatisk', reason: 'Status ændres kun bevidst på sagen.', href: card.likelyCase ? `/dashboard/orders/${card.likelyCase.id}` : null, requiresConfirmation: true, executed: false })
+  items.push({ id: 'change_status', label: 'Skift ikke status automatisk', reason: 'Status ændres ikke herfra.', href: card.likelyCase ? `/dashboard/orders/${card.likelyCase.id}` : null, requiresConfirmation: true, executed: false })
   items.push({ id: 'create_case', label: 'Opret ny sag kun bevidst', reason: 'Mailen opretter ikke en sag.', href: null, requiresConfirmation: true, executed: false })
   items.push({ id: 'do_nothing', label: 'Gør ingenting', reason: 'Lad mailen ligge.', href: null, requiresConfirmation: true, executed: false })
   void input

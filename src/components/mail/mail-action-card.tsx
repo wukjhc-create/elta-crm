@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { buildMailActionCard, mailNameCandidates, type MailActionCard, type MailCaseRef, type MailCustomerRef } from '@/lib/mail/action-card'
+import { buildMailActionCard, mailNameCandidates, type MailActionCard, type MailCaseRef, type MailCustomerRef, type MailSuggestion } from '@/lib/mail/action-card'
+import { confirmMailCardAction } from '@/lib/actions/mail-card-actions'
 import { getCustomerServiceCasesResult } from '@/lib/actions/service-cases'
 import { searchCustomersForPickerAction } from '@/lib/actions/customers'
 import type { IncomingEmailWithCustomer } from '@/types/mail-bridge.types'
+
+const CONFIRMABLE = new Set<MailSuggestion['id']>(['attach_mail', 'create_task', 'add_note'])
 
 /**
  * Handlingskort på mailen. Forslagene udfører ingenting.
@@ -19,6 +22,9 @@ export function MailActionCardView({ email }: { email: IncomingEmailWithCustomer
   )
   const [found, setFound] = useState<MailCustomerRef[]>([])
   const [customerSearch, setCustomerSearch] = useState<'ok' | 'failed' | 'skipped'>(email.customer_id ? 'skipped' : 'ok')
+  const [pending, setPending] = useState<MailSuggestion['id'] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -125,20 +131,56 @@ export function MailActionCardView({ email }: { email: IncomingEmailWithCustomer
         )}
         <div><dt className="inline font-medium">Hensigt: </dt><dd className="inline">{card.intentReason}</dd></div>
       </dl>
-      <ul className="mt-3 space-y-1">
-        {card.suggestions.map((s) => (
-          <li key={s.id}>
-            {s.href ? (
-              <Link href={s.href} className="text-blue-700 hover:underline">{s.label}</Link>
-            ) : s.id === 'do_nothing' ? (
-              <button type="button" className="text-left text-gray-700 hover:underline" onClick={() => setDismissed(true)}>{s.label}</button>
-            ) : (
-              <span className="text-gray-800">{s.label}</span>
-            )}
-            <span className="text-gray-500"> — {s.reason}</span>
-          </li>
-        ))}
+      <ul className="mt-3 space-y-2">
+        {card.suggestions.map((s) => {
+          const canConfirm = CONFIRMABLE.has(s.id) && !!card.customer && (s.id !== 'attach_mail' || !!card.likelyCase)
+          return (
+            <li key={s.id} className="flex flex-wrap items-baseline gap-x-2">
+              {s.href ? (
+                <Link href={s.href} className="text-blue-700 hover:underline">{s.label}</Link>
+              ) : s.id === 'do_nothing' ? (
+                <button type="button" className="text-left text-gray-700 hover:underline" onClick={() => setDismissed(true)}>{s.label}</button>
+              ) : (
+                <span className="text-gray-800">{s.label}</span>
+              )}
+              {canConfirm && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-800 disabled:opacity-50"
+                  onClick={() => {
+                    if (pending !== s.id) {
+                      setPending(s.id)
+                      setResult(null)
+                      return
+                    }
+                    const command = s.id
+                    if (command !== 'attach_mail' && command !== 'create_task' && command !== 'add_note') return
+                    setBusy(true)
+                    void confirmMailCardAction({
+                      confirmed: true,
+                      command,
+                      emailId: email.id,
+                      customerId: card.customer?.id ?? null,
+                      caseId: card.likelyCase?.id ?? null,
+                    }).then((res) => {
+                      setResult(res.message)
+                      setPending(null)
+                    }).catch(() => {
+                      setResult('Handlingen kunne ikke udføres. Intet videre er ændret.')
+                      setPending(null)
+                    }).finally(() => setBusy(false))
+                  }}
+                >
+                  {pending === s.id ? 'Bekræft og udfør' : 'Bekræft'}
+                </button>
+              )}
+              <span className="text-gray-500">{s.reason}</span>
+            </li>
+          )
+        })}
       </ul>
+      {result && <p className="mt-2 text-sm text-gray-800" data-testid="mail-action-result">{result}</p>}
     </section>
   )
 }

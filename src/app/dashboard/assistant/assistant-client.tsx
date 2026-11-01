@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { answerCrmQuestion, type CrmAnswer } from '@/lib/actions/crm-assistant'
+import { answerCrmQuestion, confirmAssistantTask, type CrmAnswer } from '@/lib/actions/crm-assistant'
 
 const EXAMPLES = [
   'Hvem har vi ikke ringet tilbage til?',
@@ -21,7 +21,7 @@ export function AssistantClient() {
     try {
       setAnswer(await answerCrmQuestion(text))
     } catch {
-      setAnswer({ ok: false, text: 'Spørgsmålet kunne ikke besvares. Intet er ændret.', items: [], sends: false })
+      setAnswer({ ok: false, text: 'Spørgsmålet kunne ikke besvares. Intet er ændret.', items: [], sends: false, proposal: null })
     } finally {
       setBusy(false)
     }
@@ -62,7 +62,26 @@ export function AssistantClient() {
               ))}
             </ul>
           )}
-          <p className="mt-3 text-xs text-gray-500">Intet er sendt eller ændret.</p>
+          {answer.proposal && (
+            <button
+              type="button"
+              disabled={busy}
+              className="mt-3 min-h-11 rounded-md border border-green-700 px-4 text-sm font-medium text-green-800 disabled:opacity-50"
+              onClick={() => {
+                const proposal = answer.proposal
+                if (!proposal) return
+                setBusy(true)
+                void confirmAssistantTask({ confirmed: true, caseNumber: proposal.caseNumber, assigneeName: proposal.assigneeName }).then((res) => {
+                  setAnswer({ ok: res.success, text: res.message, items: [], sends: false, proposal: null })
+                }).catch(() => {
+                  setAnswer({ ok: false, text: 'Opgaven kunne ikke oprettes. Intet er ændret.', items: [], sends: false, proposal: null })
+                }).finally(() => setBusy(false))
+              }}
+            >
+              Bekræft og opret opgaven
+            </button>
+          )}
+          <p className="mt-3 text-xs text-gray-500">{answer.proposal ? 'Forslaget er ikke udført.' : 'Intet er sendt.'}</p>
         </section>
       )}
     </div>
