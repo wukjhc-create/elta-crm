@@ -1,6 +1,8 @@
 # Grok feature handover
 
-Updated: 2026-11-01. Delivery branch only. Do not merge to main from this file.
+Updated: 2026-11-01. This file on `origin/grok-features` is the review entry. When Henrik says "Gennemgå Groks seneste arbejde", read this file and the commits it names. Do not merge to main from here.
+
+Delivery after each stable feature batch: commit on `grok-features`, push `origin/grok-features`, update this file, and push it with those commits.
 
 ## Git
 
