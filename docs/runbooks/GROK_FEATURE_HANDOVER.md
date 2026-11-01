@@ -7,11 +7,10 @@ Delivery after each stable feature batch: commit on `grok-features`, push `origi
 ## Git
 
 - Branch: `grok-features`
-- Published handover: `fa5dd73a67b5b1b054962a7415869cba43cc2d5f` — `docs(handover): record the grok-features batch for review`
-- Product HEAD under that commit: `ccc8409dd91eea13c0b90b8e5da3ea3ab98be333` — `test(features): cover the grok-features batch`
-- Branch tip: the child of `fa5dd73a` that only corrects this section. A file cannot contain the hash of the commit that contains the file. Use `git rev-parse origin/grok-features`.
+- Latest product commit: `00841d57007e1a87e0395ac239d0b2871063d195` — `feat(crm): confirm mail-card and assistant task actions`
+- Branch tip: the handover commit whose parent is `00841d57`. A file cannot contain the hash of the commit that contains the file. Use `git rev-parse origin/grok-features`.
 - Base used: `ab2cddfae670f932770b5fc2074ed5b234e2e5cf` — `feat(pilot): P5-pilot klar`
-- `origin/main` at handover: `9cfd2d44ef291f6854d6b67ad9a023c191d13518` (1 commit ahead of the base: `fix(cases): aflevering-værn ved lukning`). This branch does not contain that commit.
+- `origin/main` at this handover: `97ba4000c52e903f03b5fe0423c1258dac40833b`. This branch does not contain these main commits: `9cfd2d44` case-close guard, `97b199f8` handover checklist by case type, `97ba4000` offer case-type draft (00244, not applied).
 - Remote: `origin/grok-features` (created 2026-11-01). Never merged to main from here.
 
 Feature commits on the branch:
@@ -25,6 +24,7 @@ Feature commits on the branch:
 - `5b53b6c7` feat(suppliers): known-catalogue price lookup
 - `99c13f92` feat(settings): integration status board
 - `ccc8409d` test(features): cover the grok-features batch
+- `00841d57` feat(crm): confirm mail-card and assistant task actions
 
 ## DONE
 
@@ -42,8 +42,8 @@ No roadmap item is fully done. These existing products were left as they are, be
 Employees can do the following. All of it is inside ELTA CRM.
 
 - **Relatel.** Open Opkald (`/dashboard/cti`), look up a number, see one call card, and after confirmation create a callback task or a phone note on the matched customer. Open the callback queue at `/dashboard/cti/queue` (open tasks with `assistant_missed_call` or `assistant_callback`). A data-free page at `/relatel/cti` links out to the logged-in card. It shows no customer data.
-- **Inbox.** On a mail, see a suggestion card: customer, address, likely case, attachment label, and actions such as attach, save a power of attorney, create a task, add a note, or do nothing. The card executes none of those writes. Ambiguous customers and cases are not chosen.
-- **Assistant.** At `/dashboard/assistant`, ask who still needs a callback, which open cases lack a power of attorney, what happened with one named customer, and which follow-ups are due. Answers use data the user can already see. Write requests are refused and pointed at the existing screens.
+- **Inbox.** On a mail, see a suggestion card: customer, address, likely case, attachment label, and actions. After a second confirmation the card can link the mail to that case, create a review task, or save a note, using the existing customer and mail actions. Ambiguous customers and cases are not chosen. A filename is not saved as a power of attorney. Status is not changed and no case is created.
+- **Assistant.** At `/dashboard/assistant`, ask who still needs a callback, which open cases lack a power of attorney, what happened with one named customer, and which follow-ups are due. “Opret opgave for Lars på sag 2309” becomes a proposal. It is created only after confirmation, and only when exactly one visible case and, if a name was given, exactly one active employee match. Moves, sends, approvals and new customers stay refused.
 - **Timeline.** On the customer, see one timeline of notes, phone notes, tasks, missed-call tasks, documents (title and type only), email and planning. A failed source is shown as a failure.
 - **Suppliers.** Look up a stored catalogue product by EAN or SKU in code (`lookupKnownProducts`). A missing or zero purchase price stays null. No new screen.
 - **Invoice control.** On a supplier invoice, see green, yellow, red or unknown, with the discrepancy, the reason and a suggested follow-up. A missing price or a failed read is unknown.
@@ -61,7 +61,8 @@ Employees can do the following. All of it is inside ELTA CRM.
 - e-conomic writes, invoice approval, posting and payment. Left off.
 - New live email or SMS from the preview.
 - Dashboard figures for the new operational list (unbilled work, callbacks, invoices awaiting review) were not added, so a failed finance read cannot be shown as zero by this batch.
-- Confirmed execution of mail-card and assistant writes. They suggest or refuse. They do not attach mail, move an inspection, or create a task from the assistant.
+- Moving an inspection, sending mail or SMS, approving an invoice, and creating a customer or case from the assistant or the mail card.
+- Saving a mail attachment as a legal power of attorney. The filename can only create a review task or a note that says the content was not read.
 
 ## Important files
 
@@ -70,7 +71,7 @@ Employees can do the following. All of it is inside ELTA CRM.
 - `src/app/dashboard/cti/` — call card and callback queue
 - `src/app/relatel/cti/page.tsx` — data-free iframe target
 - `src/lib/actions/customer-tasks.ts` — a non-technician callback stores `service_case_id` only when that case belongs to the customer
-- `src/lib/mail/action-card.ts`, `src/components/mail/mail-action-card.tsx`
+- `src/lib/mail/action-card.ts`, `src/lib/mail/action-card-execute.ts`, `src/lib/actions/mail-card-actions.ts`, `src/components/mail/mail-action-card.tsx`
 - `src/lib/documents/classify-label.ts`
 - `src/lib/timeline/compose.ts`, `src/lib/actions/communication-timeline.ts`
 - `src/lib/assistant/crm-questions.ts`, `src/lib/actions/crm-assistant.ts`, `src/app/dashboard/assistant/`
@@ -102,9 +103,9 @@ Existing flags are only displayed: `ECONOMIC_PUSH_ENABLED`, `AGENT_LIVE_SEND_ENA
 
 ## Tests and exact results
 
-- `node node_modules/tsx/dist/cli.mjs scripts/grok-features-batch-test.ts` — ALL PASS (exit 0). Covers flags, webhook statuses 404/503/401/400/413/202, idempotent ingest, call-card ambiguity, null call duration, the DCC Energi / Kjeld Rønnekilde mail card, timeline dedupe, traffic light, preview `wouldSend: false`, assistant write refusal, missing power of attorney, and a null purchase price.
+- `node node_modules/tsx/dist/cli.mjs scripts/grok-features-batch-test.ts` — ALL PASS (exit 0). Covers the earlier telephony, mail, timeline, traffic-light and price checks, plus: an unconfirmed mail action does not run, a filename does not become a power of attorney, a mail already linked to another customer is not moved, an assistant task proposal is not a free write, and two employees named Lars are not chosen.
 - `node node_modules/typescript/bin/tsc --noEmit --pretty false --incremental false` — exit 0.
-- `node node_modules/tsx/dist/cli.mjs scripts/action-gate-audit.ts --strict` — exit 0. `479 skrivende actions · 434 gatet · 45 bevist undtaget · 0 fejl`.
+- `node node_modules/tsx/dist/cli.mjs scripts/action-gate-audit.ts --strict` — exit 0. `481 skrivende actions · 436 gatet · 45 bevist undtaget · 0 fejl`.
 - `npm run test:grok-features` runs the same script. It is also appended to `test:time`. The full `test:time` suite was not run.
 - The new screens were not clicked. No browser tool was available, and the dev server was not started.
 
@@ -119,7 +120,8 @@ Existing flags are only displayed: `ECONOMIC_PUSH_ENABLED`, `AGENT_LIVE_SEND_ENA
 ## Security and finance limitations
 
 - New reads use `customers.view` and the existing customer scope. The public iframe page shows no CRM data. `/dashboard` routes stay behind the existing auth proxy.
-- Phone and mail matching do not guess when more than one customer or case fits.
+- Phone, mail, case-number and employee matching do not guess when more than one row fits. Confirmed writes go through `linkEmailToCustomer`, `linkEmailToCase`, `createCustomerTask` and `createCustomerNote`.
+- A mail note about a power of attorney says the file was not read and that no power of attorney was created. It does not copy the attachment.
 - Document descriptions are not copied onto the timeline, because a power of attorney can contain civil registration data.
 - The traffic light does not approve, post or pay. It does not invent a price. A missing purchase order is listed and does not by itself turn an otherwise green invoice yellow. A duplicate, an overcharge, a missing case, freight, a fee or an uncontrollable line still raises the light.
 - A missing catalogue price stays null. It is not treated as 0.
@@ -131,7 +133,8 @@ Existing flags are only displayed: `ECONOMIC_PUSH_ENABLED`, `AGENT_LIVE_SEND_ENA
 - The `customer-tasks` change: office users now persist `service_case_id` when the case belongs to the customer. A failed case read does not create the task.
 - The traffic-light choice that a missing purchase order does not raise a green invoice.
 - That the webhook stays `persisted: false` until the migration exists and ingest is deliberately connected.
-- The branch is one commit behind `origin/main` (`9cfd2d44`). Rebase or merge is Claude's decision.
+- Confirmed mail linking and assistant task creation: they write only after `confirmed: true`, and only through the existing actions. A montør still follows the existing task rule.
+- The branch does not contain `9cfd2d44`, `97b199f8` or `97ba4000` from `origin/main`. Rebase or merge is Claude's decision. 00244 there is a draft, not an applied migration.
 
 ## Do not merge as-is
 
@@ -140,17 +143,16 @@ Existing flags are only displayed: `ECONOMIC_PUSH_ENABLED`, `AGENT_LIVE_SEND_ENA
 - Do not register a Relatel webhook, place a call, or send an SMS from this branch.
 - Do not treat the communication preview as a sender.
 - Do not treat the integration board as a switch. It only reports state.
-- Do not merge to main from `grok-features` without the case-close fix that is already on main (`9cfd2d44`) being reconciled.
+- Do not merge to main from `grok-features` without reconciling `9cfd2d44`, `97b199f8` and `97ba4000`.
 
 ## Next high-value queue
 
 1. Apply `telephony_events` only after review, then persist webhook events and let a person confirm the customer. Still no live client.
-2. Confirm a mail-card action through the existing attach, document and task actions.
-3. Let the assistant perform a confirmed write, such as creating a task or moving an inspection, through the existing services.
-4. Put stored calls and status changes on the same customer timeline.
-5. Add a KlarPris and supplier price provider that still cannot order.
-6. Extend invoice control with order, agreed price and freight follow-up. Still no automatic approval.
-7. Connect the communication preview to an already approved sender only after an explicit activation.
-8. Add dashboard counts for unbilled work, callbacks and invoices awaiting review from the existing profit engine. A failed read must stay a failure.
-9. Read document contents only when a real extractor exists. Do not invent document text.
-10. Change the mobile job flow only where the current flow is measurably short.
+2. Put stored calls and status changes on the same customer timeline.
+3. Let a confirmed assistant request move an inspection through the existing planning action. Do not invent a second calendar.
+4. Add a KlarPris and supplier price provider that still cannot order. Give the known-catalogue lookup a screen.
+5. Extend invoice control with order, agreed price and freight follow-up. Still no automatic approval.
+6. Connect the communication preview to an already approved sender only after an explicit activation.
+7. Add dashboard counts for unbilled work, callbacks and invoices awaiting review from the existing profit engine. A failed read must stay a failure.
+8. Read document contents only when a real extractor exists. Do not invent document text.
+9. Change the mobile job flow only where the current flow is measurably short.
