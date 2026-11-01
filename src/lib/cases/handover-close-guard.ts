@@ -3,9 +3,11 @@
  * komplet. En sag lukkes ikke, mens påkrævede tjeklistepunkter er åbne. Kun admin/serviceleder (BASISROLLE — en
  * enkelt-grant af cases.close giver ikke undtagelsesret) kan lukke alligevel: tydelig advarsel, eksplicit bekræftelse,
  * obligatorisk begrundelse, audit med de åbne punkter. Ingen tavs undtagelse.
- * En sag hvor afleveringen ikke er startet (tom tjekliste) lukkes som før. Ren logik (scripts/handover-close-guard-test.ts).
+ * En sag hvor afleveringen ikke er startet (tom tjekliste) lukkes som før. Hvilke punkter der er påkrævede afgøres af
+ * sagstypen (lib/cases/handover-checklist: solcellekrav kun på solcellesager, 2026-11-01). Ren logik
+ * (scripts/handover-close-guard-test.ts).
  */
-import type { ChecklistItem } from '@/types/service-cases.types'
+import { normalizeHandoverChecklist } from '@/lib/cases/handover-checklist'
 
 /** Fejlpræfiks når brugeren MÅ lukke alligevel (UI'et spørger så om begrundelse) */
 export const HANDOVER_PREFIX = 'HANDOVER: '
@@ -15,12 +17,11 @@ export const HANDOVER_REASON_MAX = 500
 
 export type OpenHandoverItem = { key: string; label: string }
 
-/** Påkrævede, ikke-udførte punkter (tom liste = afleveringen er ikke startet eller er komplet) */
-export function openRequiredHandoverItems(checklist: unknown): OpenHandoverItem[] {
-  if (!Array.isArray(checklist)) return []
-  return (checklist as Partial<ChecklistItem>[])
-    .filter((i) => !!i && i.required === true && !i.completed)
-    .map((i) => ({ key: String(i.key ?? ''), label: String(i.label ?? i.key ?? '') }))
+/** Påkrævede (efter sagstypen), ikke-udførte punkter (tom liste = afleveringen er ikke startet eller er komplet) */
+export function openRequiredHandoverItems(checklist: unknown, caseType: string | null | undefined): OpenHandoverItem[] {
+  return normalizeHandoverChecklist(checklist, caseType)
+    .filter((i) => i.required && i.completed !== true)
+    .map((i) => ({ key: i.key, label: String(i.label ?? i.key) }))
 }
 
 export type HandoverCloseDecision =
@@ -30,10 +31,11 @@ export type HandoverCloseDecision =
 
 export function handoverCloseDecision(input: {
   checklist: unknown
+  caseType: string | null | undefined
   role: string | null | undefined
   override?: { reason?: string | null } | null
 }): HandoverCloseDecision {
-  const open = openRequiredHandoverItems(input.checklist)
+  const open = openRequiredHandoverItems(input.checklist, input.caseType)
   if (!open.length) return { ok: true, override: null }
   const list = open.map((i) => i.label).join(', ')
   const mayOverride = HANDOVER_OVERRIDE_ROLES.includes(String(input.role ?? ''))

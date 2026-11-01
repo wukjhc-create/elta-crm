@@ -409,3 +409,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   afviser lukning med åbne PÅKRÆVEDE tjeklistepunkter; kun basisrolle admin/serviceleder kan lukke alligevel med
   begrundelse (audit `changes.handover_incomplete_at_close`); en cases.close-grant til andre roller giver ingen undtagelse.
   UI-kald går via `runCloseWithConfirmations` (lib/cases/close-guard). Test: scripts/handover-close-guard-test.ts + U255
+- 2026-11-01: Aflevering-tjekliste pr. sagstype (lib/cases/handover-checklist, code-only): `service_cases.type = 'solar'` →
+  solcellekravene (inverter/eltavle/paneler påkrævet); alle andre typer og NULL → el-tjekliste uden solcellepunkter og
+  uden påkrævede punkter. Påkrævet-flag følger ALTID sagens aktuelle type (normaliseres ved læsning/skrivning; typeskift
+  tilføjer manglende punkter, bevarer afkrydsninger). Tilbud→sag sætter fortsat `installation` (offers har ingen
+  jobtype) — kontoret skal sætte type Solcelleanlæg for at få solcellekravene. Prod-fordeling: scripts/prod-case-type-checklist.ts

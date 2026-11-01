@@ -1,13 +1,15 @@
 /**
  * Pilot-sim 2026-10-31 (S2): aflevering-værnet ved lukning (src/lib/cases/handover-close-guard.ts), "klar til lukning"
  * (case-progress) og klientens bekræftelsesrækkefølge (close-guard runCloseWithConfirmations).
+ * 2026-11-01: tjekliste pr. sagstype (src/lib/cases/handover-checklist.ts) — solcellekrav kun på solcellesager.
  *   npx tsx scripts/handover-close-guard-test.ts
  * DB-/UI-beviset (underskrift gemmes, lukning afvist/tilladt, roller, audit) køres af harness'en: UI-test U255.
  */
 import { handoverCloseDecision, openRequiredHandoverItems, isHandoverCloseError, HANDOVER_PREFIX } from '../src/lib/cases/handover-close-guard'
 import { caseCloseReadiness } from '../src/lib/cases/case-progress'
 import { runCloseWithConfirmations, UNBILLED_PREFIX } from '../src/lib/cases/close-guard'
-import { DEFAULT_CHECKLIST } from '../src/types/service-cases.types'
+import { DEFAULT_CHECKLIST, SERVICE_CASE_TYPES } from '../src/types/service-cases.types'
+import { handoverTemplateFor, normalizeHandoverChecklist } from '../src/lib/cases/handover-checklist'
 
 let fail = 0
 const check = (name: string, ok: boolean, extra = '') => { if (!ok) fail++; console.log(`${ok ? '✓' : '❌'} ${name}${extra ? ` — ${extra}` : ''}`) }
@@ -16,40 +18,74 @@ const started = DEFAULT_CHECKLIST.map((i) => ({ ...i }))
 const complete = DEFAULT_CHECKLIST.map((i) => ({ ...i, completed: i.required ? true : i.completed }))
 const onlyOptionalOpen = complete
 
-check('ikke startet aflevering (tom/[]/null) hindrer ikke', openRequiredHandoverItems([]).length === 0 && openRequiredHandoverItems(null).length === 0 && openRequiredHandoverItems(undefined).length === 0)
-check('startet aflevering: 3 påkrævede åbne', openRequiredHandoverItems(started).length === 3)
-check('valgfrie åbne punkter hindrer ikke', openRequiredHandoverItems(onlyOptionalOpen).length === 0)
-check('ugyldige elementer ignoreres sikkert', openRequiredHandoverItems([null, 7, { required: 'ja' }]).length === 0)
+check('ikke startet aflevering (tom/[]/null) hindrer ikke', openRequiredHandoverItems([], 'solar').length === 0 && openRequiredHandoverItems(null, 'solar').length === 0 && openRequiredHandoverItems(undefined, 'solar').length === 0)
+check('startet aflevering: 3 påkrævede åbne', openRequiredHandoverItems(started, 'solar').length === 3)
+check('valgfrie åbne punkter hindrer ikke', openRequiredHandoverItems(onlyOptionalOpen, 'solar').length === 0)
+check('ugyldige elementer ignoreres sikkert', openRequiredHandoverItems([null, 7, { required: 'ja' }], 'solar').length === 0)
 
 // 2. normal lukning afvises med åbne påkrævede punkter — for ALLE roller uden undtagelse
 for (const role of ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi']) {
-  const d = handoverCloseDecision({ checklist: started, role })
+  const d = handoverCloseDecision({ checklist: started, caseType: 'solar', role })
   check(`2 normal lukning afvist (${role})`, !d.ok && /mangler: Foto af inverter, Foto af eltavle, Foto af paneler/.test(d.error))
 }
-check('2 admin/serviceleder får præfiks (UI spørger om begrundelse)', ['admin', 'serviceleder'].every((role) => { const d = handoverCloseDecision({ checklist: started, role }); return !d.ok && isHandoverCloseError(d.error) }))
+check('2 admin/serviceleder får præfiks (UI spørger om begrundelse)', ['admin', 'serviceleder'].every((role) => { const d = handoverCloseDecision({ checklist: started, caseType: 'solar', role }); return !d.ok && isHandoverCloseError(d.error) }))
 // 3. lukning tilladt når påkrævede punkter er udfyldt (og når afleveringen ikke er startet)
 for (const role of ['admin', 'serviceleder', 'montør']) {
-  const d = handoverCloseDecision({ checklist: complete, role })
+  const d = handoverCloseDecision({ checklist: complete, caseType: 'solar', role })
   check(`3 komplet aflevering → lukning tilladt (${role})`, d.ok && d.override === null)
 }
-check('3 ikke-startet aflevering → lukning tilladt', (() => { const d = handoverCloseDecision({ checklist: [], role: 'admin' }); return d.ok && d.override === null })())
+check('3 ikke-startet aflevering → lukning tilladt', (() => { const d = handoverCloseDecision({ checklist: [], caseType: 'solar', role: 'admin' }); return d.ok && d.override === null })())
 // 4. begrænsede roller kan ikke omgå (heller ikke med en cases.close-grant: basisrollen afgør)
 for (const role of ['montør', 'salg', 'bogholderi', '', null]) {
-  const d = handoverCloseDecision({ checklist: started, role, override: { reason: 'Kunden er ikke hjemme, lukker alligevel' } })
+  const d = handoverCloseDecision({ checklist: started, caseType: 'solar', role, override: { reason: 'Kunden er ikke hjemme, lukker alligevel' } })
   check(`4 undtagelse afvist for ${role || '(ingen rolle)'}`, !d.ok && !isHandoverCloseError(d.error) && /kun admin eller serviceleder/.test(d.error))
 }
 // 5. admin/serviceleder-undtagelse kræver begrundelse; resultatet bærer de åbne punkter (til audit)
 for (const role of ['admin', 'serviceleder']) {
-  const none = handoverCloseDecision({ checklist: started, role, override: { reason: '' } })
-  const short = handoverCloseDecision({ checklist: started, role, override: { reason: '  ok  ' } })
-  const long = handoverCloseDecision({ checklist: started, role, override: { reason: 'x'.repeat(501) } })
-  const good = handoverCloseDecision({ checklist: started, role, override: { reason: '  Kunden sender fotos af paneler senere  ' } })
+  const none = handoverCloseDecision({ checklist: started, caseType: 'solar', role, override: { reason: '' } })
+  const short = handoverCloseDecision({ checklist: started, caseType: 'solar', role, override: { reason: '  ok  ' } })
+  const long = handoverCloseDecision({ checklist: started, caseType: 'solar', role, override: { reason: 'x'.repeat(501) } })
+  const good = handoverCloseDecision({ checklist: started, caseType: 'solar', role, override: { reason: '  Kunden sender fotos af paneler senere  ' } })
   check(`5 ${role}: tom begrundelse afvist`, !none.ok && /begrundelse/.test(none.error))
   check(`5 ${role}: for kort begrundelse afvist`, !short.ok && /mindst 5/.test(short.error))
   check(`5 ${role}: for lang begrundelse afvist`, !long.ok)
   check(`5 ${role}: gyldig begrundelse → tilladt med åbne punkter til audit`, good.ok && !!good.override && good.override.reason === 'Kunden sender fotos af paneler senere'
     && good.override.openItems.map((i) => i.key).join(',') === 'inverter_photo,tavle_photo,panel_photo')
 }
+
+// ---- tjekliste pr. sagstype (2026-11-01) ----
+const SOLAR_ONLY = ['inverter_photo', 'panel_photo']
+const nonSolar = SERVICE_CASE_TYPES.filter((t) => t !== 'solar')
+// A. solcellesag får solcelle-tjeklisten
+const solarTpl = handoverTemplateFor('solar')
+check('A solcellesag: solcelle-tjekliste (inverter, eltavle, paneler påkrævet)', solarTpl.filter((i) => i.required).map((i) => i.key).join(',') === 'inverter_photo,tavle_photo,panel_photo'
+  && JSON.stringify(solarTpl) === JSON.stringify(DEFAULT_CHECKLIST))
+check('A skabelonen er en frisk kopi (deler ikke objekter)', handoverTemplateFor('solar')[0] !== handoverTemplateFor('solar')[0] && handoverTemplateFor('solar')[0] !== DEFAULT_CHECKLIST[0])
+// B. ren el-/servicesag får ingen solcellepunkter
+for (const t of [...nonSolar, null, undefined]) {
+  const tpl = handoverTemplateFor(t)
+  check(`B ${t ?? '(ingen type)'}: ingen solcellepunkter, ingen påkrævede`, tpl.length > 0 && !tpl.some((i) => SOLAR_ONLY.includes(i.key)) && !tpl.some((i) => i.required))
+}
+// C. påkrævet tjekliste blokerer lukning (solcellesag) — også hvis typen skiftes til solcelle efter en el-tjekliste er startet
+check('C solcellesag med åbne påkrævede punkter: normal lukning afvist', !handoverCloseDecision({ checklist: handoverTemplateFor('solar'), caseType: 'solar', role: 'admin' }).ok)
+const elStartedThenSolar = normalizeHandoverChecklist(handoverTemplateFor('installation'), 'solar')
+check('C type skiftet til solcelle efter el-start: solcellepunkter tilføjet og påkrævet', ['inverter_photo', 'panel_photo'].every((k) => elStartedThenSolar.some((i) => i.key === k && i.required && !i.completed))
+  && openRequiredHandoverItems(handoverTemplateFor('installation'), 'solar').map((i) => i.key).join(',') === 'tavle_photo,inverter_photo,panel_photo')
+// D. ingen påkrævet tjekliste → ingen falsk blokering
+for (const t of [...nonSolar, null]) {
+  const d = handoverCloseDecision({ checklist: handoverTemplateFor(t), caseType: t, role: 'montør' })
+  check(`D ${t ?? '(ingen type)'}: startet el-tjekliste (intet afkrydset) blokerer ikke`, d.ok && d.override === null)
+}
+check('D el-sag med gammel solcelle-tjekliste (startet før typeopdelingen): solcellepunkter blokerer ikke', handoverCloseDecision({ checklist: started, caseType: 'installation', role: 'salg' }).ok
+  && normalizeHandoverChecklist(started, 'installation').every((i) => !i.required) && normalizeHandoverChecklist(started, 'installation').length === started.length)
+check('D type skiftet fra solcelle til el: afkrydsninger bevares', (() => { const done = normalizeHandoverChecklist(complete, 'service'); return done.filter((i) => i.completed).length === 3 && !done.some((i) => i.required) })())
+check('D ikke-startet forbliver tom (ingen skabelonpunkter tilføjes)', normalizeHandoverChecklist([], 'solar').length === 0 && normalizeHandoverChecklist(null, 'solar').length === 0)
+// E. undtagelsen er uændret (solcellesag): admin/serviceleder med begrundelse; begrænset rolle afvist
+check('E undtagelse uændret: admin med begrundelse tilladt, montør afvist', (() => {
+  const ok = handoverCloseDecision({ checklist: started, caseType: 'solar', role: 'serviceleder', override: { reason: 'Kunden sender fotos senere' } })
+  const no = handoverCloseDecision({ checklist: started, caseType: 'solar', role: 'montør', override: { reason: 'Kunden sender fotos senere' } })
+  return ok.ok && !!ok.override && ok.override.openItems.length === 3 && !no.ok && /kun admin eller serviceleder/.test(no.error)
+})())
 
 // klar-til-lukning: afleveringen tæller med
 const work = { caseStatus: 'in_progress', workOrderStatuses: ['done'], unbilled: { count: 0, openTimer: false } }

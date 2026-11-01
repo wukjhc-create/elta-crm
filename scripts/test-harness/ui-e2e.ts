@@ -5065,23 +5065,33 @@ ${m.text()}`) })
         await m.page.getByTestId('handover-start').click({ timeout: 60_000 }).catch(() => {})
         const hov = m.page.getByTestId('order-handover-tab')
         await hov.locator('input[type="file"]').first().waitFor({ state: 'attached', timeout: 60_000 }).catch(() => {})
-        await hov.locator('input[type="file"]').first().setInputFiles({ name: 'inverter.png', mimeType: 'image/png', buffer: png }).catch(() => {})
+        // 2026-11-01 tjekliste pr. sagstype: første fotopunkt følger sagens type (el-installation: eltavle; solcelle: inverter)
+        let photoKey = ''
+        for (let i = 0; i < 20 && !photoKey; i++) {
+          const first = ((await c.admin.from('service_cases').select('checklist').eq('id', jobCaseId).maybeSingle()).data as { checklist?: Array<{ key: string }> } | null)?.checklist?.find((x) => x.key.endsWith('_photo'))
+          photoKey = first?.key ?? ''
+          if (!photoKey) await new Promise((res) => setTimeout(res, 500))
+        }
+        await hov.locator('input[type="file"]').first().setInputFiles({ name: `${photoKey || 'foto'}.png`, mimeType: 'image/png', buffer: png }).catch(() => {})
         let photoOk = false
-        for (let i = 0; i < 20 && !photoOk; i++) {
+        for (let i = 0; i < 20 && !photoOk && photoKey; i++) {
           const sc = (await c.admin.from('service_cases').select('checklist').eq('id', jobCaseId).maybeSingle()).data as { checklist?: Array<{ key: string; completed: boolean }> } | null
-          const att = (await c.admin.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', jobCaseId).eq('category', 'inverter_photo')).count ?? 0
-          photoOk = att === 1 && !!sc?.checklist?.find((x) => x.key === 'inverter_photo')?.completed
+          const att = (await c.admin.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', jobCaseId).eq('category', photoKey)).count ?? 0
+          photoOk = att === 1 && !!sc?.checklist?.find((x) => x.key === photoKey)?.completed
           if (!photoOk) await new Promise((res) => setTimeout(res, 1000))
         }
         r.aflevering_foto = photoOk
         // M-1: tryk på slet + "Annuller" må ikke slette fotoet (før: ét tryk på fotoet slettede uden bekræftelse)
         if (photoOk) {
           await m.page.waitForLoadState('networkidle').catch(() => {})
-          m.page.once('dialog', (d) => { d.dismiss().catch(() => {}) })
+          let deleteAsked = false
+          const onDel = (d: import('playwright').Dialog) => { deleteAsked = /Slet foto/.test(d.message()); d.dismiss().catch(() => {}) }
+          m.page.once('dialog', onDel)
           await hov.getByTestId('checklist-photo-delete').first().click({ timeout: 30_000 }).catch(() => {})
           await new Promise((res) => setTimeout(res, 2000))
-          const att2 = (await c.admin.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', jobCaseId).eq('category', 'inverter_photo')).count ?? 0
-          r.foto_slet_kraever_bekraeftelse = att2 === 1
+          m.page.off('dialog', onDel) // må ikke hænge ved og afvise "Afslut"-bekræftelsen senere
+          const att2 = (await c.admin.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', jobCaseId).eq('category', photoKey)).count ?? 0
+          r.foto_slet_kraever_bekraeftelse = att2 === 1 && deleteAsked
         }
         await m.page.getByTestId('handover-open-signature').click({ timeout: 30_000 }).catch(() => {})
         await m.page.getByPlaceholder('Fulde navn').fill('Kunde Harness').catch(() => {})
@@ -5481,7 +5491,9 @@ ${m.text()}`) })
       // U255 AFLEVERING-VÆRN (Henrik 2026-10-31, pilot-sim S2): 1) underskrift gemmes trods åben tjekliste; 2) normal lukning
       // afvises (admin i UI'et + direkte kald); 3) komplet aflevering → lukning virker; 4) begrænset rolle (salg MED
       // cases.close-grant) kan ikke omgå; 5) admin-undtagelse i UI'et kræver bekræftelse + begrundelse og audit-logges med de
-      // manglende punkter; serviceleder uden begrundelse afvises, med begrundelse lukkes
+      // manglende punkter; serviceleder uden begrundelse afvises, med begrundelse lukkes.
+      // 2026-11-01 tjekliste pr. sagstype: t6 solcellesag starter med solcelle-tjeklisten; t7 el-installation starter uden
+      // solcellepunkter og lukkes normalt (ingen falsk blokering, ingen undtagelse)
       if (want('U255') && profitCustomerId) {
         const r: Record<string, boolean> = {}
         const tag = `U255-${stamp}`
@@ -5490,8 +5502,8 @@ ${m.text()}`) })
         const complete = DEFAULT_CHECKLIST.map((i) => ({ ...i, completed: i.required ? true : i.completed, completed_at: i.required ? new Date().toISOString() : null }))
         const sx = await mkUser('salg')
         const sl = await mkUser('serviceleder')
-        const mkCase = async (title: string, checklist: unknown) => {
-          const res = await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} ${title}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: sx.id, checklist }]).select('id, case_number')
+        const mkCase = async (title: string, checklist: unknown, type = 'solar') => {
+          const res = await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} ${title}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: sx.id, checklist, type }]).select('id, case_number')
           const row = res.data?.[0] as { id: string; case_number: string } | undefined
           if (row) listCaseIds.push(row.id)
           return row
@@ -5499,10 +5511,12 @@ ${m.text()}`) })
         const caseOpen = await mkCase('åben aflevering', started)
         const caseDone = await mkCase('komplet aflevering', complete)
         const caseUi = await mkCase('UI-undtagelse', started)
+        const caseSolarNew = await mkCase('solcelle ny aflevering', [])
+        const caseElNew = await mkCase('el-installation ny aflevering', [], 'installation')
         await c.admin.from('user_permission_overrides').insert([{ profile_id: sx.id, permission: 'cases.close', effect: 'grant', source: 'manual', reason: 'U255 test', created_by: adminUser.id }])
         const status = async (id: string) => String(((await c.admin.from('service_cases').select('status').eq('id', id).maybeSingle()).data as { status?: string } | null)?.status ?? '')
         const sigPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
-        r.seed = !!caseOpen && !!caseDone && !!caseUi
+        r.seed = !!caseOpen && !!caseDone && !!caseUi && !!caseSolarNew && !!caseElNew
         try {
           const ap = await login(adminUser)
           try {
@@ -5549,6 +5563,21 @@ ${m.text()}`) })
             r.t5a_admin_ui_bekraeft_begrundelse_lukket = st === 'closed' && seen.includes('confirm') && seen.includes('prompt')
             r.t5b_audit_med_punkter_og_begrundelse = h?.reason === 'Kunden sender panelfotos senere' && (h?.open_items ?? []).join(',') === 'inverter_photo,tavle_photo,panel_photo' && h?.by_role === 'admin'
               && aud.some((x) => /UDEN komplet aflevering/.test(x.action_description))
+            // 6. solcellesag: "Start aflevering" giver solcelle-tjeklisten (inverter/eltavle/paneler påkrævet)
+            const solarUrl = `${base}/dashboard/orders/${caseSolarNew!.id}`
+            await gotoSafe(ap.page, solarUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            await callServerAction(ap.page, solarUrl, 'src/lib/actions/case-handover.ts', 'startCaseHandoverAction', [caseSolarNew!.id])
+            const solarList = (((await c.admin.from('service_cases').select('checklist').eq('id', caseSolarNew!.id).maybeSingle()).data ?? {}) as { checklist?: Array<{ key: string; required: boolean }> }).checklist ?? []
+            r.t6_solcellesag_faar_solcelle_tjekliste = solarList.filter((i) => i.required).map((i) => i.key).join(',') === 'inverter_photo,tavle_photo,panel_photo'
+            // 7. el-installation: ingen solcellepunkter, intet påkrævet → normal lukning uden undtagelse
+            const elUrl = `${base}/dashboard/orders/${caseElNew!.id}`
+            await gotoSafe(ap.page, elUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            await callServerAction(ap.page, elUrl, 'src/lib/actions/case-handover.ts', 'startCaseHandoverAction', [caseElNew!.id])
+            const elList = (((await c.admin.from('service_cases').select('checklist').eq('id', caseElNew!.id).maybeSingle()).data ?? {}) as { checklist?: Array<{ key: string; required: boolean }> }).checklist ?? []
+            r.t7a_el_sag_uden_solcellepunkter = elList.length > 0 && !elList.some((i) => i.key === 'inverter_photo' || i.key === 'panel_photo') && !elList.some((i) => i.required)
+            const elClose = await callServerAction(ap.page, elUrl, 'src/lib/actions/service-cases.ts', 'markServiceCaseDone', [caseElNew!.id, { acknowledgeUnbilled: true }])
+            const elAud = ((await c.admin.from('audit_logs').select('changes').eq('entity_id', caseElNew!.id).eq('action', 'status_change')).data ?? []) as Array<{ changes: Record<string, unknown> | null }>
+            r.t7b_el_sag_lukker_normalt_uden_undtagelse = /"success":true/.test(elClose) && (await status(caseElNew!.id)) === 'closed' && !elAud.some((x) => !!x.changes?.handover_incomplete_at_close)
             if (!r.t5b_audit_med_punkter_og_begrundelse) console.log(`[ui-e2e] U255 t5b diag: ${JSON.stringify(aud).slice(0, 700)}`)
           } finally { await ap.ctx.close().catch(() => {}) }
           // 4. salg MED cases.close-grant kan ikke omgå (heller ikke med begrundelse)
@@ -5574,9 +5603,9 @@ ${m.text()}`) })
           } finally { await lp.ctx.close().catch(() => {}) }
         } finally {
           await c.admin.from('user_permission_overrides').delete().eq('profile_id', sx.id)
-          for (const x of [caseOpen, caseDone, caseUi]) if (x) await c.admin.from('audit_logs').delete().eq('entity_id', x.id)
+          for (const x of [caseOpen, caseDone, caseUi, caseSolarNew, caseElNew]) if (x) await c.admin.from('audit_logs').delete().eq('entity_id', x.id)
         }
-        out.push({ id: 'U255 aflevering-værn ved lukning (underskrift≠komplet; lukning afvist; komplet lukker; rolle-værn; undtagelse m. begrundelse+audit)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+        out.push({ id: 'U255 aflevering-værn ved lukning (underskrift≠komplet; lukning afvist; komplet lukker; rolle-værn; undtagelse m. begrundelse+audit; tjekliste pr. sagstype)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U232 PILOT-YDELSE (Henrik 2026-10-29): mål de tungeste brugerflader pr. rolle (staging-volumen) — server-tid

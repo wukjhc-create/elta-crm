@@ -18,18 +18,18 @@ export async function batchCaseCloseReadiness(supabase: SupabaseClient, caseIds:
   const out = new Map<string, CloseReadiness>()
   if (caseIds.length === 0) return out
 
-  const statusRows: Array<{ id: string; status: string; checklist: unknown }> = []
+  const statusRows: Array<{ id: string; status: string; checklist: unknown; type: string | null }> = []
   const woRows: Array<{ id: string; case_id: string; status: string }> = []
   const matRows: Array<{ case_id: string; total_sales_price: number | null; billable: boolean | null; invoice_line_id: string | null }> = []
   const othRows: Array<{ case_id: string; total_sales_price: number | null; billable: boolean | null; invoice_line_id: string | null }> = []
   for (const c of chunks(caseIds)) {
     const [st, wo, mat, oth] = await Promise.all([
-      supabase.from('service_cases').select('id, status, checklist').in('id', c),
+      supabase.from('service_cases').select('id, status, checklist, type').in('id', c),
       fetchAllRows<{ id: string; case_id: string; status: string }>((f, t) => supabase.from('work_orders').select('id, case_id, status').in('case_id', c).order('id').range(f, t)),
       fetchAllRows<{ id: string; case_id: string; total_sales_price: number | null; billable: boolean | null; invoice_line_id: string | null }>((f, t) => supabase.from('case_materials').select('id, case_id, total_sales_price, billable, invoice_line_id').in('case_id', c).order('id').range(f, t)),
       fetchAllRows<{ id: string; case_id: string; total_sales_price: number | null; billable: boolean | null; invoice_line_id: string | null }>((f, t) => supabase.from('case_other_costs').select('id, case_id, total_sales_price, billable, invoice_line_id').in('case_id', c).order('id').range(f, t)),
     ])
-    statusRows.push(...((st.data ?? []) as Array<{ id: string; status: string; checklist: unknown }>))
+    statusRows.push(...((st.data ?? []) as Array<{ id: string; status: string; checklist: unknown; type: string | null }>))
     woRows.push(...wo)
     matRows.push(...mat)
     othRows.push(...oth)
@@ -67,7 +67,7 @@ export async function batchCaseCloseReadiness(supabase: SupabaseClient, caseIds:
         materials: (matBy.get(s.id) ?? []) as never[],
         otherCosts: (othBy.get(s.id) ?? []) as never[],
       }),
-      handoverOpenRequired: openRequiredHandoverItems(s.checklist).length,
+      handoverOpenRequired: openRequiredHandoverItems(s.checklist, s.type).length,
     }))
   }
   return out

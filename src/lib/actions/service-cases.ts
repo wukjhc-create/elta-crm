@@ -1533,12 +1533,12 @@ export async function getCaseCloseReadinessAction(caseId: string): Promise<Actio
     validateUUID(caseId, 'sags-ID')
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.close')) return { success: true, data: null }
-    const { data: sc } = await supabase.from('service_cases').select('status, checklist').eq('id', caseId).maybeSingle()
+    const { data: sc } = await supabase.from('service_cases').select('status, checklist, type').eq('id', caseId).maybeSingle()
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
     const { caseCloseReadiness } = await import('@/lib/cases/case-progress')
     const { openRequiredHandoverItems } = await import('@/lib/cases/handover-close-guard')
     const work = await loadCaseWork(supabase, caseId)
-    return { success: true, data: caseCloseReadiness({ caseStatus: (sc as { status?: string }).status, ...work, handoverOpenRequired: openRequiredHandoverItems((sc as { checklist?: unknown }).checklist).length }) }
+    return { success: true, data: caseCloseReadiness({ caseStatus: (sc as { status?: string }).status, ...work, handoverOpenRequired: openRequiredHandoverItems((sc as { checklist?: unknown }).checklist, (sc as { type?: string | null }).type).length }) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
   }
@@ -1594,7 +1594,7 @@ export async function setServiceCaseStatus(
     // Read prior status for audit log
     const { data: prior, error: priorErr } = await supabase
       .from('service_cases')
-      .select('status, case_number, checklist')
+      .select('status, case_number, checklist, type')
       .eq('id', id)
       .maybeSingle()
 
@@ -1608,7 +1608,7 @@ export async function setServiceCaseStatus(
       // (begrundelse + audit med de manglende punkter); en cases.close-grant til en anden rolle giver ikke undtagelsen.
       if (priorErr || !prior) return { success: false, error: 'Sagen kunne ikke læses — prøv igen' }
       const { handoverCloseDecision } = await import('@/lib/cases/handover-close-guard')
-      const hv = handoverCloseDecision({ checklist: (prior as { checklist?: unknown }).checklist, role, override: opts?.handoverOverride ?? null })
+      const hv = handoverCloseDecision({ checklist: (prior as { checklist?: unknown }).checklist, caseType: (prior as { type?: string | null }).type, role, override: opts?.handoverOverride ?? null })
       if (!hv.ok) return { success: false, error: hv.error }
       handoverOverride = hv.override
       // Lukke-værn: ikke stille lukning med ufaktureret arbejde

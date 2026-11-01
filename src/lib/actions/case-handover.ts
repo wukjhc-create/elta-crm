@@ -13,7 +13,8 @@ import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
-import { DEFAULT_CHECKLIST, canCloseCase, type ChecklistItem, type ServiceCaseAttachment } from '@/types/service-cases.types'
+import { canCloseCase, type ChecklistItem, type ServiceCaseAttachment } from '@/types/service-cases.types'
+import { handoverTemplateFor, normalizeHandoverChecklist } from '@/lib/cases/handover-checklist'
 import type { ActionResult } from '@/types/common.types'
 import { trackActionResult } from '@/lib/pilot/action-failure-log'
 
@@ -66,7 +67,7 @@ export async function getCaseHandoverAction(caseId: string): Promise<ActionResul
     const { canView, canEdit } = await handoverAccess(ctx, caseId)
     if (!canView) return { success: false, error: 'Ingen adgang til sagen' }
     const db = await admin()
-    const { data: sc } = await db.from('service_cases').select('checklist, customer_signature, customer_signature_name, signed_at').eq('id', caseId).maybeSingle()
+    const { data: sc } = await db.from('service_cases').select('checklist, type, customer_signature, customer_signature_name, signed_at').eq('id', caseId).maybeSingle()
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
     const { data: rows } = await db.from('service_case_attachments').select('*').eq('service_case_id', caseId).order('created_at', { ascending: true })
     // MB-10 (mobil-review 2026-10-17): markér hvilke fotos brugeren må slette (kontor: alle; ellers egne) — samme regel
@@ -83,7 +84,8 @@ export async function getCaseHandoverAction(caseId: string): Promise<ActionResul
       let k = 0
       for (const a of atts) if (a.storage_path) { a.file_url = fresh[k] ?? a.file_url; k++ }
     }
-    const checklist = (Array.isArray(sc.checklist) ? sc.checklist : []) as ChecklistItem[]
+    // 2026-11-01: påkrævede punkter følger sagstypen (solcellekrav kun på solcellesager)
+    const checklist = normalizeHandoverChecklist(sc.checklist, (sc as { type?: string | null }).type)
     return {
       success: true,
       data: {
@@ -100,7 +102,7 @@ export async function getCaseHandoverAction(caseId: string): Promise<ActionResul
   }
 }
 
-/** Opret standard-tjeklisten hvis sagen ingen har. */
+/** Opret tjeklisten for sagens type (lib/cases/handover-checklist) hvis sagen ingen har. */
 /** Pilot 2026-10-30: mislykkede forsøg spores (lib/pilot/action-failure-log) — selve handlingen er startCaseHandoverActionImpl */
 export async function startCaseHandoverAction(caseId: string) {
   return trackActionResult('handover.start', await startCaseHandoverActionImpl(caseId), caseId)
@@ -114,20 +116,23 @@ async function startCaseHandoverActionImpl(caseId: string): Promise<ActionResult
     // PR4-6 (pilot-review 4): som afkrydsning/upload/sletning (FW-2) — ingen ny tjekliste på en lukket sag
     { const closed = await closedCaseBlock(caseId); if (closed) return { success: false, error: closed } }
     const db = await admin()
-    const { data: sc } = await db.from('service_cases').select('checklist, updated_at').eq('id', caseId).maybeSingle()
+    const { data: sc } = await db.from('service_cases').select('checklist, type, updated_at').eq('id', caseId).maybeSingle()
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
-    if (Array.isArray(sc.checklist) && sc.checklist.length) return { success: true, data: sc.checklist as ChecklistItem[] }
+    const caseType = (sc as { type?: string | null }).type
+    if (Array.isArray(sc.checklist) && sc.checklist.length) return { success: true, data: normalizeHandoverChecklist(sc.checklist, caseType) }
+    const template = handoverTemplateFor(caseType)
     // RC-8 (samtidigheds-review 2026-10-18): compare-and-set som setItem — en samtidig start overskrev et netop afkrydset punkt
     const prevUpdated = (sc as { updated_at?: string | null }).updated_at ?? null
-    const q = db.from('service_cases').update({ checklist: DEFAULT_CHECKLIST, updated_at: new Date().toISOString() }).eq('id', caseId)
+    const q = db.from('service_cases').update({ checklist: template, updated_at: new Date().toISOString() }).eq('id', caseId)
     const { data: started, error } = await (prevUpdated ? q.eq('updated_at', prevUpdated) : q.is('updated_at', null)).select('id')
     if (error) return { success: false, error: 'Kunne ikke oprette tjekliste' }
     if ((started ?? []).length === 0) {
       const { data: now } = await db.from('service_cases').select('checklist').eq('id', caseId).maybeSingle()
-      return { success: true, data: (Array.isArray(now?.checklist) ? now!.checklist : DEFAULT_CHECKLIST) as ChecklistItem[] }
+      const list = normalizeHandoverChecklist(now?.checklist, caseType)
+      return { success: true, data: list.length ? list : template }
     }
     revalidateCase(caseId)
-    return { success: true, data: DEFAULT_CHECKLIST }
+    return { success: true, data: template }
   } catch (err) {
     return { success: false, error: formatError(err, 'Uventet fejl') }
   }
@@ -138,8 +143,9 @@ async function setItem(caseId: string, key: string, completed: boolean, attachme
   // Sags-review 2026-10-09 (#9): læs-ændr-skriv af hele JSON'en — to hurtige klik (eller foto-upload + klik) overskrev
   // hinanden. Nu optimistisk: kun hvis updated_at er uændret siden læsningen; ellers læs igen (op til 3 forsøg).
   for (let attempt = 0; attempt < 3; attempt++) {
-    const { data: sc } = await db.from('service_cases').select('checklist, updated_at').eq('id', caseId).maybeSingle()
-    const list = (Array.isArray(sc?.checklist) ? sc!.checklist : []) as ChecklistItem[]
+    const { data: sc } = await db.from('service_cases').select('checklist, type, updated_at').eq('id', caseId).maybeSingle()
+    // 2026-11-01: normaliseret efter sagstypen (påkrævet-flag + manglende skabelonpunkter gemmes med ændringen)
+    const list = normalizeHandoverChecklist(sc?.checklist, (sc as { type?: string | null } | null)?.type)
     const idx = list.findIndex((i) => i.key === key)
     if (idx < 0) return { ok: false as const, error: 'Ukendt tjeklistepunkt' }
     const next = list.map((i, n) => (n === idx ? { ...i, completed, completed_at: completed ? new Date().toISOString() : null, ...(attachmentId !== undefined ? { attachment_id: attachmentId } : {}) } : i))
@@ -200,9 +206,9 @@ async function uploadHandoverPhotoActionImpl(caseId: string, formData: FormData)
     if (closed) return { success: false, error: closed }
 
     const db = await admin()
-    const { data: sc } = await db.from('service_cases').select('checklist').eq('id', caseId).maybeSingle()
+    const { data: sc } = await db.from('service_cases').select('checklist, type').eq('id', caseId).maybeSingle()
     if (!sc) return { success: false, error: 'Sag ikke fundet' }
-    if (!(Array.isArray(sc.checklist) && (sc.checklist as ChecklistItem[]).some((i) => i.key === key))) return { success: false, error: 'Ukendt tjeklistepunkt' }
+    if (!normalizeHandoverChecklist(sc.checklist, (sc as { type?: string | null }).type).some((i) => i.key === key)) return { success: false, error: 'Ukendt tjeklistepunkt' }
 
     const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace(/[^a-z0-9]/g, '').slice(0, 5)
     const storagePath = `service-cases/${caseId}/${key}_${Date.now()}.${ext}`

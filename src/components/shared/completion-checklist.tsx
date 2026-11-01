@@ -66,6 +66,28 @@ export function CompletionChecklist({
 
   const isPhotoItem = (key: string) => key.endsWith('_photo')
 
+  // M-1 (pilot-review 2026-10-15): tryk på fotoet åbner det — før slettede et tryk fotoet uden bekræftelse (skraldespanden
+  // var kun synlig ved hover, som ikke findes på telefon). 2026-11-01: også på valgfrie punkter — el-sagers tjekliste er
+  // helt valgfri, og et forkert foto kunne ellers ikke fjernes
+  const renderPhoto = (att: ServiceCaseAttachment) => (
+    <div key={att.id} className="relative w-16 h-16 rounded-md overflow-hidden border">
+      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+        <img src={att.file_url} alt={att.file_name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+      </a>
+      {onDeleteAttachment && !disabled && (att as { deletable_by_me?: boolean }).deletable_by_me !== false && (
+        <button
+          type="button"
+          onClick={() => { if (window.confirm('Slet foto?')) onDeleteAttachment(att.id) }}
+          className="absolute top-0 right-0 w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-bl-md"
+          aria-label="Slet foto"
+          data-testid="checklist-photo-delete"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  )
+
   return (
     <div className="bg-white rounded-lg border overflow-hidden">
       {/* Header with progress */}
@@ -75,7 +97,7 @@ export function CompletionChecklist({
             Afslutnings-checkliste
           </h3>
           <span className={`text-sm font-bold ${progress === 100 ? 'text-green-600' : 'text-amber-600'}`}>
-            {completedRequired}/{totalRequired} påkrævet
+            {totalRequired > 0 ? `${completedRequired}/${totalRequired} påkrævet` : 'Ingen påkrævede punkter'}
           </span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
@@ -154,26 +176,7 @@ export function CompletionChecklist({
               {/* Show uploaded photos */}
               {itemAttachments.length > 0 && (
                 <div className="mt-2 ml-8 flex gap-2 flex-wrap">
-                  {itemAttachments.map((att) => (
-                    <div key={att.id} className="relative w-16 h-16 rounded-md overflow-hidden border">
-                      {/* M-1 (pilot-review 2026-10-15): tryk på fotoet åbner det — før slettede et tryk fotoet uden
-                          bekræftelse (skraldespanden var kun synlig ved hover, som ikke findes på telefon) */}
-                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
-                        <img src={att.file_url} alt={att.file_name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                      </a>
-                      {onDeleteAttachment && !disabled && (att as { deletable_by_me?: boolean }).deletable_by_me !== false && (
-                        <button
-                          type="button"
-                          onClick={() => { if (window.confirm('Slet foto?')) onDeleteAttachment(att.id) }}
-                          className="absolute top-0 right-0 w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-bl-md"
-                          aria-label="Slet foto"
-                          data-testid="checklist-photo-delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                  {itemAttachments.map(renderPhoto)}
                 </div>
               )}
             </div>
@@ -241,11 +244,7 @@ export function CompletionChecklist({
                   </div>
                   {itemAttachments.length > 0 && (
                     <div className="mt-2 ml-8 flex gap-2 flex-wrap">
-                      {itemAttachments.map((att) => (
-                        <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer" className="relative block w-16 h-16 rounded-md overflow-hidden border">
-                          <img src={att.file_url} alt={att.file_name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                        </a>
-                      ))}
+                      {itemAttachments.map(renderPhoto)}
                     </div>
                   )}
                 </div>
