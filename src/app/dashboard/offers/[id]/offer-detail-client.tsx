@@ -1,5 +1,6 @@
 'use client'
 
+import { offerCaseTypePreviewLabel } from '@/lib/offers/case-type'
 import { toNumberDa } from '@/lib/utils/danish-number'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useVisiblePolling } from '@/lib/hooks/use-visible-polling'
@@ -1310,6 +1311,11 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                       : 'Ikke angivet'}
                   </p>
                 </div>
+              </div>
+              {/* 00244: sagstype — sagen fra tilbuddet arver den */}
+              <div className="mt-4 pt-4 border-t" data-testid="offer-detail-case-type">
+                <p className="text-sm text-gray-500">Sagstype</p>
+                <p className="font-medium">{offerCaseTypePreviewLabel(offer.case_type)}</p>
               </div>
             </div>
 

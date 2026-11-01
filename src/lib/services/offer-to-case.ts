@@ -5,6 +5,7 @@
  * Idempotent (app + UNIQUE uq_service_cases_source_offer_id). Klienten bestemmer adgangen; kalderen gater.
  */
 import { logger } from '@/lib/utils/logger'
+import { serviceCaseTypeForOffer } from '@/lib/offers/case-type'
 import type { ActionResult } from '@/types/common.types'
 
 type SupabaseLike = { from: (t: string) => any }
@@ -74,7 +75,7 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       .from('offers')
       .select(
         // Sprint 12A — laes parti-roller saa de kan kopieres til sagen.
-        'id, offer_number, title, description, scope, status, customer_id, final_amount, tax_amount, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode, billing_model, created_by'
+        'id, offer_number, title, description, scope, status, customer_id, final_amount, tax_amount, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode, billing_model, case_type, created_by'
       )
       .eq('id', offerId)
       .maybeSingle()
@@ -170,7 +171,9 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       budget: offerBudget.budget,
       description,
       reference: (offer.offer_number as string | null) ?? null,
-      type: 'installation' as const,
+      // 00244: sagen arver tilbuddets eksplicitte sagstype (ikke valgt/historisk → installation som før) — styrer
+      // aflevering-tjeklisten (lib/cases/handover-checklist)
+      type: serviceCaseTypeForOffer((offer as { case_type?: string | null }).case_type),
       status: 'new' as const,
       priority: 'medium' as const,
       source: 'manual' as const,

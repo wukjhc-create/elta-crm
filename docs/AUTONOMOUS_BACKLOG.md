@@ -19,6 +19,13 @@ Supabase (Authentication → Sign In / Providers). Derefter (read-only): `disabl
 oprettelse · invitation/onboarding virker stadig (admin-genererede links påvirkes ikke af signup-flaget). Først da: P1 CLOSED.
 Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 
+## NEXT-60 (Henrik 2026-11-01 — aflevering pr. sagstype, opfølgning)
+- `TODO` **Batteri-tjekliste (BESS uden solceller).** I dag hører batteri-only under Solceller / batteri og får
+  solcelle-tjeklisten (inverterfoto relevant, panelfoto ikke). Henrik: blokerer ikke 00244 — byg senere en dedikeret
+  batteri-skabelon (fx batteri-/inverterfoto, eltavle, idriftsættelse), med egen struktureret type så valget forbliver
+  eksplicit (ingen tekst-/AI-udledning). Kræver formentlig en ny værdi i `offers_case_type_check` og
+  `service_cases_type_check` → migrationsforslag først. Kode: lib/cases/handover-checklist, lib/offers/case-type.
+
 ## NEXT-14 (beslutninger 2026-10-15 efter NEXT-12/13)
 | # | Opgave | Status |
 |---|---|---|

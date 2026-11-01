@@ -211,6 +211,7 @@ export async function runPilotSim(d: PilotSimDeps, slot: number, perSlot: number
         await sp.page.locator('#description').fill(`${tag} beskrivelse: ny gruppetavle og 6 stikkontakter`).catch(() => {})
         await sp.page.locator('#customer_id').fill(customerNo).catch(() => {})
         await sp.page.getByTestId('customer-picker-option').first().click({ timeout: 30_000 }).catch(() => {})
+        await sp.page.getByTestId('offer-case-type-installation').check().catch(() => {}) // 00244: eksplicit sagstype (el-arbejde)
         await sp.page.getByRole('button', { name: 'Opret tilbud' }).click().catch(() => {})
         await sp.page.waitForURL(/\/dashboard\/offers\/[0-9a-f-]{36}/, { timeout: 120_000 }).catch(() => {})
         created.offer = (sp.page.url().match(/offers\/([0-9a-f-]{36})/) ?? [])[1]

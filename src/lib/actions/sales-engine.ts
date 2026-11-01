@@ -12,6 +12,7 @@ import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 import { offerEditLockReason } from '@/lib/offers/edit-lock'
+import { offerCaseTypeFromPackageJobType, OFFER_CASE_TYPE_LABELS } from '@/lib/offers/case-type'
 
 /**
  * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
@@ -107,7 +108,7 @@ export async function applyPackageToDraftOfferAction(input: {
 
     // CA-12 (kalkule-review 2026-10-17): kunden (aftalepriser/avanceregler) tages fra TILBUDDET — klientens customerId
     // kunne lægge en anden kundes priser på tilbuddet
-    const { data: offerRow } = await supabase.from('offers').select('customer_id').eq('id', input.offerId).maybeSingle()
+    const { data: offerRow } = await supabase.from('offers').select('customer_id, case_type').eq('id', input.offerId).maybeSingle()
     const result = await applyPackageWithOptionsToOffer({
       offerId: input.offerId,
       packageId: input.packageId,
@@ -127,10 +128,25 @@ export async function applyPackageToDraftOfferAction(input: {
         .eq('id', input.offerId)
     }
 
+    // 00244: tilbuddet arver den valgte pakkes strukturerede job_type som sagstype, hvis sælgeren ikke allerede har valgt
+    // en; et eksplicit valg overskrives aldrig (afvigelse vises i stedet). Ingen tekst-/AI-udledning.
+    let typeNote = ''
+    {
+      const { data: pkg } = await supabase.from('offer_packages').select('job_type').eq('id', input.packageId).maybeSingle()
+      const fromPkg = offerCaseTypeFromPackageJobType((pkg as { job_type?: string | null } | null)?.job_type)
+      const current = (offerRow as { case_type?: string | null } | null)?.case_type ?? null
+      if (fromPkg && !current) {
+        const { error: ctErr } = await supabase.from('offers').update({ case_type: fromPkg }).eq('id', input.offerId).eq('status', 'draft').is('case_type', null)
+        typeNote = ctErr ? ' · sagstypen kunne ikke sættes — vælg den på tilbuddet' : ` · sagstype: ${OFFER_CASE_TYPE_LABELS[fromPkg]}`
+      } else if (fromPkg && current && current !== fromPkg) {
+        typeNote = ` · bemærk: pakken er ${OFFER_CASE_TYPE_LABELS[fromPkg]}, tilbuddets sagstype er ${OFFER_CASE_TYPE_LABELS[current as 'solar' | 'installation'] ?? current} (uændret)`
+      }
+    }
+
     revalidatePath(`/dashboard/offers/${input.offerId}`)
     return {
       ok: true,
-      message: `Pakke anvendt: ${result.totalAdded} linjer (${result.materialLinesAdded} materialer + ${result.optionLinesAdded} tilvalg + ${result.basePriceLineId ? 1 : 0} basis)`,
+      message: `Pakke anvendt: ${result.totalAdded} linjer (${result.materialLinesAdded} materialer + ${result.optionLinesAdded} tilvalg + ${result.basePriceLineId ? 1 : 0} basis)${typeNote}`,
       data: result,
     }
   } catch (err) {

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { createAuditLog } from '@/lib/audit/audit-log-writer'
 import { logger } from '@/lib/utils/logger'
+import { offerCaseTypePreviewLabel } from '@/lib/offers/case-type'
 import type { ActionResult } from '@/types/common.types'
 import type { OfferStatus } from '@/types/offers.types'
 
@@ -120,7 +121,7 @@ export async function getOfferConversionPreview(
     // Cost-free select — final_amount (salgssum) må vises; INGEN kost-kolonner.
     const { data: offer, error: offerErr } = await supabase
       .from('offers')
-      .select('id, offer_number, title, status, final_amount, currency, customer_id, orderer_customer_id, end_customer_id, payer_customer_id, converted_case_id')
+      .select('id, offer_number, title, status, final_amount, currency, customer_id, orderer_customer_id, end_customer_id, payer_customer_id, converted_case_id, case_type')
       .eq('id', offerId)
       .maybeSingle()
     if (offerErr || !offer) return { success: false, error: 'Tilbud ikke fundet' }
@@ -186,7 +187,7 @@ export async function getOfferConversionPreview(
         offer_sum: (offer.final_amount as number | null) ?? null,
         currency: (offer.currency as string | null) ?? 'DKK',
         work_title: (offer.title as string | null) ?? null,
-        expected_case_type: 'installation',
+        expected_case_type: offerCaseTypePreviewLabel((offer as { case_type?: string | null }).case_type),
         customer_name: customerName,
         parties,
         address,

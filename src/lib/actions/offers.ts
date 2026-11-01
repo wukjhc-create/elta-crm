@@ -366,6 +366,7 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       payer_customer_id: (formData.get('payer_customer_id') as string) || null,
       billing_mode: (formData.get('billing_mode') as string) || null,
       billing_model: (formData.get('billing_model') as string) || null, // DF-10
+      case_type: (formData.get('case_type') as string) || null, // 00244
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,
@@ -637,6 +638,7 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       payer_customer_id: (formData.get('payer_customer_id') as string) || null,
       billing_mode: (formData.get('billing_mode') as string) || null,
       billing_model: (formData.get('billing_model') as string) || null, // DF-10
+      case_type: (formData.get('case_type') as string) || null, // 00244 (tom = uændret, som de øvrige felter)
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,
@@ -2880,6 +2882,8 @@ const DUPLICATE_HEADER_FIELDS = [
   'terms_and_conditions', 'notes', 'orderer_customer_id', 'end_customer_id', 'payer_customer_id', 'billing_mode',
   // DF-10 (dataflow-review 2026-10-17): moms- og afregningsform fulgte ikke med kopien (00231/00232)
   'vat_mode', 'billing_model',
+  // 00244: sagstypen følger med kopien
+  'case_type',
 ] as const
 
 /** Linjefelter der kopieres (inkl. kostpris/leverandørspor; total beregnes af trigger). */

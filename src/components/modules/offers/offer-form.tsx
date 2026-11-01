@@ -16,6 +16,7 @@ import {
   getOfferFormDefaultsAction,
 } from '@/lib/actions/offers'
 import type { Offer } from '@/types/offers.types'
+import { OFFER_CASE_TYPES, OFFER_CASE_TYPE_LABELS } from '@/lib/offers/case-type'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { humanizeErrorText } from '@/lib/auth/permission-text'
 
@@ -80,6 +81,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
     watch,
     setValue,
     setFocus,
+    setError: setFieldError,
     formState: { errors, isDirty },
   } = useForm<CreateOfferInput>({
     resolver: zodResolver(createOfferSchema),
@@ -93,6 +95,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
           discount_percentage: offer.discount_percentage,
           tax_percentage: offer.tax_percentage,
           billing_model: ((offer as { billing_model?: 'fixed_price' | 'time_and_materials' | null }).billing_model ?? null),
+          case_type: offer.case_type ?? null,
           valid_until: offer.valid_until,
           terms_and_conditions: offer.terms_and_conditions,
           notes: offer.notes,
@@ -102,6 +105,8 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
           description: getDefaultDescription(),
           customer_id: defaultCustomerId,
           lead_id: defaultCustomerId ? undefined : defaultLeadId,
+          // 00244: fra solcellekalkulatoren er typen kendt (struktureret kilde, synligt forvalg); ellers vælger sælgeren
+          case_type: calculatorData ? 'solar' : undefined,
           discount_percentage: 0,
           tax_percentage: companySettings?.default_tax_percentage ?? 25,
           valid_until: getDefaultValidUntil(),
@@ -160,6 +165,12 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
   }, [])
 
   const onSubmit = async (data: CreateOfferInput) => {
+    // 00244: nye tilbud skal have en eksplicit sagstype (sagen arver den → rigtig aflevering-tjekliste). Historiske tilbud
+    // uden type kan gemmes uændret.
+    if (!isEditing && !data.case_type) {
+      setFieldError('case_type', { message: 'Vælg sagstype' })
+      return
+    }
     try {
       setIsLoading(true)
       setError(null)
@@ -241,6 +252,23 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
               <p className="text-sm text-red-600">{errors.title.message}</p>
             )}
           </div>
+
+          {/* 00244: sagstype — sagen fra tilbuddet arver den (styrer afleveringens tjekliste) */}
+          <fieldset className="space-y-1" data-testid="offer-case-type">
+            <legend className="text-sm font-medium">Sagstype{isEditing ? '' : ' *'}</legend>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {OFFER_CASE_TYPES.map((t) => (
+                <label key={t} className="flex items-center gap-2 px-3 py-2 border rounded-md cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                  <input {...register('case_type')} type="radio" value={t} disabled={isLoading} data-testid={`offer-case-type-${t}`} />
+                  <span className="text-sm">{OFFER_CASE_TYPE_LABELS[t]}</span>
+                </label>
+              ))}
+            </div>
+            {isEditing && !offer?.case_type && (
+              <p className="text-xs text-gray-500">Ikke valgt — sagen bliver en el-installationssag, hvis intet vælges</p>
+            )}
+            {errors.case_type && <p className="text-sm text-red-600">{errors.case_type.message}</p>}
+          </fieldset>
 
           {/* Customer / Lead */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

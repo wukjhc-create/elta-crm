@@ -164,6 +164,8 @@ export interface OfferLineItem {
 export interface Offer {
   /** 00231: momsmode arvet fra kunden ved oprettelse (null = afgøres af kunden ved fakturering) */
   vat_mode?: 'standard_25' | 'zero' | 'reverse_charge' | null
+  /** 00244: tilsigtet sagstype — sagen fra tilbuddet arver den (lib/offers/case-type); NULL = ikke valgt (historisk) */
+  case_type?: 'solar' | 'installation' | null
   id: string
   offer_number: string
   title: string

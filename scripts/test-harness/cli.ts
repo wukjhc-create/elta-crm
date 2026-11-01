@@ -5287,6 +5287,21 @@ COMMIT;`)
     log('✅ anvendt (kør verifikation: npm run harness:verify-00159)')
     return
   }
+  if (SUB === 'verify-00244') {
+    // STAGING read-only: 00244 (offers.case_type) — kolonne/CHECK + fingeraftryk af ALLE tilbud og sager uden den nye kolonne
+    // (pre/post skal være ens for rækker der fandtes før). Ingen personværdier ud — kun antal og md5.
+    const col = await stagingSql(`SELECT data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema='public' AND table_name='offers' AND column_name='case_type'`)
+    const chk = await stagingSql(`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname='offers_case_type_check'`)
+    const fp = await stagingSql(`SELECT
+      (SELECT count(*)::int FROM offers) AS offers,
+      (SELECT md5(coalesce(string_agg((to_jsonb(o) - 'case_type' - 'updated_at')::text, '|' ORDER BY o.id), '')) FROM offers o) AS offers_md5,
+      (SELECT count(*)::int FROM offers WHERE ${col.length ? 'case_type IS NOT NULL' : 'false'}) AS offers_with_type,
+      (SELECT count(*)::int FROM service_cases) AS cases,
+      (SELECT md5(coalesce(string_agg((to_jsonb(c) - 'updated_at')::text, '|' ORDER BY c.id), '')) FROM service_cases c) AS cases_md5,
+      (SELECT json_object_agg(t, n) FROM (SELECT coalesce(type, '(null)') t, count(*)::int n FROM service_cases GROUP BY 1) x) AS case_types`)
+    log(JSON.stringify({ column: col[0] ?? null, check: chk[0]?.def ?? null, ...fp[0] }))
+    return
+  }
   if (SUB === 'staging-cleanup-00242-dup-index') {
     // STAGING-ONLY oprydning (Henrik 2026-10-29: "Drop the duplicate staging index … Keep the existing idx_work_orders_assignee").
     // Den oprindeligt anvendte 00242 oprettede idx_work_orders_assigned_employee = dublet af idx_work_orders_assignee (00086)

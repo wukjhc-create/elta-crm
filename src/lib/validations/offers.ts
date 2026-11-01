@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { OFFER_STATUSES, OFFER_BILLING_MODES } from '@/types/offers.types'
+import { OFFER_CASE_TYPES } from '@/lib/offers/case-type'
 
 // Helper to convert empty strings to null (for optional UUID fields from HTML forms)
 const emptyStringToNull = (val: unknown) => (val === '' ? null : val)
@@ -36,6 +37,11 @@ export const createOfferSchema = z.object({
   billing_model: z.preprocess(
     emptyStringToNull,
     z.enum(['fixed_price', 'time_and_materials']).nullable().optional(),
+  ),
+  // 00244: tilsigtet sagstype (Solceller / batteri | Elinstallation / service) — sagen arver den; tom = ikke valgt
+  case_type: z.preprocess(
+    emptyStringToNull,
+    z.enum(OFFER_CASE_TYPES).nullable().optional(),
   ),
   discount_percentage: z
     .number()

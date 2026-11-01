@@ -184,7 +184,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
@@ -1338,6 +1338,7 @@ ${m.text()}`) })
         // N14: søgbar kundevælger — søg på kundenummer og vælg træffet
         await a.page.locator('#customer_id').fill(`UI-E2E-P-${stamp}`).catch(() => {})
         await a.page.getByTestId('customer-picker-option').first().click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByTestId('offer-case-type-installation').check().catch(() => {}) // 00244: eksplicit sagstype
         await a.page.getByRole('button', { name: 'Opret tilbud' }).click().catch(() => {})
         await a.page.waitForURL(/\/dashboard\/offers\/[0-9a-f-]{36}/, { timeout: 120_000 }).catch(() => {})
         newOfferId = (a.page.url().match(/offers\/([0-9a-f-]{36})/) ?? [])[1] ?? null
@@ -5488,6 +5489,179 @@ ${m.text()}`) })
           newContext: (opts) => browser.newContext(opts), push: (x) => { out.push(x) } }, slot, Number(process.env.PILOT_SIM_PER_SLOT ?? 2))
       }
 
+      // U256 SAGSTYPE PÅ TILBUD (00244, Henrik 2026-11-01): nyt tilbud kræver eksplicit sagstype i formularen; solcelletilbud
+      // → solcellesag og elinstallationstilbud → el-installationssag via kundeportalens accept (rigtig UI); kopi og revision
+      // bevarer typen; manuelt anvendt pakke giver sin strukturerede job_type (overskriver aldrig et valg); historisk tilbud
+      // uden type → el-installationssag via kontorets konvertering (uændret adfærd). Ingen tekst-/AI-udledning.
+      if (want('U256') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U256-${stamp}`
+        const offerIds: string[] = []
+        const caseIds: string[] = []
+        const tokenIds: string[] = []
+        let pkgSolar: string | null = null
+        type OT = { id: string; case_type: string | null; status: string }
+        const readOffer = async (id: string) => ((await c.admin.from('offers').select('id, case_type, status').eq('id', id).maybeSingle()).data as OT | null)
+        const caseTypeFor = async (offerId: string) => {
+          for (let i = 0; i < 30; i++) {
+            const rows = ((await c.admin.from('service_cases').select('id, type').eq('source_offer_id', offerId)).data ?? []) as Array<{ id: string; type: string | null }>
+            if (rows.length) { for (const x of rows) if (!caseIds.includes(x.id)) caseIds.push(x.id); return rows.length === 1 ? rows[0].type : `dublet:${rows.length}` }
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          return null
+        }
+        const addLine = async (offerId: string) => c.admin.from('offer_line_items').insert([{ offer_id: offerId, position: 1, description: `${tag} linje`, quantity: 1, unit: 'stk', unit_price: 1000, sale_price: 1000, total: 1000 }])
+        const validUntil = new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10)
+        try {
+          const ap = await login(adminUser)
+          try {
+            // 1. formular: uden valgt sagstype → afvist (intet tilbud); derefter solcelle og elinstallation
+            const createViaForm = async (title: string, type: 'solar' | 'installation' | null) => {
+              await gotoSafe(ap.page, `${base}/dashboard/offers`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await ap.page.getByRole('button', { name: /Nyt Tilbud/ }).first().click({ timeout: 60_000 }).catch(() => {})
+              await ap.page.locator('#title').fill(title).catch(() => {})
+              await ap.page.locator('#customer_id').fill(`UI-E2E-P-${stamp}`).catch(() => {})
+              await ap.page.getByTestId('customer-picker-option').first().click({ timeout: 30_000 }).catch(() => {})
+              if (type) await ap.page.getByTestId(`offer-case-type-${type}`).check().catch(() => {})
+              await ap.page.getByRole('button', { name: 'Opret tilbud' }).click().catch(() => {})
+              if (!type) {
+                await ap.page.getByText('Vælg sagstype').first().waitFor({ timeout: 15_000 }).catch(() => {})
+                return { blocked: (await ap.page.getByText('Vælg sagstype').count()) > 0, id: null as string | null }
+              }
+              await ap.page.waitForURL(/\/dashboard\/offers\/[0-9a-f-]{36}/, { timeout: 120_000 }).catch(() => {})
+              const id = (ap.page.url().match(/offers\/([0-9a-f-]{36})/) ?? [])[1] ?? null
+              if (id) offerIds.push(id)
+              return { blocked: false, id }
+            }
+            const none = await createViaForm(`[HARNESS] ${tag} uden type`, null)
+            const noneRows = ((await c.admin.from('offers').select('id').eq('title', `[HARNESS] ${tag} uden type`)).data ?? []) as Array<{ id: string }>
+            for (const x of noneRows) offerIds.push(x.id)
+            r.t1_formular_kraever_sagstype = none.blocked && noneRows.length === 0
+            const solar = await createViaForm(`[HARNESS] ${tag} solcelle`, 'solar')
+            const inst = await createViaForm(`[HARNESS] ${tag} el`, 'installation')
+            const so = solar.id ? await readOffer(solar.id) : null
+            const io = inst.id ? await readOffer(inst.id) : null
+            r.t2_solcelletilbud_gemt_solar = so?.case_type === 'solar'
+            r.t3_eltilbud_gemt_installation = io?.case_type === 'installation'
+            if (solar.id) {
+              await gotoSafe(ap.page, `${base}/dashboard/offers/${solar.id}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              r.t2b_detalje_viser_sagstype = /Solceller \/ batteri/.test((await ap.page.getByTestId('offer-detail-case-type').innerText().catch(() => '')))
+            }
+
+            // 2. kopi bevarer typen (Kopiér-handlingen)
+            if (solar.id) {
+              const raw = await callServerAction(ap.page, `${base}/dashboard/offers/${solar.id}`, 'src/lib/actions/offers.ts', 'duplicateOfferAction', [solar.id])
+              const copyId = (raw.match(/"id":"([0-9a-f-]{36})"/) ?? [])[1] ?? null
+              if (copyId) offerIds.push(copyId)
+              r.t4_kopi_bevarer_type = !!copyId && copyId !== solar.id && (await readOffer(copyId))?.case_type === 'solar'
+            }
+
+            // 3. revision bevarer typen (sendt solcelletilbud → R2)
+            {
+              const { data: o } = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-CT-${stamp}-R`, title: `[HARNESS] ${tag} revision`, created_by: adminUser.id,
+                customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString(), valid_until: validUntil, case_type: 'solar' }]).select('id')
+              const src = (o?.[0] as { id?: string } | undefined)?.id ?? null
+              if (src) { offerIds.push(src); await addLine(src) }
+              const raw = src ? await callServerAction(ap.page, `${base}/dashboard/offers/${src}`, 'src/lib/actions/offers.ts', 'createOfferRevisionAction', [src]) : ''
+              const revId = (raw.match(/"id":"([0-9a-f-]{36})"/) ?? [])[1] ?? null
+              if (revId) offerIds.push(revId)
+              r.t5_revision_bevarer_type = !!revId && (await readOffer(revId))?.case_type === 'solar'
+              if (!r.t5_revision_bevarer_type) console.log(`[ui-e2e] U256 t5 diag: ${raw.slice(0, 200)}`)
+            }
+
+            // 4. manuelt anvendt pakke: tom type arver pakkens job_type; et eksplicit valg overskrives ikke
+            {
+              const pk = await c.admin.from('offer_packages').insert([{ name: `[HARNESS] ${tag} solpakke`, slug: `harness_${tag.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`, job_type: 'solar', base_price: 1000, is_active: true, sort_order: 999 }]).select('id')
+              pkgSolar = (pk.data?.[0] as { id?: string } | undefined)?.id ?? null
+              const mkDraft = async (suffix: string, case_type: string | null) => {
+                const { data: o } = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-CT-${stamp}-${suffix}`, title: `[HARNESS] ${tag} pakke ${suffix}`, created_by: adminUser.id,
+                  customer_id: profitCustomerId, status: 'draft', case_type }]).select('id')
+                const id = (o?.[0] as { id?: string } | undefined)?.id ?? null
+                if (id) offerIds.push(id)
+                return id
+              }
+              const dNull = await mkDraft('P1', null)
+              const dInst = await mkDraft('P2', 'installation')
+              const apply = async (offerId: string) => callServerAction(ap.page, `${base}/dashboard/offers/${offerId}`, 'src/lib/actions/sales-engine.ts', 'applyPackageToDraftOfferAction',
+                [{ offerId, packageId: pkgSolar, customerId: null, optionIds: [], writeOfferText: false }])
+              const a1 = dNull && pkgSolar ? await apply(dNull) : ''
+              const a2 = dInst && pkgSolar ? await apply(dInst) : ''
+              r.t6_pakke_giver_job_type = /"ok":true/.test(a1) && (await readOffer(dNull!))?.case_type === 'solar'
+              r.t6b_pakke_overskriver_ikke_valg = /"ok":true/.test(a2) && /bemærk/.test(a2) && (await readOffer(dInst!))?.case_type === 'installation'
+              if (!r.t6_pakke_giver_job_type) console.log(`[ui-e2e] U256 t6 diag: ${a1.slice(0, 200)}`)
+            }
+
+            // 5. historisk tilbud uden type (NULL) → kontorets konvertering → el-installationssag (uændret adfærd)
+            {
+              const { data: o } = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-CT-${stamp}-H`, title: `[HARNESS] ${tag} historisk`, created_by: adminUser.id,
+                customer_id: profitCustomerId, status: 'accepted', sent_at: new Date().toISOString(), accepted_at: new Date().toISOString(), valid_until: validUntil }]).select('id')
+              const hist = (o?.[0] as { id?: string } | undefined)?.id ?? null
+              if (hist) { offerIds.push(hist); await addLine(hist) }
+              const url = `${base}/dashboard/offers/${hist}`
+              const preview = hist ? await callServerAction(ap.page, url, 'src/lib/actions/offer-to-case.ts', 'getOfferConversionPreview', [hist]) : ''
+              const conv = hist ? await callServerAction(ap.page, url, 'src/lib/actions/offer-to-case.ts', 'createServiceCaseFromOffer', [hist]) : ''
+              r.t7_historisk_null_giver_installation = /"success":true/.test(conv) && (await caseTypeFor(hist!)) === 'installation' && (await readOffer(hist!))?.case_type === null
+                && /ikke valgt på tilbuddet/.test(preview)
+              if (!r.t7_historisk_null_giver_installation) console.log(`[ui-e2e] U256 t7 diag: ${conv.slice(0, 200)}`)
+            }
+          } finally { await ap.ctx.close().catch(() => {}) }
+
+          // 6. kundeportalens accept bevarer typen (rigtig portal-UI, ingen login): solcelle → solar, el → installation
+          const portalAccept = async (offerId: string) => {
+            await addLine(offerId)
+            await c.admin.from('offers').update({ status: 'sent', sent_at: new Date().toISOString(), valid_until: validUntil }).eq('id', offerId)
+            const tok = randomBytes(32).toString('hex')
+            const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `harness-${stamp}@example.com`, created_by: adminUser.id, is_active: true,
+              expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+            const tid = (pt.data?.[0] as { id?: string } | undefined)?.id
+            if (tid) tokenIds.push(tid)
+            const kctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
+            try {
+              const kp = await kctx.newPage()
+              await gotoSafe(kp, `${base}/portal/${tok}/offers/${offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await kp.getByRole('button', { name: 'Accepter tilbud' }).first().click({ timeout: 60_000 }).catch(() => {})
+              const dlg = kp.locator('div.fixed.inset-0').last()
+              await dlg.locator('input[type="text"]').first().fill('Harness Kunde').catch(() => {})
+              await dlg.locator('input[type="email"]').first().fill(`harness-${stamp}@example.com`).catch(() => {})
+              const box = await dlg.locator('canvas').boundingBox().catch(() => null)
+              if (box) { await kp.mouse.move(box.x + 20, box.y + 20); await kp.mouse.down(); await kp.mouse.move(box.x + 120, box.y + 60, { steps: 8 }); await kp.mouse.move(box.x + 200, box.y + 30, { steps: 8 }); await kp.mouse.up() }
+              await dlg.locator('input[type="checkbox"]').first().check().catch(() => {})
+              await dlg.locator('button.bg-green-600').click({ timeout: 15_000 }).catch(() => {})
+              await kp.waitForLoadState('networkidle').catch(() => {})
+            } finally { await kctx.close().catch(() => {}) }
+            return caseTypeFor(offerId)
+          }
+          const solarOffer = (await c.admin.from('offers').select('id').eq('title', `[HARNESS] ${tag} solcelle`).maybeSingle()).data as { id: string } | null
+          const instOffer = (await c.admin.from('offers').select('id').eq('title', `[HARNESS] ${tag} el`).maybeSingle()).data as { id: string } | null
+          const solarCaseType = solarOffer ? await portalAccept(solarOffer.id) : null
+          const instCaseType = instOffer ? await portalAccept(instOffer.id) : null
+          r.t8_portal_solcelletilbud_giver_solcellesag = solarCaseType === 'solar' && (await readOffer(solarOffer!.id))?.status === 'accepted'
+          r.t9_portal_eltilbud_giver_installationssag = instCaseType === 'installation' && (await readOffer(instOffer!.id))?.status === 'accepted'
+          if (!r.t8_portal_solcelletilbud_giver_solcellesag || !r.t9_portal_eltilbud_giver_installationssag) console.log(`[ui-e2e] U256 portal diag: solar=${solarCaseType} el=${instCaseType}`)
+        } finally {
+          // oprydning i FK-rækkefølge (sager → tilbud → token/pakke)
+          await c.admin.from('offers').update({ converted_case_id: null }).in('id', offerIds.length ? offerIds : ['00000000-0000-0000-0000-000000000000'])
+          if (caseIds.length) {
+            await c.admin.from('customer_tasks').delete().in('service_case_id', caseIds)
+            await c.admin.from('customer_documents').update({ service_case_id: null }).in('service_case_id', caseIds)
+            await c.admin.from('case_notes').delete().in('case_id', caseIds)
+            await c.admin.from('audit_logs').delete().in('entity_id', caseIds)
+            await c.admin.from('service_cases').delete().in('id', caseIds)
+          }
+          for (const id of offerIds) await c.admin.from('offers').update({ revision_of: null, superseded_by: null }).eq('id', id)
+          for (const id of offerIds) {
+            await c.admin.from('offer_signatures').delete().eq('offer_id', id)
+            await c.admin.from('offer_activities').delete().eq('offer_id', id)
+            await c.admin.from('offer_snapshots').delete().eq('offer_id', id)
+            await c.admin.from('offer_line_items').delete().eq('offer_id', id)
+            await c.admin.from('offers').delete().eq('id', id)
+          }
+          for (const id of tokenIds) await c.admin.from('portal_access_tokens').delete().eq('id', id)
+          if (pkgSolar) await c.admin.from('offer_packages').delete().eq('id', pkgSolar)
+        }
+        out.push({ id: 'U256 sagstype på tilbud (formular kræver valg; portal-accept, kopi, revision og pakke bevarer/giver typen; historisk NULL → installation)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U255 AFLEVERING-VÆRN (Henrik 2026-10-31, pilot-sim S2): 1) underskrift gemmes trods åben tjekliste; 2) normal lukning
       // afvises (admin i UI'et + direkte kald); 3) komplet aflevering → lukning virker; 4) begrænset rolle (salg MED
       // cases.close-grant) kan ikke omgå; 5) admin-undtagelse i UI'et kræver bekræftelse + begrundelse og audit-logges med de
@@ -8986,6 +9160,7 @@ ${m.text()}`) })
         // vent på at standardværdierne er hentet ind i formularen
         for (let i = 0; i < 60; i++) { if ((await dlg.locator('#valid_until').inputValue().catch(() => '')) === expectIso) break; await new Promise((res) => setTimeout(res, 500)) } // op til 30 s
         await dlg.locator('#title').fill(`[HARNESS] tilbud fra lead ${stamp}`).catch(() => {})
+        await dlg.getByTestId('offer-case-type-installation').check().catch(() => {}) // 00244: eksplicit sagstype
         await dlg.getByRole('button', { name: 'Opret tilbud' }).click({ timeout: 30_000 }).catch(() => {})
         type O = { id: string; lead_id: string | null; valid_until: string | null; terms_and_conditions: string | null; created_by: string }
         const readO = async (): Promise<O | null> => ((await c.admin.from('offers').select('id, lead_id, valid_until, terms_and_conditions, created_by').eq('title', `[HARNESS] tilbud fra lead ${stamp}`).maybeSingle()).data as O | null)
