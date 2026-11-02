@@ -8,6 +8,7 @@ import { lookupCaller } from '@/lib/integrations/relatel/lookup'
 import { formatPhoneForDisplay } from '@/lib/integrations/relatel/phone'
 import { buildCallCard } from '@/lib/integrations/telephony/call-card'
 import { relatelLiveCallEnabled, relatelSmsEnabled } from '@/lib/integrations/telephony/flags'
+import { getCustomerNotesAvailability } from '@/lib/actions/customer-notes'
 import { CallCardPanel } from './call-card-panel'
 
 export const metadata: Metadata = { title: 'Opkald', description: 'Hvem ringer? Opslag på telefonnummer' }
@@ -24,7 +25,13 @@ export default async function CtiPage({ searchParams }: { searchParams: Promise<
   if (!(await pageHasPermission('customers.view'))) return <NoAccess permission="customers.view" />
   const { number: raw } = await searchParams
   const res = await lookupCaller(await createClient(), raw)
-  const card = buildCallCard(res, { liveCall: relatelLiveCallEnabled(), sms: relatelSmsEnabled() })
+  // Opkaldsnote kun når kundenoter findes og må skrives (customer_notes er valgfri)
+  const notes = await getCustomerNotesAvailability().catch(() => ({ state: 'error' as const, canWrite: false }))
+  const card = buildCallCard(res, {
+    liveCall: relatelLiveCallEnabled(),
+    sms: relatelSmsEnabled(),
+    notes: notes.state === 'available' && !notes.canWrite ? 'no_permission' : notes.state,
+  })
 
   return (
     <div className="p-6 space-y-5 max-w-4xl">

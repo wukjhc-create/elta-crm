@@ -5,6 +5,7 @@
  */
 import type { CallerLookup } from '@/lib/integrations/relatel/lookup'
 import { formatPhoneForDisplay } from '@/lib/integrations/relatel/phone'
+import { customerNotesBlockedReason, type CustomerNotesAvailability } from '@/lib/notes/customer-notes-availability'
 import { RELATEL_FLAG_OFF } from './flags'
 
 export type CallMatchStatus = 'invalid' | 'none' | 'lead' | 'unique' | 'ambiguous'
@@ -37,7 +38,7 @@ function blocked(id: CallCardAction['id'], label: string, reason: string): CallC
 
 export function buildCallCard(
   lookup: CallerLookup,
-  flags: { liveCall: boolean; sms: boolean },
+  flags: { liveCall: boolean; sms: boolean; notes?: CustomerNotesAvailability | 'no_permission' },
 ): CallCard {
   const displayNumber = lookup.number ? formatPhoneForDisplay(lookup.number) : null
   const customerIds = [...new Set(lookup.matches.map((m) => m.customer_id).filter(Boolean) as string[])]
@@ -90,7 +91,10 @@ export function buildCallCard(
           ? { id: 'open_case', label: `Åbn sag ${caseHref.case_number ?? ''}`.trim(), enabled: true, blockedReason: null, href: `/dashboard/orders/${caseHref.id}`, requiresConfirmation: false }
           : blocked('open_case', 'Åbn sag', 'Kunden har ingen åben sag i det, du kan se.'),
         { id: 'create_callback', label: 'Opret tilbageringning', enabled: true, blockedReason: null, href: null, requiresConfirmation: true },
-        { id: 'add_note', label: 'Gem opkaldsnote', enabled: true, blockedReason: null, href: null, requiresConfirmation: true },
+        // kun når kundenoter findes og må skrives (utjekket = ingen aktiv knap)
+        flags.notes === 'available'
+          ? { id: 'add_note', label: 'Gem opkaldsnote', enabled: true, blockedReason: null, href: null, requiresConfirmation: true }
+          : blocked('add_note', 'Gem opkaldsnote', flags.notes === 'no_permission' ? 'Kræver rettigheden customers.edit.' : customerNotesBlockedReason(flags.notes ?? 'error') ?? ''),
         ...external,
       ],
     }

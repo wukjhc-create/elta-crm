@@ -39,7 +39,7 @@ export function CustomerCommunicationTimeline({ customerId }: { customerId: stri
       {failed && <p className="text-sm text-red-700">Tidslinjen kunne ikke hentes. Det betyder ikke, at der ingen aktivitet er.</p>}
       {!res && !failed && <p className="text-sm text-gray-400">Henter…</p>}
       {res && !res.ok && <p className="text-sm text-red-700">{res.error ?? 'Tidslinjen kunne ikke hentes.'}</p>}
-      {res?.ok && res.sources.some((s) => s.state !== 'ok') && (
+      {res?.ok && res.sources.some((s) => s.state === 'error' || s.state === 'hidden') && (
         <ul className="mb-3 text-xs text-amber-800">
           {res.sources.filter((s) => s.state === 'error').map((s) => (
             <li key={s.source}>{SOURCE_LABEL[s.source]} kunne ikke læses og tælles ikke som tomme.</li>

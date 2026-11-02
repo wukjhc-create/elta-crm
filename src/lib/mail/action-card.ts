@@ -44,6 +44,8 @@ export interface MailActionInput {
   cases: MailCaseRef[]
   /** `unavailable` = sagerne kunne ikke læses. Så vælges ingen sag. */
   casesStatus: 'ok' | 'unavailable' | 'not_loaded'
+  /** Kun 'available' giver note-forslaget (customer_notes er valgfri; utjekket/ukendt = ingen note-knap). */
+  customerNotes?: 'available' | 'unavailable' | 'error' | 'not_loaded'
 }
 
 export type MailIntent = 'power_of_attorney' | 'supplier_quote' | 'invoice' | 'inspection' | 'general'
@@ -196,14 +198,13 @@ function suggest(input: MailActionInput, card: Omit<MailActionCard, 'suggestions
   if (poa) {
     items.push({ id: 'save_attachment', label: 'Gem ikke vedhæftningen som fuldmagt', reason: 'Filnavnet er ikke dokumentets indhold. Fuldmagten oprettes på sagen, når den er gennemgået.', href: customerHref, requiresConfirmation: true, executed: false })
     items.push({ id: 'create_task', label: 'Opret opgave: gennemgå fuldmagt', reason: 'Bekræft for at oprette opgaven. Filen læses ikke.', href: customerHref, requiresConfirmation: true, executed: false })
-    items.push({ id: 'add_note', label: 'Noter at filnavnet ligner en fuldmagt', reason: 'Bekræft for at gemme noten. Der står ikke, at fuldmagten er gyldig.', href: customerHref, requiresConfirmation: true, executed: false })
+    if (input.customerNotes === 'available') items.push({ id: 'add_note', label: 'Noter at filnavnet ligner en fuldmagt', reason: 'Bekræft for at gemme noten. Der står ikke, at fuldmagten er gyldig.', href: customerHref, requiresConfirmation: true, executed: false })
   } else {
     items.push({ id: 'create_task', label: 'Opret opgave ud fra mailen', reason: 'Bekræft for at oprette opgaven.', href: customerHref, requiresConfirmation: true, executed: false })
   }
   items.push({ id: 'change_status', label: 'Skift ikke status automatisk', reason: 'Status ændres ikke herfra.', href: card.likelyCase ? `/dashboard/orders/${card.likelyCase.id}` : null, requiresConfirmation: true, executed: false })
   items.push({ id: 'create_case', label: 'Opret ny sag kun bevidst', reason: 'Mailen opretter ikke en sag.', href: null, requiresConfirmation: true, executed: false })
   items.push({ id: 'do_nothing', label: 'Gør ingenting', reason: 'Lad mailen ligge.', href: null, requiresConfirmation: true, executed: false })
-  void input
   return items
 }
 

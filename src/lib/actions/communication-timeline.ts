@@ -8,11 +8,12 @@
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { userCanViewCustomer } from '@/lib/auth/customer-scope'
 import { permissionDeniedText } from '@/lib/auth/permission-text'
-import { composeTimeline, kindForNote, kindForTask, type TimelineEvent, type TimelineEventInput } from '@/lib/timeline/compose'
+import { composeTimeline, kindForNote, kindForTask, timelineSourceFailureState, type TimelineEvent, type TimelineEventInput } from '@/lib/timeline/compose'
 
 export interface TimelineSourceState {
   source: 'notes' | 'tasks' | 'documents' | 'emails' | 'planning'
-  state: 'ok' | 'hidden' | 'error'
+  /** unavailable = valgfri kilde findes ikke her (fx customer_notes før migrationen) — ingen advarsel, ikke en fejl */
+  state: 'ok' | 'hidden' | 'error' | 'unavailable'
 }
 
 export interface CustomerTimelineResult {
@@ -40,7 +41,7 @@ export async function getCustomerCommunicationTimeline(customerId: string): Prom
   const sources: TimelineSourceState[] = []
   const inputs: TimelineEventInput[] = []
 
-  const read = async (source: TimelineSourceState['source'], hidden: boolean, query: PromiseLike<{ data: unknown; error: { message: string } | null }>) => {
+  const read = async (source: TimelineSourceState['source'], hidden: boolean, query: PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>) => {
     if (hidden) {
       sources.push({ source, state: 'hidden' })
       return
@@ -48,7 +49,7 @@ export async function getCustomerCommunicationTimeline(customerId: string): Prom
     try {
       const { data, error } = await query
       if (error) {
-        sources.push({ source, state: 'error' })
+        sources.push({ source, state: timelineSourceFailureState(source, error) })
         return
       }
       sources.push({ source, state: 'ok' })

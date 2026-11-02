@@ -5,29 +5,36 @@
  * Sager bruger den eksisterende case_notes-model (service-cases.ts). Læs: customers.view; skriv: customers.edit;
  * ret/slet: egen note eller admin/serviceleder (håndhæves også af RLS). Alt audit-logges (kun længde, ikke tekst).
  *
- * Tabellen findes kun hvor 00196 er anvendt: ellers returnerer listen available=false, og UI'et skjules.
+ * Tabellen findes kun hvor migrationen er anvendt: ellers returnerer listen available=false (state 'unavailable'), og
+ * UI'et skjules. En egentlig læsefejl er state 'error' (lib/notes/customer-notes-availability).
  */
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { createAuditLog } from '@/lib/audit/audit-log-writer'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import {
+  CUSTOMER_NOTES_UNAVAILABLE_TEXT,
+  customerNotesAvailabilityFromError,
+  isMissingTableError,
+  type CustomerNotesAvailability,
+} from '@/lib/notes/customer-notes-availability'
 
 const CUSTOMER_NOTE_MAX = 5000
 
 export type CustomerNote = { id: string; content: string; source: 'manual' | 'assistant' | 'telegram' | 'system'; created_at: string; created_by: string | null; author: string | null; canDelete: boolean }
 
-export async function getCustomerNotes(customerId: string): Promise<{ available: boolean; notes: CustomerNote[]; canWrite: boolean }> {
+export async function getCustomerNotes(customerId: string): Promise<{ available: boolean; state: CustomerNotesAvailability; notes: CustomerNote[]; canWrite: boolean }> {
   validateUUID(customerId, 'kunde ID')
   const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
-  if (!hasPermission('customers.view')) return { available: false, notes: [], canWrite: false }
+  if (!hasPermission('customers.view')) return { available: false, state: 'unavailable', notes: [], canWrite: false }
   const { data, error } = await supabase
     .from('customer_notes')
     .select('id, content, source, created_at, created_by')
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false })
     .limit(100)
-  if (error) return { available: false, notes: [], canWrite: false }
+  if (error) return { available: false, state: customerNotesAvailabilityFromError(error), notes: [], canWrite: false }
   const rows = (data ?? []) as Array<Omit<CustomerNote, 'author' | 'canDelete'>>
   const authorIds = Array.from(new Set(rows.map((r) => r.created_by).filter(Boolean))) as string[]
   const { data: profs } = authorIds.length ? await supabase.from('profiles').select('id, full_name').in('id', authorIds) : { data: [] }
@@ -36,6 +43,7 @@ export async function getCustomerNotes(customerId: string): Promise<{ available:
   const isLead = role === 'admin' || role === 'serviceleder'
   return {
     available: true,
+    state: 'available',
     canWrite: hasPermission('customers.edit'),
     notes: rows.map((r) => ({ ...r, author: r.created_by ? names.get(r.created_by) ?? null : null, canDelete: r.created_by === userId || isLead })),
   }
@@ -49,6 +57,7 @@ export async function createCustomerNote(customerId: string, content: string): P
   if (!text) return { success: false, error: 'Noten er tom' }
   if (text.length > CUSTOMER_NOTE_MAX) return { success: false, error: `Noten er for lang (højst ${CUSTOMER_NOTE_MAX} tegn)` }
   const { data, error } = await supabase.from('customer_notes').insert({ customer_id: customerId, content: text, source: 'manual', created_by: userId }).select('id').single()
+  if (isMissingTableError(error)) return { success: false, error: CUSTOMER_NOTES_UNAVAILABLE_TEXT }
   if (error || !data) {
     logger.error('createCustomerNote failed', { error })
     return { success: false, error: 'Kunne ikke gemme noten' }
@@ -58,6 +67,17 @@ export async function createCustomerNote(customerId: string, content: string): P
   } catch { /* best-effort */ }
   revalidatePath(`/dashboard/customers/${customerId}`)
   return { success: true }
+}
+
+/**
+ * Kan kundenoter bruges her (tabellen findes og kan læses)? Til mailkort og opkaldskort, så de kun viser en
+ * note-knap når noten faktisk kan gemmes. canWrite = customers.edit (RLS afgør stadig den enkelte kunde).
+ */
+export async function getCustomerNotesAvailability(): Promise<{ state: CustomerNotesAvailability; canWrite: boolean }> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('customers.view')) return { state: 'unavailable', canWrite: false }
+  const { error } = await supabase.from('customer_notes').select('id').limit(1)
+  return { state: customerNotesAvailabilityFromError(error), canWrite: hasPermission('customers.edit') }
 }
 
 export async function deleteCustomerNote(noteId: string): Promise<{ success: boolean; error?: string }> {

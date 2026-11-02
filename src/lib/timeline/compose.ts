@@ -3,6 +3,8 @@
  * Funktionen kopierer ikke indholdet — den sorterer de rækker, kalderen allerede har læst.
  * En række uden tidspunkt eller kunde udelades. Den bliver ikke til "nu".
  */
+import { isMissingTableError } from '@/lib/notes/customer-notes-availability'
+
 export type TimelineKind =
   | 'email'
   | 'call'
@@ -76,4 +78,12 @@ export function composeTimeline(events: TimelineEventInput[]): TimelineEvent[] {
     })
   }
   return out.sort((a, b) => b.at.localeCompare(a.at) || a.key.localeCompare(b.key))
+}
+
+/**
+ * En kilde der ikke kunne læses: noter er valgfrie (customer_notes findes kun hvor migrationen er anvendt) — mangler
+ * tabellen, er kilden 'unavailable' og vises ikke som fejl. Alle andre fejl (også andre fejl på noter) er 'error'.
+ */
+export function timelineSourceFailureState(source: string, error: { code?: string | null; message?: string | null }): 'error' | 'unavailable' {
+  return source === 'notes' && isMissingTableError(error) ? 'unavailable' : 'error'
 }

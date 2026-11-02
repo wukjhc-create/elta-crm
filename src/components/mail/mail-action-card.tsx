@@ -6,6 +6,7 @@ import { buildMailActionCard, mailNameCandidates, type MailActionCard, type Mail
 import { confirmMailCardAction } from '@/lib/actions/mail-card-actions'
 import { getCustomerServiceCasesResult } from '@/lib/actions/service-cases'
 import { searchCustomersForPickerAction } from '@/lib/actions/customers'
+import { getCustomerNotesAvailability } from '@/lib/actions/customer-notes'
 import type { IncomingEmailWithCustomer } from '@/types/mail-bridge.types'
 
 const CONFIRMABLE = new Set<MailSuggestion['id']>(['attach_mail', 'create_task', 'add_note'])
@@ -25,6 +26,16 @@ export function MailActionCardView({ email }: { email: IncomingEmailWithCustomer
   const [pending, setPending] = useState<MailSuggestion['id'] | null>(null)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  // Note-forslaget vises kun, når kundenoter findes og må skrives (customer_notes er valgfri)
+  const [customerNotes, setCustomerNotes] = useState<'available' | 'unavailable' | 'error' | 'not_loaded'>('not_loaded')
+
+  useEffect(() => {
+    let alive = true
+    getCustomerNotesAvailability()
+      .then((r) => { if (alive) setCustomerNotes(r.state === 'available' && !r.canWrite ? 'unavailable' : r.state) })
+      .catch(() => { if (alive) setCustomerNotes('error') })
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -95,6 +106,7 @@ export function MailActionCardView({ email }: { email: IncomingEmailWithCustomer
     attachmentNames: (email.attachment_urls ?? []).map((a) => a.filename).filter(Boolean),
     linkedCustomerId: email.customer_id,
     linkedCaseId: email.service_case_id ?? null,
+    customerNotes,
     customers: linked ? [{
       id: linked.id,
       name: linked.company_name,

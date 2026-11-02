@@ -15,7 +15,8 @@ import { parseRelatelWebhook } from '../src/lib/integrations/telephony/webhook'
 import { decideRelatelWebhook } from '../src/lib/integrations/telephony/webhook-gate'
 import { buildMailActionCard, extractMailAddress, type MailActionInput } from '../src/lib/mail/action-card'
 import { classifyDocumentLabel } from '../src/lib/documents/classify-label'
-import { composeTimeline, kindForNote, kindForTask } from '../src/lib/timeline/compose'
+import { composeTimeline, kindForNote, kindForTask, timelineSourceFailureState } from '../src/lib/timeline/compose'
+import { customerNotesAvailabilityFromError, customerNotesBlockedReason, isMissingTableError } from '../src/lib/notes/customer-notes-availability'
 import { invoiceTrafficLight } from '../src/lib/invoice-control/traffic-light'
 import type { InvoiceControl } from '../src/lib/invoice-control/engine'
 import { previewCommunication } from '../src/lib/automation/comm-preview'
@@ -254,6 +255,35 @@ eq('probe-fejl er den eneste error', integrationBoard({}, { probeError: 'Forbind
 const timelineSrc = readFileSync(new URL('../src/lib/actions/communication-timeline.ts', import.meta.url), 'utf8')
 eq('tidslinjens dokumenter skjuler mail-vedhæftninger uden customers.emails.view',
   /if \(!ctx\.hasPermission\('customers\.emails\.view'\)\) documents = documents\.is\('source_email_id', null\)/.test(timelineSrc), true)
+
+// prod-gap 2026-11-02: customer_notes findes kun hvor migrationen er anvendt. Manglende tabel = unavailable (skjult,
+// ingen advarsel); andre fejl = error (vises). Note-knapper kun når noter er 'available'.
+const missingPgrst = { code: 'PGRST205', message: "Could not find the table 'public.customer_notes' in the schema cache" }
+const missingPg = { code: '42P01', message: 'relation "public.customer_notes" does not exist' }
+const rlsDenied = { code: '42501', message: 'permission denied for table customer_notes' }
+eq('manglende tabel genkendes (PGRST205/42P01/besked)', [isMissingTableError(missingPgrst), isMissingTableError(missingPg), isMissingTableError({ message: 'relation "customer_notes" does not exist' })], [true, true, true])
+eq('andre fejl er ikke "mangler"', [isMissingTableError(rlsDenied), isMissingTableError({ code: '57014', message: 'timeout' }), isMissingTableError(null)], [false, false, false])
+eq('tilgængelighed: ok/mangler/fejl', [customerNotesAvailabilityFromError(null), customerNotesAvailabilityFromError(missingPgrst), customerNotesAvailabilityFromError(rlsDenied)], ['available', 'unavailable', 'error'])
+eq('tidslinje: manglende notetabel er unavailable, ikke fejl', timelineSourceFailureState('notes', missingPgrst), 'unavailable')
+eq('tidslinje: anden notefejl er stadig fejl', timelineSourceFailureState('notes', rlsDenied), 'error')
+eq('tidslinje: manglende-lignende fejl på andre kilder er fejl', timelineSourceFailureState('tasks', missingPg), 'error')
+eq('blokeret-grund kun når ikke tilgængelig', [customerNotesBlockedReason('available'), Boolean(customerNotesBlockedReason('unavailable')), Boolean(customerNotesBlockedReason('error'))], [null, true, true])
+
+const notesFor = (notes?: 'available' | 'unavailable' | 'error' | 'not_loaded') => buildMailActionCard(mail({ customerNotes: notes })).suggestions.map((x) => x.id)
+eq('mailkort: note-forslag kun når noter er tilgængelige', [notesFor('available').includes('add_note'), notesFor('unavailable').includes('add_note'), notesFor('error').includes('add_note'), notesFor('not_loaded').includes('add_note'), notesFor(undefined).includes('add_note')], [true, false, false, false, false])
+eq('mailkort: øvrige handlinger bevares uden noter', ['attach_mail', 'create_task'].every((id) => notesFor('unavailable').includes(id)), true)
+
+const callNote = (notes?: 'available' | 'unavailable' | 'error' | 'no_permission') => buildCallCard(lookup({
+  matches: [{ kind: 'customer', id: 'c1', customer_id: 'c1', label: 'Kjeld', detail: null }],
+}), { ...flags, notes }).actions.find((x) => x.id === 'add_note')
+eq('opkaldskort: note aktiv kun når tilgængelig', [callNote('available')?.enabled, callNote('unavailable')?.enabled, callNote('error')?.enabled, callNote(undefined)?.enabled, callNote('no_permission')?.enabled], [true, false, false, false, false])
+eq('opkaldskort: deaktiveret note forklarer hvorfor', [callNote('unavailable')?.blockedReason, callNote('no_permission')?.blockedReason], ['Kundenoter er ikke slået til her endnu.', 'Kræver rettigheden customers.edit.'])
+eq('opkaldskort: tilbageringning bevares uden noter', buildCallCard(lookup({ matches: [{ kind: 'customer', id: 'c1', customer_id: 'c1', label: 'Kjeld', detail: null }] }), { ...flags, notes: 'unavailable' }).actions.find((x) => x.id === 'create_callback')?.enabled, true)
+
+const notesSrc = readFileSync(new URL('../src/lib/actions/customer-notes.ts', import.meta.url), 'utf8')
+eq('createCustomerNote: manglende tabel giver eksplicit fejl (ingen falsk succes)', /if \(isMissingTableError\(error\)\) return \{ success: false, error: CUSTOMER_NOTES_UNAVAILABLE_TEXT \}/.test(notesSrc), true)
+const tlView = readFileSync(new URL('../src/components/timeline/customer-communication-timeline.tsx', import.meta.url), 'utf8')
+eq('tidslinje-UI advarer kun ved error/hidden (ikke unavailable)', /s\.state === 'error' \|\| s\.state === 'hidden'/.test(tlView) && !/s\.state !== 'ok'/.test(tlView), true)
 
 async function main() {
   await providerChecks()
