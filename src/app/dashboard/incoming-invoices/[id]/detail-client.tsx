@@ -568,7 +568,7 @@ export function IncomingInvoiceDetailClient({
         )}
       </Panel>
 
-      <InvoiceControlPanel invoiceId={inv.id} lineCount={detail.lines.length} />
+      <InvoiceControlPanel invoiceId={inv.id} lineCount={detail.lines.length} duplicateOfId={inv.duplicate_of_id} caseId={inv.matched_case_id} purchaseOrderId={inv.matched_purchase_order_id} />
 
       {!terminal && (
         <ConversionPreviewPanel invoiceId={inv.id} />

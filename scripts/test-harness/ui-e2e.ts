@@ -1,4 +1,4 @@
-﻿/**
+/**
  * P2-rest C — reproducerbar UI-test af Agent Inbox + Pilot Health mod STAGING med syntetiske brugere.
  *
  * Ingen rigtige logins, ingen manuel browser, ingen eksterne credentials:
@@ -169,6 +169,7 @@ const NEUTRALIZE = [
   'OPENAI_API_KEY', 'OPENWEATHER_API_KEY', 'SFTP_PROXY_URL', 'AO_INVOICE_API_BASE_URL', 'AO_INVOICE_ENDPOINT_PATH', 'LM_INVOICE_DIR',
   'DATABASE_URL', 'SUPABASE_ACCESS_TOKEN', 'CRON_SECRET', 'ENCRYPTION_KEY', 'ADMIN_ALERT_EMAIL', 'CONTACT_FORM_API_KEY',
   'AGENT_LIVE_SEND_ENABLED', 'AUTO_CREATE_CASES_ENABLED', 'ECONOMIC_PUSH_ENABLED',
+  'RELATEL_ENABLED', 'RELATEL_LIVE_CALL_ENABLED', 'RELATEL_SMS_ENABLED', 'RELATEL_WEBHOOK_SECRET',
 ]
 
 /** Navigation der ikke vælter hele suiten ved en kold kompilering: ét nyt forsøg med 'load' ved timeout.
@@ -184,7 +185,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
@@ -5487,6 +5488,130 @@ ${m.text()}`) })
         const { runPilotSim } = await import('./pilot-sim')
         await runPilotSim({ admin: c.admin, base, stamp, shots, startJobFlag, login, mkUser, gotoSafe, callServerAction, listCaseIds,
           newContext: (opts) => browser.newContext(opts), push: (x) => { out.push(x) } }, slot, Number(process.env.PILOT_SIM_PER_SLOT ?? 2))
+      }
+
+      // U257 GROK-INTEGRATION (review 2026-11-02, review/grok-features-1): mailkortet foreslår uden at skrive; bekræftet note
+      // og opgave går via de eksisterende actions (filnavn ≠ fuldmagt, ingen fuldmagt/sag/status oprettes); assistenten
+      // opretter kun en opgave efter bekræftelse på én synlig sag; kundens tidslinje viser kilderne, men montøren ser ikke
+      // arkiverede mail-vedhæftninger (kræver U11's montørsag); opkaldskortet kan ikke ringe/sende SMS; integrationsstatus
+      // viser Relatel FRA; fakturakontrol viser et trafiklys. Ingen mail, SMS, opkald eller e-conomic.
+      if (want('U257') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U257-${stamp}`
+        let caseId: string | null = null
+        let emailId: string | null = null
+        const docIds: string[] = []
+        const noteLike = `%${tag}%`
+        try {
+          const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} sag`, customer_id: profitCustomerId, status: 'new', priority: 'medium',
+            source: 'manual', created_by: adminUser.id }]).select('id, case_number')
+          caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+          const caseNumber = (sc.data?.[0] as { case_number?: string | null } | undefined)?.case_number ?? null
+          if (caseId) listCaseIds.push(caseId)
+          const em = await c.admin.from('incoming_emails').insert([{ sender_email: `u257-${stamp}@harness.test`, sender_name: 'Harness Kunde',
+            subject: `[HARNESS] ${tag} fuldmagt`, body_text: `Hermed fuldmagten. Sag ${caseNumber ?? ''}`, customer_id: profitCustomerId, link_status: 'linked',
+            received_at: new Date().toISOString(), is_archived: false,
+            attachment_urls: [{ filename: `fuldmagt-${tag}.pdf`, contentType: 'application/pdf', size: 1, url: '' }] }]).select('id')
+          emailId = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+          r.seed = !!caseId && !!caseNumber && !!emailId
+          const notes = async () => ((await c.admin.from('customer_notes').select('id, content').eq('customer_id', profitCustomerId).ilike('content', noteLike)).data ?? []) as Array<{ id: string; content: string }>
+          const tasks = async () => ((await c.admin.from('customer_tasks').select('id, title, service_case_id, assigned_to').eq('customer_id', profitCustomerId).ilike('title', noteLike)).data ?? []) as Array<{ id: string; title: string; service_case_id: string | null; assigned_to: string | null }>
+          const poaDocs = async () => ((await c.admin.from('customer_documents').select('id').eq('customer_id', profitCustomerId).eq('document_type', 'contract').ilike('title', noteLike)).data ?? []).length
+
+          // 1. mailkort: vises; et tryk skriver intet; bekræftet note og opgave via de eksisterende actions
+          await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${emailId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const card = a.page.getByTestId('mail-action-card')
+          await card.waitFor({ timeout: 60_000 }).catch(() => {})
+          r.mailkort_vist = (await card.count()) === 1
+          r.mailkort_fuldmagt_ikke_gemt = (await card.getByText('Gem ikke vedhæftningen som fuldmagt').count()) > 0
+          const noteRow = card.locator('li', { hasText: 'Noter at filnavnet ligner en fuldmagt' })
+          await noteRow.getByRole('button', { name: 'Bekræft', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForTimeout(1500)
+          r.et_tryk_skriver_intet = (await notes()).length === 0
+          await noteRow.getByRole('button', { name: 'Bekræft og udfør' }).click({ timeout: 30_000 }).catch(() => {})
+          let n: Array<{ id: string; content: string }> = []
+          for (let i = 0; i < 20 && !n.length; i++) { n = await notes(); if (!n.length) await new Promise((res) => setTimeout(res, 1000)) }
+          r.note_gemt_ikke_laest = n.length === 1 && /Indholdet er ikke læst/.test(n[0].content)
+          const taskRow = card.locator('li', { hasText: 'Opret opgave: gennemgå fuldmagt' })
+          await taskRow.getByRole('button', { name: 'Bekræft', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+          await taskRow.getByRole('button', { name: 'Bekræft og udfør' }).click({ timeout: 30_000 }).catch(() => {})
+          let t: Awaited<ReturnType<typeof tasks>> = []
+          for (let i = 0; i < 20 && !t.length; i++) { t = await tasks(); if (!t.length) await new Promise((res) => setTimeout(res, 1000)) }
+          r.opgave_oprettet = t.length === 1 && /^Gennemgå fuldmagt:/.test(t[0].title)
+          r.ingen_fuldmagt_oprettet = (await poaDocs()) === 0
+          const mailAfter = ((await c.admin.from('incoming_emails').select('customer_id').eq('id', emailId ?? '').maybeSingle()).data as { customer_id?: string | null } | null)
+          r.mail_stadig_paa_kunden = mailAfter?.customer_id === profitCustomerId
+
+          // 2. assistent: forslag skriver intet; bekræftelse opretter opgaven på den ene synlige sag (tildelt admin selv)
+          const before = (await c.admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('service_case_id', caseId ?? '')).count ?? 0
+          await gotoSafe(a.page, `${base}/dashboard/assistant`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.locator('#crm-question').fill(`Opret opgave på sag ${caseNumber}`)
+          await a.page.getByRole('button', { name: 'Spørg', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+          const confirmTask = a.page.getByRole('button', { name: 'Bekræft og opret opgaven' })
+          await confirmTask.waitFor({ timeout: 60_000 }).catch(() => {})
+          r.assistent_forslag = (await confirmTask.count()) === 1
+          r.forslag_skriver_intet = ((await c.admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('service_case_id', caseId ?? '')).count ?? 0) === before
+          await confirmTask.click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByText('Opgaven er oprettet.').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const aTasks = ((await c.admin.from('customer_tasks').select('id, assigned_to, title').eq('service_case_id', caseId ?? '')).data ?? []) as Array<{ id: string; assigned_to: string | null; title: string }>
+          r.assistent_opgave_paa_sagen = aTasks.length === before + 1 && aTasks.some((x) => x.assigned_to === adminUser.id && x.title.includes(caseNumber ?? '§'))
+          await a.page.locator('#crm-question').fill('Opret en ny kunde')
+          await a.page.getByRole('button', { name: 'Spørg', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByText('Det kræver en bekræftet handling').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.assistent_afviser_andre_skrivninger = (await a.page.getByText('Det kræver en bekræftet handling').count()) > 0
+
+          // 3. tidslinje: admin ser noten og den arkiverede mail-vedhæftning; montøren (U11's sag) ser ikke vedhæftningen
+          const dc = await c.admin.from('customer_documents').insert([
+            { customer_id: profitCustomerId, service_case_id: jobCaseId ?? caseId, title: `${tag} ordrebekræftelse`, document_type: 'other', file_url: '',
+              file_name: `${tag}-mail.pdf`, mime_type: 'application/pdf', source_email_id: emailId, description: null },
+            { customer_id: profitCustomerId, service_case_id: jobCaseId ?? caseId, title: `${tag} montørfoto`, document_type: 'other', file_url: '',
+              file_name: `${tag}-foto.pdf`, mime_type: 'application/pdf', source_email_id: null, description: null },
+          ]).select('id')
+          for (const x of (dc.data ?? []) as Array<{ id: string }>) docIds.push(x.id)
+          await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const tl = a.page.getByTestId('customer-communication-timeline')
+          await tl.getByText(`${tag} ordrebekræftelse`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.tidslinje_admin_vedhaeftning = (await tl.getByText(`${tag} ordrebekræftelse`).count()) > 0
+          r.tidslinje_admin_note = (await tl.getByText('Mailkort:', { exact: false }).count()) > 0
+          r.tidslinje_ingen_kildefejl = (await tl.getByText('kunne ikke læses').count()) === 0
+          if (jobCaseId && m.ok) {
+            await gotoSafe(m.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const mtl = m.page.getByTestId('customer-communication-timeline')
+            await mtl.getByText(`${tag} montørfoto`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+            r.montoer_ser_egen_fil = (await mtl.getByText(`${tag} montørfoto`).count()) > 0
+            r.montoer_ingen_mailvedhaeftning = (await mtl.getByText(`${tag} ordrebekræftelse`).count()) === 0
+            r.montoer_mails_skjult = (await mtl.getByText('mails vises ikke med din adgang').count()) > 0
+          } else r.montoer_kraever_u11 = false
+
+          // 4. opkaldskort: Ring op/SMS deaktiveret (Relatel FRA); 5. integrationsstatus; 6. trafiklys på en leverandørfaktura
+          await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const call = a.page.getByRole('button', { name: 'Ring op' })
+          await call.first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.ring_op_deaktiveret = (await call.count()) === 1 && (await call.first().isDisabled())
+          r.sms_deaktiveret = (await a.page.getByRole('button', { name: 'Send SMS' }).first().isDisabled().catch(() => false))
+          await gotoSafe(a.page, `${base}/dashboard/settings/integrations`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const board = a.page.getByTestId('integration-status-board')
+          await board.waitFor({ timeout: 60_000 }).catch(() => {})
+          r.status_relatel_fra = (await board.locator('li', { hasText: 'Relatel' }).first().getByText('FRA', { exact: true }).count()) > 0
+          r.status_economic_fra = (await board.locator('li', { hasText: 'e-conomic skrivning' }).getByText('FRA', { exact: true }).count()) > 0
+          const line = ((await c.admin.from('incoming_invoice_lines').select('incoming_invoice_id').limit(1)).data ?? []) as Array<{ incoming_invoice_id: string }>
+          if (line[0]) {
+            await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${line[0].incoming_invoice_id}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const light = a.page.getByTestId('invoice-traffic-light')
+            await light.getByText(/^(GRØN|GUL|RØD)$/).first().waitFor({ timeout: 60_000 }).catch(() => {})
+            r.trafiklys_vist = (await light.getByText(/^(GRØN|GUL|RØD)$/).count()) === 1
+          } else r.trafiklys_ingen_faktura = false
+          await a.page.screenshot({ caret: 'initial', path: join(shots, 'u257-grok-integration.png'), fullPage: true }).catch(() => {})
+        } finally {
+          const allTasks = ((await c.admin.from('customer_tasks').select('id').eq('customer_id', profitCustomerId).ilike('title', noteLike)).data ?? []) as Array<{ id: string }>
+          if (caseId) await c.admin.from('customer_tasks').delete().eq('service_case_id', caseId)
+          if (allTasks.length) await c.admin.from('customer_tasks').delete().in('id', allTasks.map((x) => x.id))
+          await c.admin.from('customer_notes').delete().eq('customer_id', profitCustomerId).ilike('content', noteLike)
+          if (docIds.length) await c.admin.from('customer_documents').delete().in('id', docIds)
+          if (emailId) await c.admin.from('incoming_emails').delete().eq('id', emailId)
+        }
+        out.push({ id: 'U257 Grok-integration: mailkort, assistent, tidslinje (privatliv), opkaldskort, integrationsstatus, trafiklys', ok: Object.values(r).every(Boolean),
+          note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U256 SAGSTYPE PÅ TILBUD (00244, Henrik 2026-11-01): nyt tilbud kræver eksplicit sagstype i formularen; solcelletilbud

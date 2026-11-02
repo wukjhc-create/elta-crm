@@ -11,6 +11,7 @@ import { humanizeErrorText } from '@/lib/auth/permission-text'
 // Grok 356a74e7/d3e70bd1/5ba8db79: tællinger og fragt/gebyr-mærker (kun visning; ændrer ikke kontrol, tolerance eller beløb)
 import { chargeLabel, chargeLabelText } from '@/lib/invoice-control/charge-label'
 import { countInvoiceReviewLines } from '@/lib/invoice-control/review-counts'
+import { invoiceTrafficLight } from '@/lib/invoice-control/traffic-light'
 
 const kr = (n: number) => `${n.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`
 
@@ -29,7 +30,7 @@ function ChargeMark({ description }: { description: string }) {
   return <span className="ml-1 inline-block text-[10px] uppercase tracking-wide bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded" data-testid="invoice-control-charge-mark">{text}</span>
 }
 
-export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: string; lineCount: number }) {
+export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null, caseId = null, purchaseOrderId = null }: { invoiceId: string; lineCount: number; duplicateOfId?: string | null; caseId?: string | null; purchaseOrderId?: string | null }) {
   const [res, setRes] = useState<InvoiceControlResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Grok fb1ec521/39dccf12: en kastet hentning hænger ikke i "Kontrollerer priser…"; "Prøv igen" henter på ny
@@ -48,15 +49,33 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
     return () => { alive = false }
   }, [invoiceId, lineCount, tryKey])
 
-  if (lineCount === 0) return null
+  if (lineCount === 0 && !duplicateOfId && !caseId) return null
   const v = res ? VERDICT[res.control.verdict] : null
   const review = res ? countInvoiceReviewLines(res.control.lines) : null
+  const traffic = invoiceTrafficLight({
+    control: res?.control ?? null,
+    pending: !res && !error,
+    loadFailed: !!error,
+    duplicateOfId,
+    caseId,
+    purchaseOrderId,
+    lineDescriptions: res?.control.lines.map((l) => l.description) ?? [],
+  })
+  const lightCls = traffic.light === 'red' ? 'bg-red-50 text-red-800' : traffic.light === 'yellow' ? 'bg-amber-50 text-amber-900' : traffic.light === 'green' ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-700'
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4" data-testid="invoice-control-panel">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold">Fakturakontrol</h3>
         {v && <span className={`text-xs px-2 py-1 rounded border ${v.cls}`} data-testid="invoice-control-verdict">{v.label}</span>}
+      </div>
+      <div className={`mb-3 rounded border px-3 py-2 text-xs ${lightCls}`} data-testid="invoice-traffic-light">
+        <p className="font-semibold">{traffic.light === 'green' ? 'GRØN' : traffic.light === 'yellow' ? 'GUL' : traffic.light === 'red' ? 'RØD' : 'UKENDT'}</p>
+        <ul className="mt-1 space-y-1">
+          {traffic.findings.map((f) => (
+            <li key={f.code}>{f.label}: {f.reason} {f.amount == null ? 'Beløb ukendt.' : `${f.amount.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr.`} {f.followUp}</li>
+          ))}
+        </ul>
       </div>
       {error && (
         <div className="text-xs text-red-600">

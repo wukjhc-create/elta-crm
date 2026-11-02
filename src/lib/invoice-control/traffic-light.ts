@@ -1,0 +1,91 @@
+/**
+ * Trafiklys oven på den eksisterende fakturakontrol. Opretter ingen ny pris.
+ * Manglende pris, en læsefejl og et ukendt beløb er aldrig 0.
+ * Godkender, bogfører og betaler ikke.
+ */
+import { chargeLabel } from '@/lib/invoice-control/charge-label'
+import type { InvoiceControl } from '@/lib/invoice-control/engine'
+
+export type TrafficLight = 'green' | 'yellow' | 'red' | 'unknown'
+
+export interface TrafficFinding {
+  light: Exclude<TrafficLight, 'unknown'> | 'unknown'
+  code: string
+  label: string
+  /** Kr, når beløbet kendes. null når det ikke kan beregnes. */
+  amount: number | null
+  reason: string
+  followUp: string
+}
+
+export interface TrafficLightInput {
+  control: InvoiceControl | null
+  pending?: boolean
+  loadFailed?: boolean
+  duplicateOfId?: string | null
+  caseId?: string | null
+  purchaseOrderId?: string | null
+  lineDescriptions?: string[]
+}
+
+export interface TrafficLightResult {
+  light: TrafficLight
+  findings: TrafficFinding[]
+}
+
+const rank: Record<TrafficLight, number> = { unknown: 3, red: 2, yellow: 1, green: 0 }
+
+export function invoiceTrafficLight(input: TrafficLightInput): TrafficLightResult {
+  const findings: TrafficFinding[] = []
+  if (input.pending) {
+    findings.push({ light: 'unknown', code: 'pending', label: 'Kontrollen kører', amount: null, reason: 'Resultatet er ikke klar.', followUp: 'Vent på kontrollen. Et manglende resultat er ikke grønt.' })
+  } else if (input.loadFailed || !input.control) {
+    findings.push({ light: 'unknown', code: 'load_failed', label: 'Kontrollen kunne ikke læses', amount: null, reason: 'Priskontrollen fejlede.', followUp: 'Prøv igen. Fejlen tælles ikke som 0 kr og ikke som godkendt.' })
+  } else {
+    const control = input.control
+    const over = control.lines.filter((l) => l.verdict === 'overcharge')
+    const under = control.lines.filter((l) => l.verdict === 'undercharge')
+    const blind = control.lines.filter((l) => l.verdict === 'not_controllable')
+    if (over.length) {
+      findings.push({
+        light: 'red',
+        code: 'overcharge',
+        label: 'Pris over aftalt',
+        amount: control.controlledLines > 0 ? control.overchargeAmount : null,
+        reason: `${over.length} linje(r) ligger over tolerancen.`,
+        followUp: 'Følg op med leverandøren før godkendelse. Godkend ikke herfra.',
+      })
+    }
+    if (under.length) {
+      findings.push({ light: 'yellow', code: 'undercharge', label: 'Pris under aftalt', amount: null, reason: `${under.length} linje(r) ligger under den aftalte pris.`, followUp: 'Tjek om linjen er en kredit eller en forkert vare.' })
+    }
+    if (blind.length) {
+      findings.push({ light: 'yellow', code: 'not_controllable', label: 'Ikke kontrolleret', amount: null, reason: `${blind.length} linje(r) mangler en brugbar forventet pris eller et sammenligneligt grundlag.`, followUp: 'Find prisen. En manglende pris er ikke 0 kr.' })
+    }
+    if (!over.length && !under.length && !blind.length && control.verdict === 'ok') {
+      findings.push({ light: 'green', code: 'prices_ok', label: 'Kontrollerede priser stemmer', amount: control.overchargeAmount, reason: 'De kontrollerede linjer er inden for tolerancen.', followUp: 'Se stadig fordeling, dublet og gebyrer nedenfor.' })
+    }
+  }
+
+  if (input.duplicateOfId) {
+    findings.push({ light: 'red', code: 'duplicate', label: 'Mulig dublet', amount: null, reason: 'Fakturaen peger på en anden faktura som dublet.', followUp: 'Sammenlign de to fakturaer før noget godkendes.' })
+  }
+  for (const description of input.lineDescriptions ?? []) {
+    const kind = chargeLabel(description)
+    if (!kind) continue
+    findings.push({ light: 'yellow', code: kind, label: kind === 'fragt' ? 'Fragt' : 'Gebyr', amount: null, reason: `Linjen “${description}” er ${kind} og indgår ikke som en kontrolleret varepris.`, followUp: 'Vurder om beløbet var aftalt.' })
+  }
+  if (!input.caseId) {
+    findings.push({ light: 'yellow', code: 'no_case', label: 'Ikke fordelt på sag', amount: null, reason: 'Fakturaen har ingen sag.', followUp: 'Knyt den til sagen, hvis den hører til et arbejde.' })
+  }
+  if (!input.purchaseOrderId) {
+    findings.push({ light: 'yellow', code: 'no_purchase_order', label: 'Ingen indkøbsordre', amount: null, reason: 'Der er ingen indkøbsordre at sammenligne antal og pris med.', followUp: 'Sammenlign med katalogprisen, hvor den findes.' })
+  }
+
+  if (!findings.length) {
+    findings.push({ light: 'green', code: 'clear', label: 'Ingen afvigelse fundet', amount: null, reason: 'De tjek, der kunne køres, fandt ingen afvigelse.', followUp: 'Et menneske godkender stadig fakturaen.' })
+  }
+  // Manglende indkøbsordre vises, men gør ikke en ellers grøn faktura gul: de fleste fakturaer har ingen ordre endnu.
+  const light = findings.filter((f) => f.code !== 'no_purchase_order').reduce<TrafficLight>((worst, f) => (rank[f.light] > rank[worst] ? f.light : worst), 'green')
+  return { light, findings }
+}
