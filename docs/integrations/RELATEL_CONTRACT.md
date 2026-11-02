@@ -44,4 +44,19 @@ Kilder: [dev.relatel.dk](https://dev.relatel.dk/), [HTTP API (OAS v2.1.2)](https
 ## 5. Hvad der mangler for at gå videre (BLOCKED)
 - Relatel access-token eller OAuth-app (Henrik), og aftale om abonnementsniveau (statistik kræver Contact Center+).
 - Beslutning om trin 1 (headers for en dataløs iframe-side) og om SMS-udbyder.
-- Verifikation af `GET /calls`-felter og webhooks med token, før `call_log`-migrationen designes endeligt.
+- Verifikation af `GET /calls`-felter og webhooks med token, før opkaldsloggen gemmes endeligt.
+
+## 6. Tilføjelse 2026-10-31 (`grok-features`, ikke prod)
+
+Telefonien ligger som en udbyder i ELTA CRM. Den ringer ikke, sender ikke SMS og registrerer ingen webhook.
+
+| Del | Hvor | Live |
+|---|---|---|
+| Flags | `src/lib/integrations/telephony/flags.ts` — `RELATEL_ENABLED`, `RELATEL_LIVE_CALL_ENABLED`, `RELATEL_SMS_ENABLED`. Kun præcis `true`. Live-opkald og SMS kræver også master. | fra |
+| Udbyder | `createRelatelProvider`. `mode` er `off` eller `test`, aldrig `active`. `placed` og `sent` er altid `false`. Ingen HTTP-klient. | fra |
+| Webhook | `POST /api/integrations/relatel/webhook`. Fra → 404. Til uden `RELATEL_WEBHOOK_SECRET` → 503. Gyldig hændelse → 202 og `persisted: false`. | fra, og ikke registreret hos Relatel |
+| Opkaldskort | `/dashboard/cti` plus køen `/dashboard/cti/queue` (opgaver med `assistant_missed_call` / `assistant_callback`). | læser eksisterende opgaver |
+| Iframe | `/relatel/cti` viser ingen kundedata. `vercel.json` har stadig `X-Frame-Options: DENY`, så Relatel kan ikke indlejre siden, før headeren besluttes. | blokeret |
+| Tabel | Udkast i `docs/runbooks/telephony-events-proposal.md`. Ikke nummereret og ikke kørt. | blokeret |
+
+`disabledRelatelClient` i `contract.ts` er uændret. Officielle Relatel-webhook-felter er stadig uverificerede. Parseren accepterer kun vores konvolut (`canonical`) og et nøgent opkaldsobjekt (`unverified_call`). Den gætter ikke en kunde.
