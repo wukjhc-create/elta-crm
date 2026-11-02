@@ -1,6 +1,7 @@
 # Forslag: eksplicit sagstype på tilbud (tilbud → sag arver typen)
 
-Status: **FORSLAG — ikke anvendt (hverken staging eller prod).** Kræver Henriks godkendelse af migration 00244.
+Status: **ANVENDT** — staging 2026-11-01, prod 2026-11-02 (Henriks godkendelse; tilbud/sager-fingeraftryk uændret
+før/efter, `scripts/prod-verify-00244.ts`). Afsnittene nedenfor er det oprindelige forslag.
 Dato: 2026-11-01. Baggrund: aflevering-tjekliste pr. sagstype (lib/cases/handover-checklist) — solcellekrav kun når
 `service_cases.type = 'solar'`.
 

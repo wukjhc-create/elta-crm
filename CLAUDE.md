@@ -414,8 +414,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   uden påkrævede punkter. Påkrævet-flag følger ALTID sagens aktuelle type (normaliseres ved læsning/skrivning; typeskift
   tilføjer manglende punkter, bevarer afkrydsninger). Tilbud→sag sætter fortsat `installation` (offers har ingen
   jobtype) — kontoret skal sætte type Solcelleanlæg for at få solcellekravene. Prod-fordeling: scripts/prod-case-type-checklist.ts
-- 2026-11-01: 00244 `offers.case_type` ('solar' | 'installation', nullable, ingen backfill) er i STAGING (ikke prod — kræver
-  Henriks prod-godkendelse). Sagen fra tilbuddet arver typen (lib/offers/case-type `serviceCaseTypeForOffer`; NULL →
+- 2026-11-01: 00244 `offers.case_type` ('solar' | 'installation', nullable, ingen backfill) er i STAGING og PROD (prod
+  2026-11-02 efter Henriks godkendelse; prod-tjek `scripts/prod-verify-00244.ts pre|post`, read-only). Sagen fra tilbuddet arver typen (lib/offers/case-type `serviceCaseTypeForOffer`; NULL →
   installation). Nye tilbud skal vælge type i formularen; kopi/revision bevarer den; manuelt anvendt pakke giver sin
   `job_type` (overskriver aldrig et valg); auto-tilbud fra mail sætter INGEN type (AI-valgt pakke ≠ eksplicit). Koden
   kræver kolonnen → prod-rækkefølge: MIGRATION → PUSH (additiv kolonne; gammel kode ignorerer den). Staging-tjek:
