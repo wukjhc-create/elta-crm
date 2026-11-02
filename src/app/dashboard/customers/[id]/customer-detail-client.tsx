@@ -47,6 +47,7 @@ import { CustomerTasks } from '@/components/modules/customers/customer-tasks'
 import { CustomerNotesTimeline } from '@/components/modules/customers/customer-notes-timeline'
 import { CustomerActivityOverview } from '@/components/modules/customers/customer-activity-overview'
 import { CustomerEmailTimeline } from '@/components/modules/customers/customer-email-timeline'
+import { CustomerCommunicationTimeline } from '@/components/timeline/customer-communication-timeline'
 import { BesigtigelsesNotat } from '@/components/modules/customers/besigtigelse-notat'
 import { CustomerDocumentsTab } from '@/components/modules/customers/customer-documents-tab'
 import { CustomerCasesTab } from '@/components/modules/customers/customer-cases-tab'
@@ -708,6 +709,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
 
             {/* Email Timeline */}
             <CustomerEmailTimeline customerId={customer.id} customerEmail={customer.email} initial={initialMailbox} />
+
+            <CustomerCommunicationTimeline customerId={customer.id} />
 
             {/* Tasks */}
             <CustomerTasks customerId={customer.id} initial={initialTasks} />
