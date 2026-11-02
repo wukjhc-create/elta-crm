@@ -48,6 +48,9 @@ export const PERMISSIONS = {
   // D28 (Henrik 2026-10-02): LÆSE kundens mails på kundekortet. Bogholderi kun mails KOBLET til kunden (ikke adresse-
   // match, ikke hele postkassen); svar/ny mail kræver fortsat customers.edit.
   'customers.emails.view': ['admin', 'serviceleder', 'salg', 'bogholderi'],
+  // 00245 (Henrik 2026-11-02): ret/slet ANDRES kundenoter (egne kræver kun customers.edit). Erstatter 00196's rå
+  // admin/serviceleder-rolle med en effektiv rettighed (kan tildeles/fratages pr. medarbejder).
+  'customers.notes.manage': ['admin', 'serviceleder'],
 
   // Project permissions
 

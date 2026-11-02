@@ -26,7 +26,7 @@ export type CustomerNote = { id: string; content: string; source: 'manual' | 'as
 
 export async function getCustomerNotes(customerId: string): Promise<{ available: boolean; state: CustomerNotesAvailability; notes: CustomerNote[]; canWrite: boolean }> {
   validateUUID(customerId, 'kunde ID')
-  const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('customers.view')) return { available: false, state: 'unavailable', notes: [], canWrite: false }
   const { data, error } = await supabase
     .from('customer_notes')
@@ -39,13 +39,14 @@ export async function getCustomerNotes(customerId: string): Promise<{ available:
   const authorIds = Array.from(new Set(rows.map((r) => r.created_by).filter(Boolean))) as string[]
   const { data: profs } = authorIds.length ? await supabase.from('profiles').select('id, full_name').in('id', authorIds) : { data: [] }
   const names = new Map(((profs ?? []) as Array<{ id: string; full_name: string | null }>).map((p) => [p.id, p.full_name]))
-  // samme regel som RLS (customer_notes_delete): egen note eller admin/serviceleder
-  const isLead = role === 'admin' || role === 'serviceleder'
+  // samme regel som RLS (00245 customer_notes_delete_scope): customers.edit + egen note eller customers.notes.manage
+  const canEdit = hasPermission('customers.edit')
+  const canManage = hasPermission('customers.notes.manage')
   return {
     available: true,
     state: 'available',
     canWrite: hasPermission('customers.edit'),
-    notes: rows.map((r) => ({ ...r, author: r.created_by ? names.get(r.created_by) ?? null : null, canDelete: r.created_by === userId || isLead })),
+    notes: rows.map((r) => ({ ...r, author: r.created_by ? names.get(r.created_by) ?? null : null, canDelete: canEdit && (r.created_by === userId || canManage) })),
   }
 }
 
@@ -84,7 +85,7 @@ export async function deleteCustomerNote(noteId: string): Promise<{ success: boo
   validateUUID(noteId, 'note ID')
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('customers.edit')) return { success: false, error: 'Manglende tilladelse: customers.edit' }
-  // RLS: kun egen note eller admin/serviceleder — 0 rækker = ikke tilladt
+  // RLS (00245): egen note eller customers.notes.manage, kunden i scope — 0 rækker = ikke tilladt
   const { data, error } = await supabase.from('customer_notes').delete().eq('id', noteId).select('id, customer_id')
   if (error || !(data ?? []).length) return { success: false, error: 'Du kan kun slette dine egne noter' }
   const customerId = (data as Array<{ customer_id: string }>)[0].customer_id

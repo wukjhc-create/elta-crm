@@ -44,10 +44,10 @@ withProdReadOnlyRoleProbe('prod-smoke-grok-batch', async (probe, run) => {
     res.push(['admin: tidslinje-mails (kolonner)', r.ok, r.ok ? '' : r.code])
   }
 
-  // 00196 (customer_notes) er kun anvendt på staging → i prod viser tidslinjen "noter kunne ikke læses", og note-handlinger
-  // fra mailkort/opkaldskort fejler sikkert ("Kunne ikke gemme noten", intet skrives). Kendt S3 — rapporteres, fejler ikke.
+  // customer_notes findes i prod først efter 00245. Indtil da: tidslinjens notekilde er 'unavailable' (ingen advarsel), og
+  // note-knapperne på mail-/opkaldskort vises ikke/er deaktiveret (1b002ce4). Rapporteres, fejler ikke.
   const notes = await run(`SELECT to_regclass('public.customer_notes')::text AS t`)
-  console.log(`INFO  customer_notes i prod: ${notes[0].t ? 'findes' : 'findes IKKE (00196 kun staging) — tidslinjens notekilde vises som fejl'}`)
+  console.log(`INFO  customer_notes i prod: ${notes[0].t ? 'findes' : 'findes IKKE (før 00245) — notekilden er unavailable, note-knapper skjult/deaktiveret (1b002ce4)'}`)
 
   const tel = await run(`SELECT to_regclass('public.telephony_events')::text AS t`)
   res.push(['ingen telefoni-tabel (forslag ikke anvendt)', tel[0].t === null, String(tel[0].t ?? '')])

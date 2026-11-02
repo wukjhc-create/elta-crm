@@ -41,7 +41,9 @@ export async function runMp00238Check(c: { admin: SupabaseClient; url: string; a
   }
   add(`A bagudkompatibilitet: 5 roller × ${KEYS.length} nøgler = permissions.ts`, diffs === 0, `afvigelser=${JSON.stringify(per)}`)
   const cat = (await c.sql(`SELECT (SELECT count(*)::int FROM permission_catalog) k, (SELECT count(*)::int FROM role_permission_defaults) d`))[0]
-  add('A seed: 112 nøgler / 267 rolle-par', cat.k === KEYS.length && cat.d === 267, `katalog=${cat.k} standarder=${cat.d}`)
+  // forventet = permissions.ts (ikke 00238's tal: 00240 og 00245 har tilføjet nøgler/rolle-par siden)
+  const PAIRS = Object.values(PERMISSIONS as Record<string, readonly string[]>).reduce((n, roles) => n + roles.length, 0)
+  add(`A seed: ${KEYS.length} nøgler / ${PAIRS} rolle-par = permissions.ts`, cat.k === KEYS.length && cat.d === PAIRS, `katalog=${cat.k} standarder=${cat.d}`)
 
   // B — midlertidig montør
   const stamp = Date.now()

@@ -2637,6 +2637,28 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'notes-00245-state') {
+    // STAGING read-only: customer_notes-politikker/grants/nøgle + md5 af noter og case_notes (før/efter apply af 00245)
+    const { NOTES_00245_STATE_SQL } = await import('./notes-00245-probe')
+    log(JSON.stringify(await stagingSql(NOTES_00245_STATE_SQL)))
+    return
+  }
+  if (SUB === 'notes-00245-probe') {
+    // STAGING ROLLBACK-ONLY: persona-matrix for customer_notes efter 00245 (A: som anvendt, B: prod-stien uden tabel, C: idempotens)
+    const { runNotes00245Probe } = await import('./notes-00245-probe')
+    const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
+    const rawSql = async (sql: string) => {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      })
+      return { ok: r.ok, status: r.status, text: await r.text() }
+    }
+    const checks = await runNotes00245Probe({ admin, url: runtime.url, anonKey: runtime.anonKey, rawSql })
+    log(formatMp00240ScopeCheck(checks).replace('MP-00240 forudsætninger — scope-motor + kontrollerede stier (app-laget, staging)', '00245 customer_notes — persona-matrix, rollback-only (staging)'))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00243-fingerprint') {
     // STAGING read-only: fingeraftryk af time_logs-funktioner/politikker/grants/triggere (før/efter apply)
     const { FP_00243_SQL } = await import('./mp-00243-sql-probe')

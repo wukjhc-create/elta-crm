@@ -27,7 +27,7 @@ export function permissionDeniedText(permission: string): string {
 
 /** PERM-1: nøgler hvis struktur ikke passer til "verbum + navneord" — skrevet på dansk i hånden */
 const LABELS: Record<string, string> = {
-  'customers.emails.view': 'Se kunders e-mails', 'tasks.menu': 'Se egne opgaver (menu)',
+  'customers.emails.view': 'Se kunders e-mails', 'customers.notes.manage': 'Ret/slet andres kundenoter', 'tasks.menu': 'Se egne opgaver (menu)',
   'time.log': 'Registrere timer', 'time.view_own': 'Se egne timer', 'time.view_all': 'Se alles timer',
   'time.edit_own': 'Rette egne timer', 'time.edit_all': 'Rette alles timer', 'users.manage_roles': 'Administrere roller og rettigheder',
   'tools.calculations': 'Kalkulationer', 'tools.ai_project': 'AI-projektberegner', 'tools.products': 'Produktkatalog',

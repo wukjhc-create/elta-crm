@@ -420,3 +420,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   `job_type` (overskriver aldrig et valg); auto-tilbud fra mail sætter INGEN type (AI-valgt pakke ≠ eksplicit). Koden
   kræver kolonnen → prod-rækkefølge: MIGRATION → PUSH (additiv kolonne; gammel kode ignorerer den). Staging-tjek:
   `cli.ts verify-00244`; test: scripts/offer-case-type-test.ts + U256
+- 2026-11-02: 00245 `customer_notes` efter nutidens rettighedsmodel er KUN i STAGING (prod kræver Henriks godkendelse).
+  00196 må ALDRIG anvendes på prod (bred SELECT USING (true)). Politikker: SELECT view.all|my_customer_scope_ids();
+  INSERT customers.edit + scope + created_by=mig + source='manual'; UPDATE (kun content)/DELETE customers.edit + scope +
+  (egen ELLER ny nøgle `customers.notes.manage`, standard admin/serviceleder). Koden tåler at tabellen mangler
+  (lib/notes/customer-notes-availability, i prod fra 1b002ce4). Probe: `cli.ts notes-00245-probe` (rollback-only),
+  prod-tjek: `scripts/prod-verify-00245.ts pre|post`. Runbook: docs/runbooks/mp-00245-customer-notes.md
