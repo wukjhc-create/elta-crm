@@ -2704,6 +2704,35 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'tel-00247-app') {
+    // STAGING: webhook → lagring → forslag, kontrollerede handlinger (personaer), medarbejder-kobling, oprydning.
+    // Testrækker (p247a-) og fixtures slettes igen. Flag kun i testens env-objekt; ingen Relatel, ingen prod.
+    const { runTel00247App } = await import('./tel-00247-app')
+    const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
+    const rawSql = async (sql: string) => {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      })
+      return { ok: r.ok, status: r.status, text: await r.text() }
+    }
+    const checks = await runTel00247App({ admin, url: runtime.url, anonKey: runtime.anonKey, rawSql })
+    log(formatMp00240ScopeCheck(checks).replace('MP-00240 forudsætninger — scope-motor + kontrollerede stier (app-laget, staging)', '00247 app-lag — webhook, forslag, handlinger, medarbejdere, oprydning (staging)'))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
+  if (SUB === 'tel-00247-rollback-staging') {
+    // STAGING-ONLY rollback-bevis: kør den kommenterede ROLLBACK-blok fra 00247-filen (afvises hvis der er telefoni-rækker)
+    const { rollback00247Sql } = await import('./tel-00247-probe')
+    const rows = await stagingSql(`SELECT CASE WHEN to_regclass('public.telephony_calls') IS NULL THEN -1 ELSE
+      (xpath('/row/n/text()', query_to_xml('SELECT (SELECT count(*) FROM public.telephony_calls) + (SELECT count(*) FROM public.telephony_employee_links) AS n', false, true, '')))[1]::text::int END AS n`)
+    if (rows[0].n === -1) { log('00247 er ikke anvendt på staging — intet at rulle tilbage'); process.exitCode = 2; return }
+    if (rows[0].n !== 0) { log(`afvist: ${rows[0].n} telefoni-rækker på staging`); process.exitCode = 2; return }
+    log(`=== ROLLBACK 00247 → staging:${ref} ===`)
+    await stagingSql(rollback00247Sql())
+    log('✅ rollback-blokken kørt (verificér med tel-00247-state: applied=false, katalog 114/273)')
+    return
+  }
   if (SUB === 'mp-00243-fingerprint') {
     // STAGING read-only: fingeraftryk af time_logs-funktioner/politikker/grants/triggere (før/efter apply)
     const { FP_00243_SQL } = await import('./mp-00243-sql-probe')

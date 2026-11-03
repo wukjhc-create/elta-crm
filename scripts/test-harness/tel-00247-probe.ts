@@ -70,6 +70,15 @@ export function migration00247Body(): string {
   return body
 }
 
+/** Den kommenterede ROLLBACK-blok nederst i 00247-filen (fra "-- BEGIN;" til "-- COMMIT;") som kørbar SQL */
+export function rollback00247Sql(): string {
+  const sql = readFileSync(resolve(process.cwd(), 'supabase', 'migrations', '00247_telephony_persistence.sql'), 'utf8').replace(/\r\n/g, '\n')
+  const tail = sql.slice(sql.indexOf('\n-- ROLLBACK'))
+  const a = tail.indexOf('\n-- BEGIN;\n'), b = tail.indexOf('\n-- COMMIT;\n')
+  if (a < 0 || b < a) throw new Error('00247: ROLLBACK-blokken mangler')
+  return tail.slice(a + 1, b + '\n-- COMMIT;'.length).split('\n').map((l) => l.replace(/^-- ?/, '')).join('\n')
+}
+
 const P = ['U', 'S', 'A', 'R', 'Ci', 'Cf'] as const
 const ALL6 = [...P].sort().join(',')
 const UNCONF = ['A', 'R', 'S', 'U'].join(',')
@@ -113,7 +122,7 @@ export async function runTel00247Probe(c: { admin: SupabaseClient; url: string; 
       `pg_temp.ing('${cid(ev)}', '${cid(call)}', '${typ}', ${at}, ${opt.dir === undefined ? `'inbound'` : opt.dir === 'null' ? 'NULL' : `'${opt.dir}'`}, '${opt.from ?? '4512345601'}', ${opt.dur ?? 'NULL'}, ${opt.ans === undefined ? 'NULL' : opt.ans}, ${opt.emp ? `'${opt.emp}'` : 'NULL'}, ${opt.sha ? `'${opt.sha}'` : 'NULL'}, ${opt.vmd ?? 'NULL'})`
     const t = (s: number) => `(v_t0 + interval '${s} seconds')`
     const set = (k: string, expr: string) => `res := jsonb_set(res, '{${k.replace('.', ',')}}', coalesce(to_jsonb(${expr}), 'null'::jsonb));`
-    const match = (call: string, ver: number, action: 'confirm' | 'reject', cust: string | null, kase: string | null, actor = A) =>
+    const match = (call: string, ver: number, action: 'confirm' | 'link_case' | 'reject', cust: string | null, kase: string | null, actor = A) =>
       `pg_temp.sr($q$SELECT outcome || ':' || coalesce(match_version::text, '') FROM public.telephony_set_call_match(${callId(call)}, ${ver}, '${action}', ${cust ? `'${cust}'` : 'NULL'}, ${kase ? `'${kase}'` : 'NULL'}, '${actor}')$q$)`
     const prj = (k: string) => `pg_temp.prj('${cid(k)}', v_t0)`
     const emp = `emp-${stamp}`
@@ -261,6 +270,20 @@ BEGIN
   ${set('i.link_dup_profile', `pg_temp.sr($q$INSERT INTO public.telephony_employee_links (provider, provider_employee_id, profile_id) VALUES ('relatel', '${emp}-2', '${fx.m.uid}') RETURNING 'ok'$q$)`)}
   ${ing('Ea-s', 'XE', 'call.started', t(0), { emp: 'ukendt' }).replace(/^/, 'PERFORM ')}; ${ing('Ea-a', 'XE', 'call.answered', t(4), { emp }).replace(/^/, 'PERFORM ')};
   ${set('i.XE', prj('XE'))}
+  ${set('i.link_dup_id', `pg_temp.sr($q$INSERT INTO public.telephony_employee_links (provider, provider_employee_id, profile_id) VALUES ('relatel', '${emp}', '${fx.s.uid}') RETURNING 'ok'$q$)`)}
+  -- ukendt medarbejder-id → ingen profil (intet gæt)
+  ${ing('Eu-a', 'XU', 'call.answered', t(4), { emp: `ukendt-${stamp}` }).replace(/^/, 'PERFORM ')};
+  ${set('i.XU', prj('XU'))}
+  -- deaktiveret profil → ingen profil
+  UPDATE public.profiles SET is_active = false WHERE id = '${fx.m.uid}';
+  ${ing('Eg-a', 'XG', 'call.answered', t(4), { emp }).replace(/^/, 'PERFORM ')};
+  UPDATE public.profiles SET is_active = true WHERE id = '${fx.m.uid}';
+  ${set('i.XG', prj('XG'))}
+  -- ændret kobling → nye opkald får den nye profil; gamle opkald beholder deres
+  ${set('i.link_change', `pg_temp.sr($q$UPDATE public.telephony_employee_links SET profile_id = '${fx.s.uid}', updated_at = now() WHERE provider_employee_id = '${emp}' RETURNING 'ok'$q$)`)}
+  ${ing('Eh-a', 'XH', 'call.answered', t(4), { emp }).replace(/^/, 'PERFORM ')};
+  ${set('i.XH', prj('XH'))}
+  ${set('i.XE_after', prj('XE'))}
   ${set('i.link_off', `pg_temp.sr($q$UPDATE public.telephony_employee_links SET is_active = false WHERE provider_employee_id = '${emp}' RETURNING 'ok'$q$)`)}
   ${ing('Eb-a', 'XF', 'call.answered', t(4), { emp }).replace(/^/, 'PERFORM ')};
   ${set('i.XF', prj('XF'))}
@@ -273,23 +296,32 @@ BEGIN
   ${set('m.ambiguous', prj('A'))}
   ${set('m.reject_R', match('R', 0, 'reject', null, null))}
   ${set('m.confirm_Ci', match('Ci', 0, 'confirm', fx.cust.own, null))}
-  ${set('m.confirm_Cf', match('Cf', 0, 'confirm', fx.cust.hidden, fx.cases.hidden))}
+  ${set('m.confirm_Cf', match('Cf', 0, 'confirm', fx.cust.hidden, null))}
+  ${set('m.link_Cf', match('Cf', 1, 'link_case', fx.cust.hidden, fx.cases.hidden))}
 
   -- ===== M: match/rettelse på XA =====
   ${set('m.c1', match('XA', 0, 'confirm', fx.cust.own, null))}
   ${set('m.c1_again', match('XA', 0, 'confirm', fx.cust.hidden, null))}
-  ${set('m.wrong_case', match('XA', 1, 'confirm', fx.cust.own, fx.cases.hidden))}
-  ${set('m.c2', match('XA', 1, 'confirm', fx.cust.hidden, fx.cases.hidden))}
+  ${set('m.wrong_case', match('XA', 1, 'link_case', fx.cust.own, fx.cases.hidden))}
+  ${set('m.confirm_with_case', match('XA', 1, 'confirm', fx.cust.hidden, fx.cases.hidden))}
+  ${set('m.link_not_confirmed', match('XB', 0, 'link_case', fx.cust.own, fx.cases.hidden))}
+  ${set('m.c2', match('XA', 1, 'confirm', fx.cust.hidden, null))}
+  ${set('m.l3', match('XA', 2, 'link_case', fx.cust.hidden, fx.cases.hidden))}
   ${set('m.c2_prj', prj('XA'))}
-  ${set('m.unchanged', match('XA', 2, 'confirm', fx.cust.hidden, fx.cases.hidden))}
-  ${set('m.r3', match('XA', 2, 'reject', null, null))}
+  ${set('m.unchanged', match('XA', 3, 'link_case', fx.cust.hidden, fx.cases.hidden))}
+  ${set('m.u4', match('XA', 3, 'link_case', fx.cust.hidden, null))}
+  ${set('m.l5', match('XA', 4, 'link_case', fx.cust.hidden, fx.cases.hidden))}
+  ${set('m.c6', match('XA', 5, 'confirm', fx.cust.own, null))}
+  ${set('m.c6_prj', prj('XA'))}
+  ${set('m.r3', match('XA', 6, 'reject', null, null))}
   ${set('m.r3_prj', prj('XA'))}
+  ${set('m.r_again', match('XA', 7, 'reject', null, null))}
   ${set('m.reject_with_customer', match('XB', 0, 'reject', fx.cust.own, null))}
   ${set('m.case_without_customer', match('XB', 0, 'confirm', null, fx.cases.hidden))}
   UPDATE public.profiles SET is_active = false WHERE id = '${fx.m.uid}';
   ${set('m.inactive_actor', match('XB', 0, 'confirm', fx.cust.own, null, fx.m.uid))}
   UPDATE public.profiles SET is_active = true WHERE id = '${fx.m.uid}';
-  ${set('m.audit', `(SELECT jsonb_agg(action ORDER BY created_at, action) FROM public.audit_logs WHERE entity_type = 'telephony_call' AND entity_id = ${callId('XA')})`)}
+  ${set('m.audit', `(SELECT jsonb_agg(action ORDER BY action) FROM public.audit_logs WHERE entity_type = 'telephony_call' AND entity_id = ${callId('XA')})`)}
   ${set('m.audit_numbers', `(SELECT count(*) FROM public.audit_logs WHERE entity_type = 'telephony_call' AND entity_id = ${callId('XA')} AND (changes::text LIKE '%4512345601%' OR metadata::text LIKE '%4512345601%'))`)}
   -- slettet kunde → ubekræftet, ingen sag
   INSERT INTO public.customers (customer_number, company_name, contact_person, email, created_by, custom_fields)
@@ -381,7 +413,10 @@ $probe$;`
     eq('I7 unikhed håndhævet af DB: direkte dublet-hændelse → 23505, dublet-opkald → 23505', [i.raw_dup, i.raw_dup_call], ['ERR:23505', 'ERR:23505'])
     eq('I8 hændelser er uforanderlige (UPDATE som service_role → 55000)', i.event_update, 'ERR:55000')
     eq('I9 opkald kan ikke oprettes med kunde (23514); kunde kan ikke sættes uden bekræftelse/ny version (42501)', [i.insert_with_customer, i.update_customer, i.update_customer_fake_human], ['ERR:23514', 'ERR:42501', 'ERR:42501'])
-    eq('I10 medarbejder-kobling: én aktiv kobling pr. profil (23505)', [i.link, i.link_dup_profile], ['ok', 'ERR:23505'])
+    eq('I10 medarbejder-kobling: én aktiv kobling pr. profil (23505); samme udbyder-id to gange afvises (23505)', [i.link, i.link_dup_profile, i.link_dup_id], ['ok', 'ERR:23505', 'ERR:23505'])
+    eq('I10 ukendt medarbejder-id → ingen profil (intet gæt)', [i.XU?.emp, i.XU?.prof], [`ukendt-${stamp}`, null])
+    eq('I10 deaktiveret profil → ingen profil', [i.XG?.emp, i.XG?.prof], [`emp-${stamp}`, null])
+    eq('I10 ændret kobling → nye opkald får ny profil; gamle beholder deres', [i.link_change, i.XH?.prof, i.XE_after?.prof], ['ok', fx.s.uid, fx.m.uid])
     eq('I10 den der svarer vinder; aktiv kobling → profil', [i.XE?.emp, i.XE?.prof], [`emp-${stamp}`, fx.m.uid])
     eq('I10 inaktiv kobling → ingen profil', [i.link_off, i.XF?.emp, i.XF?.prof], ['ok', `emp-${stamp}`, null])
     add('I11 ingest rører ikke kunder, sager, opgaver, audit_logs, mails eller overrides (md5 før = efter)', j(applied ? res.fp0 : res.fp_mig) === j(res.fp_ingest), j(res.fp_ingest).slice(0, 200))
@@ -390,14 +425,15 @@ $probe$;`
     const mm = res.m
     eq('M1 tvetydigt match bærer aldrig et forslag (tvinges NULL)', [mm.ambiguous?.match, mm.ambiguous?.sugg], ['ambiguous', null])
     eq('M2 bekræft v0 → confirmed:1; samme version igen → stale', [mm.c1, mm.c1_again], ['confirmed:1', 'stale:1'])
-    eq('M3 sag fra en anden kunde → 23514', mm.wrong_case, 'ERR:23514')
-    eq('M4 ret v1 → corrected:2 (kunde + sag); samme valg igen → unchanged', [mm.c2, mm.c2_prj?.cust, mm.c2_prj?.case, mm.c2_prj?.match, mm.unchanged], ['corrected:2', fx.cust.hidden, fx.cases.hidden, 'confirmed', 'unchanged:2'])
-    eq('M5 afvis v2 → rejected:3, ingen kunde/sag/forslag', [mm.r3, mm.r3_prj?.match, mm.r3_prj?.cust, mm.r3_prj?.case, mm.r3_prj?.sugg], ['rejected:3', 'rejected', null, null, null])
+    eq('M3 sag fra en anden kunde → 23514; bekræftelse med sag → 22023 (separate handlinger); sag på ubekræftet opkald → stale', [mm.wrong_case, mm.confirm_with_case, mm.link_not_confirmed], ['ERR:23514', 'ERR:22023', 'stale:0'])
+    eq('M4 ret kunde v1 → corrected:2; sag v2 → case_linked:3; samme sag → unchanged; fjern sag → case_unlinked:4', [mm.c2, mm.l3, mm.c2_prj?.cust, mm.c2_prj?.case, mm.c2_prj?.match, mm.unchanged, mm.u4], ['corrected:2', 'case_linked:3', fx.cust.hidden, fx.cases.hidden, 'confirmed', 'unchanged:3', 'case_unlinked:4'])
+    eq('M4 rettet kunde fjerner den tidligere sag', [mm.l5, mm.c6, mm.c6_prj?.cust, mm.c6_prj?.case], ['case_linked:5', 'corrected:6', fx.cust.own, null])
+    eq('M5 fjern forkert match v6 → rejected:7 (ingen kunde/sag/forslag); igen → unchanged', [mm.r3, mm.r3_prj?.match, mm.r3_prj?.cust, mm.r3_prj?.case, mm.r3_prj?.sugg, mm.r_again], ['rejected:7', 'rejected', null, null, null, 'unchanged:7'])
     eq('M6 afvisning med kunde / sag uden kunde → 22023; inaktiv bruger → 42501', [mm.reject_with_customer, mm.case_without_customer, mm.inactive_actor], ['ERR:22023', 'ERR:22023', 'ERR:42501'])
-    eq('M7 audit pr. rettelse (confirmed, corrected, rejected — stale/unchanged/fejl auditeres ikke)', mm.audit, ['call_match_confirmed', 'call_match_corrected', 'call_match_rejected'])
+    eq('M7 audit pr. ændring (stale/unchanged/fejl auditeres ikke)', mm.audit, ['call_case_linked', 'call_case_linked', 'call_case_unlinked', 'call_match_confirmed', 'call_match_corrected', 'call_match_corrected', 'call_match_rejected'])
     eq('M7 audit indeholder ingen telefonnumre', mm.audit_numbers, 0)
     eq('M8 slettet kunde → opkaldet ubekræftet uden sag (sletningen lykkes)', [mm.del_confirm, mm.del_prj?.cust, mm.del_prj?.case, mm.del_prj?.match], ['confirmed', null, null, 'unmatched'])
-    eq('M9 fixtures: R afvist, Ci/Cf bekræftet', [mm.reject_R, mm.confirm_Ci, mm.confirm_Cf], ['rejected:1', 'confirmed:1', 'confirmed:1'])
+    eq('M9 fixtures: R afvist, Ci/Cf bekræftet, Cf koblet til sag', [mm.reject_R, mm.confirm_Ci, mm.confirm_Cf, mm.link_Cf], ['rejected:1', 'confirmed:1', 'confirmed:1', 'case_linked:2'])
 
     // ---- R
     eq('R1 retention: kun ubekræftet > 90 dage slettes (1); bekræftet > 90 dage og ubekræftet 89 dage bevares', [res.r.ok_confirm, res.r.purged, res.r.left], ['confirmed:1', '1', { XN: 1, XO: 0, XOk: 1 }])

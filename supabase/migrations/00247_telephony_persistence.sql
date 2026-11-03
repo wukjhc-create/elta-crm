@@ -15,7 +15,8 @@
 --      telephony_ingest_event har ingen kunde-/sagsparametre; tvetydigt match bærer aldrig et forslag (trigger)
 --   7–8 Lagring skriver KUN i telefoni-tabellerne (ingen opgave/tilbageringning/påmindelse/Telegram/SMS/kundemail)
 --   9  Telefonsvarer: kun metadata (flag, varighed, udbyder-id) — ingen lyd-, URL- eller transskriptionskolonne
---   10 Rettelse: optimistisk lås (match_version) + audit_logs i SAMME transaktion som ændringen
+--   10 Rettelse: optimistisk lås (match_version) + audit_logs i SAMME transaktion som ændringen; kunde og sag er
+--      separate handlinger (confirm / link_case / reject)
 -- Idempotens: UNIQUE (provider, provider_event_id) + UNIQUE (provider, provider_call_id) + ON CONFLICT i én funktion;
 -- hændelser flettes monotont (tidligste start/svar, seneste slut) → samme slutrække uanset rækkefølge.
 -- Hændelser er uforanderlige (UPDATE afvises af trigger); ingen rå payload — kun SHA-256.
@@ -240,7 +241,9 @@ BEGIN
   IF v_emp IS NOT DISTINCT FROM c.provider_employee_id AND c.employee_profile_id IS NOT NULL THEN
     v_profile := c.employee_profile_id;
   ELSE
+    -- kun aktiv kobling til en aktiv profil; ukendt id → ingen profil (aldrig gæt på navn)
     SELECT l.profile_id INTO v_profile FROM public.telephony_employee_links l
+      JOIN public.profiles pr ON pr.id = l.profile_id AND pr.is_active IS NOT FALSE
      WHERE l.provider = p_provider AND l.provider_employee_id = v_emp AND l.is_active;
   END IF;
 
@@ -265,11 +268,16 @@ BEGIN
   RETURN QUERY SELECT 'created'::text, c.id;
 END $$;
 
--- 6. Menneskelig bekræftelse/rettelse/afvisning (regel 4, 10). Kun service_role — server-handlingen har forinden tjekket
---    calls.match og at brugeren kan se opkaldet, kunden og sagen med sin egen klient (RLS).
---    Optimistisk lås: p_expected_version skal være opkaldets aktuelle match_version, ellers 'stale' og intet ændres.
---    Ændring og audit_logs-række skrives i samme transaktion (kun id'er — ingen numre).
---    outcome: confirmed · corrected · rejected · unchanged · stale · not_found
+-- 6. Menneskelige handlinger (regel 4, 10). Kun service_role — server-handlingen har forinden tjekket calls.match og at
+--    brugeren kan se opkaldet, kunden og sagen med sin egen klient (RLS, effektive rettigheder).
+--    Kunde og sag er SEPARATE handlinger:
+--      confirm   kunde (ingen sag; en ændret kunde fjerner en tidligere sag)  → confirmed | corrected | unchanged
+--      link_case sag (eller NULL = fjern) på den ALLEREDE bekræftede kunde p_customer_id; sagen skal høre til kunden
+--                (trigger)                                                     → case_linked | case_unlinked | unchanged
+--      reject    fjern forkert match/forslag (kunde, sag og forslag NULL; foreslås ikke igen) → rejected | unchanged
+--    Optimistisk lås: p_expected_version skal være opkaldets aktuelle match_version, ellers 'stale' og intet ændres
+--    (også når den bekræftede kunde ikke længere er p_customer_id ved link_case).
+--    Ændring og audit_logs-række skrives i samme transaktion (kun id'er — ingen numre). not_found hvis opkaldet mangler.
 CREATE FUNCTION public.telephony_set_call_match(
   p_call_id uuid, p_expected_version integer, p_action text, p_customer_id uuid, p_service_case_id uuid, p_actor uuid
 ) RETURNS TABLE (outcome text, match_version integer)
@@ -277,15 +285,20 @@ LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE
   c public.telephony_calls%ROWTYPE;
   v_outcome text;
+  v_new_customer uuid;
+  v_new_case uuid;
 BEGIN
-  IF p_action NOT IN ('confirm', 'reject') THEN
+  IF p_action IS NULL OR p_action NOT IN ('confirm', 'link_case', 'reject') THEN
     RAISE EXCEPTION 'telephony_set_call_match: ukendt handling' USING ERRCODE = '22023';
   END IF;
   IF p_actor IS NULL OR NOT EXISTS (SELECT 1 FROM public.profiles pr WHERE pr.id = p_actor AND pr.is_active IS NOT FALSE) THEN
     RAISE EXCEPTION 'telephony_set_call_match: ukendt eller inaktiv bruger' USING ERRCODE = '42501';
   END IF;
-  IF p_action = 'confirm' AND p_customer_id IS NULL THEN
-    RAISE EXCEPTION 'telephony_set_call_match: bekræftelse kræver en kunde' USING ERRCODE = '22023';
+  IF p_action = 'confirm' AND (p_customer_id IS NULL OR p_service_case_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'telephony_set_call_match: bekræftelse kræver en kunde og tager ingen sag (sag kobles separat)' USING ERRCODE = '22023';
+  END IF;
+  IF p_action = 'link_case' AND p_customer_id IS NULL THEN
+    RAISE EXCEPTION 'telephony_set_call_match: sag kræver den bekræftede kunde' USING ERRCODE = '22023';
   END IF;
   IF p_action = 'reject' AND (p_customer_id IS NOT NULL OR p_service_case_id IS NOT NULL) THEN
     RAISE EXCEPTION 'telephony_set_call_match: afvisning tager ingen kunde/sag' USING ERRCODE = '22023';
@@ -296,18 +309,24 @@ BEGIN
   IF c.match_version <> p_expected_version THEN RETURN QUERY SELECT 'stale'::text, c.match_version; RETURN; END IF;
 
   IF p_action = 'confirm' THEN
-    IF c.customer_id IS NOT DISTINCT FROM p_customer_id AND c.service_case_id IS NOT DISTINCT FROM p_service_case_id THEN
-      RETURN QUERY SELECT 'unchanged'::text, c.match_version; RETURN;
-    END IF;
+    IF c.customer_id IS NOT DISTINCT FROM p_customer_id THEN RETURN QUERY SELECT 'unchanged'::text, c.match_version; RETURN; END IF;
     v_outcome := CASE WHEN c.customer_id IS NULL THEN 'confirmed' ELSE 'corrected' END;
-    UPDATE public.telephony_calls x SET customer_id = p_customer_id, service_case_id = p_service_case_id,
+    v_new_customer := p_customer_id; v_new_case := NULL;
+    UPDATE public.telephony_calls x SET customer_id = p_customer_id, service_case_id = NULL,
+      match_source = 'human', matched_by = p_actor, matched_at = now(), match_version = c.match_version + 1, updated_at = now()
+    WHERE x.id = c.id;
+  ELSIF p_action = 'link_case' THEN
+    IF c.customer_id IS DISTINCT FROM p_customer_id THEN RETURN QUERY SELECT 'stale'::text, c.match_version; RETURN; END IF;
+    IF c.service_case_id IS NOT DISTINCT FROM p_service_case_id THEN RETURN QUERY SELECT 'unchanged'::text, c.match_version; RETURN; END IF;
+    v_outcome := CASE WHEN p_service_case_id IS NULL THEN 'case_unlinked' ELSE 'case_linked' END;
+    v_new_customer := c.customer_id; v_new_case := p_service_case_id;
+    UPDATE public.telephony_calls x SET service_case_id = p_service_case_id,
       match_source = 'human', matched_by = p_actor, matched_at = now(), match_version = c.match_version + 1, updated_at = now()
     WHERE x.id = c.id;
   ELSE
-    IF c.match_status = 'rejected' AND c.customer_id IS NULL THEN
-      RETURN QUERY SELECT 'unchanged'::text, c.match_version; RETURN;
-    END IF;
+    IF c.match_status = 'rejected' AND c.customer_id IS NULL THEN RETURN QUERY SELECT 'unchanged'::text, c.match_version; RETURN; END IF;
     v_outcome := 'rejected';
+    v_new_customer := NULL; v_new_case := NULL;
     UPDATE public.telephony_calls x SET customer_id = NULL, service_case_id = NULL, suggested_customer_id = NULL,
       match_status = 'rejected', match_source = 'human', matched_by = p_actor, matched_at = now(),
       match_version = c.match_version + 1, updated_at = now()
@@ -315,13 +334,15 @@ BEGIN
   END IF;
 
   INSERT INTO public.audit_logs (user_id, entity_type, entity_id, action, action_description, changes, metadata)
-  VALUES (p_actor, 'telephony_call', c.id, 'call_match_' || v_outcome,
+  VALUES (p_actor, 'telephony_call', c.id,
+    CASE WHEN v_outcome LIKE 'case_%' THEN 'call_' || v_outcome ELSE 'call_match_' || v_outcome END,
     CASE v_outcome WHEN 'confirmed' THEN 'Opkald koblet til kunde' WHEN 'corrected' THEN 'Opkaldets kunde rettet'
-                   ELSE 'Opkaldets kundeforslag afvist' END,
+                   WHEN 'case_linked' THEN 'Opkald koblet til sag' WHEN 'case_unlinked' THEN 'Opkaldets sag fjernet'
+                   ELSE 'Opkaldets kunde/forslag afvist' END,
     jsonb_build_object(
-      'customer_id', jsonb_build_object('old', c.customer_id, 'new', p_customer_id),
-      'service_case_id', jsonb_build_object('old', c.service_case_id, 'new', p_service_case_id),
-      'match_status', jsonb_build_object('old', c.match_status, 'new', CASE WHEN p_action = 'confirm' THEN 'confirmed' ELSE 'rejected' END)),
+      'customer_id', jsonb_build_object('old', c.customer_id, 'new', v_new_customer),
+      'service_case_id', jsonb_build_object('old', c.service_case_id, 'new', v_new_case),
+      'match_status', jsonb_build_object('old', c.match_status, 'new', CASE WHEN v_new_customer IS NOT NULL THEN 'confirmed' ELSE 'rejected' END)),
     jsonb_build_object('match_version', c.match_version + 1, 'source', 'telephony_set_call_match'));
   RETURN QUERY SELECT v_outcome, c.match_version + 1;
 END $$;

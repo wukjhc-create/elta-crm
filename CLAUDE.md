@@ -441,5 +441,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   stadig 114/273. Skriv KUN via service_role-funktionerne `telephony_ingest_event` (idempotent; ingen kunde-/sagsparametre),
   `telephony_set_call_match` (menneske, match_version-lås + audit_logs) og `telephony_purge_unconfirmed` (90 dage); en
   trigger afviser kunde/sag uden menneskelig bekræftelse, hændelser er uforanderlige. Ingen lyd/transskription/rå payload.
-  Intet kalder ingest endnu (webhook uændret, Relatel fra). Probe `cli.ts tel-00247-probe` (63/63 før, 69/69 efter apply,
-  inkl. parallelle sessioner), state `cli.ts tel-00247-state`. Runbook docs/runbooks/telephony-events-proposal.md
+  Webhooken gemmer KUN med `TELEPHONY_PERSIST_ENABLED=true` oven i `RELATEL_ENABLED` (standard fra = 202
+  persisted:false som før); `TELEPHONY_MATCH_MODE=suggest` giver kun forslag (lib/integrations/telephony/{persist,suggest,
+  webhook-gate}.ts). Kunde og sag er separate handlinger (lib/actions/telephony-calls.ts → lib/telephony/call-actions-core.ts;
+  calls.match + synlighed med egen klient). Oprydnings-cron /api/cron/telephony-retention findes men står IKKE i vercel.json.
+  `processMissedCall` er @deprecated (må ikke kobles på). Prøver: `cli.ts tel-00247-probe` (73/73, inkl. parallelle
+  sessioner), `cli.ts tel-00247-app` (45/45), `cli.ts tel-00247-state`, `cli.ts tel-00247-rollback-staging`,
+  `scripts/telephony-persist-test.ts`; prod read-only `scripts/prod-verify-00247.ts pre|post`. Runbook
+  docs/runbooks/telephony-events-proposal.md (godkendelsesrapport)

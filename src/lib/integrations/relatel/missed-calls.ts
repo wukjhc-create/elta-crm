@@ -11,6 +11,10 @@
  *    0 eller flere kunder → 'unmatched'/'ambiguous' (ingen gæt; listen returneres så en medarbejder kan vælge).
  *  - Idempotent pr. opkald: markøren [opkald:<uuid>] i beskrivelsen; samme opkald giver aldrig to opgaver.
  *  - Telefonsvarer-transskription (hvis leveret) lægges i beskrivelsen (højst 1.000 tegn).
+ *
+ * @deprecated 00247 (Henrik 2026-11-03, låste beslutninger 7–9): må IKKE kobles på webhooken eller lagringen. Den opretter
+ * opgaver automatisk og gemmer transskription. Lagring sker via lib/integrations/telephony/persist.ts; en tilbageringning
+ * oprettes kun ved et eksplicit klik i CRM'et (customer-tasks.ts).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lookupCaller, type CallerMatch } from '@/lib/integrations/relatel/lookup'

@@ -40,6 +40,16 @@ function iso(v: unknown): string | null {
   return new Date(t).toISOString()
 }
 
+/** Udbyder-id (medarbejder, telefonsvarer): ikke-tom streng eller heltal, højst `max` tegn — ellers null */
+function providerId(v: unknown, max: number): string | null {
+  const s = typeof v === 'number' && Number.isInteger(v) ? String(v) : str(v)
+  return s && s.length <= max ? s : null
+}
+
+function seconds(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 86400 ? Math.round(v) : null
+}
+
 function direction(v: unknown): 'inbound' | 'outbound' | null | false {
   if (v == null || v === '') return null
   if (v === 'inbound' || v === 'outbound') return v
@@ -78,6 +88,9 @@ export function parseRelatelWebhook(body: unknown): ParsedWebhook {
         answered: typeof call.answered === 'boolean' ? call.answered : call.answered_at ? true : eventType === 'call.missed' ? false : null,
         hasVoicemail: body.has_voicemail === true || eventType === 'voicemail.created',
         schema: 'canonical',
+        providerEmployeeId: providerId(call.employee_id ?? body.employee_id, 64),
+        voicemailDurationSeconds: isRecord(body.voicemail) ? seconds(body.voicemail.duration_seconds) : null,
+        providerVoicemailId: isRecord(body.voicemail) ? providerId(body.voicemail.id, 128) : null,
       },
     }
   }

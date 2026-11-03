@@ -28,6 +28,11 @@ export interface TelephonyEvent {
   hasVoicemail: boolean
   /** Officielle Relatel-webhooks er ikke verificeret. Kun vores egen konvolut er `canonical`. */
   schema: 'canonical' | 'unverified_call'
+  /** Relatels medarbejder-id (kobles til en profil via telephony_employee_links — aldrig via navn) */
+  providerEmployeeId?: string | null
+  /** Telefonsvarer: kun metadata (ingen lyd, URL eller transskription) */
+  voicemailDurationSeconds?: number | null
+  providerVoicemailId?: string | null
 }
 
 export interface TelephonyStore {
