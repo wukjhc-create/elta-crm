@@ -4,6 +4,7 @@
  * Godkender, bogfører og betaler ikke.
  */
 import { chargeLabel } from '@/lib/invoice-control/charge-label'
+import { unitPriceMovement } from '@/lib/invoice-control/purchasing-review'
 import type { InvoiceControl } from '@/lib/invoice-control/engine'
 
 export type TrafficLight = 'green' | 'yellow' | 'red' | 'unknown'
@@ -19,7 +20,9 @@ export interface TrafficFinding {
 }
 
 export interface PurchasingCheckLine {
+  lineNumber?: number
   invoicedQty: number | null
+  /** null = der er intet aftalt antal. Det bliver ikke et fund og ikke 0. */
   expectedQty: number | null
   /** null eller ikke-positiv = prisen kendes ikke. Bliver aldrig 0 i et beløb. */
   catalogueUnitPrice: number | null
@@ -99,23 +102,21 @@ export function invoiceTrafficLight(input: TrafficLightInput): TrafficLightResul
     findings.push({ light: 'unknown', code: 'purchasing_unreadable', label: 'Indkøbstjekket kunne ikke læses', amount: null, reason: 'Antal og katalogpris kunne ikke sammenlignes.', followUp: 'Prøv igen. Fejlen er ikke grøn og ikke 0 kr.' })
   }
   for (const line of input.purchasing?.lines ?? []) {
+    const where = line.lineNumber != null ? `Linje ${line.lineNumber}: ` : ''
     if (line.duplicate) {
-      findings.push({ light: 'red', code: 'duplicate_line', label: 'Mulig dubletlinje', amount: null, reason: 'To linjer ligner den samme vare.', followUp: 'Sammenlign linjerne før noget godkendes.' })
+      findings.push({ light: 'red', code: 'duplicate_line', label: 'Mulig dubletlinje', amount: null, reason: `${where}to linjer har samme vare.`, followUp: 'Sammenlign linjerne før noget godkendes.' })
     }
-    if (line.expectedQty == null || !Number.isFinite(line.expectedQty)) {
-      findings.push({ light: 'yellow', code: 'qty_expected_unknown', label: 'Forventet antal ukendt', amount: null, reason: 'Der er intet aftalt antal at sammenligne med.', followUp: 'Find ordren eller aftalen. Et manglende antal er ikke 0.' })
-    } else if (line.invoicedQty != null && Number.isFinite(line.invoicedQty) && line.invoicedQty !== line.expectedQty) {
-      findings.push({ light: 'yellow', code: 'qty_mismatch', label: 'Antal afviger', amount: null, reason: `Faktureret ${line.invoicedQty}, forventet ${line.expectedQty}.`, followUp: 'Tjek antallet før godkendelse.' })
+    if (line.expectedQty != null && Number.isFinite(line.expectedQty) && line.invoicedQty != null && Number.isFinite(line.invoicedQty) && line.invoicedQty !== line.expectedQty) {
+      findings.push({ light: 'yellow', code: 'qty_mismatch', label: 'Antal afviger', amount: null, reason: `${where}faktureret ${line.invoicedQty}, forventet ${line.expectedQty}.`, followUp: 'Tjek antallet før godkendelse.' })
     }
     const catalogue = knownUnitPrice(line.catalogueUnitPrice)
     const previous = knownUnitPrice(line.previousUnitPrice)
     if (catalogue == null) {
-      findings.push({ light: 'yellow', code: 'missing_purchase_price', label: 'Indkøbspris ukendt', amount: null, reason: 'Kataloget har ingen brugbar pris på linjen.', followUp: 'Find prisen. Den sættes ikke til 0.' })
-    } else if (previous != null) {
-      const diff = Math.round((catalogue - previous) * 100) / 100
-      const pct = Math.abs(diff) / previous
-      if (Math.abs(diff) >= 1 || pct >= 0.05) {
-        findings.push({ light: 'yellow', code: 'price_movement', label: 'Prisen har flyttet sig', amount: diff, reason: 'Den kendte katalogpris afviger fra den forrige kendte pris.', followUp: 'Sammenlign med aftalen. Der godkendes ikke herfra.' })
+      findings.push({ light: 'yellow', code: 'missing_purchase_price', label: 'Indkøbspris ukendt', amount: null, reason: `${where}kataloget har ingen brugbar pris på linjen.`, followUp: 'Find prisen. Den sættes ikke til 0.' })
+    } else {
+      const movement = unitPriceMovement(catalogue, previous)
+      if (movement.moved && movement.diff != null) {
+        findings.push({ light: 'yellow', code: 'price_movement', label: 'Prisen har flyttet sig', amount: movement.diff, reason: `${where}katalogprisen i dag afviger mindst 5 % og 0,50 kr pr. enhed fra prisen på fakturadatoen.`, followUp: 'Sammenlign med aftalen. Der godkendes ikke herfra.' })
       }
     }
   }
