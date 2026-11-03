@@ -12,6 +12,8 @@ import { humanizeErrorText } from '@/lib/auth/permission-text'
 import { chargeLabel, chargeLabelText } from '@/lib/invoice-control/charge-label'
 import { countInvoiceReviewLines } from '@/lib/invoice-control/review-counts'
 import { invoiceTrafficLight } from '@/lib/invoice-control/traffic-light'
+import { purchasingLinesForReview } from '@/lib/invoice-control/purchasing-review'
+import { suggestDocumentAction } from '@/lib/documents/document-suggestion'
 
 const kr = (n: number) => `${n.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`
 
@@ -30,7 +32,7 @@ function ChargeMark({ description }: { description: string }) {
   return <span className="ml-1 inline-block text-[10px] uppercase tracking-wide bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded" data-testid="invoice-control-charge-mark">{text}</span>
 }
 
-export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null, caseId = null, purchaseOrderId = null }: { invoiceId: string; lineCount: number; duplicateOfId?: string | null; caseId?: string | null; purchaseOrderId?: string | null }) {
+export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null, caseId = null, purchaseOrderId = null, extractedText = null }: { invoiceId: string; lineCount: number; duplicateOfId?: string | null; caseId?: string | null; purchaseOrderId?: string | null; extractedText?: string | null }) {
   const [res, setRes] = useState<InvoiceControlResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Grok fb1ec521/39dccf12: en kastet hentning hænger ikke i "Kontrollerer priser…"; "Prøv igen" henter på ny
@@ -52,6 +54,13 @@ export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null
   if (lineCount === 0 && !duplicateOfId && !caseId) return null
   const v = res ? VERDICT[res.control.verdict] : null
   const review = res ? countInvoiceReviewLines(res.control.lines) : null
+  const purchasingLines = res ? purchasingLinesForReview(res.matches.map((m) => ({
+    lineNumber: m.lineNumber,
+    quantity: m.invoicedQty,
+    productId: m.supplierProductId,
+    priceAtInvoice: m.expectedUnitPrice,
+    priceToday: m.currentUnitPrice,
+  }))) : []
   const traffic = invoiceTrafficLight({
     control: res?.control ?? null,
     pending: !res && !error,
@@ -60,8 +69,10 @@ export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null
     caseId,
     purchaseOrderId,
     lineDescriptions: res?.control.lines.map((l) => l.description) ?? [],
+    purchasing: res ? { lines: purchasingLines } : undefined,
   })
   const lightCls = traffic.light === 'red' ? 'bg-red-50 text-red-800' : traffic.light === 'yellow' ? 'bg-amber-50 text-amber-900' : traffic.light === 'green' ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-700'
+  const documentSuggestion = extractedText?.trim() ? suggestDocumentAction({ extractedText }) : null
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4" data-testid="invoice-control-panel">
@@ -72,9 +83,11 @@ export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null
       <div className={`mb-3 rounded border px-3 py-2 text-xs ${lightCls}`} data-testid="invoice-traffic-light">
         <p className="font-semibold">{traffic.light === 'green' ? 'GRØN' : traffic.light === 'yellow' ? 'GUL' : traffic.light === 'red' ? 'RØD' : 'UKENDT'}</p>
         <ul className="mt-1 space-y-1">
-          {traffic.findings.map((f) => (
-            <li key={f.code}>{f.label}: {f.reason} {f.amount == null ? 'Beløb ukendt.' : `${f.amount.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr.`} {f.followUp}</li>
+          {traffic.findings.map((f, index) => (
+            <li key={`${f.code}-${index}`}>{f.label}: {f.reason} {f.amount == null ? 'Beløb ukendt.' : `${f.amount.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr${f.code === 'price_movement' ? ' pr. enhed' : ''}.`} {f.followUp}</li>
           ))}
+          <p className="mt-2 text-gray-600">Forventet antal sammenlignes ikke. Der er ingen indkøbsordrelinjer, så et manglende antal bliver ikke 0.</p>
+          <p className="mt-2 text-gray-600">{documentSuggestion ? `${documentSuggestion.statement} ${documentSuggestion.suggestedAction}` : 'Fakturateksten findes ikke. Filnavnet bruges ikke, som om filen var læst.'}</p>
         </ul>
       </div>
       {error && (
@@ -107,7 +120,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null
           )}
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead><tr className="text-left text-gray-500"><th className="py-1">#</th><th>Beskrivelse</th><th>Match</th><th className="text-right">Forventet</th><th className="text-right">Afvigelse</th><th className="pl-4">Status</th></tr></thead>
+              <thead><tr className="text-left text-gray-500"><th className="py-1">#</th><th>Beskrivelse</th><th>Match</th><th className="text-right">Antal</th><th className="text-right">På fakturadato</th><th className="text-right">Katalog i dag</th><th className="text-right">Afvigelse</th><th className="pl-4">Status</th></tr></thead>
               <tbody>
                 {res.control.lines.map((l) => {
                   const m = res.matches.find((x) => x.lineNumber === l.lineNumber)
@@ -117,7 +130,9 @@ export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null
                       <td className="py-1">{l.lineNumber}</td>
                       <td>{l.description}<ChargeMark description={l.description} /></td>
                       <td>{m?.method ? `${METHOD[m.method] ?? m.method}${m.productSku ? ` · ${m.productSku}` : ''}` : <span className="text-gray-400">{l.reason ?? 'ingen'}</span>}</td>
-                      <td className="text-right">{m?.expectedUnitPrice != null ? kr(m.expectedUnitPrice) : '—'}</td>
+                      <td className="text-right">{m?.invoicedQty != null ? m.invoicedQty.toLocaleString('da-DK') : 'Ukendt'}</td>
+                      <td className="text-right">{m?.expectedUnitPrice != null && m.expectedUnitPrice > 0 ? kr(m.expectedUnitPrice) : 'Ukendt'}</td>
+                      <td className="text-right">{m?.currentUnitPrice != null ? kr(m.currentUnitPrice) : 'Ukendt'}</td>
                       <td className="text-right">{l.varianceAmount != null && l.verdict !== 'not_controllable' ? `${kr(l.varianceAmount)}${l.variancePct != null ? ` (${l.variancePct} %)` : ''}` : '—'}</td>
                       <td className={`pl-4 ${bad ? 'text-red-700 font-medium' : l.verdict === 'ok' ? 'text-green-700' : ''}`}>{LINE[l.verdict] ?? l.verdict}</td>
                     </tr>

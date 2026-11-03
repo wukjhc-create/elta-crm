@@ -8,13 +8,20 @@ import { controlInvoice, type InvoiceControl } from '@/lib/invoice-control/engin
 import { codeFromRawLine } from '@/lib/invoice-control/coverage'
 import { codesToLookup, matchLines, type ProductRef, type LineMatchMethod } from '@/lib/invoice-control/line-matcher'
 import { costPriceAtDate, type PriceChange } from '@/lib/invoice-control/price-at-date'
+import { presentPurchasePrice } from '@/lib/suppliers/product-lookup'
 import { copenhagenLocalToIso, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 
 export interface InvoiceControlLineInfo {
   lineNumber: number
   method: LineMatchMethod | 'stored' | null
   productSku: string | null
+  supplierProductId: string | null
+  /** Faktureret antal. null når linjen ikke har et brugbart antal. */
+  invoicedQty: number | null
+  /** Kostpris på fakturadatoen. null eller ikke-positiv = ukendt. */
   expectedUnitPrice: number | null
+  /** Katalogpris i dag. null = ukendt, aldrig 0. */
+  currentUnitPrice: number | null
 }
 
 export interface InvoiceControlResult { control: InvoiceControl; matches: InvoiceControlLineInfo[]; hasSupplier: boolean }
@@ -86,9 +93,11 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
   const control = controlInvoice(lines.map((l, i) => {
     const st = l.supplier_product_id ? storedById.get(l.supplier_product_id) : undefined
     const m = matched[i]
+    const productId = st?.id ?? m.supplierProductId ?? null
+    const rawToday = st?.cost_price ?? (m.supplierProductId ? products.find((p) => p.id === m.supplierProductId)?.cost_price : null)
     const expected = st ? atDate(st.id, st.cost_price) : atDate(m.supplierProductId, m.expectedUnitCost)
     const sku = st?.supplier_sku ?? (m.supplierProductId ? products.find((p) => p.id === m.supplierProductId)?.supplier_sku ?? null : null)
-    matches.push({ lineNumber: l.line_number, method: st ? 'stored' : m.method, productSku: sku, expectedUnitPrice: expected })
+    const knownAtInvoice = expected != null && Number.isFinite(Number(expected)) && Number(expected) > 0 ? Number(expected) : null
     const prodUnit = (st as { unit?: string | null } | undefined)?.unit ?? (m.supplierProductId ? (products.find((p) => p.id === m.supplierProductId) as { unit?: string | null } | undefined)?.unit ?? null : null)
     // IV-4 (leverandørfaktura-review 2026-10-18): den FAKTISK fakturerede pris (linjetotal / antal, efter rabat) — ikke
     // listeprisen (som fordelingen allerede bruger, LF-3). Før: 100 m à 4,00 med total 445 = "ok"; liste 100 −30 % = falsk +43 %
@@ -99,6 +108,15 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     // FIN2-3 (finans-review 2026-10-20): AO-kreditlinjer har negativ TOTAL og positivt antal (IV-6) — som kredit (negativt
     // antal) til kontrollen, ellers blev en kredit til højere pris end aftalt (gevinst) meldt som merbetaling
     const signedQty = qty > 0 && Number(l.total_price) < 0 ? -qty : l.quantity
+    matches.push({
+      lineNumber: l.line_number,
+      method: st ? 'stored' : m.method,
+      productSku: sku,
+      supplierProductId: productId,
+      invoicedQty: signedQty != null && Number.isFinite(Number(signedQty)) ? Number(signedQty) : null,
+      expectedUnitPrice: knownAtInvoice,
+      currentUnitPrice: presentPurchasePrice(rawToday),
+    })
     return { lineNumber: l.line_number, description: l.description ?? '', quantity: signedQty, unitPrice: billedUnit, expectedUnitPrice: expected,
       unit: l.unit ?? null, expectedUnit: prodUnit,
       expectedMissingReason: st || m.supplierProductId ? 'produkt uden kostpris' : inv.supplier_id ? 'intet produktmatch' : 'leverandør ukendt' }
