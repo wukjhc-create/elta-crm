@@ -32,6 +32,7 @@ import type { CommCandidate } from '@/lib/automation/comm-preview'
 import { getCustomerCommunicationTimeline } from '@/lib/actions/communication-timeline'
 import { orIlikeContains } from '@/lib/validations/postgrest-filter'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { readCasesWithoutNextAction } from '@/lib/operations/open-cases'
 import { copenhagenDatePlusDays, copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { isBookedCustomerBesigtigelse, rescheduledBesigtigelseDescription } from '@/lib/tasks/besigtigelse-task'
 import { updateCustomerTask } from '@/lib/actions/customer-tasks'
@@ -80,7 +81,11 @@ export async function answerCrmQuestion(question: string): Promise<CrmAnswer> {
   if (parsed.kind === 'callbacks') return callbacks(ctx.supabase, today, parsed.todayOnly)
   if (parsed.kind === 'missing_poa') return missingPoa(ctx.supabase)
   if (parsed.kind === 'history') return history(ctx.supabase, parsed.name ?? '')
-  if (parsed.kind === 'jobs_tomorrow') return jobsOnDay(ctx.supabase, copenhagenDatePlusDays(1))
+  if (parsed.kind === 'jobs_today') return jobsOnDay(ctx.supabase, today, 'i dag')
+  if (parsed.kind === 'jobs_tomorrow') return jobsOnDay(ctx.supabase, copenhagenDatePlusDays(1), 'i morgen')
+  if (parsed.kind === 'overdue_tasks') return overdueTasks(ctx.supabase, today)
+  if (parsed.kind === 'supplier_invoices') return supplierInvoices(ctx)
+  if (parsed.kind === 'cases_without_action') return casesWithoutAction(ctx.supabase)
   if (parsed.kind === 'unresolved') return unresolved(ctx.supabase)
   return followups(ctx.supabase, today)
 }
@@ -303,7 +308,7 @@ async function visibleCase(supabase: AssistantClient, caseNumber: string) {
   return { error: null, rows: (cases.data ?? []) as Array<{ id: string; case_number: string | null; title: string | null; customer_id: string | null }> }
 }
 
-async function jobsOnDay(supabase: AssistantClient, day: string): Promise<CrmAnswer> {
+async function jobsOnDay(supabase: AssistantClient, day: string, when: string): Promise<CrmAnswer> {
   const { data, error } = await supabase
     .from('work_orders')
     .select('id, title, scheduled_date, status, case_id')
@@ -313,11 +318,53 @@ async function jobsOnDay(supabase: AssistantClient, day: string): Promise<CrmAns
     .limit(40)
   if (error) return answer(false, 'Arbejdsordrerne kunne ikke læses. Det betyder ikke, at der er nul job.')
   const rows = (data ?? []) as Array<{ id: string; title: string | null; case_id: string | null; status: string }>
-  if (!rows.length) return answer(true, `Ingen planlagte arbejdsordrer ${day}, som du kan se.`)
-  return answer(true, `Arbejdsordrer ${day}:`, rows.map((r) => ({
+  if (!rows.length) return answer(true, `Ingen planlagte arbejdsordrer ${when}, som du kan se.`)
+  const capped = rows.length === 40 ? ' Viser 40. Der kan være flere.' : ''
+  return answer(true, `Arbejdsordrer ${when}.${capped}`, rows.map((r) => ({
     title: r.title ?? 'Arbejdsordre',
     detail: r.status === 'in_progress' ? 'I gang' : 'Planlagt',
     href: r.case_id ? `/dashboard/orders/${r.case_id}` : null,
+  })))
+}
+
+async function overdueTasks(supabase: AssistantClient, today: string): Promise<CrmAnswer> {
+  const start = copenhagenLocalToIso(today, '00:00')
+  const { data, error } = await supabase.from('customer_tasks').select('id, title, customer_id, due_date').neq('status', 'done').lt('due_date', start).order('due_date', { ascending: true }).limit(30)
+  if (error) return answer(false, 'De forfaldne opgaver kunne ikke læses. Det betyder ikke, at der er nul.')
+  const rows = (data ?? []) as Array<{ id: string; title: string | null; customer_id: string | null; due_date: string | null }>
+  if (!rows.length) return answer(true, 'Ingen forfaldne opgaver, som du kan se.')
+  const capped = rows.length === 30 ? ' Viser 30. Der kan være flere.' : ''
+  return answer(true, `Forfaldne opgaver.${capped}`, rows.map((r) => ({
+    title: r.title ?? 'Opgave',
+    detail: copenhagenDate(r.due_date) ? `Forfalden ${copenhagenDate(r.due_date)}` : 'Forfalden',
+    href: r.customer_id ? `/dashboard/customers/${r.customer_id}` : '/dashboard/tasks',
+  })))
+}
+
+async function supplierInvoices(ctx: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>): Promise<CrmAnswer> {
+  if (!ctx.hasPermission('incoming_invoices.view')) return answer(false, 'Du har ikke adgang til leverandørfakturaer. Det tælles ikke som nul.')
+  const { data, error } = await ctx.supabase.from('incoming_invoices').select('id, invoice_number, supplier_name_extracted').eq('requires_manual_review', true).in('status', ['received', 'awaiting_approval']).order('created_at', { ascending: false }).limit(30)
+  if (error) return answer(false, 'Leverandørfakturaerne kunne ikke læses. Det betyder ikke, at der er nul.')
+  const rows = (data ?? []) as Array<{ id: string; invoice_number: string | null; supplier_name_extracted: string | null }>
+  if (!rows.length) return answer(true, 'Ingen leverandørfakturaer venter på gennemgang, som du kan se.')
+  const capped = rows.length === 30 ? ' Viser 30. Der kan være flere.' : ''
+  return answer(true, `Leverandørfakturaer til gennemgang.${capped} Der godkendes ikke herfra.`, rows.map((r) => ({
+    title: r.invoice_number ?? 'Faktura',
+    detail: r.supplier_name_extracted ?? 'Leverandør',
+    href: `/dashboard/incoming-invoices/${r.id}`,
+  })))
+}
+
+async function casesWithoutAction(supabase: AssistantClient): Promise<CrmAnswer> {
+  const found = await readCasesWithoutNextAction(supabase)
+  if (!found.ok) return answer(false, found.reason)
+  if (!found.cases.length) return answer(true, 'Ingen åbne sager uden næste handling, som du kan se.')
+  const shown = found.cases.slice(0, 30)
+  const capped = found.cases.length > 30 ? ` Viser 30 af ${found.cases.length}.` : ''
+  return answer(true, `Sager uden ufærdig opgave og uden planlagt arbejde.${capped}`, shown.map((row) => ({
+    title: row.caseNumber ?? 'Sag',
+    detail: row.title ?? 'Uden titel',
+    href: `/dashboard/orders/${row.id}`,
   })))
 }
 

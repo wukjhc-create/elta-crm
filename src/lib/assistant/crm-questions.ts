@@ -21,6 +21,10 @@ export type CrmQuestionKind =
   | 'history'
   | 'followups'
   | 'jobs_tomorrow'
+  | 'jobs_today'
+  | 'overdue_tasks'
+  | 'supplier_invoices'
+  | 'cases_without_action'
   | 'unresolved'
 
 export type CrmProposal =
@@ -171,6 +175,10 @@ export function interpretCrmQuestion(input: string): CrmQuestion {
   if (WRITE.test(text)) return blank('write', text)
   if (/hj[æa]lp|hvad kan du/i.test(text)) return blank('help', text)
   if (/ubesvarede mails|mails uden sag|ubesvarede opkald/i.test(text)) return blank('unresolved', text)
+  if (/forfaldne opgaver|overskredne opgaver/i.test(text)) return blank('overdue_tasks', text)
+  if (/leverandørfaktura|fakturaer til gennemgang/i.test(text)) return blank('supplier_invoices', text)
+  if (/sager uden (næste handling|opgave|naeste handling)/i.test(text)) return blank('cases_without_action', text)
+  if (/jobs i dag|arbejdsordrer i dag|hvad skal vi i dag/i.test(text)) return blank('jobs_today', text)
   if (/ringe tilbage|ikke ringet|ubesvaret|hvem ringede/i.test(text)) return blank('callbacks', text, { todayOnly: /\bi dag\b/i.test(text) })
   if (/fuldmagt/i.test(text)) return blank('missing_poa', text)
   if (/f[øo]lg op|p[åa]mindelse/i.test(text)) return blank('followups', text)
@@ -197,7 +205,8 @@ export function explainCrmQuestion(q: CrmQuestion): string {
       '• Tildel opgaven på sag 2309 til Lars — kun når sagen har præcis én åben opgave.',
       '• Note på sag 2309: teksten, eller note på kunde Jensen: teksten.',
       '• Knyt mail Faktura 123 til sag 2309 — kun når emnet matcher præcis én mail.',
-      '• Jobs i morgen. Ubesvarede mails og opkald.',
+      '• Jobs i dag. Jobs i morgen. Ubesvarede mails og opkald.',
+      '• Forfaldne opgaver. Sager uden næste handling. Leverandørfakturaer til gennemgang.',
       'Andre skrivninger (send, godkend, ny sag) udføres ikke her.',
     ].join('\n')
   }

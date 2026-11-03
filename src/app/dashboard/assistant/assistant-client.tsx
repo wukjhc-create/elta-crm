@@ -9,6 +9,9 @@ const EXAMPLES = [
   'Jobs i morgen',
   'Ubesvarede mails og opkald',
   'Hvilke sager mangler en fuldmagt?',
+  'Forfaldne opgaver',
+  'Sager uden næste handling',
+  'Leverandørfakturaer til gennemgang',
 ]
 
 const CONFIRM: Record<NonNullable<CrmAnswer['proposal']>['kind'], string> = {
