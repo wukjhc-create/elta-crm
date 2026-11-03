@@ -90,6 +90,7 @@ const APPROVED: Record<string, string> = {
   '00242': '2026-10-29', // arbejdsordrer/opgaver/sagsbørn/fakturaer følger sags-scope (O1/O2/F1)
   '00243': '2026-10-30', // time_logs via effektive rettigheder (kun can_view_time_log/can_write_time_log-kroppe; anon-oprydning IKKE med) — godkendt af Henrik i chat 2026-10-30 ("00243 — APPROVED FOR PROD", efter grøn staging 26/26)
   '00244': '2026-11-02', // offers.case_type (solar/installation, nullable, ingen default/backfill) — godkendt af Henrik i chat 2026-11-02 ("APPROVED: migration 00244 may now be applied to PRODUCTION", efter grøn staging U256)
+  '00245': '2026-11-03', // customer_notes efter effektive rettigheder (SELECT view.all/scope, INSERT edit+scope+created_by+manual, UPDATE(content)/DELETE egen|customers.notes.manage + scope; case_notes.source hvis den mangler) — godkendt af Henrik i chat 2026-11-03 ("APPROVED: migration 00245 may now be applied to PRODUCTION")
 }
 
 async function main() {
