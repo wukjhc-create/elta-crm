@@ -5,6 +5,7 @@
  * Skriver ikke, sender ikke og godkender ikke.
  */
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { permissionDeniedText } from '@/lib/auth/permission-text'
 import { createCustomerTask } from '@/lib/actions/customer-tasks'
 import { userCanViewCustomer } from '@/lib/auth/customer-scope'
@@ -215,7 +216,7 @@ async function resolveTaskTarget(supabase: AssistantClient, caseNumber: string |
   let assigneeId: string | null = null
   let assigneeLabel: string | null = null
   if (assigneeName) {
-    const people = await supabase.from('profiles').select('id, full_name').eq('is_active', true).or(orIlikeContains(['full_name'], assigneeName)).limit(8)
+    const people = await activeAssigneesByName(assigneeName)
     if (people.error) return { ok: false, reason: 'Medarbejderen kunne ikke læses. Intet er oprettet.', items: [] }
     const hits = (people.data ?? []) as Array<{ id: string; full_name: string | null }>
     const decided = planAssistantTask({ confirmed: true, caseNumber, caseMatches: 1, assigneeName, assigneeMatches: hits.length })
@@ -234,6 +235,19 @@ async function resolveTaskTarget(supabase: AssistantClient, caseNumber: string |
     assigneeId,
     assigneeLabel,
   }
+}
+
+/**
+ * Aktive medarbejdere hvis navn indeholder teksten. profiles-RLS viser kun brugerens EGEN profil, så opslaget med
+ * brugerens klient fandt aldrig en kollega (tildeling til andre var umulig). Som getActiveProfiles: admin-klient bag
+ * tasks.create, kun id + navn, kun aktive. Uden tasks.create: ingen kandidater (montøren tildeler kun sig selv).
+ */
+async function activeAssigneesByName(name: string): Promise<{ data: Array<{ id: string; full_name: string | null }> | null; error: { message: string } | null }> {
+  const ctx = await getAuthenticatedClientWithRole()
+  if (!ctx.hasPermission('tasks.create')) return { data: [], error: null }
+  const { data, error } = await createAdminClient().from('profiles').select('id, full_name').eq('is_active', true)
+    .or(orIlikeContains(['full_name'], name)).limit(8)
+  return { data: (data ?? null) as Array<{ id: string; full_name: string | null }> | null, error: error ? { message: error.message } : null }
 }
 
 async function proposeTask(supabase: AssistantClient, caseNumber: string | null, assigneeName: string | null): Promise<CrmAnswer> {
@@ -373,7 +387,7 @@ async function proposeAssign(supabase: AssistantClient, caseNumber: string, assi
     const blocked = planTaskAssign({ confirmed: false, caseMatches: 1, openTaskMatches: open.length >= 50 ? 2 : open.length, assigneeMatches: 1 })
     return answer(true, blocked.reason, open.slice(0, 15).map((t) => ({ title: t.title ?? 'Opgave', detail: 'Åben opgave', href: `/dashboard/orders/${sag.id}` })))
   }
-  const people = await supabase.from('profiles').select('id, full_name').eq('is_active', true).or(orIlikeContains(['full_name'], assigneeName)).limit(8)
+  const people = await activeAssigneesByName(assigneeName)
   if (people.error) return answer(false, 'Medarbejderen kunne ikke læses. Intet er tildelt.')
   const hits = (people.data ?? []) as Array<{ id: string; full_name: string | null }>
   if (hits.length !== 1) {
@@ -494,7 +508,7 @@ async function confirmAssign(
   const tasks = await ctx.supabase.from('customer_tasks').select('id, title').eq('service_case_id', found.rows[0].id).neq('status', 'done').limit(50)
   if (tasks.error) return { success: false, wrote: false, message: 'Opgaverne kunne ikke læses. Intet er tildelt.' }
   const open = (tasks.data ?? []) as Array<{ id: string }>
-  const people = await ctx.supabase.from('profiles').select('id, full_name').eq('is_active', true).or(orIlikeContains(['full_name'], proposal.assigneeName)).limit(8)
+  const people = await activeAssigneesByName(proposal.assigneeName)
   if (people.error) return { success: false, wrote: false, message: 'Medarbejderen kunne ikke læses. Intet er tildelt.' }
   const hits = (people.data ?? []) as Array<{ id: string }>
   const plan = planTaskAssign({ confirmed: true, caseMatches: 1, openTaskMatches: open.length >= 50 ? 2 : open.length, assigneeMatches: hits.length })

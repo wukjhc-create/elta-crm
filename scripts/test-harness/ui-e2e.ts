@@ -185,7 +185,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
@@ -5612,6 +5612,189 @@ ${m.text()}`) })
         }
         out.push({ id: 'U257 Grok-integration: mailkort, assistent, tidslinje (privatliv), opkaldskort, integrationsstatus, trafiklys', ok: Object.values(r).every(Boolean),
           note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U258 GROK BATCH 2 — TILBAGERINGNING (opkaldskort → kundeopgave i køen): UI-flowet med sagsvalg; serveren håndhæver
+      // selv eksplicit sagsvalg ved flere åbne sager og tildeler altid den indloggede (et fremmed assigned_to ignoreres);
+      // reminder_at er NULL (ingen Telegram-påmindelse); ukendt nummer giver ingen tilbageringning.
+      if (want('U258')) {
+        const r: Record<string, boolean> = {}
+        const tag = `U258-${stamp}`
+        let u258Diag = ''
+        const phone = `29${String(Date.now()).slice(-6)}`
+        let custId: string | null = null
+        const caseIds: string[] = []
+        try {
+          const cu = await c.admin.from('customers').insert([{ customer_number: `HARN-${tag}`, company_name: `[HARNESS] ${tag}`, contact_person: 'Opkald Test', email: `u258-${stamp}@harness.test`, phone, created_by: adminUser.id, custom_fields: { harness: 'U258' } }]).select('id')
+          custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+          for (const t of ['tavle', 'tag']) {
+            const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} ${t}`, customer_id: custId, status: 'new', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+            const id = (sc.data?.[0] as { id?: string } | undefined)?.id
+            if (id) { caseIds.push(id); listCaseIds.push(id) }
+          }
+          r.seed = !!custId && caseIds.length === 2
+          const tasks = async () => ((await c.admin.from('customer_tasks').select('id, title, assigned_to, auto_rule, reminder_at, service_case_id').eq('customer_id', custId ?? '')).data ?? []) as Array<{ id: string; title: string; assigned_to: string | null; auto_rule: string | null; reminder_at: string | null; service_case_id: string | null }>
+          const url = `${base}/dashboard/cti?number=45${phone}`
+          await gotoSafe(a.page, url, { waitUntil: 'networkidle', timeout: 180_000 })
+          // 1. server: flere åbne sager uden valg → afvist, intet oprettet
+          const noChoice = await callServerAction(a.page, url, 'src/lib/actions/customer-tasks.ts', 'createCustomerTask', [{ customer_id: custId, title: `Ring tilbage: ${tag}`, priority: 'high', due_date: new Date().toISOString(), callbackQueue: true }])
+          r.server_kraever_sagsvalg = /flere åbne sager/.test(noChoice) && (await tasks()).length === 0
+          // 2. server: fremmed assigned_to + reminder_at fra klienten ignoreres
+          const forced = await callServerAction(a.page, url, 'src/lib/actions/customer-tasks.ts', 'createCustomerTask', [{ customer_id: custId, title: `Ring tilbage: ${tag} direkte`, priority: 'high', due_date: new Date().toISOString(), service_case_id: caseIds[1], assigned_to: montor.id, reminder_at: new Date().toISOString(), callbackQueue: true }])
+          const f = (await tasks()).find((t) => t.title.endsWith('direkte'))
+          u258Diag = `forced=${forced.slice(-220).replace(/\s+/g, ' ')} row=${JSON.stringify(f ?? null)}`
+          r.server_tildeler_indlogget_uden_paamindelse = /"success":true/.test(forced) && !!f && f.assigned_to === adminUser.id && f.reminder_at === null && f.auto_rule === 'assistant_callback' && f.service_case_id === caseIds[1]
+          // 3. UI: Opret tilbageringning → Bekræft er spærret til en sag er valgt → valg → oprettet i køen
+          await gotoSafe(a.page, url, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: 'Opret tilbageringning' }).click({ timeout: 60_000 }).catch(() => {})
+          const confirmBtn = a.page.getByRole('button', { name: 'Bekræft', exact: true })
+          await confirmBtn.waitFor({ timeout: 30_000 }).catch(() => {})
+          r.ui_bekraeft_spaerret_uden_sag = (await confirmBtn.isDisabled().catch(() => false)) === true
+          await a.page.locator('input[name="callback-case"]').first().check({ timeout: 30_000 }).catch(() => {})
+          await confirmBtn.click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByText('Tilbageringningen ligger i køen').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const ui = (await tasks()).filter((t) => !t.title.endsWith('direkte'))
+          r.ui_oprettet_med_valgt_sag = ui.length === 1 && ui[0].auto_rule === 'assistant_callback' && ui[0].reminder_at === null && ui[0].assigned_to === adminUser.id && caseIds.includes(ui[0].service_case_id ?? '')
+          // 4. køen viser opgaven
+          await gotoSafe(a.page, `${base}/dashboard/cti/queue`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.koe_viser_tilbageringning = (await a.page.getByText(`[HARNESS] ${tag}`).count()) > 0 || (await a.page.getByText(`Ring tilbage: [HARNESS] ${tag}`).count()) > 0
+          // 5. ukendt nummer: ingen tilbageringnings-knap
+          await gotoSafe(a.page, `${base}/dashboard/cti?number=4529000001`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.ukendt_nummer_ingen_tilbageringning = (await a.page.getByRole('button', { name: 'Opret tilbageringning' }).count()) === 0
+        } finally {
+          if (custId) await c.admin.from('customer_tasks').delete().eq('customer_id', custId)
+          if (caseIds.length) await c.admin.from('service_cases').delete().in('id', caseIds)
+          if (custId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        out.push({ id: 'U258 tilbageringning: kø, sagsvalg (server), tildelt indlogget, ingen påmindelse', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + (Object.values(r).every(Boolean) ? '' : ` | ${u258Diag}`) })
+      }
+
+      // U259 GROK BATCH 2 — ASSISTENTENS BEKRÆFTEDE SKRIVNINGER: forslag skriver intet; confirmed=false skriver intet;
+      // flyt rammer den ene bookede besigtigelse (due_date + portal-klokkeslæt), kundebekræftet besigtigelse flyttes ikke;
+      // tildel rammer den ene åbne opgave og den ene entydige medarbejder; tvetydigt navn giver intet forslag.
+      if (want('U259') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U259-${stamp}`
+        let u259Diag = ''
+        const { copenhagenDatePlusDays } = await import('../../src/lib/utils/copenhagen-time')
+        const day = copenhagenDatePlusDays(7)
+        const mkCase = async (t: string) => {
+          const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} ${t}`, customer_id: profitCustomerId, status: 'new', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id, case_number')
+          const row = sc.data?.[0] as { id: string; case_number: string } | undefined
+          if (row) listCaseIds.push(row.id)
+          return row
+        }
+        const cMove = await mkCase('flyt'), cConfirmed = await mkCase('bekræftet'), cAssign = await mkCase('tildel')
+        const insp = (caseId: string, status: string) => ({ customer_id: profitCustomerId, service_case_id: caseId, title: `Besigtigelse hos [HARNESS] ${tag}`, status, priority: 'high',
+          description: 'Besigtigelse planlagt d. 1. december 2026 kl. 09:00\nAdresse: Testvej 1', due_date: new Date(Date.now() + 3 * 86_400_000).toISOString(), assigned_to: adminUser.id, created_by: adminUser.id })
+        await c.admin.from('customer_tasks').insert([insp(cMove!.id, 'pending'), insp(cConfirmed!.id, 'in_progress'),
+          { customer_id: profitCustomerId, service_case_id: cAssign!.id, title: `[HARNESS] ${tag} opgave`, status: 'pending', priority: 'normal', assigned_to: adminUser.id, created_by: adminUser.id }])
+        const helper = await mkUser('montør')
+        const helperName = `U259 Hjælper ${stamp}`
+        await c.admin.from('profiles').update({ full_name: helperName, is_active: true }).eq('id', helper.id)
+        // to aktive medarbejdere med samme navnestart → tvetydigt
+        const twinPrefix = `U259 Dobbelt ${stamp}`
+        for (const suffix of ['A', 'B']) {
+          const tw = await mkUser('salg')
+          await c.admin.from('profiles').update({ full_name: `${twinPrefix} ${suffix}`, is_active: true }).eq('id', tw.id)
+        }
+        const taskOn = async (caseId: string) => ((await c.admin.from('customer_tasks').select('id, due_date, description, assigned_to, status').eq('service_case_id', caseId)).data ?? []) as Array<{ id: string; due_date: string | null; description: string | null; assigned_to: string | null; status: string }>
+        r.seed = !!cMove && !!cConfirmed && !!cAssign
+        try {
+          const ask = async (q: string) => {
+            await gotoSafe(a.page, `${base}/dashboard/assistant`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await a.page.locator('#crm-question').fill(q)
+            await a.page.getByRole('button', { name: 'Spørg', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+            await a.page.waitForTimeout(2500)
+          }
+          // flyt: forslag → intet ændret; confirmed=false direkte → intet; bekræft → due_date + første "kl."-linje
+          const before = await taskOn(cMove!.id)
+          await ask(`Flyt besigtigelse på sag ${cMove!.case_number} til ${day} kl 10:00`)
+          const moveBtn = a.page.getByRole('button', { name: 'Bekræft og flyt besigtigelsen' })
+          await moveBtn.waitFor({ timeout: 60_000 }).catch(() => {})
+          r.flyt_forslag_vist = (await moveBtn.count()) === 1
+          r.flyt_forslag_skriver_intet = JSON.stringify(await taskOn(cMove!.id)) === JSON.stringify(before)
+          const noConfirm = await callServerAction(a.page, `${base}/dashboard/assistant`, 'src/lib/actions/crm-assistant.ts', 'confirmAssistantProposal', [{ confirmed: false, proposal: { kind: 'move_inspection', caseNumber: cMove!.case_number, date: day, time: '10:00' } }])
+          r.uden_bekraeftelse_intet = /"wrote":false/.test(noConfirm) && JSON.stringify(await taskOn(cMove!.id)) === JSON.stringify(before)
+          await moveBtn.click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByText('Besigtigelsen er flyttet').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const { copenhagenLocalToIso } = await import('../../src/lib/utils/copenhagen-time')
+          const moved = (await taskOn(cMove!.id))[0]
+          r.flyt_due_date = !!moved && new Date(moved.due_date ?? 0).getTime() === new Date(copenhagenLocalToIso(day, '10:00')).getTime()
+          r.flyt_portal_klokkeslaet = !!moved && moved.description?.match(/kl\.\s*(\S+)/)?.[1] === '10:00' && /kunden har ikke fået besked/.test(moved.description ?? '')
+          // kundebekræftet: intet forslag, intet ændret
+          const confBefore = await taskOn(cConfirmed!.id)
+          await ask(`Flyt besigtigelse på sag ${cConfirmed!.case_number} til ${day} kl 11:00`)
+          r.bekraeftet_flyttes_ikke = (await a.page.getByText('allerede bekræftet').count()) > 0 && (await a.page.getByRole('button', { name: 'Bekræft og flyt besigtigelsen' }).count()) === 0
+            && JSON.stringify(await taskOn(cConfirmed!.id)) === JSON.stringify(confBefore)
+          // tildel: tvetydigt navn → intet forslag; entydigt → bekræft → den ene åbne opgave
+          await ask(`Tildel opgaven på sag ${cAssign!.case_number} til ${twinPrefix}`)
+          u259Diag += ` tvetydig: ${(await a.page.locator('main').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(-300)}`
+          r.tvetydigt_navn_intet_forslag = (await a.page.getByRole('button', { name: 'Bekræft og tildel opgaven' }).count()) === 0
+          await ask(`Tildel opgaven på sag ${cAssign!.case_number} til ${helperName}`)
+          const assignBtn = a.page.getByRole('button', { name: 'Bekræft og tildel opgaven' })
+          await assignBtn.waitFor({ timeout: 60_000 }).catch(() => {})
+          u259Diag += ` entydig: ${(await a.page.locator('main').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(-300)}`
+          r.tildel_forslag_skriver_intet = (await assignBtn.count()) === 1 && (await taskOn(cAssign!.id))[0]?.assigned_to === adminUser.id
+          await assignBtn.click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByText('Opgaven er tildelt').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.tildelt_rigtig_medarbejder = (await taskOn(cAssign!.id))[0]?.assigned_to === helper.id
+        } finally {
+          for (const cs of [cMove, cConfirmed, cAssign]) if (cs) await c.admin.from('customer_tasks').delete().eq('service_case_id', cs.id)
+        }
+        out.push({ id: 'U259 assistent: bekræft/ikke-bekræft, flyt (portal-tid, bekræftet afvist), tildel entydigt mål', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + (Object.values(r).every(Boolean) ? '' : ` |${u259Diag}`) })
+      }
+
+      // U260 GROK BATCH 2 — VAREKATALOG: kost-rolle ser kendt pris og "Ukendt" for manglende; montør (materials.view uden
+      // materials.view.cost_prices) ser "Skjult", og hverken siden eller et direkte action-kald indeholder kostprisen.
+      if (want('U260')) {
+        const r: Record<string, boolean> = {}
+        const priced = ((await c.admin.from('supplier_products').select('supplier_sku, cost_price').gt('cost_price', 0).not('supplier_sku', 'is', null).limit(1)).data ?? [])[0] as { supplier_sku: string; cost_price: number } | undefined
+        const unpriced = ((await c.admin.from('supplier_products').select('supplier_sku').is('cost_price', null).not('supplier_sku', 'is', null).limit(1)).data ?? [])[0] as { supplier_sku: string } | undefined
+        r.seed = !!priced
+        const priceText = priced ? new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(Number(priced.cost_price)) : '§'
+        const url = (sku: string) => `${base}/dashboard/materials/lookup?mode=sku&q=${encodeURIComponent(sku)}`
+        if (priced) {
+          await gotoSafe(a.page, url(priced.supplier_sku), { waitUntil: 'networkidle', timeout: 180_000 })
+          r.admin_ser_pris = (await a.page.getByText(priceText).count()) > 0
+          if (unpriced) {
+            await gotoSafe(a.page, url(unpriced.supplier_sku), { waitUntil: 'networkidle', timeout: 180_000 })
+            r.admin_manglende_pris_ukendt = (await a.page.getByRole('cell', { name: 'Ukendt', exact: true }).count()) > 0 && (await a.page.getByText('0,00 kr.').count()) === 0
+          }
+          const m = await login(montor)
+          try {
+            await gotoSafe(m.page, url(priced.supplier_sku), { waitUntil: 'networkidle', timeout: 180_000 })
+            const html = await m.page.content()
+            r.montoer_skjult = (await m.page.getByRole('cell', { name: 'Skjult', exact: true }).count()) > 0 && !html.includes(priceText)
+            const direct = await callServerAction(m.page, url(priced.supplier_sku), 'src/lib/actions/supplier-catalogue-lookup.ts', 'searchKnownCatalogue', ['sku', priced.supplier_sku])
+            r.montoer_action_uden_kost = /"priceVisibility":"hidden"/.test(direct) && /"purchasePrice":null/.test(direct) && !/"purchasePrice":\d/.test(direct)
+            r.montoer_ingen_ordre_knap = (await m.page.getByRole('button', { name: /bestil|ordre/i }).count()) === 0
+          } finally { await m.ctx.close().catch(() => {}) }
+        }
+        out.push({ id: 'U260 varekatalog: kost kun med materials.view.cost_prices, ukendt ≠ 0, montør uden kost', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U261 GROK BATCH 2 — DRIFTSUNDTAGELSER på forsiden: admin ser køerne (tal eller "Ukendt", aldrig en fejlside); montør
+      // ser ikke mail-/faktura-/satskøerne (rettighedsskjult) og forsiden indlæses.
+      if (want('U261')) {
+        const r: Record<string, boolean> = {}
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('heading', { name: 'Undtagelser' }).waitFor({ timeout: 90_000 }).catch(() => {})
+        r.admin_undtagelser_vist = (await a.page.getByRole('heading', { name: 'Undtagelser' }).count()) === 1
+        r.admin_ingen_samlet_fejl = (await a.page.getByText('Driftstallene kunne ikke hentes').count()) === 0
+        for (const t of ['Tilbageringninger', 'Mail uden sag', 'Sager uden fuldmagt', 'Leverandørfakturaer til gennemgang', 'Medarbejdere uden sats', 'Job i dag', 'Job denne uge']) {
+          r[`admin_${t.replace(/\W+/g, '_')}`] = (await a.page.getByText(t, { exact: true }).count()) > 0
+        }
+        r.fuldmagt_uden_loft_note = (await a.page.getByText('Kun de 200 nyeste åbne sager.').count()) === 0
+        const m = await login(montor)
+        try {
+          await gotoSafe(m.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await m.page.waitForTimeout(2000)
+          r.montoer_ingen_mailkoe = (await m.page.getByText('Mail uden sag', { exact: true }).count()) === 0
+          r.montoer_ingen_fakturakoe = (await m.page.getByText('Leverandørfakturaer til gennemgang', { exact: true }).count()) === 0
+          r.montoer_ingen_satskoe = (await m.page.getByText('Medarbejdere uden sats', { exact: true }).count()) === 0
+        } finally { await m.ctx.close().catch(() => {}) }
+        out.push({ id: 'U261 driftsundtagelser: køer vist for admin, skjult for montør, ingen fejlside', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U256 SAGSTYPE PÅ TILBUD (00244, Henrik 2026-11-01): nyt tilbud kræver eksplicit sagstype i formularen; solcelletilbud

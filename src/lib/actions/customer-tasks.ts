@@ -445,6 +445,19 @@ export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations
   return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
 }
 
+/**
+ * Findes den ansvarlige, og er profilen aktiv? profiles-RLS viser kun ens EGEN profil ("Users can view own profile"),
+ * så opslaget med brugerens klient fandt aldrig en kollega → "Den ansvarlige findes ikke" ved enhver tildeling til en
+ * anden (prod-bevist 2026-11-03: admin ser 1/5 aktive profiler). Kaldes først EFTER handlingens egne rettighedstjek;
+ * læser kun is_active for ét id via admin-klienten (som getActiveProfiles' liste).
+ */
+async function assigneeIsActive(profileId: string): Promise<boolean> {
+  if (!/^[0-9a-f-]{36}$/i.test(profileId)) return false
+  const { data, error } = await createAdminClient().from('profiles').select('is_active').eq('id', profileId).maybeSingle()
+  if (error || !data) return false
+  return (data as { is_active: boolean | null }).is_active !== false
+}
+
 export async function getActiveProfiles(): Promise<
   Array<{ id: string; full_name: string | null; email: string; role?: string | null }>
 > {
@@ -587,9 +600,9 @@ export async function createCustomerTask(
     const { data: off } = await supabase.from('offers').select('customer_id').eq('id', input.offer_id).maybeSingle()
     if (!off || (off as { customer_id: string | null }).customer_id !== input.customer_id) return { success: false, error: 'Tilbuddet hører ikke til kunden' }
   }
-  if (input.assigned_to && input.assigned_to !== user.id) {
-    const { data: prof } = await supabase.from('profiles').select('is_active').eq('id', input.assigned_to).maybeSingle()
-    if (!prof || (prof as { is_active: boolean | null }).is_active === false) return { success: false, error: 'Den ansvarlige findes ikke eller er deaktiveret' }
+  // tilbageringning: assigned_to fra klienten ignoreres (tildeles altid den indloggede) — derfor ingen validering af den
+  if (input.assigned_to && input.assigned_to !== user.id && input.callbackQueue !== true) {
+    if (!(await assigneeIsActive(input.assigned_to))) return { success: false, error: 'Den ansvarlige findes ikke eller er deaktiveret' }
   }
 
   // MP-00236 (Henrik 2026-10-25): montør-opgaven kobles til en sag — én åben sag: automatisk; flere: montøren SKAL vælge
@@ -684,8 +697,7 @@ export async function updateCustomerTask(
         return { success: false, error: 'Du kan kun tildele opgaven til dig selv' }
       }
       if (input.assigned_to && input.assigned_to !== ctx.userId) {
-        const { data: prof } = await supabase.from('profiles').select('is_active').eq('id', input.assigned_to).maybeSingle()
-        if (!prof || (prof as { is_active: boolean | null }).is_active === false) return { success: false, error: 'Den ansvarlige findes ikke eller er deaktiveret' }
+        if (!(await assigneeIsActive(input.assigned_to))) return { success: false, error: 'Den ansvarlige findes ikke eller er deaktiveret' }
       }
     }
   }
