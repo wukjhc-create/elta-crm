@@ -18,6 +18,15 @@ export interface TrafficFinding {
   followUp: string
 }
 
+export interface PurchasingCheckLine {
+  invoicedQty: number | null
+  expectedQty: number | null
+  /** null eller ikke-positiv = prisen kendes ikke. Bliver aldrig 0 i et beløb. */
+  catalogueUnitPrice: number | null
+  previousUnitPrice: number | null
+  duplicate: boolean
+}
+
 export interface TrafficLightInput {
   control: InvoiceControl | null
   pending?: boolean
@@ -26,6 +35,11 @@ export interface TrafficLightInput {
   caseId?: string | null
   purchaseOrderId?: string | null
   lineDescriptions?: string[]
+  purchasing?: { loadFailed?: boolean; lines?: PurchasingCheckLine[] }
+}
+
+function knownUnitPrice(value: number | null | undefined): number | null {
+  return value != null && Number.isFinite(value) && value > 0 ? value : null
 }
 
 export interface TrafficLightResult {
@@ -80,6 +94,30 @@ export function invoiceTrafficLight(input: TrafficLightInput): TrafficLightResul
   }
   if (!input.purchaseOrderId) {
     findings.push({ light: 'yellow', code: 'no_purchase_order', label: 'Ingen indkøbsordre', amount: null, reason: 'Der er ingen indkøbsordre at sammenligne antal og pris med.', followUp: 'Sammenlign med katalogprisen, hvor den findes.' })
+  }
+  if (input.purchasing?.loadFailed) {
+    findings.push({ light: 'unknown', code: 'purchasing_unreadable', label: 'Indkøbstjekket kunne ikke læses', amount: null, reason: 'Antal og katalogpris kunne ikke sammenlignes.', followUp: 'Prøv igen. Fejlen er ikke grøn og ikke 0 kr.' })
+  }
+  for (const line of input.purchasing?.lines ?? []) {
+    if (line.duplicate) {
+      findings.push({ light: 'red', code: 'duplicate_line', label: 'Mulig dubletlinje', amount: null, reason: 'To linjer ligner den samme vare.', followUp: 'Sammenlign linjerne før noget godkendes.' })
+    }
+    if (line.expectedQty == null || !Number.isFinite(line.expectedQty)) {
+      findings.push({ light: 'yellow', code: 'qty_expected_unknown', label: 'Forventet antal ukendt', amount: null, reason: 'Der er intet aftalt antal at sammenligne med.', followUp: 'Find ordren eller aftalen. Et manglende antal er ikke 0.' })
+    } else if (line.invoicedQty != null && Number.isFinite(line.invoicedQty) && line.invoicedQty !== line.expectedQty) {
+      findings.push({ light: 'yellow', code: 'qty_mismatch', label: 'Antal afviger', amount: null, reason: `Faktureret ${line.invoicedQty}, forventet ${line.expectedQty}.`, followUp: 'Tjek antallet før godkendelse.' })
+    }
+    const catalogue = knownUnitPrice(line.catalogueUnitPrice)
+    const previous = knownUnitPrice(line.previousUnitPrice)
+    if (catalogue == null) {
+      findings.push({ light: 'yellow', code: 'missing_purchase_price', label: 'Indkøbspris ukendt', amount: null, reason: 'Kataloget har ingen brugbar pris på linjen.', followUp: 'Find prisen. Den sættes ikke til 0.' })
+    } else if (previous != null) {
+      const diff = Math.round((catalogue - previous) * 100) / 100
+      const pct = Math.abs(diff) / previous
+      if (Math.abs(diff) >= 1 || pct >= 0.05) {
+        findings.push({ light: 'yellow', code: 'price_movement', label: 'Prisen har flyttet sig', amount: diff, reason: 'Den kendte katalogpris afviger fra den forrige kendte pris.', followUp: 'Sammenlign med aftalen. Der godkendes ikke herfra.' })
+      }
+    }
   }
 
   if (!findings.length) {
