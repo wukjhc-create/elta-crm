@@ -2,14 +2,22 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { answerCrmQuestion, confirmAssistantTask, type CrmAnswer } from '@/lib/actions/crm-assistant'
+import { answerCrmQuestion, confirmAssistantProposal, type CrmAnswer } from '@/lib/actions/crm-assistant'
 
 const EXAMPLES = [
   'Hvem har vi ikke ringet tilbage til?',
-  'Hvem ringede i dag, som vi ikke har ringet tilbage til?',
+  'Jobs i morgen',
+  'Ubesvarede mails og opkald',
   'Hvilke sager mangler en fuldmagt?',
-  'Hvad skal vi følge op på?',
 ]
+
+const CONFIRM: Record<NonNullable<CrmAnswer['proposal']>['kind'], string> = {
+  create_task: 'Bekræft og opret opgaven',
+  move_inspection: 'Bekræft og flyt besigtigelsen',
+  assign_task: 'Bekræft og tildel opgaven',
+  add_note: 'Bekræft og gem noten',
+  link_mail: 'Bekræft og knyt mailen',
+}
 
 export function AssistantClient() {
   const [question, setQuestion] = useState(EXAMPLES[0])
@@ -71,14 +79,14 @@ export function AssistantClient() {
                 const proposal = answer.proposal
                 if (!proposal) return
                 setBusy(true)
-                void confirmAssistantTask({ confirmed: true, caseNumber: proposal.caseNumber, assigneeName: proposal.assigneeName }).then((res) => {
+                void confirmAssistantProposal({ confirmed: true, proposal }).then((res) => {
                   setAnswer({ ok: res.success, text: res.message, items: [], sends: false, proposal: null })
                 }).catch(() => {
-                  setAnswer({ ok: false, text: 'Opgaven kunne ikke oprettes. Intet er ændret.', items: [], sends: false, proposal: null })
+                  setAnswer({ ok: false, text: 'Handlingen kunne ikke udføres. Intet er ændret.', items: [], sends: false, proposal: null })
                 }).finally(() => setBusy(false))
               }}
             >
-              Bekræft og opret opgaven
+              {CONFIRM[answer.proposal.kind]}
             </button>
           )}
           <p className="mt-3 text-xs text-gray-500">{answer.proposal ? 'Forslaget er ikke udført.' : 'Intet er sendt.'}</p>
