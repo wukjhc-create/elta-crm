@@ -2681,6 +2681,29 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'tel-00247-state') {
+    // STAGING read-only: telefoni-tabeller/politikker/grants/funktions-ACL/katalog + md5 af kunder/sager/opgaver/audit/mails
+    const { TEL_00247_STATE_SQL } = await import('./tel-00247-probe')
+    log(JSON.stringify(await stagingSql(TEL_00247_STATE_SQL)))
+    return
+  }
+  if (SUB === 'tel-00247-probe') {
+    // STAGING ROLLBACK-ONLY (+ samtidighedstest der sletter sine rækker): ingest-idempotens, rækkefølge, match-værn,
+    // retention og persona-matrix for 00247 (kroppen køres i prøven, hvis den ikke er anvendt)
+    const { runTel00247Probe } = await import('./tel-00247-probe')
+    const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
+    const rawSql = async (sql: string) => {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      })
+      return { ok: r.ok, status: r.status, text: await r.text() }
+    }
+    const checks = await runTel00247Probe({ admin, url: runtime.url, anonKey: runtime.anonKey, rawSql })
+    log(formatMp00240ScopeCheck(checks).replace('MP-00240 forudsætninger — scope-motor + kontrollerede stier (app-laget, staging)', '00247 telefoni-persistens — idempotens, rækkefølge, match-værn, retention, personaer (staging)'))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00243-fingerprint') {
     // STAGING read-only: fingeraftryk af time_logs-funktioner/politikker/grants/triggere (før/efter apply)
     const { FP_00243_SQL } = await import('./mp-00243-sql-probe')

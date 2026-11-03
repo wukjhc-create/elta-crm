@@ -9,7 +9,7 @@ const NOUN: Record<string, string> = {
   time_logs: 'timer', inbox: 'mail', settings: 'indstillinger', employees: 'medarbejdere', materials: 'materialer',
   products: 'produkter', tasks: 'opgaver', calendar: 'kalenderen', users: 'brugere', bank: 'bank', incoming_invoices: 'leverandørfakturaer',
   economy: 'økonomi', tools: 'værktøjer', service: 'service', projects: 'projekter', reports: 'rapporter', suppliers: 'leverandører',
-  messages: 'beskeder', portal: 'kundeportalen', calculations: 'kalkulationer',
+  messages: 'beskeder', portal: 'kundeportalen', calculations: 'kalkulationer', calls: 'opkald',
 }
 const VERB: Record<string, string> = {
   view: 'se', edit: 'redigere', create: 'oprette', delete: 'slette', send: 'sende', approve: 'godkende', close: 'lukke',
@@ -39,6 +39,7 @@ const LABELS: Record<string, string> = {
   'settings.suppliers': 'Leverandør-indstillinger', 'settings.economic': 'e-conomic-indstillinger',
   'materials.view.cost_prices': 'Se materialers kostpriser', 'products.view.cost_prices': 'Se produkters kostpriser',
   'offers.view.cost_prices': 'Se kostpriser i tilbud', 'suppliers.credentials': 'Leverandør-logins (adgangsoplysninger)',
+  'calls.view': 'Se opkald (kunder i eget scope)', 'calls.view_unmatched': 'Se ukendte/ubekræftede opkald', 'calls.match': 'Koble opkald til kunde',
 }
 
 /** PERM-1: dansk etiket for en rettighedsnøgle i admin-UI'et (fx "Oprette kunder", "Se sager (alle)") */

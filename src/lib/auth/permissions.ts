@@ -27,6 +27,13 @@ export const PERMISSIONS = {
   'inbox.send': ['admin', 'serviceleder'],
   'inbox.delete': ['admin'],
 
+  // Telefoni (00247, Henrik 2026-11-03 — docs/runbooks/telephony-events-proposal.md). Opkald på en BEKRÆFTET kunde ses
+  // med calls.view + kunden i læse-scope; ukendte/ubekræftede numre (ofte private) kun med calls.view_unmatched.
+  // Montør har ingen opkaldshistorik som standard. calls.match = bekræfte/rette/afvise et opkalds kunde (auditeret).
+  'calls.view': ['admin', 'serviceleder', 'salg'],
+  'calls.view_unmatched': ['admin', 'serviceleder'],
+  'calls.match': ['admin', 'serviceleder', 'salg'],
+
   // Offer permissions
   'offers.view': ['admin', 'serviceleder', 'salg'],
   // API-2 (Henrik 2026-10-19): alle tilbud — uden den kun egne (oprettet af brugeren / på en sag i brugerens sags-scope)

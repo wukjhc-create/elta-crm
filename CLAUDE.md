@@ -435,3 +435,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   Ingen ny nøgle; 00186 må ALDRIG køres i prod. Probe `cli.ts mail-00246-probe` (rollback-only), state `cli.ts
   mail-00246-state`, prod-tjek `scripts/prod-verify-00246.ts pre|post`. Runbook docs/runbooks/mp-00246-incoming-emails-scope.md.
   Telefoni-forslaget har fået nummer 00247 (kun reserveret; ingen fil, intet kørt — kræver egen godkendelse)
+- 2026-11-03: 00247 telefoni-persistens (`telephony_calls`/`telephony_events`/`telephony_employee_links`) er i STAGING,
+  IKKE i prod (kræver Henriks godkendelse). Nøgler calls.view (admin/serviceleder/salg, + kundescope),
+  calls.view_unmatched (admin/serviceleder), calls.match (admin/serviceleder/salg) — katalog 117/281 på staging, prod
+  stadig 114/273. Skriv KUN via service_role-funktionerne `telephony_ingest_event` (idempotent; ingen kunde-/sagsparametre),
+  `telephony_set_call_match` (menneske, match_version-lås + audit_logs) og `telephony_purge_unconfirmed` (90 dage); en
+  trigger afviser kunde/sag uden menneskelig bekræftelse, hændelser er uforanderlige. Ingen lyd/transskription/rå payload.
+  Intet kalder ingest endnu (webhook uændret, Relatel fra). Probe `cli.ts tel-00247-probe` (63/63 før, 69/69 efter apply,
+  inkl. parallelle sessioner), state `cli.ts tel-00247-state`. Runbook docs/runbooks/telephony-events-proposal.md

@@ -1,10 +1,10 @@
-# FORSLAG — telefoni-persistens for Relatel (ikke nummereret i `supabase/migrations`, ikke kørt)
+# Telefoni-persistens for Relatel — 00247 (staging; prod afventer godkendelse)
 
 **Status:** omskrevet 2026-11-03 (stabilitets-/sikkerhedsgennemgang). Erstatter Groks udkast med én tabel
 `telephony_events`. Intet er anvendt på staging eller prod. Designretningen er accepteret af Henrik 2026-11-03.
-**Tildelt nummer 00247** (2026-11-03, efter at 00246 mail-scope blev anvendt og verificeret i prod). Kun nummeret er
-reserveret: der ligger ingen fil i `supabase/migrations`, og intet er kørt. Prod kræver Henriks godkendelse pr. migration. Relatel, webhook-registrering,
-opkald, SMS og Telegram forbliver slået fra.
+**00247 = `supabase/migrations/00247_telephony_persistence.sql`, anvendt på STAGING 2026-11-03 — IKKE på prod** (se
+"Migration 00247" nedenfor). Prod kræver Henriks godkendelse pr. migration. Relatel, webhook-registrering, opkald, SMS og
+Telegram forbliver slået fra; intet kalder ingest-funktionen endnu.
 
 ## Hvorfor udkastet ikke var nok
 
@@ -59,7 +59,76 @@ opkald, SMS og Telegram forbliver slået fra.
 9. **Retention (låst):** 90 dage for `unmatched`/`ambiguous`/`rejected`/`suggested`; bekræftede følger kunden.
    Oprydnings-cron bygges sammen med migrationen (ingen lagring uden oprydning).
 
-## Skema (forslag 00247 — uført)
+## Migration 00247 — `supabase/migrations/00247_telephony_persistence.sql`
+
+**Status 2026-11-03: anvendt på STAGING, ikke på prod.** Prod kræver Henriks særskilte godkendelse (00247 er ikke i
+`scripts/prod-apply-migration.ts` APPROVED). Intet kalder ingest-funktionen endnu: webhooken er uændret (`persisted:false`,
+flag fra). Relatel, webhook-registrering, opkald, SMS og Telegram er slået fra.
+
+### Forskelle fra skitsen nedenfor (ingen produktændring — kun sikkerhed/data-integritet)
+
+| Skitse | Migration | Hvorfor |
+|---|---|---|
+| `from_number`/`to_number`/`external_number` | `from_number_normalized`/`to_number_normalized`/`external_number_normalized` | Navnet siger at kun normaliseret format (`toRelatelNumber`, `^[0-9]{8,15}$`) gemmes |
+| — | `missed` (genereret: indgående, ikke besvaret, sluttet eller telefonsvarer) | Ubesvaret er køens filter; ikke afledt i appen |
+| Trigger brugte `case_belongs_to_customer()` | Direkte `EXISTS` på `service_cases` | Funktionen har kun EXECUTE for `authenticated`; som `service_role` gav enhver bekræftelse 42501 (fundet af prøven) |
+| `customer_id` kunne sættes af enhver service-role-UPDATE | Trigger: nyt opkald aldrig med kunde/sag; kunde/sag sættes kun med `match_source='human'`, `matched_by` og `match_version + 1` | Regel 4–6 håndhævet i DB, ikke kun i appen |
+| Optimistisk lås på `customer_id` | `match_version` + `telephony_set_call_match()` (kun service_role): låser rækken, afviser forældet version (`stale`), skriver `audit_logs` i samme transaktion | Regel 10: samtidige rettelser → én vinder, præcis én audit-række |
+| Retention "cron bygges" | `telephony_purge_unconfirmed()` (kun service_role, fast 90 dage efter seneste aktivitet; hændelser via kaskade) | Låst regel 3 i DB; cron-ruten bygges i kode-fasen, FØR ingest tændes |
+| Dublet = `duplicate` | `duplicate` · `conflict` (samme hændelses-id med andet opkald eller anden payload-hash; intet ændres); et opkald oprettet af en gentaget hændelse slettes igen | En dublet må ikke skabe et nyt opkald |
+| Varighed `coalesce(ny, gammel)` | Varighed fra den SENESTE slut-hændelse; telefonsvarer-varighed = største; medarbejder = den der svarede | Samme slutrække uanset rækkefølge |
+| Hændelser kunne opdateres | `BEFORE UPDATE`-trigger afviser (55000), også for service_role | Uforanderlig revision |
+| Koblinger uden status | `is_active`, `updated_at`; PK (provider, provider_employee_id) + unik AKTIV kobling pr. profil (partielt indeks) | Historik bevares ved medarbejderskift |
+
+Uændret: én SELECT-politik (TO authenticated; `calls.view_unmatched` / `calls.view` + kundescope), ingen politikker på
+hændelser/koblinger, authenticated kun SELECT på opkald, intet til anon/PUBLIC, ingen lyd/URL/transskription/rå payload,
+ingen SMS-hændelsestyper, ingen kobling til `customer_tasks`, nøgler og standarder som låst.
+
+### Staging-bevis (2026-11-03)
+
+- `cli.ts dry-run-staging 00247` ✅ og `cli.ts tel-00247-probe` FØR apply (kroppen kørt i prøven, rollback-only): **63/63**.
+- Fingeraftryk før = efter apply (`cli.ts tel-00247-state`): customers 1915 `597e64c8…`, service_cases 1363 `594491f3…`,
+  customer_tasks 156 `cb7163d2…`, audit_logs 9373 `bb98ed66…`, incoming_emails 5557 `1024c259…`, overrides 0 — uændrede.
+  Katalog 114/273 → 117/281.
+- EFTER apply: `cli.ts tel-00247-probe` **69/69** (gentaget kørsel afvises af guarden; samtidighed C1–C3 med rigtige parallelle
+  sessioner; testrækker slettet; 0 opkald/hændelser/koblinger og identisk tilstand før/efter).
+- `cli.ts mp-00238-check` 16/16 (5 roller × 117 nøgler = permissions.ts; 117/281). tsc 0, check:rbac 0, check:rls-matrix 0.
+
+| Krav | Bevis (prøve-id) |
+|---|---|
+| Identisk webhook-gentagelse gemmer én hændelse | I1: `created`, `duplicate`; 1 hændelse, 1 opkald |
+| Samtidige gentagelser kan ikke lave dubletter | C1: 8 parallelle identiske → 1 `created` + 7 `duplicate`, 1 opkald/1 hændelse. C2: 3 hændelser × 3 parallelle for et NYT opkald → 1 opkald, 3 hændelser, korrekt slutstatus |
+| Ude af rækkefølge giver korrekt tilstand | I3: started→answered→ended = ended→answered→started = answered→ended→started (start 0 s, svar 5 s, slut 125 s, 120 s, `ended`); I5: ubesvaret før start → `missed` |
+| Sen slut-hændelse opdaterer varighed/status | I4: `answered` → `ended`, 95 s; ældre slut-hændelse overskriver ikke |
+| Dublet skaber ikke et nyt opkald | I2: samme id med andet opkald → `conflict`, 0 nye opkald; anden payload-hash → `conflict`; opkaldet uændret |
+| Unikhed håndhævet af DB | I7: direkte dublet-INSERT af hændelse og af opkald (uden funktionen) → 23505 |
+| Hændelser uforanderlige | I8: UPDATE som service_role → 55000 |
+| Ingen automatisk kunde/sag | I9: INSERT med kunde → 23514; UPDATE af kunde uden bekræftelse (også med forfalsket `human`) → 42501; M1: tvetydig får aldrig et forslag |
+| Rettelser auditeret og samtidighedssikre | M2–M7: confirmed:1 → stale → sag fra anden kunde 23514 → corrected:2 → unchanged → rejected:3; audit = confirmed, corrected, rejected (ingen numre). C3: 2 parallelle rettelser med samme version → 1 `confirmed` + 1 `stale`, 1 audit-række |
+| Slettet kunde | M8: opkaldet bliver `unmatched` uden sag; sletningen lykkes |
+| Retention 90 dage | R1: kun ubekræftet > 90 dage slettes; bekræftet > 90 dage og ubekræftet 89 dage bevares; hændelser følger med |
+| Ingen sideeffekter af lagring | I11: ingest ændrer ikke customers, service_cases, customer_tasks, audit_logs, incoming_emails, overrides (md5) |
+| Medarbejder-kobling | I10: én aktiv kobling pr. profil (23505); den der svarer vinder; inaktiv kobling → ingen profil |
+
+Persona-matrix (rigtige staging-uid'er + overrides i transaktionen). "Skriv" = INSERT/UPDATE/DELETE på opkald, SELECT/INSERT
+på hændelser, SELECT på koblinger og EXECUTE på de tre funktioner — 42501 for ALLE personaer:
+
+| Persona | U/S/A/R (ubekræftet) | Ci (kunde i montørens scope) | Cf (fremmed kunde) |
+|---|---|---|---|
+| admin, serviceleder | ja | ja | ja |
+| salg | nej | ja | ja |
+| bogholderi, montør | nej | nej | nej |
+| montør + `calls.view` | nej | ja | nej |
+| montør + `calls.view` + `customers.view.all` | nej | ja | ja |
+| bogholderi + `calls.view_unmatched` | ja | nej | nej |
+| salg − `calls.view` | nej | nej | nej |
+| serviceleder − `calls.view_unmatched` | nej | ja | ja |
+| inaktiv (med alle grants) / manglende profil | nej | nej | nej |
+| anon | 42501 | 42501 | 42501 |
+
+Rollback: nederst i migrationsfilen (fjerner kun det nye; telefoni-rækker går tabt; audit-rækker bevares).
+
+## Oprindelig skitse (historik — den gældende SQL er migrationsfilen)
 
 ```sql
 BEGIN;
