@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
 import { findVisibleCaseByNumber, searchKnownCatalogue } from '@/lib/actions/supplier-catalogue-lookup'
+import { AddCatalogueToCase } from './add-to-case'
 
 export const metadata: Metadata = { title: 'Varekatalog' }
 export const dynamic = 'force-dynamic'
@@ -51,7 +52,7 @@ export default async function CatalogueLookupPage({ searchParams }: { searchPara
       </form>
 
       {caseLink.state === 'one' && caseLink.id && (
-        <p className="text-sm">Åbn <Link className="text-blue-700 hover:underline" href={`/dashboard/orders/${caseLink.id}`}>{caseLink.label}</Link> og brug Tilføj materiale. Denne side opretter ikke linjen.</p>
+        <p className="text-sm">Sagen er <Link className="text-blue-700 hover:underline" href={`/dashboard/orders/${caseLink.id}?tab=materialer`}>{caseLink.label}</Link>. En vare med kendt pris kan lægges på sagen her. En ukendt pris oprettes ikke som 0. Uden adgang til indkøbspriser bruges sagens egen Tilføj materiale — den vej kan stadig gemme kost som 0, fordi kolonnen ikke kan være tom.</p>
       )}
       {caseLink.state === 'many' && <p className="text-sm text-amber-800">Flere sager har nummeret. Der er ikke valgt en.</p>}
       {caseLink.state === 'none' && sag.trim() && <p className="text-sm text-gray-600">Ingen sag med det nummer, som du kan tilføje materiale på.</p>}
@@ -76,6 +77,7 @@ export default async function CatalogueLookupPage({ searchParams }: { searchPara
                 <th className="px-3 py-2 font-medium">EAN</th>
                 <th className="px-3 py-2 font-medium">Indkøbspris</th>
                 <th className="px-3 py-2 font-medium">Kilde</th>
+                <th className="px-3 py-2 font-medium">Sag</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -87,6 +89,13 @@ export default async function CatalogueLookupPage({ searchParams }: { searchPara
                   <td className="px-3 py-2">{row.ean ?? '—'}</td>
                   <td className="px-3 py-2">{result.priceVisibility === 'hidden' ? 'Skjult' : result.priceVisibility === 'unreadable' ? 'Kunne ikke læses' : row.priceKnown && row.purchasePrice != null ? dkk(row.purchasePrice) : 'Ukendt'}</td>
                   <td className="px-3 py-2">{row.syncedAt ? `Kendt katalog · ${new Date(row.syncedAt).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}` : 'Kendt katalog · tidspunkt ukendt'}</td>
+                  <td className="px-3 py-2">
+                    {caseLink.state === 'one' && caseLink.id && result.priceVisibility === 'visible' && row.priceKnown
+                      ? <AddCatalogueToCase caseId={caseLink.id} productId={row.id} />
+                      : caseLink.state === 'one' && result.priceVisibility === 'visible'
+                        ? 'Ukendt pris — oprettes ikke'
+                        : '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>
