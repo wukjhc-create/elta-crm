@@ -427,10 +427,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   (egen ELLER ny nøgle `customers.notes.manage`, standard admin/serviceleder). Koden tåler at tabellen mangler
   (lib/notes/customer-notes-availability, i prod fra 1b002ce4). Probe: `cli.ts notes-00245-probe` (rollback-only),
   prod-tjek: `scripts/prod-verify-00245.ts pre|post`. Runbook: docs/runbooks/mp-00245-customer-notes.md
-- 2026-11-03: 00246 `incoming_emails` SELECT efter effektive rettigheder (fund P-1) er KUN i STAGING (prod kræver Henriks
-  godkendelse; prod kører 00180 = bogholderi ser hele postkassen → opret ingen bogholderi-profil i prod før 00246).
+- 2026-11-03: 00246 `incoming_emails` SELECT efter effektive rettigheder (fund P-1) er i STAGING og PROD (prod
+  2026-11-03 efter Henriks godkendelse; prod-bevis `scripts/prod-mail-00246-effective.ts` rollback-only, smoke
+  `scripts/prod-smoke-00246.ts`).
   Grene: inbox.view = alt · customers.emails.view + kundescope · ukoblede kræver emails.view + customers.edit +
   customers.view.all · sags-mails via cases.view.all/my_case_scope_ids · faktura-kilder via incoming_invoices.view.
   Ingen ny nøgle; 00186 må ALDRIG køres i prod. Probe `cli.ts mail-00246-probe` (rollback-only), state `cli.ts
   mail-00246-state`, prod-tjek `scripts/prod-verify-00246.ts pre|post`. Runbook docs/runbooks/mp-00246-incoming-emails-scope.md.
-  Telefoni-forslaget har INTET nummer endnu (pladsholder TEL-1)
+  Telefoni-forslaget har fået nummer 00247 (kun reserveret; ingen fil, intet kørt — kræver egen godkendelse)

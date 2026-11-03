@@ -1,7 +1,8 @@
 # 00246 — `incoming_emails` SELECT efter effektive rettigheder (fund P-1)
 
-**Status:** anvendt på STAGING 2026-11-03. **Ikke i prod** — kræver Henriks godkendelse. Prod kører i dag 00180
-(bogholderi ser hele postkassen; 0 bogholderi-profiler i prod). 00186 må ikke køres i prod (rå rolle).
+**Status:** anvendt på STAGING og PROD 2026-11-03 (Henrik: "APPROVED: migration 00246 may now be applied to
+PRODUCTION", inkl. de to adfærdsvalg: bogholderi ser sags-mails uden kunde; serviceleder − inbox.view alene fjerner ikke
+al mailsynlighed). 00186 må fortsat aldrig køres i prod.
 
 Fil: `supabase/migrations/00246_incoming_emails_effective_permissions.sql`. Kun SELECT-politikken ændres; skrive-
 politikker, grants, data og katalog røres ikke. Ingen ny rettighedsnøgle. Kode: ingen ændring nødvendig (appens gates
@@ -114,3 +115,19 @@ U171, U172, U193, U198, U215, U223, U229. Gates: tsc 0, check:rls-matrix 0, chec
 5. Smoke: indbakke (admin), kundekort-mails, ordre-Mails-fane (montør), fakturakø.
 
 Rollback: genskab 00180-politikken (tekst i migrationens hoved). Ingen data at gendanne.
+
+## Prod-kørsel 2026-11-03
+
+1. `prod-verify-00246.ts pre`: 6/6 (00180-politikken, hjælpere 3/3, nøgler 6/6). Fingeraftryk: incoming_emails 918
+   `08841c30`, customers 120 `a43821d7`, service_cases 8 `88067dd2`, incoming_invoices 61 `facf4eeb`, email_messages 15
+   `7ebd1864`, emails 0, email_events 8 `33b2143c`, sent_quotes 7 `5cdbbc89`; katalog 114/273.
+2. `prod-apply-migration.ts 00246 --dry-run`: SQL kørt, rullet tilbage; pre igen identisk.
+3. Apply: COMMIT gennemført.
+4. `prod-verify-00246.ts post`: 15/15 — én SELECT-politik (authenticated, permissive), ingen `user_role()`, ingen
+   `USING (true)`, alle fem grene; skrive-politikker og grants uændrede; alle otte fingeraftryk = pre.
+5. `prod-mail-00246-effective.ts` (rollback-only): 26/26 + 1 NOT_TESTABLE_PROD (prod har ingen sags-koblede mails →
+   dækket af fixture). Standardroller og grants/revokes som staging-matrixen; rigtige mails: admin/serviceleder/salg
+   918/918, bogholderi 284/918 (de 634 ukoblede uden sag/faktura er væk), montør 0 (ingen sags-mails i prod).
+6. `prod-smoke-00246.ts` (read-only): 11/11 — indbakke-liste/tællinger (admin 918, ukoblede 667), kundekort-mails 49/49 +
+   indhold, montør ser 0 ukoblede og 0 kundemails, sags-Mails-fane uden fejl, faktura-kilde-mails 58/58, ingen udgående
+   rækker siden 2026-11-03 00:00, ingen telefoni-tabeller.

@@ -2,8 +2,8 @@
 
 **Status:** omskrevet 2026-11-03 (stabilitets-/sikkerhedsgennemgang). Erstatter Groks udkast med én tabel
 `telephony_events`. Intet er anvendt på staging eller prod. Designretningen er accepteret af Henrik 2026-11-03.
-**Intet migrationsnummer endnu** (pladsholder `TEL-1`): 00246 er brugt til mail-scope (P-1); telefoni får sit nummer
-først når 00246 er afklaret og merget. Prod kræver Henriks godkendelse pr. migration. Relatel, webhook-registrering,
+**Tildelt nummer 00247** (2026-11-03, efter at 00246 mail-scope blev anvendt og verificeret i prod). Kun nummeret er
+reserveret: der ligger ingen fil i `supabase/migrations`, og intet er kørt. Prod kræver Henriks godkendelse pr. migration. Relatel, webhook-registrering,
 opkald, SMS og Telegram forbliver slået fra.
 
 ## Hvorfor udkastet ikke var nok
@@ -59,7 +59,7 @@ opkald, SMS og Telegram forbliver slået fra.
 9. **Retention (låst):** 90 dage for `unmatched`/`ambiguous`/`rejected`/`suggested`; bekræftede følger kunden.
    Oprydnings-cron bygges sammen med migrationen (ingen lagring uden oprydning).
 
-## Skema (forslag TEL-1 — uført)
+## Skema (forslag 00247 — uført)
 
 ```sql
 BEGIN;
@@ -69,10 +69,10 @@ DO $guard$
 BEGIN
   IF to_regprocedure('public.user_has_permission(text)') IS NULL OR to_regprocedure('public.my_customer_scope_ids()') IS NULL
      OR to_regprocedure('public.case_belongs_to_customer(uuid,uuid)') IS NULL THEN
-    RAISE EXCEPTION 'TEL-1: hjælpefunktioner mangler (00238/00240)';
+    RAISE EXCEPTION '00247: hjælpefunktioner mangler (00238/00240)';
   END IF;
   IF to_regclass('public.telephony_calls') IS NOT NULL OR to_regclass('public.telephony_events') IS NOT NULL THEN
-    RAISE EXCEPTION 'TEL-1: telefoni-tabeller findes allerede — kontrollér før kørsel';
+    RAISE EXCEPTION '00247: telefoni-tabeller findes allerede — kontrollér før kørsel';
   END IF;
 END
 $guard$;
@@ -325,9 +325,9 @@ Plus:
   flag fra.
 
 ## Prod-verifikation (efter godkendelse; samme form som 00245)
-1. Kode med tolerance for manglende tabeller deployet (flag fra) → `prod-verify-TEL pre`: tabeller/nøgler fraværende,
+1. Kode med tolerance for manglende tabeller deployet (flag fra) → `prod-verify-00247 pre`: tabeller/nøgler fraværende,
    fingeraftryk af customers, service_cases, customer_tasks, audit_logs, permission-tabeller.
-2. `prod-apply-migration <nr> --dry-run` → pre igen uændret → apply.
+2. `prod-apply-migration 00247 --dry-run` → pre igen uændret → apply.
 3. `post`: præcis én politik (SELECT), ingen `USING (true)`/`user_role()`, grants (authenticated kun SELECT på opkald),
    funktions-ACL, 3 nøgler + standarder, RLS slået til på alle tre, 0 rækker.
 4. Rollback-only probe med rigtige profiler (+ midlertidigt rolleskift i transaktionen) efter matrixen ovenfor; ingest

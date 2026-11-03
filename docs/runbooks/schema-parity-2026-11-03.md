@@ -50,7 +50,7 @@ migrationer → næste frie nummer er **00246**.
   `incoming_invoices.view`; montør-klausulen bevaret). 00186 må ikke køres som den er (rå rolle, ikke ny model).
 - Migration: ja (kræver Henriks godkendelse). Indtil da: opret ingen bogholderi-profil i prod.
 - **Status 2026-11-03:** rettet med **00246** (`incoming_emails` SELECT efter effektive rettigheder, ingen ny nøgle) —
-  anvendt på STAGING, ikke i prod. Bevis og prod-plan: `docs/runbooks/mp-00246-incoming-emails-scope.md`.
+  anvendt på STAGING og PROD (2026-11-03, efter Henriks godkendelse). Bevis: `docs/runbooks/mp-00246-incoming-emails-scope.md`.
 
 ### P-2 — `assistant_links` / `personal_reminders` kun på staging — **S3**
 - Funktion: Telegram-kobling (profil), personlige påmindelser (opgaver/kalender).
@@ -118,7 +118,7 @@ migrationer → næste frie nummer er **00246**.
 | Telegram/påmindelser 00195/00197 (P-2) | S3 | kun staging | gennemgå mod nutidens model først når assistenten skal i prod |
 | Gamle AI-projekt-/kalkulationstabeller (P-5) | S3 | registreret | produktbeslutning: fjern siderne eller byg skemaet |
 | Staging-orphan `customer_documents.visible_to_customer` (P-3) | INFO | registreret | ingen handling |
-| Telefoni-persistens | — | design accepteret, låste beslutninger i `telephony-events-proposal.md` | nummer tildeles efter 00246 er afklaret og merget |
+| Telefoni-persistens | — | design accepteret, låste beslutninger i `telephony-events-proposal.md` | nummer 00247 reserveret (ingen fil, ikke kørt) |
 | LM-prissync (nedenfor) | drift | registreret | undersøg separat; ingen reparation i mail-sporet |
 
 ### Driftsfund — LM-prissync (`/api/cron/lemu-sync`, mandage 04:00 UTC) — 2026-11-03, prod read-only
