@@ -606,6 +606,14 @@ export async function createCustomerTask(
       if (!options.some((o) => o.id === input.service_case_id)) return { success: false, error: 'Den valgte sag er ikke en af dine åbne sager hos kunden' }
       serviceCaseId = input.service_case_id
     }
+  } else if (input.callbackQueue === true && !input.service_case_id) {
+    // Tilbageringning (opkaldskortet): samme regel som klienten håndhæver her på serveren — én åben sag knyttes med,
+    // flere kræver et eksplicit valg, en læsefejl opretter intet (samme "åben sag" som opkaldsopslaget)
+    const { data: open, error: openErr } = await supabase.from('service_cases').select('id')
+      .eq('customer_id', input.customer_id).eq('is_proposal', false).not('status', 'in', '(closed,converted)').limit(2)
+    if (openErr) return { success: false, error: 'Kundens sager kunne ikke læses. Tilbageringningen er ikke oprettet.' }
+    if ((open ?? []).length > 1) return { success: false, error: 'Kunden har flere åbne sager. Vælg hvilken sag opkaldet hører til. Intet er oprettet.' }
+    serviceCaseId = (open ?? [])[0]?.id ?? null
   } else if (input.service_case_id) {
     if (!/^[0-9a-f-]{36}$/i.test(input.service_case_id)) return { success: false, error: 'Ugyldig sag' }
     const { data: sc, error: scErr } = await supabase.from('service_cases').select('id').eq('id', input.service_case_id).eq('customer_id', input.customer_id).maybeSingle()
@@ -622,7 +630,8 @@ export async function createCustomerTask(
     title: input.title,
     description: input.description || null,
     priority: input.priority || 'normal',
-    assigned_to: input.assigned_to || user.id,
+    // tilbageringning tildeles altid den indloggede medarbejder (et assigned_to fra klienten ignoreres)
+    assigned_to: input.callbackQueue === true ? user.id : (input.assigned_to || user.id),
     due_date: input.due_date || null,
     reminder_at: queue.reminder_at,
     ...(queue.auto_rule ? { auto_rule: queue.auto_rule } : {}),

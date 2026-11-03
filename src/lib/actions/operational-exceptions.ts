@@ -9,6 +9,7 @@ import { casesMissingPowerOfAttorney, type PoaCaseRow, type PoaDocRow } from '@/
 import { copenhagenWeekBounds } from '@/lib/operations/planning-window'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getEmployeeRateGapsAction } from '@/lib/actions/employees'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type OpCount =
   | { state: 'ok'; count: number; href: string | null; note: string | null }
@@ -67,28 +68,30 @@ export async function getOperationalExceptions(): Promise<OperationalExceptions>
 }
 
 async function missingPoaCount(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']): Promise<OpCount> {
+  // Alle åbne sager i brugerens scope og alle deres kontrakt-dokumenter, side for side: et loft (før 200 sager / 1.000
+  // dokumenter pr. bid) gav et for lavt tal for sager, og et afkortet dokumentsæt talte sager med fuldmagt som manglende.
+  type CaseRow = { id: string; case_number: string | null; title: string; customer_id: string | null; status: string }
+  type DocRow = { id: string; customer_id: string | null; service_case_id: string | null; document_type: string | null; description: string | null }
+  let cases: CaseRow[]
   try {
-    const { data, error } = await supabase.from('service_cases').select('id, case_number, title, customer_id, status').eq('is_proposal', false).not('status', 'in', '(closed,converted,cancelled)').order('created_at', { ascending: false }).limit(200)
-    if (error) return { state: 'unknown', href: '/dashboard/orders', note: 'Sagerne kunne ikke læses.' }
-    const cases = (data ?? []) as Array<{ id: string; case_number: string | null; title: string; customer_id: string | null; status: string }>
+    cases = await fetchAllRows<CaseRow>((f, t) => supabase.from('service_cases').select('id, case_number, title, customer_id, status')
+      .eq('is_proposal', false).not('status', 'in', '(closed,converted,cancelled)').order('id').range(f, t))
+  } catch {
+    return { state: 'unknown', href: '/dashboard/orders', note: 'Sagerne kunne ikke læses.' }
+  }
+  try {
     const customerIds = [...new Set(cases.map((c) => c.customer_id).filter(Boolean) as string[])]
     const docs: PoaDocRow[] = []
     for (let i = 0; i < customerIds.length; i += 200) {
-      const res = await supabase.from('customer_documents').select('customer_id, service_case_id, document_type, description').in('customer_id', customerIds.slice(i, i + 200)).eq('document_type', 'contract').limit(1000)
-      if (res.error) return { state: 'unknown', href: '/dashboard/orders', note: 'Dokumenterne kunne ikke læses. Ingen sag tælles som manglende fuldmagt.' }
-      for (const d of (res.data ?? []) as Array<{ customer_id: string | null; service_case_id: string | null; document_type: string | null; description: string | null }>) {
-        docs.push({ customerId: d.customer_id, serviceCaseId: d.service_case_id, documentType: d.document_type, description: d.description })
-      }
+      const chunk = customerIds.slice(i, i + 200)
+      const rows = await fetchAllRows<DocRow>((f, t) => supabase.from('customer_documents').select('id, customer_id, service_case_id, document_type, description')
+        .in('customer_id', chunk).eq('document_type', 'contract').order('id').range(f, t))
+      for (const d of rows) docs.push({ customerId: d.customer_id, serviceCaseId: d.service_case_id, documentType: d.document_type, description: d.description })
     }
     const rows: PoaCaseRow[] = cases.map((c) => ({ id: c.id, caseNumber: c.case_number, title: c.title, customerId: c.customer_id, status: c.status }))
-    return {
-      state: 'ok',
-      count: casesMissingPowerOfAttorney(rows, docs).length,
-      href: '/dashboard/assistant',
-      note: cases.length === 200 ? 'Kun de 200 nyeste åbne sager.' : null,
-    }
+    return { state: 'ok', count: casesMissingPowerOfAttorney(rows, docs).length, href: '/dashboard/assistant', note: null }
   } catch {
-    return { state: 'unknown', href: '/dashboard/orders', note: 'Fuldmagterne kunne ikke læses.' }
+    return { state: 'unknown', href: '/dashboard/orders', note: 'Dokumenterne kunne ikke læses. Ingen sag tælles som manglende fuldmagt.' }
   }
 }
 

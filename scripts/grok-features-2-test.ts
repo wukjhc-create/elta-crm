@@ -12,6 +12,7 @@ import { invoiceTrafficLight } from '../src/lib/invoice-control/traffic-light'
 import type { InvoiceControl } from '../src/lib/invoice-control/engine'
 import { suggestDocumentAction } from '../src/lib/documents/document-suggestion'
 import { copenhagenWeekBounds } from '../src/lib/operations/planning-window'
+import { rescheduledBesigtigelseDescription } from '../src/lib/tasks/besigtigelse-task'
 
 let bad = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -74,6 +75,17 @@ eq('flere kunder vælges ikke', fileOnly.customerId, null)
 eq('tekst må sige at filen er læst', suggestDocumentAction({ filename: 'bilag.pdf', extractedText: 'Dette er en faktura' }).readFile, true)
 
 eq('ugen omkring tirsdag', copenhagenWeekBounds('2026-11-03'), { start: '2026-11-02', end: '2026-11-08' })
+
+// Integrationsrettelser (Claude 2026-11-03)
+const booked = ['Besigtigelse planlagt d. 6. november 2026 kl. 09:00', 'Adresse: Vej 1, 8000 Aarhus', 'Bekræftelses-email sendt til k@x.dk'].join('\n')
+const moved = rescheduledBesigtigelseDescription(booked, '13. november 2026', '10:00', '2026-11-03')
+// samme regex som portalen (getPortalBesigtigelser): første "kl." bestemmer klokkeslættet
+eq('flyttet besigtigelse: portalen ser det nye klokkeslæt', moved.match(/kl\.\s*(\S+)/)?.[1], '10:00')
+eq('flyttet besigtigelse: ny første linje', moved.split('\n')[0], 'Besigtigelse planlagt d. 13. november 2026 kl. 10:00')
+eq('flyttet besigtigelse: adressen bevares', moved.includes('Adresse: Vej 1, 8000 Aarhus'), true)
+eq('flyttet besigtigelse: historik siger at kunden ikke har fået besked', /Flyttet d\. 2026-11-03 via assistenten \(før: 6\. november 2026 kl\. 09:00\) — kunden har ikke fået besked/.test(moved), true)
+eq('tekst findes men typen kom fra filnavnet: siger ikke at teksten er brugt', suggestDocumentAction({ filename: 'fuldmagt.pdf', extractedText: 'Lorem ipsum' }).statement.startsWith('Teksten er brugt'), false)
+eq('typen kom fra teksten: siger at teksten er brugt', suggestDocumentAction({ filename: 'bilag.pdf', extractedText: 'Dette er en faktura' }).statement.startsWith('Teksten er brugt'), true)
 
 if (bad) {
   console.error(`${bad} failed`)

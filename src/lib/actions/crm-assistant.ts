@@ -30,8 +30,9 @@ import {
 import type { CommCandidate } from '@/lib/automation/comm-preview'
 import { getCustomerCommunicationTimeline } from '@/lib/actions/communication-timeline'
 import { orIlikeContains } from '@/lib/validations/postgrest-filter'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { copenhagenDatePlusDays, copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
-import { isBookedCustomerBesigtigelse } from '@/lib/tasks/besigtigelse-task'
+import { isBookedCustomerBesigtigelse, rescheduledBesigtigelseDescription } from '@/lib/tasks/besigtigelse-task'
 import { updateCustomerTask } from '@/lib/actions/customer-tasks'
 import { createCustomerNote } from '@/lib/actions/customer-notes'
 import { linkEmailToCase } from '@/lib/actions/incoming-emails'
@@ -124,9 +125,15 @@ async function missingPoa(supabase: Awaited<ReturnType<typeof getAuthenticatedCl
   const docs: PoaDocRow[] = []
   for (let i = 0; i < customerIds.length; i += 200) {
     const chunk = customerIds.slice(i, i + 200)
-    const res = await supabase.from('customer_documents').select('customer_id, service_case_id, document_type, description').in('customer_id', chunk).eq('document_type', 'contract').limit(1000)
-    if (res.error) return answer(false, 'Dokumenterne kunne ikke læses. Ingen sag er markeret som manglende fuldmagt.')
-    for (const d of (res.data ?? []) as Array<{ customer_id: string | null; service_case_id: string | null; document_type: string | null; description: string | null }>) {
+    // side for side: et afkortet dokumentsæt ville markere sager MED fuldmagt som manglende
+    let res: Array<{ customer_id: string | null; service_case_id: string | null; document_type: string | null; description: string | null }>
+    try {
+      res = await fetchAllRows((f, t) => supabase.from('customer_documents').select('id, customer_id, service_case_id, document_type, description')
+        .in('customer_id', chunk).eq('document_type', 'contract').order('id').range(f, t))
+    } catch {
+      return answer(false, 'Dokumenterne kunne ikke læses. Ingen sag er markeret som manglende fuldmagt.')
+    }
+    for (const d of res) {
       docs.push({ customerId: d.customer_id, serviceCaseId: d.service_case_id, documentType: d.document_type, description: d.description })
     }
   }
@@ -341,6 +348,9 @@ async function proposeMove(supabase: AssistantClient, action: { caseNumber: stri
   if (inspections.length !== 1) {
     return answer(true, decided.reason, inspections.map((t) => ({ title: t.title ?? 'Besigtigelse', detail: 'Booket besigtigelse', href: `/dashboard/orders/${sag.id}` })))
   }
+  if (inspections[0].status !== 'pending') {
+    return answer(true, 'Kunden har allerede bekræftet den nuværende tid. Ombook besigtigelsen på kundekortet, så kunden får den nye tid. Intet er flyttet.')
+  }
   return answer(true, `Forslag: flyt “${inspections[0].title ?? 'Besigtigelse'}” til ${date} kl. ${action.time}. Kunden får ingen mail, før du selv sender en. Intet er flyttet endnu.`, [{
     title: inspections[0].title ?? 'Besigtigelse',
     detail: `${date} kl. ${action.time}`,
@@ -449,15 +459,27 @@ async function confirmMove(
     return { success: false, wrote: false, message: plan.reason }
   }
   if (!(await userCanViewCustomer(found.rows[0].customer_id, ctx))) return { success: false, wrote: false, message: 'Du har ikke adgang til kunden. Intet er flyttet.' }
-  const tasks = await ctx.supabase.from('customer_tasks').select('id, title, auto_rule, status').eq('service_case_id', found.rows[0].id).neq('status', 'done').limit(50)
+  const tasks = await ctx.supabase.from('customer_tasks').select('id, title, auto_rule, status, description').eq('service_case_id', found.rows[0].id).neq('status', 'done').limit(50)
   if (tasks.error) return { success: false, wrote: false, message: 'Besigtigelserne kunne ikke læses. Intet er flyttet.' }
-  const rows = (tasks.data ?? []) as Array<{ id: string; title: string | null; auto_rule: string | null; status: string | null }>
+  const rows = (tasks.data ?? []) as Array<{ id: string; title: string | null; auto_rule: string | null; status: string | null; description: string | null }>
   const inspections = rows.length >= 50 ? [] : rows.filter((t) => isBookedCustomerBesigtigelse(t))
   const plan = planInspectionMove({ confirmed: true, caseMatches: 1, inspectionMatches: rows.length >= 50 ? 2 : inspections.length, date: proposal.date, time: proposal.time, today })
   if (!plan.execute) return { success: false, wrote: false, message: plan.reason }
-  const updated = await updateCustomerTask({ id: inspections[0].id, due_date: copenhagenLocalToIso(proposal.date, proposal.time) })
+  const target = inspections[0]
+  // Kunden har bekræftet tiden i portalen (status in_progress): en flytning ville arve bekræftelsen for en tid, kunden
+  // aldrig har set. Ombook via kundekortet (ny booking + bekræftelsesmail) i stedet.
+  if (target.status !== 'pending') {
+    return { success: false, wrote: false, message: 'Kunden har allerede bekræftet den nuværende tid. Ombook besigtigelsen på kundekortet, så kunden får den nye tid. Intet er flyttet.' }
+  }
+  const dateLabel = new Date(`${proposal.date}T12:00:00Z`).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
+  const updated = await updateCustomerTask({
+    id: target.id,
+    due_date: copenhagenLocalToIso(proposal.date, proposal.time),
+    // portalen læser klokkeslættet fra beskrivelsen — skal følge den nye tid
+    description: rescheduledBesigtigelseDescription(target.description, dateLabel, proposal.time, today),
+  })
   return updated.success
-    ? { success: true, wrote: true, message: 'Besigtigelsen er flyttet. Kunden har ikke fået en ny mail.' }
+    ? { success: true, wrote: true, message: 'Besigtigelsen er flyttet. Kunden har IKKE fået besked — giv kunden den nye tid.' }
     : { success: false, wrote: false, message: updated.error ?? 'Besigtigelsen blev ikke flyttet.' }
 }
 

@@ -21,6 +21,20 @@ export function isPortalBesigtigelseRequest(t: BesigtigelseTaskLike): boolean {
   return /^portal:\s*besigtigelse/i.test((t.title ?? '').trim())
 }
 
+/**
+ * Flyt en booket besigtigelse (assistentens bekræftede "flyt"). Portalen viser datoen fra due_date, men klokkeslættet
+ * fra beskrivelsens første "kl."-linje — så linjen skal følge med, ellers ser kunden ny dato med gammelt klokkeslæt.
+ * Første linje ("Besigtigelse planlagt d. … kl. …") erstattes; en historiklinje tilføjes. Kunden får ingen besked.
+ */
+export function rescheduledBesigtigelseDescription(description: string | null | undefined, newDateLabel: string, newTime: string, movedOn: string): string {
+  const lines = (description ?? '').split('\n')
+  const first = lines[0] ?? ''
+  const head = `Besigtigelse planlagt d. ${newDateLabel} kl. ${newTime}`
+  const rest = /^besigtigelse planlagt d\. /i.test(first) ? lines.slice(1) : lines
+  const history = `Flyttet d. ${movedOn} via assistenten${/^besigtigelse planlagt d\. /i.test(first) ? ` (før: ${first.replace(/^besigtigelse planlagt d\. /i, '')})` : ''} — kunden har ikke fået besked om den nye tid`
+  return [head, ...rest.filter((l) => l.trim() !== ''), history].join('\n')
+}
+
 /** Må kunden rykkes for at bekræfte tiden? Kun bookede, åbne besigtigelser hvis tid endnu ikke er passeret. */
 export function shouldRemindBesigtigelse(t: BesigtigelseTaskLike, now: Date = new Date()): boolean {
   if (!isBookedCustomerBesigtigelse(t) || t.status !== 'pending' || !t.due_date) return false

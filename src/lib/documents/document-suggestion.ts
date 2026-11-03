@@ -65,9 +65,12 @@ export function suggestDocumentAction(input: DocumentSuggestionInput): DocumentS
         : (input.filename?.trim() || input.subject?.trim() || readFile)
           ? (input.filename?.trim() ? 'filename' : input.subject?.trim() ? 'subject' : 'text')
           : 'none'
-  const statement = readFile
+  // "Teksten er brugt" kun når typen faktisk kom fra teksten — ellers byggede forslaget på filnavn/emne
+  const statement = basis === 'text' && readFile
     ? `Teksten er brugt. ${picked.reason}.`
-    : `Filen er ikke læst. Forslaget bygger kun på filnavn eller emne. ${picked.reason}.`
+    : readFile
+      ? `Forslaget bygger på filnavn eller emne; teksten gav ingen type. ${picked.reason}.`
+      : `Filen er ikke læst. Forslaget bygger kun på filnavn eller emne. ${picked.reason}.`
   return {
     kind: picked.kind,
     readFile,
