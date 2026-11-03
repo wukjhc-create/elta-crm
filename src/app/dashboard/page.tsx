@@ -53,6 +53,7 @@ import {
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
 import { OperationalOverview } from '@/components/dashboard/operational-overview'
+import { OperationalExceptions } from '@/components/dashboard/operational-exceptions'
 import { StyringsCockpit } from '@/components/dashboard/styrings-cockpit'
 
 export const metadata: Metadata = {
@@ -140,6 +141,7 @@ export default async function DashboardPage() {
 
       {/* Sprint 9A — Styringscockpit (kraever handling) */}
       <StyringsCockpit overview={overview} />
+      <OperationalExceptions />
 
       {/* Sprint Ø4.0 — Driftsdashboard: cost-free fakturaøkonomi (få pengene hjem) */}
       {canViewInvoices && <Suspense fallback={<WidgetSkeleton />}><InvoiceEconomyServer /></Suspense>}

@@ -121,6 +121,15 @@ function JobGroup({ title, jobs, warn, emptyText }: { title: string; jobs: WorkO
                 <ChevronRight className="w-4 h-4 text-gray-400" />
               </Link>
               {/* N49: navigation direkte fra dagsoversigten (stor trykflade til mobil) */}
+              {w.customer_id && (
+                <Link
+                  href={`/dashboard/customers/${w.customer_id}`}
+                  className="shrink-0 flex flex-col items-center justify-center px-3 text-blue-700 hover:bg-blue-50 border-l text-[11px]"
+                  data-testid="my-job-communication"
+                >
+                  Kunde
+                </Link>
+              )}
               {w.case?.address && (
                 <a
                   href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([w.case.address, w.case.postal_code, w.case.city].filter(Boolean).join(', '))}`}
