@@ -7,7 +7,10 @@ const LABELS: Array<{ key: keyof Awaited<ReturnType<typeof getOperationalExcepti
   { key: 'missingPoa', title: 'Sager uden fuldmagt' },
   { key: 'supplierReview', title: 'Leverandørfakturaer til gennemgang' },
   { key: 'rateGaps', title: 'Medarbejdere uden sats' },
+  { key: 'overdueTasks', title: 'Forfaldne opgaver' },
+  { key: 'casesWithoutAction', title: 'Sager uden næste handling' },
   { key: 'jobsToday', title: 'Job i dag' },
+  { key: 'jobsTomorrow', title: 'Job i morgen' },
   { key: 'jobsWeek', title: 'Job denne uge' },
 ]
 
