@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createCustomerTask } from '@/lib/actions/customer-tasks'
 import { createCustomerNote } from '@/lib/actions/customer-notes'
 import type { CallCard } from '@/lib/integrations/telephony/call-card'
+import { planCallbackInsert } from '@/lib/integrations/telephony/callback-plan'
 
 /**
  * Handlinger på opkaldskortet. Ring op og SMS er altid deaktiveret.
@@ -17,24 +18,37 @@ export function CallCardPanel({ card }: { card: CallCard }) {
   const [note, setNote] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const customerCases = card.customerId ? card.openCases.filter((c) => c.customer_id === card.customerId) : []
+  const [caseId, setCaseId] = useState<string | null>(customerCases.length === 1 ? customerCases[0].id : null)
 
   async function saveCallback() {
     if (!card.customerId || !card.displayNumber) return
+    const plan = planCallbackInsert({
+      customerId: card.customerId,
+      displayNumber: card.displayNumber,
+      customerLabel: card.customerLabel,
+      openCases: card.openCases,
+      selectedCaseId: caseId,
+      dueAtIso: new Date().toISOString(),
+    })
+    if (!plan.ok) {
+      setMessage(plan.reason)
+      return
+    }
     setBusy(true)
     setMessage(null)
-    const openCase = card.openCases.find((c) => c.customer_id === card.customerId)
     const res = await createCustomerTask({
-      customer_id: card.customerId,
-      title: `Ring tilbage: ${card.customerLabel ?? 'kunde'}`,
-      description: `Opkaldskort ${card.displayNumber}.${openCase ? ` Åben sag: ${openCase.case_number ?? ''} ${openCase.title}`.trim() : ''}`,
-      priority: 'high',
-      due_date: new Date().toISOString(),
-      reminder_at: new Date().toISOString(),
-      service_case_id: openCase?.id,
+      customer_id: plan.task.customer_id,
+      title: plan.task.title,
+      description: plan.task.description,
+      priority: plan.task.priority,
+      due_date: plan.task.due_date,
+      service_case_id: plan.task.service_case_id ?? undefined,
+      callbackQueue: true,
     })
     setBusy(false)
     setConfirm(null)
-    setMessage(res.success ? 'Tilbageringningen er oprettet.' : (res.error ?? 'Opgaven kunne ikke oprettes.'))
+    setMessage(res.success ? 'Tilbageringningen ligger i køen og er tildelt dig. Der er ikke sendt en Telegram-påmindelse.' : (res.error ?? 'Opgaven kunne ikke oprettes.'))
     if (res.success) router.refresh()
   }
 
@@ -117,9 +131,23 @@ export function CallCardPanel({ card }: { card: CallCard }) {
 
       {confirm === 'callback' && (
         <section className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
-          <p>Opret opgaven “Ring tilbage: {card.customerLabel}” på kunden. Der ringes ikke op.</p>
+          <p>Opret opgaven “Ring tilbage: {card.customerLabel}” på kunden. Den tildeles dig og vises i tilbageringningskøen. Der ringes ikke op, og der sendes ingen Telegram-påmindelse.</p>
+          {customerCases.length > 1 && (
+            <fieldset className="mt-3 space-y-2">
+              <legend className="font-medium">Vælg sag</legend>
+              {customerCases.map((c) => (
+                <label key={c.id} className="flex items-center gap-2">
+                  <input type="radio" name="callback-case" checked={caseId === c.id} onChange={() => setCaseId(c.id)} />
+                  <span>{c.case_number ?? 'Sag'} · {c.title}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+          {customerCases.length === 1 && (
+            <p className="mt-2 text-gray-700">Sagen {customerCases[0].case_number ?? ''} {customerCases[0].title} knyttes med.</p>
+          )}
           <div className="mt-3 flex gap-2">
-            <button type="button" disabled={busy} onClick={saveCallback} className="min-h-11 rounded-md bg-green-700 px-3 text-white disabled:opacity-50">Bekræft</button>
+            <button type="button" disabled={busy || (customerCases.length > 1 && !caseId)} onClick={saveCallback} className="min-h-11 rounded-md bg-green-700 px-3 text-white disabled:opacity-50">Bekræft</button>
             <button type="button" disabled={busy} onClick={() => setConfirm(null)} className="min-h-11 rounded-md border px-3">Annuller</button>
           </div>
         </section>
