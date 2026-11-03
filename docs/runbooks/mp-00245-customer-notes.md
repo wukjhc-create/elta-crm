@@ -1,6 +1,7 @@
 # 00245 — customer_notes efter nutidens rettighedsmodel
 
-**Status:** anvendt på STAGING 2026-11-02 (Henrik: "STAGING ONLY FIRST"). **PROD kræver Henriks særskilte godkendelse.**
+**Status:** anvendt på STAGING 2026-11-02 og PROD 2026-11-03 (Henrik: "APPROVED: migration 00245 may now be applied to
+PRODUCTION"; kode `5a1f4f12` deployet først). Prod-bevis: se "Prod-kørsel 2026-11-03" nederst.
 Fil: `supabase/migrations/00245_customer_notes_effective_permissions.sql`
 
 ## Hvorfor ikke 00196
@@ -82,3 +83,18 @@ Kompatibel kode i prod: `1b002ce4` (2026-11-02). Efter 00245 i prod skal `script
 `'00245'`, og prod-paritetstjek af kataloget (mp-00238) viser 114/273 som staging.
 Risiko: lav — ny tom tabel, ny kolonne med konstant standard (metadata-ændring), ny nøgle; ingen eksisterende politik på
 andre tabeller ændres. Rollback i bunden af migrationsfilen.
+
+## Prod-kørsel 2026-11-03
+
+1. `5a1f4f12` (00245-gren + APPROVED) fast-forward på main, deploy `5a1f4f1` sund (login 200, dashboard 307, webhook 404).
+2. `prod-verify-00245 pre` 4/4: tabel og `case_notes.source` mangler; case_notes 2 (`f312d79c…`), customers 120
+   (`a43821d7…`), service_cases 8 (`88067dd2…`); katalog 113 nøgler / 271 rolle-par.
+3. Hjælpere prod vs staging: krop/security definer/config ens; eneste forskel er prod's ekstra EXECUTE til service_role
+   (uden betydning — service_role omgår RLS). `prod-apply-migration 00245 --dry-run` grøn og rullet tilbage; pre igen uændret.
+4. Anvendt (COMMIT). `prod-verify-00245 post` 12/12.
+5. `prod-db-fingerprint --exclude-col case_notes.source` før/efter: kun nye objekter (tabel, 4 politikker, grants, 2
+   indeks, nøgle + 2 standarder); alle forretningstabeller (customers, service_cases, case_notes, offers, invoices m.fl.)
+   identiske.
+6. `scripts/prod-notes-00245-effective.ts` (rollback-only) 25/25 — roller uden aktiv prod-profil prøvet ved midlertidigt
+   rolleskift af montør-profilen i transaktionen. `prod-mp-00238-effective` 13/13 (114 nøgler, 0 afvigelser).
+   `prod-smoke-grok-batch` 9/9 inkl. notelæsninger som admin/montør; ingen udgående e-conomic/SMS/webhook-rækker.

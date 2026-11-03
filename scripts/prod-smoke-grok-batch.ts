@@ -48,6 +48,18 @@ withProdReadOnlyRoleProbe('prod-smoke-grok-batch', async (probe, run) => {
   // note-knapperne på mail-/opkaldskort vises ikke/er deaktiveret (1b002ce4). Rapporteres, fejler ikke.
   const notes = await run(`SELECT to_regclass('public.customer_notes')::text AS t`)
   console.log(`INFO  customer_notes i prod: ${notes[0].t ? 'findes' : 'findes IKKE (før 00245) — notekilden er unavailable, note-knapper skjult/deaktiveret (1b002ce4)'}`)
+  if (notes[0].t) {
+    // efter 00245: kodens læsninger (tidslinje, notelog, tilgængelighedsprøve) som hver rolle — ingen 42501/kolonnefejl
+    for (const u of users) {
+      const failed: string[] = []
+      for (const sql of [`SELECT id, content, created_at FROM customer_notes ORDER BY created_at DESC LIMIT 40`,
+        `SELECT id, content, source, created_at, created_by FROM customer_notes LIMIT 5`, `SELECT id FROM customer_notes LIMIT 1`]) {
+        const r = await probe(u.id, sql)
+        if (!r.ok) failed.push(r.code)
+      }
+      res.push([`${u.role}: notelæsninger (tidslinje/notelog/tilgængelighed) uden fejl`, failed.length === 0, failed.join('; ')])
+    }
+  }
 
   const tel = await run(`SELECT to_regclass('public.telephony_events')::text AS t`)
   res.push(['ingen telefoni-tabel (forslag ikke anvendt)', tel[0].t === null, String(tel[0].t ?? '')])
