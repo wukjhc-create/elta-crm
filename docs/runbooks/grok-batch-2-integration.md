@@ -40,3 +40,20 @@ are untouched). No migration, no flags, no external actions.
 - Staging UI (final code): U258, U259, U260, U261, U257, montør U11/U21/U231/U232/U233, invoice U12/U28, mail
   U53/U64/U121/U122/U129/U131/U133, tasks U44/U62/U97/U100/U119/U143/U175/U201/U226/U228/U229/U230 — all PASS
 - 00246 mail persona probe (staging): 71/71
+
+## Prod (2026-11-03) — INTEGRATED
+
+- main fast-forwarded to `82e8454d` and pushed; Vercel served `82e8454` at 13:01 (≈2,5 min after push, `/api/public/version`).
+- Routes (unauthenticated): `/dashboard`, `/dashboard/cti`, `/dashboard/cti/queue`, `/dashboard/assistant`,
+  `/dashboard/materials/lookup`, `/dashboard/incoming-invoices`, `/dashboard/tasks`, `/dashboard/mail` → 307 to login
+  (no 5xx); `/login` 200.
+- `scripts/prod-smoke-grok-batch-2.ts` (read-only, real admin/montør sessions): 12/12 — callback queue, assistant
+  reads, catalogue public columns, exception counts, montør job/customer link, mail/invoice reads; montør cannot read
+  `cost_price` (42501); no migration (catalogue 114/273, 165 relations, no telephony tables); no outgoing rows since
+  deploy; no assistant/callback tasks created; no callback with `reminder_at`.
+- 00246 intact: `prod-smoke-00246.ts` 11/11, `prod-verify-00246.ts post` 15/15 (fingerprints unchanged),
+  `prod-mail-00246-effective.ts` 26/26 (rollback-only).
+- Relatel webhook and Telegram endpoint: 404 (off). No calls, SMS, webhook registration, Telegram sends, e-conomic
+  writes, supplier orders or migrations.
+- Still deferred: purchasing findings not on the invoice screen; document suggestion not mounted; telephony events not
+  persisted (00247 reserved only); no live KlarPris.
