@@ -10,6 +10,7 @@ import { buildCallCard } from '@/lib/integrations/telephony/call-card'
 import { relatelLiveCallEnabled, relatelSmsEnabled } from '@/lib/integrations/telephony/flags'
 import { getCustomerNotesAvailability } from '@/lib/actions/customer-notes'
 import { CallCardPanel } from './call-card-panel'
+import { CustomerCommunicationTimeline } from '@/components/timeline/customer-communication-timeline'
 
 export const metadata: Metadata = { title: 'Opkald', description: 'Hvem ringer? Opslag på telefonnummer' }
 export const dynamic = 'force-dynamic'
@@ -48,6 +49,12 @@ export default async function CtiPage({ searchParams }: { searchParams: Promise<
         <Link href="/dashboard/cti/queue" className="text-sm text-blue-700 hover:underline">Tilbageringninger</Link>
       </div>
       {res.number && <CallCardPanel card={card} />}
+      {card.customerId && (
+        <CustomerCommunicationTimeline customerId={card.customerId} />
+      )}
+      {card.matchStatus === 'none' && res.number && (
+        <p className="text-sm text-gray-600">Ukendte numre får ingen tilbageringning, før nummeret er knyttet til én kunde.</p>
+      )}
 
       {res.number && res.matches.length === 0 && (
         <div className="rounded-lg border bg-white p-4 text-sm text-gray-700">

@@ -18,7 +18,7 @@ export default async function CallbackQueuePage() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('customer_tasks')
-    .select('id, title, description, status, due_date, customer_id, service_case_id, created_at, auto_rule')
+    .select('id, title, description, status, due_date, customer_id, service_case_id, created_at, auto_rule, assigned_to')
     .in('auto_rule', RULES)
     .neq('status', 'done')
     .order('due_date', { ascending: true })
@@ -34,14 +34,23 @@ export default async function CallbackQueuePage() {
     service_case_id: string | null
     created_at: string
     auto_rule: string
+    assigned_to: string | null
   }>
   const customerIds = [...new Set(rows.map((r) => r.customer_id))]
+  const assigneeIds = [...new Set(rows.map((r) => r.assigned_to).filter(Boolean) as string[])]
   let names = new Map<string, string>()
+  let people = new Map<string, string>()
   let namesFailed = false
+  let peopleFailed = false
   if (!error && customerIds.length) {
     const cust = await supabase.from('customers').select('id, company_name').in('id', customerIds)
     if (cust.error) namesFailed = true
     else names = new Map(((cust.data ?? []) as Array<{ id: string; company_name: string }>).map((c) => [c.id, c.company_name]))
+  }
+  if (!error && assigneeIds.length) {
+    const prof = await supabase.from('profiles').select('id, full_name').in('id', assigneeIds)
+    if (prof.error) peopleFailed = true
+    else people = new Map(((prof.data ?? []) as Array<{ id: string; full_name: string | null }>).map((p) => [p.id, p.full_name ?? 'Medarbejder']))
   }
 
   return (
@@ -61,6 +70,11 @@ export default async function CallbackQueuePage() {
           Kundenavne kunne ikke læses. Opgaverne vises alligevel.
         </p>
       )}
+      {!error && peopleFailed && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          Medarbejdernavne kunne ikke læses. Opgaverne vises alligevel.
+        </p>
+      )}
       {!error && rows.length === 0 && <p className="text-sm text-gray-600">Ingen åbne tilbageringninger.</p>}
       {!error && rows.length > 0 && (
         <ul className="divide-y rounded-lg border bg-white">
@@ -71,6 +85,8 @@ export default async function CallbackQueuePage() {
                   <p className="font-medium text-gray-900">{row.title}</p>
                   <p className="text-gray-500">
                     {names.get(row.customer_id) ?? 'Kunde'}
+                    {' · '}
+                    {row.assigned_to ? (people.get(row.assigned_to) ?? 'Medarbejder') : 'Ikke tildelt'}
                     {row.auto_rule === 'assistant_missed_call' ? ' · ubesvaret opkald' : ' · planlagt opkald'}
                     {row.due_date ? ` · ${new Date(row.due_date).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}` : ''}
                   </p>

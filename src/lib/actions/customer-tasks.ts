@@ -18,6 +18,7 @@ import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/actio
 import { userSafeOr } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 import { taskListScope, type TaskListScope } from '@/lib/tasks/task-scope'
+import { callbackQueueWrite } from '@/lib/integrations/telephony/callback-plan'
 
 /**
  * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
@@ -613,6 +614,7 @@ export async function createCustomerTask(
     serviceCaseId = input.service_case_id
   }
 
+  const queue = callbackQueueWrite(input.callbackQueue === true, input.reminder_at)
   const { error } = await supabase.from('customer_tasks').insert({
     customer_id: input.customer_id,
     service_case_id: serviceCaseId,
@@ -622,7 +624,8 @@ export async function createCustomerTask(
     priority: input.priority || 'normal',
     assigned_to: input.assigned_to || user.id,
     due_date: input.due_date || null,
-    reminder_at: input.reminder_at || null,
+    reminder_at: queue.reminder_at,
+    ...(queue.auto_rule ? { auto_rule: queue.auto_rule } : {}),
     created_by: user.id,
   })
 
@@ -634,6 +637,7 @@ export async function createCustomerTask(
   revalidatePath(`/dashboard/customers/${input.customer_id}`)
   revalidatePath('/dashboard/tasks')
   revalidatePath('/dashboard/offers')
+  if (input.callbackQueue) revalidatePath('/dashboard/cti/queue')
   return { success: true }
 }
 

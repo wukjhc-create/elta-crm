@@ -68,6 +68,11 @@ export interface CreateCustomerTaskInput {
   assigned_to?: string
   due_date?: string
   reminder_at?: string
+  /**
+   * Opkaldskortets tilbageringning. Sætter auto_rule til assistant_callback og
+   * tvinger reminder_at til null. Et frit auto_rule fra klienten findes ikke.
+   */
+  callbackQueue?: boolean
 }
 
 export interface UpdateCustomerTaskInput {
