@@ -1,9 +1,10 @@
 # FORSLAG — telefoni-persistens for Relatel (ikke nummereret i `supabase/migrations`, ikke kørt)
 
 **Status:** omskrevet 2026-11-03 (stabilitets-/sikkerhedsgennemgang). Erstatter Groks udkast med én tabel
-`telephony_events`. Intet er anvendt på staging eller prod. Foreslået nummer **00246** (næste frie; `grok-features-2`
-har ingen migrationer). Prod kræver Henriks godkendelse pr. migration. Relatel, webhook-registrering, opkald, SMS og
-Telegram forbliver slået fra.
+`telephony_events`. Intet er anvendt på staging eller prod. Designretningen er accepteret af Henrik 2026-11-03.
+**Intet migrationsnummer endnu** (pladsholder `TEL-1`): 00246 er brugt til mail-scope (P-1); telefoni får sit nummer
+først når 00246 er afklaret og merget. Prod kræver Henriks godkendelse pr. migration. Relatel, webhook-registrering,
+opkald, SMS og Telegram forbliver slået fra.
 
 ## Hvorfor udkastet ikke var nok
 
@@ -18,7 +19,22 @@ Telegram forbliver slået fra.
 | Telefonsvarer = bool | Intet om indhold | Kun metadata; ingen lyd-URL, ingen transskription (kolonnen findes ikke) |
 | Ingen rettelse/audit | "Bekræftes af et menneske" uden sti | Kontrolleret server-sti + audit, korrektion og "afvis forslag" |
 
-## Beslutninger (anbefaling — Henrik afgør punkt 1, 3 og retention)
+## Låste produktbeslutninger (Henrik 2026-11-03)
+
+| # | Beslutning | Hvor i designet |
+|---|---|---|
+| 1 | Ubekræftede/ukendte numre ses KUN af admin + serviceleder, via egen effektiv nøgle | `calls.view_unmatched` (standard admin/serviceleder); SELECT-politikkens første gren |
+| 2 | Montør: ingen opkaldshistorik som standard; tildeles den senere, kun kunder/sager i effektivt OWN/RELATED-scope | `calls.view` ikke i montørens standarder; anden gren kræver `customers.view.all` ELLER `my_customer_scope_ids()` |
+| 3 | Ubekræftede opkald gemmes i 90 dage | Oprydnings-cron (bygges med migrationen) sletter `customer_id IS NULL` ældre end 90 dage; bekræftede følger kunden |
+| 4 | Kunde-match bekræftes ALDRIG automatisk — heller ikke ved præcis ét match | Kun `suggested_customer_id`; `customer_id` sættes kun af `confirmCallMatch` (menneske) |
+| 5 | Tvetydigt match: ingen kunde vælges | `match_status = 'ambiguous'`, kun antal gemmes |
+| 6 | Webhook/service_role vælger aldrig tavst en kunde eller sag | `telephony_ingest_event` har ingen kunde-/sagsparametre |
+| 7 | Lagring opretter ALDRIG automatisk tilbageringning, påmindelse, Telegram-hændelse, SMS eller kundekommunikation | Ingest skriver kun `telephony_calls`/`telephony_events`; `processMissedCall`/`syncMissedCalls` udfases |
+| 8 | Tilbageringning kun ved eksplicit CRM-handling | Klik → normal opgave-handling med `reminder_at = NULL` |
+| 9 | Telefonsvarer: kun metadata; ingen optagelse/transskription som standard | Ingen lyd-/tekstkolonner |
+| 10 | Rettelse er auditeret og samtidighedssikker | `confirmCallMatch`/`rejectCallMatch`: optimistisk lås + `audit_logs` |
+
+## Beslutninger — begrundelse (punkterne ovenfor er låst)
 
 1. **Hvem ser ubekræftede numre?** Kun `calls.view_unmatched` (standard admin + serviceleder). Salg/bogholderi/montør
    ser dem ikke, medmindre de får nøglen pr. medarbejder. "Ubekræftet" = `customer_id IS NULL` (også forslag/tvetydige).
@@ -40,10 +56,10 @@ Telegram forbliver slået fra.
 8. **Ingen Telegram-/påmindelses-sideeffekter.** En tilbageringning oprettes kun ved et klik ("Opret tilbageringning")
    via den normale opgave-handling med `reminder_at = NULL` (assistentens dispatcher vælger alle `customer_tasks` med
    `reminder_at`, uanset `auto_rule`). `ASSISTANT_TELEGRAM_ENABLED` forbliver fra.
-9. **Retention (Henrik):** foreslået 90 dage for `unmatched`/`ambiguous`/`rejected`/`suggested`; bekræftede følger
-   kunden. Oprydnings-cron bygges først efter godkendelse.
+9. **Retention (låst):** 90 dage for `unmatched`/`ambiguous`/`rejected`/`suggested`; bekræftede følger kunden.
+   Oprydnings-cron bygges sammen med migrationen (ingen lagring uden oprydning).
 
-## Skema (forslag 00246 — uført)
+## Skema (forslag TEL-1 — uført)
 
 ```sql
 BEGIN;
@@ -53,10 +69,10 @@ DO $guard$
 BEGIN
   IF to_regprocedure('public.user_has_permission(text)') IS NULL OR to_regprocedure('public.my_customer_scope_ids()') IS NULL
      OR to_regprocedure('public.case_belongs_to_customer(uuid,uuid)') IS NULL THEN
-    RAISE EXCEPTION '00246: hjælpefunktioner mangler (00238/00240)';
+    RAISE EXCEPTION 'TEL-1: hjælpefunktioner mangler (00238/00240)';
   END IF;
   IF to_regclass('public.telephony_calls') IS NOT NULL OR to_regclass('public.telephony_events') IS NOT NULL THEN
-    RAISE EXCEPTION '00246: telefoni-tabeller findes allerede — kontrollér før kørsel';
+    RAISE EXCEPTION 'TEL-1: telefoni-tabeller findes allerede — kontrollér før kørsel';
   END IF;
 END
 $guard$;
@@ -309,9 +325,9 @@ Plus:
   flag fra.
 
 ## Prod-verifikation (efter godkendelse; samme form som 00245)
-1. Kode med tolerance for manglende tabeller deployet (flag fra) → `prod-verify-00246 pre`: tabeller/nøgler fraværende,
+1. Kode med tolerance for manglende tabeller deployet (flag fra) → `prod-verify-TEL pre`: tabeller/nøgler fraværende,
    fingeraftryk af customers, service_cases, customer_tasks, audit_logs, permission-tabeller.
-2. `prod-apply-migration 00246 --dry-run` → pre igen uændret → apply.
+2. `prod-apply-migration <nr> --dry-run` → pre igen uændret → apply.
 3. `post`: præcis én politik (SELECT), ingen `USING (true)`/`user_role()`, grants (authenticated kun SELECT på opkald),
    funktions-ACL, 3 nøgler + standarder, RLS slået til på alle tre, 0 rækker.
 4. Rollback-only probe med rigtige profiler (+ midlertidigt rolleskift i transaktionen) efter matrixen ovenfor; ingest

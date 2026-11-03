@@ -2659,6 +2659,28 @@ Total inkl. moms 11.718,75
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'mail-00246-state') {
+    // STAGING read-only: incoming_emails-politikker/grants + md5 af mails/kunder/sager/fakturaer/udgående (før/efter apply af 00246)
+    const { MAIL_00246_STATE_SQL } = await import('./mail-00246-probe')
+    log(JSON.stringify(await stagingSql(MAIL_00246_STATE_SQL)))
+    return
+  }
+  if (SUB === 'mail-00246-probe') {
+    // STAGING ROLLBACK-ONLY: persona-matrix for incoming_emails (A: som den er, B: prod-stien fra 00180 → 00246, C: idempotens)
+    const { runMail00246Probe } = await import('./mail-00246-probe')
+    const { formatMp00240ScopeCheck } = await import('./mp-00240-scope-check')
+    const rawSql = async (sql: string) => {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      })
+      return { ok: r.ok, status: r.status, text: await r.text() }
+    }
+    const checks = await runMail00246Probe({ admin, url: runtime.url, anonKey: runtime.anonKey, rawSql })
+    log(formatMp00240ScopeCheck(checks).replace('MP-00240 forudsætninger — scope-motor + kontrollerede stier (app-laget, staging)', '00246 incoming_emails — persona-matrix, rollback-only (staging)'))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00243-fingerprint') {
     // STAGING read-only: fingeraftryk af time_logs-funktioner/politikker/grants/triggere (før/efter apply)
     const { FP_00243_SQL } = await import('./mp-00243-sql-probe')

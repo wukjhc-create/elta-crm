@@ -49,6 +49,8 @@ migrationer → næste frie nummer er **00246**.
   mails; `customers.emails.view` = kun mails på kunder i `my_customer_scope_ids()`; faktura-kilde via
   `incoming_invoices.view`; montør-klausulen bevaret). 00186 må ikke køres som den er (rå rolle, ikke ny model).
 - Migration: ja (kræver Henriks godkendelse). Indtil da: opret ingen bogholderi-profil i prod.
+- **Status 2026-11-03:** rettet med **00246** (`incoming_emails` SELECT efter effektive rettigheder, ingen ny nøgle) —
+  anvendt på STAGING, ikke i prod. Bevis og prod-plan: `docs/runbooks/mp-00246-incoming-emails-scope.md`.
 
 ### P-2 — `assistant_links` / `personal_reminders` kun på staging — **S3**
 - Funktion: Telegram-kobling (profil), personlige påmindelser (opgaver/kalender).
@@ -107,6 +109,27 @@ migrationer → næste frie nummer er **00246**.
   `system_health_log` har kun to lemu-kørsler de seneste 40 dage (ok 2026-09-28, fejl 2026-11-02) — enten logges
   ugerne imellem ikke, eller cron'en kører ikke hver uge. LM-priser kan være forældede. Bør undersøges separat (ingen
   skemaårsag fundet).
+
+## Separate spor (bevidst IKKE i 00246 — Henrik 2026-11-03)
+
+| Spor | Klasse | Status | Næste skridt |
+|---|---|---|---|
+| anon-privilegier (P-6) | S3 forsvar i dybden, intet aktivt læk | registreret | egen migration (REVOKE + fjern 4 anon-politikker) efter godkendelse |
+| Telegram/påmindelser 00195/00197 (P-2) | S3 | kun staging | gennemgå mod nutidens model først når assistenten skal i prod |
+| Gamle AI-projekt-/kalkulationstabeller (P-5) | S3 | registreret | produktbeslutning: fjern siderne eller byg skemaet |
+| Staging-orphan `customer_documents.visible_to_customer` (P-3) | INFO | registreret | ingen handling |
+| Telefoni-persistens | — | design accepteret, låste beslutninger i `telephony-events-proposal.md` | nummer tildeles efter 00246 er afklaret og merget |
+| LM-prissync (nedenfor) | drift | registreret | undersøg separat; ingen reparation i mail-sporet |
+
+### Driftsfund — LM-prissync (`/api/cron/lemu-sync`, mandage 04:00 UTC) — 2026-11-03, prod read-only
+- Seneste fejlede kørsel: **2026-11-02 04:01 UTC, HTTP 500** ("Internal server error") efter 46,7 s.
+- Seneste kørsel med OK i `system_health_log`: 2026-09-28 (962 opdateret, 309.817 nye; fil LM_CSV_Standard_20260922…).
+- Men `supplier_products` for Lemvigh-Müller (328.186 varer) har `last_synced_at` max **2026-10-26 04:01 UTC** → kørslen
+  2026-10-26 lykkedes uden at blive logget. Cron-loggen er altså ufuldstændig for lemu-sync (ugerne imellem mangler).
+- Forældede priser: LM-priser er senest fra 2026-10-26 (≈ 8 dage); næste planlagte kørsel 2026-11-09. Lav akut risiko,
+  men to fejl i træk giver to uger gamle priser i tilbud/kalkulation.
+- Sidefund: AO (1.343 varer) har `last_synced_at` max **2026-03-01** — AO-priser er ~8 måneder gamle. Bør med i samme
+  undersøgelse.
 
 ## Gentag
 ```
