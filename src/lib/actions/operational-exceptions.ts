@@ -1,0 +1,102 @@
+'use server'
+
+/**
+ * Driftstal til forsiden. Hvert tal er ok, skjult eller ukendt.
+ * En læsefejl bliver aldrig 0. Ufaktureret arbejde ejes af dashboard-overblikket.
+ */
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { casesMissingPowerOfAttorney, type PoaCaseRow, type PoaDocRow } from '@/lib/assistant/crm-questions'
+import { copenhagenWeekBounds } from '@/lib/operations/planning-window'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { getEmployeeRateGapsAction } from '@/lib/actions/employees'
+
+export type OpCount =
+  | { state: 'ok'; count: number; href: string | null; note: string | null }
+  | { state: 'unknown'; href: string | null; note: string }
+  | { state: 'hidden' }
+
+export interface OperationalExceptions {
+  callbacks: OpCount
+  unlinkedMail: OpCount
+  missingPoa: OpCount
+  supplierReview: OpCount
+  rateGaps: OpCount
+  jobsToday: OpCount
+  jobsWeek: OpCount
+}
+
+async function exactCount(
+  run: () => PromiseLike<{ count: number | null; error: { message: string } | null }>,
+  href: string,
+): Promise<OpCount> {
+  try {
+    const { count, error } = await run()
+    if (error || count == null) return { state: 'unknown', href, note: 'Tallet kunne ikke læses.' }
+    return { state: 'ok', count, href, note: null }
+  } catch {
+    return { state: 'unknown', href, note: 'Tallet kunne ikke læses.' }
+  }
+}
+
+export async function getOperationalExceptions(): Promise<OperationalExceptions> {
+  const ctx = await getAuthenticatedClientWithRole()
+  const today = copenhagenParts(new Date()).date
+  const week = copenhagenWeekBounds(today)
+  const hidden: OpCount = { state: 'hidden' }
+
+  const callbacks = ctx.hasPermission('customers.view')
+    ? exactCount(() => ctx.supabase.from('customer_tasks').select('id', { count: 'exact', head: true }).in('auto_rule', ['assistant_missed_call', 'assistant_callback']).neq('status', 'done'), '/dashboard/cti/queue')
+    : Promise.resolve(hidden)
+
+  const unlinkedMail = ctx.hasPermission('inbox.view')
+    ? exactCount(() => ctx.supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', false).eq('link_status', 'linked').is('service_case_id', null), '/dashboard/mail')
+    : Promise.resolve(hidden)
+
+  const supplierReview = ctx.hasPermission('incoming_invoices.view')
+    ? exactCount(() => ctx.supabase.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('requires_manual_review', true).in('status', ['received', 'awaiting_approval']), '/dashboard/incoming-invoices')
+    : Promise.resolve(hidden)
+
+  const jobsToday = exactCount(() => ctx.supabase.from('work_orders').select('id', { count: 'exact', head: true }).eq('scheduled_date', today).in('status', ['planned', 'in_progress']), '/dashboard/calendar')
+  const jobsWeek = exactCount(() => ctx.supabase.from('work_orders').select('id', { count: 'exact', head: true }).gte('scheduled_date', week.start).lte('scheduled_date', week.end).in('status', ['planned', 'in_progress']), '/dashboard/calendar')
+
+  const missingPoa = ctx.hasPermission('customers.view') ? missingPoaCount(ctx.supabase) : Promise.resolve(hidden)
+  const rateGaps = ctx.hasPermission('employees.view') ? rateGapCount() : Promise.resolve(hidden)
+
+  const [a, b, c, d, e, f, g] = await Promise.all([callbacks, unlinkedMail, supplierReview, jobsToday, jobsWeek, missingPoa, rateGaps])
+  return { callbacks: a, unlinkedMail: b, supplierReview: c, jobsToday: d, jobsWeek: e, missingPoa: f, rateGaps: g }
+}
+
+async function missingPoaCount(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']): Promise<OpCount> {
+  try {
+    const { data, error } = await supabase.from('service_cases').select('id, case_number, title, customer_id, status').eq('is_proposal', false).not('status', 'in', '(closed,converted,cancelled)').order('created_at', { ascending: false }).limit(200)
+    if (error) return { state: 'unknown', href: '/dashboard/orders', note: 'Sagerne kunne ikke læses.' }
+    const cases = (data ?? []) as Array<{ id: string; case_number: string | null; title: string; customer_id: string | null; status: string }>
+    const customerIds = [...new Set(cases.map((c) => c.customer_id).filter(Boolean) as string[])]
+    const docs: PoaDocRow[] = []
+    for (let i = 0; i < customerIds.length; i += 200) {
+      const res = await supabase.from('customer_documents').select('customer_id, service_case_id, document_type, description').in('customer_id', customerIds.slice(i, i + 200)).eq('document_type', 'contract').limit(1000)
+      if (res.error) return { state: 'unknown', href: '/dashboard/orders', note: 'Dokumenterne kunne ikke læses. Ingen sag tælles som manglende fuldmagt.' }
+      for (const d of (res.data ?? []) as Array<{ customer_id: string | null; service_case_id: string | null; document_type: string | null; description: string | null }>) {
+        docs.push({ customerId: d.customer_id, serviceCaseId: d.service_case_id, documentType: d.document_type, description: d.description })
+      }
+    }
+    const rows: PoaCaseRow[] = cases.map((c) => ({ id: c.id, caseNumber: c.case_number, title: c.title, customerId: c.customer_id, status: c.status }))
+    return {
+      state: 'ok',
+      count: casesMissingPowerOfAttorney(rows, docs).length,
+      href: '/dashboard/assistant',
+      note: cases.length === 200 ? 'Kun de 200 nyeste åbne sager.' : null,
+    }
+  } catch {
+    return { state: 'unknown', href: '/dashboard/orders', note: 'Fuldmagterne kunne ikke læses.' }
+  }
+}
+
+async function rateGapCount(): Promise<OpCount> {
+  try {
+    const gaps = await getEmployeeRateGapsAction()
+    return { state: 'ok', count: Object.keys(gaps).length, href: '/dashboard/employees', note: 'Aktive medarbejdere uden timepris eller kostpris. Ingen beløb.' }
+  } catch {
+    return { state: 'unknown', href: '/dashboard/employees', note: 'Satserne kunne ikke læses. Det tælles ikke som nul.' }
+  }
+}

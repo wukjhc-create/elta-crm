@@ -308,10 +308,10 @@ function UnbilledCard({ overview }: { overview: DashboardOverview }) {
     <Card
       title="Klar til fakturering"
       icon={<FileText className="h-4 w-4" />}
-      tone={caseCount > 0 ? 'amber' : 'green'}
+      tone={err ? 'gray' : caseCount > 0 ? 'amber' : 'green'}
       href="/dashboard/orders?unbilled=1"
-      headline={caseCount}
-      headlineLabel={caseCount > 0 ? `sager · ${kr(saleTotal)} ufaktureret` : 'sager med ufaktureret arbejde'}
+      headline={err ? 'Ukendt' : caseCount}
+      headlineLabel={err ? 'kunne ikke læses — ikke 0' : caseCount > 0 ? `sager · ${kr(saleTotal)} ufaktureret` : 'sager med ufaktureret arbejde'}
       error={err}
     >
       {cases.length === 0 ? (
@@ -613,7 +613,7 @@ function Card({
   icon: React.ReactNode
   tone: Tone
   href: string
-  headline: number
+  headline: number | string
   headlineLabel: string
   error?: string
   children: React.ReactNode
