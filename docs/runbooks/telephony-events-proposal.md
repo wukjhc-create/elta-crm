@@ -1,4 +1,9 @@
-# Telefoni-persistens for Relatel — 00247 (staging; prod afventer godkendelse)
+# Telefoni-persistens for Relatel — 00247 (staging og prod; live-aktivering IKKE godkendt)
+
+**Prod 2026-11-04 (Henriks godkendelse):** kode deployet (`c026868`), derefter 00247 anvendt uændret (blob `456df368`).
+Post-check 16/16, `prod-smoke-00247` 15/15, 00246 15/15 + 11/11, Grok-smoke 12/12, db-audit 0 fund. Katalog 117/281, 0
+telefoni-rækker, fingeraftryk for kunder/sager/opgaver/audit/mails/overrides uændret. Webhook svarer 404; ingen cron; ingen
+registrering hos Relatel. Teksten nedenfor er historik fra før prod-kørslen. Live-aktivering kræver særskilt godkendelse.
 
 **Status:** omskrevet 2026-11-03 (stabilitets-/sikkerhedsgennemgang). Erstatter Groks udkast med én tabel
 `telephony_events`. Intet er anvendt på staging eller prod. Designretningen er accepteret af Henrik 2026-11-03.
