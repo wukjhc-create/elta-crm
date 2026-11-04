@@ -6,8 +6,13 @@
  * Regler (låste beslutninger 2026-11-03):
  *  - Læsning med BRUGERENS klient (RLS): ubekræftede opkald kræver calls.view_unmatched; bekræftede calls.view + kunde i
  *    læse-scope. Et kunde-forslag vises kun, hvis brugeren selv kan se kunden — forslaget giver aldrig adgang.
+ *  - Databasen giver authenticated kun de kolonner der står i LIST_COLUMNS. Forslag, sag og kandidater (INTERNAL_COLUMNS)
+ *    læses med service_role KUN for opkald brugerens egen klient lige har returneret, og filtreres gennem brugerens egne
+ *    kunde-/sagsopslag. Fejler et opslag, skjules feltet (fail closed).
  *  - Kunde og sag er SEPARATE handlinger (calls.match). Opkald, kunde og sag skal kunne ses af brugeren med egen klient;
  *    sagen skal høre til den bekræftede kunde (også håndhævet af DB-triggeren). Id'er fra webhooken bruges aldrig.
+ *  - Er opkaldet koblet til en sag brugeren ikke kan se, ændrer brugeren ikke matchet: linket fjernes ikke i blinde, og
+ *    audit-rækken (som brugeren kan læse som sin egen) kommer aldrig til at indeholde et fremmed sags-id.
  *  - Skrivning via service_role-funktionen telephony_set_call_match: optimistisk lås (match_version) + audit_logs i samme
  *    transaktion. Intet her opretter opgave, påmindelse, SMS eller kundekommunikation.
  *  - Medarbejder-kobling (Relatel-id → profil) kun med users.manage_roles; aldrig ud fra navn.
@@ -50,13 +55,27 @@ export interface CallListItem {
   match_version: number
   candidate_count: number
   customer: { id: string; name: string } | null
+  /** kun når brugeren selv kan se sagen */
   service_case_id: string | null
   /** kun når brugeren selv kan se den foreslåede kunde */
   suggestion: { id: string; name: string } | null
 }
 
-// Ingen udbyder-id'er (opkald, medarbejder, telefonsvarer) ud til UI'et
-const LIST_COLUMNS = 'id, direction, external_number_normalized, started_at, answered_at, ended_at, duration_seconds, status, missed, has_voicemail, voicemail_duration_seconds, employee_profile_id, match_status, match_version, candidate_count, customer_id, suggested_customer_id, service_case_id'
+// = kolonne-grantet til authenticated i 00247. Ingen udbyder-id'er, forslag eller sag i den direkte læsning.
+const LIST_COLUMNS = 'id, direction, external_number_normalized, started_at, answered_at, ended_at, duration_seconds, status, missed, has_voicemail, voicemail_duration_seconds, employee_profile_id, match_version, customer_id'
+// Kun service_role, kun for opkald der allerede er bevist synlige med brugerens klient
+const INTERNAL_COLUMNS = 'id, match_status, candidate_count, suggested_customer_id, service_case_id'
+
+/**
+ * Hvad brugeren må se af matchet. Status 'suggested'/'ambiguous' og antal kandidater fortæller, at nummeret tilhører en
+ * kunde, så: et forslag vises kun hvis brugeren kan se kunden, og en tvetydig status (ingen kunde at tjekke mod) kun med
+ * customers.view.all. Ellers fremstår opkaldet som ukendt.
+ */
+export function projectCallMatch(raw: { match_status: string; candidate_count: number }, canSeeSuggestion: boolean, canViewAllCustomers: boolean): { match_status: string; candidate_count: number } {
+  const open = canSeeSuggestion || canViewAllCustomers
+  const hiddenStatus = (raw.match_status === 'suggested' && !canSeeSuggestion) || (raw.match_status === 'ambiguous' && !canViewAllCustomers)
+  return { match_status: hiddenStatus ? 'unmatched' : raw.match_status, candidate_count: open ? raw.candidate_count : 0 }
+}
 
 export async function listCallsCore(ctx: CallActionCtx, opts: { limit?: number; unconfirmedOnly?: boolean } = {}): Promise<{ available: boolean; calls: CallListItem[]; error?: string }> {
   if (!ctx.hasPermission('calls.view') && !ctx.hasPermission('calls.view_unmatched')) return { available: false, calls: [], error: 'Du har ikke adgang til opkald.' }
@@ -66,21 +85,50 @@ export async function listCallsCore(ctx: CallActionCtx, opts: { limit?: number; 
   if (isMissingTelephonySchema(error)) return { available: false, calls: [], error: TELEPHONY_UNAVAILABLE_TEXT }
   if (error) return { available: true, calls: [], error: 'Opkald kunne ikke hentes.' }
   const rows = (data ?? []) as Array<Record<string, any>>
-  const ids = [...new Set(rows.flatMap((r) => [r.customer_id, r.suggested_customer_id]).filter(Boolean))] as string[]
-  // brugerens egen klient: kunder uden for brugerens scope kommer ikke med → forslaget skjules
-  const { data: custs } = ids.length ? await ctx.supabase.from('customers').select('id, company_name').in('id', ids) : { data: [] }
+  if (!rows.length) return { available: true, calls: [] }
+  // Kun id'er brugerens egen klient lige har returneret (højst 200, under .in()-grænsen)
+  const { data: internal, error: internalError } = await ctx.admin.from('telephony_calls').select(INTERNAL_COLUMNS).in('id', rows.map((r) => r.id))
+  if (isMissingTelephonySchema(internalError)) return { available: false, calls: [], error: TELEPHONY_UNAVAILABLE_TEXT }
+  if (internalError) return { available: true, calls: [], error: 'Opkald kunne ikke hentes.' }
+  const byCall = new Map(((internal ?? []) as unknown as Array<Record<string, any>>).map((r) => [r.id as string, r]))
+  const customerIds = [...new Set(rows.map((r) => r.customer_id).concat([...byCall.values()].map((r) => r.suggested_customer_id)).filter(Boolean))] as string[]
+  const caseIds = [...new Set([...byCall.values()].map((r) => r.service_case_id).filter(Boolean))] as string[]
+  // brugerens egen klient: kunder/sager uden for brugerens scope kommer ikke med → forslag/sag skjules
+  const { data: custs } = customerIds.length ? await ctx.supabase.from('customers').select('id, company_name').in('id', customerIds) : { data: [] }
+  const { data: kases } = caseIds.length ? await ctx.supabase.from('service_cases').select('id').in('id', caseIds) : { data: [] }
   const names = new Map(((custs ?? []) as Array<{ id: string; company_name: string }>).map((c) => [c.id, c.company_name]))
+  const visibleCases = new Set(((kases ?? []) as Array<{ id: string }>).map((k) => k.id))
+  const viewAll = ctx.hasPermission('customers.view.all')
   return {
     available: true,
-    calls: rows.map((r) => ({
-      id: r.id, direction: r.direction, number: r.external_number_normalized, started_at: r.started_at, answered_at: r.answered_at,
-      ended_at: r.ended_at, duration_seconds: r.duration_seconds, status: r.status, missed: r.missed, has_voicemail: r.has_voicemail,
-      voicemail_duration_seconds: r.voicemail_duration_seconds, employee_profile_id: r.employee_profile_id, match_status: r.match_status,
-      match_version: r.match_version, candidate_count: r.candidate_count, service_case_id: r.service_case_id,
-      customer: r.customer_id ? { id: r.customer_id, name: names.get(r.customer_id) ?? 'Kunde' } : null,
-      suggestion: r.suggested_customer_id && names.has(r.suggested_customer_id) ? { id: r.suggested_customer_id, name: names.get(r.suggested_customer_id)! } : null,
-    })),
+    calls: rows.map((r) => {
+      const i = byCall.get(r.id)
+      const suggestedId: string | null = i?.suggested_customer_id ?? null
+      const suggestion = suggestedId && names.has(suggestedId) ? { id: suggestedId, name: names.get(suggestedId)! } : null
+      const match = projectCallMatch({ match_status: i?.match_status ?? 'unmatched', candidate_count: i?.candidate_count ?? 0 }, suggestion !== null, viewAll)
+      return {
+        id: r.id, direction: r.direction, number: r.external_number_normalized, started_at: r.started_at, answered_at: r.answered_at,
+        ended_at: r.ended_at, duration_seconds: r.duration_seconds, status: r.status, missed: r.missed, has_voicemail: r.has_voicemail,
+        voicemail_duration_seconds: r.voicemail_duration_seconds, employee_profile_id: r.employee_profile_id, match_status: match.match_status,
+        match_version: r.match_version, candidate_count: match.candidate_count,
+        service_case_id: i?.service_case_id && visibleCases.has(i.service_case_id) ? i.service_case_id : null,
+        customer: r.customer_id ? { id: r.customer_id, name: names.get(r.customer_id) ?? 'Kunde' } : null,
+        suggestion,
+      }
+    }),
   }
+}
+
+/** Afvis match-ændringer på et opkald, der er koblet til en sag brugeren ikke selv kan se (fail closed). Null = ok. */
+async function hiddenCaseRefusal(ctx: CallActionCtx, callId: string): Promise<CallActionResult | null> {
+  const { data, error } = await ctx.admin.from('telephony_calls').select('service_case_id').eq('id', callId).maybeSingle()
+  if (isMissingTelephonySchema(error)) return { success: false, error: TELEPHONY_UNAVAILABLE_TEXT, unavailable: true }
+  if (error) return { success: false, error: 'Opkaldet kunne ikke opdateres.' }
+  const caseId = (data as { service_case_id: string | null } | null)?.service_case_id
+  if (!caseId) return null
+  const { data: kase, error: caseError } = await ctx.supabase.from('service_cases').select('id').eq('id', caseId).maybeSingle()
+  if (caseError) return { success: false, error: 'Opkaldet kunne ikke opdateres.' }
+  return kase ? null : { success: false, error: 'Opkaldet er koblet til en sag, du ikke har adgang til. Bed en leder om at rette det.' }
 }
 
 /** Opkaldet med brugerens klient (RLS): findes det ikke for brugeren, findes det ikke */
@@ -120,6 +168,8 @@ export async function confirmCallCustomerCore(ctx: CallActionCtx, callId: string
   if (!v.call) return { success: false, error: v.error!, unavailable: v.unavailable }
   const { data: cust } = await ctx.supabase.from('customers').select('id').eq('id', customerId).maybeSingle()
   if (!cust) return { success: false, error: 'Kunden findes ikke.' }
+  const refused = await hiddenCaseRefusal(ctx, callId)
+  if (refused) return refused
   return runMatch(ctx, callId, expectedVersion, 'confirm', customerId, null)
 }
 
@@ -136,6 +186,8 @@ export async function linkCallCaseCore(ctx: CallActionCtx, callId: string, caseI
     if (!kase || (kase as { is_proposal: boolean | null }).is_proposal) return { success: false, error: 'Sagen findes ikke.' }
     if ((kase as { customer_id: string | null }).customer_id !== v.call.customer_id) return { success: false, error: 'Sagen hører ikke til opkaldets kunde.' }
   }
+  const refused = await hiddenCaseRefusal(ctx, callId)
+  if (refused) return refused
   return runMatch(ctx, callId, expectedVersion, 'link_case', v.call.customer_id, caseId)
 }
 
@@ -146,6 +198,8 @@ export async function rejectCallMatchCore(ctx: CallActionCtx, callId: string, ex
   if (bad) return { success: false, error: bad }
   const v = await visibleCall(ctx, callId)
   if (!v.call) return { success: false, error: v.error!, unavailable: v.unavailable }
+  const refused = await hiddenCaseRefusal(ctx, callId)
+  if (refused) return refused
   return runMatch(ctx, callId, expectedVersion, 'reject', null, null)
 }
 

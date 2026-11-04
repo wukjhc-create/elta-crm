@@ -8,6 +8,7 @@ import { telephonyMatchMode, telephonyPersistEnabled } from '../src/lib/integrat
 import { decideRelatelWebhook, handleRelatelWebhook } from '../src/lib/integrations/telephony/webhook-gate'
 import { parseRelatelWebhook } from '../src/lib/integrations/telephony/webhook'
 import { ingestParams, isMissingTelephonySchema, payloadSha256, providerEventId } from '../src/lib/integrations/telephony/persist'
+import { projectCallMatch } from '../src/lib/telephony/call-actions-core'
 
 let failed = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -40,6 +41,12 @@ eq('SHA-256 er 64 hex-tegn', /^[0-9a-f]{64}$/.test(payloadSha256(raw)), true)
 eq('alt for langt hændelses-id kan ikke gemmes', parsed.ok ? ingestParams({ ...parsed.event, idempotencyKey: `relatel:${'x'.repeat(161)}` }, raw) : 'x', null)
 eq('providerEventId fjerner kun udbyder-præfikset', parsed.ok ? providerEventId({ ...parsed.event, idempotencyKey: 'relatel:call:u:call.ended' }) : null, 'call:u:call.ended')
 eq('manglende skema genkendes (PGRST202/PGRST205/42P01/42883)', ['PGRST202', 'PGRST205', '42P01', '42883', '23505'].map((code) => isMissingTelephonySchema({ code })), [true, true, true, true, false])
+
+const hiddenMatch = { match_status: 'unmatched', candidate_count: 0 }
+eq('match: forslag på kunde uden for scope fremstår som ukendt', projectCallMatch({ match_status: 'suggested', candidate_count: 1 }, false, false), hiddenMatch)
+eq('match: forslag vises når brugeren kan se kunden', projectCallMatch({ match_status: 'suggested', candidate_count: 1 }, true, false), { match_status: 'suggested', candidate_count: 1 })
+eq('match: tvetydig kræver customers.view.all', [projectCallMatch({ match_status: 'ambiguous', candidate_count: 3 }, false, false), projectCallMatch({ match_status: 'ambiguous', candidate_count: 3 }, false, true)], [hiddenMatch, { match_status: 'ambiguous', candidate_count: 3 }])
+eq('match: afvist bevarer status, men ikke antal kandidater uden scope', projectCallMatch({ match_status: 'rejected', candidate_count: 2 }, false, false), { match_status: 'rejected', candidate_count: 0 })
 
 async function main() {
   let adminCalls = 0

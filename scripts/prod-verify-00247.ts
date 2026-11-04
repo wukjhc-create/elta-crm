@@ -3,8 +3,8 @@
  *   npx tsx scripts/prod-verify-00247.ts pre|post
  * pre:  ingen telefoni-tabeller/-funktioner, ingen calls.*-nøgler, hjælpere og customers.view.all findes, fingeraftryk
  * post: tre tabeller med RLS, præcis én politik (SELECT på telephony_calls TO authenticated, effektive rettigheder),
- *       authenticated kun SELECT på opkald, intet til anon/PUBLIC, funktioner kun EXECUTE for service_role, 3 nøgler +
- *       8 standarder, triggere, 0 rækker; fingeraftryk (kunder, sager, opgaver, audit, mails, overrides) = pre
+ *       authenticated kun kolonne-SELECT på de 14 sikre opkaldskolonner, intet til anon/PUBLIC, ingen views/publikationer,
+ *       funktioner kun EXECUTE for service_role, 3 nøgler + 8 standarder, triggere, 0 rækker; fingeraftryk (kunder, sager, opgaver, audit, mails, overrides) = pre
  * Ingen personværdier ud — kun antal, md5 og strukturtjek.
  */
 import { withProdReadOnly, maskDbError } from './prod-readonly'
@@ -41,7 +41,17 @@ withProdReadOnly(`prod-verify-00247 ${mode}`, async (run) => {
     res.push(['politikken bruger calls.view_unmatched, calls.view, customers.view.all, my_customer_scope_ids — ingen user_role()/USING (true)',
       ['calls.view_unmatched', 'calls.view', 'customers.view.all', 'my_customer_scope_ids'].every((k) => q.includes(k)) && !/user_role\(\)/.test(q) && q.trim() !== 'true', ''])
     const g = await run(`SELECT table_name || ':' || grantee || ':' || privilege_type g FROM information_schema.role_table_grants WHERE table_schema = 'public' AND table_name IN ${TABLES} AND grantee IN ('anon', 'authenticated', 'PUBLIC') ORDER BY 1`)
-    res.push(['grants: authenticated kun SELECT på telephony_calls; intet til anon/PUBLIC', g.map((x) => x.g).join(',') === 'telephony_calls:authenticated:SELECT', g.map((x) => x.g).join(',')])
+    res.push(['ingen tabel-grants til anon/authenticated/PUBLIC (kun kolonne-grant)', g.length === 0, g.map((x) => x.g).join(',')])
+    const colg = await run(`SELECT table_name || '.' || column_name c FROM information_schema.column_privileges WHERE table_schema = 'public' AND table_name IN ${TABLES} AND grantee = 'authenticated' AND privilege_type = 'SELECT' ORDER BY 1`)
+    const wantCols = ['answered_at', 'customer_id', 'direction', 'duration_seconds', 'employee_profile_id', 'ended_at', 'external_number_normalized', 'has_voicemail', 'id', 'match_version', 'missed', 'started_at', 'status', 'voicemail_duration_seconds'].map((c) => `telephony_calls.${c}`).join(',')
+    res.push(['authenticated: SELECT på præcis de 14 sikre kolonner i telephony_calls', colg.map((x) => x.c).join(',') === wantCols, colg.map((x) => String(x.c).replace('telephony_calls.', '')).join(',')])
+    const colOther = await run(`SELECT count(*)::int n FROM information_schema.column_privileges WHERE table_schema = 'public' AND table_name IN ${TABLES} AND (grantee IN ('anon', 'PUBLIC') OR (grantee = 'authenticated' AND privilege_type <> 'SELECT'))`)
+    res.push(['ingen kolonne-grants til anon/PUBLIC; ingen kolonne-skrivning for authenticated', colOther[0].n === 0, `${colOther[0].n}`])
+    const tblSel = await run(`SELECT has_table_privilege('authenticated', 'public.telephony_calls', 'SELECT') s`)
+    res.push(['authenticated har ikke SELECT på hele tabellen', tblSel[0].s === false, ''])
+    const deps = await run(`SELECT (SELECT count(*)::int FROM pg_publication_tables WHERE schemaname = 'public' AND tablename IN ${TABLES}) pubs,
+      (SELECT count(*)::int FROM pg_depend d JOIN pg_rewrite r ON r.oid = d.objid JOIN pg_class v ON v.oid = r.ev_class JOIN pg_class t ON t.oid = d.refobjid WHERE d.classid = 'pg_rewrite'::regclass AND d.refclassid = 'pg_class'::regclass AND t.relnamespace = 'public'::regnamespace AND t.relname IN ${TABLES} AND v.oid <> t.oid) views`)
+    res.push(['ingen views oven på tabellerne; ikke i nogen publikation (Realtime)', deps[0].pubs === 0 && deps[0].views === 0, `${deps[0].pubs}/${deps[0].views}`])
     const exec = await run(`SELECT p.proname n, has_function_privilege('anon', p.oid, 'EXECUTE') a, has_function_privilege('authenticated', p.oid, 'EXECUTE') u, has_function_privilege('service_role', p.oid, 'EXECUTE') s
       FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname IN ('telephony_ingest_event', 'telephony_set_call_match', 'telephony_purge_unconfirmed')`)
     res.push(['funktioner: kun service_role har EXECUTE (3)', exec.length === 3 && exec.every((x) => !x.a && !x.u && x.s), exec.map((x) => `${x.n}:${x.a}/${x.u}/${x.s}`).join(',')])

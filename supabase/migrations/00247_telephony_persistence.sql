@@ -20,7 +20,10 @@
 -- Idempotens: UNIQUE (provider, provider_event_id) + UNIQUE (provider, provider_call_id) + ON CONFLICT i én funktion;
 -- hændelser flettes monotont (tidligste start/svar, seneste slut) → samme slutrække uanset rækkefølge.
 -- Hændelser er uforanderlige (UPDATE afvises af trigger); ingen rå payload — kun SHA-256.
--- authenticated: kun SELECT på telephony_calls (RLS). Hændelser/koblinger/funktioner: kun service_role. anon: intet.
+-- authenticated: kun SELECT på de KOLONNER i telephony_calls der er sikre at læse direkte (kolonne-grant + RLS). Forslag,
+-- sag, kandidater, match-metadata, udbyder-id'er og rå numre kan ikke læses, filtreres, sorteres eller joines direkte — de
+-- læses kun af serveren (service_role) for opkald brugeren allerede kan se, og vises kun hvis brugeren selv kan se kunden/
+-- sagen (lib/telephony/call-actions-core.ts). Hændelser/koblinger/funktioner: kun service_role. anon: intet.
 -- Test (staging): npx tsx scripts/test-harness/cli.ts tel-00247-probe (rollback-only) · tel-00247-state (read-only)
 -- =====================================================================================================================
 BEGIN;
@@ -400,7 +403,13 @@ CREATE POLICY telephony_calls_select ON public.telephony_calls
   );
 
 REVOKE ALL ON public.telephony_calls, public.telephony_events, public.telephony_employee_links FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.telephony_calls TO authenticated;
+-- Kolonne-grant (IKKE hele tabellen): en række brugeren må se (RLS) giver kun disse felter. Bevidst UDELADT — kun via
+-- serveren: suggested_customer_id, candidate_count, match_status (afslører at nummeret tilhører en kunde),
+-- service_case_id (kunde i scope ≠ sag i scope), match_source, matched_by, matched_at, provider, provider_call_id,
+-- provider_employee_id, provider_voicemail_id, from_number_normalized, to_number_normalized, created_at, updated_at.
+GRANT SELECT (id, direction, external_number_normalized, started_at, answered_at, ended_at, duration_seconds, status, missed,
+              has_voicemail, voicemail_duration_seconds, employee_profile_id, customer_id, match_version)
+  ON public.telephony_calls TO authenticated;
 GRANT ALL ON public.telephony_calls, public.telephony_events, public.telephony_employee_links TO service_role;
 
 NOTIFY pgrst, 'reload schema';

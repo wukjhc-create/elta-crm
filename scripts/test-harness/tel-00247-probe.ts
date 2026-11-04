@@ -15,7 +15,9 @@
  *     R  retention: kun ubekræftede ældre end 90 dage slettes (hændelser følger med)
  *     P  persona-matrix (rigtige uid'er + overrides): synlighed af U/S/A/R/Ci/Cf; ingen skrivning, ingen hændelser/
  *        koblinger, ingen EXECUTE på funktionerne for authenticated/anon
- *     G  politikker, grants, funktions-ACL, RLS slået til, nøgler + standarder
+ *     D  direkte kolonneadgang (montør + calls.view_unmatched, forslag på en kunde uden for scope; admin): rækken og
+ *        eksternt nummer kan læses; skjulte kolonner, SELECT *, hel-række, filter, sortering og join afvises (42501)
+ *     G  politikker, kolonne-grants, funktions-ACL, RLS slået til, nøgler + standarder, ingen views/publikationer
  *   Samtidighed (C, kun når 00247 er anvendt; rigtige parallelle sessioner via Management API, rækker slettes bagefter):
  *     8 samtidige identiske hændelser → 1 hændelse/1 opkald (1 created, 7 duplicate); 3 forskellige hændelser × 3
  *     gentagelser samtidigt for et nyt opkald → 1 opkald, 3 hændelser, korrekt slutstatus; 2 samtidige rettelser med
@@ -46,7 +48,12 @@ const G_SQL = `json_build_object(
   'tables', (SELECT coalesce(json_agg(c.relname || ':rls=' || c.relrowsecurity ORDER BY c.relname), '[]') FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relname IN ${TABLES}),
   'pol', (SELECT coalesce(json_agg(tablename || ':' || policyname || ':' || cmd || ':' || roles::text || ':' || coalesce(qual, '') || ':' || coalesce(with_check, '') ORDER BY tablename, policyname), '[]') FROM pg_policies WHERE schemaname = 'public' AND tablename IN ${TABLES}),
   'grants', (SELECT coalesce(json_agg(table_name || ':' || grantee || ':' || privilege_type ORDER BY table_name, grantee, privilege_type), '[]') FROM information_schema.role_table_grants WHERE table_schema = 'public' AND table_name IN ${TABLES} AND grantee IN ('anon', 'authenticated', 'PUBLIC')),
+  'tbl_select', CASE WHEN to_regclass('public.telephony_calls') IS NULL THEN NULL ELSE has_table_privilege('authenticated', 'public.telephony_calls', 'SELECT') END,
   'col_grants', (SELECT count(*) FROM information_schema.column_privileges WHERE table_schema = 'public' AND table_name IN ${TABLES} AND grantee IN ('anon', 'authenticated', 'PUBLIC') AND privilege_type <> 'SELECT'),
+  'col_select', (SELECT coalesce(json_agg(table_name || '.' || column_name ORDER BY table_name, column_name), '[]') FROM information_schema.column_privileges WHERE table_schema = 'public' AND table_name IN ${TABLES} AND grantee = 'authenticated' AND privilege_type = 'SELECT'),
+  'col_select_other', (SELECT count(*) FROM information_schema.column_privileges WHERE table_schema = 'public' AND table_name IN ${TABLES} AND grantee IN ('anon', 'PUBLIC')),
+  'publications', (SELECT count(*) FROM pg_publication_tables WHERE schemaname = 'public' AND tablename IN ${TABLES}),
+  'views', (SELECT count(*) FROM pg_depend d JOIN pg_rewrite r ON r.oid = d.objid JOIN pg_class v ON v.oid = r.ev_class JOIN pg_class t ON t.oid = d.refobjid WHERE d.classid = 'pg_rewrite'::regclass AND d.refclassid = 'pg_class'::regclass AND t.relnamespace = 'public'::regnamespace AND t.relname IN ${TABLES} AND v.oid <> t.oid),
   'fn', (SELECT coalesce(json_agg(f || ':anon=' || has_function_privilege('anon', f, 'EXECUTE') || ':auth=' || has_function_privilege('authenticated', f, 'EXECUTE') || ':sr=' || has_function_privilege('service_role', f, 'EXECUTE') ORDER BY f), '[]')
          FROM unnest(ARRAY[${FNS.map((f) => `'public.${f}'`).join(', ')}]) f WHERE to_regprocedure(f) IS NOT NULL),
   'keys', (SELECT coalesce(json_agg(permission ORDER BY permission), '[]') FROM public.permission_catalog WHERE permission LIKE 'calls.%'),
@@ -93,6 +100,9 @@ export const WANT_VIS: Record<string, string> = {
   serviceleder_revoke_unmatched: CONF,
   inaktiv: '', uden_profil: '', anon: '42501',
 }
+/** = kolonne-grantet i 00247 (og LIST_COLUMNS i call-actions-core) */
+export const DIRECT_COLUMNS = ['answered_at', 'customer_id', 'direction', 'duration_seconds', 'employee_profile_id', 'ended_at', 'external_number_normalized', 'has_voicemail', 'id', 'match_version', 'missed', 'started_at', 'status', 'voicemail_duration_seconds']
+export const SERVER_ONLY_COLUMNS = ['suggested_customer_id', 'provider_call_id', 'provider_employee_id', 'provider_voicemail_id', 'service_case_id', 'match_status', 'candidate_count', 'match_source', 'matched_by', 'matched_at', 'from_number_normalized', 'to_number_normalized', 'provider', 'created_at', 'updated_at']
 const WRITE_OPS = ['ins_call', 'upd_call', 'del_call', 'sel_events', 'ins_event', 'sel_links', 'exec_ingest', 'exec_match', 'exec_purge'] as const
 
 export async function runTel00247Probe(c: { admin: SupabaseClient; url: string; anonKey: string; rawSql: RawSql }): Promise<M240Check[]> {
@@ -140,6 +150,20 @@ export async function runTel00247Probe(c: { admin: SupabaseClient; url: string; 
       exec_purge: `SELECT public.telephony_purge_unconfirmed()`,
     }
     const opsArray = `ARRAY[${WRITE_OPS.map((k) => `$w$${ops[k]}$w$`).join(', ')}]`
+    // D: hver forespørgsel skal afvises med 42501 (nøglen vises i rapporten)
+    const denied: Record<string, string> = {
+      ...Object.fromEntries(SERVER_ONLY_COLUMNS.map((col) => [`kolonne ${col}`, `SELECT ${col} FROM public.telephony_calls`])),
+      'SELECT *': `SELECT * FROM public.telephony_calls`,
+      'hel række (to_jsonb)': `SELECT to_jsonb(x) FROM public.telephony_calls x`,
+      'filter på forslag': `SELECT id FROM public.telephony_calls WHERE suggested_customer_id IS NOT NULL`,
+      'filter på status': `SELECT id FROM public.telephony_calls WHERE match_status = 'suggested'`,
+      'filter på sag': `SELECT id FROM public.telephony_calls WHERE service_case_id IS NOT NULL`,
+      'sortering på udbyder-id': `SELECT id FROM public.telephony_calls ORDER BY provider_call_id`,
+      'join til kunde via forslag': `SELECT t.id FROM public.telephony_calls t JOIN public.customers c ON c.id = t.suggested_customer_id`,
+      'join til sag': `SELECT t.id FROM public.telephony_calls t JOIN public.service_cases s ON s.id = t.service_case_id`,
+    }
+    const deniedKeys = Object.keys(denied)
+    const deniedArray = `ARRAY[${deniedKeys.map((k) => `$w$${denied[k]}$w$`).join(', ')}]`
     const ov = (profile: string, rws: Array<[string, 'grant' | 'revoke']>) =>
       `INSERT INTO public.user_permission_overrides (profile_id, permission, effect, source, reason) VALUES ${rws.map(([k, e]) => `('${profile}', '${k}', '${e}', 'manual', 'probe 247')`).join(',')};`
     const clearOv = (profile: string) => `DELETE FROM public.user_permission_overrides WHERE profile_id = '${profile}' AND reason = 'probe 247';`
@@ -210,7 +234,8 @@ BEGIN
         PERFORM set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
       END IF;
       BEGIN
-        EXECUTE 'SELECT coalesce(jsonb_agg(x.provider_call_id ORDER BY x.provider_call_id), ''[]'') FROM public.telephony_calls x WHERE x.provider_call_id LIKE ''p247-${stamp}-%''' INTO v;
+        -- kun id: udbyder-id'et kan personaerne ikke læse; rapporten oversætter via res.labels
+        EXECUTE 'SELECT coalesce(jsonb_agg(x.id), ''[]'') FROM public.telephony_calls x' INTO v;
       EXCEPTION WHEN OTHERS THEN v := to_jsonb(SQLSTATE);
       END;
       FOREACH q IN ARRAY ${opsArray} LOOP
@@ -224,6 +249,28 @@ BEGIN
       IF SQLERRM <> 'P247UNDO' THEN RAISE; END IF;
     END;
     RETURN jsonb_build_object('vis', v, 'w', w);
+  END $f$;
+  -- direkte kolonneadgang som rigtig bruger; rulles tilbage
+  CREATE FUNCTION pg_temp.pcol(p_uid uuid, p_call uuid, p_hidden uuid) RETURNS jsonb LANGUAGE plpgsql AS $f$
+  DECLARE codes jsonb := '[]'::jsonb; q text; a text; n int; m int; nr text;
+  BEGIN
+    BEGIN
+      EXECUTE 'SET LOCAL ROLE authenticated';
+      PERFORM set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+      EXECUTE 'SELECT count(*)::int FROM public.telephony_calls x WHERE x.id = $1' INTO n USING p_call;
+      EXECUTE 'SELECT x.external_number_normalized FROM public.telephony_calls x WHERE x.id = $1' INTO nr USING p_call;
+      EXECUTE 'SELECT count(*)::int FROM public.customers c WHERE c.id = $1' INTO m USING p_hidden;
+      FOREACH q IN ARRAY ${deniedArray} LOOP
+        BEGIN
+          EXECUTE q; codes := codes || to_jsonb('ok'::text);
+        EXCEPTION WHEN OTHERS THEN codes := codes || to_jsonb(SQLSTATE);
+        END;
+      END LOOP;
+      RAISE EXCEPTION 'P247UNDO';
+    EXCEPTION WHEN raise_exception THEN
+      IF SQLERRM <> 'P247UNDO' THEN RAISE; END IF;
+    END;
+    RETURN jsonb_build_object('call_rows', n, 'number', nr, 'customer_rows', m, 'codes', codes);
   END $f$;
 
   -- ===== I: ingest =====
@@ -341,6 +388,14 @@ BEGIN
 
   -- ===== P: personaer =====
   res := jsonb_set(res, '{p}', '{}'::jsonb);
+  res := jsonb_set(res, '{labels}', (SELECT coalesce(jsonb_object_agg(id, provider_call_id), '{}'::jsonb) FROM public.telephony_calls WHERE provider_call_id LIKE 'p247-${stamp}-%'));
+  -- ===== D: forslag på en kunde uden for montørens scope, med udbyder-metadata på rækken =====
+  ${ing('Sh-fx', 'Sh', 'call.missed', t(20), { ans: false, from: '4512345629', emp: 'emp-sh' }).replace(/^/, 'PERFORM ')};
+  UPDATE public.telephony_calls SET match_status = 'suggested', suggested_customer_id = '${fx.cust.hidden}', candidate_count = 1, provider_voicemail_id = 'vm-sh' WHERE provider_call_id = '${cid('Sh')}';
+  ${ov(fx.m.uid, [['calls.view_unmatched', 'grant']])}
+  res := jsonb_set(res, '{d_montor}', pg_temp.pcol('${fx.m.uid}', ${callId('Sh')}, '${fx.cust.hidden}'));
+  ${clearOv(fx.m.uid)}
+  res := jsonb_set(res, '{d_admin}', pg_temp.pcol('${A}', ${callId('Sh')}, '${fx.cust.hidden}'));
   ${['admin', 'serviceleder', 'bogholderi'].map((r) => `res := jsonb_set(res, '{p,${r}}', pg_temp.p247('${uid[r]}'));`).join('\n  ')}
   res := jsonb_set(res, '{p,salg}', pg_temp.p247('${fx.s.uid}'));
   res := jsonb_set(res, '{p,montor}', pg_temp.p247('${fx.m.uid}'));
@@ -379,8 +434,11 @@ $probe$;`
     eq('G: tre tabeller, RLS slået til på alle', srt(g.tables), ['telephony_calls:rls=true', 'telephony_employee_links:rls=true', 'telephony_events:rls=true'])
     add('G: præcis én politik (SELECT på telephony_calls, TO authenticated, effektive rettigheder, ingen USING (true)/user_role())',
       g.pol.length === 1 && /^telephony_calls:telephony_calls_select:SELECT:\{authenticated\}:/.test(g.pol[0]) && g.pol[0].includes("'calls.view_unmatched'") && !/user_role\(\)/.test(g.pol[0]) && !/:true:/.test(g.pol[0]), g.pol.join(' | ').slice(0, 200))
-    eq('G: grants — authenticated kun SELECT på telephony_calls; intet til anon/PUBLIC; intet på hændelser/koblinger', g.grants, ['telephony_calls:authenticated:SELECT'])
-    eq('G: ingen kolonne-skrivegrants til anon/authenticated', g.col_grants, 0)
+    eq('G: ingen tabel-grants til anon/authenticated/PUBLIC på nogen telefoni-tabel (kun kolonne-grant)', [g.grants, g.tbl_select], [[], false])
+    eq('G: authenticated har SELECT på præcis de sikre kolonner — intet på hændelser/koblinger', g.col_select, [...DIRECT_COLUMNS].sort().map((col) => `telephony_calls.${col}`))
+    eq('G: alle kolonner er enten direkte eller kun-server (intet glemt)', [...DIRECT_COLUMNS, ...SERVER_ONLY_COLUMNS].sort(), [...g.cols].sort())
+    eq('G: ingen kolonne-skrivegrants til anon/authenticated; ingen kolonner til anon/PUBLIC', [g.col_grants, g.col_select_other], [0, 0])
+    eq('G: ingen views oven på telefoni-tabellerne; ikke i nogen publikation (Realtime)', [g.views, g.publications], [0, 0])
     eq('G: funktioner kun EXECUTE for service_role', srt(g.fn), FNS.map((f) => `public.${f}:anon=false:auth=false:sr=true`).sort())
     eq('G: nøgler calls.match/view/view_unmatched', srt(g.keys), ['calls.match', 'calls.view', 'calls.view_unmatched'])
     eq('G: standarder (admin/serviceleder alle tre; salg view+match; montør/bogholderi ingen)', srt(g.defaults),
@@ -439,8 +497,16 @@ $probe$;`
     eq('R1 retention: kun ubekræftet > 90 dage slettes (1); bekræftet > 90 dage og ubekræftet 89 dage bevares', [res.r.ok_confirm, res.r.purged, res.r.left], ['confirmed:1', '1', { XN: 1, XO: 0, XOk: 1 }])
     eq('R1 … hændelser følger med (kaskade)', res.r.events_left, 0)
 
+    // ---- D
+    const dm = res.d_montor, da = res.d_admin
+    eq('D1 montør + calls.view_unmatched: opkaldet er synligt, eksternt nummer læses; den foreslåede kunde er IKKE synlig', [dm?.call_rows, dm?.number, dm?.customer_rows], [1, '4512345629', 0])
+    deniedKeys.forEach((k, idx) => eq(`D2 montør: ${k} → 42501`, dm?.codes?.[idx], '42501'))
+    eq('D3 heller ikke admin kan læse de skjulte felter direkte (kun via serveren)', da?.codes, deniedKeys.map(() => '42501'))
+    eq('D3 admin ser rækken, nummeret og kunden', [da?.call_rows, da?.number, da?.customer_rows], [1, '4512345629', 1])
+
     // ---- P
-    const label = (x: string) => x.replace(`p247-${stamp}-`, '')
+    const labels = (res.labels ?? {}) as Record<string, string>
+    const label = (x: string) => (labels[x] ?? '').replace(`p247-${stamp}-`, '')
     for (const [k, w] of Object.entries(WANT_VIS)) {
       const cell = res.p?.[k]
       if (!cell) { add(`P ${k}`, false, 'mangler'); continue }

@@ -64,8 +64,60 @@ Telegram forbliver slået fra; intet kalder ingest-funktionen endnu.
 **Status:** `supabase/migrations/00247_telephony_persistence.sql` er anvendt på STAGING og bevist. PROD er urørt
 (`scripts/prod-verify-00247.ts pre` 5/5: ingen tabeller/funktioner/nøgler, katalog 114/273). 00247 står ikke i
 `scripts/prod-apply-migration.ts` APPROVED. Lagring er slået FRA som standard (`TELEPHONY_PERSIST_ENABLED`, oven i
-`RELATEL_ENABLED`); Relatel, webhook-registrering, opkald, SMS og Telegram er urørte. **Anbefaling: READY_FOR_PROD** for
-migrationen alene (se risici). Prod kræver Henriks eksplicitte godkendelse.
+`RELATEL_ENABLED`); Relatel, webhook-registrering, opkald, SMS og Telegram er urørte. Prod kræver Henriks eksplicitte
+godkendelse. Se "Privatlivsrettelse" for den gældende status og de gældende testtal — tallene længere nede er fra før den.
+
+### Privatlivsrettelse (S2, review 2026-11-04) — opdaterer 00247 FØR prod
+
+**Fund:** `GRANT SELECT ON telephony_calls TO authenticated` gav enhver synlig række med alle kolonner. Rækkereglerne (RLS)
+var korrekte, men en bruger med `calls.view_unmatched` kunne selv forespørge `suggested_customer_id` og udbyder-id'er, også
+når kunden var uden for brugerens scope. Det strider mod den låste regel om, at et forslag aldrig giver adgang til en kunde.
+
+**Rettelse (samme migrationsfil; 00247 har aldrig været på prod):** kolonne-grant i stedet for tabel-grant. RLS og
+synlighedsmodellen er uændret.
+
+| Felter | Adgang |
+|---|---|
+| `id`, `direction`, `external_number_normalized`, `started_at`, `answered_at`, `ended_at`, `duration_seconds`, `status`, `missed`, `has_voicemail`, `voicemail_duration_seconds`, `employee_profile_id`, `customer_id`, `match_version` | Direkte læsning for authenticated (kun rækker RLS tillader). `customer_id` er kun udfyldt, når kunden allerede er i scope. |
+| `suggested_customer_id`, `candidate_count`, `match_status`, `service_case_id` | Kun serveren; vises filtreret (se nedenfor) |
+| `provider`, `provider_call_id`, `provider_employee_id`, `provider_voicemail_id`, `match_source`, `matched_by`, `matched_at`, `from_number_normalized`, `to_number_normalized`, `created_at`, `updated_at` | Kun serveren; vises ikke i listen |
+
+Skjulte felter kan heller ikke bruges i filter, sortering eller join, og `SELECT *`/hel-række afvises (42501) — også for admin,
+der læser dem gennem serveren. Ingen view, ingen security definer.
+
+**Læsesti (`listCallsCore`):** (1) brugerens egen klient beviser, at opkaldet er synligt; (2) service_role henter de interne
+felter KUN for de id'er; (3) kunde og sag slås op med brugerens egen klient; (4) forslag/sags-id returneres kun, hvis
+brugeren selv kan se dem. Fejler et opslag, skjules feltet.
+
+**To tilføjelser ud over reviewet (rapporteret til Henrik):**
+- `match_status` og `candidate_count` afslører i sig selv, at et nummer tilhører en kunde. `projectCallMatch`: et forslag
+  uden for scope fremstår som `unmatched`/0; `ambiguous` og antal kandidater kræver `customers.view.all`.
+- Audit-læk: `audit_logs` kan læses af aktøren selv ("Users can read their own audit logs"), og `telephony_set_call_match`
+  skriver det gamle `service_case_id`. En bruger, der ikke kan se opkaldets sag, kan derfor ikke længere rette kunde, afvise
+  eller ændre sag på det opkald (`hiddenCaseRefusal`); en leder med adgang til sagen skal gøre det. **Det er en ny
+  begrænsning på skrivning** (standardrollen salg ser kunder bredt, men kun egne sager). Synligheden er uændret.
+
+**Ikke blokerende for migration-alene** (men blokerer senere live-aktivering af Relatel): Relatel-feltnavne ikke verificeret ·
+webhook-auth er en statisk hemmelighed · oprydnings-cron ikke planlagt · `TELEPHONY_PERSIST_ENABLED`/`RELATEL_ENABLED` står
+fra. **Hærdning (ikke rettet):** audit af medarbejder-kobling er en separat skrivning efter koblingsændringen, ikke samme
+transaktion.
+
+**Bevis på staging efter rettelsen** (fingeraftryk uændret fra før rollback til efter gen-apply: kunder, sager, opgaver,
+audit_logs 9375, mails, overrides):
+
+| Kørsel | Resultat |
+|---|---|
+| `tel-00247-rollback-staging` → state | applied=false, katalog 114/273, data-md5 uændret |
+| `tel-00247-probe` før apply (kroppen i prøven, rollback-only) | 96/96 |
+| `dry-run-staging 00247` → `migrate-staging 00247` | ✅ · ✅ |
+| `tel-00247-probe` (inkl. parallelle sessioner, D = direkte kolonneadgang i SQL) | 102/102 |
+| `tel-00247-app` (D = direkte gennem PostgREST med rigtig JWT; persona-liste, fremmed sag) | 74/74 |
+| `mp-00238-check` · `scripts/telephony-persist-test.ts` | 16/16 · 20/20 |
+| tsc · check:rbac · check:rls-matrix | 0 · 0 · 0 |
+| UI (staging, ui-batches, nybygget): U6, U258 | 2/2 PASS |
+
+Personaprøverne kører `listCallsCore` osv. med rigtige persona-klienter. `listTelephonyCalls` er en tynd server-handling
+(session + rettighedstjek) oven på den, og intet UI kalder den endnu, så selve wrapperen er ikke kørt ende-til-ende.
 
 ### Skema (præcis SQL = migrationsfilen)
 
@@ -116,8 +168,8 @@ is_active**.
 **Politikker/grants:** RLS på alle tre. Én politik `telephony_calls_select` FOR SELECT TO authenticated:
 `(customer_id IS NULL AND user_has_permission('calls.view_unmatched')) OR (customer_id IS NOT NULL AND
 user_has_permission('calls.view') AND (user_has_permission('customers.view.all') OR customer_id = ANY
-(my_customer_scope_ids())))`. Ingen politikker på hændelser/koblinger. authenticated: kun SELECT på telephony_calls.
-anon/PUBLIC: intet. service_role: ALL. Ingen `user_role()`, ingen `USING (true)`.
+(my_customer_scope_ids())))`. Ingen politikker på hændelser/koblinger. authenticated: kun SELECT på 14 kolonner i
+telephony_calls (se "Privatlivsrettelse"). anon/PUBLIC: intet. service_role: ALL. Ingen `user_role()`, ingen `USING (true)`.
 
 **Rettighedsnøgler (= permissions.ts):** `calls.view` (admin, serviceleder, salg) · `calls.view_unmatched` (admin,
 serviceleder) · `calls.match` (admin, serviceleder, salg). Katalog 114/273 → 117/281.
@@ -146,9 +198,10 @@ serviceleder) · `calls.match` (admin, serviceleder, salg). Katalog 114/273 → 
   via flere kontakter = én); rører kun `unmatched` uden kunde.
 - `lib/integrations/telephony/webhook-gate.ts` `handleRelatelWebhook`: flag fra → uændret 404/202 `persisted:false`; til →
   202 created/duplicate, 409 conflict, 202 `persisted:false` ved SMS/manglende tabeller, 500 ved DB-fejl (idempotent retry).
-- `lib/telephony/call-actions-core.ts` + `lib/actions/telephony-calls.ts`: `listTelephonyCalls` (brugerens klient; forslag kun
-  hvis brugeren kan se kunden; ingen udbyder-id'er), `confirmCallCustomer`, `linkCallCase`, `rejectCallMatch` (calls.match +
-  opkald/kunde/sag synlige med egen klient), `setTelephonyEmployeeLink` (users.manage_roles; auditeret).
+- `lib/telephony/call-actions-core.ts` + `lib/actions/telephony-calls.ts`: `listTelephonyCalls` (synlighed med brugerens klient,
+  interne felter via service_role kun for de id'er; forslag/sag kun hvis brugeren selv kan se dem; ingen udbyder-id'er),
+  `confirmCallCustomer`, `linkCallCase`, `rejectCallMatch` (calls.match + opkald/kunde/sag synlige med egen klient; afvises hvis
+  opkaldets sag er skjult for brugeren), `setTelephonyEmployeeLink` (users.manage_roles; auditeret).
 - `lib/integrations/telephony/retention.ts` + `/api/cron/telephony-retention` (CRON_SECRET; **ikke i vercel.json**).
 - `processMissedCall`/`syncMissedCalls` markeret `@deprecated` — ikke koblet på noget.
 - Ingen UI ændret.

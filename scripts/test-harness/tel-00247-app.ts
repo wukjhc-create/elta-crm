@@ -15,9 +15,11 @@ import {
   confirmCallCustomerCore, linkCallCaseCore, listCallsCore, rejectCallMatchCore, setEmployeeLinkCore, type CallActionCtx,
 } from '../../src/lib/telephony/call-actions-core'
 import type { Permission } from '../../src/lib/auth/permissions'
+import { SERVER_ONLY_COLUMNS } from './tel-00247-probe'
 
 type RawSql = (sql: string) => Promise<{ ok: boolean; status: number; text: string }>
 const KEYS: Permission[] = ['calls.view', 'calls.view_unmatched', 'calls.match', 'users.manage_roles']
+const SCOPE_KEYS: Permission[] = ['customers.view.all']
 
 export async function runTel00247App(c: { admin: SupabaseClient; url: string; anonKey: string; rawSql: RawSql }): Promise<M240Check[]> {
   const out: M240Check[] = []
@@ -50,7 +52,7 @@ export async function runTel00247App(c: { admin: SupabaseClient; url: string; an
     const persona = async (cl: SupabaseClient): Promise<CallActionCtx> => {
       const uid = (await cl.auth.getUser()).data.user!.id
       const set = new Set<Permission>()
-      for (const k of KEYS) if ((await cl.rpc('user_has_permission', { p_permission: k })).data === true) set.add(k)
+      for (const k of [...KEYS, ...SCOPE_KEYS]) if ((await cl.rpc('user_has_permission', { p_permission: k })).data === true) set.add(k)
       return { supabase: cl, admin: c.admin, userId: uid, hasPermission: (k) => set.has(k) }
     }
     const adminCl = p.get('admin' as never)! as SupabaseClient
@@ -153,10 +155,40 @@ export async function runTel00247App(c: { admin: SupabaseClient; url: string; an
     const M = await persona(fx.m.cl)
     const mList = await listCallsCore(M, {})
     const mC1 = mList.calls.find((x) => x.id === r1!.id)
-    eq('P3 montør + calls.view_unmatched ser det ubekræftede opkald, men forslaget skjules (kunden er uden for scope)', [!!mC1, mC1?.match_status, mC1?.suggestion], [true, 'suggested', null])
+    eq('P3 montør + calls.view_unmatched ser opkald og nummer; forslaget skjules og opkaldet fremstår som ukendt', [!!mC1, mC1?.number, mC1?.match_status, mC1?.candidate_count, mC1?.suggestion], [true, num.one, 'unmatched', 0, null])
+    const mJson = j(mList)
+    eq('P3 montørens liste indeholder hverken den foreslåede kunde, sagsfelter med værdi eller udbyder-id’er', [mJson.includes(K1), mJson.includes(K2a), mJson.includes(K2b), mJson.includes(`${pre}-c1`), mJson.includes(emp)], [false, false, false, false, false])
+    const mAm = mList.calls.find((x) => x.id === ram!.id)
+    eq('P3 montør ser ikke at et nummer er tvetydigt (kun med customers.view.all)', [mAm?.match_status, mAm?.candidate_count, mAm?.suggestion], ['unmatched', 0, null])
+    eq('P3 montør kan ikke se den foreslåede kunde direkte', (await fx.m.cl.from('customers').select('id').eq('id', K1)).data, [])
     const aC1 = (await listCallsCore(A, {})).calls.find((x) => x.id === r1!.id)
-    eq('P3 admin ser forslaget med kundenavn; ingen udbyder-id’er i listen', [aC1?.suggestion?.id, Object.keys(aC1 ?? {}).some((k) => /provider/.test(k))], [K1, false])
+    eq('P3 admin ser forslaget med kundenavn; ingen udbyder-id’er i listen', [aC1?.suggestion?.id, aC1?.match_status, aC1?.candidate_count, Object.keys(aC1 ?? {}).some((k) => /provider/.test(k))], [K1, 'suggested', 1, false])
+    const slList = await listCallsCore(SL, {})
+    const slC1 = slList.calls.find((x) => x.id === r1!.id), slAm = slList.calls.find((x) => x.id === ram!.id)
+    eq('P3 serviceleder ser forslaget og det tvetydige opkald via serveren', [slC1?.suggestion?.id, slC1?.match_status, slAm?.match_status, slAm?.candidate_count], [K1, 'suggested', 'ambiguous', 2])
     eq('P3 montør kan ikke bekræfte til en kunde uden for scope', await confirmCallCustomerCore(M, r1!.id, K1, 0), { success: false, error: 'Kunden findes ikke.' })
+
+    // ---- direkte kolonneadgang gennem PostgREST (rigtig JWT, det en indlogget bruger selv kan kalde)
+    const montorDirect = await fx.m.cl.from('telephony_calls').select('id, external_number_normalized').eq('id', r1!.id)
+    eq('D1 montør læser direkte: opkaldet og det eksterne nummer', [montorDirect.error, montorDirect.data], [null, [{ id: r1!.id, external_number_normalized: num.one }]])
+    const code = async (b: PromiseLike<{ error: { code?: string } | null }>) => (await b).error?.code ?? 'INGEN FEJL'
+    for (const col of SERVER_ONLY_COLUMNS) {
+      eq(`D2 montør direkte: ${col} → 42501`, await code(fx.m.cl.from('telephony_calls').select(col).eq('id', r1!.id)), '42501')
+    }
+    eq('D2 montør direkte: select=* → 42501', await code(fx.m.cl.from('telephony_calls').select('*').eq('id', r1!.id)), '42501')
+    eq('D2 montør direkte: filter/sortering på skjult felt → 42501', [
+      await code(fx.m.cl.from('telephony_calls').select('id').eq('suggested_customer_id', K1)),
+      await code(fx.m.cl.from('telephony_calls').select('id').eq('match_status', 'suggested')),
+      await code(fx.m.cl.from('telephony_calls').select('id').order('provider_call_id')),
+    ], ['42501', '42501', '42501'])
+    eq('D2 montør direkte: indlejret kunde via forslaget → 42501 (begge retninger)', [
+      await code(fx.m.cl.from('telephony_calls').select('id, customers!telephony_calls_suggested_customer_id_fkey(id, company_name)').eq('id', r1!.id)),
+      await code(fx.m.cl.from('customers').select('id, telephony_calls!telephony_calls_suggested_customer_id_fkey(id)').limit(1)),
+    ], ['42501', '42501'])
+    eq('D3 admin har heller ingen direkte adgang til forslag/udbyder-id (kun serveren)', [
+      await code(adminCl.from('telephony_calls').select('suggested_customer_id').eq('id', r1!.id)),
+      await code(adminCl.from('telephony_calls').select('provider_call_id').eq('id', r1!.id)),
+    ], ['42501', '42501'])
 
     const cf = await confirmCallCustomerCore(A, r1!.id, K1, 0)
     eq('M5 admin bekræfter forslaget → confirmed v1; gammel version → stale', [cf, (await confirmCallCustomerCore(A, r1!.id, K3, 0)).success], [{ success: true, outcome: 'confirmed', version: 1 }, false])
@@ -173,6 +205,14 @@ export async function runTel00247App(c: { admin: SupabaseClient; url: string; an
     const lk = await linkCallCaseCore(A, r1!.id, caseK1, 1)
     eq('C2 admin kobler sagen → case_linked v2; fjern → case_unlinked v3', [lk, await linkCallCaseCore(A, r1!.id, null, 2)], [{ success: true, outcome: 'case_linked', version: 2 }, { success: true, outcome: 'case_unlinked', version: 3 }])
     await linkCallCaseCore(A, r1!.id, caseK1, 3)
+    // fremmed sag: salg ser kunden/opkaldet, men ikke sagen (samme id er kun synligt for den der kan se sagen)
+    eq('C3 salg kan ikke selv se sagen (forudsætning)', (await fx.s.cl.from('service_cases').select('id').eq('id', caseK1)).data, [])
+    const sSees = (await listCallsCore(S, {})).calls.find((x) => x.id === r1!.id)
+    eq('C3 salg ser opkaldet og kunden, men ikke sags-id’et; admin og serviceleder ser det via serveren', [sSees?.customer?.id, sSees?.service_case_id, (await listCallsCore(A, {})).calls.find((x) => x.id === r1!.id)?.service_case_id, (await listCallsCore(SL, {})).calls.find((x) => x.id === r1!.id)?.service_case_id], [K1, null, caseK1, caseK1])
+    eq('C3 salg direkte: service_case_id → 42501', (await fx.s.cl.from('telephony_calls').select('service_case_id').eq('id', r1!.id)).error?.code, '42501')
+    const hiddenCaseError = { success: false, error: 'Opkaldet er koblet til en sag, du ikke har adgang til. Bed en leder om at rette det.' }
+    eq('C3 salg kan ikke fjerne, rette kunde på eller afvise et opkald med en fremmed sag', [await linkCallCaseCore(S, r1!.id, null, 4), await confirmCallCustomerCore(S, r1!.id, K3, 4), await rejectCallMatchCore(S, r1!.id, 4)], [hiddenCaseError, hiddenCaseError, hiddenCaseError])
+    eq('C3 … intet ændret (version 4, sagen uændret), og salg har ingen audit-række med sags-id’et', [(await callRow('c1'))?.match_version, (await callRow('c1'))?.service_case_id, (await fx.s.cl.from('audit_logs').select('id').eq('entity_type', 'telephony_call').eq('entity_id', r1!.id)).data], [4, caseK1, []])
     const corr = await confirmCallCustomerCore(A, r1!.id, K3, 4)
     const rc = await callRow('c1')
     eq('M6 rettet match → corrected v5; den gamle sag fjernes', [corr, rc?.customer_id, rc?.service_case_id], [{ success: true, outcome: 'corrected', version: 5 }, K3, null])

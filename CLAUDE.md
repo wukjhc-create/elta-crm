@@ -445,7 +445,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   persisted:false som før); `TELEPHONY_MATCH_MODE=suggest` giver kun forslag (lib/integrations/telephony/{persist,suggest,
   webhook-gate}.ts). Kunde og sag er separate handlinger (lib/actions/telephony-calls.ts → lib/telephony/call-actions-core.ts;
   calls.match + synlighed med egen klient). Oprydnings-cron /api/cron/telephony-retention findes men står IKKE i vercel.json.
-  `processMissedCall` er @deprecated (må ikke kobles på). Prøver: `cli.ts tel-00247-probe` (73/73, inkl. parallelle
-  sessioner), `cli.ts tel-00247-app` (45/45), `cli.ts tel-00247-state`, `cli.ts tel-00247-rollback-staging`,
+  `processMissedCall` er @deprecated (må ikke kobles på). authenticated har KUN kolonne-SELECT på 14 sikre felter i
+  telephony_calls (forslag, sag, match_status, kandidater, udbyder-id'er og rå numre kan ikke læses/filtreres/joines direkte);
+  serveren læser dem med service_role for opkald brugerens klient har returneret og viser kun det brugeren selv kan se
+  (`listCallsCore`, `projectCallMatch`). Match-ændring afvises, hvis opkaldets sag er skjult for brugeren (aktøren kan læse
+  sin egen audit-række). Nye felter i listen skal enten i kolonne-grantet eller gennem serveren.
+  Prøver: `cli.ts tel-00247-probe` (102/102, inkl. parallelle sessioner og direkte kolonneadgang), `cli.ts tel-00247-app`
+  (74/74, inkl. PostgREST), `cli.ts tel-00247-state`, `cli.ts tel-00247-rollback-staging`,
   `scripts/telephony-persist-test.ts`; prod read-only `scripts/prod-verify-00247.ts pre|post`. Runbook
   docs/runbooks/telephony-events-proposal.md (godkendelsesrapport)
