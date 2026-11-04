@@ -86,8 +86,9 @@ withProdReadOnlyRoleProbe('prod-smoke-00246', async (probe, run) => {
     if (c > 0) fresh.push(`${t.table_name}=${c}`)
   }
   res.push([`ingen udgående rækker i ${tables.length} mail-/e-conomic-/SMS-/webhook-/udbakketabeller siden ${since}`, fresh.length === 0, fresh.join(', ')])
-  const tel = await run(`SELECT to_regclass('public.telephony_events')::text AS t, to_regclass('public.telephony_calls')::text AS c`)
-  res.push(['ingen telefoni-tabeller (forslag ikke anvendt)', tel[0].t === null && tel[0].c === null, ''])
+  // 00247 er anvendt 2026-11-04 med alle flag fra: tabellerne findes, men må ikke have rækker
+  const tel = await n(`SELECT (SELECT count(*) FROM telephony_calls) + (SELECT count(*) FROM telephony_events) + (SELECT count(*) FROM telephony_employee_links) AS n`)
+  res.push(['0 telefoni-rækker (lagring er slået fra)', tel === 0, `${tel}`])
 
   for (const [k, ok, note] of res) console.log(`${ok ? 'PASS' : 'FAIL'}  ${k}${note ? ` (${note})` : ''}`)
   const bad = res.filter(([, ok]) => !ok).length

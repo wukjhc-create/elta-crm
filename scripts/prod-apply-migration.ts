@@ -92,6 +92,7 @@ const APPROVED: Record<string, string> = {
   '00244': '2026-11-02', // offers.case_type (solar/installation, nullable, ingen default/backfill) — godkendt af Henrik i chat 2026-11-02 ("APPROVED: migration 00244 may now be applied to PRODUCTION", efter grøn staging U256)
   '00245': '2026-11-03', // customer_notes efter effektive rettigheder (SELECT view.all/scope, INSERT edit+scope+created_by+manual, UPDATE(content)/DELETE egen|customers.notes.manage + scope; case_notes.source hvis den mangler) — godkendt af Henrik i chat 2026-11-03 ("APPROVED: migration 00245 may now be applied to PRODUCTION")
   '00246': '2026-11-03', // incoming_emails SELECT efter effektive rettigheder (inbox.view | customers.emails.view+scope | ukoblede: emails.view+edit+view.all | sags-scope/cases.view.all | incoming_invoices.view+faktura) — godkendt af Henrik i chat 2026-11-03 ("APPROVED: migration 00246 may now be applied to PRODUCTION")
+  '00247': '2026-11-04', // telefoni-persistens (tabeller, kolonne-grant, service_role-funktioner, calls.*-nøgler); alle Relatel-/lagrings-flag forbliver FRA — godkendt af Henrik i chat 2026-11-04 ("Henrik explicitly approves migration 00247 for production", branch telephony-00247 @ 4409c9f1)
 }
 
 async function main() {

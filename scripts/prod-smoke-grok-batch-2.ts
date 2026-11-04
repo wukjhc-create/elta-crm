@@ -73,11 +73,11 @@ withProdReadOnlyRoleProbe('prod-smoke-grok-batch-2', async (probe, run) => {
   const pol = await run(`SELECT coalesce(qual,'') q FROM pg_policies WHERE schemaname='public' AND tablename='incoming_emails' AND cmd='SELECT'`)
   res.push(['00246-politikken uændret (én, effektive rettigheder)', pol.length === 1 && String(pol[0].q).includes("'incoming_invoices.view'") && !/user_role\(\)/.test(String(pol[0].q)), ''])
 
-  // Ingen migration: katalog og tabeltal som efter 00246; ingen telefoni-tabeller
+  // Skema som efter 00247 (2026-11-04, alle flag fra): 3 telefoni-tabeller uden rækker. En senere migration skal opdatere tallene.
   const schema = (await run(`SELECT (SELECT count(*)::int FROM permission_catalog) k, (SELECT count(*)::int FROM role_permission_defaults) p,
     (SELECT count(*)::int FROM pg_class c WHERE c.relnamespace='public'::regnamespace AND c.relkind IN ('r','v','m')) t,
-    to_regclass('public.telephony_events')::text te, to_regclass('public.telephony_calls')::text tc`))[0]
-  res.push(['ingen migration: katalog 114/273, 165 tabeller/views, ingen telefoni-tabeller', schema.k === 114 && schema.p === 273 && schema.t === 165 && schema.te === null && schema.tc === null, `${schema.k}/${schema.p}, ${schema.t}`])
+    (SELECT count(*)::int FROM telephony_calls) + (SELECT count(*)::int FROM telephony_events) + (SELECT count(*)::int FROM telephony_employee_links) tr`))[0]
+  res.push(['skema som efter 00247: katalog 117/281, 168 tabeller/views, 0 telefoni-rækker', schema.k === 117 && schema.p === 281 && schema.t === 168 && schema.tr === 0, `${schema.k}/${schema.p}, ${schema.t}, ${schema.tr}`])
 
   // Ingen udgående rækker / eksterne handlinger siden --since
   const tables = await run(`SELECT DISTINCT table_name FROM information_schema.columns WHERE table_schema='public' AND column_name='created_at'
