@@ -39,6 +39,25 @@ export interface InvoiceTotals {
 // FIN2-9: fælles øre-afrunding (halv øre væk fra nul, som SQL ROUND/e-conomic)
 const r2 = roundMoney
 
+/** Øre-rest under dette beløb er ikke en forfalden faktura (samme grænse som rykkerne). */
+export const OPEN_OVERDUE_MIN = 0.5
+
+/** Sendte/betalte kreditnotaer, absolut beløb pr. original. Annullerede kreditnotaer tæller ikke. */
+export function creditTotalsByOriginal(rows: ReadonlyArray<Pick<InvoiceTotalsRow, 'invoice_type' | 'credit_of_invoice_id' | 'voided_at' | 'status' | 'final_amount'>>): Map<string, number> {
+  const credited = new Map<string, number>()
+  for (const r of rows) {
+    if (r.invoice_type === 'credit' && r.credit_of_invoice_id && !r.voided_at && (r.status === 'sent' || r.status === 'paid')) {
+      credited.set(r.credit_of_invoice_id, (credited.get(r.credit_of_invoice_id) ?? 0) + Math.abs(Number(r.final_amount ?? 0)))
+    }
+  }
+  return credited
+}
+
+/** Åbent beløb på én faktura: final − indbetalt − kreditnotaer, aldrig under 0. */
+export function sentOpenAmount(r: Pick<InvoiceTotalsRow, 'id' | 'final_amount' | 'amount_paid'>, credited: Map<string, number>): number {
+  return Math.max(0, r2(Number(r.final_amount ?? 0) - Number(r.amount_paid ?? 0) - (credited.get(r.id) ?? 0)))
+}
+
 /** Dansk kalenderdage fra forfaldsdato (YYYY-MM-DD) til nu; > 0 = forfalden */
 function daysOverdue(dueIso: string, nowMs: number): number {
   const today = copenhagenParts(new Date(nowMs)).date
@@ -58,14 +77,8 @@ export interface InvoicePaymentRow { invoice_id: string; amount: number | string
  */
 export function computeInvoiceTotals(rows: InvoiceTotalsRow[], nowMs: number, payments?: InvoicePaymentRow[]): InvoiceTotals {
   const ym = copenhagenParts(new Date(nowMs)).date.slice(0, 7)
-  const credited = new Map<string, number>()
-  for (const r of rows) {
-    if (r.invoice_type === 'credit' && r.credit_of_invoice_id && !r.voided_at && (r.status === 'sent' || r.status === 'paid')) {
-      credited.set(r.credit_of_invoice_id, (credited.get(r.credit_of_invoice_id) ?? 0) + Math.abs(Number(r.final_amount ?? 0)))
-    }
-  }
-  const open = (r: InvoiceTotalsRow) =>
-    Math.max(0, r2(Number(r.final_amount ?? 0) - Number(r.amount_paid ?? 0) - (credited.get(r.id) ?? 0)))
+  const credited = creditTotalsByOriginal(rows)
+  const open = (r: InvoiceTotalsRow) => sentOpenAmount(r, credited)
 
   const t: InvoiceTotals = { draftCount: 0, sentUnpaid: 0, outstanding: 0, overdueCount: 0, overdueSum: 0, paidThisMonth: 0, otherCurrencyCount: 0, overdue: [] }
   for (const r of rows) {
@@ -80,7 +93,7 @@ export function computeInvoiceTotals(rows: InvoiceTotalsRow[], nowMs: number, pa
       t.outstanding += o
       // FIN-11 (finance-review 2026-10-17): øre-rest fra afrunding på opdelte kreditnotaer (fx 0,01 kr) er ikke forfalden —
       // samme grænse (0,50 kr) som rykkerne
-      if (r.due_date && o >= 0.5) {
+      if (r.due_date && o >= OPEN_OVERDUE_MIN) {
         const d = daysOverdue(String(r.due_date).slice(0, 10), nowMs)
         if (d > 0) { t.overdueCount += 1; t.overdueSum += o; t.overdue.push({ id: r.id, days: d, open: o }) }
       }

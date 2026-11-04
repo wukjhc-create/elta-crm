@@ -25,6 +25,7 @@ const mobileNavLinks: Array<{ name: string; href: string; permission?: Permissio
   { name: 'Kalender', href: '/dashboard/calendar', permission: 'calendar.view.own' },
   // M-15 (mobil-review 2026-10-14): kontormodulerne fra sidemenuen manglede på mobil (bogholderi havde 2 punkter)
   { name: 'Fakturaer', href: '/dashboard/invoices', permission: 'invoices.view.all' },
+  { name: 'Likviditet', href: '/dashboard/finance', permission: 'economy.view' },
   { name: 'Leverandørfakturaer', href: '/dashboard/incoming-invoices', permission: 'incoming_invoices.view' },
   { name: 'Bank', href: '/dashboard/bank', permission: 'bank.view' },
   { name: 'Timegodkendelse', href: '/dashboard/time-approval', permission: 'time_logs.approve' },

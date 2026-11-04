@@ -23,6 +23,7 @@ import { encrypt, decrypt } from '@/lib/utils/encryption'
 import { buildEconomicInvoiceDraft, type EconomicInvoiceDraft } from '@/lib/economic/invoice-draft'
 import { buildEconomicSupplierInvoiceDraft, type SupplierInvoiceDraft } from '@/lib/economic/supplier-invoice-draft'
 import { buildEconomicPaymentEntry } from '@/lib/economic/payment-entry'
+import { economicReadPathAllowed } from '@/lib/economic/read-model'
 import type {
   AccountingAction,
   AccountingEntityType,
@@ -1162,6 +1163,38 @@ export async function pingEconomicConnection(): Promise<EconomicPingResult> {
     return { ok: false, reason: 'network', message: 'Kunne ikke nå e-conomic (netværksfejl).' }
   }
   return { ok: false, reason: 'http_error', message: `e-conomic svarede med en fejl (HTTP ${res.status}).` }
+}
+
+export type EconomicGetResult<T> =
+  | { ok: true; status: number; data: T }
+  | { ok: false; status: number; reason: 'not_configured' | 'failed'; message: string }
+
+/**
+ * Read-only GET through the existing HTTP point. Writes stay on the kill switch.
+ * Does not log to accounting_sync_log and does not touch last_sync_at.
+ * A failed or empty body is not a number.
+ */
+export async function economicGet<T = unknown>(
+  path: string,
+  query?: Record<string, string | number | undefined>,
+): Promise<EconomicGetResult<T>> {
+  if (!economicReadPathAllowed(path)) {
+    return { ok: false, status: 0, reason: 'failed', message: 'Læsningen er ikke tilladt.' }
+  }
+  const settings = await getEconomicSettings()
+  if (!isEconomicReady(settings)) {
+    return { ok: false, status: 0, reason: 'not_configured', message: 'e-conomic er ikke opsat.' }
+  }
+  const res = await economicFetch<T>(settings, path, { method: 'GET', query })
+  if (!res.ok || res.data == null) {
+    const message = res.status === 401 || res.status === 403
+      ? 'Adgang nægtet.'
+      : res.status === 0
+        ? 'Kunne ikke nå e-conomic.'
+        : 'e-conomic kunne ikke læses.'
+    return { ok: false, status: res.status, reason: 'failed', message }
+  }
+  return { ok: true, status: res.status, data: res.data }
 }
 
 // =====================================================
