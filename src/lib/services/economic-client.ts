@@ -1167,7 +1167,7 @@ export async function pingEconomicConnection(): Promise<EconomicPingResult> {
 
 export type EconomicGetResult<T> =
   | { ok: true; status: number; data: T }
-  | { ok: false; status: number; reason: 'not_configured' | 'failed'; message: string }
+  | { ok: false; status: number; reason: 'not_configured' | 'failed' | 'timeout'; message: string }
 
 /**
  * Read-only GET through the existing HTTP point. Writes stay on the kill switch.
@@ -1187,6 +1187,9 @@ export async function economicGet<T = unknown>(
   }
   const res = await economicFetch<T>(settings, path, { method: 'GET', query })
   if (!res.ok || res.data == null) {
+    if (res.error === ECONOMIC_TIMEOUT_CODE) {
+      return { ok: false, status: res.status, reason: 'timeout', message: 'e-conomic svarede ikke i tide.' }
+    }
     const message = res.status === 401 || res.status === 403
       ? 'Adgang nægtet.'
       : res.status === 0

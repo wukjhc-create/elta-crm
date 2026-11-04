@@ -33,6 +33,7 @@ export interface PayableInput {
   amountInclVat: number | string | null
   dueDate: string | null
   duplicateOfId: string | null
+  supplierId: string | null
 }
 
 export type ForecastId = 'overdue' | 'd30' | 'd60' | 'd90' | 'later' | 'undated'
@@ -48,6 +49,7 @@ export interface ForecastWindow {
 export interface OpenInvoiceRow {
   id: string
   invoiceNumber: string
+  customerId: string | null
   customerName: string
   dueDate: string | null
   amount: number
@@ -77,11 +79,19 @@ export interface FinancePosition {
   payables: Array<{
     id: string
     invoiceNumber: string | null
+    supplierId: string | null
     supplierName: string
     dueDate: string | null
     amount: number | null
     currency: string
   }>
+  upcomingInvoices: OpenInvoiceRow[]
+  upcomingTruncated: boolean
+  overduePayables: FinancePosition['payables']
+  upcomingPayables: FinancePosition['payables']
+  overduePayablesTruncated: boolean
+  upcomingPayablesTruncated: boolean
+  receivablesLoaded: boolean
   payablesTruncated: boolean
   missingDueCount: number
   supplierMissingDue: number
@@ -209,6 +219,7 @@ export function buildFinancePosition(input: {
         openRows.push({
           id: row.id,
           invoiceNumber: row.invoiceNumber,
+          customerId: row.customerId,
           customerName: row.customerName?.trim() || 'Ukendt kunde',
           dueDate: due,
           amount: open ?? Number.NaN,
@@ -227,6 +238,7 @@ export function buildFinancePosition(input: {
         openRows.push({
           id: row.id,
           invoiceNumber: row.invoiceNumber,
+          customerId: row.customerId,
           customerName: row.customerName?.trim() || 'Ukendt kunde',
           dueDate: due,
           amount: Number.NaN,
@@ -250,6 +262,7 @@ export function buildFinancePosition(input: {
       openRows.push({
         id: row.id,
         invoiceNumber: row.invoiceNumber,
+        customerId: row.customerId,
         customerName: row.customerName?.trim() || 'Ukendt kunde',
         dueDate: due,
         amount: open,
@@ -299,6 +312,7 @@ export function buildFinancePosition(input: {
         payableRows.push({
           id: row.id,
           invoiceNumber: row.invoiceNumber,
+          supplierId: row.supplierId,
           supplierName: row.supplierName?.trim() || 'Ukendt leverandør',
           dueDate: due,
           amount: null,
@@ -313,6 +327,7 @@ export function buildFinancePosition(input: {
       payableRows.push({
         id: row.id,
         invoiceNumber: row.invoiceNumber,
+        supplierId: row.supplierId,
         supplierName: row.supplierName?.trim() || 'Ukendt leverandør',
         dueDate: due,
         amount,
@@ -324,6 +339,12 @@ export function buildFinancePosition(input: {
   const overdueRows = openRows
     .filter((row) => row.currency === 'DKK' && row.overdueDays != null)
     .sort((a, b) => (b.overdueDays ?? 0) - (a.overdueDays ?? 0))
+  const upcomingEnd = addCalendarDays(input.today, 30)
+  const upcomingRows = openRows
+    .filter((row) => row.currency === 'DKK' && row.dueDate != null && row.dueDate >= input.today && row.dueDate <= upcomingEnd && Number.isFinite(row.amount) && row.amount > 0)
+    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+  const overduePayableRows = payableRows.filter((row) => row.dueDate != null && row.dueDate < input.today)
+  const upcomingPayableRows = payableRows.filter((row) => row.dueDate != null && row.dueDate >= input.today && row.dueDate <= upcomingEnd)
   payableRows.sort((a, b) => (a.dueDate ?? '9999-99-99').localeCompare(b.dueDate ?? '9999-99-99'))
 
   return {
@@ -345,6 +366,13 @@ export function buildFinancePosition(input: {
     awaitingCount,
     payables: payableRows.slice(0, LIST_CAP),
     payablesTruncated: payableRows.length > LIST_CAP,
+    upcomingInvoices: upcomingRows.slice(0, LIST_CAP),
+    upcomingTruncated: upcomingRows.length > LIST_CAP,
+    overduePayables: overduePayableRows.slice(0, LIST_CAP),
+    upcomingPayables: upcomingPayableRows.slice(0, LIST_CAP),
+    overduePayablesTruncated: overduePayableRows.length > LIST_CAP,
+    upcomingPayablesTruncated: upcomingPayableRows.length > LIST_CAP,
+    receivablesLoaded: input.receivablesLoaded,
     missingDueCount,
     supplierMissingDue,
     unlinkedCreditCount,

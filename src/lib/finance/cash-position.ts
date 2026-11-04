@@ -1,0 +1,328 @@
+/**
+ * Canonical cash position. Amounts come from the existing invoice open-amount
+ * rule and one configured e-conomic ledger account. A missing figure has no amount.
+ * Supplier invoice totals are not open liabilities: CRM stores no remainder.
+ */
+import { buildFinancePosition, type FinancePosition, type ForecastId, type Money, type PayableInput, type ReceivableInput } from '@/lib/finance/position'
+import type { Permission } from '@/lib/auth/permissions'
+import { roundMoney } from '@/lib/utils/money-round'
+import { formatCurrency } from '@/lib/utils/format'
+
+export type FinanceSource =
+  | 'economic_ledger'
+  | 'economic_open_items'
+  | 'crm_forecast'
+  | 'unavailable'
+  | 'stale'
+  | 'error'
+  | 'configuration_required'
+
+export interface QualifiedAmount {
+  source: FinanceSource
+  /** Null unless the figure is a real number, including a real zero. */
+  amount: number | null
+  detail: string
+}
+
+export interface CashHorizon {
+  days: 30 | 60 | 90
+  openingCash: QualifiedAmount
+  expectedIncoming: QualifiedAmount
+  expectedOutgoing: QualifiedAmount
+  projectedCash: QualifiedAmount
+  unscheduledReceivables: QualifiedAmount
+  unscheduledPayables: QualifiedAmount
+  quality: FinanceSource
+}
+
+export interface FinanceQueueItem {
+  id: string
+  label: string
+  party: string
+  partyHref: string | null
+  documentHref: string
+  dueDate: string | null
+  amount: number | null
+  amountLabel: 'Åbent' | 'Fakturabeløb'
+}
+
+export interface FinanceAlert {
+  code: 'economic_read_failed' | 'finance_data_stale' | 'bank_configuration_required' | 'projected_cash_below_minimum' | 'overdue_receivables_above_threshold'
+  text: string
+}
+
+export interface FinanceCashPosition {
+  calculatedAt: string
+  economicReadAt: string | null
+  bookedBankBalance: QualifiedAmount
+  /** Never a PSD2 or realtime bank figure. */
+  actualBankBalance: QualifiedAmount
+  openReceivables: QualifiedAmount
+  overdueReceivables: QualifiedAmount
+  openPayables: QualifiedAmount
+  overduePayables: QualifiedAmount
+  receivablesAfter90: QualifiedAmount
+  forecast30: CashHorizon
+  forecast60: CashHorizon
+  forecast90: CashHorizon
+  overdueCustomerInvoices: FinanceQueueItem[]
+  upcomingCustomerInvoices: FinanceQueueItem[]
+  overdueSupplierInvoices: FinanceQueueItem[]
+  upcomingSupplierInvoices: FinanceQueueItem[]
+  alerts: FinanceAlert[]
+  ledger: FinancePosition
+}
+
+export const FINANCE_STALE_MS = 24 * 60 * 60 * 1000
+
+const ACTUAL_BANK: QualifiedAmount = {
+  source: 'unavailable',
+  amount: null,
+  detail: 'Der er ingen bankforbindelse. En bogført kontosaldo er ikke en faktisk banksaldo.',
+}
+
+const SOURCE_RANK: FinanceSource[] = ['error', 'configuration_required', 'unavailable', 'stale', 'crm_forecast', 'economic_open_items', 'economic_ledger']
+
+export function worstSource(sources: FinanceSource[]): FinanceSource {
+  return sources.reduce((worst, source) => (SOURCE_RANK.indexOf(source) < SOURCE_RANK.indexOf(worst) ? source : worst))
+}
+
+function usable(source: FinanceSource): boolean {
+  return source === 'economic_ledger' || source === 'economic_open_items' || source === 'crm_forecast' || source === 'stale'
+}
+
+/** Renders a real zero. Error, missing and unconfigured values stay Ukendt even if a caller left 0 on them. */
+export function formatQualifiedKr(value: QualifiedAmount): string {
+  if (!usable(value.source) || value.amount == null || !Number.isFinite(value.amount)) return 'Ukendt'
+  return formatCurrency(value.amount, 'DKK', 2)
+}
+
+export function projectCash(opening: QualifiedAmount, incoming: QualifiedAmount, outgoing: QualifiedAmount): QualifiedAmount {
+  const source = worstSource([opening.source, incoming.source, outgoing.source])
+  if (opening.amount == null || incoming.amount == null || outgoing.amount == null || !usable(opening.source) || !usable(incoming.source) || !usable(outgoing.source)) {
+    return {
+      source: usable(source) ? 'unavailable' : source,
+      amount: null,
+      detail: 'Forventet likviditet beregnes ikke, fordi saldo, indbetaling eller udbetaling mangler. Et manglende tal er ikke 0.',
+    }
+  }
+  return {
+    source,
+    amount: roundMoney(opening.amount + incoming.amount - outgoing.amount),
+    detail: 'Bogført saldo plus åbne indbetalinger i horisonten minus åbne udbetalinger i horisonten.',
+  }
+}
+
+export interface BookedBankInput {
+  permitted: boolean
+  credentialsReady: boolean
+  accountNumber: number | null
+  probe: 'not_needed' | 'ok' | 'failed' | 'timeout'
+  balance: { outcome: 'not_read' } | { outcome: 'known'; amount: number } | { outcome: 'failed' } | { outcome: 'timeout' } | { outcome: 'missing_balance' }
+  readAt: string | null
+  nowMs: number
+  staleMs?: number
+}
+
+export function qualifyBookedBank(input: BookedBankInput): QualifiedAmount {
+  if (!input.permitted) {
+    return { source: 'unavailable', amount: null, detail: 'Bogført saldo kræver e-conomic-adgang.' }
+  }
+  if (!input.credentialsReady) {
+    return { source: 'configuration_required', amount: null, detail: 'e-conomic er ikke opsat. Der hentes ingen saldo.' }
+  }
+  if (input.accountNumber == null || !Number.isInteger(input.accountNumber) || input.accountNumber <= 0) {
+    if (input.probe === 'failed' || input.probe === 'timeout') {
+      return { source: 'error', amount: null, detail: 'e-conomic kunne ikke læses. Bankkonto er heller ikke valgt, så saldoen er ukendt.' }
+    }
+    return { source: 'configuration_required', amount: null, detail: 'Bankkonto er ikke valgt i opsætningen. Der er intet kontonummer i koden.' }
+  }
+  if (input.balance.outcome === 'timeout' || input.balance.outcome === 'failed' || input.balance.outcome === 'not_read') {
+    return { source: 'error', amount: null, detail: 'Den bogførte saldo kunne ikke læses. Det er ikke 0.' }
+  }
+  if (input.balance.outcome === 'missing_balance') {
+    return { source: 'error', amount: null, detail: 'Kontoen havde ingen saldo. Det er ikke 0.' }
+  }
+  const staleMs = input.staleMs ?? FINANCE_STALE_MS
+  const readMs = input.readAt ? Date.parse(input.readAt) : Number.NaN
+  const stale = Number.isFinite(readMs) && input.nowMs - readMs > staleMs
+  return {
+    source: stale ? 'stale' : 'economic_ledger',
+    amount: input.balance.amount,
+    detail: `Bogført saldo på konto ${input.accountNumber}. Ikke en faktisk banksaldo.`,
+  }
+}
+
+function fromMoney(money: Money, loaded: boolean, detail: string): QualifiedAmount {
+  if (!loaded) return { source: 'error', amount: null, detail: 'Tallet kunne ikke læses. Det er ikke 0.' }
+  if (money.state === 'unknown') return { source: 'unavailable', amount: null, detail }
+  return { source: 'crm_forecast', amount: money.amount, detail }
+}
+
+function windowMoney(position: FinancePosition, id: ForecastId): Money {
+  return position.forecast.find((row) => row.id === id)?.inflow ?? { state: 'unknown' }
+}
+
+function sumInflows(position: FinancePosition, ids: ForecastId[], loaded: boolean, detail: string): QualifiedAmount {
+  const parts = ids.map((id) => windowMoney(position, id))
+  if (!loaded) return { source: 'error', amount: null, detail: 'Indbetalingerne kunne ikke læses. Det er ikke 0.' }
+  if (parts.some((part) => part.state === 'unknown')) {
+    return { source: 'unavailable', amount: null, detail: 'Et indbetalingsbeløb mangler. Horisonten er ikke 0.' }
+  }
+  return {
+    source: 'crm_forecast',
+    amount: roundMoney(parts.reduce((sum, part) => sum + (part.state === 'known' ? part.amount : 0), 0)),
+    detail,
+  }
+}
+
+const PAYABLE_GAP = 'CRM gemmer ikke restbeløb på leverandørfakturaer, og e-conomic-kreditorposter læses ikke. Fakturatotalen bruges ikke som gæld og ikke som 0.'
+
+function payableGap(loaded: boolean): QualifiedAmount {
+  if (!loaded) return { source: 'error', amount: null, detail: 'Leverandørfakturaerne kunne ikke læses. Gælden er ikke 0.' }
+  return { source: 'unavailable', amount: null, detail: PAYABLE_GAP }
+}
+
+export function evaluateFinanceAlerts(input: {
+  booked: QualifiedAmount
+  projected30: QualifiedAmount
+  overdueReceivables: QualifiedAmount
+  minimumCashDkk: number | null
+  overdueThresholdDkk: number | null
+}): FinanceAlert[] {
+  const alerts: FinanceAlert[] = []
+  if (input.booked.source === 'error') {
+    alerts.push({ code: 'economic_read_failed', text: 'e-conomic-saldoen kunne ikke læses. Den vises ikke som 0.' })
+  }
+  if (input.booked.source === 'stale') {
+    alerts.push({ code: 'finance_data_stale', text: 'Den bogførte saldo er ældre end et døgn.' })
+  }
+  if (input.booked.source === 'configuration_required') {
+    alerts.push({ code: 'bank_configuration_required', text: input.booked.detail })
+  }
+  if (input.minimumCashDkk != null && Number.isFinite(input.minimumCashDkk) && input.projected30.amount != null && usable(input.projected30.source) && input.projected30.amount < input.minimumCashDkk) {
+    alerts.push({ code: 'projected_cash_below_minimum', text: 'Forventet likviditet om 30 dage er under det konfigurerede minimum.' })
+  }
+  if (input.overdueThresholdDkk != null && Number.isFinite(input.overdueThresholdDkk) && input.overdueReceivables.amount != null && usable(input.overdueReceivables.source) && input.overdueReceivables.amount > input.overdueThresholdDkk) {
+    alerts.push({ code: 'overdue_receivables_above_threshold', text: 'Forfaldne tilgodehavender er over det konfigurerede beløb.' })
+  }
+  return alerts
+}
+
+function customerQueue(rows: FinancePosition['invoices']): FinanceQueueItem[] {
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.invoiceNumber,
+    party: row.customerName,
+    partyHref: row.customerId ? `/dashboard/customers/${row.customerId}` : null,
+    documentHref: `/dashboard/invoices/${row.id}`,
+    dueDate: row.dueDate,
+    amount: Number.isFinite(row.amount) ? row.amount : null,
+    amountLabel: 'Åbent' as const,
+  }))
+}
+
+function supplierQueue(rows: FinancePosition['payables']): FinanceQueueItem[] {
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.invoiceNumber || 'Uden nummer',
+    party: row.supplierName,
+    partyHref: row.supplierId ? `/dashboard/settings/suppliers/${row.supplierId}` : null,
+    documentHref: `/dashboard/incoming-invoices/${row.id}`,
+    dueDate: row.dueDate,
+    amount: row.amount,
+    amountLabel: 'Fakturabeløb' as const,
+  }))
+}
+
+export function buildCashPosition(input: {
+  today: string
+  calculatedAt: string
+  receivablesLoaded: boolean
+  payablesLoaded: boolean
+  invoices: ReceivableInput[]
+  payables: PayableInput[]
+  bank: BookedBankInput
+  minimumCashDkk?: number | null
+  overdueThresholdDkk?: number | null
+}): FinanceCashPosition {
+  const ledger = buildFinancePosition({
+    today: input.today,
+    receivablesLoaded: input.receivablesLoaded,
+    payablesLoaded: input.payablesLoaded,
+    invoices: input.invoices,
+    payables: input.payables,
+  })
+  const bookedBankBalance = qualifyBookedBank(input.bank)
+  const openReceivables = fromMoney(ledger.receivables, input.receivablesLoaded, 'Åbne udstedte fakturaer i DKK efter den eksisterende åbne-saldo-regel.')
+  const overdueReceivables = fromMoney(ledger.overdueAmount, input.receivablesLoaded, 'Forfald før i dag og mindst 0,50 kr. Forfald i dag tæller ikke med.')
+  const openPayables = payableGap(input.payablesLoaded)
+  const overduePayables = payableGap(input.payablesLoaded)
+  const unscheduledReceivables = sumInflows(ledger, ['undated'], input.receivablesLoaded, 'Åbne fakturaer uden forfaldsdato. De ligger ikke i 30, 60 eller 90 dage.')
+  const unscheduledPayables = payableGap(input.payablesLoaded)
+  const outgoing = payableGap(input.payablesLoaded)
+  const incoming = (days: 30 | 60 | 90, ids: ForecastId[]) => sumInflows(
+    ledger,
+    ids,
+    input.receivablesLoaded,
+    `Åbne fakturaer med forfald inden for ${days} dage, inklusive allerede forfaldne. Uden forfaldsdato er ikke med.`,
+  )
+  const horizon = (days: 30 | 60 | 90, ids: ForecastId[]): CashHorizon => {
+    const expectedIncoming = incoming(days, ids)
+    const projected = projectCash(bookedBankBalance, expectedIncoming, outgoing)
+    return {
+      days,
+      openingCash: bookedBankBalance,
+      expectedIncoming,
+      expectedOutgoing: outgoing,
+      projectedCash: projected,
+      unscheduledReceivables,
+      unscheduledPayables,
+      quality: worstSource([bookedBankBalance.source, expectedIncoming.source, outgoing.source, unscheduledReceivables.source, unscheduledPayables.source]),
+    }
+  }
+  const forecast30 = horizon(30, ['overdue', 'd30'])
+  const forecast60 = horizon(60, ['overdue', 'd30', 'd60'])
+  const forecast90 = horizon(90, ['overdue', 'd30', 'd60', 'd90'])
+  const alerts = evaluateFinanceAlerts({
+    booked: bookedBankBalance,
+    projected30: forecast30.projectedCash,
+    overdueReceivables,
+    minimumCashDkk: input.minimumCashDkk ?? null,
+    overdueThresholdDkk: input.overdueThresholdDkk ?? null,
+  })
+  return {
+    calculatedAt: input.calculatedAt,
+    economicReadAt: input.bank.balance.outcome === 'known' ? input.bank.readAt : null,
+    bookedBankBalance,
+    actualBankBalance: ACTUAL_BANK,
+    openReceivables,
+    overdueReceivables,
+    openPayables,
+    overduePayables,
+    receivablesAfter90: sumInflows(ledger, ['later'], input.receivablesLoaded, 'Åbne fakturaer med forfald efter 90 dage. De indgår ikke i 90-dages-likviditeten.'),
+    forecast30,
+    forecast60,
+    forecast90,
+    overdueCustomerInvoices: customerQueue(ledger.invoices),
+    upcomingCustomerInvoices: customerQueue(ledger.upcomingInvoices),
+    overdueSupplierInvoices: supplierQueue(ledger.overduePayables),
+    upcomingSupplierInvoices: supplierQueue(ledger.upcomingPayables),
+    alerts,
+    ledger,
+  }
+}
+
+export function financeSections(perms: { has(key: Permission): boolean }): { desk: boolean; invoices: boolean; payables: boolean; bank: boolean; economic: boolean } {
+  return {
+    desk: perms.has('economy.view'),
+    invoices: perms.has('invoices.view.all') || perms.has('invoices.view.own_cases'),
+    payables: perms.has('incoming_invoices.view'),
+    bank: perms.has('bank.view'),
+    economic: perms.has('settings.economic'),
+  }
+}
+
+export function configuredAmount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}

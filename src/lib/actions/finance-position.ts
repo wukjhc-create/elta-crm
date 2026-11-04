@@ -1,6 +1,7 @@
 'use server'
 
-import { BOOKKEEPING_FOUNDATION, buildFinancePosition, type FinancePosition, type PayableInput, type ReceivableInput } from '@/lib/finance/position'
+import { BOOKKEEPING_FOUNDATION, type PayableInput, type ReceivableInput } from '@/lib/finance/position'
+import { buildCashPosition, configuredAmount, financeSections, type BookedBankInput, type FinanceCashPosition } from '@/lib/finance/cash-position'
 import { readAccountingYears, readBankAccountBalance } from '@/lib/economic/read'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { permissionDeniedText } from '@/lib/auth/permission-text'
@@ -20,7 +21,8 @@ export interface FinanceDesk {
   scopeAll: boolean
   seesInvoices: boolean
   seesPayables: boolean
-  position: FinancePosition
+  position: FinanceCashPosition['ledger']
+  cash: FinanceCashPosition
   customerNamesKnown: boolean
   bank: { visible: false } | { visible: true; unmatched: number | null }
   economic: EconomicCashView
@@ -33,9 +35,11 @@ export async function loadFinanceDesk(): Promise<FinanceDesk | { ok: false; mess
     return { ok: false, message: permissionDeniedText('economy.view') }
   }
 
-  const seesInvoices = ctx.hasPermission('invoices.view.all') || ctx.hasPermission('invoices.view.own_cases')
-  const seesPayables = ctx.hasPermission('incoming_invoices.view')
-  const today = copenhagenParts(new Date()).date
+  const sections = financeSections(ctx.permissions)
+  const seesInvoices = sections.invoices
+  const seesPayables = sections.payables
+  const now = new Date()
+  const today = copenhagenParts(now).date
 
   let invoices: ReceivableInput[] = []
   let receivablesLoaded = false
@@ -104,15 +108,17 @@ export async function loadFinanceDesk(): Promise<FinanceDesk | { ok: false; mess
         amount_incl_vat: number | string | null
         due_date: string | null
         duplicate_of_id: string | null
+        supplier_id: string | null
       }>((from, to) => ctx.supabase
         .from('incoming_invoices')
-        .select('id, invoice_number, supplier_name_extracted, status, currency, amount_incl_vat, due_date, duplicate_of_id')
+        .select('id, invoice_number, supplier_name_extracted, status, currency, amount_incl_vat, due_date, duplicate_of_id, supplier_id')
         .order('id')
         .range(from, to))
       payables = rows.map((row) => ({
         id: row.id,
         invoiceNumber: row.invoice_number,
         supplierName: row.supplier_name_extracted,
+        supplierId: row.supplier_id,
         status: row.status,
         currency: row.currency,
         amountInclVat: row.amount_incl_vat,
@@ -134,41 +140,79 @@ export async function loadFinanceDesk(): Promise<FinanceDesk | { ok: false; mess
     bank = { visible: true, unmatched: error || count == null ? null : count }
   }
 
-  const economic = await economicCash(ctx.hasPermission('settings.economic'))
-  const position = buildFinancePosition({ today, receivablesLoaded, payablesLoaded, invoices, payables })
+  const bankRead = await loadBookedBank(sections.economic, now.getTime())
+  const cash = buildCashPosition({
+    today,
+    calculatedAt: now.toISOString(),
+    receivablesLoaded,
+    payablesLoaded,
+    invoices,
+    payables,
+    bank: bankRead.bank,
+    minimumCashDkk: bankRead.minimumCashDkk,
+    overdueThresholdDkk: bankRead.overdueThresholdDkk,
+  })
 
   return {
     ok: true,
-    scopeAll: ctx.hasPermission('invoices.view.all'),
+    scopeAll: sections.invoices && ctx.hasPermission('invoices.view.all'),
     seesInvoices,
     seesPayables,
-    position,
+    position: cash.ledger,
+    cash,
     customerNamesKnown,
     bank,
-    economic,
+    economic: economicView(bankRead.bank),
     bookkeeping: BOOKKEEPING_FOUNDATION,
   }
 }
 
-async function economicCash(allowed: boolean): Promise<EconomicCashView> {
-  if (!allowed) return { visible: false }
-  const settings = await getEconomicSettings()
-  if (!isEconomicReady(settings)) {
-    return { visible: true, state: 'not_configured', message: 'e-conomic er ikke opsat. Der hentes ingen tal.' }
+function economicView(bank: BookedBankInput): EconomicCashView {
+  if (!bank.permitted) return { visible: false }
+  if (!bank.credentialsReady) return { visible: true, state: 'not_configured', message: 'e-conomic er ikke opsat. Der hentes ingen tal.' }
+  if (bank.balance.outcome === 'known' && bank.accountNumber != null) {
+    return { visible: true, state: 'known', account: bank.accountNumber, amount: bank.balance.amount }
   }
-  const account = settings.config?.bankContraAccountNumber
+  if (bank.accountNumber == null && bank.probe === 'ok') {
+    return { visible: true, state: 'no_account', message: 'e-conomic svarede. Bankkonto er ikke valgt i opsætningen, så saldoen vises ikke.' }
+  }
+  return { visible: true, state: 'unknown', message: 'e-conomic kunne ikke læses. Saldoen er ukendt.' }
+}
+
+async function loadBookedBank(permitted: boolean, nowMs: number): Promise<{ bank: BookedBankInput; minimumCashDkk: number | null; overdueThresholdDkk: number | null }> {
+  const bank: BookedBankInput = {
+    permitted,
+    credentialsReady: false,
+    accountNumber: null,
+    probe: 'not_needed',
+    balance: { outcome: 'not_read' },
+    readAt: null,
+    nowMs,
+  }
+  if (!permitted) return { bank, minimumCashDkk: null, overdueThresholdDkk: null }
+  const settings = await getEconomicSettings()
+  const config = settings?.config
+  const minimumCashDkk = configuredAmount(config && typeof config === 'object' ? (config as { liquidityMinimumDkk?: unknown }).liquidityMinimumDkk : null)
+  const overdueThresholdDkk = configuredAmount(config && typeof config === 'object' ? (config as { overdueReceivablesAlertDkk?: unknown }).overdueReceivablesAlertDkk : null)
+  if (!isEconomicReady(settings)) return { bank, minimumCashDkk, overdueThresholdDkk }
+  bank.credentialsReady = true
+  const account = config?.bankContraAccountNumber
   if (typeof account !== 'number' || !Number.isInteger(account) || account <= 0) {
     const probe = await readAccountingYears()
-    if (!probe.ok) return { visible: true, state: 'unknown', message: 'e-conomic kunne ikke læses. Saldoen er ukendt.' }
-    return {
-      visible: true,
-      state: 'no_account',
-      message: 'e-conomic svarede. Bankkonto er ikke valgt i opsætningen, så saldoen vises ikke.',
-    }
+    bank.probe = probe.ok ? 'ok' : probe.reason === 'timeout' ? 'timeout' : 'failed'
+    return { bank, minimumCashDkk, overdueThresholdDkk }
   }
+  bank.accountNumber = account
   const balance = await readBankAccountBalance(account)
-  if (balance.state !== 'known') {
-    return { visible: true, state: 'unknown', message: balance.message || 'Saldoen kunne ikke læses.' }
+  if (balance.state === 'known') {
+    bank.balance = { outcome: 'known', amount: balance.amount }
+    bank.readAt = new Date(nowMs).toISOString()
+  } else if (balance.reason === 'timeout') {
+    bank.balance = { outcome: 'timeout' }
+  } else if (balance.reason === 'missing_balance') {
+    bank.balance = { outcome: 'missing_balance' }
+  } else {
+    bank.balance = { outcome: 'failed' }
   }
-  return { visible: true, state: 'known', account, amount: balance.amount }
+  return { bank, minimumCashDkk, overdueThresholdDkk }
 }
