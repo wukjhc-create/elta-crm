@@ -3,7 +3,7 @@
  * One page only. complete=false means the page is not the full set.
  */
 import { economicGet } from '@/lib/services/economic-client'
-import { parseAccountBalance, parseCollection, type KnownAmount } from '@/lib/economic/read-model'
+import { parseAccountBalance, parseCollection } from '@/lib/economic/read-model'
 
 const PAGE = 100
 
@@ -15,7 +15,7 @@ export interface EconomicPage {
 
 export interface EconomicReadFailure {
   ok: false
-  reason: 'not_configured' | 'failed'
+  reason: 'not_configured' | 'failed' | 'timeout'
   message: string
 }
 
@@ -54,11 +54,20 @@ export function readBookedEntriesPage(year: string): Promise<EconomicPage | Econ
   return onePage(`/accounting-years/${year}/entries`)
 }
 
-export async function readBankAccountBalance(accountNumber: number): Promise<KnownAmount & { message?: string }> {
-  if (!Number.isInteger(accountNumber) || accountNumber <= 0) return { state: 'unknown' }
+export type BankBalanceRead =
+  | { state: 'known'; amount: number }
+  | { state: 'unknown'; reason: 'failed' | 'timeout' | 'missing_balance'; message: string }
+
+/** One configured ledger account. A missing balance is not 0. The account number is chosen by the caller. */
+export async function readBankAccountBalance(accountNumber: number): Promise<BankBalanceRead> {
+  if (!Number.isInteger(accountNumber) || accountNumber <= 0) {
+    return { state: 'unknown', reason: 'failed', message: 'Kontonummeret er ikke gyldigt.' }
+  }
   const res = await economicGet<unknown>(`/accounts/${accountNumber}`)
-  if (!res.ok) return { state: 'unknown', message: res.message }
+  if (!res.ok) {
+    return { state: 'unknown', reason: res.reason === 'timeout' ? 'timeout' : 'failed', message: res.message }
+  }
   const parsed = parseAccountBalance(res.data)
-  if (parsed.state === 'unknown') return { state: 'unknown', message: 'Kontoen havde ingen saldo.' }
-  return parsed
+  if (parsed.state === 'unknown') return { state: 'unknown', reason: 'missing_balance', message: 'Kontoen havde ingen saldo.' }
+  return { state: 'known', amount: parsed.amount }
 }

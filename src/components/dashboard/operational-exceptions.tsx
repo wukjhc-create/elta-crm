@@ -9,6 +9,7 @@ const LABELS: Array<{ key: keyof Awaited<ReturnType<typeof getOperationalExcepti
   { key: 'rateGaps', title: 'Medarbejdere uden sats' },
   { key: 'jobsToday', title: 'Job i dag' },
   { key: 'jobsWeek', title: 'Job denne uge' },
+  { key: 'financeAlerts', title: 'Likviditetsadvarsler' },
 ]
 
 function Cell({ title, item }: { title: string; item: OpCount }) {

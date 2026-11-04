@@ -9,6 +9,7 @@ import { casesMissingPowerOfAttorney, type PoaCaseRow, type PoaDocRow } from '@/
 import { copenhagenWeekBounds } from '@/lib/operations/planning-window'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getEmployeeRateGapsAction } from '@/lib/actions/employees'
+import { loadFinanceDesk } from '@/lib/actions/finance-position'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type OpCount =
@@ -24,6 +25,7 @@ export interface OperationalExceptions {
   rateGaps: OpCount
   jobsToday: OpCount
   jobsWeek: OpCount
+  financeAlerts: OpCount
 }
 
 async function exactCount(
@@ -62,9 +64,25 @@ export async function getOperationalExceptions(): Promise<OperationalExceptions>
 
   const missingPoa = ctx.hasPermission('customers.view') ? missingPoaCount(ctx.supabase) : Promise.resolve(hidden)
   const rateGaps = ctx.hasPermission('employees.view') ? rateGapCount() : Promise.resolve(hidden)
+  const financeAlerts = ctx.hasPermission('economy.view') ? financeAlertCount() : Promise.resolve(hidden)
 
-  const [a, b, c, d, e, f, g] = await Promise.all([callbacks, unlinkedMail, supplierReview, jobsToday, jobsWeek, missingPoa, rateGaps])
-  return { callbacks: a, unlinkedMail: b, supplierReview: c, jobsToday: d, jobsWeek: e, missingPoa: f, rateGaps: g }
+  const [a, b, c, d, e, f, g, h] = await Promise.all([callbacks, unlinkedMail, supplierReview, jobsToday, jobsWeek, missingPoa, rateGaps, financeAlerts])
+  return { callbacks: a, unlinkedMail: b, supplierReview: c, jobsToday: d, jobsWeek: e, missingPoa: f, rateGaps: g, financeAlerts: h }
+}
+
+async function financeAlertCount(): Promise<OpCount> {
+  try {
+    const desk = await loadFinanceDesk()
+    if (!desk.ok) return { state: 'unknown', href: '/dashboard/finance', note: 'Likviditeten kunne ikke læses. Det tælles ikke som nul.' }
+    return {
+      state: 'ok',
+      count: desk.cash.alerts.length,
+      href: '/dashboard/finance',
+      note: desk.cash.alerts.length ? 'Læs kun. Der sendes ingen besked.' : 'Ingen likviditetsadvarsler.',
+    }
+  } catch {
+    return { state: 'unknown', href: '/dashboard/finance', note: 'Likviditeten kunne ikke læses. Det tælles ikke som nul.' }
+  }
 }
 
 async function missingPoaCount(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']): Promise<OpCount> {
