@@ -33,6 +33,7 @@ import { getCustomerCommunicationTimeline } from '@/lib/actions/communication-ti
 import { orIlikeContains } from '@/lib/validations/postgrest-filter'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { readCasesWithoutNextAction } from '@/lib/operations/open-cases'
+import { overdueTaskFilter } from '@/lib/tasks/overdue-query'
 import { copenhagenDatePlusDays, copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { isBookedCustomerBesigtigelse, rescheduledBesigtigelseDescription } from '@/lib/tasks/besigtigelse-task'
 import { updateCustomerTask } from '@/lib/actions/customer-tasks'
@@ -83,9 +84,9 @@ export async function answerCrmQuestion(question: string): Promise<CrmAnswer> {
   if (parsed.kind === 'history') return history(ctx.supabase, parsed.name ?? '')
   if (parsed.kind === 'jobs_today') return jobsOnDay(ctx.supabase, today, 'i dag')
   if (parsed.kind === 'jobs_tomorrow') return jobsOnDay(ctx.supabase, copenhagenDatePlusDays(1), 'i morgen')
-  if (parsed.kind === 'overdue_tasks') return overdueTasks(ctx.supabase, today)
+  if (parsed.kind === 'overdue_tasks') return overdueTasks(ctx)
   if (parsed.kind === 'supplier_invoices') return supplierInvoices(ctx)
-  if (parsed.kind === 'cases_without_action') return casesWithoutAction(ctx.supabase)
+  if (parsed.kind === 'cases_without_action') return casesWithoutAction(ctx)
   if (parsed.kind === 'unresolved') return unresolved(ctx.supabase)
   return followups(ctx.supabase, today)
 }
@@ -327,9 +328,10 @@ async function jobsOnDay(supabase: AssistantClient, day: string, when: string): 
   })))
 }
 
-async function overdueTasks(supabase: AssistantClient, today: string): Promise<CrmAnswer> {
-  const start = copenhagenLocalToIso(today, '00:00')
-  const { data, error } = await supabase.from('customer_tasks').select('id, title, customer_id, due_date').neq('status', 'done').lt('due_date', start).order('due_date', { ascending: true }).limit(30)
+async function overdueTasks(ctx: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>): Promise<CrmAnswer> {
+  const query = overdueTaskFilter(ctx.supabase.from('customer_tasks').select('id, title, customer_id, due_date'), { userId: ctx.userId, hasPermission: ctx.hasPermission as (p: never) => boolean }, new Date())
+  if (!query) return answer(false, 'De forfaldne opgaver kunne ikke læses. Det betyder ikke, at der er nul.')
+  const { data, error } = await query.order('due_date', { ascending: true }).limit(30)
   if (error) return answer(false, 'De forfaldne opgaver kunne ikke læses. Det betyder ikke, at der er nul.')
   const rows = (data ?? []) as Array<{ id: string; title: string | null; customer_id: string | null; due_date: string | null }>
   if (!rows.length) return answer(true, 'Ingen forfaldne opgaver, som du kan se.')
@@ -355,8 +357,9 @@ async function supplierInvoices(ctx: Awaited<ReturnType<typeof getAuthenticatedC
   })))
 }
 
-async function casesWithoutAction(supabase: AssistantClient): Promise<CrmAnswer> {
-  const found = await readCasesWithoutNextAction(supabase)
+async function casesWithoutAction(ctx: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>): Promise<CrmAnswer> {
+  if (!ctx.hasPermission('cases.view.all') && !ctx.hasPermission('cases.view.assigned')) return answer(false, 'Du har ikke adgang til sager. Det tælles ikke som nul.')
+  const found = await readCasesWithoutNextAction(ctx.supabase, createAdminClient)
   if (!found.ok) return answer(false, found.reason)
   if (!found.cases.length) return answer(true, 'Ingen åbne sager uden næste handling, som du kan se.')
   const shown = found.cases.slice(0, 30)

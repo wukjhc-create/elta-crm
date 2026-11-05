@@ -145,6 +145,8 @@ export async function supplierLinePricingBatch(input: {
           .eq('customer_id', input.customerId).in('supplier_product_id', productIds).eq('is_active', true))
       : Promise.resolve({ data: [] as unknown[] }),
   ])
+  // En fejlet læsning må ikke prise varen, som om kunden ingen aftale har. Ingen pris = varen mangler i kortet.
+  if ([catRes, agrRes, ppRes].some((res) => (res as { error?: unknown }).error)) return out
   const catBy = new Map(((catRes.data ?? []) as Array<{ id: string; category: string | null; sub_category: string | null }>).map((r) => [r.id, r]))
   // som enkeltstien (.limit(1)): første gyldige aftale pr. leverandør / produktpris pr. vare
   const agrBy = new Map<string, AgreementRow>()
@@ -159,13 +161,14 @@ export async function supplierLinePricingBatch(input: {
   await Promise.all(input.items.map(async (it) => {
     try {
       const cat = catBy.get(it.supplierProductId)
-      const { data: marginData } = await admin.rpc('get_effective_margin', {
+      const { data: marginData, error: marginError } = await admin.rpc('get_effective_margin', {
         p_supplier_id: it.supplierId,
         p_supplier_product_id: it.supplierProductId,
         p_category: cat?.category ?? null,
         p_sub_category: cat?.sub_category ?? null,
         p_customer_id: input.customerId,
       })
+      if (marginError) throw marginError
       out.set(it.supplierProductId, await finishSupplierLinePricing({
         rule: (marginData as MarginRuleRow[] | null)?.[0] ?? null,
         agreement: agrBy.get(it.supplierId) ?? null,

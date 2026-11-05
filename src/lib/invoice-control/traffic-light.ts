@@ -63,6 +63,10 @@ export function invoiceTrafficLight(input: TrafficLightInput): TrafficLightResul
     const over = control.lines.filter((l) => l.verdict === 'overcharge')
     const under = control.lines.filter((l) => l.verdict === 'undercharge')
     const blind = control.lines.filter((l) => l.verdict === 'not_controllable')
+    // Ingen linjer = intet er kontrolleret. Må ikke ende som grøn, fordi ingen fund er tilbage.
+    if (!control.lines.length) {
+      findings.push({ light: 'unknown', code: 'no_lines', label: 'Ingen linjer at kontrollere', amount: null, reason: 'Fakturaen har ingen læste linjer.', followUp: 'Læs fakturaen igen eller udfyld linjerne. Intet er kontrolleret.' })
+    }
     if (over.length) {
       findings.push({
         light: 'red',

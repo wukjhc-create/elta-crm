@@ -185,7 +185,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U262', 'U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
@@ -5795,6 +5795,161 @@ ${m.text()}`) })
           r.montoer_ingen_satskoe = (await m.page.getByText('Medarbejdere uden sats', { exact: true }).count()) === 0
         } finally { await m.ctx.close().catch(() => {}) }
         out.push({ id: 'U261 driftsundtagelser: køer vist for admin, skjult for montør, ingen fejlside', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U262 GROK BATCH 3 (Claude-review): katalogvare på sag gennem UI'et med kost/salg og uden arbejdsordre; ukendt pris,
+      // montør, salg og sagsforslag afvises af serveren; sager uden næste handling tæller et job, RLS skjuler for montøren;
+      // forfaldne opgaver følger opgavesidens afgrænsning; mailtekst er ikke dokumenttekst, og fakturateksten når ikke browseren.
+      if (want('U262') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U262-${stamp}`
+        const MARK = `TEKSTMARKOER${stamp}`
+        const FILE = 'src/lib/actions/catalogue-case-material.ts'
+        const caseIds: string[] = []
+        const empIds: string[] = []
+        const invIds: string[] = []
+        const emailIds: string[] = []
+        const taskIds: string[] = []
+        let unpricedId: string | null = null
+        let diag = ''
+        try {
+          const mu = await mkUser('montør')
+          const mkEmp = async (name: string, profileId: string | null, email: string) => {
+            const id = ((await c.admin.from('employees').insert([{ name: `[HARNESS] ${tag} ${name}`, email, role: 'montør', active: true, hourly_rate: 495, cost_rate: 300, profile_id: profileId }]).select('id')).data?.[0] as { id?: string } | undefined)?.id ?? null
+            if (id) empIds.push(id)
+            return id
+          }
+          const own = await mkEmp('egen', mu.id, mu.email)
+          const other = await mkEmp('anden', null, `u262-${stamp}@harness.test`)
+          const mkCase = async (name: string, extra: Record<string, unknown> = {}) => {
+            const row = (await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} ${name}`, customer_id: profitCustomerId, status: 'new', priority: 'medium', source: 'manual', created_by: adminUser.id, ...extra }]).select('id, case_number')).data?.[0] as { id: string; case_number: string } | undefined
+            if (row) caseIds.push(row.id)
+            return row
+          }
+          const mat = await mkCase('materiale')
+          const idle = await mkCase('tom')
+          const busy = await mkCase('skjultjob')
+          const proposal = await mkCase('forslag', { is_proposal: true })
+          for (const [caseId, title, status, emp] of [[idle?.id, 'tom egen', 'done', own], [busy?.id, 'travl egen', 'done', own], [busy?.id, 'travl anden', 'planned', other], [mat?.id, 'mat egen', 'done', own]] as const) {
+            await c.admin.from('work_orders').insert([{ case_id: caseId, title: `${tag} ${title}`, status, assigned_employee_id: emp }])
+          }
+          const priced = ((await c.admin.from('supplier_products').select('id, supplier_sku, cost_price, suppliers!inner(is_active)').eq('suppliers.is_active', true).gt('cost_price', 0).not('supplier_sku', 'is', null).limit(1)).data ?? [])[0] as { id: string; supplier_sku: string; cost_price: number } | undefined
+          // Staging har ingen vare uden pris: en midlertidig vare hos samme leverandør, slettet igen til sidst
+          const supplierOfPriced = ((await c.admin.from('supplier_products').select('supplier_id').eq('id', priced?.id ?? '').maybeSingle()).data as { supplier_id: string } | null)?.supplier_id
+          const unpriced = ((await c.admin.from('supplier_products').insert([{ supplier_id: supplierOfPriced, supplier_sku: `U262-${stamp}`, supplier_name: `[HARNESS] ${tag} uden pris`, cost_price: null }]).select('id')).data?.[0]) as { id: string } | undefined
+          unpricedId = unpriced?.id ?? null
+          r.seed =!!mat && !!idle && !!busy && !!proposal && !!own && !!other && !!priced && !!unpriced
+          const materials = async (caseId: string) => ((await c.admin.from('case_materials').select('id, quantity, unit_cost, unit_sales_price, work_order_id, supplier_product_id, source').eq('case_id', caseId)).data ?? []) as Array<{ id: string; quantity: number; unit_cost: number; unit_sales_price: number; work_order_id: string | null; supplier_product_id: string | null; source: string }>
+          const lookupUrl = `${base}/dashboard/materials/lookup?mode=sku&q=${encodeURIComponent(priced?.supplier_sku ?? '')}&sag=${encodeURIComponent(mat?.case_number ?? '')}`
+          const payload = (productId: string, caseId: string) => [{ caseId, supplierProductId: productId, quantity: 1 }]
+
+          // 1. admin gennem UI'et: dansk antal, kost og salg > 0, ingen arbejdsordre
+          await gotoSafe(a.page, lookupUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+          const addButton = a.page.getByRole('button', { name: 'Bekræft og tilføj' }).first()
+          await addButton.waitFor({ timeout: 60_000 }).catch(() => {})
+          await a.page.getByLabel('Antal').first().fill('2,5').catch(() => {})
+          await addButton.click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByText('Varen er lagt på sagen').first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const added = await materials(mat?.id ?? '')
+          diag = JSON.stringify(added)
+          r.ui_linje_oprettet = added.length === 1 && Number(added[0].quantity) === 2.5
+          r.ui_kost_og_salg_kendt = added.length === 1 && Number(added[0].unit_cost) > 0 && Number(added[0].unit_sales_price) > 0
+          r.ui_ingen_arbejdsordre = added.length === 1 && added[0].work_order_id === null
+          r.ui_vare_koblet = added.length === 1 && !!added[0].supplier_product_id
+          const count = async () => (await materials(mat?.id ?? '')).length
+
+          // 2. serveren afviser: ukendt pris, sagsforslag, montør, salg
+          const noPrice = await callServerAction(a.page, lookupUrl, FILE, 'addKnownCatalogueProductToCase', payload(unpriced?.id ?? '', mat?.id ?? ''))
+          r.ukendt_pris_afvist = /ingen indkøbspris/.test(noPrice) && (await count()) === 1
+          const onProposal = await callServerAction(a.page, lookupUrl, FILE, 'addKnownCatalogueProductToCase', payload(priced?.id ?? '', proposal?.id ?? ''))
+          r.forslag_afvist = /kun et forslag/.test(onProposal) && (await materials(proposal?.id ?? '')).length === 0
+          const m = await login(mu)
+          try {
+            await gotoSafe(m.page, lookupUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            r.montoer_ingen_knap = (await m.page.getByRole('button', { name: 'Bekræft og tilføj' }).count()) === 0
+            const direct = await callServerAction(m.page, lookupUrl, FILE, 'addKnownCatalogueProductToCase', payload(priced?.id ?? '', mat?.id ?? ''))
+            r.montoer_afvist = /Indkøbsprisen er skjult/.test(direct) && (await count()) === 1
+            const html = await m.page.content()
+            r.montoer_ingen_kost = !html.includes(new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(Number(priced?.cost_price ?? -1)))
+
+            // 3. assistenten som montør: et job, RLS skjuler, er stadig en næste handling
+            await gotoSafe(m.page, `${base}/dashboard/assistant`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await m.page.locator('#crm-question').fill('Sager uden næste handling')
+            await m.page.getByRole('button', { name: 'Spørg', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+            await m.page.getByText(`[HARNESS] ${tag} tom`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+            r.montoer_ser_tom_sag = (await m.page.getByText(`[HARNESS] ${tag} tom`).count()) > 0
+            r.skjult_job_taeller = (await m.page.getByText(`[HARNESS] ${tag} skjultjob`).count()) === 0
+            await m.page.locator('#crm-question').fill('Leverandørfakturaer til gennemgang')
+            await m.page.getByRole('button', { name: 'Spørg', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+            await m.page.getByText('Du har ikke adgang til leverandørfakturaer').first().waitFor({ timeout: 60_000 }).catch(() => {})
+            r.montoer_ingen_fakturaer = (await m.page.getByText('Du har ikke adgang til leverandørfakturaer').count()) > 0
+          } finally { await m.ctx.close().catch(() => {}) }
+
+          // 4. forfaldne opgaver: admin ser en andens opgave; salg (egne) gør ikke, som på opgavesiden
+          const overdueTitle = `${tag} forfalden`
+          const task = (await c.admin.from('customer_tasks').insert([{ customer_id: profitCustomerId, title: overdueTitle, status: 'pending', priority: 'normal', due_date: '2001-01-01T08:00:00.000Z', created_by: adminUser.id, assigned_to: adminUser.id }]).select('id')).data?.[0] as { id?: string } | undefined
+          if (task?.id) taskIds.push(task.id)
+          r.opgave_seed = !!task?.id
+          // Svaret viser de 30 ældste; opgaven er dateret langt tilbage, så den altid er med, hvis brugeren må se den
+          const ansUrl = `${base}/dashboard/assistant`
+          const FILE_A = 'src/lib/actions/crm-assistant.ts'
+          await gotoSafe(a.page, ansUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.admin_ser_opgaven = (await callServerAction(a.page, ansUrl, FILE_A, 'answerCrmQuestion', ['Forfaldne opgaver'])).includes(overdueTitle)
+          const s = await login(salg)
+          try {
+            await gotoSafe(s.page, ansUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            const salgAnswer = await callServerAction(s.page, ansUrl, FILE_A, 'answerCrmQuestion', ['Forfaldne opgaver'])
+            r.salg_ser_ikke_andres_opgave = /^HTTP 200/.test(salgAnswer) && !salgAnswer.includes(overdueTitle)
+          } finally { await s.ctx.close().catch(() => {}) }
+
+          // 5. forsiden viser de tre nye køer
+          await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('heading', { name: 'Undtagelser' }).waitFor({ timeout: 90_000 }).catch(() => {})
+          for (const t of ['Forfaldne opgaver', 'Sager uden næste handling', 'Job i morgen']) r[`forside_${t.replace(/\W+/g, '_')}`] = (await a.page.getByText(t, { exact: true }).count()) > 0
+
+          // 6. dokumentforslag: ægte tekst giver forslag uden at vise teksten; mailens egen tekst giver intet; ingen linjer er ikke grøn
+          const mkInvoice = async (name: string, extra: Record<string, unknown>) => {
+            const id = ((await c.admin.from('incoming_invoices').insert([{ status: 'received', parse_status: 'needs_review', invoice_number: `${tag}-${name}`, file_name: `${tag}-${name}.pdf`, mime_type: 'application/pdf', file_hash: `${tag}-${name}`, matched_case_id: mat?.id, supplier_name_extracted: `[HARNESS] ${tag}`, ...extra }]).select('id')).data?.[0] as { id?: string } | undefined)?.id ?? null
+            if (id) invIds.push(id)
+            return id
+          }
+          const uploaded = await mkInvoice('upload', { source: 'upload', raw_text: `Faktura ${MARK} IBAN DK5000400440116243` })
+          const bodyText = `Hej, her er ${MARK} og en faktura. Mvh grossisten`
+          const em = (await c.admin.from('incoming_emails').insert([{ sender_email: `u262-${stamp}@harness.test`, sender_name: 'Harness', subject: tag, received_at: new Date().toISOString(), body_text: bodyText, body_preview: bodyText.slice(0, 40), is_archived: false }]).select('id')).data?.[0] as { id?: string } | undefined
+          if (em?.id) emailIds.push(em.id)
+          const fromMail = await mkInvoice('mail', { source: 'email', source_email_id: em?.id ?? null, raw_text: bodyText })
+          r.faktura_seed = !!uploaded && !!fromMail && !!em?.id
+          await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${uploaded}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const note = a.page.getByTestId('invoice-document-note')
+          await note.waitFor({ timeout: 60_000 }).catch(() => {})
+          r.upload_forslag = /^Teksten er brugt: indeholder faktura\./.test((await note.innerText().catch(() => '')).trim())
+          const light = a.page.getByTestId('invoice-traffic-light')
+          await light.getByText(/^(GRØN|GUL|RØD|UKENDT)$/).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          await a.page.waitForTimeout(2500)
+          r.ingen_linjer_ikke_groen = (await light.getByText('UKENDT', { exact: true }).count()) === 1
+          r.upload_tekst_ikke_i_browser = !(await a.page.content()).includes(MARK)
+          await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${fromMail}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await note.waitFor({ timeout: 60_000 }).catch(() => {})
+          const mailNote = (await note.innerText().catch(() => '')).trim()
+          r.mailtekst_intet_forslag = /ingen læst dokumenttekst/.test(mailNote) && !/Foreslået/.test(mailNote)
+          r.mailtekst_ikke_i_browser = !(await a.page.content()).includes(MARK)
+          const posted = ((await c.admin.from('incoming_invoices').select('status, external_invoice_id').in('id', invIds)).data ?? []) as Array<{ status: string; external_invoice_id: string | null }>
+          r.intet_godkendt_eller_bogfoert = posted.length === 2 && posted.every((x) => x.status === 'received' && !x.external_invoice_id)
+          await a.page.screenshot({ caret: 'initial', path: join(shots, 'u262-grok-batch-3.png'), fullPage: true }).catch(() => {})
+        } finally {
+          if (unpricedId) await c.admin.from('supplier_products').delete().eq('id', unpricedId)
+          if (invIds.length) await c.admin.from('incoming_invoices').delete().in('id', invIds)
+          if (emailIds.length) await c.admin.from('incoming_emails').delete().in('id', emailIds)
+          if (taskIds.length) await c.admin.from('customer_tasks').delete().in('id', taskIds)
+          if (caseIds.length) {
+            await c.admin.from('case_materials').delete().in('case_id', caseIds)
+            await c.admin.from('work_orders').delete().in('case_id', caseIds)
+            await c.admin.from('service_cases').delete().in('id', caseIds)
+          }
+          if (empIds.length) await c.admin.from('employees').delete().in('id', empIds)
+        }
+        const ok = Object.values(r).every(Boolean)
+        out.push({ id: 'U262 Grok batch 3: katalogvare på sag, afvisninger, skjult job tæller, opgave-scope, dokumentforslag uden rå tekst', ok, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + (ok ? '' : ` |${diag}`) })
       }
 
       // U256 SAGSTYPE PÅ TILBUD (00244, Henrik 2026-11-01): nyt tilbud kræver eksplicit sagstype i formularen; solcelletilbud

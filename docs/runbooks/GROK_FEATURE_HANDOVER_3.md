@@ -85,6 +85,22 @@ None applied. To stop hidden cost being stored as 0, `case_materials.unit_cost` 
 - Do not treat the catalogue add as a live KlarPris order
 - Do not treat a filename as a document that was read
 
+## Claude review 2026-11-05 (corrects the sections above)
+
+Integrated on `claude-grok-features-3-review` from main `fdb1835a`. What changed from Grok's version:
+
+- `raw_text` is mostly not document text. On prod 59 of 62 invoices hold the mail body, and API ingest stores JSON. Only an upload or a read attachment now gives a suggestion. `raw_text` no longer reaches the browser, which also closes a bypass of the IBAN mask.
+- The catalogue add no longer attaches a work order. No existing flow infers one, and RLS can hide other people's orders.
+- "Cases without a next action" reads tasks and orders with the internal client for the user's visible cases, so a job hidden by RLS still counts.
+- Overdue tasks use the task page's definition and `taskListScope`.
+- `supplierLinePricingBatch` no longer prices an item as if the customer had no agreement when a read fails.
+- An invoice with no lines is Ukendt, not green. A matched product with no price today is yellow.
+- The movement rule is unchanged, apart from float noise at exactly 5 % and 0.50 kr.
+
+Test: `scripts/grok-features-3-test.ts`, UI `U262`. Prod counts: `scripts/prod-grok-features-3-readonly.ts`.
+
+Future migration: 00248 is the next free number, not reserved or written. See the review report.
+
 ## Next high-value queue
 
 - A migration so case-material cost can be unknown, then stop the older path from writing 0

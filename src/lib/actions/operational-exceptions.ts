@@ -8,8 +8,10 @@ import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { casesMissingPowerOfAttorney, type PoaCaseRow, type PoaDocRow } from '@/lib/assistant/crm-questions'
 import { copenhagenWeekBounds } from '@/lib/operations/planning-window'
 import { readCasesWithoutNextAction } from '@/lib/operations/open-cases'
-import { copenhagenDatePlusDays, copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { overdueTaskFilter } from '@/lib/tasks/overdue-query'
+import { copenhagenDatePlusDays, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getEmployeeRateGapsAction } from '@/lib/actions/employees'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type OpCount =
@@ -64,11 +66,15 @@ export async function getOperationalExceptions(): Promise<OperationalExceptions>
   const jobsToday = exactCount(() => ctx.supabase.from('work_orders').select('id', { count: 'exact', head: true }).eq('scheduled_date', today).in('status', ['planned', 'in_progress']), '/dashboard/calendar')
   const jobsTomorrow = exactCount(() => ctx.supabase.from('work_orders').select('id', { count: 'exact', head: true }).eq('scheduled_date', copenhagenDatePlusDays(1)).in('status', ['planned', 'in_progress']), '/dashboard/calendar')
   const jobsWeek = exactCount(() => ctx.supabase.from('work_orders').select('id', { count: 'exact', head: true }).gte('scheduled_date', week.start).lte('scheduled_date', week.end).in('status', ['planned', 'in_progress']), '/dashboard/calendar')
-  const dayStart = copenhagenLocalToIso(today, '00:00')
-  const overdueTasks = ctx.hasPermission('customers.view')
-    ? exactCount(() => ctx.supabase.from('customer_tasks').select('id', { count: 'exact', head: true }).neq('status', 'done').lt('due_date', dayStart), '/dashboard/tasks')
+  // Samme tal og afgrænsning som opgavesiden, tallet linker til
+  const overdueQuery = ctx.hasPermission('customers.view')
+    ? overdueTaskFilter(ctx.supabase.from('customer_tasks').select('id', { count: 'exact', head: true }), { userId: ctx.userId, hasPermission: ctx.hasPermission as (p: never) => boolean }, new Date())
+    : null
+  const overdueTasks = overdueQuery ? exactCount(() => overdueQuery, '/dashboard/tasks') : Promise.resolve(hidden)
+  // Uden en sagsnøgle er 0 sager ikke et rigtigt nul
+  const casesWithoutAction = ctx.hasPermission('customers.view') && (ctx.hasPermission('cases.view.all') || ctx.hasPermission('cases.view.assigned'))
+    ? casesWithoutActionCount(ctx.supabase)
     : Promise.resolve(hidden)
-  const casesWithoutAction = ctx.hasPermission('customers.view') ? casesWithoutActionCount(ctx.supabase) : Promise.resolve(hidden)
 
   const missingPoa = ctx.hasPermission('customers.view') ? missingPoaCount(ctx.supabase) : Promise.resolve(hidden)
   const rateGaps = ctx.hasPermission('employees.view') ? rateGapCount() : Promise.resolve(hidden)
@@ -78,9 +84,10 @@ export async function getOperationalExceptions(): Promise<OperationalExceptions>
 }
 
 async function casesWithoutActionCount(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']): Promise<OpCount> {
-  const found = await readCasesWithoutNextAction(supabase)
+  const found = await readCasesWithoutNextAction(supabase, createAdminClient)
   if (!found.ok) return { state: 'unknown', href: '/dashboard/orders', note: found.reason }
-  return { state: 'ok', count: found.cases.length, href: '/dashboard/orders', note: 'Åbne sager uden ufærdig opgave og uden planlagt eller igangværende arbejdsordre.' }
+  // Sagslisten kan ikke filtrere på dette; assistenten viser sagerne ("Sager uden næste handling"), som ved manglende fuldmagt
+  return { state: 'ok', count: found.cases.length, href: '/dashboard/assistant', note: 'Åbne sager uden ufærdig opgave og uden planlagt eller igangværende arbejdsordre.' }
 }
 
 async function missingPoaCount(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']): Promise<OpCount> {

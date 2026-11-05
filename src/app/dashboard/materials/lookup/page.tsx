@@ -20,9 +20,10 @@ export default async function CatalogueLookupPage({ searchParams }: { searchPara
   const mode = MODES.includes(params.mode as typeof MODES[number]) ? params.mode as typeof MODES[number] : 'sku'
   const q = params.q ?? ''
   const sag = params.sag ?? ''
-  const [result, caseLink] = await Promise.all([
+  const [result, caseLink, canSeePrices] = await Promise.all([
     q.trim() ? searchKnownCatalogue(mode, q) : Promise.resolve(null),
     findVisibleCaseByNumber(sag),
+    pageHasPermission('materials.view.cost_prices'),
   ])
 
   return (
@@ -52,7 +53,9 @@ export default async function CatalogueLookupPage({ searchParams }: { searchPara
       </form>
 
       {caseLink.state === 'one' && caseLink.id && (
-        <p className="text-sm">Sagen er <Link className="text-blue-700 hover:underline" href={`/dashboard/orders/${caseLink.id}?tab=materialer`}>{caseLink.label}</Link>. En vare med kendt pris kan lægges på sagen her. En ukendt pris oprettes ikke som 0. Uden adgang til indkøbspriser bruges sagens egen Tilføj materiale — den vej kan stadig gemme kost som 0, fordi kolonnen ikke kan være tom.</p>
+        <p className="text-sm">Sagen er <Link className="text-blue-700 hover:underline" href={`/dashboard/orders/${caseLink.id}?tab=materialer`}>{caseLink.label}</Link>. {canSeePrices
+          ?'En vare med kendt pris kan lægges på sagen her. En ukendt pris oprettes ikke som 0.'
+          : 'Åbn sagen og brug Tilføj materiale. Kontoret sætter prisen.'}</p>
       )}
       {caseLink.state === 'many' && <p className="text-sm text-amber-800">Flere sager har nummeret. Der er ikke valgt en.</p>}
       {caseLink.state === 'none' && sag.trim() && <p className="text-sm text-gray-600">Ingen sag med det nummer, som du kan tilføje materiale på.</p>}

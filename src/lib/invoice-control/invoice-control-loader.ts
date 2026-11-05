@@ -94,10 +94,12 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     const st = l.supplier_product_id ? storedById.get(l.supplier_product_id) : undefined
     const m = matched[i]
     const productId = st?.id ?? m.supplierProductId ?? null
-    const rawToday = st?.cost_price ?? (m.supplierProductId ? products.find((p) => p.id === m.supplierProductId)?.cost_price : null)
+    // Samme vare som productId: et gemt link uden pris er ukendt og må ikke låne prisen fra et andet match
+    const rawToday = st ? st.cost_price : (m.supplierProductId ? products.find((p) => p.id === m.supplierProductId)?.cost_price : null)
     const expected = st ? atDate(st.id, st.cost_price) : atDate(m.supplierProductId, m.expectedUnitCost)
     const sku = st?.supplier_sku ?? (m.supplierProductId ? products.find((p) => p.id === m.supplierProductId)?.supplier_sku ?? null : null)
-    const knownAtInvoice = expected != null && Number.isFinite(Number(expected)) && Number(expected) > 0 ? Number(expected) : null
+    // Uden fakturadato rulles intet tilbage: expected er dagens pris og må ikke vises eller sammenlignes som "på fakturadatoen"
+    const knownAtInvoice = invoiceDate && expected != null && Number.isFinite(Number(expected)) && Number(expected) > 0 ? Number(expected) : null
     const prodUnit = (st as { unit?: string | null } | undefined)?.unit ?? (m.supplierProductId ? (products.find((p) => p.id === m.supplierProductId) as { unit?: string | null } | undefined)?.unit ?? null : null)
     // IV-4 (leverandørfaktura-review 2026-10-18): den FAKTISK fakturerede pris (linjetotal / antal, efter rabat) — ikke
     // listeprisen (som fordelingen allerede bruger, LF-3). Før: 100 m à 4,00 med total 445 = "ok"; liste 100 −30 % = falsk +43 %

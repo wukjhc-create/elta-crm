@@ -13,7 +13,6 @@ import { chargeLabel, chargeLabelText } from '@/lib/invoice-control/charge-label
 import { countInvoiceReviewLines } from '@/lib/invoice-control/review-counts'
 import { invoiceTrafficLight } from '@/lib/invoice-control/traffic-light'
 import { purchasingLinesForReview } from '@/lib/invoice-control/purchasing-review'
-import { suggestDocumentAction } from '@/lib/documents/document-suggestion'
 
 const kr = (n: number) => `${n.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`
 
@@ -32,7 +31,7 @@ function ChargeMark({ description }: { description: string }) {
   return <span className="ml-1 inline-block text-[10px] uppercase tracking-wide bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded" data-testid="invoice-control-charge-mark">{text}</span>
 }
 
-export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null, caseId = null, purchaseOrderId = null, extractedText = null }: { invoiceId: string; lineCount: number; duplicateOfId?: string | null; caseId?: string | null; purchaseOrderId?: string | null; extractedText?: string | null }) {
+export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null, caseId = null, purchaseOrderId = null, documentNote = null }: { invoiceId: string; lineCount: number; duplicateOfId?: string | null; caseId?: string | null; purchaseOrderId?: string | null; documentNote?: string | null }) {
   const [res, setRes] = useState<InvoiceControlResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Grok fb1ec521/39dccf12: en kastet hentning hænger ikke i "Kontrollerer priser…"; "Prøv igen" henter på ny
@@ -72,7 +71,6 @@ export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null
     purchasing: res ? { lines: purchasingLines } : undefined,
   })
   const lightCls = traffic.light === 'red' ? 'bg-red-50 text-red-800' : traffic.light === 'yellow' ? 'bg-amber-50 text-amber-900' : traffic.light === 'green' ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-700'
-  const documentSuggestion = extractedText?.trim() ? suggestDocumentAction({ extractedText }) : null
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4" data-testid="invoice-control-panel">
@@ -86,9 +84,9 @@ export function InvoiceControlPanel({ invoiceId, lineCount, duplicateOfId = null
           {traffic.findings.map((f, index) => (
             <li key={`${f.code}-${index}`}>{f.label}: {f.reason} {f.amount == null ? 'Beløb ukendt.' : `${f.amount.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr${f.code === 'price_movement' ? ' pr. enhed' : ''}.`} {f.followUp}</li>
           ))}
-          <p className="mt-2 text-gray-600">Forventet antal sammenlignes ikke. Der er ingen indkøbsordrelinjer, så et manglende antal bliver ikke 0.</p>
-          <p className="mt-2 text-gray-600">{documentSuggestion ? `${documentSuggestion.statement} ${documentSuggestion.suggestedAction}` : 'Fakturateksten findes ikke. Filnavnet bruges ikke, som om filen var læst.'}</p>
         </ul>
+        <p className="mt-2 text-gray-600">Forventet antal sammenlignes ikke. Der er ingen indkøbsordrelinjer, så et manglende antal bliver ikke 0.</p>
+        {documentNote && <p className="mt-2 text-gray-600" data-testid="invoice-document-note">{documentNote}</p>}
       </div>
       {error && (
         <div className="text-xs text-red-600">

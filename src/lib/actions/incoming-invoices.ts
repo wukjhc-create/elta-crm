@@ -188,6 +188,8 @@ export interface IncomingInvoiceDetail {
   invoice: IncomingInvoiceRow
   /** Sprint Ø9.0 — har fakturaen et bilag? (beregnet før storage-URL redaction). */
   has_file: boolean
+  /** Kort dokumentforslag, beregnet på serveren. raw_text sendes aldrig til browseren. */
+  documentNote: string
   lines: IncomingInvoiceLineRow[]
   supplier: { id: string; name: string; code: string | null } | null
   workOrder: { id: string; title: string; status: string; case_id: string | null } | null
@@ -213,6 +215,24 @@ export interface IncomingInvoiceDetail {
   }>
 }
 
+async function invoiceDocumentNoteFor(
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
+  invoice: IncomingInvoiceRow,
+): Promise<string> {
+  const { invoiceDocumentNote, invoiceTextOrigin } = await import('@/lib/invoice-control/invoice-document-note')
+  let email: { bodyText: string | null; bodyPreview: string | null } | undefined
+  const raw = invoice.raw_text
+  if (invoice.source === 'email' && invoice.source_email_id && raw?.trim()) {
+    // Læses kun for at afgøre, om raw_text er mailens egen tekst. Fejl eller ingen adgang = ukendt, intet forslag.
+    const { data, error } = await supabase.from('incoming_emails').select('body_text, body_preview').eq('id', invoice.source_email_id).maybeSingle()
+    if (!error && data) {
+      const row = data as { body_text: string | null; body_preview: string | null }
+      email = { bodyText: row.body_text, bodyPreview: row.body_preview }
+    }
+  }
+  return invoiceDocumentNote(raw, invoiceTextOrigin({ source: invoice.source, rawText: raw, email }))
+}
+
 export async function getIncomingInvoiceDetailAction(id: string): Promise<IncomingInvoiceDetail | null> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.view')) return null
@@ -229,6 +249,10 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
   if (attachmentKind === 'storage') {
     invoice.file_url = null
   }
+
+  // raw_text kan indeholde fuld IBAN og hele mailen: den bruges her og sendes ikke videre (PV9 ville ellers være omgået)
+  const documentNote = await invoiceDocumentNoteFor(supabase, invoice)
+  invoice.raw_text = null
 
   // FIN2-1: alle linjer side for side (PostgREST-loft 1.000)
   const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
@@ -318,6 +342,7 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
   return {
     invoice,
     has_file: hasFile,
+    documentNote,
     posting_uncertain: postingUncertain,
     lines: (linesRes.data ?? []) as IncomingInvoiceLineRow[],
     supplier: (supplierRes.data ?? null) as IncomingInvoiceDetail['supplier'],

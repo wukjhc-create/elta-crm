@@ -13,10 +13,13 @@ export function unitPriceMovement(
   const now = today != null && Number.isFinite(today) && today > 0 ? today : null
   const then = atInvoice != null && Number.isFinite(atInvoice) && atInvoice > 0 ? atInvoice : null
   if (now == null || then == null) return { moved: false, diff: null }
-  const diff = Math.round((now - then) * 100) / 100
-  const pct = Math.abs(diff) / then
-  return { moved: pct >= 0.05 && Math.abs(diff) >= 0.5, diff }
+  const raw = now - then
+  // Reglen testes på den uafrundede forskel. Tolerancen fjerner kun flydende-tals-støj ved præcis 5 % og 0,50 kr.
+  const moved = Math.abs(raw) / then >= 0.05 - FLOAT_NOISE && Math.abs(raw) >= 0.5 - FLOAT_NOISE
+  return { moved, diff: Math.round(raw * 100) / 100 }
 }
+
+const FLOAT_NOISE = 1e-9
 
 export function duplicateProductLineNumbers(
   lines: Array<{ lineNumber: number; productId: string | null; quantity: number | null }>,
@@ -49,7 +52,9 @@ export function purchasingLinesForReview(lines: Array<{
   for (const line of lines) {
     const movement = unitPriceMovement(line.priceToday, line.priceAtInvoice)
     const duplicate = duplicates.has(line.lineNumber)
-    if (!duplicate && !movement.moved) continue
+    // Kendt vare uden pris i kataloget i dag: bevægelsen kan ikke afgøres. Det er Ukendt-pris (gul), ikke "ingen bevægelse".
+    const priceTodayUnknown = line.productId != null && !(line.priceToday != null && line.priceToday > 0)
+    if (!duplicate && !movement.moved && !priceTodayUnknown) continue
     out.push({
       lineNumber: line.lineNumber,
       invoicedQty: line.quantity != null && Number.isFinite(line.quantity) ? line.quantity : null,
