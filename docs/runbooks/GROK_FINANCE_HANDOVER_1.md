@@ -164,3 +164,23 @@ A supplier remainder still needs either a stored payment column or a verified e-
 - A verified e-conomic GET of open supplier remainders, with fail-closed paging, or a stored payment on the supplier invoice. Until one of those exists, keep projected cash unknown.
 - Mount booked entries only when a full paged read can fail closed instead of summing one page.
 - Approval-based bookkeeping on the design states, still behind the kill switch, an explicit confirmation, and a migration Henrik has approved.
+
+## Claude review 2026-11-05 (corrects the sections above)
+
+Integrated on `claude-grok-finance-1-review` from main `4abbb5a2`. Main won the overlap in `operational-exceptions.ts`. What changed from Grok's version:
+
+- The dashboard tile no longer calls e-conomic or runs the page's full load. It reads invoices only when an overdue threshold is set, and it is hidden when nothing can be evaluated. No threshold is set anywhere today, and no screen sets one, so the tile does not show yet. Alerts are on the Likviditet page.
+- A failed invoice or supplier read now raises an alert. A failed settings read is an error, not "not configured".
+- Hidden sections are no longer reported as a read error.
+- The stale model is removed. The timestamp was set at the read, so stale could never happen. The page says the balance was read in this view. Nothing is stored.
+- "Ikke konfigureret" is its own display state. The card is "Bogført saldo (regnskab)".
+- `/accounts/{n}` must return the same account number and `accountType: status`. A profit-and-loss account is not shown as cash.
+- The allowlist is only `/accounting-years` and `/accounts/{digits}`. Unmounted readers and `parseBookedRemainder` are removed. `economicGet` is now `economicGetWithSettings`, which takes the settings the caller read after its permission check.
+- The loader moved to `src/lib/finance/finance-desk.ts`. `loadFinanceDesk` is a thin action over it.
+- A company threshold is not compared with one user's scoped invoices.
+
+Unchanged and correct: open payables and projected cash stay Ukendt, receivables use the canonical open amount, and `invoice-totals.ts` behaves as before.
+
+Not verified against a real e-conomic response: prod has no `accounting_integration_settings` row. The `/accounts/{n}` shape comes from the API documentation and mocked tests. Check it on the first real setup.
+
+Test: `scripts/grok-finance-1-review-test.ts`, `scripts/grok-finance-1-test.ts`, UI `U263`.
