@@ -22,6 +22,8 @@ const STATUS: Record<OfferVsActualStatus, { label: string; cls: string }> = {
 }
 
 const kr = (n: number | null) => (n == null ? '—' : formatCurrency(n, 'DKK', 0))
+/** 00248: linjen er brugt, men kosten kendes ikke */
+const actualKr = (n: number | null, unknownLines: number) => (n == null && unknownLines > 0 ? 'Ukendt' : kr(n))
 const qty = (n: number | null) => (n == null ? '—' : n.toLocaleString('da-DK', { maximumFractionDigits: 2 }))
 
 export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
@@ -93,9 +95,9 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                           <td className="px-2 py-1.5 text-right tabular-nums">{qty(r.offered_qty)}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{qty(r.actual_qty)}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.offered_cost)}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{kr(r.actual_cost)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{actualKr(r.actual_cost, r.unknown_cost_lines)}</td>
                           <td className={`px-2 py-1.5 text-right tabular-nums ${r.cost_deviation != null && r.cost_deviation > 0 ? 'text-red-700' : 'text-gray-700'}`}>
-                            {r.cost_deviation == null ? '—' : `${r.cost_deviation > 0 ? '+' : ''}${kr(r.cost_deviation)}`}
+                            {r.cost_deviation == null ? (r.unknown_cost_lines > 0 ? 'Ukendt' : '—') : `${r.cost_deviation > 0 ? '+' : ''}${kr(r.cost_deviation)}`}
                           </td>
                           <td className="px-2 py-1.5 text-center">
                             <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
@@ -107,9 +109,14 @@ export function CaseOfferVsActualPanel({ caseId }: { caseId: string }) {
                       <tr>
                         <td className="px-2 py-1.5 text-right text-xs uppercase tracking-wide text-gray-600" colSpan={3}>I alt</td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{kr(data.totals.offered_cost)}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{kr(data.totals.actual_cost)}</td>
-                        <td className={`px-2 py-1.5 text-right tabular-nums ${data.totals.deviation > 0 ? 'text-red-700' : 'text-emerald-700'}`} data-testid="offer-vs-actual-deviation">
-                          {`${data.totals.deviation > 0 ? '+' : ''}${kr(data.totals.deviation)}`}
+                        <td className="px-2 py-1.5 text-right tabular-nums" data-testid="offer-vs-actual-total-cost">
+                          {data.totals.actual_cost == null ? 'Ukendt' : kr(data.totals.actual_cost)}
+                          {data.totals.unknown_cost_lines > 0 && (
+                            <div className="text-[11px] font-normal text-amber-700">Kendt {kr(data.totals.actual_cost_known)} · {data.totals.unknown_cost_lines} mangler kostpris</div>
+                          )}
+                        </td>
+                        <td className={`px-2 py-1.5 text-right tabular-nums ${data.totals.deviation == null ? 'text-gray-500' : data.totals.deviation > 0 ? 'text-red-700' : 'text-emerald-700'}`} data-testid="offer-vs-actual-deviation">
+                          {data.totals.deviation == null ? 'Ukendt' : `${data.totals.deviation > 0 ? '+' : ''}${kr(data.totals.deviation)}`}
                         </td>
                         <td />
                       </tr>

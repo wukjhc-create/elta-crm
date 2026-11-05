@@ -2,7 +2,8 @@
 
 /**
  * Lægger en kendt katalogvare på sagen via den eksisterende materialehandling.
- * Ukendt eller skjult kost oprettes ikke: kolonnen kan ikke gemme "ukendt", kun 0.
+ * Ukendt eller skjult kost oprettes ikke her. Efter 00248 kan kolonnen godt gemme "ukendt", men genvejen er bevidst uændret:
+ * en kendt katalogvare skal have en kendt kost. En linje med ukendt kost er et aktivt valg i "Tilføj materiale".
  * Linjen lægges på sagen uden arbejdsordre, som "Tilføj materiale" gør. Ingen sti gætter en arbejdsordre, og
  * RLS kan skjule andres ordrer, så "præcis én åben ordre" kan ikke afgøres med brugerens klient.
  */
@@ -38,7 +39,7 @@ export async function addKnownCatalogueProductToCase(input: {
       return { success: false, error: 'Manglende tilladelse: materials.add_to_case' }
     }
     if (!ctx.hasPermission(PRICE_PERMISSION)) {
-      return { success: false, error: 'Indkøbsprisen er skjult. Linjen oprettes ikke, fordi kost ellers bliver gemt som 0.' }
+      return { success: false, error: 'Indkøbsprisen er skjult. Linjen oprettes ikke uden kendt kost. Brug "Tilføj materiale" på sagen.' }
     }
     if (!(await userCanViewCase(input.caseId, ctx))) {
       return { success: false, error: 'Sagen er ikke tildelt dig. Intet er oprettet.' }
@@ -66,7 +67,7 @@ export async function addKnownCatalogueProductToCase(input: {
     }
     const cataloguePrice = presentPurchasePrice(row.cost_price)
     if (cataloguePrice == null) {
-      return { success: false, error: 'Kataloget har ingen indkøbspris. Linjen er ikke oprettet som 0 kr.' }
+      return { success: false, error: 'Kataloget har ingen indkøbspris. Linjen er ikke oprettet.' }
     }
 
     // Som søgningen i "Tilføj materiale": kun varer fra en aktiv leverandør

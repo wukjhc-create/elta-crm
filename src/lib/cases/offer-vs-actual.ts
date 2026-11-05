@@ -10,6 +10,7 @@
  * tilbudslinje vises som "ikke tilbudt".
  */
 import { isLabourUnit } from '@/lib/profit/offer-analysis'
+import { sumCosts } from '@/lib/cases/material-cost'
 
 export interface OfferLineInput {
   id: string
@@ -50,13 +51,16 @@ export interface OfferVsActualRow {
   actual_cost: number | null
   /** faktisk − tilbudt kost (positiv = dyrere end tilbudt); null når en af siderne mangler */
   cost_deviation: number | null
+  /** 00248: materialelinjer på rækken uden kendt kost. actual_cost er da null, selvom linjen er brugt. */
+  unknown_cost_lines: number
   status: OfferVsActualStatus
   match: 'offer_line' | 'supplier_product' | 'description' | null
 }
 
 export interface OfferVsActualResult {
   rows: OfferVsActualRow[]
-  totals: { offered_cost: number; actual_cost: number; deviation: number }
+  /** 00248: actual_cost og deviation er null, hvis et materiale mangler kost. actual_cost_known er summen af det kendte. */
+  totals: { offered_cost: number; actual_cost: number | null; actual_cost_known: number; deviation: number | null; unknown_cost_lines: number }
 }
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
@@ -75,6 +79,7 @@ function statusFor(offeredQty: number, actualQty: number, offeredCost: number | 
 export function compareOfferToActual(offerLines: OfferLineInput[], materials: ActualMaterialInput[], labour: ActualLabourInput): OfferVsActualResult {
   const rows: OfferVsActualRow[] = []
   const used = new Set<string>()
+  let knownSum = 0
 
   // Arbejdstimer — samlet række (kost pr. medarbejder vises aldrig)
   const labourLines = offerLines.filter((l) => isLabourUnit(l.unit))
@@ -83,13 +88,14 @@ export function compareOfferToActual(offerLines: OfferLineInput[], materials: Ac
     const known = labourLines.filter((l) => num(l.cost_price) > 0)
     const offeredCost = known.length ? r2(known.reduce((s, l) => s + num(l.quantity) * num(l.cost_price), 0)) : null
     const actualCost = labour.cost != null ? r2(labour.cost) : null
+    knownSum += actualCost ?? 0
     rows.push({
       key: 'labour', kind: 'labour', description: 'Arbejdstimer', unit: 'timer',
       offered_qty: labourLines.length ? offeredQty : null, actual_qty: r2(labour.hours),
       offered_cost: offeredCost, actual_cost: actualCost,
       cost_deviation: offeredCost != null && actualCost != null ? r2(actualCost - offeredCost) : null,
       status: labourLines.length === 0 ? 'not_offered' : labour.hours <= 0 ? 'not_used' : statusFor(offeredQty, labour.hours, offeredCost, actualCost),
-      match: null,
+      match: null, unknown_cost_lines: 0,
     })
   }
 
@@ -112,28 +118,35 @@ export function compareOfferToActual(offerLines: OfferLineInput[], materials: Ac
     }
     for (const h of hits) used.add(h.id)
     const actualQty = hits.length ? r2(hits.reduce((s, m) => s + num(m.quantity), 0)) : 0
-    const actualCost = hits.length ? r2(hits.reduce((s, m) => s + num(m.total_cost), 0)) : null
+    const hitCosts = sumCosts(hits.map((m) => m.total_cost))
+    const actualCost = hits.length ? hitCosts.total : null
+    knownSum += hitCosts.known
     rows.push({
       key: line.id, kind: 'material', description: line.description, unit: line.unit,
       offered_qty: offeredQty, actual_qty: hits.length ? actualQty : null,
       offered_cost: offeredCost, actual_cost: actualCost,
-      cost_deviation: offeredCost != null && actualCost != null ? r2(actualCost - offeredCost) : actualCost == null && offeredCost != null ? r2(-offeredCost) : null,
+      // Ikke brugt = hele den tilbudte kost er sparet. Brugt med ukendt kost = afvigelsen er ukendt.
+      cost_deviation: offeredCost != null && actualCost != null ? r2(actualCost - offeredCost) : !hits.length && offeredCost != null ? r2(-offeredCost) : null,
       status: hits.length ? statusFor(offeredQty, actualQty, offeredCost, actualCost) : 'not_used',
-      match,
+      match, unknown_cost_lines: hitCosts.unknownLines,
     })
   }
 
   for (const m of materials) {
     if (used.has(m.id)) continue
-    const actualCost = r2(num(m.total_cost))
+    const own = sumCosts([m.total_cost])
+    const actualCost = own.total
+    knownSum += own.known
     rows.push({
       key: m.id, kind: 'material', description: m.description, unit: m.unit,
       offered_qty: null, actual_qty: r2(num(m.quantity)), offered_cost: null, actual_cost: actualCost,
-      cost_deviation: actualCost, status: 'not_offered', match: null,
+      cost_deviation: actualCost, status: 'not_offered', match: null, unknown_cost_lines: own.unknownLines,
     })
   }
 
   const offered = r2(rows.reduce((s, r) => s + (r.offered_cost ?? 0), 0))
-  const actual = r2(rows.reduce((s, r) => s + (r.actual_cost ?? 0), 0))
-  return { rows, totals: { offered_cost: offered, actual_cost: actual, deviation: r2(actual - offered) } }
+  const known = r2(knownSum)
+  const unknown = rows.reduce((s, r) => s + r.unknown_cost_lines, 0)
+  const actual = unknown === 0 ? known : null
+  return { rows, totals: { offered_cost: offered, actual_cost: actual, actual_cost_known: known, deviation: actual == null ? null : r2(actual - offered), unknown_cost_lines: unknown } }
 }

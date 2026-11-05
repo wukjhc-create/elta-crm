@@ -65,6 +65,10 @@ export interface ProjectProfitability {
   offered_cost: number | null
   actual_cost: number | null
   cost_deviation: number | null
+  /** 00248: materialer uden kendt kost. Over 0: faktisk kost, afvigelse og realiseret DB er ukendte. */
+  unknown_cost_lines: number
+  /** 00248: sagen er faktureret, men DB kan ikke beregnes, fordi kost mangler */
+  realized_incomplete: boolean
   /** N42: netto faktureret ekskl. moms og realiseret DB (faktisk kost inkl. øvrige omkostninger) */
   net_invoiced: number
   realized_db: number | null
@@ -584,8 +588,10 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
       const mats = matsByCase.get(id) ?? []
       const cmp = compareOfferToActual(lines, mats, { hours: actual.get(id) ?? 0, cost: labourCost.has(id) ? labourCost.get(id)! : null })
       const hasOffered = cmp.rows.some((r) => r.offered_cost != null)
-      const hasActual = cmp.rows.some((r) => r.actual_cost != null)
-      const realized = computeRealizedDb(invByCase.get(id) ?? [], (hasActual ? cmp.totals.actual_cost : 0) + (otherCost.get(id) ?? 0), false)
+      const hasActual = cmp.rows.some((r) => r.actual_cost != null || r.unknown_cost_lines > 0)
+      // 00248: kendes en materialekost ikke, kendes den samlede kost og DB heller ikke (ingen NULL → 0)
+      const costComplete = cmp.totals.unknown_cost_lines === 0
+      const realized = computeRealizedDb(invByCase.get(id) ?? [], costComplete ? (hasActual ? (cmp.totals.actual_cost ?? 0) : 0) + (otherCost.get(id) ?? 0) : null, false)
       const offeredCost = hasOffered ? cmp.totals.offered_cost : null
       const od = offeredDb(c.source_offer_id ? offerById.get(c.source_offer_id as string) ?? null : null, offeredCost)
       const actualHours = r1(actual.get(id) ?? 0)
@@ -607,6 +613,8 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
         offered_cost: offeredCost,
         actual_cost: hasActual ? cmp.totals.actual_cost : null,
         cost_deviation: hasOffered && hasActual ? cmp.totals.deviation : null,
+        unknown_cost_lines: cmp.totals.unknown_cost_lines,
+        realized_incomplete: realized.issued_invoice_count > 0 && !costComplete,
         ...od,
         net_invoiced: realized.net_invoiced_ex_vat,
         realized_db: realized.issued_invoice_count > 0 ? realized.realized_db : null,

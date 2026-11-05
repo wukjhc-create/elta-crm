@@ -70,7 +70,8 @@ export function lineSnapshot(line: {
   description: string
   quantity: number
   unit: string
-  unit_cost: number
+  /** 00248: null, når linjen hverken har total eller stk-pris. En skrevet 0 er en kendt kost på 0 kr. */
+  unit_cost: number | null
 } {
   const description = (line.description ?? '').trim() || 'Linje uden beskrivelse'
   const qRaw = Number(line.quantity ?? 0)
@@ -83,6 +84,9 @@ export function lineSnapshot(line: {
     : (Number.isFinite(qRaw) && qRaw < 0) !== (Number.isFinite(upRaw) && upRaw < 0)
   const quantity = Number.isFinite(qRaw) && qRaw !== 0 ? Math.abs(qRaw) : 1
   const unit = (line.unit ?? '').trim() || 'stk'
+  const noAmount = (line.total_price == null || line.total_price === '' || !Number.isFinite(tpRaw))
+    && (line.unit_price == null || line.unit_price === '' || !Number.isFinite(upRaw))
+  if (noAmount) return { description, quantity, unit, unit_cost: null }
   // LF-3 (indkøbs-review 2026-10-16): linjens TOTAL er det faktisk fakturerede (efter linjerabat) — før vandt
   // listeprisen (fx 100 kr med 30 % rabat → 100 i kost, mens forhåndsvisningen viste 70). Uden total: stk-prisen.
   let unitAbs = Number.isFinite(tpRaw) && tpRaw !== 0
@@ -302,7 +306,8 @@ async function runLineConversion(
           supplier_name: supplierDisplayName,
           unit: snap.unit,
           quantity: snap.quantity,
-          unit_cost: snap.unit_cost,
+          // case_other_costs.unit_cost er stadig NOT NULL (00248 gælder kun materialer): ukendt bliver 0 her, som før
+          unit_cost: snap.unit_cost ?? 0,
           unit_sales_price: 0,
           source: 'supplier_invoice',
           source_incoming_invoice_line_id: line.id,

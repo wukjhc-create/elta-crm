@@ -28,6 +28,7 @@ import type {
   CaseMaterialsSummary,
 } from '@/types/case-materials.types'
 import { trackActionResult } from '@/lib/pilot/action-failure-log'
+import { knownCost, marginOf, parseCostInput, sumCosts } from '@/lib/cases/material-cost'
 
 const SELECT_COLUMNS = `
   id, case_id, work_order_id, supplier_product_id, material_id,
@@ -61,6 +62,8 @@ export async function listCaseMaterials(
           summary: {
             count: 0,
             total_cost: 0,
+            total_cost_known: 0,
+            unknown_cost_lines: 0,
             total_sales_price: 0,
             contribution_margin: 0,
             margin_percentage: 0,
@@ -91,25 +94,23 @@ export async function listCaseMaterials(
     const rawRows = ((data ?? []) as CaseMaterialRow[]).map((r) => ({
       ...r,
       quantity: Number(r.quantity),
-      unit_cost: Number(r.unit_cost),
+      // 00248: null = ukendt. Number(null) ville gøre den til en vare på 0 kr.
+      unit_cost: knownCost(r.unit_cost),
       unit_sales_price: Number(r.unit_sales_price),
-      total_cost: Number(r.total_cost),
+      total_cost: knownCost(r.total_cost),
       total_sales_price: Number(r.total_sales_price),
     }))
 
     // Sprint 7E — beregn summary fra raw-tal foer evt. stripping.
-    const total_cost_raw = rawRows.reduce((s, r) => s + r.total_cost, 0)
+    const costs = sumCosts(rawRows.map((r) => r.total_cost))
     const total_sales_price = rawRows.reduce((s, r) => s + r.total_sales_price, 0)
-    const contribution_margin_raw = total_sales_price - total_cost_raw
-    const margin_percentage_raw =
-      total_sales_price > 0 ? (contribution_margin_raw / total_sales_price) * 100 : 0
+    const margin = marginOf(total_sales_price, costs.total)
 
-    // Sprint 7E — strip kostpriser hvis user ikke har materials.view.cost_prices
-    // (montor + salg). Sales-priser er ikke folsomme. Summary viser
-    // 0 kostpriser saa bidragsmargin laekker ikke.
+    // Sprint 7E — strip kostpriser hvis user ikke har materials.view.cost_prices (montor + salg). Sales-priser er ikke
+    // folsomme. 00248: skjult er null på ALLE linjer og i summen, så svaret ikke afslører, om en kost er kendt.
     const rows = canSeeCostPrices
       ? rawRows
-      : rawRows.map((r) => ({ ...r, unit_cost: 0, total_cost: 0 }))
+      : rawRows.map((r) => ({ ...r, unit_cost: null, total_cost: null }))
 
     return {
       success: true,
@@ -117,14 +118,12 @@ export async function listCaseMaterials(
         rows,
         summary: {
           count: rows.length,
-          total_cost: canSeeCostPrices ? Math.round(total_cost_raw * 100) / 100 : 0,
+          total_cost: canSeeCostPrices ? costs.total : null,
+          total_cost_known: canSeeCostPrices ? costs.known : null,
+          unknown_cost_lines: canSeeCostPrices ? costs.unknownLines : null,
           total_sales_price: Math.round(total_sales_price * 100) / 100,
-          contribution_margin: canSeeCostPrices
-            ? Math.round(contribution_margin_raw * 100) / 100
-            : 0,
-          margin_percentage: canSeeCostPrices
-            ? Math.round(margin_percentage_raw * 100) / 100
-            : 0,
+          contribution_margin: canSeeCostPrices ? margin.amount : null,
+          margin_percentage: canSeeCostPrices ? margin.percentage : null,
         },
       },
     }
@@ -148,7 +147,7 @@ export interface CreateCaseMaterialInput {
   supplier_name_snapshot?: string | null
   unit?: string                    // default 'stk'
   quantity: number
-  unit_cost?: number               // default 0
+  unit_cost?: number | null        // 00248: udeladt eller null = ukendt, ikke 0
   unit_sales_price?: number        // default 0
 
   source?: CaseMaterialSource      // default 'manual'
@@ -160,7 +159,7 @@ export interface CreateCaseMaterialInput {
 }
 
 /**
- * Afgør om brugerens priser GEMMES (ellers 0 — kontoret prissætter), ikke hvem der må skrive.
+ * Afgør om brugerens priser GEMMES (ellers kost NULL og salg 0 — kontoret prissætter), ikke hvem der må skrive.
  * Navngivet konstant, så RLS-matrixtjekket (der læser hasPermission('…')-literaler som skrive-gates)
  * ikke tolker denne visnings-ret som en skrivevej for bogholderi. Skrive-gaten er materials.add_to_case.
  */
@@ -189,9 +188,9 @@ async function createCaseMaterialImpl(
       return { success: false, error: 'Antal skal være større end 0' }
     }
 
-    const unit_cost = Number(input.unit_cost ?? 0)
+    const parsedCost = parseCostInput(input.unit_cost)
     const unit_sales_price = Number(input.unit_sales_price ?? 0)
-    if (!Number.isFinite(unit_cost) || unit_cost < 0) {
+    if (!parsedCost.ok) {
       return { success: false, error: 'Kostpris kan ikke være negativ' }
     }
     if (!Number.isFinite(unit_sales_price) || unit_sales_price < 0) {
@@ -239,8 +238,8 @@ async function createCaseMaterialImpl(
         supplier_name_snapshot: input.supplier_name_snapshot?.trim() || null,
         unit: (input.unit ?? 'stk').trim() || 'stk',
         quantity,
-        // Uden kost-ret (montør) prissætter kontoret — klientens priser ignoreres.
-        unit_cost: hasPermission(PRICE_VISIBILITY_PERMISSION) ? unit_cost : 0,
+        // Uden kost-ret (montør) prissætter kontoret — klientens priser ignoreres. 00248: kosten er ukendt, ikke 0.
+        unit_cost: hasPermission(PRICE_VISIBILITY_PERMISSION) ? parsedCost.cost : null,
         unit_sales_price: hasPermission(PRICE_VISIBILITY_PERMISSION) ? unit_sales_price : 0,
         // SC-13 (sags-review 2026-10-17): kilde og kildelinks kun fra kontoret (materials.edit) — ellers kunne montøren
         // forfalske tilbudt-vs-faktisk og LF-5-undtagelsen for negativ kost
@@ -280,7 +279,8 @@ export interface UpdateCaseMaterialInput {
   supplier_name_snapshot?: string | null
   unit?: string
   quantity?: number
-  unit_cost?: number
+  /** 00248: null = sæt kosten til ukendt. Udeladt = uændret. */
+  unit_cost?: number | null
   unit_sales_price?: number
   work_order_id?: string | null
   billable?: boolean
@@ -337,17 +337,20 @@ export async function updateCaseMaterial(
       }
       update.quantity = q
     }
-    if (patch.unit_cost !== undefined) {
-      const c = Number(patch.unit_cost)
+    // 00248: uden kost-ret ser brugeren null i stedet for kosten. Priserne ignoreres (som ved oprettelse), ellers ville
+    // en gemt formular overskrive en kendt kost med ukendt.
+    const canSetPrices = hasPermission(PRICE_VISIBILITY_PERMISSION)
+    if (canSetPrices && patch.unit_cost !== undefined) {
       // LF-5 (indkøbs-review 2026-10-16): returlinjer fra en leverandør-kreditnota bærer negativ kost (fratrækkes sagens
       // kost) — de skal kunne redigeres (fx tilføje salgspris) uden at kosten tvinges positiv. Øvrige: ≥ 0.
       const negativeAllowed = (cur as { source?: string | null }).source === 'supplier_invoice'
-      if (!Number.isFinite(c) || (c < 0 && !negativeAllowed)) {
+      const c = parseCostInput(patch.unit_cost, { allowNegative: negativeAllowed })
+      if (!c.ok) {
         return { success: false, error: 'Kostpris kan ikke være negativ' }
       }
-      update.unit_cost = c
+      update.unit_cost = c.cost
     }
-    if (patch.unit_sales_price !== undefined) {
+    if (canSetPrices && patch.unit_sales_price !== undefined) {
       const s = Number(patch.unit_sales_price)
       if (!Number.isFinite(s) || s < 0) {
         return { success: false, error: 'Salgspris kan ikke være negativ' }
@@ -381,7 +384,8 @@ export async function updateCaseMaterial(
     // Sprint Ø2.12 — audit pris-/antal-ændringer på materialesnapshot (fra/til).
     const econChanged =
       (update.quantity !== undefined && Number(update.quantity) !== Number(cur.quantity)) ||
-      (update.unit_cost !== undefined && Number(update.unit_cost) !== Number(cur.unit_cost)) ||
+      // 00248: ukendt → 0 og 0 → ukendt er en ændring (Number(null) === 0 ville skjule den for revisionssporet)
+      (update.unit_cost !== undefined && knownCost(update.unit_cost) !== knownCost(cur.unit_cost)) ||
       (update.unit_sales_price !== undefined && Number(update.unit_sales_price) !== Number(cur.unit_sales_price))
     if (econChanged) {
       try {
@@ -394,7 +398,7 @@ export async function updateCaseMaterial(
           action_description: `Materialesnapshot ændret: "${cur.description}"`,
           changes: {
             quantity: { from: cur.quantity, to: update.quantity ?? cur.quantity },
-            unit_cost: { from: cur.unit_cost, to: update.unit_cost ?? cur.unit_cost },
+            unit_cost: { from: cur.unit_cost, to: update.unit_cost === undefined ? cur.unit_cost : update.unit_cost },
             unit_sales_price: { from: cur.unit_sales_price, to: update.unit_sales_price ?? cur.unit_sales_price },
           },
           metadata: { case_id: cur.case_id },
@@ -405,7 +409,8 @@ export async function updateCaseMaterial(
     }
 
     revalidatePath(`/dashboard/orders/${cur.case_id}`)
-    return { success: true, data: data as CaseMaterialRow }
+    const saved = data as CaseMaterialRow
+    return { success: true, data: canSetPrices ? saved : { ...saved, unit_cost: null, total_cost: null } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

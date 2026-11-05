@@ -37,7 +37,7 @@ const EMPTY: FormState = {
   supplier_name_snapshot: '',
   unit: 'stk',
   quantity: '1',
-  unit_cost: '0',
+  unit_cost: '', // 00248: tomt = ukendt. Kun en skrevet 0 er en kost på 0 kr.
   unit_sales_price: '0',
   billable: true,
   notes: '',
@@ -58,7 +58,7 @@ export function CaseMaterialDialog({
   editing: CaseMaterialRow | null
   onClose: () => void
   onSaved: () => void
-  /** Uden kost-ret (montør): ingen prisfelter — serveren gemmer 0, kontoret prissætter. */
+  /** Uden kost-ret (montør): ingen prisfelter — kosten gemmes som ukendt, kontoret prissætter. */
   showPrices?: boolean
 }) {
   const [form, setForm] = useState<FormState>(EMPTY)
@@ -110,7 +110,7 @@ export function CaseMaterialDialog({
         supplier_name_snapshot: editing.supplier_name_snapshot ?? '',
         unit: editing.unit,
         quantity: String(editing.quantity),
-        unit_cost: String(editing.unit_cost),
+        unit_cost: editing.unit_cost == null ? '' : String(editing.unit_cost),
         unit_sales_price: String(editing.unit_sales_price),
         billable: editing.billable,
         notes: editing.notes ?? '',
@@ -133,19 +133,21 @@ export function CaseMaterialDialog({
   if (!open) return null
 
   const parsedQty = toNumberDa(form.quantity)
-  const parsedCost = toNumberDa(form.unit_cost)
+  // 00248: tomt felt = ukendt kost (null). NaN = ugyldig tekst.
+  const costIsEmpty = form.unit_cost.trim() === ''
+  const parsedCost = costIsEmpty ? null : toNumberDa(form.unit_cost)
   const parsedSale = toNumberDa(form.unit_sales_price)
-  const totalCost = Number.isFinite(parsedQty) && Number.isFinite(parsedCost) ? parsedQty * parsedCost : 0
+  const totalCost = parsedCost != null && Number.isFinite(parsedQty) && Number.isFinite(parsedCost) ? parsedQty * parsedCost : null
   const totalSale = Number.isFinite(parsedQty) && Number.isFinite(parsedSale) ? parsedQty * parsedSale : 0
-  const db = totalSale - totalCost
-  const dbPct = totalSale > 0 ? (db / totalSale) * 100 : 0
+  const db = totalCost == null ? null : totalSale - totalCost
+  const dbPct = db != null && totalSale > 0 ? (db / totalSale) * 100 : null
 
   // LF-5: returlinje fra leverandør-kreditnota må beholde sin negative kost
   const negativeCostAllowed = editing?.source === 'supplier_invoice'
   const canSubmit =
     form.description.trim().length > 0 &&
     Number.isFinite(parsedQty) && parsedQty > 0 &&
-    Number.isFinite(parsedCost) && (parsedCost >= 0 || negativeCostAllowed) &&
+    (parsedCost == null || (Number.isFinite(parsedCost) && (parsedCost >= 0 || negativeCostAllowed))) &&
     Number.isFinite(parsedSale) && parsedSale >= 0 &&
     !submitting
 
@@ -163,8 +165,8 @@ export function CaseMaterialDialog({
       supplier_name_snapshot: form.supplier_name_snapshot.trim() || null,
       unit: form.unit.trim() || 'stk',
       quantity: parsedQty,
-      unit_cost: parsedCost,
-      unit_sales_price: parsedSale,
+      // 00248: uden kost-ret sendes priserne ikke (serveren ignorerer dem også)
+      ...(showPrices ? { unit_cost: parsedCost, unit_sales_price: parsedSale } : {}),
       billable: form.billable,
       notes: form.notes.trim() || null,
     }
@@ -368,8 +370,11 @@ export function CaseMaterialDialog({
                 inputMode="decimal"
                 value={form.unit_cost}
                 onChange={(e) => update('unit_cost', e.target.value)}
+                placeholder="Ukendt"
+                data-testid="case-material-unit-cost"
                 className="w-full border rounded px-2 py-1.5 text-sm tabular-nums"
               />
+              <p className="mt-0.5 text-[11px] text-gray-500">Tomt felt = ukendt kost, ikke 0 kr.</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -389,8 +394,8 @@ export function CaseMaterialDialog({
           <div className="rounded ring-1 ring-gray-200 bg-gray-50 px-3 py-2 text-xs grid grid-cols-3 gap-2">
             <div>
               <div className="text-gray-500 uppercase text-[10px] tracking-wide">Sum kost</div>
-              <div className="tabular-nums font-semibold text-gray-900">
-                {Number.isFinite(totalCost) ? totalCost.toFixed(2) : '—'}
+              <div className="tabular-nums font-semibold text-gray-900" data-testid="case-material-preview-cost">
+                {costIsEmpty ? 'Ukendt' : totalCost != null && Number.isFinite(totalCost) ? totalCost.toFixed(2) : '—'}
               </div>
             </div>
             <div>
@@ -404,12 +409,12 @@ export function CaseMaterialDialog({
               <div className="flex items-center gap-1">
                 <span
                   className={`tabular-nums font-semibold ${
-                    db >= 0 ? 'text-emerald-700' : 'text-red-700'
+                    db == null ? 'text-gray-500' : db >= 0 ? 'text-emerald-700' : 'text-red-700'
                   }`}
                 >
-                  {Number.isFinite(db) ? db.toFixed(2) : '—'}
+                  {costIsEmpty ? 'Ukendt' : db != null && Number.isFinite(db) ? db.toFixed(2) : '—'}
                 </span>
-                {totalSale > 0 && (
+                {dbPct != null && Number.isFinite(dbPct) && (
                   <span className="text-[10px] text-gray-500">
                     ({dbPct.toFixed(1)} %)
                   </span>

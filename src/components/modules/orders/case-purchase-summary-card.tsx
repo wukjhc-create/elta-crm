@@ -53,9 +53,9 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-3">
-            <Stat label="Materialer" value={kr(data.supplier_material_cost_total)} />
+            <Stat label="Materialer" value={data.supplier_material_cost_total == null ? 'Ukendt' : kr(data.supplier_material_cost_total)} />
             <Stat label="Udlæg" value={kr(data.supplier_other_cost_total)} />
-            <Stat label="Indkøb i alt" value={kr(data.supplier_purchase_total)} strong />
+            <Stat label="Indkøb i alt" value={data.supplier_purchase_total == null ? 'Ukendt' : kr(data.supplier_purchase_total)} strong />
           </div>
 
           {data.budget_reference != null && (
@@ -76,7 +76,7 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
               {data.supplier_breakdown.slice(0, 6).map((b) => (
                 <div key={b.supplier_name} className="flex items-center justify-between text-sm px-1.5 py-0.5">
                   <span className="truncate text-gray-700">{b.supplier_name}</span>
-                  <span className="font-medium text-gray-700 shrink-0 ml-2">{kr(b.total_cost)}</span>
+                  <span className="font-medium text-gray-700 shrink-0 ml-2">{kr(b.total_cost)}{(b.unknown_cost_lines ?? 0) > 0 ? ` + ${b.unknown_cost_lines} uden kostpris` : ''}</span>
                 </div>
               ))}
               {data.supplier_breakdown.length > 6 && (

@@ -26,18 +26,20 @@ async function rollupAllEmployees(): Promise<EmployeeRollup[]> {
   // Latest profit per work order (most recent snapshot).
   // Profit-review 2026-10-07: side for side — .limit(2000) gav de nyeste 1.000 snapshots, så ældre arbejdsordrer
   // (og dermed medarbejdernes historiske avance) faldt ud af opgørelsen
-  const snaps = await fetchAllRows<{ id: string; work_order_id: string; profit: number | string; revenue: number | string; created_at: string }>((from, to) => supabase
+  const snaps = await fetchAllRows<{ id: string; work_order_id: string; profit: number | string | null; revenue: number | string; created_at: string }>((from, to) => supabase
     .from('work_order_profit')
     .select('id, work_order_id, profit, revenue, created_at')
     .order('created_at', { ascending: false })
     .order('id')
     .range(from, to))
 
+  // 00248: er seneste avance ukendt (null), udgår ordren. Et ældre snapshot eller 0 ville give et falsk tal.
+  const seenWo = new Set<string>()
   const latestByWo = new Map<string, number>()
   for (const s of snaps) {
-    if (!latestByWo.has(s.work_order_id)) {
-      latestByWo.set(s.work_order_id, Number(s.profit) || 0)
-    }
+    if (seenWo.has(s.work_order_id)) continue
+    seenWo.add(s.work_order_id)
+    if (s.profit != null) latestByWo.set(s.work_order_id, Number(s.profit) || 0)
   }
   if (latestByWo.size === 0) return []
 

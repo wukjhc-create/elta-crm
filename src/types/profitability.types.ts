@@ -8,10 +8,11 @@ export interface WorkOrderProfit {
   workOrderId: string
   revenue: number
   laborCost: number
-  materialCost: number
-  totalCost: number
-  profit: number
-  marginPercentage: number
+  /** 00248: materialCost, totalCost, profit og marginPercentage er null, når et materiale mangler kost */
+  materialCost: number | null
+  totalCost: number | null
+  profit: number | null
+  marginPercentage: number | null
   revenueSource: 'invoice' | 'planned'
   invoiceId: string | null
   timeLogCount: number
@@ -24,10 +25,11 @@ export interface WorkOrderProfitSnapshotRow {
   work_order_id: string
   revenue: number
   labor_cost: number
-  material_cost: number
-  total_cost: number
-  profit: number
-  margin_percentage: number
+  /** 00248: material_cost, total_cost, profit og margin_percentage er null, når et materiale mangler kost */
+  material_cost: number | null
+  total_cost: number | null
+  profit: number | null
+  margin_percentage: number | null
   source: ProfitSnapshotSource
   invoice_id: string | null
   details: Record<string, unknown> | null

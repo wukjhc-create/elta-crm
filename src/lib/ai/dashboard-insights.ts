@@ -27,7 +27,9 @@ export async function generateDashboardInsights(): Promise<DashboardInsight[]> {
       .limit(200)
     // Rapport-review 2026-10-09 (#5): work_order_profit er append-only (snapshot ved done + ved fakturaændring) —
     // kun seneste snapshot pr. arbejdsordre, ellers vægter genåbnede/omfakturerede ordrer flere gange
+    // 00248: seneste snapshot kan have ukendt margin (null). Ordren udgår, og Number(null) må ikke gøre den til 0 %.
     const margins = latestPerWorkOrder(snaps ?? [])
+      .filter((s) => s.margin_percentage != null)
       .map((s) => Number(s.margin_percentage))
       .filter((m) => Number.isFinite(m))
     if (margins.length >= 5) {

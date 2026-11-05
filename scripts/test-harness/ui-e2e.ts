@@ -187,7 +187,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U263', 'U262', 'U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
-  economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  economy: ['U264', 'U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -5797,6 +5797,203 @@ ${m.text()}`) })
         out.push({ id: 'U261 driftsundtagelser: køer vist for admin, skjult for montør, ingen fejlside', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U264 00248 UKENDT MATERIALEKOST: montør gemmer NULL og ser ingen kost; kontoret ser Ukendt (ikke 0,00) på linje, sum og DB;
+      // tomt felt = ukendt, skrevet 0 = 0; faktura kan oprettes på salgsprisen; realiseret DB og rapport siger Ukendt;
+      // lukke-status og ufaktureret arbejde er upåvirkede; sletning virker.
+      if (want('U264') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U264-${stamp}`
+        let diag = ''
+        let caseId: string | null = null
+        let empId: string | null = null
+        let woId: string | null = null
+        const invIds: string[] = []
+        const SECRET_COST = '77.77'
+        type Mat = { id: string; description: string; unit_cost: number | null; total_cost: number | null; unit_sales_price: number; invoice_line_id: string | null }
+        const mats = async () => ((await c.admin.from('case_materials').select('id, description, unit_cost, total_cost, unit_sales_price, invoice_line_id').eq('case_id', caseId ?? '')).data ?? []) as Mat[]
+        const waitMat = async (desc: string) => {
+          for (let i = 0; i < 20; i++) {
+            const hit = (await mats()).find((m) => m.description === desc)
+            if (hit) return hit
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          return null
+        }
+        try {
+          const mu = await mkUser('montør')
+          const emp = await c.admin.from('employees').insert([{ name: `U264 ${stamp}`, email: mu.email, role: 'montør', active: true, profile_id: mu.id }]).select('id')
+          empId = (emp.data?.[0] as { id?: string } | undefined)?.id ?? null
+          const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId }]).select('id')
+          caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+          const wo = caseId && empId ? await c.admin.from('work_orders').insert([{ case_id: caseId, title: tag, scheduled_date: today, assigned_employee_id: empId, status: 'planned' }]).select('id') : null
+          woId = (wo?.data?.[0] as { id?: string } | undefined)?.id ?? null
+          const seed = caseId ? await c.admin.from('case_materials').insert([
+            { case_id: caseId, description: `kendt ${tag}`, quantity: 2, unit: 'stk', unit_cost: Number(SECRET_COST), unit_sales_price: 100, billable: true, source: 'manual', created_by: adminUser.id },
+            { case_id: caseId, description: `nul ${tag}`, quantity: 1, unit: 'stk', unit_cost: 0, unit_sales_price: 10, billable: true, source: 'manual', created_by: adminUser.id },
+            { case_id: caseId, description: `ukendt ${tag}`, quantity: 1, unit: 'stk', unit_cost: null, unit_sales_price: 100, billable: true, source: 'manual', created_by: adminUser.id },
+          ]).select('id') : null
+          r.seed = (seed?.data ?? []).length === 3 && !!woId
+          if (seed?.error) diag += ` seed:${seed.error.message}`
+          const pageUrl = `${base}/dashboard/orders/${caseId}?tab=materialer`
+          const ACTIONS = 'src/lib/actions/case-materials.ts'
+
+          // ---- montør ----
+          const m = await login(mu)
+          try {
+            await gotoSafe(m.page, pageUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            await m.page.getByRole('button', { name: /Tilføj (første )?materiale/ }).first().click({ timeout: 30_000 }).catch(() => {})
+            const dlg = m.page.locator('[aria-labelledby="case-material-dialog-title"]')
+            await dlg.getByPlaceholder('F.eks. Solpanel 425W LR4-72HPH').fill(`montør ${tag}`).catch(() => {})
+            r.montor_ingen_kostfelt = (await dlg.getByTestId('case-material-unit-cost').count()) === 0
+            await dlg.locator('input[inputmode="decimal"]').first().fill('2').catch(() => {})
+            await dlg.getByRole('button', { name: 'Tilføj', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+            const row = await waitMat(`montør ${tag}`)
+            r.montor_gemmer_null = !!row && row.unit_cost === null && row.total_cost === null
+            r.montor_salg_0_som_foer = Number(row?.unit_sales_price) === 0
+            await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+            const body = await m.page.locator('body').innerText()
+            r.montor_ser_ingen_kost = !body.includes('77,77') && !body.includes('Kostpris') && !body.includes('Mangler kostpris') && !body.includes('Ukendt')
+            const list = await callServerAction(m.page, pageUrl, ACTIONS, 'listCaseMaterials', [caseId])
+            r.montor_payload_uden_kost = /^HTTP 200/.test(list) && list.includes(`kendt ${tag}`) && !list.includes('77.77') && !list.includes('155.54')
+            r.montor_payload_skelner_ikke = !/"unit_cost":\s*[0-9-]/.test(list) && !/"total_cost":\s*[0-9-]/.test(list) && !/"unknown_cost_lines":\s*[0-9]/.test(list)
+            if (!r.montor_payload_skelner_ikke) diag += ` montør-list:${list.slice(0, 200)}`
+            const made = await callServerAction(m.page, pageUrl, ACTIONS, 'createCaseMaterial', [{ case_id: caseId, description: `forsøg ${tag}`, quantity: 1, unit_cost: 123, unit_sales_price: 456 }])
+            const tried = await waitMat(`forsøg ${tag}`)
+            r.montor_kan_ikke_saette_kost = /^HTTP 200/.test(made) && tried?.unit_cost === null && Number(tried?.unit_sales_price) === 0
+            const edit = await callServerAction(m.page, pageUrl, ACTIONS, 'updateCaseMaterial', [(seed?.data?.[0] as { id: string }).id, { unit_cost: null }])
+            r.montor_kan_ikke_rette = edit.includes('materials.edit')
+          } finally { await m.ctx.close().catch(() => {}) }
+          const known = (await mats()).find((x) => x.description === `kendt ${tag}`)
+          r.kendt_kost_uroert = Number(known?.unit_cost) === Number(SECRET_COST)
+
+          // ---- salg ser heller ingen kost ----
+          const sp = await login(await mkUser('salg'))
+          try {
+            const list = await callServerAction(sp.page, pageUrl, ACTIONS, 'listCaseMaterials', [caseId])
+            r.salg_payload_uden_kost = !list.includes('77.77') && !list.includes('155.54')
+          } finally { await sp.ctx.close().catch(() => {}) }
+
+          // ---- bogholderi ser den kendte kost ----
+          const bp = await login(await mkUser('bogholderi'))
+          try {
+            await gotoSafe(bp.page, pageUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            const list = await callServerAction(bp.page, pageUrl, ACTIONS, 'listCaseMaterials', [caseId])
+            r.bogholderi_ser_kost = list.includes('77.77')
+          } finally { await bp.ctx.close().catch(() => {}) }
+
+          // ---- kontor: linjer, sum og DB ----
+          await gotoSafe(a.page, pageUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('cost-reveal-toggle').first().click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByTestId('materials-db-row').first().waitFor({ timeout: 30_000 }).catch(() => {})
+          const rowText = async (t: string) => a.page.locator('tr', { hasText: t }).first().innerText().catch(() => '')
+          const unknownRow = await rowText(`ukendt ${tag}`)
+          const zeroRow = await rowText(`nul ${tag}`)
+          r.linje_ukendt = unknownRow.includes('Ukendt') && !/\b0,00\s*kr/.test(unknownRow.split('Ukendt')[0].split('\t').slice(-1)[0])
+          r.linje_rigtig_nul = /0,00/.test(zeroRow) && !zeroRow.includes('Ukendt')
+          r.sum_ukendt = (await a.page.getByTestId('materials-total-cost').innerText().catch(() => '')) === 'Ukendt'
+          r.sum_kendt_del = (await a.page.getByTestId('materials-unknown-note').innerText().catch(() => '')).includes('155,54')
+          r.db_ukendt = (await a.page.getByTestId('materials-db-unknown').count()) === 1
+
+          // ---- kontor: manuel linje uden kost, så 0, så tom igen ----
+          await a.page.getByRole('button', { name: /Tilføj (første )?materiale/ }).first().click({ timeout: 30_000 }).catch(() => {})
+          const dlg = a.page.locator('[aria-labelledby="case-material-dialog-title"]')
+          await dlg.getByPlaceholder('F.eks. Solpanel 425W LR4-72HPH').fill(`manuel ${tag}`).catch(() => {})
+          r.dialog_tom_som_standard = (await dlg.getByTestId('case-material-unit-cost').inputValue().catch(() => 'x')) === ''
+          r.dialog_forhaandsvisning_ukendt = (await dlg.getByTestId('case-material-preview-cost').innerText().catch(() => '')) === 'Ukendt'
+          await dlg.getByRole('button', { name: 'Tilføj', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+          const manual = await waitMat(`manuel ${tag}`)
+          r.manuel_gemmer_null = !!manual && manual.unit_cost === null
+          await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+          const editRow = a.page.locator('tr', { hasText: `manuel ${tag}` }).first()
+          await editRow.getByRole('button', { name: 'Rediger materiale' }).click({ timeout: 30_000 }).catch(() => {})
+          const costField = dlg.getByTestId('case-material-unit-cost')
+          r.rediger_viser_tomt = (await costField.inputValue().catch(() => 'x')) === ''
+          await costField.fill('0').catch(() => {})
+          await dlg.getByRole('button', { name: 'Gem ændringer' }).click({ timeout: 30_000 }).catch(() => {})
+          let afterZero: Mat | null = null
+          for (let i = 0; i < 20; i++) { afterZero = (await mats()).find((x) => x.description === `manuel ${tag}`) ?? null; if (afterZero?.unit_cost === 0) break; await new Promise((res) => setTimeout(res, 1000)) }
+          r.skrevet_0_er_0 = Number(afterZero?.unit_cost) === 0 && afterZero?.unit_cost !== null
+          const audit = await c.admin.from('audit_logs').select('id', { count: 'exact', head: true }).eq('entity_id', manual?.id ?? '').eq('action', 'material_snapshot_changed')
+          r.ukendt_til_0_auditeret = (audit.count ?? 0) === 1
+
+          // ---- sletning (linjen er ikke faktureret) ----
+          const del = await callServerAction(a.page, pageUrl, ACTIONS, 'deleteCaseMaterial', [(await waitMat(`montør ${tag}`))?.id])
+          const del2 = await callServerAction(a.page, pageUrl, ACTIONS, 'deleteCaseMaterial', [(await waitMat(`forsøg ${tag}`))?.id])
+          const del3 = await callServerAction(a.page, pageUrl, ACTIONS, 'deleteCaseMaterial', [manual?.id])
+          r.sletning = [del, del2, del3].every((x) => x.includes('"success":true')) && (await mats()).length === 3
+
+          // ---- ufaktureret arbejde og lukke-status påvirkes ikke ----
+          const billing = await callServerAction(a.page, pageUrl, 'src/lib/actions/service-case-economy.ts', 'getServiceCaseBillingStatus', [caseId])
+          r.ufaktureret_uaendret = billing.includes('"unbilled_materials":3') && billing.includes('"unbilled_sale_total":310')
+          if (!r.ufaktureret_uaendret) diag += ` billing:${billing.slice(0, 200)}`
+          const READINESS = 'src/lib/actions/service-cases.ts'
+          const strip = (t: string) => t.replace(/^HTTP 200\s*/, '').replace(/\d+:\{"a":"\$@1"[^\n]*\n/, '')
+          const unknownReady = strip(await callServerAction(a.page, pageUrl, READINESS, 'getCaseCloseReadinessAction', [caseId]))
+          const unknownId = (await mats()).find((x) => x.description === `ukendt ${tag}`)?.id ?? ''
+          await c.admin.from('case_materials').update({ unit_cost: 5 }).eq('id', unknownId)
+          const knownReady = strip(await callServerAction(a.page, pageUrl, READINESS, 'getCaseCloseReadinessAction', [caseId]))
+          await c.admin.from('case_materials').update({ unit_cost: null }).eq('id', unknownId)
+          r.lukke_status_samme = unknownReady.includes('"success":true') && unknownReady === knownReady
+          if (!r.lukke_status_samme) diag += ` ready:${unknownReady.slice(0, 160)}≠${knownReady.slice(0, 160)}`
+
+          // ---- faktura på salgsprisen, ukendt kost blokerer ikke ----
+          await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const btn = a.page.getByRole('button', { name: /Opret del-faktura/ }).first()
+          await btn.waitFor({ timeout: 90_000 }).catch(() => {})
+          await btn.click({ timeout: 30_000 }).catch(() => {})
+          let inv: { id?: string; status?: string; total_amount?: number } | null = null
+          for (let i = 0; i < 25; i++) {
+            inv = ((await c.admin.from('invoices').select('id, status, total_amount').eq('case_id', caseId ?? '').maybeSingle()).data as typeof inv)
+            if (inv?.id && Number(inv.total_amount) > 0) break
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          if (inv?.id) invIds.push(inv.id)
+          r.faktura_paa_salg = inv?.status === 'draft' && Number(inv?.total_amount) === 310
+          const billed = await mats()
+          r.alle_linjer_faktureret = billed.length === 3 && billed.every((x) => !!x.invoice_line_id)
+          r.kost_stadig_ukendt_efter_faktura = billed.find((x) => x.description === `ukendt ${tag}`)?.unit_cost === null
+
+          // ---- efter udstedelse: omsætning kendt, DB ukendt ----
+          if (inv?.id) await c.admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', inv.id)
+          await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=oekonomi`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('economy-reveal').click({ timeout: 30_000 }).catch(() => {})
+          await a.page.getByTestId('realized-db-card').waitFor({ timeout: 60_000 }).catch(() => {})
+          r.oekonomi_db_ukendt = (await a.page.getByTestId('case-db-value').innerText().catch(() => '')) === 'Ukendt'
+          r.realiseret_ukendt = (await a.page.getByTestId('realized-db-value').innerText().catch(() => '')) === 'Ukendt'
+          const card = await a.page.getByTestId('realized-db-card').innerText().catch(() => '')
+          r.realiseret_viser_faktureret = card.includes('310,00')
+          r.realiseret_forklaring = (await a.page.getByTestId('realized-db-incomplete').count()) === 1
+          const page = await a.page.locator('body').innerText()
+          r.oekonomi_advarsel = page.includes('Materiale uden kostpris')
+          const eco = await callServerAction(a.page, pageUrl, 'src/lib/actions/service-case-economy.ts', 'getServiceCaseEconomy', [caseId])
+          r.oekonomi_payload = eco.includes('"lines_without_cost":1') && eco.includes('"contribution_margin":null') && eco.includes('"realized_db":null') && eco.includes('"cost_known":155.54')
+          if (!r.oekonomi_payload) diag += ` eco:${eco.slice(0, 300)}`
+
+          // ---- rapport ----
+          const report = await callServerAction(a.page, `${base}/dashboard/reports`, 'src/lib/actions/reports.ts', 'getProjectProfitabilityReport', [{ status: 'open', limit: 200 }])
+          const at = report.indexOf(`"project_id":"${caseId}"`)
+          const slice = at >= 0 ? report.slice(at, at + 1400) : ''
+          r.rapport_ukendt = slice.includes('"actual_cost":null') && slice.includes('"realized_db":null') && slice.includes('"realized_incomplete":true') && slice.includes('"unknown_cost_lines":1')
+          if (!r.rapport_ukendt) diag += ` report:${at}:${slice.slice(0, 300)}`
+        } catch (e) {
+          diag += ` ${e instanceof Error ? e.message : String(e)}`
+          r.intet_kast = false
+        } finally {
+          if (invIds.length) {
+            const lineIds = (((await c.admin.from('invoice_lines').select('id').in('invoice_id', invIds)).data ?? []) as Array<{ id: string }>).map((l) => l.id)
+            if (lineIds.length) await c.admin.from('case_materials').update({ invoice_line_id: null }).in('invoice_line_id', lineIds)
+            await c.admin.from('invoice_predecessors').delete().in('invoice_id', invIds)
+            await c.admin.from('invoice_lines').delete().in('invoice_id', invIds)
+            await c.admin.from('invoices').delete().in('id', invIds)
+          }
+          if (caseId) await c.admin.from('case_materials').delete().eq('case_id', caseId)
+          if (woId) { await c.admin.from('work_order_profit').delete().eq('work_order_id', woId); await c.admin.from('work_orders').delete().eq('id', woId) }
+          if (caseId) await c.admin.from('service_cases').delete().eq('id', caseId)
+          if (empId) await c.admin.from('employees').delete().eq('id', empId)
+        }
+        out.push({ id: 'U264 00248 ukendt materialekost: NULL, aldrig 0; montør uden kost; faktura og lukning upåvirket', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
+      }
+
       // U263 FINANS BATCH 1 (Claude-review): Likviditet viser bogført saldo som regnskabstal, Ikke konfigureret/Ukendt er aldrig 0,
       // kreditorer og forventet likviditet er ukendte, en åben faktura vises med den kanoniske rest, serviceleder rører ikke
       // e-conomic-tal, salg og montør afvises. Skriver intet til e-conomic.
@@ -6783,12 +6980,13 @@ ${m.text()}`) })
         r.ingen_prisfelter = (await dlg.locator('input[inputmode="decimal"]').count()) === 1 && (await dlg.getByTestId('material-price-note').count()) === 1
         await dlg.locator('input[inputmode="decimal"]').first().fill('3').catch(() => {})
         await dlg.getByRole('button', { name: 'Tilføj', exact: true }).click({ timeout: 30_000 }).catch(() => {})
-        type MRow = { quantity?: number; unit_cost?: number; unit_sales_price?: number; created_by?: string }
+        type MRow = { quantity?: number; unit_cost?: number | null; unit_sales_price?: number; created_by?: string }
         const readM = async (): Promise<MRow | null> => ((await c.admin.from('case_materials').select('quantity, unit_cost, unit_sales_price, created_by').eq('case_id', jobCaseId ?? '').ilike('description', `Kabel brugt ${stamp}`).maybeSingle()).data as MRow | null)
         let mr: MRow | null = await readM()
         for (let i = 0; i < 20 && !mr; i++) { await new Promise((res) => setTimeout(res, 1000)); mr = await readM() }
         r.registreret = Number(mr?.quantity) === 3 && mr?.created_by === montor.id
-        r.uden_priser = Number(mr?.unit_cost) === 0 && Number(mr?.unit_sales_price) === 0
+        // 00248: montørens linje har ukendt kost (NULL), ikke 0
+        r.uden_priser = mr?.unit_cost === null && Number(mr?.unit_sales_price) === 0
         // lad montør-siden falde til ro (router.refresh efter gem) før næste navigation — ellers afbrudte fetch/WebSocket i U5
         await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         // Øvrige omkostninger: heller ingen kost-kolonner/DB for montør (serveren sender 0)

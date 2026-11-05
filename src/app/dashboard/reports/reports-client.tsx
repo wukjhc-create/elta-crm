@@ -196,8 +196,10 @@ function ProfitGroups({ rows, minDb }: { rows: ProjectProfitability[]; minDb: nu
                 <td className="py-1 truncate max-w-[10rem]">{g.label}</td>
                 <td className="py-1 text-right text-gray-600">{g.cases}</td>
                 <td className="py-1 text-right text-gray-600">{formatCurrency(g.net_invoiced)}</td>
-                <td className={`py-1 text-right font-medium ${g.realized_db_pct != null && g.realized_db_pct < minDb ? 'text-red-600' : 'text-green-700'}`}>
-                  {formatCurrency(g.realized_db)}{g.realized_db_pct != null ? ` (${d1(g.realized_db_pct)} %)` : ''}
+                <td className={`py-1 text-right font-medium ${g.realized_db == null ? 'text-amber-700' : g.realized_db_pct != null && g.realized_db_pct < minDb ? 'text-red-600' : 'text-green-700'}`} data-testid="report-group-db">
+                  {g.realized_db == null
+                    ? `Ukendt (${g.incomplete_cases} ${g.incomplete_cases === 1 ? 'sag' : 'sager'} mangler kostpris)`
+                    : <>{formatCurrency(g.realized_db)}{g.realized_db_pct != null ? ` (${d1(g.realized_db_pct)} %)` : ''}</>}
                 </td>
               </tr>
             ))}
@@ -319,6 +321,11 @@ function ProjectTable() {
         </div>
       </div>
 
+      {sum && sum.cost_incomplete > 0 && costOpen && (
+        <p className="mb-3 rounded bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-xs text-amber-900" data-testid="report-cost-incomplete">
+          {sum.cost_incomplete} {sum.cost_incomplete === 1 ? 'sag har' : 'sager har'} materialer uden kostpris. Kost og DB er vist som Ukendt og er ikke med i gennemsnittene.
+        </p>
+      )}
       {sum && sum.cases > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4" data-testid="report-aftercalc-summary">
           <div className="rounded border p-2">
@@ -391,16 +398,16 @@ function ProjectTable() {
                   {costOpen && (
                     <>
                       <td className="py-2.5 text-right text-gray-600">{p.offered_cost != null ? formatCurrency(p.offered_cost) : '—'}</td>
-                      <td className="py-2.5 text-right text-gray-600">{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</td>
+                      <td className="py-2.5 text-right text-gray-600" data-testid="report-case-actual-cost">{p.actual_cost != null ? formatCurrency(p.actual_cost) : p.unknown_cost_lines > 0 ? 'Ukendt' : '—'}</td>
                       <td className={`py-2.5 text-right font-medium ${p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}`} data-testid="report-case-deviation">
-                        {p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : '—'}
+                        {p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : p.unknown_cost_lines > 0 ? 'Ukendt' : '—'}
                       </td>
                       <td className="py-2.5 text-right text-gray-600">{p.net_invoiced ? formatCurrency(p.net_invoiced) : '—'}</td>
                       <td className="py-2.5 text-right text-gray-600" data-testid="report-case-offered-db">
                         {p.offered_db == null ? '—' : `${formatCurrency(p.offered_db)}${p.offered_db_pct != null ? ` (${d1(p.offered_db_pct)} %)` : ''}`}
                       </td>
-                      <td className={`py-2.5 text-right font-medium ${p.realized_db == null ? 'text-gray-400' : p.realized_db_pct != null && p.realized_db_pct < minDb ? 'text-red-600' : 'text-green-700'}`} data-testid="report-case-realized">
-                        {p.realized_db == null ? '—' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${d1(p.realized_db_pct)} %)` : ''}`}
+                      <td className={`py-2.5 text-right font-medium ${p.realized_incomplete ? 'text-amber-700' : p.realized_db == null ? 'text-gray-400' : p.realized_db_pct != null && p.realized_db_pct < minDb ? 'text-red-600' : 'text-green-700'}`} data-testid="report-case-realized">
+                        {p.realized_incomplete ? 'Ukendt' : p.realized_db == null ? '—' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${d1(p.realized_db_pct)} %)` : ''}`}
                       </td>
                       <td className={`py-2.5 text-right font-medium ${(p.db_deviation_pp ?? 0) < 0 ? 'text-red-600' : 'text-gray-700'}`} data-testid="report-case-db-deviation">
                         {p.db_deviation_pp == null ? '—' : `${p.db_deviation_pp > 0 ? '+' : ''}${d1(p.db_deviation_pp)} pp`}

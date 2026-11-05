@@ -28,7 +28,7 @@ export async function runWoProfit(c: { admin: SupabaseClient }): Promise<WoProfi
     return { revenue: Number(d.revenue), total_cost: Number(d.total_cost), material_cost: Number(d.material_cost), other_cost: Number(d.other_cost), labor_cost: Number(d.labor_cost), revenue_source: String(d.revenue_source) } as Calc
   }
   const snaps = async () => ((await a.from('work_order_profit').select('revenue, total_cost, source').eq('work_order_id', ids.wo).order('created_at')).data ?? []) as Array<{ revenue: number; total_cost: number; source: string }>
-  const addMat = async (cost: number, sale: number) => {
+  const addMat = async (cost: number | null, sale: number) => {
     const r = await a.from('case_materials').insert([{ case_id: ids.caseId, work_order_id: ids.wo, description: `[HARNESS] P ${stamp}`, quantity: 1, unit: 'stk',
       unit_cost: cost, unit_sales_price: sale, billable: true, source: 'manual' }]).select('id')
     if (r.error) throw new Error(`case_materials: ${r.error.message}`)
@@ -88,6 +88,14 @@ export async function runWoProfit(c: { admin: SupabaseClient }): Promise<WoProfi
     await a.from('invoices').update({ status: 'paid' }).eq('id', inv)
     const s3 = await snaps()
     out.push({ id: 'P6 uændrede tal → intet nyt snapshot', ok: s3.length === s2.length, note: `${s2.length} → ${s3.length}` })
+
+    // 00248: materiale uden kost på udført ordre → avancen er ukendt, ikke 0. Snapshottet fejler ikke.
+    await addMat(null, 50)
+    const raw = (await a.rpc('calculate_work_order_profit', { p_work_order_id: ids.wo })).data as Record<string, unknown>
+    out.push({ id: 'P7 ukendt kost: ingen total, avance eller margin', ok: raw.profit === null && raw.total_cost === null && raw.margin_percentage === null && raw.material_cost === null && raw.cost_complete === false && raw.material_unknown_line_count === 1 && Number(raw.revenue) === 1500,
+      note: `profit ${raw.profit} · total ${raw.total_cost} · kendt ${raw.material_cost_known} · omsætning ${raw.revenue}` })
+    const last = ((await a.from('work_order_profit').select('profit, total_cost, margin_percentage').eq('work_order_id', ids.wo).order('created_at', { ascending: false }).limit(1)).data ?? [])[0] as { profit: number | null; total_cost: number | null; margin_percentage: number | null } | undefined
+    out.push({ id: 'P8 snapshot med ukendt kost gemmer NULL', ok: !!last && last.profit === null && last.total_cost === null && last.margin_percentage === null, note: JSON.stringify(last ?? null) })
 
     const cn = await addInv('draft', -300, { invoice_type: 'credit', credit_of_invoice_id: inv })
     await a.from('invoices').update({ status: 'sent' }).eq('id', cn) // kladde → sendt (som appen)

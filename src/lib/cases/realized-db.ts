@@ -5,6 +5,7 @@
  *                                     (kladder tæller ikke; en fuldt krediteret original tæller med og udlignes af
  *                                     sin kreditnota; negativ slutfaktura beholder fortegn — X1 2026-10-07)
  *   realiseret DB                  = netto faktureret − sagens faktiske kost (tid + materialer + øvrige)
+ *                                     00248: ukendt kost (null) giver ukendt DB. Netto faktureret står stadig.
  *
  * Forskel fra "foreløbig DB" (Økonomi-fanens hovedtal): den regner på registrerede SALGSPRISER, også for arbejde der
  * endnu ikke er faktureret. Realiseret DB er det, kunden faktisk er faktureret for, mod det sagen faktisk har kostet.
@@ -25,8 +26,10 @@ export interface RealizedDb {
   /** Kreditnotaer ekskl. moms (positivt tal) */
   credited_ex_vat: number
   net_invoiced_ex_vat: number
-  actual_cost: number
-  realized_db: number
+  /** Null, hvis et materiale mangler kost */
+  actual_cost: number | null
+  /** Null, hvis kosten er ukendt */
+  realized_db: number | null
   /** null når intet er faktureret (procent giver ikke mening) */
   realized_db_pct: number | null
   issued_invoice_count: number
@@ -37,7 +40,7 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 export function computeRealizedDb(
   invoices: RealizedInvoiceInput[],
-  actualCost: number,
+  actualCost: number | null,
   fullyBilled: boolean,
 ): RealizedDb {
   const sum = summarizeCaseInvoices(invoices)
@@ -45,15 +48,15 @@ export function computeRealizedDb(
   const credited = sum.creditedExVat
   const issued = sum.issuedCount
   const net = sum.netExVat
-  const cost = r2(actualCost)
-  const db = r2(net - cost)
+  const cost = actualCost == null ? null : r2(actualCost)
+  const db = cost == null ? null : r2(net - cost)
   return {
     invoiced_ex_vat: r2(invoiced),
     credited_ex_vat: r2(credited),
     net_invoiced_ex_vat: net,
     actual_cost: cost,
     realized_db: db,
-    realized_db_pct: net > 0 ? r2((db / net) * 100) : null,
+    realized_db_pct: db != null && net > 0 ? r2((db / net) * 100) : null,
     issued_invoice_count: issued,
     state: issued === 0 ? 'not_invoiced' : fullyBilled ? 'fully_invoiced' : 'partially_invoiced',
   }

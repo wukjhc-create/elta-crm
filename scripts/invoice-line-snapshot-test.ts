@@ -21,7 +21,7 @@ ok(r.quantity === 2 && r.unit_cost === -100, 'retur uden total → fortegn fra a
 r = lineSnapshot(L(4, null, 200))
 ok(r.quantity === 4 && r.unit_cost === 50, 'mangler stk-pris → total / antal', r)
 r = lineSnapshot(L(null, null, null))
-ok(r.quantity === 1 && r.unit_cost === 0, 'tom linje → 1 × 0', r)
+ok(r.quantity === 1 && r.unit_cost === null, 'tom linje → 1 × ukendt (00248: ikke 0)', r)
 ok(r.quantity * r.unit_cost === 0 && lineSnapshot(L(-2, 100, -200)).quantity > 0, 'antal er altid > 0 (CHECK quantity > 0)')
 // LF-3 (2026-10-16): totalen (efter linjerabat) vinder over listeprisen
 r = lineSnapshot(L(1, 100, 70))

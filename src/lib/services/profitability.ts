@@ -39,10 +39,11 @@ export async function calculateWorkOrderProfit(
     workOrderId: String(d.work_order_id),
     revenue: Number(d.revenue ?? 0),
     laborCost: Number(d.labor_cost ?? 0),
-    materialCost: Number(d.material_cost ?? 0),
-    totalCost: Number(d.total_cost ?? 0),
-    profit: Number(d.profit ?? 0),
-    marginPercentage: Number(d.margin_percentage ?? 0),
+    // 00248: null = kan ikke beregnes, fordi et materiale mangler kost. Aldrig 0.
+    materialCost: d.material_cost == null ? null : Number(d.material_cost),
+    totalCost: d.total_cost == null ? null : Number(d.total_cost),
+    profit: d.profit == null ? null : Number(d.profit),
+    marginPercentage: d.margin_percentage == null ? null : Number(d.margin_percentage),
     revenueSource: (d.revenue_source as 'invoice' | 'planned') ?? 'planned',
     invoiceId: (d.invoice_id as string | null) ?? null,
     timeLogCount: Number(d.time_log_count ?? 0),
@@ -111,7 +112,7 @@ export async function getProfitHistory(
 export async function calculateAndLogProfit(workOrderId: string): Promise<WorkOrderProfit | null> {
   const profit = await calculateWorkOrderProfit(workOrderId)
   if (profit) {
-    console.log('PROFIT CALCULATED:', workOrderId, profit.profit)
+    console.log('PROFIT CALCULATED:', workOrderId, profit.profit ?? 'ukendt')
   }
   return profit
 }

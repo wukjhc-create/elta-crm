@@ -32,6 +32,7 @@ export interface AftercalcRow {
   offered_db_pct: number | null
   realized_db_pct: number | null
   cost_deviation: number | null
+  unknown_cost_lines?: number
 }
 
 export interface AftercalcSummary {
@@ -45,6 +46,8 @@ export interface AftercalcSummary {
   avg_db_deviation_pp: number | null
   low_db: number
   over_cost: number
+  /** 00248: sager hvor et materiale mangler kost. De indgår ikke i DB-gennemsnit og -tællere. */
+  cost_incomplete: number
 }
 
 /** Kun LUKKEDE sager tæller i gennemsnittene (åbne sager er ufærdige og trækker skævt); tællere gælder alle */
@@ -62,5 +65,6 @@ export function summarizeAftercalc(rows: AftercalcRow[], minimumDbPct: number): 
     avg_db_deviation_pp: avg(dbs),
     low_db: rows.filter((r) => r.realized_db_pct != null && r.realized_db_pct < minimumDbPct).length,
     over_cost: rows.filter((r) => (r.cost_deviation ?? 0) > 0).length,
+    cost_incomplete: rows.filter((r) => (r.unknown_cost_lines ?? 0) > 0).length,
   }
 }

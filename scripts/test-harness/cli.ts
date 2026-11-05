@@ -2733,6 +2733,55 @@ Total inkl. moms 11.718,75
     log('✅ rollback-blokken kørt (verificér med tel-00247-state: applied=false, katalog 114/273)')
     return
   }
+  if (SUB === 'mp-00248-state') {
+    // STAGING read-only: case_materials/work_order_profit-skema, funktioner, politikker, grants, md5 af rækkerne (før/efter)
+    const { STATE_00248_SQL } = await import('./mp-00248-probe')
+    log(JSON.stringify(await stagingSql(STATE_00248_SQL)))
+    return
+  }
+  if (SUB === 'mp-00248-probe') {
+    // STAGING ROLLBACK-ONLY: kendt/0/ukendt kost, generet total, avance, snapshot, værn og montør-session. Efterlader intet.
+    const { runProbe00248 } = await import('./mp-00248-probe')
+    const rawSql = async (sql: string) => {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      })
+      return { ok: r.ok, status: r.status, text: await r.text() }
+    }
+    const checks = await runProbe00248(rawSql)
+    for (const ch of checks) log(`${ch.ok ? 'PASS' : 'FAIL'}  ${ch.id}${ch.note ? ` (${ch.note})` : ''}`)
+    const failed = checks.filter((ch) => !ch.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — rullet tilbage`)
+    process.exitCode = failed ? 2 : 0
+    return
+  }
+  if (SUB === 'mp-00248-rollback-proof') {
+    // KUN STAGING: state → rollback-fil → state → migration → state. Rækkerne må ikke ændre sig.
+    const { STATE_00248_SQL, rollback00248Sql, migration00248Sql } = await import('./mp-00248-probe')
+    const state = async () => (await stagingSql(STATE_00248_SQL))[0].f as Record<string, unknown>
+    const before = await state()
+    log(`før: ${JSON.stringify(before)}`)
+    await stagingSql(rollback00248Sql())
+    const rolled = await state()
+    log(`efter rollback: ${JSON.stringify(rolled)}`)
+    await stagingSql(migration00248Sql())
+    const again = await state()
+    log(`efter gen-anvendelse: ${JSON.stringify(again)}`)
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+    const unit = rolled.unit_cost as { nullable: string; default: string | null }
+    const rows = [
+      ['rollback: unit_cost NOT NULL DEFAULT 0', unit.nullable === 'NO' && String(unit.default) === '0'],
+      ['rollback: CHECK væk', rolled.finite_check == null],
+      ['rollback: materialerækker uændrede', same(before.rows, rolled.rows)],
+      ['rollback: snapshots uændrede', same(before.wop_rows, rolled.wop_rows)],
+      ['rollback: politikker og grants uændrede', same(before.pol, rolled.pol) && same(before.grants, rolled.grants) && same(before.col_grants, rolled.col_grants)],
+      ['gen-anvendelse: identisk med før', same(before, again)],
+    ] as const
+    for (const [id, ok] of rows) log(`${ok ? 'PASS' : 'FAIL'}  ${id}`)
+    process.exitCode = rows.every(([, ok]) => ok) ? 0 : 2
+    return
+  }
   if (SUB === 'mp-00243-fingerprint') {
     // STAGING read-only: fingeraftryk af time_logs-funktioner/politikker/grants/triggere (før/efter apply)
     const { FP_00243_SQL } = await import('./mp-00243-sql-probe')

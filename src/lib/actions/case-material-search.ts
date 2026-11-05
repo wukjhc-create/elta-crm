@@ -4,7 +4,7 @@
  * W-3 (pilot-review 2026-10-15): leverandørsøgning i "Tilføj materiale" på sagen — før kun manuel indtastning, så
  * montøren skrev fritekst uden varenr. og kontoret måtte slå prisen op bagefter. Gate: materials.add_to_case (samme som
  * at tilføje). Kost-/salgspris udleveres kun med materials.view.cost_prices (montøren får varenr./navn/enhed; serveren
- * gemmer alligevel 0 for montøren, og kontoret prissætter som før).
+ * gemmer ukendt kost (00248) for montøren, og kontoret prissætter som før).
  */
 
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
@@ -13,6 +13,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { rankBy, searchWords } from '@/lib/products/search-rank'
+import { presentPurchasePrice } from '@/lib/suppliers/product-lookup'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 
@@ -87,9 +88,10 @@ export async function searchProductsForCaseMaterialAction(
       const customerId = (sc as { customer_id?: string | null } | null)?.customer_id ?? null
       // R3-8: aftaler/produktpriser/kategorier hentes én gang for alle hits (før ~4 opslag pr. hit)
       const { supplierLinePricingBatch } = await import('@/lib/offers/supplier-line-pricing')
+      // 00248: en vare uden indkøbspris prissættes ikke (før blev den til kost 0 og et salg ud fra 0). Felterne står tomme.
       const res = await supplierLinePricingBatch({
         customerId, admin,
-        items: rows.map((r) => ({ supplierId: r.supplier_id, supplierProductId: r.id, costPrice: Number(r.cost_price || 0), productMargin: r.margin_percentage && r.margin_percentage > 0 ? r.margin_percentage : null })),
+        items: rows.filter((r) => presentPurchasePrice(r.cost_price) != null).map((r) => ({ supplierId: r.supplier_id, supplierProductId: r.id, costPrice: Number(r.cost_price), productMargin: r.margin_percentage && r.margin_percentage > 0 ? r.margin_percentage : null })),
       }).catch(() => new Map<string, { unitPrice: number; effectiveCost: number }>())
       for (const [id, v] of res) priced.set(id, { cost: Math.round(v.effectiveCost * 100) / 100, sale: v.unitPrice })
     }

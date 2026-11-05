@@ -22,6 +22,7 @@ import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type { ServiceCaseStatus } from '@/types/service-cases.types'
 import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
+import { addCosts, knownCost, marginOf, sumCosts } from '@/lib/cases/material-cost'
 import { effectiveContractSum, expectedCaseRevenue, type RevenueBasis } from '@/lib/cases/expected-revenue'
 import { loadDbThresholds } from '@/lib/profit/db-thresholds'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
@@ -52,9 +53,15 @@ export interface ServiceCaseEconomy {
 
   materials: {
     line_count: number
-    total_cost: number
+    /** 00248: null, hvis en linje mangler kost */
+    total_cost: number | null
+    /** Summen af de kendte linjer */
+    total_cost_known: number
     total_sales_price: number
+    /** Linjer med ukendt kost (NULL) */
     lines_without_cost: number
+    /** Linjer med kendt kost på præcis 0 kr. (kan være rigtigt, men fortjener et blik) */
+    lines_zero_cost: number
     lines_without_sale: number
   }
 
@@ -66,11 +73,15 @@ export interface ServiceCaseEconomy {
   }
 
   totals: {
-    cost: number
+    /** 00248: null, hvis et materiale mangler kost */
+    cost: number | null
+    /** Kendte omkostninger (timer + kendte materialer + øvrige) */
+    cost_known: number
     /** Omsætningsgrundlag for DB: kontraktsum (kontraktsag), netto faktureret (over kontrakt) eller registreret salg */
     sales_price: number
-    contribution_margin: number
-    margin_percentage: number
+    /** 00248: null, når kosten er ukendt */
+    contribution_margin: number | null
+    margin_percentage: number | null
     /** PE-6: hvor sales_price kommer fra */
     revenue_basis: RevenueBasis
     /** Registrerede salgspriser (tid + materialer + øvrige) — før hovedtallet på alle sager */
@@ -149,6 +160,7 @@ export interface ServiceCaseEconomy {
     open_timer: boolean
     employees_without_rate: boolean
     materials_without_cost: boolean
+    materials_zero_cost: boolean
     materials_without_sale: boolean
     low_margin: boolean
     no_contract_sum: boolean
@@ -314,17 +326,17 @@ export async function getServiceCaseEconomy(
       billable: boolean | null
       invoice_line_id: string | null
     }>
-    let mat_cost = 0
+    // 00248: ukendt kost (NULL) tælles for sig og aldrig som 0
+    const matCosts = sumCosts(matRows.map((m) => m.total_cost))
     let mat_sale = 0
-    let mat_without_cost = 0
+    let mat_zero_cost = 0
     let mat_without_sale = 0
     let unbilled_materials = 0
     let unbilled_mat_sale = 0
     for (const m of matRows) {
-      mat_cost += Number(m.total_cost ?? 0)
       const matSale = Number(m.total_sales_price ?? 0)
       if (m.billable !== false) mat_sale += matSale
-      if (Number(m.unit_cost ?? 0) === 0) mat_without_cost += 1
+      if (knownCost(m.unit_cost) === 0) mat_zero_cost += 1
       if (Number(m.unit_sales_price ?? 0) === 0) mat_without_sale += 1
       if (m.invoice_line_id) billed_line_count += 1
       else if (m.billable !== false) { unbilled_materials += 1; unbilled_mat_sale += matSale }
@@ -460,7 +472,8 @@ export async function getServiceCaseEconomy(
     }
 
     // ---- Totals ----
-    const total_cost = total_labor_cost + mat_cost + oth_cost
+    const total_cost = addCosts(total_labor_cost, matCosts.total, oth_cost)
+    const total_cost_known = total_labor_cost + matCosts.known + oth_cost
     const registered_sale = total_labor_sale + mat_sale + oth_sale
     // PE-6: kontraktsager regnes mod kontraktsummen (ekskl. moms), ikke registrerede salgspriser
     const revenue = expectedCaseRevenue({
@@ -469,8 +482,7 @@ export async function getServiceCaseEconomy(
     })
     const total_sale = revenue.revenue
     const dbThresholds = await loadDbThresholds(supabase)
-    const cm = total_sale - total_cost
-    const margin_pct = total_sale > 0 ? (cm / total_sale) * 100 : 0
+    const margin = marginOf(total_sale, total_cost)
 
     // ---- Remaining to invoice ----
     // F-4: med afregningsform — regningsarbejde har intet kontraktgrundlag
@@ -495,9 +507,10 @@ export async function getServiceCaseEconomy(
       no_other_costs: otherRows.length === 0,
       open_timer: open_timer_count > 0,
       employees_without_rate: employees_without_rate_count > 0,
-      materials_without_cost: mat_without_cost > 0,
+      materials_without_cost: matCosts.unknownLines > 0,
+      materials_zero_cost: mat_zero_cost > 0,
       materials_without_sale: mat_without_sale > 0,
-      low_margin: total_sale > 0 && margin_pct < dbThresholds.red,
+      low_margin: total_sale > 0 && margin.percentage != null && margin.percentage < dbThresholds.red,
       no_contract_sum: sag.contract_sum == null && sag.revised_sum == null,
       unconverted_supplier_invoice_lines: si_approved_with_unconverted > 0,
     }
@@ -522,9 +535,11 @@ export async function getServiceCaseEconomy(
       },
       materials: {
         line_count: matRows.length,
-        total_cost: r2(mat_cost),
+        total_cost: matCosts.total,
+        total_cost_known: matCosts.known,
         total_sales_price: r2(mat_sale),
-        lines_without_cost: mat_without_cost,
+        lines_without_cost: matCosts.unknownLines,
+        lines_zero_cost: mat_zero_cost,
         lines_without_sale: mat_without_sale,
       },
       other_costs: {
@@ -534,10 +549,11 @@ export async function getServiceCaseEconomy(
         lines_without_sale: oth_without_sale,
       },
       totals: {
-        cost: r2(total_cost),
+        cost: total_cost,
+        cost_known: r2(total_cost_known),
         sales_price: r2(total_sale),
-        contribution_margin: r2(cm),
-        margin_percentage: r2(margin_pct),
+        contribution_margin: margin.amount,
+        margin_percentage: margin.percentage,
         revenue_basis: revenue.basis,
         registered_sales_price: r2(registered_sale),
       },
@@ -1146,6 +1162,8 @@ const PURCHASE_UNKNOWN_SUPPLIER = 'Ukendt leverandør'
 
 /** Intern indkøbskost pr. leverandør (kun kost — ingen salg/margin). */
 export interface CasePurchaseSupplierBreakdown {
+  /** 00248: linjer hos leverandøren uden kendt kost. Beløbene dækker kun de kendte. */
+  unknown_cost_lines?: number
   supplier_name: string
   material_cost: number
   other_cost: number
@@ -1156,9 +1174,12 @@ export interface CasePurchaseSupplierBreakdown {
 export interface CasePurchaseSummary {
   ok: boolean
   message?: string
-  supplier_material_cost_total: number
+  /** 00248: null, hvis en materialelinje mangler kost */
+  supplier_material_cost_total: number | null
   supplier_other_cost_total: number
-  supplier_purchase_total: number
+  /** 00248: null, hvis en materialelinje mangler kost */
+  supplier_purchase_total: number | null
+  supplier_unknown_cost_lines: number
   /** Antal konverterede leverandørfaktura-linjer (materialer + udlæg). */
   converted_line_count: number
   /** Antal konverterede materialer fra leverandørfaktura. */
@@ -1178,7 +1199,7 @@ export interface CasePurchaseSummary {
 
 export async function getServiceCasePurchaseSummary(caseId: string): Promise<CasePurchaseSummary> {
   const base: CasePurchaseSummary = {
-    ok: false, supplier_material_cost_total: 0, supplier_other_cost_total: 0, supplier_purchase_total: 0,
+    ok: false, supplier_material_cost_total: null, supplier_other_cost_total: 0, supplier_purchase_total: null, supplier_unknown_cost_lines: 0,
     converted_line_count: 0, converted_material_count: 0, converted_other_cost_count: 0,
     supplier_breakdown: [], currency: 'DKK', budget_reference: null, budget_reference_kind: null,
     invoices: [], internal_purchase: true,
@@ -1218,7 +1239,7 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
 
     const matRows = (matRes.data ?? []) as Array<{ total_cost: number | string | null; supplier_name_snapshot: string | null; source_incoming_invoice_line_id: string | null }>
     const othRows = (othRes.data ?? []) as Array<{ total_cost: number | string | null; supplier_name: string | null; source_incoming_invoice_line_id: string | null }>
-    const matTotal = matRows.reduce((s, r) => s + Number(r.total_cost ?? 0), 0)
+    const matCostSum = sumCosts(matRows.map((r) => r.total_cost))
     const othTotal = othRows.reduce((s, r) => s + Number(r.total_cost ?? 0), 0)
 
     // Breakdown pr. leverandør — ren JS-aggregering på allerede-hentede rækker
@@ -1232,8 +1253,9 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
     }
     for (const r of matRows) {
       const b = bucket(r.supplier_name_snapshot)
-      const v = Number(r.total_cost ?? 0)
-      b.material_cost += v; b.total_cost += v; b.line_count += 1
+      const v = knownCost(r.total_cost)
+      b.material_cost += v ?? 0; b.total_cost += v ?? 0; b.line_count += 1
+      if (v == null) b.unknown_cost_lines = (b.unknown_cost_lines ?? 0) + 1
     }
     for (const r of othRows) {
       const b = bucket(r.supplier_name)
@@ -1268,9 +1290,10 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
 
     return {
       ok: true,
-      supplier_material_cost_total: r2(matTotal),
+      supplier_material_cost_total: matCostSum.total,
       supplier_other_cost_total: r2(othTotal),
-      supplier_purchase_total: r2(matTotal + othTotal),
+      supplier_purchase_total: addCosts(matCostSum.total, othTotal),
+      supplier_unknown_cost_lines: matCostSum.unknownLines,
       converted_line_count: matRows.length + othRows.length,
       converted_material_count: matRows.length,
       converted_other_cost_count: othRows.length,

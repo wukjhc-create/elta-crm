@@ -1347,8 +1347,8 @@ export interface ConversionPreviewLine {
   description: string
   quantity: number
   unit: string
-  unit_cost: number
-  total: number
+  unit_cost: number | null
+  total: number | null
   suggested: 'material' | 'other_cost'
   already_converted: boolean
 }
@@ -1436,7 +1436,7 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     })
     const quantity = snap.quantity
     const unitCost = snap.unit_cost
-    const total = Math.round(unitCost * quantity * 100) / 100
+    const total = unitCost == null ? null : Math.round(unitCost * quantity * 100) / 100
     const alreadyConverted = !!(l.converted_at || l.converted_case_material_id || l.converted_case_other_cost_id)
     return {
       line_id: l.id as string,

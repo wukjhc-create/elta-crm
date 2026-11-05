@@ -47,6 +47,11 @@ function fmtNum(n: number, decimals = 2): string {
   }).format(n)
 }
 
+/** 00248: null er ukendt, aldrig 0,00 kr. */
+function fmtCost(n: number | null): string {
+  return n == null ? 'Ukendt' : formatCurrency(n, 'DKK', 2)
+}
+
 function fmtPct(n: number): string {
   return `${new Intl.NumberFormat('da-DK', {
     minimumFractionDigits: 1,
@@ -264,7 +269,7 @@ export function OrderMaterialsTab({
                       <>
                         {showCost && (
                         <td className="px-2 py-2 text-right tabular-nums">
-                          {formatCurrency(r.unit_cost, 'DKK', 2)}
+                          <span className={r.unit_cost == null ? 'text-amber-700' : undefined} data-testid="material-unit-cost">{fmtCost(r.unit_cost)}</span>
                         </td>
                         )}
                         <td className="px-2 py-2 text-right tabular-nums">
@@ -272,7 +277,7 @@ export function OrderMaterialsTab({
                         </td>
                         {showCost && (
                         <td className="px-2 py-2 text-right tabular-nums font-medium">
-                          {formatCurrency(r.total_cost, 'DKK', 2)}
+                          <span className={r.total_cost == null ? 'text-amber-700' : undefined} data-testid="material-total-cost">{fmtCost(r.total_cost)}</span>
                         </td>
                         )}
                         <td className="px-2 py-2 text-right tabular-nums font-medium">
@@ -336,7 +341,12 @@ export function OrderMaterialsTab({
                   </td>
                   {showCost && (
                   <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-900">
-                    {formatCurrency(summary.total_cost, 'DKK', 2)}
+                    <span data-testid="materials-total-cost">{fmtCost(summary.total_cost)}</span>
+                    {(summary.unknown_cost_lines ?? 0) > 0 && (
+                      <div className="text-[11px] font-normal text-amber-700" data-testid="materials-unknown-note">
+                        Kendt {formatCurrency(summary.total_cost_known ?? 0, 'DKK', 2)} · {summary.unknown_cost_lines} mangler kostpris
+                      </div>
+                    )}
                   </td>
                   )}
                   <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-900">
@@ -350,6 +360,9 @@ export function OrderMaterialsTab({
                     Foreløbig DB
                   </td>
                   <td colSpan={2} className="px-2 py-1 text-right">
+                    {summary.contribution_margin == null || summary.margin_percentage == null ? (
+                      <span className="tabular-nums font-semibold text-amber-700" data-testid="materials-db-unknown">Ukendt: kostpris mangler</span>
+                    ) : (
                     <div className="flex items-center justify-end gap-2">
                       <span
                         className={`tabular-nums font-semibold ${
@@ -372,6 +385,7 @@ export function OrderMaterialsTab({
                         {fmtPct(summary.margin_percentage)}
                       </span>
                     </div>
+                    )}
                   </td>
                   <td colSpan={2} />
                 </tr>

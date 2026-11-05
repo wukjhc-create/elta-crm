@@ -57,12 +57,21 @@ function fmtPct(n: number, decimals = 1): string {
   }).format(n)} %`
 }
 
-function marginPalette(pct: number, t: { red: number; green: number }): {
+function marginPalette(pct: number | null, t: { red: number; green: number }): {
   text: string
   bg: string
   border: string
   pill: string
 } {
+  // 00248: ukendt DB har hverken grøn, gul eller rød
+  if (pct == null) {
+    return {
+      text: 'text-gray-700',
+      bg: 'bg-gray-50',
+      border: 'ring-gray-200',
+      pill: 'bg-gray-100 text-gray-700',
+    }
+  }
   // PE-7: grænser fra calculation_settings (Trafiklys), samme som tilbuddene
   const level = dbLevel(pct, t)
   if (level === 'green')
@@ -220,15 +229,17 @@ function OrderEconomyTabContent({
         <HeroCard
           label="Samlet kost"
           icon={<TrendingDown className="w-4 h-4" />}
-          value={fmtKr(data.totals.cost)}
-          sub={`Registreret salg ${fmtKr(data.totals.registered_sales_price)}`}
+          value={data.totals.cost == null ? 'Ukendt' : fmtKr(data.totals.cost)}
+          sub={data.totals.cost == null
+            ? `Kendt kost ${fmtKr(data.totals.cost_known)} · ${data.materials.lines_without_cost} materiale(r) mangler kostpris`
+            : `Registreret salg ${fmtKr(data.totals.registered_sales_price)}`}
         />
         <div
           className={`rounded-lg ring-1 ${palette.border} ${palette.bg} px-4 py-3`}
         >
           <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-600">
             <span className="flex items-center gap-1">
-              {data.totals.margin_percentage >= 0 ? (
+              {data.totals.margin_percentage == null || data.totals.margin_percentage >= 0 ? (
                 <TrendingUp className="w-4 h-4" />
               ) : (
                 <TrendingDown className="w-4 h-4" />
@@ -241,12 +252,12 @@ function OrderEconomyTabContent({
               </span>
             )}
           </div>
-          <div className={`mt-1 text-xl font-semibold tabular-nums ${palette.text}`}>
-            {fmtKr(data.totals.contribution_margin)}
+          <div className={`mt-1 text-xl font-semibold tabular-nums ${palette.text}`} data-testid="case-db-value">
+            {data.totals.contribution_margin == null ? 'Ukendt' : fmtKr(data.totals.contribution_margin)}
           </div>
           <div className="mt-0.5 text-xs">
             <span className={`px-1.5 py-0.5 rounded ${palette.pill}`}>
-              {fmtPct(data.totals.margin_percentage)}
+              {data.totals.margin_percentage == null ? 'Mangler kostpris' : fmtPct(data.totals.margin_percentage)}
             </span>
             <span className="text-gray-500 ml-1.5" data-testid="case-db-basis">
               {data.totals.revenue_basis === 'contract'
@@ -335,6 +346,12 @@ function OrderEconomyTabContent({
                   label: 'Mangler kostpris',
                   value: data.materials.lines_without_cost.toString(),
                   warning: true,
+                }
+              : null,
+            data.materials.lines_zero_cost > 0
+              ? {
+                  label: 'Kostpris 0 kr.',
+                  value: data.materials.lines_zero_cost.toString(),
                 }
               : null,
             data.materials.lines_without_sale > 0
@@ -600,7 +617,7 @@ function SupplierInvoicesPanel({ data }: { data: ServiceCaseEconomy }) {
 // =====================================================
 
 function RealizedDbCard({ realized }: { realized: ServiceCaseEconomy['realized'] }) {
-  const tone = realized.state === 'not_invoiced'
+  const tone = realized.state === 'not_invoiced' || realized.realized_db == null
     ? 'text-gray-500'
     : realized.realized_db >= 0 ? 'text-emerald-700' : 'text-red-700'
   const stateText = realized.state === 'not_invoiced'
@@ -616,14 +633,17 @@ function RealizedDbCard({ realized }: { realized: ServiceCaseEconomy['realized']
       </h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
         <Mini label="Netto faktureret ekskl. moms" value={fmtKr(realized.net_invoiced_ex_vat)} hint={realized.credited_ex_vat > 0 ? `heraf kreditnota −${fmtKr(realized.credited_ex_vat)}` : undefined} />
-        <Mini label="Faktisk kost" value={fmtKr(realized.actual_cost)} />
+        <Mini label="Faktisk kost" value={realized.actual_cost == null ? 'Ukendt' : fmtKr(realized.actual_cost)} />
         <div>
           <div className="text-xs text-gray-500">Realiseret DB</div>
-          <div className={`font-semibold tabular-nums ${tone}`} data-testid="realized-db-value">{fmtKr(realized.realized_db)}</div>
+          <div className={`font-semibold tabular-nums ${tone}`} data-testid="realized-db-value">{realized.realized_db == null ? 'Ukendt' : fmtKr(realized.realized_db)}</div>
         </div>
         <Mini label="Realiseret DB %" value={realized.realized_db_pct == null ? '—' : fmtPct(realized.realized_db_pct)} />
       </div>
       <p className="text-xs text-gray-500 mt-2" data-testid="realized-db-state">{stateText}</p>
+      {realized.actual_cost == null && (
+        <p className="text-xs text-amber-700 mt-1" data-testid="realized-db-incomplete">Realiseret DB kan ikke beregnes, fordi et materiale mangler kostpris. Fakturaerne er ikke berørt.</p>
+      )}
     </div>
   )
 }
@@ -667,15 +687,16 @@ function BreakdownCard({
 }: {
   title: string
   icon: React.ReactNode
-  cost: number
+  /** 00248: null = ukendt */
+  cost: number | null
   sale: number
   rows: Array<{ label: string; value: string; warning?: boolean }>
   onOpen: () => void
   tone: 'emerald' | 'blue' | 'purple'
   thresholds: { red: number; green: number }
 }) {
-  const cm = sale - cost
-  const pct = sale > 0 ? (cm / sale) * 100 : 0
+  const cm = cost == null ? null : sale - cost
+  const pct = cm != null && sale > 0 ? (cm / sale) * 100 : null
   const palette = sale > 0 ? marginPalette(pct, thresholds) : null
 
   const ringTone =
@@ -705,7 +726,7 @@ function BreakdownCard({
         <div>
           <div className="text-[10px] uppercase tracking-wide text-gray-500">Kost</div>
           <div className="tabular-nums text-base font-semibold text-gray-900">
-            {fmtKr(cost)}
+            {cost == null ? 'Ukendt' : fmtKr(cost)}
           </div>
         </div>
         <div>
@@ -720,11 +741,13 @@ function BreakdownCard({
           <span className="text-gray-600 uppercase tracking-wide text-[10px]">DB</span>
           <span className="flex items-center gap-1.5">
             <span className={`tabular-nums font-medium ${palette.text}`}>
-              {fmtKr(cm)}
+              {cm == null ? 'Ukendt' : fmtKr(cm)}
             </span>
+            {pct != null && (
             <span className={`px-1.5 py-0.5 rounded ${palette.pill}`}>
               {fmtPct(pct)}
             </span>
+            )}
           </span>
         </div>
       )}
@@ -820,7 +843,15 @@ function QualityFlagsPanel({
     items.push({
       severity: 'warning',
       label: 'Materiale uden kostpris',
-      detail: `${data.materials.lines_without_cost} materialelinje(r) har 0 i kostpris — DB% forskønnes.`,
+      detail: `${data.materials.lines_without_cost} materialelinje(r) mangler kostpris. Samlet kost og DB kan ikke beregnes, før de er udfyldt.`,
+      onClick: () => onSwitchTab('materialer'),
+    })
+  }
+  if (data.quality_flags.materials_zero_cost) {
+    items.push({
+      severity: 'warning',
+      label: 'Materiale med kostpris 0 kr.',
+      detail: `${data.materials.lines_zero_cost} materialelinje(r) har en kostpris på 0 kr. Tæller som gratis. Ret den, hvis det ikke passer.`,
       onClick: () => onSwitchTab('materialer'),
     })
   }
@@ -836,7 +867,7 @@ function QualityFlagsPanel({
     items.push({
       severity: 'warning',
       label: 'Lav DB',
-      detail: `Dækningsgrad er ${fmtPct(data.totals.margin_percentage)} — under tærsklen på ${fmtPct(data.db_thresholds.red)}.`,
+      detail: `Dækningsgrad er ${fmtPct(data.totals.margin_percentage as number)} — under tærsklen på ${fmtPct(data.db_thresholds.red)}.`,
     })
   }
   if (data.quality_flags.unconverted_supplier_invoice_lines) {
