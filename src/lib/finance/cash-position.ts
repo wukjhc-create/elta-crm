@@ -2,6 +2,9 @@
  * Canonical cash position. Amounts come from the existing invoice open-amount
  * rule and one configured e-conomic ledger account. A missing figure has no amount.
  * Supplier invoice totals are not open liabilities: CRM stores no remainder.
+ *
+ * No "stale" source: nothing stores a read timestamp, so every shown balance was read in this request. A read that
+ * did not succeed is error. If a later change caches or stores a balance, it must return its age and add stale here.
  */
 import { buildFinancePosition, type FinancePosition, type ForecastId, type Money, type PayableInput, type ReceivableInput } from '@/lib/finance/position'
 import type { Permission } from '@/lib/auth/permissions'
@@ -10,10 +13,8 @@ import { formatCurrency } from '@/lib/utils/format'
 
 export type FinanceSource =
   | 'economic_ledger'
-  | 'economic_open_items'
-  | 'crm_forecast'
+  | 'crm_open_items'
   | 'unavailable'
-  | 'stale'
   | 'error'
   | 'configuration_required'
 
@@ -47,12 +48,13 @@ export interface FinanceQueueItem {
 }
 
 export interface FinanceAlert {
-  code: 'economic_read_failed' | 'finance_data_stale' | 'bank_configuration_required' | 'projected_cash_below_minimum' | 'overdue_receivables_above_threshold'
+  code: 'economic_read_failed' | 'finance_read_failed' | 'bank_configuration_required' | 'projected_cash_below_minimum' | 'overdue_receivables_above_threshold'
   text: string
 }
 
 export interface FinanceCashPosition {
   calculatedAt: string
+  /** The read in this request. Not stored, and not a sync time. */
   economicReadAt: string | null
   bookedBankBalance: QualifiedAmount
   /** Never a PSD2 or realtime bank figure. */
@@ -73,26 +75,27 @@ export interface FinanceCashPosition {
   ledger: FinancePosition
 }
 
-export const FINANCE_STALE_MS = 24 * 60 * 60 * 1000
-
 const ACTUAL_BANK: QualifiedAmount = {
   source: 'unavailable',
   amount: null,
   detail: 'Der er ingen bankforbindelse. En bogført kontosaldo er ikke en faktisk banksaldo.',
 }
 
-const SOURCE_RANK: FinanceSource[] = ['error', 'configuration_required', 'unavailable', 'stale', 'crm_forecast', 'economic_open_items', 'economic_ledger']
+const HIDDEN: QualifiedAmount = { source: 'unavailable', amount: null, detail: 'Skjult for denne adgang.' }
+
+const SOURCE_RANK: FinanceSource[] = ['error', 'configuration_required', 'unavailable', 'crm_open_items', 'economic_ledger']
 
 export function worstSource(sources: FinanceSource[]): FinanceSource {
   return sources.reduce((worst, source) => (SOURCE_RANK.indexOf(source) < SOURCE_RANK.indexOf(worst) ? source : worst))
 }
 
 function usable(source: FinanceSource): boolean {
-  return source === 'economic_ledger' || source === 'economic_open_items' || source === 'crm_forecast' || source === 'stale'
+  return source === 'economic_ledger' || source === 'crm_open_items'
 }
 
-/** Renders a real zero. Error, missing and unconfigured values stay Ukendt even if a caller left 0 on them. */
+/** Renders a real zero. Error and missing values stay Ukendt, and missing setup says so, even if a caller left 0 on them. */
 export function formatQualifiedKr(value: QualifiedAmount): string {
+  if (value.source === 'configuration_required') return 'Ikke konfigureret'
   if (!usable(value.source) || value.amount == null || !Number.isFinite(value.amount)) return 'Ukendt'
   return formatCurrency(value.amount, 'DKK', 2)
 }
@@ -101,7 +104,8 @@ export function projectCash(opening: QualifiedAmount, incoming: QualifiedAmount,
   const source = worstSource([opening.source, incoming.source, outgoing.source])
   if (opening.amount == null || incoming.amount == null || outgoing.amount == null || !usable(opening.source) || !usable(incoming.source) || !usable(outgoing.source)) {
     return {
-      source: usable(source) ? 'unavailable' : source,
+      // Missing setup on the opening balance does not make a forecast "not configured": the forecast is just unknown
+      source: source === 'error' ? 'error' : 'unavailable',
       amount: null,
       detail: 'Forventet likviditet beregnes ikke, fordi saldo, indbetaling eller udbetaling mangler. Et manglende tal er ikke 0.',
     }
@@ -115,18 +119,22 @@ export function projectCash(opening: QualifiedAmount, incoming: QualifiedAmount,
 
 export interface BookedBankInput {
   permitted: boolean
+  /** The settings row could not be read. Not the same as no settings. */
+  settingsFailed?: boolean
   credentialsReady: boolean
   accountNumber: number | null
+  accountName?: string | null
   probe: 'not_needed' | 'ok' | 'failed' | 'timeout'
-  balance: { outcome: 'not_read' } | { outcome: 'known'; amount: number } | { outcome: 'failed' } | { outcome: 'timeout' } | { outcome: 'missing_balance' }
+  balance: { outcome: 'not_read' } | { outcome: 'known'; amount: number } | { outcome: 'failed' } | { outcome: 'timeout' } | { outcome: 'missing_balance' } | { outcome: 'not_balance_sheet' }
   readAt: string | null
-  nowMs: number
-  staleMs?: number
 }
 
 export function qualifyBookedBank(input: BookedBankInput): QualifiedAmount {
   if (!input.permitted) {
     return { source: 'unavailable', amount: null, detail: 'Bogført saldo kræver e-conomic-adgang.' }
+  }
+  if (input.settingsFailed) {
+    return { source: 'error', amount: null, detail: 'e-conomic-opsætningen kunne ikke læses. Saldoen er ukendt, ikke 0.' }
   }
   if (!input.credentialsReady) {
     return { source: 'configuration_required', amount: null, detail: 'e-conomic er ikke opsat. Der hentes ingen saldo.' }
@@ -137,26 +145,27 @@ export function qualifyBookedBank(input: BookedBankInput): QualifiedAmount {
     }
     return { source: 'configuration_required', amount: null, detail: 'Bankkonto er ikke valgt i opsætningen. Der er intet kontonummer i koden.' }
   }
+  if (input.balance.outcome === 'not_balance_sheet') {
+    return { source: 'configuration_required', amount: null, detail: `Konto ${input.accountNumber} er ikke en statuskonto i e-conomic og kan ikke være bankkontoen. Saldoen vises ikke. Ret kontoen i opsætningen.` }
+  }
   if (input.balance.outcome === 'timeout' || input.balance.outcome === 'failed' || input.balance.outcome === 'not_read') {
     return { source: 'error', amount: null, detail: 'Den bogførte saldo kunne ikke læses. Det er ikke 0.' }
   }
   if (input.balance.outcome === 'missing_balance') {
-    return { source: 'error', amount: null, detail: 'Kontoen havde ingen saldo. Det er ikke 0.' }
+    return { source: 'error', amount: null, detail: 'Kontoen havde ingen læsbar saldo. Det er ikke 0.' }
   }
-  const staleMs = input.staleMs ?? FINANCE_STALE_MS
-  const readMs = input.readAt ? Date.parse(input.readAt) : Number.NaN
-  const stale = Number.isFinite(readMs) && input.nowMs - readMs > staleMs
+  const name = input.accountName ? ` (${input.accountName})` : ''
   return {
-    source: stale ? 'stale' : 'economic_ledger',
+    source: 'economic_ledger',
     amount: input.balance.amount,
-    detail: `Bogført saldo på konto ${input.accountNumber}. Ikke en faktisk banksaldo.`,
+    detail: `Bogført saldo på konto ${input.accountNumber}${name}, valgt som bankkonto i opsætningen. Ikke en faktisk banksaldo. Kontrollér, at det er bankkontoen.`,
   }
 }
 
 function fromMoney(money: Money, loaded: boolean, detail: string): QualifiedAmount {
   if (!loaded) return { source: 'error', amount: null, detail: 'Tallet kunne ikke læses. Det er ikke 0.' }
-  if (money.state === 'unknown') return { source: 'unavailable', amount: null, detail }
-  return { source: 'crm_forecast', amount: money.amount, detail }
+  if (money.state === 'unknown') return { source: 'unavailable', amount: null, detail: 'Et beløb mangler, så summen er ukendt. Den er ikke 0.' }
+  return { source: 'crm_open_items', amount: money.amount, detail }
 }
 
 function windowMoney(position: FinancePosition, id: ForecastId): Money {
@@ -170,7 +179,7 @@ function sumInflows(position: FinancePosition, ids: ForecastId[], loaded: boolea
     return { source: 'unavailable', amount: null, detail: 'Et indbetalingsbeløb mangler. Horisonten er ikke 0.' }
   }
   return {
-    source: 'crm_forecast',
+    source: 'crm_open_items',
     amount: roundMoney(parts.reduce((sum, part) => sum + (part.state === 'known' ? part.amount : 0), 0)),
     detail,
   }
@@ -178,7 +187,8 @@ function sumInflows(position: FinancePosition, ids: ForecastId[], loaded: boolea
 
 const PAYABLE_GAP = 'CRM gemmer ikke restbeløb på leverandørfakturaer, og e-conomic-kreditorposter læses ikke. Fakturatotalen bruges ikke som gæld og ikke som 0.'
 
-function payableGap(loaded: boolean): QualifiedAmount {
+function payableGap(visible: boolean, loaded: boolean): QualifiedAmount {
+  if (!visible) return HIDDEN
   if (!loaded) return { source: 'error', amount: null, detail: 'Leverandørfakturaerne kunne ikke læses. Gælden er ikke 0.' }
   return { source: 'unavailable', amount: null, detail: PAYABLE_GAP }
 }
@@ -189,13 +199,15 @@ export function evaluateFinanceAlerts(input: {
   overdueReceivables: QualifiedAmount
   minimumCashDkk: number | null
   overdueThresholdDkk: number | null
+  /** A CRM read the user may see failed. No alert about it would look like nothing is wrong. */
+  crmReadFailed?: boolean
 }): FinanceAlert[] {
   const alerts: FinanceAlert[] = []
+  if (input.crmReadFailed) {
+    alerts.push({ code: 'finance_read_failed', text: 'Fakturaerne kunne ikke læses. Tallene vises ikke som 0.' })
+  }
   if (input.booked.source === 'error') {
     alerts.push({ code: 'economic_read_failed', text: 'e-conomic-saldoen kunne ikke læses. Den vises ikke som 0.' })
-  }
-  if (input.booked.source === 'stale') {
-    alerts.push({ code: 'finance_data_stale', text: 'Den bogførte saldo er ældre end et døgn.' })
   }
   if (input.booked.source === 'configuration_required') {
     alerts.push({ code: 'bank_configuration_required', text: input.booked.detail })
@@ -238,6 +250,9 @@ function supplierQueue(rows: FinancePosition['payables']): FinanceQueueItem[] {
 export function buildCashPosition(input: {
   today: string
   calculatedAt: string
+  /** False when the user may not see this section. Hidden is not a failed read. */
+  receivablesVisible?: boolean
+  payablesVisible?: boolean
   receivablesLoaded: boolean
   payablesLoaded: boolean
   invoices: ReceivableInput[]
@@ -246,6 +261,8 @@ export function buildCashPosition(input: {
   minimumCashDkk?: number | null
   overdueThresholdDkk?: number | null
 }): FinanceCashPosition {
+  const receivablesVisible = input.receivablesVisible !== false
+  const payablesVisible = input.payablesVisible !== false
   const ledger = buildFinancePosition({
     today: input.today,
     receivablesLoaded: input.receivablesLoaded,
@@ -253,20 +270,21 @@ export function buildCashPosition(input: {
     invoices: input.invoices,
     payables: input.payables,
   })
+  const shownReceivable = (value: QualifiedAmount): QualifiedAmount => (receivablesVisible ? value : HIDDEN)
   const bookedBankBalance = qualifyBookedBank(input.bank)
-  const openReceivables = fromMoney(ledger.receivables, input.receivablesLoaded, 'Åbne udstedte fakturaer i DKK efter den eksisterende åbne-saldo-regel.')
-  const overdueReceivables = fromMoney(ledger.overdueAmount, input.receivablesLoaded, 'Forfald før i dag og mindst 0,50 kr. Forfald i dag tæller ikke med.')
-  const openPayables = payableGap(input.payablesLoaded)
-  const overduePayables = payableGap(input.payablesLoaded)
-  const unscheduledReceivables = sumInflows(ledger, ['undated'], input.receivablesLoaded, 'Åbne fakturaer uden forfaldsdato. De ligger ikke i 30, 60 eller 90 dage.')
-  const unscheduledPayables = payableGap(input.payablesLoaded)
-  const outgoing = payableGap(input.payablesLoaded)
-  const incoming = (days: 30 | 60 | 90, ids: ForecastId[]) => sumInflows(
+  const openReceivables = shownReceivable(fromMoney(ledger.receivables, input.receivablesLoaded, 'Åbne udstedte fakturaer i DKK efter den eksisterende åbne-saldo-regel.'))
+  const overdueReceivables = shownReceivable(fromMoney(ledger.overdueAmount, input.receivablesLoaded, 'Forfald før i dag og mindst 0,50 kr. Forfald i dag tæller ikke med.'))
+  const openPayables = payableGap(payablesVisible, input.payablesLoaded)
+  const overduePayables = payableGap(payablesVisible, input.payablesLoaded)
+  const unscheduledReceivables = shownReceivable(sumInflows(ledger, ['undated'], input.receivablesLoaded, 'Åbne fakturaer uden forfaldsdato. De ligger ikke i 30, 60 eller 90 dage.'))
+  const unscheduledPayables = payableGap(payablesVisible, input.payablesLoaded)
+  const outgoing = payableGap(payablesVisible, input.payablesLoaded)
+  const incoming = (days: 30 | 60 | 90, ids: ForecastId[]) => shownReceivable(sumInflows(
     ledger,
     ids,
     input.receivablesLoaded,
     `Åbne fakturaer med forfald inden for ${days} dage, inklusive allerede forfaldne. Uden forfaldsdato er ikke med.`,
-  )
+  ))
   const horizon = (days: 30 | 60 | 90, ids: ForecastId[]): CashHorizon => {
     const expectedIncoming = incoming(days, ids)
     const projected = projectCash(bookedBankBalance, expectedIncoming, outgoing)
@@ -290,6 +308,7 @@ export function buildCashPosition(input: {
     overdueReceivables,
     minimumCashDkk: input.minimumCashDkk ?? null,
     overdueThresholdDkk: input.overdueThresholdDkk ?? null,
+    crmReadFailed: (receivablesVisible && !input.receivablesLoaded) || (payablesVisible && !input.payablesLoaded),
   })
   return {
     calculatedAt: input.calculatedAt,
@@ -300,7 +319,7 @@ export function buildCashPosition(input: {
     overdueReceivables,
     openPayables,
     overduePayables,
-    receivablesAfter90: sumInflows(ledger, ['later'], input.receivablesLoaded, 'Åbne fakturaer med forfald efter 90 dage. De indgår ikke i 90-dages-likviditeten.'),
+    receivablesAfter90: shownReceivable(sumInflows(ledger, ['later'], input.receivablesLoaded, 'Åbne fakturaer med forfald efter 90 dage. De indgår ikke i 90-dages-likviditeten.')),
     forecast30,
     forecast60,
     forecast90,

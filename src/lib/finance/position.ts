@@ -137,12 +137,15 @@ export function amountReadable(value: number | string | null | undefined): boole
   return Number.isFinite(Number(value))
 }
 
-function creditedCreditUnreadable(invoices: ReceivableInput[], originalId: string): boolean {
-  return invoices.some((row) => row.invoiceType === 'credit'
-    && row.creditOfInvoiceId === originalId
-    && !row.voidedAt
-    && (row.status === 'sent' || row.status === 'paid')
-    && !amountReadable(row.finalAmount))
+/** Originals with an issued credit note whose amount cannot be read. Their open amount is not known. */
+function originalsWithUnreadableCredit(invoices: ReceivableInput[]): Set<string> {
+  const ids = new Set<string>()
+  for (const row of invoices) {
+    if (row.invoiceType === 'credit' && row.creditOfInvoiceId && !row.voidedAt && (row.status === 'sent' || row.status === 'paid') && !amountReadable(row.finalAmount)) {
+      ids.add(row.creditOfInvoiceId)
+    }
+  }
+  return ids
 }
 
 export function forecastBucket(due: string | null, today: string): ForecastId {
@@ -201,6 +204,7 @@ export function buildFinancePosition(input: {
       status: row.status ?? '',
       final_amount: row.finalAmount,
     })))
+    const unreadableCredit = originalsWithUnreadableCredit(input.invoices)
     for (const row of input.invoices) {
       if (row.invoiceType === 'credit' && !row.voidedAt && (row.status === 'sent' || row.status === 'paid') && !row.creditOfInvoiceId) {
         unlinkedCreditCount += 1
@@ -210,7 +214,7 @@ export function buildFinancePosition(input: {
       const bucket = forecastBucket(due, input.today)
       const readable = amountReadable(row.finalAmount) && amountReadable(row.amountPaid)
       if (!isDkkInvoice(row)) {
-        const creditUnreadable = creditedCreditUnreadable(input.invoices, row.id)
+        const creditUnreadable = unreadableCredit.has(row.id)
         const open = readable && !creditUnreadable
           ? sentOpenAmount({ id: row.id, final_amount: row.finalAmount, amount_paid: row.amountPaid }, credited)
           : null
@@ -229,7 +233,7 @@ export function buildFinancePosition(input: {
         })
         continue
       }
-      if (!readable || creditedCreditUnreadable(input.invoices, row.id)) {
+      if (!readable || unreadableCredit.has(row.id)) {
         unknownAmountCount += 1
         receivables = { state: 'unknown' }
         windowOf(bucket).inflow = { state: 'unknown' }
@@ -343,9 +347,9 @@ export function buildFinancePosition(input: {
   const upcomingRows = openRows
     .filter((row) => row.currency === 'DKK' && row.dueDate != null && row.dueDate >= input.today && row.dueDate <= upcomingEnd && Number.isFinite(row.amount) && row.amount > 0)
     .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+  payableRows.sort((a, b) => (a.dueDate ?? '9999-99-99').localeCompare(b.dueDate ?? '9999-99-99'))
   const overduePayableRows = payableRows.filter((row) => row.dueDate != null && row.dueDate < input.today)
   const upcomingPayableRows = payableRows.filter((row) => row.dueDate != null && row.dueDate >= input.today && row.dueDate <= upcomingEnd)
-  payableRows.sort((a, b) => (a.dueDate ?? '9999-99-99').localeCompare(b.dueDate ?? '9999-99-99'))
 
   return {
     receivables,

@@ -1,73 +1,34 @@
 /**
- * Read-only e-conomic collections. Callers must already have settings.economic.
- * One page only. complete=false means the page is not the full set.
+ * Read-only e-conomic reads for the finance page. Callers must already hold settings.economic and pass the settings
+ * they read after that check. Only what the page uses is here; see economicReadPathAllowed.
  */
-import { economicGet } from '@/lib/services/economic-client'
-import { parseAccountBalance, parseCollection } from '@/lib/economic/read-model'
+import { economicGetWithSettings, type ReadyEconomicSettings } from '@/lib/services/economic-client'
+import { parseCollection, parseLedgerAccount } from '@/lib/economic/read-model'
 
 const PAGE = 100
 
-export interface EconomicPage {
-  ok: true
-  rows: unknown[]
-  complete: boolean
-}
+export type EconomicProbe = { ok: true; complete: boolean } | { ok: false; reason: 'failed' | 'timeout' }
 
-export interface EconomicReadFailure {
-  ok: false
-  reason: 'not_configured' | 'failed' | 'timeout'
-  message: string
-}
-
-async function onePage(path: string, query?: Record<string, string | number | undefined>): Promise<EconomicPage | EconomicReadFailure> {
-  const res = await economicGet<unknown>(path, { pagesize: PAGE, ...query })
-  if (!res.ok) return { ok: false, reason: res.reason, message: res.message }
+/** Tells "e-conomic does not answer" apart from "no bank account chosen". No figure is taken from it. */
+export async function readAccountingYears(settings: ReadyEconomicSettings): Promise<EconomicProbe> {
+  const res = await economicGetWithSettings<unknown>(settings, '/accounting-years', { pagesize: PAGE })
+  if (!res.ok) return { ok: false, reason: res.reason }
   const parsed = parseCollection(res.data, PAGE)
-  if (!parsed) return { ok: false, reason: 'failed', message: 'Svaret kunne ikke læses.' }
-  return { ok: true, rows: parsed.rows, complete: parsed.complete }
-}
-
-export function readAccountingYears(): Promise<EconomicPage | EconomicReadFailure> {
-  return onePage('/accounting-years')
-}
-
-export function readAccountsPage(): Promise<EconomicPage | EconomicReadFailure> {
-  return onePage('/accounts')
-}
-
-export function readCustomersPage(): Promise<EconomicPage | EconomicReadFailure> {
-  return onePage('/customers')
-}
-
-export function readSuppliersPage(): Promise<EconomicPage | EconomicReadFailure> {
-  return onePage('/suppliers')
-}
-
-export function readOpenBookedInvoicesPage(): Promise<EconomicPage | EconomicReadFailure> {
-  return onePage('/invoices/booked', { filter: 'remainder$ne:0' })
-}
-
-export function readBookedEntriesPage(year: string): Promise<EconomicPage | EconomicReadFailure> {
-  if (!/^\d{4}$/.test(year)) {
-    return Promise.resolve({ ok: false, reason: 'failed', message: 'Regnskabsåret er ikke et årstal.' })
-  }
-  return onePage(`/accounting-years/${year}/entries`)
+  if (!parsed) return { ok: false, reason: 'failed' }
+  return { ok: true, complete: parsed.complete }
 }
 
 export type BankBalanceRead =
-  | { state: 'known'; amount: number }
-  | { state: 'unknown'; reason: 'failed' | 'timeout' | 'missing_balance'; message: string }
+  | { state: 'known'; amount: number; accountName: string | null }
+  | { state: 'unknown'; reason: 'failed' | 'timeout' | 'missing_balance' | 'not_balance_sheet' }
 
-/** One configured ledger account. A missing balance is not 0. The account number is chosen by the caller. */
-export async function readBankAccountBalance(accountNumber: number): Promise<BankBalanceRead> {
-  if (!Number.isInteger(accountNumber) || accountNumber <= 0) {
-    return { state: 'unknown', reason: 'failed', message: 'Kontonummeret er ikke gyldigt.' }
-  }
-  const res = await economicGet<unknown>(`/accounts/${accountNumber}`)
-  if (!res.ok) {
-    return { state: 'unknown', reason: res.reason === 'timeout' ? 'timeout' : 'failed', message: res.message }
-  }
-  const parsed = parseAccountBalance(res.data)
-  if (parsed.state === 'unknown') return { state: 'unknown', reason: 'missing_balance', message: 'Kontoen havde ingen saldo.' }
-  return { state: 'known', amount: parsed.amount }
+/** One configured ledger account. A missing balance is not 0. The account number comes from the settings, not from a user. */
+export async function readBankAccountBalance(settings: ReadyEconomicSettings, accountNumber: number): Promise<BankBalanceRead> {
+  if (!Number.isSafeInteger(accountNumber) || accountNumber <= 0) return { state: 'unknown', reason: 'failed' }
+  const res = await economicGetWithSettings<unknown>(settings, `/accounts/${accountNumber}`)
+  if (!res.ok) return { state: 'unknown', reason: res.reason }
+  const parsed = parseLedgerAccount(res.data, accountNumber)
+  if (parsed.state === 'not_balance_sheet') return { state: 'unknown', reason: 'not_balance_sheet' }
+  if (parsed.state === 'unknown') return { state: 'unknown', reason: 'missing_balance' }
+  return { state: 'known', amount: parsed.amount, accountName: parsed.accountName }
 }

@@ -94,6 +94,38 @@ export async function getEconomicSettings(): Promise<AccountingSettings | null> 
   }
 }
 
+export type EconomicSettingsRead =
+  | { state: 'found'; settings: AccountingSettings }
+  | { state: 'missing' }
+  | { state: 'error' }
+
+/**
+ * Like getEconomicSettings, but a failed read is not "no settings". Callers must hold settings.economic.
+ * Tokens stay in memory and are never returned to a client.
+ */
+export async function readEconomicSettings(): Promise<EconomicSettingsRead> {
+  try {
+    const settings = await getEconomicSettingsOrThrow()
+    return settings ? { state: 'found', settings } : { state: 'missing' }
+  } catch {
+    return { state: 'error' }
+  }
+}
+
+async function getEconomicSettingsOrThrow(): Promise<AccountingSettings | null> {
+  const { data, error } = await createAdminClient()
+    .from('accounting_integration_settings')
+    .select('*')
+    .eq('provider', PROVIDER)
+    .maybeSingle()
+  if (error) throw new Error('settings read failed')
+  if (!data) return null
+  const row = data as AccountingSettings
+  return { ...row, api_token: await maybeDecrypt(row.api_token), agreement_grant_token: await maybeDecrypt(row.agreement_grant_token) }
+}
+
+export type ReadyEconomicSettings = AccountingSettings & { api_token: string; agreement_grant_token: string }
+
 export function isEconomicReady(s: AccountingSettings | null): s is AccountingSettings & {
   api_token: string
   agreement_grant_token: string
@@ -1167,23 +1199,20 @@ export async function pingEconomicConnection(): Promise<EconomicPingResult> {
 
 export type EconomicGetResult<T> =
   | { ok: true; status: number; data: T }
-  | { ok: false; status: number; reason: 'not_configured' | 'failed' | 'timeout'; message: string }
+  | { ok: false; status: number; reason: 'failed' | 'timeout'; message: string }
 
 /**
- * Read-only GET through the existing HTTP point. Writes stay on the kill switch.
- * Does not log to accounting_sync_log and does not touch last_sync_at.
- * A failed or empty body is not a number.
+ * Read-only GET through the existing HTTP point. The method is fixed and the path must be on the read allowlist.
+ * Does not log to accounting_sync_log and does not touch last_sync_at. No retry.
+ * A failed or empty body is not a number. The provider's raw error is not passed on.
  */
-export async function economicGet<T = unknown>(
+export async function economicGetWithSettings<T = unknown>(
+  settings: ReadyEconomicSettings,
   path: string,
   query?: Record<string, string | number | undefined>,
 ): Promise<EconomicGetResult<T>> {
   if (!economicReadPathAllowed(path)) {
     return { ok: false, status: 0, reason: 'failed', message: 'Læsningen er ikke tilladt.' }
-  }
-  const settings = await getEconomicSettings()
-  if (!isEconomicReady(settings)) {
-    return { ok: false, status: 0, reason: 'not_configured', message: 'e-conomic er ikke opsat.' }
   }
   const res = await economicFetch<T>(settings, path, { method: 'GET', query })
   if (!res.ok || res.data == null) {

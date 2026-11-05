@@ -185,7 +185,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U262', 'U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
+  sales: ['U263', 'U262', 'U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
@@ -5795,6 +5795,79 @@ ${m.text()}`) })
           r.montoer_ingen_satskoe = (await m.page.getByText('Medarbejdere uden sats', { exact: true }).count()) === 0
         } finally { await m.ctx.close().catch(() => {}) }
         out.push({ id: 'U261 driftsundtagelser: køer vist for admin, skjult for montør, ingen fejlside', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U263 FINANS BATCH 1 (Claude-review): Likviditet viser bogført saldo som regnskabstal, Ikke konfigureret/Ukendt er aldrig 0,
+      // kreditorer og forventet likviditet er ukendte, en åben faktura vises med den kanoniske rest, serviceleder rører ikke
+      // e-conomic-tal, salg og montør afvises. Skriver intet til e-conomic.
+      if (want('U263') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U263-${stamp}`
+        const invIds: string[] = []
+        let diag = ''
+        try {
+          const ins = await c.admin.from('invoices').insert([{ invoice_number: tag, customer_id: profitCustomerId, status: 'sent', invoice_type: 'standard', total_amount: 800, tax_amount: 200, final_amount: 1000, amount_paid: 250, currency: 'DKK', due_date: '2020-01-15' }]).select('id')
+          if (ins.error) diag = ins.error.message
+          const invId = (ins.data?.[0] as { id: string } | undefined)?.id
+          if (invId) invIds.push(invId)
+          r.seed = !!invId
+          const card = async (page: import('playwright').Page, title: string) => (await page.locator(`section:has(h2:text-is("${title}"))`).first().innerText().catch(() => ''))
+          const NONZERO = /(^|s)0,00(s|&nbsp;| )*kr/
+          for (const [role, seesBooked] of [['admin', true], ['bogholderi', true], ['serviceleder', false]] as const) {
+            const u = role === 'admin' ? await mkUser('admin') : await mkUser(role)
+            const s = await login(u)
+            await gotoSafe(s.page, `${base}/dashboard/finance`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const html = await s.page.content()
+            r[`${role}_side`] = (await s.page.getByRole('heading', { name: 'Likviditet', exact: true }).count()) === 1
+            const booked = await card(s.page, 'Bogført saldo (regnskab)')
+            const actual = await card(s.page, 'Faktisk banksaldo')
+            const credit = await card(s.page, 'Kreditorer')
+            const projected = await card(s.page, 'Forventet likviditet +30 dage')
+            r[`${role}_faktisk_ukendt`] = actual.includes('Ukendt') && !NONZERO.test(actual)
+            r[`${role}_kreditor_ukendt`] = credit.includes('Ukendt') && !NONZERO.test(credit)
+            r[`${role}_forventet_ukendt`] = projected.includes('Ukendt') && !NONZERO.test(projected)
+            r[`${role}_ingen_tokens`] = !/X-AppSecretToken|X-AgreementGrantToken|api_token|agreement_grant_token/.test(html)
+            r[`${role}_ingen_banksaldo_ord`] = !booked.includes('Bogført banksaldo')
+            r[`${role}_faktura_rest`] = await s.page.locator('tr', { hasText: tag }).first().innerText().then((t) => /750,00/.test(t)).catch(() => false)
+            if (seesBooked) {
+              r[`${role}_saldo_ikke_nul_uden_laesning`] = booked.includes('Ikke konfigureret') || booked.includes('Ukendt') || booked.includes('Ikke en faktisk banksaldo')
+              diag += ` ${role}:${booked.replace(/s+/g, ' ').slice(0, 80)}`
+            } else {
+              r.serviceleder_saldo_ukendt = booked.includes('Ukendt') && booked.includes('e-conomic-adgang')
+              r.serviceleder_ingen_bank = !(await s.page.getByText('Umatchede bankbevægelser').count())
+              r.serviceleder_ingen_eco_link = !(await s.page.locator('a[href="/dashboard/settings/economic"]').count())
+            }
+            await gotoSafe(s.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await s.page.getByRole('heading', { name: 'Undtagelser' }).waitFor({ timeout: 90_000 }).catch(() => {})
+            r[`${role}_forside`] = (await s.page.getByRole('heading', { name: 'Undtagelser' }).count()) === 1
+            await s.ctx.close().catch(() => {})
+          }
+          for (const role of ['salg', 'montør'] as const) {
+            const s = await login(await mkUser(role))
+            await gotoSafe(s.page, `${base}/dashboard/finance`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const body = await s.page.locator('body').innerText()
+            r[`${role}_afvist`] = !body.includes('Bogført saldo') && !body.includes(tag) && !body.includes('Forventet likviditet')
+            r[`${role}_intet_link`] = !(await s.page.locator('a[href="/dashboard/finance"]').count())
+            const direct = await callServerAction(s.page, `${base}/dashboard/finance`, 'src/lib/actions/finance-position.ts', 'loadFinanceDesk', [])
+            r[`${role}_action_afvist`] = /^HTTP 200/.test(direct) && !direct.includes(tag) && !direct.includes('openReceivables') && direct.includes('"ok":false')
+            if (!r[`${role}_action_afvist`]) diag += ` ${role}-action:${direct.slice(0, 160)}`
+            await gotoSafe(s.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+            r[`${role}_intet_kort`] = !(await s.page.getByText('Likviditetsadvarsler').count())
+            await s.ctx.close().catch(() => {})
+          }
+          // Intet er skrevet: fakturaen er uændret, og loggen har ingen ny række for den
+          const after = (await c.admin.from('invoices').select('status, amount_paid, external_invoice_id').eq('id', invIds[0]).maybeSingle()).data as { status: string; amount_paid: number; external_invoice_id: string | null } | null
+          r.faktura_uroert = after?.status === 'sent' && Number(after?.amount_paid) === 250 && !after?.external_invoice_id
+          const log = await c.admin.from('accounting_sync_log').select('id', { count: 'exact', head: true }).eq('entity_id', invIds[0])
+          r.ingen_synclog = !log.error && log.count === 0
+        } catch (e) {
+          diag += ` ${e instanceof Error ? e.message : String(e)}`
+          r.intet_kast = false
+        } finally {
+          if (invIds.length) await c.admin.from('invoices').delete().in('id', invIds)
+        }
+        const ok = Object.values(r).every(Boolean)
+        out.push({ id: 'U263 finans batch 1: Likviditet, Ukendt/Ikke konfigureret er ikke 0, serviceleder uden e-conomic-tal, salg og montør afvist', ok, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
       }
 
       // U262 GROK BATCH 3 (Claude-review): katalogvare på sag gennem UI'et med kost/salg og uden arbejdsordre; ukendt pris,

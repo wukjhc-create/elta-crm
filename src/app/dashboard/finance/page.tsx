@@ -21,18 +21,16 @@ function moneyText(value: Money): string {
 
 function sourceLabel(source: QualifiedAmount['source']): string {
   switch (source) {
-    case 'economic_ledger': return 'Bogført konto'
-    case 'economic_open_items': return 'Åbne poster i e-conomic'
-    case 'crm_forecast': return 'CRM'
-    case 'stale': return 'Forældet læsning'
-    case 'configuration_required': return 'Opsætning mangler'
+    case 'economic_ledger': return 'e-conomic, bogført konto'
+    case 'crm_open_items': return 'CRM, åbne fakturaer'
+    case 'configuration_required': return 'Ikke konfigureret'
     case 'error': return 'Fejl'
     default: return 'Ikke tilgængelig'
   }
 }
 
 function figureQuality(value: QualifiedAmount): string {
-  if ((value.source === 'crm_forecast' || value.source === 'economic_open_items') && value.amount != null) return 'OK'
+  if (value.source === 'crm_open_items' && value.amount != null) return 'OK'
   return sourceLabel(value.source)
 }
 
@@ -70,7 +68,7 @@ function QueueTable({ rows, empty }: { rows: FinanceQueueItem[]; empty: string }
 
 function AmountCard({ title, value, hidden, note }: { title: string; value: QualifiedAmount; hidden?: boolean; note?: ReactNode }) {
   const text = shownAmount(value, !!hidden)
-  const unknown = !hidden && text === 'Ukendt'
+  const unknown = !hidden && (text === 'Ukendt' || text === 'Ikke konfigureret')
   return (
     <section className="rounded-md ring-1 ring-gray-200 p-4">
       <h2 className="text-sm font-medium text-gray-800">{title}</h2>
@@ -99,7 +97,7 @@ function HorizonBlock({ horizon, hideIncoming, hideOutgoing }: { horizon: CashHo
         {rows.map((row) => (
           <div key={row.label} className="flex items-baseline justify-between gap-3">
             <dt className="text-gray-600">{row.label}</dt>
-            <dd className={row.text === 'Ukendt' ? 'text-amber-900' : 'text-gray-900'}>{row.text}</dd>
+            <dd className={row.text === 'Ukendt' || row.text === 'Ikke konfigureret' ? 'text-amber-900' : 'text-gray-900'}>{row.text}</dd>
           </div>
         ))}
       </dl>
@@ -124,7 +122,7 @@ export default async function FinancePage() {
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Likviditet</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Åbningskassen er den bogførte saldo på den konto, der er valgt i opsætningen. Det er ikke en faktisk banksaldo. Der skrives ikke til e-conomic, og intet godkendes eller betales her.
+          Åbningskassen er den bogførte saldo på den konto, der er valgt som bankkonto i e-conomic-opsætningen. Det er regnskabstal, ikke en faktisk banksaldo. Der skrives ikke til e-conomic, og intet godkendes eller betales her.
         </p>
         {desk.seesInvoices && !desk.scopeAll && (
           <p className="mt-1 text-sm text-gray-600">Du ser kun fakturaer på sager i dit scope. Det er ikke hele firmaets tilgodehavende.</p>
@@ -142,13 +140,13 @@ export default async function FinancePage() {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <AmountCard title="Bogført banksaldo" value={cash.bookedBankBalance} />
+        <AmountCard title="Bogført saldo (regnskab)" value={cash.bookedBankBalance} />
         <AmountCard title="Faktisk banksaldo" value={cash.actualBankBalance} />
         <AmountCard
           title="Tilgodehavender"
           value={cash.openReceivables}
           hidden={hideIncoming}
-          note={desk.seesInvoices && cash.openReceivables.source === 'crm_forecast' ? (
+          note={desk.seesInvoices && cash.openReceivables.source === 'crm_open_items' ? (
             <p className="mt-1 text-xs text-gray-500">{position.openCount} åbne fakturaer. Beløb under 0,50 kr tælles med her, men ikke som forfaldne.</p>
           ) : undefined}
         />
@@ -156,7 +154,7 @@ export default async function FinancePage() {
           title="Forfaldne tilgodehavender"
           value={cash.overdueReceivables}
           hidden={hideIncoming}
-          note={desk.seesInvoices && cash.overdueReceivables.source === 'crm_forecast' ? (
+          note={desk.seesInvoices && cash.overdueReceivables.source === 'crm_open_items' ? (
             <p className="mt-1 text-xs text-gray-500">{position.overdueCount} fakturaer over 0,50 kr med forfald før i dag.</p>
           ) : undefined}
         />
@@ -182,10 +180,10 @@ export default async function FinancePage() {
       <section>
         <h2 className="text-sm font-medium text-gray-800">Datakvalitet</h2>
         <ul className="mt-2 text-sm text-gray-700 space-y-1">
-          <li>Bank: {sourceLabel(cash.bookedBankBalance.source)}</li>
+          <li>Bogført saldo: {sourceLabel(cash.bookedBankBalance.source)}</li>
           <li>Tilgodehavender: {hideIncoming ? 'Skjult' : figureQuality(cash.openReceivables)}</li>
           <li>Kreditorer: {hideOutgoing ? 'Skjult' : figureQuality(cash.openPayables)}</li>
-          <li>Seneste vellykkede e-conomic-læsning: {cash.economicReadAt ? formatDateTimeDK(cash.economicReadAt) : 'Ingen vellykket læsning'}</li>
+          <li>Læst fra e-conomic ved denne visning: {cash.economicReadAt ? formatDateTimeDK(cash.economicReadAt) : 'Nej'}</li>
           <li>Beregnet: {formatDateTimeDK(cash.calculatedAt)}</li>
           {desk.seesInvoices && position.otherCurrencyCount > 0 && <li>{position.otherCurrencyCount} åbne fakturaer i anden valuta er ikke lagt sammen med kroner.</li>}
           {desk.seesInvoices && position.unknownAmountCount > 0 && <li>{position.unknownAmountCount} fakturaer mangler et læsbart beløb.</li>}
@@ -201,7 +199,7 @@ export default async function FinancePage() {
           {desk.bank.visible && (
             <li>Umatchede bankbevægelser: {desk.bank.unmatched == null ? 'Ukendt' : desk.bank.unmatched}. Det er ikke en kassebeholdning.</li>
           )}
-          {desk.economic.visible && (
+          {desk.seesEconomic && (
             <li>
               <Link href="/dashboard/settings/economic" className="text-blue-700 hover:underline">Eksportstatus og uvist bogføring</Link>
               {' '}ligger på den eksisterende e-conomic-side.
@@ -220,7 +218,7 @@ export default async function FinancePage() {
           <h2 className="text-sm font-medium text-gray-800">Forfaldne kundefakturaer</h2>
           <QueueTable
             rows={cash.overdueCustomerInvoices}
-            empty={cash.overdueReceivables.source === 'crm_forecast' ? 'Ingen forfaldne DKK-fakturaer over 0,50 kr.' : 'Forfaldne beløb kunne ikke opgøres.'}
+            empty={cash.overdueReceivables.source === 'crm_open_items' ? 'Ingen forfaldne DKK-fakturaer over 0,50 kr.' : 'Forfaldne beløb kunne ikke opgøres.'}
           />
           {position.invoicesTruncated && <p className="mt-1 text-xs text-gray-500">Viser 40. Der kan være flere.</p>}
         </section>

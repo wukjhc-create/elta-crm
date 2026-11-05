@@ -2,7 +2,7 @@
  * Finance batch 1. Pure rules only — no network and no database.
  */
 import { readFileSync } from 'node:fs'
-import { economicReadPathAllowed, parseAccountBalance, parseBookedRemainder, parseCollection } from '../src/lib/economic/read-model'
+import { economicReadPathAllowed, parseCollection, parseLedgerAccount } from '../src/lib/economic/read-model'
 import { buildCashPosition, configuredAmount, evaluateFinanceAlerts, financeSections, formatQualifiedKr, projectCash, qualifyBookedBank, type BookedBankInput, type QualifiedAmount } from '../src/lib/finance/cash-position'
 import { BOOKKEEPING_WRITES_IN_THIS_BATCH, canTransitionPosting, POSTING_TABLES_LATER } from '../src/lib/finance/bookkeeping-design'
 import { PAYROLL_FLOW, PAYROLL_WRITES_IN_THIS_BATCH } from '../src/lib/finance/payroll-design'
@@ -117,16 +117,15 @@ t('day 31 is the 60-day bucket', forecastBucket('2026-12-05', today) === 'd60')
 t('day 61 is the 90-day bucket', forecastBucket('2027-01-04', today) === 'd90')
 t('day 91 is later', forecastBucket('2027-02-03', today) === 'later')
 
-t('balance 0 is a real balance', parseAccountBalance({ balance: 0 }).state === 'known' && (parseAccountBalance({ balance: 0 }) as { amount: number }).amount === 0)
-t('missing balance is unknown', parseAccountBalance({}).state === 'unknown' && parseAccountBalance({ balance: null }).state === 'unknown')
-t('error body is unknown', parseAccountBalance({ message: 'no' }).state === 'unknown')
+const ledgerRow = { accountNumber: 5820, accountType: 'status', name: 'Bank' }
+t('balance 0 is a real balance', parseLedgerAccount({ ...ledgerRow, balance: 0 }, 5820).state === 'known' && (parseLedgerAccount({ ...ledgerRow, balance: 0 }, 5820) as { amount: number }).amount === 0)
+t('missing balance is unknown', parseLedgerAccount(ledgerRow, 5820).state === 'unknown' && parseLedgerAccount({ ...ledgerRow, balance: null }, 5820).state === 'unknown')
+t('error body is unknown', parseLedgerAccount({ message: 'no' }, 5820).state === 'unknown')
 t('a full page is not complete', parseCollection({ collection: [1, 2], pagination: { nextPage: 'next' } }, 2)?.complete === false)
 t('an empty collection is complete', parseCollection({ collection: [] }, 100)?.complete === true && parseCollection({ collection: [] }, 100)?.rows.length === 0)
 t('a body without collection is not a zero list', parseCollection({ message: 'x' }, 100) === null)
-t('remainder is not invented', parseBookedRemainder({ bookedInvoiceNumber: 4, currency: 'DKK' })?.remainder === null)
-t('GET paths stay on the read allowlist', economicReadPathAllowed('/accounts/5820') && economicReadPathAllowed('/invoices/booked') && !economicReadPathAllowed('/invoices/drafts') && !economicReadPathAllowed('/customers/1'))
+t('GET paths stay on the read allowlist', economicReadPathAllowed('/accounts/5820') && economicReadPathAllowed('/accounting-years') && !economicReadPathAllowed('/invoices/booked') && !economicReadPathAllowed('/invoices/drafts') && !economicReadPathAllowed('/customers/1'))
 
-const nowMs = Date.parse('2026-11-04T08:00:00.000Z')
 function bankInput(partial: Partial<BookedBankInput>): BookedBankInput {
   return {
     permitted: true,
@@ -135,7 +134,6 @@ function bankInput(partial: Partial<BookedBankInput>): BookedBankInput {
     probe: 'not_needed',
     balance: { outcome: 'known', amount: 1000 },
     readAt: '2026-11-04T08:00:00.000Z',
-    nowMs,
     ...partial,
   }
 }
@@ -162,19 +160,19 @@ const complete = buildCashPosition({
 })
 t('booked balance stays a ledger figure', complete.bookedBankBalance.source === 'economic_ledger' && complete.bookedBankBalance.amount === 1000 && formatQualifiedKr(complete.bookedBankBalance) === formatCurrency(1000, 'DKK', 2))
 t('actual bank balance is never invented', complete.actualBankBalance.source === 'unavailable' && complete.actualBankBalance.amount === null && formatQualifiedKr(complete.actualBankBalance) === 'Ukendt')
-t('open receivables keep dated and undated amounts', complete.openReceivables.source === 'crm_forecast' && complete.openReceivables.amount === 685)
+t('open receivables keep dated and undated amounts', complete.openReceivables.source === 'crm_open_items' && complete.openReceivables.amount === 685)
 t('overdue receivables exclude due today', complete.overdueReceivables.amount === 200 && !complete.overdueCustomerInvoices.some((row) => row.id === 'today-due'))
 t('30 days include overdue and due today, not day 31 or undated', complete.forecast30.expectedIncoming.amount === 550 && complete.forecast30.unscheduledReceivables.amount === 15)
 t('60 days add day 31 and 90 days stop before day 91', complete.forecast60.expectedIncoming.amount === 590 && complete.forecast90.expectedIncoming.amount === 600 && complete.receivablesAfter90.amount === 70)
 t('supplier invoice totals are not open payables', complete.openPayables.source === 'unavailable' && complete.openPayables.amount === null && complete.forecast30.expectedOutgoing.amount === null)
 t('projected cash is unknown when outgoing is unknown', complete.forecast30.projectedCash.amount === null && formatQualifiedKr(complete.forecast30.projectedCash) === 'Ukendt' && complete.forecast60.projectedCash.amount === null && complete.forecast90.projectedCash.amount === null)
-t('a known projection subtracts a real outgoing', projectCash(kr('economic_ledger', 1000), kr('crm_forecast', 400), kr('economic_open_items', 100)).amount === 1300)
-t('a missing outgoing is not subtracted as zero', projectCash(kr('economic_ledger', 1000), kr('crm_forecast', 400), kr('unavailable', null)).amount === null)
+t('a known projection subtracts a real outgoing', projectCash(kr('economic_ledger', 1000), kr('crm_open_items', 400), kr('crm_open_items', 100)).amount === 1300)
+t('a missing outgoing is not subtracted as zero', projectCash(kr('economic_ledger', 1000), kr('crm_open_items', 400), kr('unavailable', null)).amount === null)
 t('queues link invoice, customer, supplier invoice and supplier', complete.overdueCustomerInvoices[0]?.documentHref === '/dashboard/invoices/over' && complete.overdueCustomerInvoices[0]?.partyHref === '/dashboard/customers/c1' && complete.upcomingSupplierInvoices[0]?.documentHref === '/dashboard/incoming-invoices/s1' && complete.upcomingSupplierInvoices[0]?.partyHref === '/dashboard/settings/suppliers/sup-1' && complete.upcomingSupplierInvoices[0]?.amountLabel === 'Fakturabeløb' && complete.upcomingSupplierInvoices[0]?.amount === 999 && complete.overdueSupplierInvoices.length === 0)
 t('upcoming customers are due today through day 30', complete.upcomingCustomerInvoices.some((row) => row.id === 'today-due') && complete.upcomingCustomerInvoices.some((row) => row.id === 'soon') && !complete.upcomingCustomerInvoices.some((row) => row.id === 'day31' || row.id === 'nodate' || row.id === 'over'))
 
 const missingAccount = qualifyBookedBank(bankInput({ accountNumber: null, probe: 'ok', balance: { outcome: 'not_read' }, readAt: null }))
-t('missing bank configuration is unknown, not an account number', missingAccount.source === 'configuration_required' && missingAccount.amount === null && formatQualifiedKr(missingAccount) === 'Ukendt' && !/\d/.test(missingAccount.detail))
+t('missing bank configuration is unknown, not an account number', missingAccount.source === 'configuration_required' && missingAccount.amount === null && formatQualifiedKr(missingAccount) === 'Ikke konfigureret' && !/\d/.test(missingAccount.detail))
 const probeDown = qualifyBookedBank(bankInput({ accountNumber: null, probe: 'failed', balance: { outcome: 'not_read' }, readAt: null }))
 const probeTimeout = qualifyBookedBank(bankInput({ accountNumber: null, probe: 'timeout', balance: { outcome: 'not_read' }, readAt: null }))
 t('a failed probe is an error and not 0', probeDown.source === 'error' && probeTimeout.source === 'error' && formatQualifiedKr(probeDown) === 'Ukendt' && formatQualifiedKr(probeTimeout) === 'Ukendt')
@@ -185,26 +183,21 @@ t('a real zero balance stays zero', zeroBooked.source === 'economic_ledger' && z
 const readFailed = qualifyBookedBank(bankInput({ balance: { outcome: 'failed' }, readAt: null }))
 const readTimeout = qualifyBookedBank(bankInput({ balance: { outcome: 'timeout' }, readAt: null }))
 t('a failed or timed out balance is Ukendt even if a caller left 0', readFailed.source === 'error' && readTimeout.source === 'error' && formatQualifiedKr(readFailed) === 'Ukendt' && formatQualifiedKr(kr('error', 0)) === 'Ukendt' && formatQualifiedKr(kr('timeout' as QualifiedAmount['source'], 0)) === 'Ukendt')
-const stale = qualifyBookedBank(bankInput({ balance: { outcome: 'known', amount: 500 }, readAt: '2026-11-02T07:00:00.000Z' }))
-t('a stale read keeps the amount and is not fresh', stale.source === 'stale' && stale.amount === 500 && formatQualifiedKr(stale) === formatCurrency(500, 'DKK', 2))
-t('a fresh read is the ledger', qualifyBookedBank(bankInput({ balance: { outcome: 'known', amount: 500 } })).source === 'economic_ledger')
 
-const staleAlerts = evaluateFinanceAlerts({ booked: stale, projected30: kr('unavailable', null), overdueReceivables: kr('crm_forecast', 1), minimumCashDkk: null, overdueThresholdDkk: null })
-t('stale data alerts without turning the amount into zero', staleAlerts.some((alert) => alert.code === 'finance_data_stale') && !staleAlerts.some((alert) => alert.code === 'projected_cash_below_minimum'))
 t('a read failure alerts', evaluateFinanceAlerts({ booked: readFailed, projected30: kr('error', null), overdueReceivables: kr('error', null), minimumCashDkk: 1, overdueThresholdDkk: 1 }).some((alert) => alert.code === 'economic_read_failed'))
 t('missing bank setup alerts', evaluateFinanceAlerts({ booked: missingAccount, projected30: kr('unavailable', null), overdueReceivables: kr('unavailable', null), minimumCashDkk: null, overdueThresholdDkk: null }).some((alert) => alert.code === 'bank_configuration_required'))
-t('unknown cash does not alert against a minimum', !evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('unavailable', null), overdueReceivables: kr('crm_forecast', 10), minimumCashDkk: 0, overdueThresholdDkk: null }).some((alert) => alert.code === 'projected_cash_below_minimum'))
-t('cash below a configured minimum alerts', evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('crm_forecast', 99), overdueReceivables: kr('crm_forecast', 10), minimumCashDkk: 100, overdueThresholdDkk: null }).some((alert) => alert.code === 'projected_cash_below_minimum'))
-t('cash equal to the minimum does not alert', !evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('crm_forecast', 100), overdueReceivables: kr('crm_forecast', 100), minimumCashDkk: 100, overdueThresholdDkk: 100 }).some((alert) => alert.code === 'projected_cash_below_minimum' || alert.code === 'overdue_receivables_above_threshold'))
-t('overdue above a configured threshold alerts', evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('unavailable', null), overdueReceivables: kr('crm_forecast', 101), minimumCashDkk: null, overdueThresholdDkk: 100 }).some((alert) => alert.code === 'overdue_receivables_above_threshold'))
-t('unavailable payables alone do not alert', evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('unavailable', null), overdueReceivables: kr('crm_forecast', 1), minimumCashDkk: null, overdueThresholdDkk: null }).length === 0)
+t('unknown cash does not alert against a minimum', !evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('unavailable', null), overdueReceivables: kr('crm_open_items', 10), minimumCashDkk: 0, overdueThresholdDkk: null }).some((alert) => alert.code === 'projected_cash_below_minimum'))
+t('cash below a configured minimum alerts', evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('crm_open_items', 99), overdueReceivables: kr('crm_open_items', 10), minimumCashDkk: 100, overdueThresholdDkk: null }).some((alert) => alert.code === 'projected_cash_below_minimum'))
+t('cash equal to the minimum does not alert', !evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('crm_open_items', 100), overdueReceivables: kr('crm_open_items', 100), minimumCashDkk: 100, overdueThresholdDkk: 100 }).some((alert) => alert.code === 'projected_cash_below_minimum' || alert.code === 'overdue_receivables_above_threshold'))
+t('overdue above a configured threshold alerts', evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('unavailable', null), overdueReceivables: kr('crm_open_items', 101), minimumCashDkk: null, overdueThresholdDkk: 100 }).some((alert) => alert.code === 'overdue_receivables_above_threshold'))
+t('unavailable payables alone do not alert', evaluateFinanceAlerts({ booked: kr('economic_ledger', 1000), projected30: kr('unavailable', null), overdueReceivables: kr('crm_open_items', 1), minimumCashDkk: null, overdueThresholdDkk: null }).length === 0)
 t('optional thresholds ignore text', configuredAmount('100') === null && configuredAmount(100) === 100 && configuredAmount(Number.NaN) === null)
 
 const unreadCash = buildCashPosition({ today, calculatedAt: '2026-11-04T08:00:00.000Z', receivablesLoaded: false, payablesLoaded: false, invoices: [], payables: [], bank: bankInput({ balance: { outcome: 'failed' }, readAt: '2026-11-04T08:00:00.000Z' }) })
 t('a failed receivable read is not a zero currency', unreadCash.openReceivables.source === 'error' && unreadCash.openReceivables.amount === null && formatQualifiedKr(unreadCash.openReceivables) === 'Ukendt' && formatQualifiedKr(unreadCash.openReceivables) !== formatCurrency(0, 'DKK', 2))
 t('a failed read does not keep a success timestamp', unreadCash.economicReadAt === null && unreadCash.openPayables.source === 'error')
 const emptyCash = buildCashPosition({ today, calculatedAt: '2026-11-04T08:00:00.000Z', receivablesLoaded: true, payablesLoaded: true, invoices: [], payables: [], bank: bankInput({ balance: { outcome: 'known', amount: 0 } }) })
-t('an empty successful receivable read is a real zero', emptyCash.openReceivables.source === 'crm_forecast' && emptyCash.openReceivables.amount === 0 && formatQualifiedKr(emptyCash.openReceivables) === formatCurrency(0, 'DKK', 2))
+t('an empty successful receivable read is a real zero', emptyCash.openReceivables.source === 'crm_open_items' && emptyCash.openReceivables.amount === 0 && formatQualifiedKr(emptyCash.openReceivables) === formatCurrency(0, 'DKK', 2))
 t('empty payables are still not a zero liability', emptyCash.openPayables.amount === null && emptyCash.forecast30.projectedCash.amount === null)
 const blankAmount = buildCashPosition({ today, calculatedAt: '2026-11-04T08:00:00.000Z', receivablesLoaded: true, payablesLoaded: true, invoices: [invoice({ id: 'bad', finalAmount: null, dueDate: '2026-12-01' })], payables: [], bank: bankInput({}) })
 t('a missing invoice amount stays unavailable', blankAmount.openReceivables.source === 'unavailable' && blankAmount.openReceivables.amount === null && formatQualifiedKr(blankAmount.openReceivables) === 'Ukendt')
@@ -216,9 +209,10 @@ const montor = financeSections(roleGate('montør'))
 t('montør has no finance section', !montor.desk && !montor.invoices && !montor.payables && !montor.bank && !montor.economic && !hasPermission('montør', 'economy.view') && !hasPermission('montør', 'invoices.view.all') && !hasPermission('montør', 'invoices.view.own_cases') && !hasPermission('montør', 'incoming_invoices.view') && !hasPermission('montør', 'bank.view') && !hasPermission('montør', 'settings.economic'))
 const leder = financeSections(roleGate('serviceleder'))
 t('serviceleder sees finance without the bank token', leder.desk && leder.invoices && leder.payables && !leder.bank && !leder.economic)
-const actionSrc = readFileSync(new URL('../src/lib/actions/finance-position.ts', import.meta.url), 'utf8')
-t('economy.view is checked before the invoice query', actionSrc.indexOf("if (!ctx.hasPermission('economy.view'))") >= 0 && actionSrc.indexOf("if (!ctx.hasPermission('economy.view'))") < actionSrc.indexOf(".from('invoices')"))
-t('economic settings are not read without permission', actionSrc.includes('if (!permitted) return { bank, minimumCashDkk: null, overdueThresholdDkk: null }'))
+const actionSrc = readFileSync(new URL('../src/lib/finance/finance-desk.ts', import.meta.url), 'utf8')
+const deskBody = actionSrc.slice(actionSrc.indexOf('export async function buildFinanceDesk'))
+t('economy.view is checked before the invoice query', deskBody.indexOf("if (!ctx.hasPermission('economy.view'))") >= 0 && deskBody.indexOf("if (!ctx.hasPermission('economy.view'))") < deskBody.indexOf('readInvoiceRows('))
+t('economic settings are not read without permission', actionSrc.includes('if (!permitted) return { bank, ...none }'))
 const pageSrc = readFileSync(new URL('../src/app/dashboard/finance/page.tsx', import.meta.url), 'utf8')
 t('the finance page does not call e-conomic or render a token', !pageSrc.includes('economicGet') && !pageSrc.includes('X-AppSecretToken') && !pageSrc.includes('X-AgreementGrantToken') && pageSrc.includes('formatQualifiedKr'))
 const clientSrc = readFileSync(new URL('../src/lib/services/economic-client.ts', import.meta.url), 'utf8')

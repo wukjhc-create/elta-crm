@@ -12,7 +12,8 @@ import { overdueTaskFilter } from '@/lib/tasks/overdue-query'
 import { copenhagenDatePlusDays, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getEmployeeRateGapsAction } from '@/lib/actions/employees'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { loadFinanceDesk } from '@/lib/actions/finance-position'
+import { buildFinanceAlertTile } from '@/lib/finance/finance-desk'
+import { readEconomicSettings } from '@/lib/services/economic-client'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type OpCount =
@@ -80,7 +81,7 @@ export async function getOperationalExceptions(): Promise<OperationalExceptions>
 
   const missingPoa = ctx.hasPermission('customers.view') ? missingPoaCount(ctx.supabase) : Promise.resolve(hidden)
   const rateGaps = ctx.hasPermission('employees.view') ? rateGapCount() : Promise.resolve(hidden)
-  const financeAlerts = ctx.hasPermission('economy.view') ? financeAlertCount() : Promise.resolve(hidden)
+  const financeAlerts = financeAlertCount(ctx)
 
   const [a, b, c, d, tomorrow, e, f, g, overdue, idle, h] = await Promise.all([callbacks, unlinkedMail, supplierReview, jobsToday, jobsTomorrow, jobsWeek, missingPoa, rateGaps, overdueTasks, casesWithoutAction, financeAlerts])
   return { callbacks: a, unlinkedMail: b, supplierReview: c, jobsToday: d, jobsTomorrow: tomorrow, jobsWeek: e, missingPoa: f, rateGaps: g, overdueTasks: overdue, casesWithoutAction: idle, financeAlerts: h }
@@ -93,16 +94,9 @@ async function casesWithoutActionCount(supabase: Awaited<ReturnType<typeof getAu
   return { state: 'ok', count: found.cases.length, href: '/dashboard/assistant', note: 'Åbne sager uden ufærdig opgave og uden planlagt eller igangværende arbejdsordre.' }
 }
 
-async function financeAlertCount(): Promise<OpCount> {
+async function financeAlertCount(ctx: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>): Promise<OpCount> {
   try {
-    const desk = await loadFinanceDesk()
-    if (!desk.ok) return { state: 'unknown', href: '/dashboard/finance', note: 'Likviditeten kunne ikke læses. Det tælles ikke som nul.' }
-    return {
-      state: 'ok',
-      count: desk.cash.alerts.length,
-      href: '/dashboard/finance',
-      note: desk.cash.alerts.length ? 'Læs kun. Der sendes ingen besked.' : 'Ingen likviditetsadvarsler.',
-    }
+    return await buildFinanceAlertTile(ctx, readEconomicSettings)
   } catch {
     return { state: 'unknown', href: '/dashboard/finance', note: 'Likviditeten kunne ikke læses. Det tælles ikke som nul.' }
   }
