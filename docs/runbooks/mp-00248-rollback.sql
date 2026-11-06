@@ -18,6 +18,18 @@ BEGIN
 END
 $guard$;
 
+-- 7 tilbage: work_order_profit efter rå rolle som i 00192, snapshot-funktionen kan kaldes af authenticated som i 00088
+DROP POLICY IF EXISTS work_order_profit_select_cost_roles ON public.work_order_profit;
+CREATE POLICY work_order_profit_select_cost_roles ON public.work_order_profit
+  FOR SELECT TO authenticated
+  USING (public.user_role() IN ('admin', 'serviceleder', 'bogholderi'));
+GRANT EXECUTE ON FUNCTION public.snapshot_work_order_profit(uuid, text) TO authenticated;
+
+-- 6 tilbage: skrive-værnet på kosten
+DROP TRIGGER IF EXISTS trg_case_materials_cost_write_guard_insert ON public.case_materials;
+DROP TRIGGER IF EXISTS trg_case_materials_cost_write_guard_update ON public.case_materials;
+DROP FUNCTION IF EXISTS public.case_materials_cost_write_guard();
+
 -- 5 tilbage: tabel-SELECT for authenticated som før (REVOKE fjerner kolonne-grantene, GRANT giver tabel-retten igen)
 REVOKE SELECT ON public.case_materials FROM authenticated;
 GRANT SELECT ON public.case_materials TO authenticated;

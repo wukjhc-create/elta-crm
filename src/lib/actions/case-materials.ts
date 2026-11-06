@@ -333,7 +333,11 @@ export async function updateCaseMaterial(
           action_description: `Materialesnapshot ændret: "${cur.description}"`,
           changes: {
             quantity: { from: cur.quantity, to: update.quantity ?? cur.quantity },
-            unit_cost: { from: cur.unit_cost, to: update.unit_cost === undefined ? cur.unit_cost : update.unit_cost },
+            // 00248: uden kost-ret kendes kosten ikke her (skjult = null) og kan ikke ændres — et "null → null" ville være
+            // et falsk spor, og aktøren kan læse sin egen revisionsrække. Kun med retten skrives kosten i sporet.
+            ...(canSetPrices
+              ? { unit_cost: { from: cur.unit_cost, to: update.unit_cost === undefined ? cur.unit_cost : update.unit_cost } }
+              : {}),
             unit_sales_price: { from: cur.unit_sales_price, to: update.unit_sales_price ?? cur.unit_sales_price },
           },
           metadata: { case_id: cur.case_id },

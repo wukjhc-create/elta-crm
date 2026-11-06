@@ -20,7 +20,8 @@ export async function GET() {
     } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!ctx.hasPermission('economy.cost_prices')) {
+    // 00248: avance indeholder materialekost → begge kost-nøgler (samme regel som work_order_profit-politikken)
+    if (!ctx.hasPermission('economy.cost_prices') || !ctx.hasPermission('materials.view.cost_prices')) {
       return NextResponse.json({ generated_at: new Date().toISOString(), insights: [] })
     }
 

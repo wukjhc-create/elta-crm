@@ -13,7 +13,7 @@ import type { UserRole } from '../../src/types/auth.types'
 
 export interface Api00248Check { id: string; ok: boolean; note?: string }
 
-const KEYS: Permission[] = ['materials.view', 'materials.view.cost_prices', 'cases.view.all']
+const KEYS: Permission[] = ['materials.view', 'materials.view.cost_prices', 'economy.cost_prices', 'cases.view.all']
 
 export async function runApi00248(c: { admin: SupabaseClient; url: string; anonKey: string }): Promise<Api00248Check[]> {
   const out: Api00248Check[] = []
@@ -24,6 +24,7 @@ export async function runApi00248(c: { admin: SupabaseClient; url: string; anonK
   const caseIds: string[] = []
   let empId: string | null = null
   let woId: string | null = null
+  let woForeignId: string | null = null
 
   const tempUser = async (role: UserRole) => {
     const email = `p248-${role === 'montør' ? 'montor' : role}-${stamp}-${users.length}@harness.test`
@@ -53,9 +54,10 @@ export async function runApi00248(c: { admin: SupabaseClient; url: string; anonK
     }, caseId)
   }
   const denied = (r: { error: { code?: string } | null }) => r.error?.code === '42501'
-  const override = async (p: Persona, effect: 'grant' | 'revoke') => {
-    await c.admin.from('user_permission_overrides').delete().eq('profile_id', p.uid)
-    const { error } = await c.admin.from('user_permission_overrides').insert({ profile_id: p.uid, permission: 'materials.view.cost_prices', effect, source: 'manual', reason: 'p248api' })
+  const clearOverrides = async (p: Persona) => { await c.admin.from('user_permission_overrides').delete().eq('profile_id', p.uid) }
+  const override = async (p: Persona, effect: 'grant' | 'revoke', keys: Permission[] = ['materials.view.cost_prices']) => {
+    await clearOverrides(p)
+    const { error } = await c.admin.from('user_permission_overrides').insert(keys.map((permission) => ({ profile_id: p.uid, permission, effect, source: 'manual', reason: 'p248api' })))
     if (error) throw new Error(`override: ${error.message}`)
   }
 
@@ -149,12 +151,81 @@ export async function runApi00248(c: { admin: SupabaseClient; url: string; anonK
     const rList = await load(sl, visible)
     add('REVOKE: loader viser null på alle linjer', rList.success && rList.data.rows.length === 3 && rList.data.rows.every((r) => r.unit_cost === null && r.total_cost === null))
     add('REVOKE: ingen kostværdi og intet antal ukendte i svaret', leaks(rList).length === 0 && rList.success && rList.data.summary.unknown_cost_lines === null)
+
+    // =========== Skrive-værn på kosten (00248 §6) og avance efter effektive rettigheder (§7) ===========
+    const [knownId, zeroId, unknownId] = ((ins.data ?? []) as Array<{ id: string }>).map((r) => r.id)
+    const costOf = async (id: string) => ((await c.admin.from('case_materials').select('unit_cost').eq('id', id).single()).data as { unit_cost: number | null }).unit_cost
+    const insertWithCost = (p: Persona, cost: number | null) => p.cl.from('case_materials')
+      .insert({ case_id: visible, description: 'p248 api skriv', quantity: 1, unit: 'stk', unit_cost: cost, source: 'manual', created_by: p.uid }).select('id')
+    const patch = (p: Persona, id: string, body: Record<string, unknown>) => p.cl.from('case_materials').update(body).eq('id', id).select('id')
+    const profitRows = async (p: Persona, ids: string[]) => {
+      const r = await p.cl.from('work_order_profit').select('id, work_order_id').in('work_order_id', ids)
+      return r.error ? -1 : (r.data ?? []).length
+    }
+    // udførte ordrer → snapshots (egen ordre tildelt montøren, fremmed ordre på den skjulte sag)
+    woForeignId = ((await c.admin.from('work_orders').insert({ case_id: hidden, customer_id: custId, title: '[HARNESS] 248 fremmed', status: 'planned', scheduled_date: new Date().toISOString().slice(0, 10) }).select('id').single()).data as { id: string }).id
+    await c.admin.from('work_orders').update({ status: 'done' }).in('id', [woId as string, woForeignId])
+    const bothWo = [woId as string, woForeignId]
+    const snaps = await c.admin.from('work_order_profit').select('work_order_id').in('work_order_id', bothWo)
+    add('avance-snapshots findes for egen og fremmed ordre', new Set((snaps.data ?? []).map((x) => (x as { work_order_id: string }).work_order_id)).size === 2)
+    await clearOverrides(m)
+    await clearOverrides(sl)
+
+    // ---- Montør (standard, uden kost-ret) ----
+    add('skriv/montør: INSERT med kost afvist (42501)', denied(await insertWithCost(m, 5)))
+    add('skriv/montør: INSERT med kost 0 afvist (42501)', denied(await insertWithCost(m, 0)))
+    const mNull = await insertWithCost(m, null)
+    add('skriv/montør: INSERT med ukendt kost (null) virker', !mNull.error && (mNull.data ?? []).length === 1, mNull.error?.message)
+    const mPatch = await patch(m, zeroId, { unit_cost: 7 })
+    add('skriv/montør: PATCH kost ændrer intet', (mPatch.error != null || (mPatch.data ?? []).length === 0) && (await costOf(zeroId)) === 0)
+    add('avance/montør: ingen snapshots', (await profitRows(m, bothWo)) === 0)
+    add('avance/montør: snapshot-RPC afvist', !!(await m.cl.rpc('snapshot_work_order_profit', { p_work_order_id: woId, p_source: 'manual' })).error)
+
+    // ---- Serviceleder (standard) ----
+    const slSet = await patch(sl, zeroId, { unit_cost: 1 })
+    add('skriv/serviceleder: må rette kost', !slSet.error && (slSet.data ?? []).length === 1 && (await costOf(zeroId)) === 1, slSet.error?.message)
+    await patch(sl, zeroId, { unit_cost: 0 })
+    add('avance/serviceleder: ser egen og fremmed ordres avance', (await profitRows(sl, bothWo)) === 2)
+
+    // ---- Serviceleder med per-bruger REVOKE af materials.view.cost_prices ----
+    await override(sl, 'revoke')
+    add('skriv/REVOKE: PATCH samme værdi afvist (intet orakel)', denied(await patch(sl, zeroId, { unit_cost: 0 })))
+    const slOther = await patch(sl, zeroId, { unit_cost: 5 })
+    add('skriv/REVOKE: PATCH anden værdi afvist', denied(slOther))
+    add('skriv/REVOKE: fejlteksten indeholder intet beløb', !!slOther.error && !/\d/.test(slOther.error.message), slOther.error?.message)
+    add('skriv/REVOKE: tal → null afvist', denied(await patch(sl, knownId, { unit_cost: null })))
+    add('skriv/REVOKE: null → tal afvist', denied(await patch(sl, unknownId, { unit_cost: 1 })))
+    add('skriv/REVOKE: INSERT med kost afvist', denied(await insertWithCost(sl, 2)))
+    add('skriv/REVOKE: upsert med kost afvist', (await sl.cl.from('case_materials').upsert({ id: zeroId, case_id: visible, description: 'p248 nul', quantity: 1, unit_cost: 9, source: 'manual' }, { onConflict: 'id' }).select('id')).error != null)
+    add('skriv/REVOKE: total_cost kan ikke skrives', (await patch(sl, zeroId, { total_cost: 1 })).error != null)
+    const slQty = await patch(sl, zeroId, { quantity: 3, notes: 'p248' })
+    add('skriv/REVOKE: ufarlige felter kan stadig rettes', !slQty.error && (slQty.data ?? []).length === 1, slQty.error?.message)
+    const slNull = await insertWithCost(sl, null)
+    add('skriv/REVOKE: ny linje med ukendt kost virker', !slNull.error && (slNull.data ?? []).length === 1, slNull.error?.message)
+    add('skriv/REVOKE: kosterne er uændrede', (await costOf(zeroId)) === 0 && (await costOf(knownId)) === 12.34 && (await costOf(unknownId)) === null)
+    add('avance/REVOKE materialekost: ingen snapshots', (await profitRows(sl, bothWo)) === 0)
+    await override(sl, 'revoke', ['economy.cost_prices'])
+    add('avance/REVOKE economy.cost_prices: ingen snapshots', (await profitRows(sl, bothWo)) === 0)
+    await clearOverrides(sl)
+    add('avance/serviceleder igen uden override: ser avance', (await profitRows(sl, bothWo)) === 2)
+
+    // ---- Montør med per-bruger GRANT af begge kost-nøgler ----
+    await override(m, 'grant', ['materials.view.cost_prices', 'economy.cost_prices'])
+    add('avance/GRANT montør: egen ordre synlig', (await profitRows(m, [woId as string])) >= 1)
+    add('avance/GRANT montør: fremmed ordre skjult (scope)', (await profitRows(m, [woForeignId])) === 0)
+    const mCost = await insertWithCost(m, 4)
+    add('skriv/GRANT montør: INSERT med kost virker', !mCost.error && (mCost.data ?? []).length === 1, mCost.error?.message)
+    await clearOverrides(m)
+
+    // ---- Admin ----
+    const ad = await tempUser('admin')
+    add('avance/admin: ser egen og fremmed ordres avance', (await profitRows(ad, bothWo)) === 2)
   } catch (e) {
     add('intet kast', false, e instanceof Error ? e.message : String(e))
   } finally {
     if (users.length) await c.admin.from('user_permission_overrides').delete().in('profile_id', users)
     if (caseIds.length) await c.admin.from('case_materials').delete().in('case_id', caseIds)
-    if (woId) { await c.admin.from('work_order_profit').delete().eq('work_order_id', woId); await c.admin.from('work_orders').delete().eq('id', woId) }
+    for (const w of [woId, woForeignId]) if (w) { await c.admin.from('work_order_profit').delete().eq('work_order_id', w); await c.admin.from('work_orders').delete().eq('id', w) }
     if (caseIds.length) await c.admin.from('service_cases').delete().in('id', caseIds)
     if (custId) await c.admin.from('customers').delete().eq('id', custId)
     if (empId) await c.admin.from('employees').delete().eq('id', empId)

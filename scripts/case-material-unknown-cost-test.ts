@@ -169,8 +169,51 @@ t('fakturakladde: materialelæsning uden kost', !/from\('case_materials'\)\s*\.s
 const mig = src('supabase/migrations/00248_case_material_unknown_cost.sql')
 t('migration: nullable uden standard', /ALTER COLUMN unit_cost DROP DEFAULT/.test(mig) && /ALTER COLUMN unit_cost DROP NOT NULL/.test(mig))
 t('migration: ingen dataændring', !/^\s*UPDATE\s/im.test(mig) && !/^\s*DELETE\s/im.test(mig))
-t('migration: ingen politik ændret', !/CREATE POLICY|DROP POLICY|ALTER POLICY/i.test(mig))
-t('migration: kun SELECT-rettigheder ændres', !/(GRANT|REVOKE)\s+(ALL|INSERT|UPDATE|DELETE|TRUNCATE|EXECUTE)/i.test(mig))
+// Politikker: KUN work_order_profit's læsepolitik udskiftes (samme navn) — case_materials' politikker røres ikke
+const migCode = mig.replace(/^\s*--.*$/gm, '')
+const polStmts = Array.from(migCode.matchAll(/(CREATE|DROP|ALTER) POLICY\s+(?:IF EXISTS\s+)?(\w+)\s+ON\s+public\.(\w+)/gi)).map((x) => `${x[1].toUpperCase()} ${x[2]} ${x[3]}`)
+t('migration: kun work_order_profit-politikken udskiftes', JSON.stringify(polStmts) === JSON.stringify(['DROP work_order_profit_select_cost_roles work_order_profit', 'CREATE work_order_profit_select_cost_roles work_order_profit']), JSON.stringify(polStmts))
+t('migration: ingen tabel-skrivegrants ændres', !/(GRANT|REVOKE)\s+(ALL|INSERT|UPDATE|DELETE|TRUNCATE)\b(?![^;]*ON FUNCTION)/i.test(migCode))
+const execStmts = Array.from(migCode.matchAll(/(GRANT|REVOKE)\s+(?:ALL|EXECUTE)\s+ON FUNCTION\s+public\.(\w+)/gi)).map((x) => `${x[1].toUpperCase()} ${x[2]}`)
+t('migration: funktions-ACL kun for værnet og snapshot-funktionen', JSON.stringify(execStmts) === JSON.stringify(['REVOKE case_materials_cost_write_guard', 'REVOKE snapshot_work_order_profit', 'GRANT snapshot_work_order_profit']), JSON.stringify(execStmts))
+t('migration: snapshot-funktionen lukkes for klienter', /REVOKE EXECUTE ON FUNCTION public\.snapshot_work_order_profit\(uuid, text\) FROM PUBLIC, anon, authenticated/.test(migCode))
+
+// §6 skrive-værn: effektiv rettighed, INVOKER, insert kun NULL, update OF unit_cost afvist uanset værdi, ingen beløb i fejlen
+const guardFn = /CREATE FUNCTION public\.case_materials_cost_write_guard\(\)[\s\S]*?\$function\$;/.exec(migCode)?.[0] ?? ''
+t('skrive-værn: findes', guardFn.length > 0)
+t('skrive-værn: effektiv rettighed materials.view.cost_prices', /user_has_permission\('materials\.view\.cost_prices'\)/.test(guardFn))
+t('skrive-værn: ingen rå rolle', !/user_role\(|role\s*=|role\s+IN/i.test(guardFn.replace(/current_user IN \('anon', 'authenticated'\)/, '')))
+t('skrive-værn: SECURITY INVOKER (current_user er kalderen)', !/SECURITY DEFINER/i.test(guardFn) && /current_user IN \('anon', 'authenticated'\)/.test(guardFn))
+t('skrive-værn: INSERT kun med NULL', /TG_OP <> 'INSERT' OR NEW\.unit_cost IS NOT NULL/.test(guardFn))
+t('skrive-værn: sammenligner aldrig med gemt kost (intet orakel)', !/OLD\./.test(guardFn))
+t('skrive-værn: fejlen indeholder ingen værdi', /RAISE EXCEPTION '[^'%]*'\s+USING ERRCODE = '42501'/.test(guardFn))
+t('skrive-værn: trigger på INSERT', /BEFORE INSERT ON public\.case_materials\s+FOR EACH ROW EXECUTE FUNCTION public\.case_materials_cost_write_guard\(\)/.test(migCode))
+t('skrive-værn: trigger på UPDATE OF unit_cost', /BEFORE UPDATE OF unit_cost ON public\.case_materials\s+FOR EACH ROW EXECUTE FUNCTION public\.case_materials_cost_write_guard\(\)/.test(migCode))
+t('skrive-værn: klienter har ingen EXECUTE på trigger-funktionen', /REVOKE ALL ON FUNCTION public\.case_materials_cost_write_guard\(\) FROM PUBLIC, anon, authenticated/.test(migCode))
+
+// §7 work_order_profit: begge kost-nøgler + ordre-scope, ingen rå rolle
+const wopPol = /CREATE POLICY work_order_profit_select_cost_roles[\s\S]*?\);/.exec(migCode)?.[0] ?? ''
+t('avance-politik: economy.cost_prices OG materials.view.cost_prices', /user_has_permission\('economy\.cost_prices'\)\)\s+AND \(SELECT public\.user_has_permission\('materials\.view\.cost_prices'\)\)/.test(wopPol))
+t('avance-politik: ordren skal være synlig (work_orders-RLS)', /EXISTS \(SELECT 1 FROM public\.work_orders w WHERE w\.id = work_order_profit\.work_order_id\)/.test(wopPol))
+t('avance-politik: kun SELECT for authenticated', /FOR SELECT TO authenticated/.test(wopPol))
+t('avance-politik: forudsætningsværn før udskiftning', /IS DISTINCT FROM ARRAY\['work_order_profit_select_cost_roles'\]/.test(migCode))
+t('rollback: avance efter 00192 og snapshot-EXECUTE tilbage', /USING \(public\.user_role\(\) IN \('admin', 'serviceleder', 'bogholderi'\)\)/.test(src('docs/runbooks/mp-00248-rollback.sql')) && /GRANT EXECUTE ON FUNCTION public\.snapshot_work_order_profit\(uuid, text\) TO authenticated/.test(src('docs/runbooks/mp-00248-rollback.sql')))
+t('rollback: skrive-værnet fjernes', /DROP TRIGGER IF EXISTS trg_case_materials_cost_write_guard_insert/.test(src('docs/runbooks/mp-00248-rollback.sql')) && /DROP TRIGGER IF EXISTS trg_case_materials_cost_write_guard_update/.test(src('docs/runbooks/mp-00248-rollback.sql')) && /DROP FUNCTION IF EXISTS public\.case_materials_cost_write_guard\(\)/.test(src('docs/runbooks/mp-00248-rollback.sql')))
+
+// App: revisionssporet skriver ikke en skjult kost; AI-indsigter kræver begge nøgler
+const actionsSrc = src('src/lib/actions/case-materials.ts')
+t('app: revisionsspor med kost kun med kost-retten', /\.\.\.\(canSetPrices\s*\?\s*\{ unit_cost: \{ from: cur\.unit_cost/.test(actionsSrc))
+t('app: AI-indsigter (avance) kræver begge kost-nøgler', /hasPermission\('economy\.cost_prices'\) \|\| !ctx\.hasPermission\('materials\.view\.cost_prices'\)/.test(src('src/app/api/dashboard/ai-insights/route.ts')))
+t('app: work_order_profit læses aldrig med brugerens klient', (() => {
+  const offenders: string[] = []
+  const walk = (d: string) => { for (const e of readdirSync(join(process.cwd(), d), { withFileTypes: true })) {
+    const rel = `${d}/${e.name}`
+    if (e.isDirectory()) walk(rel)
+    else if (/\.(ts|tsx)$/.test(e.name)) { const s = src(rel); if (/from\(['"]work_order_profit['"]\)/.test(s) && !/createAdminClient\(\)/.test(s)) offenders.push(rel) }
+  } }
+  walk('src')
+  return offenders.length === 0
+})())
 const rollback = src('docs/runbooks/mp-00248-rollback.sql')
 t('rollback: afviser ved NULL og sætter intet til 0', /RAISE EXCEPTION/.test(rollback) && !/UPDATE\s+public\.case_materials/i.test(rollback))
 

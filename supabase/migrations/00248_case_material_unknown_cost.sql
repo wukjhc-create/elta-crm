@@ -23,9 +23,20 @@
 --     kolonne-SELECT på alle øvrige kolonner. Ingen bruger kan SELECT, filtrere, sortere eller joine på unit_cost/
 --     total_cost, uanset rolle; SELECT * afvises. App'en læser kosten med admin-klienten bag den effektive rettighed
 --     materials.view.cost_prices og kun for rækker brugerens egen klient har returneret (lib/materials/case-material-costs).
---     Dermed er NULL mod kendt kost heller ikke en sidekanal. INSERT/UPDATE/DELETE og RLS-politikkerne er uændrede.
+--     Dermed er NULL mod kendt kost heller ikke en sidekanal.
+--  6. Kosten kan kun SÆTTES af den, der må se den (effektiv rettighed materials.view.cost_prices, ingen rå rolle):
+--     trigger case_materials_cost_write_guard (SECURITY INVOKER, som 00150). For en API-session (anon/authenticated)
+--     uden rettigheden: INSERT med unit_cost ≠ NULL afvises; UPDATE hvor unit_cost står i SET afvises UANSET værdi
+--     (en sammenligning med den gemte kost ville gøre afvisning/accept til et orakel). Fejlteksten indeholder ingen
+--     beløb. total_cost er genereret og kan ikke skrives. service_role/postgres (admin-klient, definer-triggere) gates
+--     ikke — de er app'ens egne, gatede stier. Række-politikkerne for INSERT/UPDATE/DELETE er uændrede.
+--  7. work_order_profit (avance/kost pr. ordre) læses efter EFFEKTIVE rettigheder i stedet for rå user_role() (00192):
+--     economy.cost_prices OG materials.view.cost_prices (snapshottet indeholder både time- og materialekost; med kun
+--     den ene kunne den anden regnes ud) OG ordren skal være synlig for brugeren (work_orders-RLS, 00242). Samme
+--     politiknavn (scripts/rls/write-matrix.ts SELECT_REPLACED). snapshot_work_order_profit mister EXECUTE for
+--     klienter (kaldes kun af admin-klienten og af SECURITY DEFINER-triggere).
 --  Uændret: trg_profit_snapshot_flag_low (NULL opfylder hverken < 15 eller >= 15: intet flag, ingen margin_alert),
---           case_other_costs, RLS-politikker, INSERT/UPDATE/DELETE-grants, funktions-ACL.
+--           case_other_costs, case_materials' RLS-politikker, INSERT/UPDATE/DELETE-grants.
 --
 -- Data: ingen konvertering. Prod 2026-11-05: 4 rækker, 0 med unit_cost = 0, 0 work_order_profit-rækker.
 -- Rækkefølge: PUSH → MIGRATION. Gammel kode læser kosten med bruger-klienten og fejler efter punkt 5; ny kode læser den
@@ -301,6 +312,61 @@ BEGIN
     RAISE EXCEPTION '00248: kostkolonnerne kan stadig læses af authenticated';
   END IF;
 END $$;
+
+-- ---------- 6. Kosten kan kun sættes med kost-retten ----------
+-- SECURITY INVOKER (default): current_user er den kaldende rolle. Som DEFINER ville current_user altid være ejeren.
+CREATE FUNCTION public.case_materials_cost_write_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path = public, pg_temp
+AS $function$
+BEGIN
+  IF current_user IN ('anon', 'authenticated')
+     AND NOT COALESCE(public.user_has_permission('materials.view.cost_prices'), false) THEN
+    -- INSERT: kun en ukendt kost (NULL). UPDATE OF unit_cost: afvist uanset værdi — ingen sammenligning med den gemte kost.
+    IF TG_OP <> 'INSERT' OR NEW.unit_cost IS NOT NULL THEN
+      RAISE EXCEPTION 'case_materials: kostpris kan kun sættes eller ændres med rettigheden materials.view.cost_prices'
+        USING ERRCODE = '42501';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+-- EXECUTE kontrolleres kun ved CREATE TRIGGER, ikke når triggeren fyrer → ingen klient behøver den
+REVOKE ALL ON FUNCTION public.case_materials_cost_write_guard() FROM PUBLIC, anon, authenticated;
+
+CREATE TRIGGER trg_case_materials_cost_write_guard_insert
+  BEFORE INSERT ON public.case_materials
+  FOR EACH ROW EXECUTE FUNCTION public.case_materials_cost_write_guard();
+-- UPDATE OF unit_cost fyrer, når kolonnen står i SET (også ved uændret værdi og ved upsert's DO UPDATE)
+CREATE TRIGGER trg_case_materials_cost_write_guard_update
+  BEFORE UPDATE OF unit_cost ON public.case_materials
+  FOR EACH ROW EXECUTE FUNCTION public.case_materials_cost_write_guard();
+
+-- ---------- 7. work_order_profit efter effektive rettigheder ----------
+DO $guard$
+BEGIN
+  -- Forventet før: præcis én SELECT-politik for authenticated (00192's rå rolle-tjek), ingen skrive-politikker
+  IF (SELECT array_agg(policyname::text ORDER BY policyname) FROM pg_policies
+       WHERE schemaname = 'public' AND tablename = 'work_order_profit')
+     IS DISTINCT FROM ARRAY['work_order_profit_select_cost_roles'] THEN
+    RAISE EXCEPTION '00248: work_order_profit har uventede politikker — kontrollér før kørsel';
+  END IF;
+END
+$guard$;
+
+DROP POLICY work_order_profit_select_cost_roles ON public.work_order_profit;
+CREATE POLICY work_order_profit_select_cost_roles ON public.work_order_profit
+  FOR SELECT TO authenticated
+  USING (
+    (SELECT public.user_has_permission('economy.cost_prices'))
+    AND (SELECT public.user_has_permission('materials.view.cost_prices'))
+    -- sags-/ordre-scope: work_orders-RLS (00242) afgør, om ordren er synlig
+    AND EXISTS (SELECT 1 FROM public.work_orders w WHERE w.id = work_order_profit.work_order_id)
+  );
+
+REVOKE EXECUTE ON FUNCTION public.snapshot_work_order_profit(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.snapshot_work_order_profit(uuid, text) TO service_role;
 
 NOTIFY pgrst, 'reload schema';
 

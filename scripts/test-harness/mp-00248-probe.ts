@@ -19,6 +19,9 @@ export const STATE_00248_SQL = `SELECT json_build_object(
   'wop', (SELECT json_agg(column_name || ':' || is_nullable || ':' || coalesce(column_default,'-') ORDER BY column_name) FROM information_schema.columns WHERE table_schema='public' AND table_name='work_order_profit' AND column_name IN ('material_cost','total_cost','profit','margin_percentage')),
   'fn', (SELECT json_agg(p.proname || ':' || md5(p.prosrc) || ':' || coalesce(array_to_string(p.proacl, ','), '') ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname IN ('calculate_work_order_profit','snapshot_work_order_profit')),
   'pol', (SELECT md5(string_agg(policyname || cmd || coalesce(qual,'') || coalesce(with_check,''), '|' ORDER BY policyname)) FROM pg_policies WHERE schemaname='public' AND tablename='case_materials'),
+  'wop_pol', (SELECT json_agg(policyname || ':' || cmd || ':' || (coalesce(qual,'') LIKE '%user_has_permission%') ORDER BY policyname) FROM pg_policies WHERE schemaname='public' AND tablename='work_order_profit'),
+  'guard_fn', (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='case_materials_cost_write_guard'),
+  'snapshot_exec_auth', (SELECT has_function_privilege('authenticated', 'public.snapshot_work_order_profit(uuid, text)', 'EXECUTE')),
   'grants', (SELECT md5(string_agg(grantee || privilege_type, '|' ORDER BY grantee, privilege_type)) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='case_materials'),
   'col_grants', (SELECT md5(string_agg(grantee || column_name || privilege_type, '|' ORDER BY grantee, column_name, privilege_type)) FROM information_schema.column_privileges WHERE table_schema='public' AND table_name='case_materials' AND column_name IN ('unit_cost','total_cost')),
   'trg', (SELECT md5(string_agg(tgname || pg_get_triggerdef(oid), '|' ORDER BY tgname)) FROM pg_trigger WHERE tgrelid='public.case_materials'::regclass AND NOT tgisinternal),
@@ -40,7 +43,7 @@ export function probe00248Sql(): string {
   return `DO $probe$
 DECLARE
   v_admin uuid; v_montor uuid; v_emp uuid; v_cust uuid; v_case uuid; v_wo uuid; v_other_case uuid;
-  v_known uuid; v_zero uuid; v_unknown uuid; v_mont uuid;
+  v_known uuid; v_zero uuid; v_unknown uuid; v_mont uuid; v_sl uuid; v_wo2 uuid; v_tmp uuid;
   r jsonb := '{}'::jsonb;
   c jsonb; n int; x numeric; t numeric; s text; b boolean;
   v_alerts int;
@@ -55,7 +58,8 @@ BEGIN
     VALUES ('P248-' || extract(epoch from now())::bigint, '[PROBE] 00248', 'X', 'p248@harness.test', v_admin) RETURNING id INTO v_cust;
   INSERT INTO service_cases (customer_id, title, status, created_by) VALUES (v_cust, '[PROBE] 00248', 'in_progress', v_admin) RETURNING id INTO v_case;
   INSERT INTO service_cases (customer_id, title, status, created_by) VALUES (v_cust, '[PROBE] 00248 fremmed', 'in_progress', v_admin) RETURNING id INTO v_other_case;
-  SELECT id INTO v_emp FROM employees WHERE profile_id = v_montor ORDER BY created_at LIMIT 1;
+  -- som current_employee_id(): ældste AKTIVE række (ellers ser montøren ikke sin egen ordre)
+  SELECT id INTO v_emp FROM employees WHERE profile_id = v_montor AND active ORDER BY created_at, id LIMIT 1;
   IF v_emp IS NULL THEN
     INSERT INTO employees (name, email, role, active, profile_id, hourly_rate, cost_rate) VALUES ('[PROBE] 00248', 'p248e@harness.test', 'montør', true, v_montor, 495, 300) RETURNING id INTO v_emp;
   END IF;
@@ -179,6 +183,105 @@ BEGIN
   SELECT count(*) INTO n FROM (SELECT id, description FROM case_materials WHERE case_id = v_case) q;
   r := r || jsonb_build_object('admin_session_ufarlige_kolonner', n >= 3);
   EXECUTE 'RESET ROLE';
+
+  -- Fremmed udført ordre (anden sag, ikke tildelt montøren) med snapshot — til scope-tjek på work_order_profit
+  INSERT INTO work_orders (case_id, customer_id, title, status, scheduled_date) VALUES (v_other_case, v_cust, '[PROBE] 00248 fremmed', 'in_progress', current_date) RETURNING id INTO v_wo2;
+  UPDATE work_orders SET status = 'done' WHERE id = v_wo2;
+  SELECT count(*) INTO n FROM work_order_profit WHERE work_order_id IN (v_wo, v_wo2);
+  r := r || jsonb_build_object('avance_snapshots_findes', n >= 2);
+  DELETE FROM user_permission_overrides WHERE profile_id = v_montor AND permission IN ('materials.view.cost_prices', 'economy.cost_prices');
+
+  -- 6. Skrive-værn, montør uden kost-ret: kosten kan ikke sættes ved oprettelse (heller ikke 0); NULL går igennem
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_montor, 'role', 'authenticated')::text, true);
+  r := r || jsonb_build_object('montor_skriv_kost_afvist', jsonb_build_object(
+    'insert_kost', public.p248_denied(format('INSERT INTO public.case_materials (case_id, description, quantity, unit_cost, source, created_by) VALUES (%L, ''p248'', 1, 5, ''manual'', %L)', v_case, v_montor)),
+    'insert_nul',  public.p248_denied(format('INSERT INTO public.case_materials (case_id, description, quantity, unit_cost, source, created_by) VALUES (%L, ''p248'', 1, 0, ''manual'', %L)', v_case, v_montor))));
+  r := r || jsonb_build_object('montor_insert_eksplicit_null', NOT public.p248_denied(format('INSERT INTO public.case_materials (case_id, description, quantity, unit_cost, source, created_by) VALUES (%L, ''p248'', 1, NULL, ''manual'', %L)', v_case, v_montor)));
+  -- 7. avance: montør (standard) ser ingen snapshots og kan ikke kalde snapshot-funktionen
+  SELECT count(*) INTO n FROM work_order_profit;
+  r := r || jsonb_build_object('montor_ser_ingen_avance', n = 0,
+    'montor_snapshot_rpc_afvist', public.p248_denied(format('SELECT public.snapshot_work_order_profit(%L, ''manual'')', v_wo)));
+  EXECUTE 'RESET ROLE';
+
+  -- Montør med per-bruger GRANT af begge kost-nøgler: ser avance for egen ordre, ikke for fremmed; må sætte kost
+  INSERT INTO user_permission_overrides (profile_id, permission, effect, source, reason) VALUES
+    (v_montor, 'materials.view.cost_prices', 'grant', 'manual', 'p248 probe'), (v_montor, 'economy.cost_prices', 'grant', 'manual', 'p248 probe');
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_montor, 'role', 'authenticated')::text, true);
+  SELECT count(*) INTO n FROM work_order_profit WHERE work_order_id = v_wo;
+  r := r || jsonb_build_object('montor_grant_ser_egen_avance', n >= 1);
+  SELECT count(*) INTO n FROM work_order_profit WHERE work_order_id = v_wo2;
+  r := r || jsonb_build_object('montor_grant_ikke_fremmed_avance', n = 0);
+  r := r || jsonb_build_object('montor_grant_insert_kost', NOT public.p248_denied(format('INSERT INTO public.case_materials (case_id, description, quantity, unit_cost, source, created_by) VALUES (%L, ''p248'', 1, 5, ''manual'', %L)', v_case, v_montor)));
+  r := r || jsonb_build_object('montor_grant_direkte_kost_stadig_afvist', public.p248_denied('SELECT unit_cost FROM public.case_materials LIMIT 1'));
+  EXECUTE 'RESET ROLE';
+  DELETE FROM user_permission_overrides WHERE profile_id = v_montor AND reason = 'p248 probe';
+
+  -- Admin ser alle avancer
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+  SELECT count(*) INTO n FROM work_order_profit WHERE work_order_id IN (v_wo, v_wo2);
+  r := r || jsonb_build_object('admin_ser_avance', n >= 2);
+  EXECUTE 'RESET ROLE';
+
+  -- Serviceleder: standard må rette kost og se avance; per-bruger REVOKE fjerner begge dele
+  SELECT id INTO v_sl FROM profiles WHERE is_active AND role = 'serviceleder' ORDER BY created_at LIMIT 1;
+  r := r || jsonb_build_object('serviceleder_findes', v_sl IS NOT NULL);
+  IF v_sl IS NOT NULL THEN
+    DELETE FROM user_permission_overrides WHERE profile_id = v_sl AND permission IN ('materials.view.cost_prices', 'economy.cost_prices');
+    EXECUTE 'SET LOCAL ROLE authenticated';
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sl, 'role', 'authenticated')::text, true);
+    UPDATE case_materials SET unit_cost = 3 WHERE id = v_zero;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    r := r || jsonb_build_object('sl_standard_retter_kost', n = 1);
+    SELECT count(*) INTO n FROM work_order_profit WHERE work_order_id IN (v_wo, v_wo2);
+    r := r || jsonb_build_object('sl_standard_ser_avance', n >= 2);
+    EXECUTE 'RESET ROLE';
+
+    INSERT INTO user_permission_overrides (profile_id, permission, effect, source, reason) VALUES (v_sl, 'materials.view.cost_prices', 'revoke', 'manual', 'p248 probe');
+    EXECUTE 'SET LOCAL ROLE authenticated';
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sl, 'role', 'authenticated')::text, true);
+    -- afvist uanset værdi: samme værdi som den gemte (3) må ikke svare anderledes end en anden værdi (intet orakel)
+    r := r || jsonb_build_object('sl_revoke_skriv_kost_afvist', jsonb_build_object(
+      'samme_vaerdi', public.p248_denied(format('UPDATE public.case_materials SET unit_cost = 3 WHERE id = %L', v_zero)),
+      'anden_vaerdi', public.p248_denied(format('UPDATE public.case_materials SET unit_cost = 4 WHERE id = %L', v_zero)),
+      'tal_til_null', public.p248_denied(format('UPDATE public.case_materials SET unit_cost = NULL WHERE id = %L', v_zero)),
+      'null_til_tal', public.p248_denied(format('UPDATE public.case_materials SET unit_cost = 1 WHERE id = %L', v_known)),
+      'insert_kost',  public.p248_denied(format('INSERT INTO public.case_materials (case_id, description, quantity, unit_cost, source, created_by) VALUES (%L, ''p248'', 1, 2, ''manual'', %L)', v_case, v_sl)),
+      'upsert',       public.p248_denied(format('INSERT INTO public.case_materials (id, case_id, description, quantity, unit_cost, source) VALUES (%L, %L, ''p248'', 1, NULL, ''manual'') ON CONFLICT (id) DO UPDATE SET unit_cost = EXCLUDED.unit_cost', v_zero, v_case))));
+    BEGIN
+      UPDATE case_materials SET unit_cost = 4 WHERE id = v_zero;
+      s := NULL;
+    EXCEPTION WHEN insufficient_privilege THEN GET STACKED DIAGNOSTICS s = MESSAGE_TEXT;
+    END;
+    r := r || jsonb_build_object('sl_revoke_fejl_uden_beloeb', s IS NOT NULL AND s !~ '[0-9]');
+    BEGIN
+      UPDATE case_materials SET total_cost = 1 WHERE id = v_zero;
+      r := r || jsonb_build_object('total_cost_kan_ikke_skrives', false);
+    EXCEPTION WHEN OTHERS THEN r := r || jsonb_build_object('total_cost_kan_ikke_skrives', true);
+    END;
+    -- ufarlige felter og en ny linje med ukendt kost går stadig igennem
+    UPDATE case_materials SET quantity = 6, notes = 'p248' WHERE id = v_zero;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    r := r || jsonb_build_object('sl_revoke_retter_ufarlige', n = 1);
+    INSERT INTO case_materials (case_id, description, quantity, source, created_by) VALUES (v_case, 'p248 sl', 1, 'manual', v_sl) RETURNING id INTO v_tmp;
+    r := r || jsonb_build_object('sl_revoke_opretter_ukendt', v_tmp IS NOT NULL);
+    SELECT count(*) INTO n FROM work_order_profit;
+    r := r || jsonb_build_object('sl_revoke_materialekost_ser_ingen_avance', n = 0);
+    EXECUTE 'RESET ROLE';
+    SELECT unit_cost INTO x FROM case_materials WHERE id = v_zero;
+    r := r || jsonb_build_object('sl_revoke_kost_uaendret', x = 3);
+
+    DELETE FROM user_permission_overrides WHERE profile_id = v_sl AND reason = 'p248 probe';
+    INSERT INTO user_permission_overrides (profile_id, permission, effect, source, reason) VALUES (v_sl, 'economy.cost_prices', 'revoke', 'manual', 'p248 probe');
+    EXECUTE 'SET LOCAL ROLE authenticated';
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sl, 'role', 'authenticated')::text, true);
+    SELECT count(*) INTO n FROM work_order_profit;
+    r := r || jsonb_build_object('sl_revoke_economy_ser_ingen_avance', n = 0);
+    EXECUTE 'RESET ROLE';
+    DELETE FROM user_permission_overrides WHERE profile_id = v_sl AND reason = 'p248 probe';
+  END IF;
 
   -- 15. sletning af ukendt linje: nyt snapshot, ingen fejl
   DELETE FROM case_materials WHERE id = v_unknown;

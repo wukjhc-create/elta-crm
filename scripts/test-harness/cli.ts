@@ -2793,6 +2793,10 @@ Total inkl. moms 11.718,75
       ['rollback: politikker uændrede', same(before.pol, rolled.pol)],
       ['rollback: authenticated kan igen vælge unit_cost og total_cost', ((rolled.select_cols as string[] | null) ?? []).includes('unit_cost') && ((rolled.select_cols as string[] | null) ?? []).includes('total_cost')],
       ['før rollback: authenticated kan ikke vælge kosten', !((before.select_cols as string[] | null) ?? []).includes('unit_cost') && !((before.select_cols as string[] | null) ?? []).includes('total_cost')],
+      ['før rollback: skrive-værn findes, avance efter effektiv ret, snapshot-RPC lukket', before.guard_fn === 1 && same(before.wop_pol, ['work_order_profit_select_cost_roles:SELECT:true']) && before.snapshot_exec_auth === false],
+      ['rollback: skrive-værn væk', rolled.guard_fn === 0],
+      ['rollback: avance efter rå rolle igen (00192)', same(rolled.wop_pol, ['work_order_profit_select_cost_roles:SELECT:false'])],
+      ['rollback: snapshot-RPC kan kaldes af authenticated (00088)', rolled.snapshot_exec_auth === true],
       ['gen-anvendelse: identisk med før', same(before, again)],
     ] as const
     for (const [id, ok] of rows) log(`${ok ? 'PASS' : 'FAIL'}  ${id}`)
