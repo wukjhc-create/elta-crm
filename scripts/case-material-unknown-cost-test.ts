@@ -2,13 +2,15 @@
  * 00248: ukendt materialekost er aldrig 0. Ren logik og statiske værn. Ingen database, intet netværk.
  *   npx tsx scripts/case-material-unknown-cost-test.ts
  */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { addCosts, knownCost, marginOf, parseCostInput, sumCosts } from '../src/lib/cases/material-cost'
 import { compareOfferToActual } from '../src/lib/cases/offer-vs-actual'
 import { computeRealizedDb } from '../src/lib/cases/realized-db'
 import { profitByClosedMonth, profitByCustomer } from '../src/lib/profit/profitability-groups'
 import { summarizeAftercalc } from '../src/lib/profit/aftercalc-summary'
 import { lineSnapshot } from '../src/lib/services/incoming-invoice-conversion'
+import { CASE_MATERIAL_PUBLIC_COLUMNS, listCaseMaterialsCore, readCaseMaterialCosts, withCosts } from '../src/lib/materials/case-material-costs'
 
 let bad = 0
 let passed = 0
@@ -134,11 +136,9 @@ const src = (f: string) => readFileSync(f, 'utf8')
 const materials = src('src/lib/actions/case-materials.ts')
 t('oprettelse: ingen standard på 0', !materials.includes('input.unit_cost ?? 0'))
 t('oprettelse: uden kost-ret gemmes null', materials.includes('hasPermission(PRICE_VISIBILITY_PERMISSION) ? parsedCost.cost : null'))
-t('liste: ingen Number() på kost', !materials.includes('Number(r.unit_cost)') && !materials.includes('Number(r.total_cost)'))
-t('liste: skjult er null på alle linjer', materials.includes('{ ...r, unit_cost: null, total_cost: null }'))
-t('liste: antal ukendte skjules uden kost-ret', materials.includes('unknown_cost_lines: canSeeCostPrices ? costs.unknownLines : null'))
+t('liste: går gennem loaderen', materials.includes('listCaseMaterialsCore('))
 t('rettelse: priser ignoreres uden kost-ret', materials.includes('canSetPrices && patch.unit_cost !== undefined') && materials.includes('canSetPrices && patch.unit_sales_price !== undefined'))
-t('rettelse: skjult kost sendes ikke tilbage', materials.includes('canSetPrices ? saved : { ...saved, unit_cost: null, total_cost: null }'))
+t('rettelse og oprettelse: kost tilbage kun bag ret', (materials.match(/withVisibleCost\(/g) ?? []).length >= 3)
 t('rettelse: ukendt → 0 auditeres', materials.includes('knownCost(update.unit_cost) !== knownCost(cur.unit_cost)'))
 
 const dialog = src('src/app/dashboard/orders/[id]/case-material-dialog.tsx')
@@ -169,9 +169,122 @@ t('fakturakladde: materialelæsning uden kost', !/from\('case_materials'\)\s*\.s
 const mig = src('supabase/migrations/00248_case_material_unknown_cost.sql')
 t('migration: nullable uden standard', /ALTER COLUMN unit_cost DROP DEFAULT/.test(mig) && /ALTER COLUMN unit_cost DROP NOT NULL/.test(mig))
 t('migration: ingen dataændring', !/^\s*UPDATE\s/im.test(mig) && !/^\s*DELETE\s/im.test(mig))
-t('migration: ingen politik/grant ændret', !/CREATE POLICY|DROP POLICY|^\s*GRANT\s|^\s*REVOKE\s/im.test(mig))
+t('migration: ingen politik ændret', !/CREATE POLICY|DROP POLICY|ALTER POLICY/i.test(mig))
+t('migration: kun SELECT-rettigheder ændres', !/(GRANT|REVOKE)\s+(ALL|INSERT|UPDATE|DELETE|TRUNCATE|EXECUTE)/i.test(mig))
 const rollback = src('docs/runbooks/mp-00248-rollback.sql')
 t('rollback: afviser ved NULL og sætter intet til 0', /RAISE EXCEPTION/.test(rollback) && !/UPDATE\s+public\.case_materials/i.test(rollback))
 
-if (bad) { console.error(`case-material-unknown-cost-test: ${bad} fejl, ${passed} bestået`); process.exit(1) }
-console.log(`case-material-unknown-cost-test ok (${passed} bestået)`)
+// ---- 00248 adgang: kost kun via loaderen bag ret ----
+t('migration: tabel-SELECT fjernes og kolonner gives tilbage', /REVOKE SELECT ON public\.case_materials FROM anon, authenticated/.test(mig) && /GRANT SELECT \(%s\) ON public\.case_materials TO authenticated/.test(mig))
+t('migration: kostkolonnerne udelades', /column_name NOT IN \('unit_cost', 'total_cost'\)/.test(mig))
+t('migration: fejler hvis kosten stadig kan læses', /has_column_privilege\('authenticated', 'public\.case_materials', 'unit_cost', 'SELECT'\)/.test(mig))
+t('migration: ingen rolle-tjek', !/user_role\(\)/.test(mig.replace(/^--.*$/gm, '')))
+t('rollback: tabel-SELECT gives tilbage', /GRANT SELECT ON public\.case_materials TO authenticated/.test(rollback))
+
+const cols00100 = Array.from(src('supabase/migrations/00100_case_materials.sql').matchAll(/^\s{2}([a-z_]+)\s+(?:UUID|TEXT|NUMERIC|BOOLEAN|TIMESTAMPTZ)\b/gm)).map((x) => x[1])
+const publicCols = CASE_MATERIAL_PUBLIC_COLUMNS.split(',').map((x) => x.trim())
+t('offentlige kolonner = skemaet minus kost', JSON.stringify([...publicCols].sort()) === JSON.stringify(cols00100.filter((x) => x !== 'unit_cost' && x !== 'total_cost').sort()), `${publicCols.length} mod ${cols00100.length}`)
+t('offentlige kolonner har ingen kost', !publicCols.includes('unit_cost') && !publicCols.includes('total_cost'))
+
+// Ingen bruger-klient-læsning af materialekost i src (kun loaderen, som bruger admin-klienten)
+const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) ? [p] : [] })
+const offenders: string[] = []
+for (const file of walk('src')) {
+  if (file.replace(/\\/g, '/').endsWith('lib/materials/case-material-costs.ts')) continue
+  const text = src(file)
+  for (const m of text.matchAll(/from\('case_materials'\)([\s\S]{0,400})/g)) {
+    const sel = /\.select\(\s*(['`])([^'`]*)\1/.exec(m[1])
+    if (sel && (/\bunit_cost\b|\btotal_cost\b|^\s*\*\s*$/.test(sel[2]))) offenders.push(file)
+  }
+  if (/case_materials\s*\(\s*(\*|[^)]*\b(unit_cost|total_cost)\b)/.test(text)) offenders.push(`${file} (indlejret)`)
+}
+t('ingen bruger-klient-læsning af unit_cost/total_cost/* på case_materials', offenders.length === 0, offenders.join(', '))
+for (const f of ['src/lib/actions/service-case-economy.ts', 'src/lib/actions/case-offer-vs-actual.ts', 'src/lib/actions/reports.ts', 'src/lib/actions/case-materials.ts']) {
+  t(`${f}: kost via readCaseMaterialCosts`, src(f).includes('readCaseMaterialCosts(') || src(f).includes('listCaseMaterialsCore('))
+}
+t('efterkalkulation kræver materials.view.cost_prices', src('src/lib/actions/case-offer-vs-actual.ts').includes("hasPermission('materials.view.cost_prices')"))
+t('loaderen er server-only registreret', src('scripts/assert-server-only-helpers.ts').includes("'src/lib/materials/case-material-costs.ts'"))
+t('loaderen er ikke en server action', !/^\s*['"]use server['"]/m.test(src('src/lib/materials/case-material-costs.ts')))
+
+// ---- Loaderen med falske klienter ----
+type Q = { table: string; cols: string; ids?: string[]; filters: string[] }
+function fakeClient(rows: Record<string, unknown>[], log: Q[], fail = false) {
+  return {
+    from(table: string) {
+      const q: Q = { table, cols: '', filters: [] }
+      const b = {
+        select(cols: string) { q.cols = cols; return b },
+        eq(col: string, v: unknown) { q.filters.push(`${col}=${v}`); return b },
+        in(col: string, ids: string[]) { q.ids = ids; return b },
+        order() { return b },
+        range() { return b },
+        then(res: (v: unknown) => void, rej: (e: unknown) => void) {
+          log.push(q)
+          const pick = q.ids ? rows.filter((r) => q.ids!.includes(String(r.id))) : rows
+          return Promise.resolve(fail ? { data: null, error: { message: 'nej' } } : { data: pick, error: null }).then(res, rej)
+        },
+      }
+      return b
+    },
+  } as never
+}
+
+async function loaderTests() {
+  const safeRows = [
+    { id: 'a', case_id: 'c', description: 'kendt', quantity: 2, unit: 'stk', unit_sales_price: 20, total_sales_price: 40 },
+    { id: 'b', case_id: 'c', description: 'nul', quantity: 1, unit: 'stk', unit_sales_price: 5, total_sales_price: 5 },
+    { id: 'u', case_id: 'c', description: 'ukendt', quantity: 1, unit: 'stk', unit_sales_price: 30, total_sales_price: 30 },
+  ]
+  const costRows = [
+    { id: 'a', unit_cost: '12.34', total_cost: '24.68' },
+    { id: 'b', unit_cost: '0', total_cost: '0' },
+    { id: 'u', unit_cost: null, total_cost: null },
+    { id: 'x', unit_cost: '99.99', total_cost: '99.99' },
+  ]
+  const run = async (perms: string[], opts: { adminFail?: boolean; userFail?: boolean; visible?: boolean } = {}) => {
+    const userLog: Q[] = [], adminLog: Q[] = []
+    const res = await listCaseMaterialsCore({
+      supabase: fakeClient(safeRows, userLog, opts.userFail),
+      admin: fakeClient(costRows, adminLog, opts.adminFail),
+      hasPermission: (k) => perms.includes(k),
+      canViewCase: async () => opts.visible ?? true,
+    }, 'c')
+    return { res, userLog, adminLog }
+  }
+
+  const none = await run(['materials.view'])
+  t('loader uden ret: admin-klienten bruges ikke', none.adminLog.length === 0)
+  t('loader uden ret: bruger-klienten vælger kun offentlige kolonner', none.userLog.every((q) => q.cols === CASE_MATERIAL_PUBLIC_COLUMNS))
+  t('loader uden ret: null på alle linjer', none.res.success && none.res.data.rows.every((r) => r.unit_cost === null && r.total_cost === null))
+  t('loader uden ret: summen og antal ukendte er skjult', none.res.success && none.res.data.summary.total_cost === null && none.res.data.summary.unknown_cost_lines === null && none.res.data.summary.contribution_margin === null)
+  t('loader uden ret: ingen kostværdi i svaret', !/12\.34|24\.68|99\.99/.test(JSON.stringify(none.res)))
+
+  const withPerm = await run(['materials.view', 'materials.view.cost_prices'])
+  const row = (d: string) => (withPerm.res.success ? withPerm.res.data.rows.find((r) => r.description === d) : undefined)
+  t('loader med ret: admin læser kun id\'er brugerens klient returnerede', withPerm.adminLog.length === 1 && JSON.stringify(withPerm.adminLog[0].ids) === JSON.stringify(['a', 'b', 'u']))
+  t('loader med ret: admin læser kun kostkolonner', withPerm.adminLog[0]?.cols === 'id, unit_cost, total_cost')
+  t('loader med ret: kendt kost', row('kendt')?.unit_cost === 12.34 && row('kendt')?.total_cost === 24.68)
+  t('loader med ret: rigtig 0', row('nul')?.unit_cost === 0 && row('nul')?.total_cost === 0)
+  t('loader med ret: ukendt er null', row('ukendt')?.unit_cost === null)
+  t('loader med ret: fremmed række kommer ikke med', !JSON.stringify(withPerm.res).includes('99.99'))
+  t('loader med ret: sum ukendt, kendt 24,68, 1 ukendt', withPerm.res.success && withPerm.res.data.summary.total_cost === null && withPerm.res.data.summary.total_cost_known === 24.68 && withPerm.res.data.summary.unknown_cost_lines === 1)
+
+  const adminFail = await run(['materials.view', 'materials.view.cost_prices'], { adminFail: true })
+  t('loader: fejlet kostlæsning er fejl, ikke 0', !adminFail.res.success)
+  const userFail = await run(['materials.view', 'materials.view.cost_prices'], { userFail: true })
+  t('loader: fejlet rækkelæsning er fejl', !userFail.res.success && userFail.adminLog.length === 0)
+  const hidden = await run(['materials.view', 'materials.view.cost_prices'], { visible: false })
+  t('loader: usynlig sag giver ingen rækker og ingen admin-læsning', hidden.res.success && hidden.res.data.rows.length === 0 && hidden.adminLog.length === 0 && hidden.userLog.length === 0)
+  const noView = await run([])
+  t('loader: uden materials.view afvist', !noView.res.success)
+
+  t('readCaseMaterialCosts uden ret: hidden', (await readCaseMaterialCosts({ hasPermission: () => false, admin: fakeClient(costRows, []) }, ['a'])).state === 'hidden')
+  const direct = await readCaseMaterialCosts({ hasPermission: () => true, admin: fakeClient(costRows, []) }, ['a', 'u'])
+  t('readCaseMaterialCosts: tal og null', direct.state === 'ok' && direct.byId.get('a')?.unit_cost === 12.34 && direct.byId.get('u')?.unit_cost === null)
+  t('withCosts: skjult giver null', withCosts([{ id: 'a' }], { state: 'hidden' })[0].unit_cost === null)
+}
+
+loaderTests().then(() => {
+  if (bad) { console.error(`case-material-unknown-cost-test: ${bad} fejl, ${passed} bestået`); process.exit(1) }
+  console.log(`case-material-unknown-cost-test ok (${passed} bestået)`)
+}).catch((e) => { console.error(e); process.exit(1) })

@@ -2756,6 +2756,21 @@ Total inkl. moms 11.718,75
     process.exitCode = failed ? 2 : 0
     return
   }
+  if (SUB === 'mp-00248-api') {
+    // STAGING (00248 anvendt): rigtige persona-klienter mod PostgREST + app'ens materialeloader; rydder selv op
+    const { runApi00248 } = await import('./mp-00248-api')
+    const { STATE_00248_SQL } = await import('./mp-00248-probe')
+    const { CASE_MATERIAL_PUBLIC_COLUMNS } = await import('../../src/lib/materials/case-material-costs')
+    const granted = (((await stagingSql(STATE_00248_SQL))[0].f as { select_cols: string[] }).select_cols ?? []).slice().sort()
+    const wanted = CASE_MATERIAL_PUBLIC_COLUMNS.split(',').map((x) => x.trim()).sort()
+    const checks = [{ id: 'kolonne-grant = CASE_MATERIAL_PUBLIC_COLUMNS', ok: JSON.stringify(granted) === JSON.stringify(wanted), note: JSON.stringify(granted) },
+      ...await runApi00248({ admin, url: runtime.url, anonKey: runtime.anonKey })]
+    for (const ch of checks) log(`${ch.ok ? 'PASS' : 'FAIL'}  ${ch.id}${!ch.ok && ch.note ? ` (${ch.note})` : ''}`)
+    const failed = checks.filter((ch) => !ch.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek`)
+    process.exitCode = failed ? 2 : 0
+    return
+  }
   if (SUB === 'mp-00248-rollback-proof') {
     // KUN STAGING: state → rollback-fil → state → migration → state. Rækkerne må ikke ændre sig.
     const { STATE_00248_SQL, rollback00248Sql, migration00248Sql } = await import('./mp-00248-probe')
@@ -2775,7 +2790,9 @@ Total inkl. moms 11.718,75
       ['rollback: CHECK væk', rolled.finite_check == null],
       ['rollback: materialerækker uændrede', same(before.rows, rolled.rows)],
       ['rollback: snapshots uændrede', same(before.wop_rows, rolled.wop_rows)],
-      ['rollback: politikker og grants uændrede', same(before.pol, rolled.pol) && same(before.grants, rolled.grants) && same(before.col_grants, rolled.col_grants)],
+      ['rollback: politikker uændrede', same(before.pol, rolled.pol)],
+      ['rollback: authenticated kan igen vælge unit_cost og total_cost', ((rolled.select_cols as string[] | null) ?? []).includes('unit_cost') && ((rolled.select_cols as string[] | null) ?? []).includes('total_cost')],
+      ['før rollback: authenticated kan ikke vælge kosten', !((before.select_cols as string[] | null) ?? []).includes('unit_cost') && !((before.select_cols as string[] | null) ?? []).includes('total_cost')],
       ['gen-anvendelse: identisk med før', same(before, again)],
     ] as const
     for (const [id, ok] of rows) log(`${ok ? 'PASS' : 'FAIL'}  ${id}`)

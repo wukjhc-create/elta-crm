@@ -230,7 +230,9 @@ function OrderEconomyTabContent({
           label="Samlet kost"
           icon={<TrendingDown className="w-4 h-4" />}
           value={data.totals.cost == null ? 'Ukendt' : fmtKr(data.totals.cost)}
-          sub={data.totals.cost == null
+          sub={data.totals.cost == null && data.materials.cost_hidden
+            ? 'Materialekost er skjult for dig'
+            : data.totals.cost == null
             ? `Kendt kost ${fmtKr(data.totals.cost_known)} · ${data.materials.lines_without_cost} materiale(r) mangler kostpris`
             : `Registreret salg ${fmtKr(data.totals.registered_sales_price)}`}
         />
@@ -257,7 +259,7 @@ function OrderEconomyTabContent({
           </div>
           <div className="mt-0.5 text-xs">
             <span className={`px-1.5 py-0.5 rounded ${palette.pill}`}>
-              {data.totals.margin_percentage == null ? 'Mangler kostpris' : fmtPct(data.totals.margin_percentage)}
+              {data.totals.margin_percentage == null ? (data.materials.cost_hidden ? 'Kost skjult' : 'Mangler kostpris') : fmtPct(data.totals.margin_percentage)}
             </span>
             <span className="text-gray-500 ml-1.5" data-testid="case-db-basis">
               {data.totals.revenue_basis === 'contract'

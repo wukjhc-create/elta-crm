@@ -10,6 +10,7 @@
 import { netInvoicedExVat } from '@/lib/invoices/net-invoiced'
 import { compareOfferToActual, type ActualMaterialInput, type OfferLineInput } from '@/lib/cases/offer-vs-actual'
 import { computeRealizedDb, type RealizedInvoiceInput } from '@/lib/cases/realized-db'
+import { readCaseMaterialCosts, withCosts } from '@/lib/materials/case-material-costs'
 import { hoursDeviationPct, offeredDb, summarizeAftercalc, type AftercalcSummary } from '@/lib/profit/aftercalc-summary'
 import { loadDbThresholds } from '@/lib/profit/db-thresholds'
 import type { ActionResult } from '@/types/common.types'
@@ -470,6 +471,8 @@ export interface ProjectProfitabilityReport {
   minimum_db_pct: number
   /** true når der findes flere sager end grænsen */
   truncated: boolean
+  /** 00248: brugeren mangler materials.view.cost_prices; materialekost er null (Ukendt) på alle sager */
+  material_cost_hidden: boolean
 }
 
 const PP_CHUNK = 200
@@ -509,7 +512,7 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
 
     const thresholds = await loadDbThresholds(supabase)
     if (cases.length === 0) {
-      return { success: true, data: { rows: [], summary: summarizeAftercalc([], thresholds.minimum), minimum_db_pct: thresholds.minimum, truncated: false } }
+      return { success: true, data: { rows: [], summary: summarizeAftercalc([], thresholds.minimum), minimum_db_pct: thresholds.minimum, truncated: false, material_cost_hidden: false } }
     }
 
     const caseIds = cases.map((c) => c.id as string)
@@ -535,10 +538,11 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
           .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
           .order('id')
           .range(from, to)),
-        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', ids).order('id').range(from, to)),
+        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, supplier_product_id, source_offer_line_id').in('case_id', ids).order('id').range(from, to)),
         fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('invoices').select('id, case_id, total_amount, status, invoice_type, voided_at, currency').in('case_id', ids).order('id').range(from, to)),
         fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_other_costs').select('id, case_id, total_cost').in('case_id', ids).order('id').range(from, to)),
     ])))
+    let materialCostHidden = false
     for (const [logs, mats, invs, others] of caseChunkData) {
       for (const l of logs as unknown as Array<{ hours: number | string | null; billable: boolean | null; cost_amount: number | string | null; work_order: { case_id: string } | Array<{ case_id: string }> }>) {
         const wo = Array.isArray(l.work_order) ? l.work_order[0] : l.work_order
@@ -549,7 +553,12 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
         if (l.cost_amount != null) labourCost.set(wo.case_id, (labourCost.get(wo.case_id) ?? 0) + (Number(l.cost_amount) || 0))
       }
       // PF-3: push i stedet for at kopiere listen for hver række (kvadratisk)
-      for (const m of mats as unknown as Array<ActualMaterialInput & { case_id: string }>) {
+      // 00248: kost bag materials.view.cost_prices for rækker brugerens klient returnerede. Uden ret: null = Ukendt, aldrig 0.
+      const matSafe = mats as unknown as Array<{ id: string; case_id: string }>
+      const matCost = await readCaseMaterialCosts({ hasPermission }, matSafe.map((m) => m.id))
+      if (matCost.state === 'error') return { success: false, error: 'Kunne ikke læse materialernes kost' }
+      if (matCost.state === 'hidden') materialCostHidden = true
+      for (const m of withCosts(matSafe, matCost) as unknown as Array<ActualMaterialInput & { case_id: string }>) {
         const arr = matsByCase.get(m.case_id)
         if (arr) arr.push(m)
         else matsByCase.set(m.case_id, [m])
@@ -623,7 +632,7 @@ export async function getProjectProfitabilityReport(opts: ProjectProfitabilityOp
       }
     })
 
-    return { success: true, data: { rows, summary: summarizeAftercalc(rows, thresholds.minimum), minimum_db_pct: thresholds.minimum, truncated } }
+    return { success: true, data: { rows, summary: summarizeAftercalc(rows, thresholds.minimum), minimum_db_pct: thresholds.minimum, truncated, material_cost_hidden: materialCostHidden } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente sagsdata') }
   }

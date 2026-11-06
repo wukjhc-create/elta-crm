@@ -27,6 +27,8 @@ const SERVER_ONLY_MODULES = [
   'src/lib/cases/case-write-guard.ts',
   'src/lib/invoices/invoice-scope.ts',
   'src/lib/documents/document-read-access.ts',
+  // 00248: materialekost via admin-klienten — kalderen gater materials.view.cost_prices og sender kun id'er brugeren har læst
+  'src/lib/materials/case-material-costs.ts',
 ]
 
 let failures = 0

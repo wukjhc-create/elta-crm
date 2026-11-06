@@ -22,6 +22,7 @@ export const STATE_00248_SQL = `SELECT json_build_object(
   'grants', (SELECT md5(string_agg(grantee || privilege_type, '|' ORDER BY grantee, privilege_type)) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='case_materials'),
   'col_grants', (SELECT md5(string_agg(grantee || column_name || privilege_type, '|' ORDER BY grantee, column_name, privilege_type)) FROM information_schema.column_privileges WHERE table_schema='public' AND table_name='case_materials' AND column_name IN ('unit_cost','total_cost')),
   'trg', (SELECT md5(string_agg(tgname || pg_get_triggerdef(oid), '|' ORDER BY tgname)) FROM pg_trigger WHERE tgrelid='public.case_materials'::regclass AND NOT tgisinternal),
+  'select_cols', (SELECT json_agg(column_name ORDER BY column_name) FROM information_schema.columns c WHERE c.table_schema='public' AND c.table_name='case_materials' AND has_column_privilege('authenticated', 'public.case_materials', c.column_name, 'SELECT')),
   'counts', (SELECT json_build_object('total', count(*), 'zero', count(*) FILTER (WHERE unit_cost = 0), 'nul', count(*) FILTER (WHERE unit_cost IS NULL)) FROM public.case_materials),
   'rows', ${md5Rows('case_materials')},
   'wop_rows', ${md5Rows('work_order_profit')}) f`
@@ -44,13 +45,20 @@ DECLARE
   c jsonb; n int; x numeric; t numeric; s text; b boolean;
   v_alerts int;
 BEGIN
+  -- Hjælpefunktion i samme transaktion; den rulles tilbage med resten (blokken slutter altid med RAISE)
+  EXECUTE $x$CREATE FUNCTION public.p248_denied(q text) RETURNS boolean LANGUAGE plpgsql AS $f$
+    BEGIN EXECUTE q; RETURN false; EXCEPTION WHEN insufficient_privilege THEN RETURN true; END $f$x$;
+  EXECUTE $x$GRANT EXECUTE ON FUNCTION public.p248_denied(text) TO authenticated$x$;
   SELECT id INTO v_admin FROM profiles WHERE is_active AND role='admin' ORDER BY created_at LIMIT 1;
   SELECT id INTO v_montor FROM profiles WHERE is_active AND role='montør' ORDER BY created_at LIMIT 1;
   INSERT INTO customers (customer_number, company_name, contact_person, email, created_by)
     VALUES ('P248-' || extract(epoch from now())::bigint, '[PROBE] 00248', 'X', 'p248@harness.test', v_admin) RETURNING id INTO v_cust;
   INSERT INTO service_cases (customer_id, title, status, created_by) VALUES (v_cust, '[PROBE] 00248', 'in_progress', v_admin) RETURNING id INTO v_case;
   INSERT INTO service_cases (customer_id, title, status, created_by) VALUES (v_cust, '[PROBE] 00248 fremmed', 'in_progress', v_admin) RETURNING id INTO v_other_case;
-  INSERT INTO employees (name, email, role, active, profile_id, hourly_rate, cost_rate) VALUES ('[PROBE] 00248', 'p248e@harness.test', 'montør', true, v_montor, 495, 300) RETURNING id INTO v_emp;
+  SELECT id INTO v_emp FROM employees WHERE profile_id = v_montor ORDER BY created_at LIMIT 1;
+  IF v_emp IS NULL THEN
+    INSERT INTO employees (name, email, role, active, profile_id, hourly_rate, cost_rate) VALUES ('[PROBE] 00248', 'p248e@harness.test', 'montør', true, v_montor, 495, 300) RETURNING id INTO v_emp;
+  END IF;
   INSERT INTO work_orders (case_id, customer_id, title, status, scheduled_date, assigned_employee_id) VALUES (v_case, v_cust, '[PROBE] 00248', 'in_progress', current_date, v_emp) RETURNING id INTO v_wo;
 
   -- 1. kendt kost
@@ -147,12 +155,29 @@ BEGIN
   r := r || jsonb_build_object('montor_kan_ikke_slette', n = 0);
   SELECT count(*) INTO n FROM case_materials WHERE case_id = v_other_case;
   r := r || jsonb_build_object('montor_uden_fremmed', n = 0);
-  -- Dokumenteret fund (ikke ændret af 00248): montøren kan stadig læse kostkolonnen direkte på egne sager
-  BEGIN
-    SELECT count(unit_cost) INTO n FROM case_materials WHERE id = v_zero;
-    r := r || jsonb_build_object('INFO_montor_laeser_kost_direkte_som_foer', true);
-  EXCEPTION WHEN insufficient_privilege THEN r := r || jsonb_build_object('INFO_montor_laeser_kost_direkte_som_foer', false);
-  END;
+  -- Ufarlige kolonner læses som før
+  SELECT count(*) INTO n FROM (SELECT id, description, quantity, unit, unit_sales_price, total_sales_price FROM case_materials WHERE case_id = v_case) q;
+  r := r || jsonb_build_object('montor_laeser_ufarlige_kolonner', n >= 3);
+  -- Kosten kan ikke læses, filtreres, sorteres, tælles eller joines på; SELECT * afvises
+  r := r || jsonb_build_object('montor_direkte_kost_afvist', jsonb_build_object(
+    'unit_cost',  public.p248_denied('SELECT unit_cost FROM public.case_materials LIMIT 1'),
+    'total_cost', public.p248_denied('SELECT total_cost FROM public.case_materials LIMIT 1'),
+    'stjerne',    public.p248_denied('SELECT * FROM public.case_materials LIMIT 1'),
+    'raekke',     public.p248_denied('SELECT m FROM public.case_materials m LIMIT 1'),
+    'filter_null', public.p248_denied('SELECT id FROM public.case_materials WHERE unit_cost IS NULL'),
+    'filter_vaerdi', public.p248_denied('SELECT id FROM public.case_materials WHERE total_cost > 0'),
+    'sortering',  public.p248_denied('SELECT id FROM public.case_materials ORDER BY unit_cost'),
+    'taelling',   public.p248_denied('SELECT count(unit_cost) FROM public.case_materials'),
+    'join',       public.p248_denied('SELECT s.id FROM public.service_cases s JOIN public.case_materials m ON m.case_id = s.id AND m.total_cost IS NOT NULL'),
+    'json',       public.p248_denied('SELECT to_jsonb(m) FROM public.case_materials m LIMIT 1')));
+  EXECUTE 'RESET ROLE';
+
+  -- Også en admin-session kan ikke læse kosten direkte (kun app'en via admin-klienten bag ret)
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+  r := r || jsonb_build_object('admin_session_direkte_afvist', public.p248_denied('SELECT unit_cost FROM public.case_materials LIMIT 1'));
+  SELECT count(*) INTO n FROM (SELECT id, description FROM case_materials WHERE case_id = v_case) q;
+  r := r || jsonb_build_object('admin_session_ufarlige_kolonner', n >= 3);
   EXECUTE 'RESET ROLE';
 
   -- 15. sletning af ukendt linje: nyt snapshot, ingen fejl
@@ -172,7 +197,12 @@ export async function runProbe00248(rawSql: RawSql): Promise<Check00248[]> {
   const m = /PROBE_RESULT:(\{.*?\})(?:"|\\n|$)/s.exec(res.text.replace(/\\"/g, '"'))
   if (!m) return [{ id: 'prøven kørte', ok: false, note: res.text.slice(0, 600) }]
   const r = JSON.parse(m[1]) as Record<string, unknown>
-  return Object.entries(r).map(([id, v]) => ({ id, ok: id.startsWith('INFO_') || v === true, note: id === 'montor_fejl' || id.startsWith('INFO_') ? String(v) : undefined }))
+  const out: Check00248[] = []
+  for (const [id, v] of Object.entries(r)) {
+    if (v && typeof v === 'object') for (const [k, x] of Object.entries(v as Record<string, unknown>)) out.push({ id: `${id}.${k}`, ok: x === true })
+    else out.push({ id, ok: v === true, note: id === 'montor_fejl' ? String(v) : undefined })
+  }
+  return out
 }
 
 export function rollback00248Sql(): string {

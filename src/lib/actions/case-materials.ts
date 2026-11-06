@@ -10,7 +10,6 @@
  * Delete is gated by invoice_line_id (cannot delete a billed row).
  */
 
-import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { revalidatePath } from 'next/cache'
 import {
@@ -28,17 +27,18 @@ import type {
   CaseMaterialsSummary,
 } from '@/types/case-materials.types'
 import { trackActionResult } from '@/lib/pilot/action-failure-log'
-import { knownCost, marginOf, parseCostInput, sumCosts } from '@/lib/cases/material-cost'
+import { knownCost, parseCostInput } from '@/lib/cases/material-cost'
+import { CASE_MATERIAL_PUBLIC_COLUMNS, listCaseMaterialsCore, readCaseMaterialCosts, withCosts } from '@/lib/materials/case-material-costs'
+import type { Permission } from '@/lib/auth/permissions'
 
-const SELECT_COLUMNS = `
-  id, case_id, work_order_id, supplier_product_id, material_id,
-  description, sku_snapshot, supplier_name_snapshot, unit,
-  quantity, unit_cost, unit_sales_price,
-  total_cost, total_sales_price,
-  source, source_offer_line_id, source_incoming_invoice_line_id,
-  billable, invoice_line_id,
-  notes, created_by, created_at, updated_at
-`
+// 00248: authenticated kan ikke læse kostkolonnerne. Bruger-klienten vælger de offentlige kolonner; kost hentes bag ret.
+const SELECT_COLUMNS = CASE_MATERIAL_PUBLIC_COLUMNS
+
+/** Rækken, som brugeren må se den: kost kun med materials.view.cost_prices, ellers null. Fejl i kostlæsningen er null. */
+async function withVisibleCost(row: Record<string, unknown>, hasPermission: (perm: Permission) => boolean): Promise<CaseMaterialRow> {
+  const read = await readCaseMaterialCosts({ hasPermission }, [String(row.id)])
+  return withCosts([row as unknown as { id: string }], read)[0] as unknown as CaseMaterialRow
+}
 
 // =====================================================
 // Read
@@ -50,83 +50,14 @@ export async function listCaseMaterials(
   try {
     validateUUID(caseId, 'case_id')
     const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('materials.view')) {
-      return { success: false, error: 'Manglende tilladelse: materials.view' }
-    }
-    // Sprint 7E — bekraeft user kan se sagen (montor scope-check).
-    if (!(await userCanViewCase(caseId, { role, userId, supabase }))) {
-      return {
-        success: true,
-        data: {
-          rows: [],
-          summary: {
-            count: 0,
-            total_cost: 0,
-            total_cost_known: 0,
-            unknown_cost_lines: 0,
-            total_sales_price: 0,
-            contribution_margin: 0,
-            margin_percentage: 0,
-          },
-        },
-      }
-    }
-    const canSeeCostPrices = hasPermission('materials.view.cost_prices')
-
-    // F-8 (review 2026-10-16): alle rækker (før .limit(500) → summen for kost/salg/DB blev for lav på store sager)
-    let data: unknown[] | null = null
-    let error: unknown = null
-    try {
-      data = await fetchAllRows((f, t) => supabase
-        .from('case_materials')
-        .select(SELECT_COLUMNS)
-        .eq('case_id', caseId)
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
-        .range(f, t))
-    } catch (e) { error = e }
-
-    if (error) {
-      logger.error('listCaseMaterials failed', { error, entityId: caseId })
-      return { success: false, error: 'Kunne ikke hente materialer' }
-    }
-
-    const rawRows = ((data ?? []) as CaseMaterialRow[]).map((r) => ({
-      ...r,
-      quantity: Number(r.quantity),
-      // 00248: null = ukendt. Number(null) ville gøre den til en vare på 0 kr.
-      unit_cost: knownCost(r.unit_cost),
-      unit_sales_price: Number(r.unit_sales_price),
-      total_cost: knownCost(r.total_cost),
-      total_sales_price: Number(r.total_sales_price),
-    }))
-
-    // Sprint 7E — beregn summary fra raw-tal foer evt. stripping.
-    const costs = sumCosts(rawRows.map((r) => r.total_cost))
-    const total_sales_price = rawRows.reduce((s, r) => s + r.total_sales_price, 0)
-    const margin = marginOf(total_sales_price, costs.total)
-
-    // Sprint 7E — strip kostpriser hvis user ikke har materials.view.cost_prices (montor + salg). Sales-priser er ikke
-    // folsomme. 00248: skjult er null på ALLE linjer og i summen, så svaret ikke afslører, om en kost er kendt.
-    const rows = canSeeCostPrices
-      ? rawRows
-      : rawRows.map((r) => ({ ...r, unit_cost: null, total_cost: null }))
-
-    return {
-      success: true,
-      data: {
-        rows,
-        summary: {
-          count: rows.length,
-          total_cost: canSeeCostPrices ? costs.total : null,
-          total_cost_known: canSeeCostPrices ? costs.known : null,
-          unknown_cost_lines: canSeeCostPrices ? costs.unknownLines : null,
-          total_sales_price: Math.round(total_sales_price * 100) / 100,
-          contribution_margin: canSeeCostPrices ? margin.amount : null,
-          margin_percentage: canSeeCostPrices ? margin.percentage : null,
-        },
-      },
-    }
+    // Sprint 7E (scope-check) og F-8 (alle rækker) bor i kernen. 00248: kost via admin-klienten bag ret.
+    const res = await listCaseMaterialsCore({
+      supabase,
+      hasPermission,
+      canViewCase: (id) => userCanViewCase(id, { role, userId, supabase }),
+    }, caseId)
+    if (!res.success) logger.error('listCaseMaterials failed', { entityId: caseId, error: res.error })
+    return res
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -263,7 +194,7 @@ async function createCaseMaterialImpl(
       revalidatePath(`/dashboard/orders/${(caseRow as { case_number?: string }).case_number}`)
     }
 
-    return { success: true, data: data as CaseMaterialRow }
+    return { success: true, data: await withVisibleCost(data as unknown as Record<string, unknown>, hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -298,15 +229,19 @@ export async function updateCaseMaterial(
       return { success: false, error: 'Manglende tilladelse: materials.edit' }
     }
 
-    // Read current to enforce billed-lock and to know the case_id for revalidate
-    const { data: cur, error: readErr } = await supabase
+    // Read current to enforce billed-lock and to know the case_id for revalidate. 00248: rækken læses med brugerens klient
+    // (bevis for synlighed); kosten til revisionssporet hentes bag kost-retten.
+    const { data: curRow, error: readErr } = await supabase
       .from('case_materials')
-      .select('id, case_id, invoice_line_id, description, quantity, unit_cost, unit_sales_price, source')
+      .select('id, case_id, invoice_line_id, description, quantity, unit_sales_price, source')
       .eq('id', id)
       .maybeSingle()
-    if (readErr || !cur) {
+    if (readErr || !curRow) {
       return { success: false, error: 'Materiale ikke fundet' }
     }
+    const curCost = await readCaseMaterialCosts({ hasPermission }, [id])
+    if (curCost.state === 'error') return { success: false, error: 'Kunne ikke læse materialets kost' }
+    const cur = { ...curRow, unit_cost: curCost.state === 'ok' ? curCost.byId.get(id)?.unit_cost ?? null : null }
     if (cur.invoice_line_id) {
       return {
         success: false,
@@ -409,8 +344,7 @@ export async function updateCaseMaterial(
     }
 
     revalidatePath(`/dashboard/orders/${cur.case_id}`)
-    const saved = data as CaseMaterialRow
-    return { success: true, data: canSetPrices ? saved : { ...saved, unit_cost: null, total_cost: null } }
+    return { success: true, data: await withVisibleCost(data as unknown as Record<string, unknown>, hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

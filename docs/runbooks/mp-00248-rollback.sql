@@ -18,6 +18,10 @@ BEGIN
 END
 $guard$;
 
+-- 5 tilbage: tabel-SELECT for authenticated som før (REVOKE fjerner kolonne-grantene, GRANT giver tabel-retten igen)
+REVOKE SELECT ON public.case_materials FROM authenticated;
+GRANT SELECT ON public.case_materials TO authenticated;
+
 ALTER TABLE public.case_materials DROP CONSTRAINT IF EXISTS case_materials_unit_cost_finite;
 ALTER TABLE public.case_materials ALTER COLUMN unit_cost SET DEFAULT 0;
 ALTER TABLE public.case_materials ALTER COLUMN unit_cost SET NOT NULL;
@@ -232,5 +236,7 @@ BEGIN
   RETURN v_snapshot_id;
 END;
 $function$;
+
+NOTIFY pgrst, 'reload schema';
 
 COMMIT;

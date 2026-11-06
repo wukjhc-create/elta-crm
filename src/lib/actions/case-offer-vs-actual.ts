@@ -12,6 +12,7 @@ import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { compareOfferToActual, type OfferVsActualResult } from '@/lib/cases/offer-vs-actual'
+import { readCaseMaterialCosts, withCosts } from '@/lib/materials/case-material-costs'
 import type { ActionResult } from '@/types/common.types'
 
 export interface CaseOfferVsActual extends OfferVsActualResult {
@@ -24,6 +25,10 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('economy.cost_prices')) {
       return { success: false, error: 'Manglende tilladelse: economy.cost_prices' }
+    }
+    // 00248: efterkalkulationen er materialekost linje for linje — uden materialekost-ret giver den ingen mening
+    if (!hasPermission('materials.view.cost_prices')) {
+      return { success: false, error: 'Manglende tilladelse: materials.view.cost_prices' }
     }
 
     const { data: sag, error: caseErr } = await supabase.from('service_cases').select('id, source_offer_id').eq('id', caseId).maybeSingle()
@@ -51,7 +56,7 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
         : Promise.resolve({ data: [], error: null }),
       // F-8: pagineret (store sager >1.000 materialelinjer)
       fetchAllRows((f, t) => supabase.from('case_materials')
-        .select('id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id, created_at')
+        .select('id, description, quantity, unit, supplier_product_id, source_offer_line_id, created_at') // 00248: kost bag ret
         .eq('case_id', caseId).order('created_at').order('id').range(f, t)).then((data) => ({ data, error: null })),
       woIds.length === 0
         ? Promise.resolve({ data: [], error: null })
@@ -68,11 +73,15 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
       }
     }
 
+    const matSafe = (materialsRes.data ?? []) as Array<{ id: string }>
+    const matCost = await readCaseMaterialCosts({ hasPermission }, matSafe.map((m) => m.id))
+    if (matCost.state !== 'ok') return { success: false, error: 'Kunne ikke hente efterkalkulation' }
+    const materials = withCosts(matSafe, matCost)
     const logs = (logsRes.data ?? []) as Array<{ hours: number | string | null; cost_amount: number | string | null }>
     const hasCost = logs.some((l) => l.cost_amount != null)
     const result = compareOfferToActual(
       (linesRes.data ?? []) as Parameters<typeof compareOfferToActual>[0],
-      (materialsRes.data ?? []) as Parameters<typeof compareOfferToActual>[1],
+      materials as unknown as Parameters<typeof compareOfferToActual>[1],
       {
         hours: logs.reduce((s, l) => s + (Number(l.hours ?? 0) || 0), 0),
         cost: hasCost ? logs.reduce((s, l) => s + (Number(l.cost_amount ?? 0) || 0), 0) : null,

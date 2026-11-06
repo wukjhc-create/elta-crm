@@ -23,6 +23,7 @@ import type { ActionResult } from '@/types/common.types'
 import type { ServiceCaseStatus } from '@/types/service-cases.types'
 import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
 import { addCosts, knownCost, marginOf, sumCosts } from '@/lib/cases/material-cost'
+import { readCaseMaterialCosts, withCosts } from '@/lib/materials/case-material-costs'
 import { effectiveContractSum, expectedCaseRevenue, type RevenueBasis } from '@/lib/cases/expected-revenue'
 import { loadDbThresholds } from '@/lib/profit/db-thresholds'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
@@ -62,6 +63,8 @@ export interface ServiceCaseEconomy {
     lines_without_cost: number
     /** Linjer med kendt kost på præcis 0 kr. (kan være rigtigt, men fortjener et blik) */
     lines_zero_cost: number
+    /** 00248: brugeren mangler materials.view.cost_prices. Kost er null på alle linjer, og intet skelner kendt fra ukendt. */
+    cost_hidden: boolean
     lines_without_sale: number
   }
 
@@ -229,7 +232,7 @@ export async function getServiceCaseEconomy(
       // F-8 (review 2026-10-16): pagineret — kost/salg-totaler må ikke afkortes ved 1.000 rækker
       fetchAllRows((f, t) => supabase
         .from('case_materials')
-        .select('id, total_cost, total_sales_price, unit_cost, unit_sales_price, billable, invoice_line_id')
+        .select('id, total_sales_price, unit_sales_price, billable, invoice_line_id') // 00248: kost hentes bag ret nedenfor
         .eq('case_id', caseId).order('id').range(f, t)).then((data) => ({ data, error: null })),
       fetchAllRows((f, t) => supabase
         .from('case_other_costs')
@@ -318,14 +321,18 @@ export async function getServiceCaseEconomy(
     }
 
     // ---- Materials rollup ----
-    const matRows = (materialsRes.data ?? []) as Array<{
-      total_cost: number | string | null
+    const matSafe = (materialsRes.data ?? []) as Array<{
+      id: string
       total_sales_price: number | string | null
-      unit_cost: number | string | null
       unit_sales_price: number | string | null
       billable: boolean | null
       invoice_line_id: string | null
     }>
+    // 00248: kost læses bag materials.view.cost_prices for de rækker brugerens klient returnerede. Fejl er ikke 0.
+    const matCostRead = await readCaseMaterialCosts({ hasPermission }, matSafe.map((m) => m.id))
+    if (matCostRead.state === 'error') return { success: false, error: 'Kunne ikke læse materialernes kost. Det tælles ikke som 0 kr.' }
+    const matRows = withCosts(matSafe, matCostRead)
+    const matCostHidden = matCostRead.state === 'hidden'
     // 00248: ukendt kost (NULL) tælles for sig og aldrig som 0
     const matCosts = sumCosts(matRows.map((m) => m.total_cost))
     let mat_sale = 0
@@ -507,7 +514,7 @@ export async function getServiceCaseEconomy(
       no_other_costs: otherRows.length === 0,
       open_timer: open_timer_count > 0,
       employees_without_rate: employees_without_rate_count > 0,
-      materials_without_cost: matCosts.unknownLines > 0,
+      materials_without_cost: !matCostHidden && matCosts.unknownLines > 0,
       materials_zero_cost: mat_zero_cost > 0,
       materials_without_sale: mat_without_sale > 0,
       low_margin: total_sale > 0 && margin.percentage != null && margin.percentage < dbThresholds.red,
@@ -540,6 +547,7 @@ export async function getServiceCaseEconomy(
         total_sales_price: r2(mat_sale),
         lines_without_cost: matCosts.unknownLines,
         lines_zero_cost: mat_zero_cost,
+        cost_hidden: matCostHidden,
         lines_without_sale: mat_without_sale,
       },
       other_costs: {
@@ -1180,6 +1188,8 @@ export interface CasePurchaseSummary {
   /** 00248: null, hvis en materialelinje mangler kost */
   supplier_purchase_total: number | null
   supplier_unknown_cost_lines: number
+  /** 00248: brugeren mangler materials.view.cost_prices; materialebeløbene er null */
+  material_cost_hidden: boolean
   /** Antal konverterede leverandørfaktura-linjer (materialer + udlæg). */
   converted_line_count: number
   /** Antal konverterede materialer fra leverandørfaktura. */
@@ -1199,7 +1209,7 @@ export interface CasePurchaseSummary {
 
 export async function getServiceCasePurchaseSummary(caseId: string): Promise<CasePurchaseSummary> {
   const base: CasePurchaseSummary = {
-    ok: false, supplier_material_cost_total: null, supplier_other_cost_total: 0, supplier_purchase_total: null, supplier_unknown_cost_lines: 0,
+    ok: false, supplier_material_cost_total: null, supplier_other_cost_total: 0, supplier_purchase_total: null, supplier_unknown_cost_lines: 0, material_cost_hidden: false,
     converted_line_count: 0, converted_material_count: 0, converted_other_cost_count: 0,
     supplier_breakdown: [], currency: 'DKK', budget_reference: null, budget_reference_kind: null,
     invoices: [], internal_purchase: true,
@@ -1218,7 +1228,7 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
     // SC-12 (sags-review 2026-10-17): side for side — leverandørindkøbet blev afkortet ved 1.000 rækker
     const [matRes, othRes, sagRes, invRes] = await Promise.all([
       fetchAllRows((f, t) => supabase.from('case_materials')
-        .select('id, total_cost, supplier_name_snapshot, source_incoming_invoice_line_id')
+        .select('id, supplier_name_snapshot, source_incoming_invoice_line_id') // 00248: kost bag ret nedenfor
         .eq('case_id', caseId).eq('source', SUPPLIER_INVOICE_SOURCE).order('id').range(f, t)).then((data) => ({ data, error: null })),
       fetchAllRows((f, t) => supabase.from('case_other_costs')
         .select('id, total_cost, supplier_name, source_incoming_invoice_line_id')
@@ -1237,7 +1247,10 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
       return { ...base, message: 'Kunne ikke hente indkøbsoverblik' }
     }
 
-    const matRows = (matRes.data ?? []) as Array<{ total_cost: number | string | null; supplier_name_snapshot: string | null; source_incoming_invoice_line_id: string | null }>
+    const matSafe = (matRes.data ?? []) as Array<{ id: string; supplier_name_snapshot: string | null; source_incoming_invoice_line_id: string | null }>
+    const purchaseCostRead = await readCaseMaterialCosts({ hasPermission }, matSafe.map((m) => m.id))
+    if (purchaseCostRead.state === 'error') return { ...base, message: 'Kunne ikke læse materialernes kost' }
+    const matRows = withCosts(matSafe, purchaseCostRead)
     const othRows = (othRes.data ?? []) as Array<{ total_cost: number | string | null; supplier_name: string | null; source_incoming_invoice_line_id: string | null }>
     const matCostSum = sumCosts(matRows.map((r) => r.total_cost))
     const othTotal = othRows.reduce((s, r) => s + Number(r.total_cost ?? 0), 0)
@@ -1293,7 +1306,8 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
       supplier_material_cost_total: matCostSum.total,
       supplier_other_cost_total: r2(othTotal),
       supplier_purchase_total: addCosts(matCostSum.total, othTotal),
-      supplier_unknown_cost_lines: matCostSum.unknownLines,
+      supplier_unknown_cost_lines: purchaseCostRead.state === 'hidden' ? 0 : matCostSum.unknownLines,
+      material_cost_hidden: purchaseCostRead.state === 'hidden',
       converted_line_count: matRows.length + othRows.length,
       converted_material_count: matRows.length,
       converted_other_cost_count: othRows.length,

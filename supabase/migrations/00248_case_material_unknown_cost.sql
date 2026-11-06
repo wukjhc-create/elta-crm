@@ -19,12 +19,18 @@
 --     Nye nøgler: material_cost_known (summen af de kendte), material_unknown_line_count, cost_complete. Omsætning og
 --     timekost beregnes som før. COALESCE(total_cost, unit_cost * quantity, 0) er væk for materialer.
 --  4. snapshot_work_order_profit: nyt snapshot også når kun det kendte beløb eller antal ukendte linjer ændres.
+--  5. Kostkolonnerne kan ikke læses direkte via API'et (som 00192/00201): authenticated mister tabel-SELECT og får
+--     kolonne-SELECT på alle øvrige kolonner. Ingen bruger kan SELECT, filtrere, sortere eller joine på unit_cost/
+--     total_cost, uanset rolle; SELECT * afvises. App'en læser kosten med admin-klienten bag den effektive rettighed
+--     materials.view.cost_prices og kun for rækker brugerens egen klient har returneret (lib/materials/case-material-costs).
+--     Dermed er NULL mod kendt kost heller ikke en sidekanal. INSERT/UPDATE/DELETE og RLS-politikkerne er uændrede.
 --  Uændret: trg_profit_snapshot_flag_low (NULL opfylder hverken < 15 eller >= 15: intet flag, ingen margin_alert),
---           case_other_costs, RLS, politikker, grants, funktions-ACL.
+--           case_other_costs, RLS-politikker, INSERT/UPDATE/DELETE-grants, funktions-ACL.
 --
 -- Data: ingen konvertering. Prod 2026-11-05: 4 rækker, 0 med unit_cost = 0, 0 work_order_profit-rækker.
--- Rækkefølge: MIGRATION → PUSH. Ny kode skriver NULL og kræver kolonnen. Gammel kode skriver altid et tal og læser kun tal,
--- så den tåler migrationen, så længe der ikke findes NULL-rækker, og dem skriver kun den nye kode.
+-- Rækkefølge: PUSH → MIGRATION. Gammel kode læser kosten med bruger-klienten og fejler efter punkt 5; ny kode læser den
+-- aldrig med bruger-klienten og virker på begge skemaer. Indtil migrationen er kørt, afviser databasen en montør-linje
+-- uden kost (NOT NULL): handlingen fejler synligt, intet gemmes som 0.
 -- Rollback: docs/runbooks/mp-00248-rollback.sql (afviser, hvis der findes NULL-rækker; intet sættes stille til 0).
 -- =====================================================
 
@@ -274,5 +280,28 @@ BEGIN
   RETURN v_snapshot_id;
 END;
 $function$;
+
+-- ---------- 5. Kostkolonnerne kan ikke læses direkte ----------
+DO $$
+DECLARE
+  cols text;
+BEGIN
+  SELECT string_agg(quote_ident(column_name), ', ' ORDER BY ordinal_position) INTO cols
+    FROM information_schema.columns
+   WHERE table_schema = 'public' AND table_name = 'case_materials'
+     AND column_name NOT IN ('unit_cost', 'total_cost');
+  IF cols IS NULL THEN
+    RAISE EXCEPTION '00248: case_materials findes ikke';
+  END IF;
+  -- REVOKE på tabellen fjerner også eventuelle kolonne-SELECT; derefter gives de ufarlige kolonner tilbage
+  REVOKE SELECT ON public.case_materials FROM anon, authenticated;
+  EXECUTE format('GRANT SELECT (%s) ON public.case_materials TO authenticated', cols);
+  IF has_column_privilege('authenticated', 'public.case_materials', 'unit_cost', 'SELECT')
+     OR has_column_privilege('authenticated', 'public.case_materials', 'total_cost', 'SELECT') THEN
+    RAISE EXCEPTION '00248: kostkolonnerne kan stadig læses af authenticated';
+  END IF;
+END $$;
+
+NOTIFY pgrst, 'reload schema';
 
 COMMIT;
