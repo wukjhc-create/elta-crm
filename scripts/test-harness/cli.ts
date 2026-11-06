@@ -2736,7 +2736,15 @@ Total inkl. moms 11.718,75
   if (SUB === 'mp-00248-state') {
     // STAGING read-only: case_materials/work_order_profit-skema, funktioner, politikker, grants, md5 af rækkerne (før/efter)
     const { STATE_00248_SQL } = await import('./mp-00248-probe')
-    log(JSON.stringify(await stagingSql(STATE_00248_SQL)))
+    const st = await stagingSql(STATE_00248_SQL)
+    log(JSON.stringify(st))
+    // --save <fil>: gem tilstanden FØR anvendelse; mp-00248-rollback-proof --pre <fil> kræver at rollback genskaber den
+    const saveIdx = process.argv.indexOf('--save')
+    if (saveIdx > 0 && process.argv[saveIdx + 1]) {
+      const { writeFileSync } = await import('fs')
+      writeFileSync(process.argv[saveIdx + 1], JSON.stringify(st[0].f, null, 2))
+      log(`gemt: ${process.argv[saveIdx + 1]}`)
+    }
     return
   }
   if (SUB === 'mp-00248-probe') {
@@ -2775,6 +2783,12 @@ Total inkl. moms 11.718,75
     // KUN STAGING: state → rollback-fil → state → migration → state. Rækkerne må ikke ændre sig.
     const { STATE_00248_SQL, rollback00248Sql, migration00248Sql } = await import('./mp-00248-probe')
     const state = async () => (await stagingSql(STATE_00248_SQL))[0].f as Record<string, unknown>
+    // --pre <fil> (fra mp-00248-state --save før anvendelse) er påkrævet: rollback skal genskabe den tilstand præcist
+    const preIdx = process.argv.indexOf('--pre')
+    if (preIdx < 0 || !process.argv[preIdx + 1]) { log('mangler --pre <fil> fra mp-00248-state --save (tilstand før 00248)'); process.exitCode = 2; return }
+    const { readFileSync } = await import('fs')
+    const pre = JSON.parse(readFileSync(process.argv[preIdx + 1], 'utf8')) as Record<string, unknown>
+    if (pre.guard_fn !== 0 || pre.lock_fn !== 0) { log('--pre-filen er ikke en tilstand før 00248'); process.exitCode = 2; return }
     const before = await state()
     log(`før: ${JSON.stringify(before)}`)
     await stagingSql(rollback00248Sql())
@@ -2790,7 +2804,11 @@ Total inkl. moms 11.718,75
       ['rollback: CHECK væk', rolled.finite_check == null],
       ['rollback: materialerækker uændrede', same(before.rows, rolled.rows)],
       ['rollback: snapshots uændrede', same(before.wop_rows, rolled.wop_rows)],
-      ['rollback: politikker uændrede', same(before.pol, rolled.pol)],
+      // rollback = præcis tilstanden før 00248 (politikker, grants, kolonne-grants, triggere, funktioner, skema)
+      ...(['unit_cost', 'total_cost', 'finite_check', 'wop', 'fn_src', 'pol', 'wop_pol', 'wop_pol_md5', 'dml_pol', 'grants', 'col_grants', 'trg', 'select_cols', 'guard_fn', 'lock_fn', 'snapshot_exec_auth'] as const)
+        .map((k) => [`rollback = før 00248: ${k}`, same(pre[k], rolled[k])] as const),
+      ['før rollback: skrivning efter effektiv ret + sags-scope', same(before.dml_pol, ['case_materials_delete_role:DELETE:true:true', 'case_materials_insert_role:INSERT:true:true', 'case_materials_update_role:UPDATE:true:true']) && before.lock_fn === 1],
+      ['rollback: skrivning efter rå rolle igen (00173)', same(rolled.dml_pol, ['case_materials_delete_role:DELETE:false:false', 'case_materials_insert_role:INSERT:false:false', 'case_materials_update_role:UPDATE:false:false']) && rolled.lock_fn === 0],
       ['rollback: authenticated kan igen vælge unit_cost og total_cost', ((rolled.select_cols as string[] | null) ?? []).includes('unit_cost') && ((rolled.select_cols as string[] | null) ?? []).includes('total_cost')],
       ['før rollback: authenticated kan ikke vælge kosten', !((before.select_cols as string[] | null) ?? []).includes('unit_cost') && !((before.select_cols as string[] | null) ?? []).includes('total_cost')],
       ['før rollback: skrive-værn findes, avance efter effektiv ret, snapshot-RPC lukket', before.guard_fn === 1 && same(before.wop_pol, ['work_order_profit_select_cost_roles:SELECT:true']) && before.snapshot_exec_auth === false],

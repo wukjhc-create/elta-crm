@@ -18,6 +18,16 @@ BEGIN
 END
 $guard$;
 
+-- 8 tilbage: skrive-politikkerne præcis som i 00173 (rå rolle, uden sags-scope) og ingen sags-lås
+DROP TRIGGER IF EXISTS trg_case_materials_case_lock ON public.case_materials;
+DROP FUNCTION IF EXISTS public.case_materials_case_lock_guard();
+DROP POLICY IF EXISTS case_materials_insert_role ON public.case_materials;
+DROP POLICY IF EXISTS case_materials_update_role ON public.case_materials;
+DROP POLICY IF EXISTS case_materials_delete_role ON public.case_materials;
+CREATE POLICY case_materials_insert_role ON public.case_materials FOR INSERT TO authenticated WITH CHECK (public.user_role() IN ('admin', 'serviceleder', 'montør'));
+CREATE POLICY case_materials_update_role ON public.case_materials FOR UPDATE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder')) WITH CHECK (public.user_role() IN ('admin', 'serviceleder'));
+CREATE POLICY case_materials_delete_role ON public.case_materials FOR DELETE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder'));
+
 -- 7 tilbage: work_order_profit efter rå rolle som i 00192, snapshot-funktionen kan kaldes af authenticated som i 00088
 DROP POLICY IF EXISTS work_order_profit_select_cost_roles ON public.work_order_profit;
 CREATE POLICY work_order_profit_select_cost_roles ON public.work_order_profit

@@ -5,7 +5,7 @@
  *   npx tsx scripts/test-harness/cli.ts mp-00248-api
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { randomBytes } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 import type { Permission } from '../../src/lib/auth/permissions'
 import { userCanViewCase } from '../../src/lib/auth/case-scope'
 import { CASE_MATERIAL_PUBLIC_COLUMNS, listCaseMaterialsCore } from '../../src/lib/materials/case-material-costs'
@@ -153,7 +153,7 @@ export async function runApi00248(c: { admin: SupabaseClient; url: string; anonK
     add('REVOKE: ingen kostværdi og intet antal ukendte i svaret', leaks(rList).length === 0 && rList.success && rList.data.summary.unknown_cost_lines === null)
 
     // =========== Skrive-værn på kosten (00248 §6) og avance efter effektive rettigheder (§7) ===========
-    const [knownId, zeroId, unknownId] = ((ins.data ?? []) as Array<{ id: string }>).map((r) => r.id)
+    const [knownId, zeroId, unknownId, foreignId] = ((ins.data ?? []) as Array<{ id: string }>).map((r) => r.id)
     const costOf = async (id: string) => ((await c.admin.from('case_materials').select('unit_cost').eq('id', id).single()).data as { unit_cost: number | null }).unit_cost
     const insertWithCost = (p: Persona, cost: number | null) => p.cl.from('case_materials')
       .insert({ case_id: visible, description: 'p248 api skriv', quantity: 1, unit: 'stk', unit_cost: cost, source: 'manual', created_by: p.uid }).select('id')
@@ -220,6 +220,67 @@ export async function runApi00248(c: { admin: SupabaseClient; url: string; anonK
     // ---- Admin ----
     const ad = await tempUser('admin')
     add('avance/admin: ser egen og fremmed ordres avance', (await profitRows(ad, bothWo)) === 2)
+
+    // =========== Skrivning efter effektiv ret + sags-scope (00248 §8) ===========
+    const foreignRow = async () => (await c.admin.from('case_materials').select('case_id, description, quantity, unit_cost').eq('id', foreignId).single()).data as Record<string, unknown>
+    const foreignBefore = JSON.stringify(await foreignRow())
+    const noLeak = (e: unknown) => !JSON.stringify(e ?? '').includes(hidden) && !/99[.,]99/.test(JSON.stringify(e ?? ''))
+    const insertOn = (p: Persona, caseId: string, extra: Record<string, unknown> = {}) => p.cl.from('case_materials')
+      .insert({ case_id: caseId, description: 'p248 scope', quantity: 1, unit: 'stk', source: 'manual', created_by: p.uid, ...extra }).select('id')
+    const rowsOf = (r: { data: unknown[] | null; error: unknown }) => (r.error ? -1 : (r.data ?? []).length)
+
+    // ---- Montør (standard) ----
+    const mForeignIns = await insertOn(m, hidden)
+    const mGhostIns = await insertOn(m, randomUUID())
+    add('scope/montør: INSERT på fremmed sag afvist (42501)', denied(mForeignIns))
+    add('scope/montør: fremmed og ikke-eksisterende sag giver samme fejl', mForeignIns.error?.code === mGhostIns.error?.code && mForeignIns.error?.message === mGhostIns.error?.message && mForeignIns.error?.details === mGhostIns.error?.details)
+    add('scope/montør: fejlen afslører ikke sagen', noLeak(mForeignIns.error) && noLeak(mGhostIns.error))
+    add('scope/montør: INSERT med fremmed sags arbejdsordre afvist', denied(await insertOn(m, visible, { work_order_id: woForeignId })))
+    const mOwn = await insertOn(m, visible, { work_order_id: woId })
+    add('scope/montør: INSERT på egen sag virker', !mOwn.error && (mOwn.data ?? []).length === 1, mOwn.error?.message)
+    add('scope/montør: UPDATE af fremmed materiale rammer 0', rowsOf(await patch(m, foreignId, { description: 'hacket' })) <= 0)
+    add('scope/montør: DELETE af fremmed materiale rammer 0', rowsOf(await m.cl.from('case_materials').delete().eq('id', foreignId).select('id')) <= 0)
+
+    // ---- Montør med per-bruger GRANT af materials.edit + materials.delete: scope gælder stadig ----
+    await override(m, 'grant', ['materials.edit', 'materials.delete'])
+    const ownId = ((mOwn.data ?? []) as Array<{ id: string }>)[0]?.id ?? ''
+    add('scope/GRANT montør: UPDATE af egen linje virker', rowsOf(await patch(m, ownId, { notes: 'p248 egen' })) === 1)
+    add('scope/GRANT montør: UPDATE af fremmed materiale rammer 0', rowsOf(await patch(m, foreignId, { description: 'hacket' })) <= 0)
+    add('scope/GRANT montør: DELETE af fremmed materiale rammer 0', rowsOf(await m.cl.from('case_materials').delete().eq('id', foreignId).select('id')) <= 0)
+    const mUpsert = await m.cl.from('case_materials').upsert({ id: foreignId, case_id: visible, description: 'hacket', quantity: 1, source: 'manual' }, { onConflict: 'id' }).select('id')
+    add('scope/GRANT montør: upsert på fremmed materiale afvist', mUpsert.error != null && noLeak(mUpsert.error), mUpsert.error?.message)
+    const mMove = await patch(m, ownId, { case_id: hidden })
+    add('scope/GRANT montør: flyt egen linje til fremmed sag afvist', denied(mMove) && noLeak(mMove.error), mMove.error?.message)
+    add('scope/GRANT montør: kost stadig afvist uden kost-ret', denied(await patch(m, ownId, { unit_cost: 1 })))
+    add('scope/GRANT montør: DELETE af egen linje virker', rowsOf(await m.cl.from('case_materials').delete().eq('id', ownId).select('id')) === 1)
+    await clearOverrides(m)
+    add('scope/montør: fremmed materiale er urørt', JSON.stringify(await foreignRow()) === foreignBefore)
+
+    // ---- Serviceleder: standard skriver på alle sager; per-bruger REVOKE af hver skrivenøgle ----
+    const slIns = await insertOn(sl, hidden, { unit_cost: 2 })
+    const slId = ((slIns.data ?? []) as Array<{ id: string }>)[0]?.id ?? ''
+    add('scope/serviceleder: INSERT (med kost) på enhver sag', !slIns.error && !!slId, slIns.error?.message)
+    add('scope/serviceleder: UPDATE virker', rowsOf(await patch(sl, slId, { quantity: 2 })) === 1)
+    add('scope/serviceleder: flyt til anden sag afvist', denied(await patch(sl, slId, { case_id: visible })))
+    await override(sl, 'revoke', ['materials.edit'])
+    add('scope/REVOKE materials.edit: UPDATE rammer 0', rowsOf(await patch(sl, slId, { quantity: 9 })) <= 0)
+    await override(sl, 'revoke', ['materials.add_to_case'])
+    add('scope/REVOKE materials.add_to_case: INSERT afvist', denied(await insertOn(sl, visible)))
+    await override(sl, 'revoke', ['materials.delete'])
+    add('scope/REVOKE materials.delete: DELETE rammer 0', rowsOf(await sl.cl.from('case_materials').delete().eq('id', slId).select('id')) <= 0)
+    await override(sl, 'revoke', ['materials.view.cost_prices'])
+    add('scope/REVOKE kost: ufarlig UPDATE virker, kost afvist', rowsOf(await patch(sl, slId, { notes: 'p248' })) === 1 && denied(await patch(sl, slId, { unit_cost: 3 })))
+    await clearOverrides(sl)
+    add('scope/serviceleder: DELETE virker igen uden override', rowsOf(await sl.cl.from('case_materials').delete().eq('id', slId).select('id')) === 1)
+
+    // ---- Admin ----
+    const adIns = await insertOn(ad, hidden, { unit_cost: 3 })
+    const adId = ((adIns.data ?? []) as Array<{ id: string }>)[0]?.id ?? ''
+    add('scope/admin: INSERT, UPDATE (inkl. kost) og DELETE', !adIns.error && rowsOf(await patch(ad, adId, { unit_cost: 4, quantity: 2 })) === 1 && rowsOf(await ad.cl.from('case_materials').delete().eq('id', adId).select('id')) === 1, adIns.error?.message)
+
+    // ---- Uændret: læse-lockdown ----
+    add('uændret: montør SELECT unit_cost stadig afvist', denied(await m.cl.from('case_materials').select('unit_cost').eq('case_id', visible)))
+    add('uændret: admin SELECT total_cost stadig afvist', denied(await ad.cl.from('case_materials').select('total_cost').limit(1)))
   } catch (e) {
     add('intet kast', false, e instanceof Error ? e.message : String(e))
   } finally {

@@ -18,9 +18,13 @@ export const STATE_00248_SQL = `SELECT json_build_object(
   'finite_check', (SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='case_materials_unit_cost_finite'),
   'wop', (SELECT json_agg(column_name || ':' || is_nullable || ':' || coalesce(column_default,'-') ORDER BY column_name) FROM information_schema.columns WHERE table_schema='public' AND table_name='work_order_profit' AND column_name IN ('material_cost','total_cost','profit','margin_percentage')),
   'fn', (SELECT json_agg(p.proname || ':' || md5(p.prosrc) || ':' || coalesce(array_to_string(p.proacl, ','), '') ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname IN ('calculate_work_order_profit','snapshot_work_order_profit')),
-  'pol', (SELECT md5(string_agg(policyname || cmd || coalesce(qual,'') || coalesce(with_check,''), '|' ORDER BY policyname)) FROM pg_policies WHERE schemaname='public' AND tablename='case_materials'),
+  'pol', (SELECT md5(string_agg(policyname || cmd || array_to_string(roles, ',') || coalesce(qual,'') || coalesce(with_check,''), '|' ORDER BY policyname)) FROM pg_policies WHERE schemaname='public' AND tablename='case_materials'),
   'wop_pol', (SELECT json_agg(policyname || ':' || cmd || ':' || (coalesce(qual,'') LIKE '%user_has_permission%') ORDER BY policyname) FROM pg_policies WHERE schemaname='public' AND tablename='work_order_profit'),
   'guard_fn', (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='case_materials_cost_write_guard'),
+  'lock_fn', (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='case_materials_case_lock_guard'),
+  'fn_src', (SELECT json_agg(p.proname || ':' || md5(p.prosrc) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname IN ('calculate_work_order_profit','snapshot_work_order_profit')),
+  'wop_pol_md5', (SELECT md5(string_agg(policyname || cmd || array_to_string(roles, ',') || coalesce(qual,'') || coalesce(with_check,''), '|' ORDER BY policyname)) FROM pg_policies WHERE schemaname='public' AND tablename='work_order_profit'),
+  'dml_pol', (SELECT json_agg(policyname || ':' || cmd || ':' || (coalesce(qual,'') || coalesce(with_check,'') LIKE '%user_has_permission%') || ':' || (coalesce(qual,'') || coalesce(with_check,'') LIKE '%my_case_scope_ids%') ORDER BY policyname) FROM pg_policies WHERE schemaname='public' AND tablename='case_materials' AND cmd <> 'SELECT'),
   'snapshot_exec_auth', (SELECT has_function_privilege('authenticated', 'public.snapshot_work_order_profit(uuid, text)', 'EXECUTE')),
   'grants', (SELECT md5(string_agg(grantee || privilege_type, '|' ORDER BY grantee, privilege_type)) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='case_materials'),
   'col_grants', (SELECT md5(string_agg(grantee || column_name || privilege_type, '|' ORDER BY grantee, column_name, privilege_type)) FROM information_schema.column_privileges WHERE table_schema='public' AND table_name='case_materials' AND column_name IN ('unit_cost','total_cost')),
@@ -43,7 +47,7 @@ export function probe00248Sql(): string {
   return `DO $probe$
 DECLARE
   v_admin uuid; v_montor uuid; v_emp uuid; v_cust uuid; v_case uuid; v_wo uuid; v_other_case uuid;
-  v_known uuid; v_zero uuid; v_unknown uuid; v_mont uuid; v_sl uuid; v_wo2 uuid; v_tmp uuid;
+  v_known uuid; v_zero uuid; v_unknown uuid; v_mont uuid; v_sl uuid; v_wo2 uuid; v_tmp uuid; v_fm uuid; e1 text; e2 text;
   r jsonb := '{}'::jsonb;
   c jsonb; n int; x numeric; t numeric; s text; b boolean;
   v_alerts int;
@@ -52,6 +56,9 @@ BEGIN
   EXECUTE $x$CREATE FUNCTION public.p248_denied(q text) RETURNS boolean LANGUAGE plpgsql AS $f$
     BEGIN EXECUTE q; RETURN false; EXCEPTION WHEN insufficient_privilege THEN RETURN true; END $f$x$;
   EXECUTE $x$GRANT EXECUTE ON FUNCTION public.p248_denied(text) TO authenticated$x$;
+  EXECUTE $x$CREATE FUNCTION public.p248_err(q text) RETURNS text LANGUAGE plpgsql AS $f$
+    BEGIN EXECUTE q; RETURN 'ok'; EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE || ':' || SQLERRM; END $f$x$;
+  EXECUTE $x$GRANT EXECUTE ON FUNCTION public.p248_err(text) TO authenticated$x$;
   SELECT id INTO v_admin FROM profiles WHERE is_active AND role='admin' ORDER BY created_at LIMIT 1;
   SELECT id INTO v_montor FROM profiles WHERE is_active AND role='montør' ORDER BY created_at LIMIT 1;
   INSERT INTO customers (customer_number, company_name, contact_person, email, created_by)
@@ -282,6 +289,96 @@ BEGIN
     EXECUTE 'RESET ROLE';
     DELETE FROM user_permission_overrides WHERE profile_id = v_sl AND reason = 'p248 probe';
   END IF;
+
+  -- 8. Skrivning efter effektiv ret + sags-scope. Fremmed materiale på den fremmede sag (montøren ser den ikke).
+  INSERT INTO case_materials (case_id, description, quantity, unit_cost, source) VALUES (v_other_case, 'p248 fremmed', 1, 50, 'manual') RETURNING id INTO v_fm;
+  DELETE FROM user_permission_overrides WHERE profile_id = v_montor AND reason = 'p248 probe';
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_montor, 'role', 'authenticated')::text, true);
+  e1 := public.p248_err(format('INSERT INTO public.case_materials (case_id, description, quantity, source, created_by) VALUES (%L, ''p248'', 1, ''manual'', %L)', v_other_case, v_montor));
+  e2 := public.p248_err(format('INSERT INTO public.case_materials (case_id, description, quantity, source, created_by) VALUES (%L, ''p248'', 1, ''manual'', %L)', gen_random_uuid(), v_montor));
+  r := r || jsonb_build_object('dml_montor_insert_fremmed_sag_afvist', e1 LIKE '42501:%',
+    'dml_fremmed_og_ukendt_sag_samme_fejl', e1 = e2,
+    'dml_fejl_uden_sags_id', position(v_other_case::text IN e1) = 0);
+  r := r || jsonb_build_object('dml_montor_insert_fremmed_arbejdsordre_afvist', public.p248_denied(format('INSERT INTO public.case_materials (case_id, work_order_id, description, quantity, source, created_by) VALUES (%L, %L, ''p248'', 1, ''manual'', %L)', v_case, v_wo2, v_montor)));
+  r := r || jsonb_build_object('dml_montor_insert_egen_sag', NOT public.p248_denied(format('INSERT INTO public.case_materials (case_id, work_order_id, description, quantity, source, created_by) VALUES (%L, %L, ''p248'', 1, ''manual'', %L)', v_case, v_wo, v_montor)));
+  EXECUTE 'RESET ROLE';
+  -- Montør med per-bruger GRANT af materials.edit og materials.delete: kun egen sag, aldrig flyt
+  INSERT INTO user_permission_overrides (profile_id, permission, effect, source, reason) VALUES
+    (v_montor, 'materials.edit', 'grant', 'manual', 'p248 probe'), (v_montor, 'materials.delete', 'grant', 'manual', 'p248 probe');
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_montor, 'role', 'authenticated')::text, true);
+  UPDATE case_materials SET description = 'hacket' WHERE id = v_fm;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  r := r || jsonb_build_object('dml_montor_update_fremmed_0', n = 0);
+  DELETE FROM case_materials WHERE id = v_fm;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  r := r || jsonb_build_object('dml_montor_delete_fremmed_0', n = 0);
+  e1 := public.p248_err(format('INSERT INTO public.case_materials (id, case_id, description, quantity, source) VALUES (%L, %L, ''p248'', 1, ''manual'') ON CONFLICT (id) DO UPDATE SET description = ''hacket''', v_fm, v_case));
+  r := r || jsonb_build_object('dml_montor_upsert_fremmed_afvist', e1 <> 'ok', 'dml_upsert_fejl_uden_sags_id', position(v_other_case::text IN e1) = 0);
+  UPDATE case_materials SET notes = 'p248 egen' WHERE id = v_mont;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  r := r || jsonb_build_object('dml_montor_grant_update_egen', n = 1);
+  e1 := public.p248_err(format('UPDATE public.case_materials SET case_id = %L WHERE id = %L', v_other_case, v_mont));
+  r := r || jsonb_build_object('dml_montor_flyt_til_fremmed_afvist', e1 LIKE '42501:%', 'dml_flyt_fejl_uden_sags_id', position(v_other_case::text IN e1) = 0);
+  r := r || jsonb_build_object('dml_montor_grant_kost_stadig_afvist', public.p248_denied(format('UPDATE public.case_materials SET unit_cost = 1 WHERE id = %L', v_mont)));
+  INSERT INTO case_materials (case_id, description, quantity, source, created_by) VALUES (v_case, 'p248 slet', 1, 'manual', v_montor) RETURNING id INTO v_tmp;
+  DELETE FROM case_materials WHERE id = v_tmp;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  r := r || jsonb_build_object('dml_montor_grant_delete_egen', n = 1);
+  EXECUTE 'RESET ROLE';
+  DELETE FROM user_permission_overrides WHERE profile_id = v_montor AND reason = 'p248 probe';
+  SELECT count(*) INTO n FROM case_materials WHERE id = v_fm AND case_id = v_other_case AND description = 'p248 fremmed' AND unit_cost = 50;
+  r := r || jsonb_build_object('dml_fremmed_materiale_uroert', n = 1);
+  SELECT count(*) INTO n FROM case_materials WHERE id = v_mont AND case_id = v_case;
+  r := r || jsonb_build_object('dml_egen_linje_ikke_flyttet', n = 1);
+
+  -- Serviceleder: standard skriver på alle sager; per-bruger REVOKE af hver skrivenøgle fjerner netop den
+  IF v_sl IS NOT NULL THEN
+    EXECUTE 'SET LOCAL ROLE authenticated';
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sl, 'role', 'authenticated')::text, true);
+    INSERT INTO case_materials (case_id, description, quantity, unit_cost, source, created_by) VALUES (v_other_case, 'p248 sl', 1, 2, 'manual', v_sl) RETURNING id INTO v_tmp;
+    UPDATE case_materials SET quantity = 2 WHERE id = v_tmp;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    r := r || jsonb_build_object('dml_sl_standard_insert_update', v_tmp IS NOT NULL AND n = 1);
+    e1 := public.p248_err(format('UPDATE public.case_materials SET case_id = %L WHERE id = %L', v_case, v_tmp));
+    r := r || jsonb_build_object('dml_sl_flyt_afvist', e1 LIKE '42501:%');
+    EXECUTE 'RESET ROLE';
+    INSERT INTO user_permission_overrides (profile_id, permission, effect, source, reason) VALUES
+      (v_sl, 'materials.edit', 'revoke', 'manual', 'p248 probe'), (v_sl, 'materials.add_to_case', 'revoke', 'manual', 'p248 probe'),
+      (v_sl, 'materials.delete', 'revoke', 'manual', 'p248 probe');
+    EXECUTE 'SET LOCAL ROLE authenticated';
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sl, 'role', 'authenticated')::text, true);
+    UPDATE case_materials SET quantity = 9 WHERE id = v_tmp;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    r := r || jsonb_build_object('dml_sl_revoke_edit_0', n = 0);
+    r := r || jsonb_build_object('dml_sl_revoke_add_afvist', public.p248_denied(format('INSERT INTO public.case_materials (case_id, description, quantity, source, created_by) VALUES (%L, ''p248'', 1, ''manual'', %L)', v_case, v_sl)));
+    DELETE FROM case_materials WHERE id = v_tmp;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    r := r || jsonb_build_object('dml_sl_revoke_delete_0', n = 0);
+    SELECT count(*) INTO n FROM case_materials WHERE id = v_tmp;
+    r := r || jsonb_build_object('dml_sl_revoke_laeser_stadig', n = 1);
+    EXECUTE 'RESET ROLE';
+    DELETE FROM user_permission_overrides WHERE profile_id = v_sl AND reason = 'p248 probe';
+    EXECUTE 'SET LOCAL ROLE authenticated';
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sl, 'role', 'authenticated')::text, true);
+    DELETE FROM case_materials WHERE id = v_tmp;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    r := r || jsonb_build_object('dml_sl_standard_delete', n = 1);
+    EXECUTE 'RESET ROLE';
+  END IF;
+
+  -- Admin: normal adgang
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+  INSERT INTO case_materials (case_id, description, quantity, unit_cost, source, created_by) VALUES (v_other_case, 'p248 admin', 1, 3, 'manual', v_admin) RETURNING id INTO v_tmp;
+  UPDATE case_materials SET unit_cost = 4, quantity = 2 WHERE id = v_tmp;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  r := r || jsonb_build_object('dml_admin_insert_update', v_tmp IS NOT NULL AND n = 1);
+  DELETE FROM case_materials WHERE id = v_tmp;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  r := r || jsonb_build_object('dml_admin_delete', n = 1);
+  EXECUTE 'RESET ROLE';
 
   -- 15. sletning af ukendt linje: nyt snapshot, ingen fejl
   DELETE FROM case_materials WHERE id = v_unknown;

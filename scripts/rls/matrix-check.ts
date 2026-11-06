@@ -54,6 +54,8 @@ export const DEDICATED_WRITE_POLICIES: Record<string, { migration: string; mustC
   // PERM-1 fase 4 (Henrik 2026-10-26): skrivning følger effektive rettigheder
   customers: { migration: '00239', mustContain: ['CREATE POLICY customers_insert_role', "user_has_permission('customers.create')", "user_has_permission('customers.delete')"] },
   service_cases: { migration: '00239', mustContain: ['CREATE POLICY service_cases_insert_role', "user_has_permission('cases.create')", "user_has_permission('cases.delete')"] },
+  // 00248: materialeskrivning følger effektive rettigheder og sags-scope; kosten kun med kost-retten
+  case_materials: { migration: '00248', mustContain: ['CREATE POLICY case_materials_insert_role', "user_has_permission('materials.add_to_case')", "user_has_permission('materials.edit')", "user_has_permission('materials.delete')", 'my_case_scope_ids', 'trg_case_materials_case_lock', 'case_materials_cost_write_guard'] },
 }
 
 /**

@@ -172,10 +172,44 @@ t('migration: ingen dataændring', !/^\s*UPDATE\s/im.test(mig) && !/^\s*DELETE\s
 // Politikker: KUN work_order_profit's læsepolitik udskiftes (samme navn) — case_materials' politikker røres ikke
 const migCode = mig.replace(/^\s*--.*$/gm, '')
 const polStmts = Array.from(migCode.matchAll(/(CREATE|DROP|ALTER) POLICY\s+(?:IF EXISTS\s+)?(\w+)\s+ON\s+public\.(\w+)/gi)).map((x) => `${x[1].toUpperCase()} ${x[2]} ${x[3]}`)
-t('migration: kun work_order_profit-politikken udskiftes', JSON.stringify(polStmts) === JSON.stringify(['DROP work_order_profit_select_cost_roles work_order_profit', 'CREATE work_order_profit_select_cost_roles work_order_profit']), JSON.stringify(polStmts))
+t('migration: kun avance-læsning og materialeskrivning udskiftes (samme navne)', JSON.stringify(polStmts) === JSON.stringify([
+  'DROP work_order_profit_select_cost_roles work_order_profit', 'CREATE work_order_profit_select_cost_roles work_order_profit',
+  'DROP case_materials_insert_role case_materials', 'CREATE case_materials_insert_role case_materials',
+  'DROP case_materials_update_role case_materials', 'CREATE case_materials_update_role case_materials',
+  'DROP case_materials_delete_role case_materials', 'CREATE case_materials_delete_role case_materials',
+]), JSON.stringify(polStmts))
+t('migration: case_materials-læsepolitikken røres ikke', !/case_materials_select_scope\s+ON/i.test(migCode.replace(/'case_materials_select_scope:SELECT'/, '')))
+
+// §8 skrivning: effektiv ret + sags-scope (samme udtryk som læsepolitikken 00242), arbejdsordre på samme sag, ingen flyt
+const SCOPE = "((SELECT public.user_has_permission('cases.view.all')) OR case_id = ANY ((SELECT public.my_case_scope_ids())::uuid[]))"
+const WO = 'w.id = case_materials.work_order_id AND w.case_id = case_materials.case_id'
+const pol = (name: string) => new RegExp(`CREATE POLICY ${name} ON public\\.case_materials[\\s\\S]*?\\);`).exec(migCode)?.[0] ?? ''
+const insPol = pol('case_materials_insert_role'), updPol = pol('case_materials_update_role'), delPol = pol('case_materials_delete_role')
+t('dml: INSERT = materials.add_to_case + scope + arbejdsordre på sagen', /FOR INSERT TO authenticated/.test(insPol) && insPol.includes("user_has_permission('materials.add_to_case')") && insPol.includes(SCOPE) && insPol.includes(WO))
+t('dml: UPDATE USING = materials.edit + scope', /USING \(\s*\(SELECT public\.user_has_permission\('materials\.edit'\)\)\s*AND \(\(SELECT public\.user_has_permission\('cases\.view\.all'\)\) OR case_id = ANY/.test(updPol))
+t('dml: UPDATE WITH CHECK = materials.edit + scope + arbejdsordre', (() => { const wc = updPol.split('WITH CHECK')[1] ?? ''; return wc.includes("user_has_permission('materials.edit')") && wc.includes(SCOPE) && wc.includes(WO) })())
+t('dml: DELETE = materials.delete + scope', /FOR DELETE TO authenticated/.test(delPol) && delPol.includes("user_has_permission('materials.delete')") && delPol.includes(SCOPE))
+t('dml: scope-udtrykket er identisk med læsepolitikken (00242)', src('supabase/migrations/00242_case_child_invoice_read_scope.sql').includes(`USING (${SCOPE.slice(1, -1)})`))
+t('dml: ingen rå rolle i politikkerne', ![insPol, updPol, delPol].some((x) => /user_role\(/.test(x)))
+t('dml: forudsætningsværn på de fire politikker', /'case_materials_delete_role:DELETE', 'case_materials_insert_role:INSERT',\s*'case_materials_select_scope:SELECT', 'case_materials_update_role:UPDATE'/.test(migCode))
+const lockFn = /CREATE FUNCTION public\.case_materials_case_lock_guard\(\)[\s\S]*?\$function\$;/.exec(migCode)?.[0] ?? ''
+t('dml: sags-lås afviser case_id-ændring for API-sessioner', /current_user IN \('anon', 'authenticated'\) AND NEW\.case_id IS DISTINCT FROM OLD\.case_id/.test(lockFn) && !/SECURITY DEFINER/i.test(lockFn))
+t('dml: sags-lås nævner ingen sag i fejlen', /RAISE EXCEPTION '[^'%]*'\s+USING ERRCODE = '42501'/.test(lockFn))
+t('dml: sags-lås trigger på UPDATE OF case_id', /BEFORE UPDATE OF case_id ON public\.case_materials\s+FOR EACH ROW EXECUTE FUNCTION public\.case_materials_case_lock_guard\(\)/.test(migCode))
+const rbSrc = src('docs/runbooks/mp-00248-rollback.sql')
+t('rollback: 00173-politikkerne genskabes ordret', [
+  "CREATE POLICY case_materials_insert_role ON public.case_materials FOR INSERT TO authenticated WITH CHECK (public.user_role() IN ('admin', 'serviceleder', 'montør'));",
+  "CREATE POLICY case_materials_update_role ON public.case_materials FOR UPDATE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder')) WITH CHECK (public.user_role() IN ('admin', 'serviceleder'));",
+  "CREATE POLICY case_materials_delete_role ON public.case_materials FOR DELETE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder'));",
+].every((l) => rbSrc.includes(l) && src('supabase/migrations/00173_p009_rls_write_lockdown_wave3a.sql').includes(l)))
+t('rollback: sags-låsen fjernes', /DROP TRIGGER IF EXISTS trg_case_materials_case_lock/.test(rbSrc) && /DROP FUNCTION IF EXISTS public\.case_materials_case_lock_guard\(\)/.test(rbSrc))
+// App-kaldene bruger samme nøgler som politikkerne (ellers ville app og DB være uenige)
+t('app: create/update/delete bruger materials.add_to_case/edit/delete', /hasPermission\('materials\.add_to_case'\)/.test(actionsSrcEarly()) && /hasPermission\('materials\.edit'\)/.test(actionsSrcEarly()) && /hasPermission\('materials\.delete'\)/.test(actionsSrcEarly()))
+t('app: opdatering ændrer aldrig case_id', !/update\.case_id\s*=/.test(actionsSrcEarly()))
+function actionsSrcEarly() { return src('src/lib/actions/case-materials.ts') }
 t('migration: ingen tabel-skrivegrants ændres', !/(GRANT|REVOKE)\s+(ALL|INSERT|UPDATE|DELETE|TRUNCATE)\b(?![^;]*ON FUNCTION)/i.test(migCode))
 const execStmts = Array.from(migCode.matchAll(/(GRANT|REVOKE)\s+(?:ALL|EXECUTE)\s+ON FUNCTION\s+public\.(\w+)/gi)).map((x) => `${x[1].toUpperCase()} ${x[2]}`)
-t('migration: funktions-ACL kun for værnet og snapshot-funktionen', JSON.stringify(execStmts) === JSON.stringify(['REVOKE case_materials_cost_write_guard', 'REVOKE snapshot_work_order_profit', 'GRANT snapshot_work_order_profit']), JSON.stringify(execStmts))
+t('migration: funktions-ACL kun for værnene og snapshot-funktionen', JSON.stringify(execStmts) === JSON.stringify(['REVOKE case_materials_cost_write_guard', 'REVOKE snapshot_work_order_profit', 'GRANT snapshot_work_order_profit', 'REVOKE case_materials_case_lock_guard']), JSON.stringify(execStmts))
 t('migration: snapshot-funktionen lukkes for klienter', /REVOKE EXECUTE ON FUNCTION public\.snapshot_work_order_profit\(uuid, text\) FROM PUBLIC, anon, authenticated/.test(migCode))
 
 // §6 skrive-værn: effektiv rettighed, INVOKER, insert kun NULL, update OF unit_cost afvist uanset værdi, ingen beløb i fejlen

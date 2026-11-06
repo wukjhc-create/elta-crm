@@ -49,6 +49,27 @@ For en API-session (`anon`/`authenticated`) UDEN den effektive rettighed `materi
 - Bevidst uden for værnet: at ændre antal ændrer `total_cost` (antal × kendt kost) — antal er et ufarligt felt.
   Sletning + ny linje med ukendt kost er almindelig materialehåndtering (række-politikken for DELETE afgør).
 
+### Materialeskrivning efter effektive rettigheder og sags-scope (§8)
+Før (00173): INSERT `user_role() IN (admin, serviceleder, montør)`, UPDATE/DELETE `user_role() IN (admin, serviceleder)`,
+intet sags-scope i databasen. Efter (samme politiknavne; `write-matrix.ts` `supersededBy: 00248`):
+
+| Politik | Krav |
+|---|---|
+| INSERT | `materials.add_to_case` + sagen i scope + evt. arbejdsordre hører til samme sag (og er synlig) |
+| UPDATE (USING) | `materials.edit` + sagen i scope |
+| UPDATE (WITH CHECK) | `materials.edit` + sagen i scope + evt. arbejdsordre hører til samme sag |
+| DELETE | `materials.delete` + sagen i scope |
+
+- Scope = præcis samme udtryk som læsepolitikken (00242): `cases.view.all` ELLER sagen i `my_case_scope_ids()`. En
+  skrive-ret rækker dermed aldrig ud over læse-scopet.
+- Nøglerne er de samme, som app'en tjekker (`createCaseMaterial` / `updateCaseMaterial` / `deleteCaseMaterial`).
+- `case_id` kan ikke ændres via API'et (`trg_case_materials_case_lock`, 42501). App'en har intet flyt-flow.
+- Fejl: en fremmed og en ikke-eksisterende sag giver samme RLS-fejl uden sags-id; rækker uden for scope rammes
+  aldrig (0 rækker) ved UPDATE/DELETE.
+- Admin-klienten (service_role) er uændret: fakturering, leverandørfaktura-konvertering og test-oprydning.
+- Rollback genskaber 00173-politikkerne ordret; rollback-beviset sammenligner med en gemt tilstand fra før anvendelse
+  (`cli.ts mp-00248-state --save <fil>` før apply, `cli.ts mp-00248-rollback-proof --pre <fil>`).
+
 ### work_order_profit efter effektive rettigheder (§7)
 Før (00192): `USING (user_role() IN ('admin','serviceleder','bogholderi'))` — en per-bruger REVOKE ændrede intet.
 Efter (samme politiknavn, `SELECT_REPLACED` uændret):
@@ -90,7 +111,9 @@ Når prod-migrationen er kørt, skal tjekket `case_materials.unit_cost uændret 
   skrive-værn (montør, serviceleder standard og med REVOKE, montør med GRANT) og avance-synlighed (inkl. scope og admin).
 - `cli.ts mp-00248-api`: rigtige persona-klienter mod PostgREST og loaderen, inkl. per-bruger GRANT og REVOKE, direkte
   INSERT/PATCH/upsert af kost og `work_order_profit` for montør, serviceleder (standard, REVOKE af hver nøgle) og admin.
-- `cli.ts mp-00248-rollback-proof`: kun staging. Rollback og gen-anvendelse, rækkerne skal være uændrede.
+- `cli.ts mp-00248-state --save <fil>`: FØR apply — gemmer tilstanden rollback skal genskabe.
+- `cli.ts mp-00248-rollback-proof --pre <fil>`: kun staging, efter apply. Rollback skal give præcis tilstanden fra
+  `--pre` (politikker, grants, kolonne-grants, triggere, funktioner, skema); gen-anvendelse og uændrede rækker.
 - `cli.ts wo-profit`: P7 og P8.
 - UI: `UI_E2E_ONLY=U264`.
 
@@ -102,5 +125,3 @@ Når prod-migrationen er kørt, skal tjekket `case_materials.unit_cost uændret 
 - Det gamle `low_profit`-flag / `trg_profit_snapshot_flag_low` skal ryddes op.
 - `unit_sales_price` gemmes stadig som 0 for montørens linjer.
 - Finans-batch 2.
-- `case_materials` INSERT/UPDATE/DELETE-politikkerne (00173) bruger stadig rå `user_role()` og har intet sags-scope
-  (app'en håndhæver scope). Kostværnet ovenfor bruger effektiv ret; selve række-skriveadgangen bør have sin egen bølge.

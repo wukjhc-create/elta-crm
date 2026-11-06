@@ -11,7 +11,7 @@ let bad = 0
 const t = (label: string, ok: boolean, note = '') => { if (!ok) bad++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${note ? ` — ${note}` : ''}`) }
 const waves = M as unknown as Record<string, M.TableWritePolicy[]>
 // Tabeller hvis skrive-policies ejes af dedikerede migrationer (00235: SEC-B7 · 00239: PERM-1 fase 4)
-const EXPECTED: Record<string, string> = { customer_tasks: '00235', roof_drawings: '00235', customers: '00239', service_cases: '00239' }
+const EXPECTED: Record<string, string> = { customer_tasks: '00235', roof_drawings: '00235', customers: '00239', service_cases: '00239', case_materials: '00248' }
 const entries = WAVES.flatMap(({ wave }) => waves[wave].filter((p) => p.table in EXPECTED).map((p) => ({ wave, p })))
 
 t('alle dedikerede tabeller er markeret supersededBy', entries.length === Object.keys(EXPECTED).length && entries.every(({ p }) => p.supersededBy?.migration === EXPECTED[p.table]),

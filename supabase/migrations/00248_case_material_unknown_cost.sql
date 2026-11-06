@@ -29,14 +29,17 @@
 --     uden rettigheden: INSERT med unit_cost ≠ NULL afvises; UPDATE hvor unit_cost står i SET afvises UANSET værdi
 --     (en sammenligning med den gemte kost ville gøre afvisning/accept til et orakel). Fejlteksten indeholder ingen
 --     beløb. total_cost er genereret og kan ikke skrives. service_role/postgres (admin-klient, definer-triggere) gates
---     ikke — de er app'ens egne, gatede stier. Række-politikkerne for INSERT/UPDATE/DELETE er uændrede.
+--     ikke — de er app'ens egne, gatede stier. Række-adgangen til skrivning: se 8.
 --  7. work_order_profit (avance/kost pr. ordre) læses efter EFFEKTIVE rettigheder i stedet for rå user_role() (00192):
 --     economy.cost_prices OG materials.view.cost_prices (snapshottet indeholder både time- og materialekost; med kun
 --     den ene kunne den anden regnes ud) OG ordren skal være synlig for brugeren (work_orders-RLS, 00242). Samme
 --     politiknavn (scripts/rls/write-matrix.ts SELECT_REPLACED). snapshot_work_order_profit mister EXECUTE for
 --     klienter (kaldes kun af admin-klienten og af SECURITY DEFINER-triggere).
+--  8. case_materials INSERT/UPDATE/DELETE efter effektive rettigheder (materials.add_to_case / .edit / .delete) OG
+--     sags-scope (samme udtryk som læsepolitikken 00242) i stedet for rå user_role() (00173). Arbejdsordren skal høre
+--     til sagen. case_id kan ikke ændres via API'et (trigger case_materials_case_lock_guard). Samme politiknavne.
 --  Uændret: trg_profit_snapshot_flag_low (NULL opfylder hverken < 15 eller >= 15: intet flag, ingen margin_alert),
---           case_other_costs, case_materials' RLS-politikker, INSERT/UPDATE/DELETE-grants.
+--           case_other_costs, case_materials' læsepolitik, INSERT/UPDATE/DELETE-grants.
 --
 -- Data: ingen konvertering. Prod 2026-11-05: 4 rækker, 0 med unit_cost = 0, 0 work_order_profit-rækker.
 -- Rækkefølge: PUSH → MIGRATION. Gammel kode læser kosten med bruger-klienten og fejler efter punkt 5; ny kode læser den
@@ -367,6 +370,76 @@ CREATE POLICY work_order_profit_select_cost_roles ON public.work_order_profit
 
 REVOKE EXECUTE ON FUNCTION public.snapshot_work_order_profit(uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.snapshot_work_order_profit(uuid, text) TO service_role;
+
+-- ---------- 8. case_materials-skrivning efter effektive rettigheder og sags-scope ----------
+-- Før (00173): INSERT user_role() IN (admin, serviceleder, montør), UPDATE/DELETE user_role() IN (admin, serviceleder),
+-- uden sags-scope. Efter: samme nøgler som app'en (materials.add_to_case / materials.edit / materials.delete) OG sagen
+-- skal ligge i brugerens scope — samme udtryk som læsepolitikken (00242), så en skrive-ret aldrig rækker ud over
+-- læse-scopet. En arbejdsordre på linjen skal høre til samme sag (og være synlig, work_orders-RLS). Samme politiknavne
+-- (scripts/rls/write-matrix.ts: supersededBy 00248). Kost-værnet (§6) gælder oveni.
+DO $guard$
+DECLARE
+  v_pols text[];
+BEGIN
+  SELECT array_agg(policyname::text || ':' || cmd ORDER BY policyname) INTO v_pols
+    FROM pg_policies WHERE schemaname = 'public' AND tablename = 'case_materials';
+  IF v_pols IS DISTINCT FROM ARRAY['case_materials_delete_role:DELETE', 'case_materials_insert_role:INSERT',
+                                   'case_materials_select_scope:SELECT', 'case_materials_update_role:UPDATE'] THEN
+    RAISE EXCEPTION '00248: case_materials har uventede politikker — kontrollér før kørsel';
+  END IF;
+  IF to_regprocedure('public.my_case_scope_ids()') IS NULL THEN
+    RAISE EXCEPTION '00248: my_case_scope_ids() mangler (00240)';
+  END IF;
+END
+$guard$;
+
+DROP POLICY case_materials_insert_role ON public.case_materials;
+CREATE POLICY case_materials_insert_role ON public.case_materials FOR INSERT TO authenticated
+  WITH CHECK (
+    (SELECT public.user_has_permission('materials.add_to_case'))
+    AND ((SELECT public.user_has_permission('cases.view.all')) OR case_id = ANY ((SELECT public.my_case_scope_ids())::uuid[]))
+    AND (work_order_id IS NULL OR EXISTS (SELECT 1 FROM public.work_orders w
+                                          WHERE w.id = case_materials.work_order_id AND w.case_id = case_materials.case_id))
+  );
+
+DROP POLICY case_materials_update_role ON public.case_materials;
+CREATE POLICY case_materials_update_role ON public.case_materials FOR UPDATE TO authenticated
+  USING (
+    (SELECT public.user_has_permission('materials.edit'))
+    AND ((SELECT public.user_has_permission('cases.view.all')) OR case_id = ANY ((SELECT public.my_case_scope_ids())::uuid[]))
+  )
+  WITH CHECK (
+    (SELECT public.user_has_permission('materials.edit'))
+    AND ((SELECT public.user_has_permission('cases.view.all')) OR case_id = ANY ((SELECT public.my_case_scope_ids())::uuid[]))
+    AND (work_order_id IS NULL OR EXISTS (SELECT 1 FROM public.work_orders w
+                                          WHERE w.id = case_materials.work_order_id AND w.case_id = case_materials.case_id))
+  );
+
+DROP POLICY case_materials_delete_role ON public.case_materials;
+CREATE POLICY case_materials_delete_role ON public.case_materials FOR DELETE TO authenticated
+  USING (
+    (SELECT public.user_has_permission('materials.delete'))
+    AND ((SELECT public.user_has_permission('cases.view.all')) OR case_id = ANY ((SELECT public.my_case_scope_ids())::uuid[]))
+  );
+
+-- Et materiale flyttes aldrig til en anden sag via API'et (app'en har intet flow til det). RLS frasorterer først rækker
+-- uden for scope, så afvisningen rammer kun synlige rækker; teksten nævner ingen sag.
+CREATE FUNCTION public.case_materials_case_lock_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path = public, pg_temp
+AS $function$
+BEGIN
+  IF current_user IN ('anon', 'authenticated') AND NEW.case_id IS DISTINCT FROM OLD.case_id THEN
+    RAISE EXCEPTION 'case_materials: et materiale kan ikke flyttes til en anden sag' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.case_materials_case_lock_guard() FROM PUBLIC, anon, authenticated;
+CREATE TRIGGER trg_case_materials_case_lock
+  BEFORE UPDATE OF case_id ON public.case_materials
+  FOR EACH ROW EXECUTE FUNCTION public.case_materials_case_lock_guard();
 
 NOTIFY pgrst, 'reload schema';
 
