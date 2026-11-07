@@ -324,12 +324,16 @@ CREATE FUNCTION public.case_materials_cost_write_guard()
  SET search_path = public, pg_temp
 AS $function$
 BEGIN
-  IF current_user IN ('anon', 'authenticated')
-     AND NOT COALESCE(public.user_has_permission('materials.view.cost_prices'), false) THEN
-    -- INSERT: kun en ukendt kost (NULL). UPDATE OF unit_cost: afvist uanset værdi — ingen sammenligning med den gemte kost.
-    IF TG_OP <> 'INSERT' OR NEW.unit_cost IS NOT NULL THEN
-      RAISE EXCEPTION 'case_materials: kostpris kan kun sættes eller ændres med rettigheden materials.view.cost_prices'
-        USING ERRCODE = '42501';
+  -- To trin: EXECUTE-retten til user_has_permission kontrolleres, når udtrykket forberedes — også hvis venstre side af
+  -- en AND er falsk. service_role har ingen EXECUTE på den (00238), så kaldet må kun nås for API-sessioner
+  -- (staging 2026-11-07: admin-klientens INSERT fejlede med "permission denied for function user_has_permission").
+  IF current_user IN ('anon', 'authenticated') THEN
+    IF NOT COALESCE(public.user_has_permission('materials.view.cost_prices'), false) THEN
+      -- INSERT: kun en ukendt kost (NULL). UPDATE OF unit_cost: afvist uanset værdi — ingen sammenligning med den gemte kost.
+      IF TG_OP <> 'INSERT' OR NEW.unit_cost IS NOT NULL THEN
+        RAISE EXCEPTION 'case_materials: kostpris kan kun sættes eller ændres med rettigheden materials.view.cost_prices'
+          USING ERRCODE = '42501';
+      END IF;
     END IF;
   END IF;
   RETURN NEW;

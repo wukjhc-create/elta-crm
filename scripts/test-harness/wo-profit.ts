@@ -89,14 +89,6 @@ export async function runWoProfit(c: { admin: SupabaseClient }): Promise<WoProfi
     const s3 = await snaps()
     out.push({ id: 'P6 uændrede tal → intet nyt snapshot', ok: s3.length === s2.length, note: `${s2.length} → ${s3.length}` })
 
-    // 00248: materiale uden kost på udført ordre → avancen er ukendt, ikke 0. Snapshottet fejler ikke.
-    await addMat(null, 50)
-    const raw = (await a.rpc('calculate_work_order_profit', { p_work_order_id: ids.wo })).data as Record<string, unknown>
-    out.push({ id: 'P7 ukendt kost: ingen total, avance eller margin', ok: raw.profit === null && raw.total_cost === null && raw.margin_percentage === null && raw.material_cost === null && raw.cost_complete === false && raw.material_unknown_line_count === 1 && Number(raw.revenue) === 1500,
-      note: `profit ${raw.profit} · total ${raw.total_cost} · kendt ${raw.material_cost_known} · omsætning ${raw.revenue}` })
-    const last = ((await a.from('work_order_profit').select('profit, total_cost, margin_percentage').eq('work_order_id', ids.wo).order('created_at', { ascending: false }).limit(1)).data ?? [])[0] as { profit: number | null; total_cost: number | null; margin_percentage: number | null } | undefined
-    out.push({ id: 'P8 snapshot med ukendt kost gemmer NULL', ok: !!last && last.profit === null && last.total_cost === null && last.margin_percentage === null, note: JSON.stringify(last ?? null) })
-
     const cn = await addInv('draft', -300, { invoice_type: 'credit', credit_of_invoice_id: inv })
     await a.from('invoices').update({ status: 'sent' }).eq('id', cn) // kladde → sendt (som appen)
     const s4 = await snaps()
@@ -109,6 +101,18 @@ export async function runWoProfit(c: { admin: SupabaseClient }): Promise<WoProfi
     await a.from('invoices').update({ total_amount: 20000, tax_amount: 5000, final_amount: 25000 }).eq('id', inv)
     const low2 = ((await a.from('work_orders').select('low_profit').eq('id', ids.wo).single()).data as { low_profit: boolean }).low_profit
     out.push({ id: 'P8 lav-avance-flag sættes og fjernes', ok: low1 === true && low2 === false, note: `efter kreditnota=${low1} · efter høj omsætning=${low2}` })
+
+    // 00248 (til sidst, så P7/P8 ovenfor måles på kendt kost): materiale uden kost på udført ordre → avancen er ukendt,
+    // ikke 0. Snapshottet fejler ikke. Omsætning = faktura 20.000 − kreditnotaer 500 + 300.
+    await addMat(null, 50)
+    const raw = (await a.rpc('calculate_work_order_profit', { p_work_order_id: ids.wo })).data as Record<string, unknown>
+    out.push({ id: 'P9 ukendt kost: ingen total, avance eller margin', ok: raw.profit === null && raw.total_cost === null && raw.margin_percentage === null && raw.material_cost === null && raw.cost_complete === false && raw.material_unknown_line_count === 1 && Number(raw.revenue) === 19200,
+      note: `profit ${raw.profit} · total ${raw.total_cost} · kendt ${raw.material_cost_known} · omsætning ${raw.revenue}` })
+    const last = ((await a.from('work_order_profit').select('profit, total_cost, margin_percentage').eq('work_order_id', ids.wo).order('created_at', { ascending: false }).limit(1)).data ?? [])[0] as { profit: number | null; total_cost: number | null; margin_percentage: number | null } | undefined
+    out.push({ id: 'P10 snapshot med ukendt kost gemmer NULL', ok: !!last && last.profit === null && last.total_cost === null && last.margin_percentage === null, note: JSON.stringify(last ?? null) })
+    // låst adfærd (trg_profit_snapshot_flag_low uændret): ukendt margin hverken sætter eller fjerner flaget
+    const low3 = ((await a.from('work_orders').select('low_profit').eq('id', ids.wo).single()).data as { low_profit: boolean }).low_profit
+    out.push({ id: 'P10b ukendt margin ændrer ikke lav-avance-flaget', ok: low3 === low2, note: `før=${low2} · efter=${low3}` })
   } finally {
     if (ids.wo) {
       await a.from('ai_suggestions').delete().eq('entity_id', ids.wo)

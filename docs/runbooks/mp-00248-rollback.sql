@@ -28,12 +28,13 @@ CREATE POLICY case_materials_insert_role ON public.case_materials FOR INSERT TO 
 CREATE POLICY case_materials_update_role ON public.case_materials FOR UPDATE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder')) WITH CHECK (public.user_role() IN ('admin', 'serviceleder'));
 CREATE POLICY case_materials_delete_role ON public.case_materials FOR DELETE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder'));
 
--- 7 tilbage: work_order_profit efter rå rolle som i 00192, snapshot-funktionen kan kaldes af authenticated som i 00088
+-- 7 tilbage: work_order_profit efter rå rolle som i 00192. Snapshot-funktionen havde før 00248 standard-ACL (proacl NULL =
+-- EXECUTE for PUBLIC, staging 2026-11-07) → PUBLIC får EXECUTE igen, så authenticated og anon kan som før
 DROP POLICY IF EXISTS work_order_profit_select_cost_roles ON public.work_order_profit;
 CREATE POLICY work_order_profit_select_cost_roles ON public.work_order_profit
   FOR SELECT TO authenticated
   USING (public.user_role() IN ('admin', 'serviceleder', 'bogholderi'));
-GRANT EXECUTE ON FUNCTION public.snapshot_work_order_profit(uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.snapshot_work_order_profit(uuid, text) TO PUBLIC;
 
 -- 6 tilbage: skrive-værnet på kosten
 DROP TRIGGER IF EXISTS trg_case_materials_cost_write_guard_insert ON public.case_materials;

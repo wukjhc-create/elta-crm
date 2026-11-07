@@ -98,6 +98,17 @@ Ingen konvertering. Prod 2026-11-05: 4 rækker, 0 med `unit_cost = 0`, 0 med NUL
 
 Når prod-migrationen er kørt, skal tjekket `case_materials.unit_cost uændret (NOT NULL, ingen 00248)` i `scripts/prod-smoke-grok-batch-3.ts` opdateres.
 
+## Fund fra staging-beviset (2026-11-07)
+- **Rettet i migrationen:** kost-værnet stod som `current_user IN (…) AND NOT user_has_permission(…)`. PostgreSQL
+  kontrollerer EXECUTE-retten, når udtrykket forberedes — også når venstre side er falsk — og `service_role` har ingen
+  EXECUTE på `user_has_permission` (00238). Admin-klientens INSERT i `case_materials` fejlede derfor ("permission denied
+  for function user_has_permission") — i prod ville leverandørfaktura-konvertering m.m. være brudt. Nu to indlejrede IF;
+  proben kører en `service_role`-session (som postgres ville ACL-fejlen være skjult), og enhedstesten låser formen.
+- **Rollback-fil gemt med CRLF:** 00222 blev anvendt fra en CRLF-fil, og `prosrc` gemmer kroppen byte for byte. Med LF
+  ville rollback give logisk ens men ikke byte-identiske funktioner. Kontrollér i prod før anvendelse, at md5 af
+  `prosrc` for `calculate_work_order_profit`/`snapshot_work_order_profit` matcher (staging: 0822af4d…/9bc69098…).
+- **Snapshot-funktionens ACL før 00248 var standard (NULL = EXECUTE for PUBLIC)** → rollback giver PUBLIC EXECUTE igen.
+
 ## Rollback
 `docs/runbooks/mp-00248-rollback.sql`.
 - Afviser, hvis der findes NULL-rækker eller snapshots med ukendt avance. Intet sættes stille til 0.

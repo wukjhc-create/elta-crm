@@ -1933,14 +1933,23 @@ ${m.text()}`) })
         const readFin = async (): Promise<Fin | null> => ((await c.admin.from('invoices').select('id, total_amount').eq('case_id', u35CaseId ?? '').eq('invoice_type', 'final').maybeSingle()).data as Fin | null)
         let fin: Fin | null = await readFin()
         for (let i = 0; i < 20 && !fin; i++) { await new Promise((res) => setTimeout(res, 1000)); fin = await readFin() }
-        const lines = fin?.id ? ((await c.admin.from('invoice_lines').select('description, total_price').eq('invoice_id', fin.id)).data ?? []) as Array<{ description: string; total_price: number }> : []
+        // Headeren indsættes før linjerne (og slettes igen ved rollback) → vent til linjerne findes eller headeren er væk
+        const readLines = async () => fin?.id ? ((await c.admin.from('invoice_lines').select('description, total_price').eq('invoice_id', fin.id)).data ?? []) as Array<{ description: string; total_price: number }> : []
+        let lines = await readLines()
+        let headerGone = false
+        for (let i = 0; i < 20 && fin?.id && lines.length === 0 && !headerGone; i++) {
+          await new Promise((res) => setTimeout(res, 1000))
+          lines = await readLines()
+          headerGone = !(await readFin())
+        }
+        const u35Toast = await a.page.locator('[data-sonner-toast], [role="status"], [role="alert"]').allInnerTexts().catch(() => [] as string[])
         const deductions = lines.filter((l) => Number(l.total_price) < 0)
         r.intet_fradrag_for_krediteret_forskud = !deductions.some((l) => l.description.includes(`UI-E2E-D-${stamp}`))
         r.rate_fradrag_netto_300 = deductions.length === 1 && Number(deductions[0].total_price) === -300
         r.total_700 = Number(fin?.total_amount) === 700
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u35-kreditfradrag.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U35 slutfaktura efter kreditnota', ok: !seedErr && Object.values(r).every(Boolean),
-          note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · linjer=${JSON.stringify(lines.map((l) => [l.description.slice(0, 40), l.total_price]))} total=${fin?.total_amount}` })
+          note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · linjer=${JSON.stringify(lines.map((l) => [l.description.slice(0, 40), l.total_price]))} total=${fin?.total_amount}${headerGone ? ' · HEADER RULLET TILBAGE' : ''}${u35Toast.length ? ` · besked=${JSON.stringify(u35Toast.join(' | ').slice(0, 200))}` : ''}` })
       }
 
       // U36 ny rate efter at en rate er krediteret fuldt (faktura)
@@ -5809,6 +5818,7 @@ ${m.text()}`) })
         let woId: string | null = null
         const invIds: string[] = []
         const SECRET_COST = '77.77'
+        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
         type Mat = { id: string; description: string; unit_cost: number | null; total_cost: number | null; unit_sales_price: number; invoice_line_id: string | null }
         const mats = async () => ((await c.admin.from('case_materials').select('id, description, unit_cost, total_cost, unit_sales_price, invoice_line_id').eq('case_id', caseId ?? '')).data ?? []) as Mat[]
         const waitMat = async (desc: string) => {
@@ -5961,7 +5971,9 @@ ${m.text()}`) })
           r.oekonomi_db_ukendt = (await a.page.getByTestId('case-db-value').innerText().catch(() => '')) === 'Ukendt'
           r.realiseret_ukendt = (await a.page.getByTestId('realized-db-value').innerText().catch(() => '')) === 'Ukendt'
           const card = await a.page.getByTestId('realized-db-card').innerText().catch(() => '')
-          r.realiseret_viser_faktureret = card.includes('310,00')
+          // fmtKr viser hele kroner (0 decimaler) → "310 kr."
+          r.realiseret_viser_faktureret = /(^|\D)310(,00)?\s*kr/.test(card)
+          if (!r.realiseret_viser_faktureret) diag += ` realiseret-kort:${card.replace(/\s+/g, ' ').slice(0, 160)}`
           r.realiseret_forklaring = (await a.page.getByTestId('realized-db-incomplete').count()) === 1
           const page = await a.page.locator('body').innerText()
           r.oekonomi_advarsel = page.includes('Materiale uden kostpris')

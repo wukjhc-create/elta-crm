@@ -13,7 +13,7 @@ import type { UserRole } from '../../src/types/auth.types'
 
 export interface Api00248Check { id: string; ok: boolean; note?: string }
 
-const KEYS: Permission[] = ['materials.view', 'materials.view.cost_prices', 'economy.cost_prices', 'cases.view.all']
+const KEYS: Permission[] = ['materials.view', 'materials.view.cost_prices', 'economy.cost_prices', 'cases.view.all', 'cases.view.assigned']
 
 export async function runApi00248(c: { admin: SupabaseClient; url: string; anonKey: string }): Promise<Api00248Check[]> {
   const out: Api00248Check[] = []
@@ -50,7 +50,9 @@ export async function runApi00248(c: { admin: SupabaseClient; url: string; anonK
       supabase: p.cl,
       admin: c.admin,
       hasPermission: (k) => set.has(k),
-      canViewCase: (id) => userCanViewCase(id, { role: p.role, userId: p.uid, supabase: p.cl }),
+      // personaens EGNE effektive rettigheder (læst via dens session) — uden dem slår scope op via Next-cookies, som ikke
+      // findes uden for en request (fail-closed → 0 rækker)
+      canViewCase: (id) => userCanViewCase(id, { role: p.role, userId: p.uid, supabase: p.cl, hasPermission: (k) => set.has(k) }),
     }, caseId)
   }
   const denied = (r: { error: { code?: string } | null }) => r.error?.code === '42501'

@@ -218,6 +218,9 @@ t('skrive-værn: findes', guardFn.length > 0)
 t('skrive-værn: effektiv rettighed materials.view.cost_prices', /user_has_permission\('materials\.view\.cost_prices'\)/.test(guardFn))
 t('skrive-værn: ingen rå rolle', !/user_role\(|role\s*=|role\s+IN/i.test(guardFn.replace(/current_user IN \('anon', 'authenticated'\)/, '')))
 t('skrive-værn: SECURITY INVOKER (current_user er kalderen)', !/SECURITY DEFINER/i.test(guardFn) && /current_user IN \('anon', 'authenticated'\)/.test(guardFn))
+// staging 2026-11-07: EXECUTE-retten tjekkes ved forberedelse af udtrykket → user_has_permission må aldrig stå i samme
+// IF som current_user-tjekket, ellers fejler service_role (ingen EXECUTE) på hver indsættelse
+t('skrive-værn: rettighedskaldet nås kun for API-sessioner (indlejret IF)', /IF current_user IN \('anon', 'authenticated'\) THEN\s+IF NOT COALESCE\(public\.user_has_permission\('materials\.view\.cost_prices'\), false\) THEN/.test(guardFn) && !/current_user IN \([^)]*\)\s+AND/.test(guardFn))
 t('skrive-værn: INSERT kun med NULL', /TG_OP <> 'INSERT' OR NEW\.unit_cost IS NOT NULL/.test(guardFn))
 t('skrive-værn: sammenligner aldrig med gemt kost (intet orakel)', !/OLD\./.test(guardFn))
 t('skrive-værn: fejlen indeholder ingen værdi', /RAISE EXCEPTION '[^'%]*'\s+USING ERRCODE = '42501'/.test(guardFn))
@@ -231,7 +234,7 @@ t('avance-politik: economy.cost_prices OG materials.view.cost_prices', /user_has
 t('avance-politik: ordren skal være synlig (work_orders-RLS)', /EXISTS \(SELECT 1 FROM public\.work_orders w WHERE w\.id = work_order_profit\.work_order_id\)/.test(wopPol))
 t('avance-politik: kun SELECT for authenticated', /FOR SELECT TO authenticated/.test(wopPol))
 t('avance-politik: forudsætningsværn før udskiftning', /IS DISTINCT FROM ARRAY\['work_order_profit_select_cost_roles'\]/.test(migCode))
-t('rollback: avance efter 00192 og snapshot-EXECUTE tilbage', /USING \(public\.user_role\(\) IN \('admin', 'serviceleder', 'bogholderi'\)\)/.test(src('docs/runbooks/mp-00248-rollback.sql')) && /GRANT EXECUTE ON FUNCTION public\.snapshot_work_order_profit\(uuid, text\) TO authenticated/.test(src('docs/runbooks/mp-00248-rollback.sql')))
+t('rollback: avance efter 00192 og snapshot-EXECUTE tilbage', /USING \(public\.user_role\(\) IN \('admin', 'serviceleder', 'bogholderi'\)\)/.test(src('docs/runbooks/mp-00248-rollback.sql')) && /GRANT EXECUTE ON FUNCTION public\.snapshot_work_order_profit\(uuid, text\) TO PUBLIC;/.test(src('docs/runbooks/mp-00248-rollback.sql')))
 t('rollback: skrive-værnet fjernes', /DROP TRIGGER IF EXISTS trg_case_materials_cost_write_guard_insert/.test(src('docs/runbooks/mp-00248-rollback.sql')) && /DROP TRIGGER IF EXISTS trg_case_materials_cost_write_guard_update/.test(src('docs/runbooks/mp-00248-rollback.sql')) && /DROP FUNCTION IF EXISTS public\.case_materials_cost_write_guard\(\)/.test(src('docs/runbooks/mp-00248-rollback.sql')))
 
 // App: revisionssporet skriver ikke en skjult kost; AI-indsigter kræver begge nøgler

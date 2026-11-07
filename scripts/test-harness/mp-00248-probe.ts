@@ -22,10 +22,12 @@ export const STATE_00248_SQL = `SELECT json_build_object(
   'wop_pol', (SELECT json_agg(policyname || ':' || cmd || ':' || (coalesce(qual,'') LIKE '%user_has_permission%') ORDER BY policyname) FROM pg_policies WHERE schemaname='public' AND tablename='work_order_profit'),
   'guard_fn', (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='case_materials_cost_write_guard'),
   'lock_fn', (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='case_materials_case_lock_guard'),
+  'guard_src', (SELECT json_agg(p.proname || ':' || md5(p.prosrc) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname IN ('case_materials_cost_write_guard','case_materials_case_lock_guard')),
   'fn_src', (SELECT json_agg(p.proname || ':' || md5(p.prosrc) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname IN ('calculate_work_order_profit','snapshot_work_order_profit')),
   'wop_pol_md5', (SELECT md5(string_agg(policyname || cmd || array_to_string(roles, ',') || coalesce(qual,'') || coalesce(with_check,''), '|' ORDER BY policyname)) FROM pg_policies WHERE schemaname='public' AND tablename='work_order_profit'),
   'dml_pol', (SELECT json_agg(policyname || ':' || cmd || ':' || (coalesce(qual,'') || coalesce(with_check,'') LIKE '%user_has_permission%') || ':' || (coalesce(qual,'') || coalesce(with_check,'') LIKE '%my_case_scope_ids%') ORDER BY policyname) FROM pg_policies WHERE schemaname='public' AND tablename='case_materials' AND cmd <> 'SELECT'),
   'snapshot_exec_auth', (SELECT has_function_privilege('authenticated', 'public.snapshot_work_order_profit(uuid, text)', 'EXECUTE')),
+  'snapshot_exec_anon', (SELECT has_function_privilege('anon', 'public.snapshot_work_order_profit(uuid, text)', 'EXECUTE')),
   'grants', (SELECT md5(string_agg(grantee || privilege_type, '|' ORDER BY grantee, privilege_type)) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='case_materials'),
   'col_grants', (SELECT md5(string_agg(grantee || column_name || privilege_type, '|' ORDER BY grantee, column_name, privilege_type)) FROM information_schema.column_privileges WHERE table_schema='public' AND table_name='case_materials' AND column_name IN ('unit_cost','total_cost')),
   'trg', (SELECT md5(string_agg(tgname || pg_get_triggerdef(oid), '|' ORDER BY tgname)) FROM pg_trigger WHERE tgrelid='public.case_materials'::regclass AND NOT tgisinternal),
@@ -54,10 +56,10 @@ DECLARE
 BEGIN
   -- Hjælpefunktion i samme transaktion; den rulles tilbage med resten (blokken slutter altid med RAISE)
   EXECUTE $x$CREATE FUNCTION public.p248_denied(q text) RETURNS boolean LANGUAGE plpgsql AS $f$
-    BEGIN EXECUTE q; RETURN false; EXCEPTION WHEN insufficient_privilege THEN RETURN true; END $f$x$;
+    BEGIN EXECUTE q; RETURN false; EXCEPTION WHEN insufficient_privilege THEN RETURN true; END $f$ $x$;
   EXECUTE $x$GRANT EXECUTE ON FUNCTION public.p248_denied(text) TO authenticated$x$;
   EXECUTE $x$CREATE FUNCTION public.p248_err(q text) RETURNS text LANGUAGE plpgsql AS $f$
-    BEGIN EXECUTE q; RETURN 'ok'; EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE || ':' || SQLERRM; END $f$x$;
+    BEGIN EXECUTE q; RETURN 'ok'; EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE || ':' || SQLERRM; END $f$ $x$;
   EXECUTE $x$GRANT EXECUTE ON FUNCTION public.p248_err(text) TO authenticated$x$;
   SELECT id INTO v_admin FROM profiles WHERE is_active AND role='admin' ORDER BY created_at LIMIT 1;
   SELECT id INTO v_montor FROM profiles WHERE is_active AND role='montør' ORDER BY created_at LIMIT 1;
@@ -95,6 +97,17 @@ BEGIN
     VALUES (v_case, v_wo, 'ukendt', 4, 25, 'manual', v_admin) RETURNING id INTO v_unknown;
   SELECT unit_cost, total_cost, total_sales_price INTO x, t, c FROM (SELECT unit_cost, total_cost, to_jsonb(total_sales_price) AS total_sales_price FROM case_materials WHERE id = v_unknown) q;
   r := r || jsonb_build_object('ingen_standard_0', x IS NULL, 'antal_gange_null_er_null', t IS NULL, 'salg_kendt_med_ukendt_kost', (c #>> '{}')::numeric = 100);
+
+  -- service_role (admin-klienten) er en betroet sti: værnene må ikke blokere den. Som postgres ville ACL-fejl skjules
+  -- (superbruger), så det køres som service_role (staging 2026-11-07: "permission denied for function user_has_permission").
+  EXECUTE $x$GRANT EXECUTE ON FUNCTION public.p248_err(text) TO service_role$x$;
+  EXECUTE 'SET LOCAL ROLE service_role';
+  r := r || jsonb_build_object('service_role_skriver', jsonb_build_object(
+    'insert_kost', public.p248_err(format('INSERT INTO public.case_materials (case_id, description, quantity, unit_cost, source) VALUES (%L, ''p248 sr'', 1, 8, ''manual'')', v_other_case)) = 'ok',
+    'insert_ukendt', public.p248_err(format('INSERT INTO public.case_materials (case_id, description, quantity, source) VALUES (%L, ''p248 sr'', 1, ''manual'')', v_other_case)) = 'ok',
+    'update_kost', public.p248_err(format('UPDATE public.case_materials SET unit_cost = 9 WHERE case_id = %L AND description = ''p248 sr''', v_other_case)) = 'ok',
+    'delete', public.p248_err(format('DELETE FROM public.case_materials WHERE case_id = %L AND description = ''p248 sr''', v_other_case)) = 'ok'));
+  EXECUTE 'RESET ROLE';
 
   -- 10. profit: ukendt, ikke 0. Omsætning og det kendte står.
   c := calculate_work_order_profit(v_wo);

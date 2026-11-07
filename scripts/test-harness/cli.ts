@@ -2815,6 +2815,8 @@ Total inkl. moms 11.718,75
       ['rollback: skrive-værn væk', rolled.guard_fn === 0],
       ['rollback: avance efter rå rolle igen (00192)', same(rolled.wop_pol, ['work_order_profit_select_cost_roles:SELECT:false'])],
       ['rollback: snapshot-RPC kan kaldes af authenticated (00088)', rolled.snapshot_exec_auth === true],
+      // pre-filer fra før nøglen fandtes: tom ACL (standard) = PUBLIC har EXECUTE → anon også
+      ['rollback = før 00248: snapshot-EXECUTE for anon', rolled.snapshot_exec_anon === (pre.snapshot_exec_anon ?? /^snapshot_work_order_profit:[0-9a-f]+:$/.test(String(((pre.fn as string[] | null) ?? []).find((x) => x.startsWith('snapshot_work_order_profit:')))))],
       ['gen-anvendelse: identisk med før', same(before, again)],
     ] as const
     for (const [id, ok] of rows) log(`${ok ? 'PASS' : 'FAIL'}  ${id}`)
