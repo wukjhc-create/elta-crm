@@ -17,6 +17,7 @@ import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import type { WorkOrderRow, WorkOrderStatus } from '@/types/workforce.types'
 import { trackActionResult } from '@/lib/pilot/action-failure-log'
+import { assignableEmployeeError } from '@/lib/employees/setup-integrity'
 
 // =====================================================
 // Types
@@ -229,17 +230,11 @@ export async function createWorkOrderForCase(
     // omplanlægning
     if ((caseRow as { is_proposal?: boolean }).is_proposal) return { success: false, error: 'Sagen er et forslag — godkend den først' }
     if (input.assigned_employee_id) {
-      const { data: emp, error: empError } = await supabase
-        .from('employees')
-        .select('id, active, termination_date')
-        .eq('id', input.assigned_employee_id)
-        .maybeSingle()
-      if (empError) return { success: false, error: 'Kunne ikke tjekke medarbejderen. Det tælles ikke som at personen ikke findes.' }
-      if (!emp) return { success: false, error: 'Medarbejder findes ikke' }
-      const e = emp as { active: boolean; termination_date: string | null }
-      if (!e.active || (e.termination_date && e.termination_date < copenhagenParts(new Date()).date)) {
-        return { success: false, error: 'Medarbejder er inaktiv' }
-      }
+      // Employee integrity 2026-11-09: aktiv, har timepris (ellers kan tiden aldrig registreres) og ikke et login med flere
+      // aktive medarbejdere. Satser læses med admin-klienten — kun ja/nej bruges, intet beløb returneres.
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const assignErr = await assignableEmployeeError(createAdminClient(), input.assigned_employee_id, copenhagenParts(new Date()).date)
+      if (assignErr) return { success: false, error: assignErr }
     }
 
     // 00228: fravær på datoen → advarsel; kun med eksplicit override (bekræftet) fortsættes, og det audit-logges
@@ -359,18 +354,10 @@ export async function updateWorkOrderPlanning(
 
     // Validate employee (active) if assigning
     if (input.assigned_employee_id) {
-      const { data: emp, error: empError } = await supabase
-        .from('employees')
-        .select('id, active, termination_date')
-        .eq('id', input.assigned_employee_id)
-        .maybeSingle()
-      if (empError) return { success: false, error: 'Kunne ikke tjekke medarbejderen. Det tælles ikke som at personen ikke findes.' }
-      if (!emp) return { success: false, error: 'Medarbejder findes ikke' }
-      // PL-7 (planlægnings-review 2026-10-14): samme regel som ved oprettelse — fratrådte tæller som inaktive
-      const e = emp as { active: boolean; termination_date: string | null }
-      if (!e.active || (e.termination_date && e.termination_date < copenhagenParts(new Date()).date)) {
-        return { success: false, error: 'Medarbejder er inaktiv' }
-      }
+      // PL-7 + employee integrity 2026-11-09: samme regel som ved oprettelse (aktiv, timepris, entydigt login)
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const assignErr = await assignableEmployeeError(createAdminClient(), input.assigned_employee_id, copenhagenParts(new Date()).date)
+      if (assignErr) return { success: false, error: assignErr }
     }
 
     // X4: udførte/annullerede arbejdsordrer kan ikke omplanlægges (UI'et skjuler det; serveren håndhævede det ikke)

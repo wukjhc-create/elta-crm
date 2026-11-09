@@ -199,6 +199,12 @@ export async function executePlanningProposal(ctx: CapabilityContext): Promise<C
   if (p.scheduled_date <= today) return { ok: false, error: `forældet forslag: datoen ${p.scheduled_date} er passeret — kør agenten igen` }
   const { data: tech } = await admin.from('employees').select(TECH_COLUMNS).eq('id', p.assigned_employee_id).maybeSingle()
   if (!tech || !isFieldTechnician(tech as Technician, today)) return { ok: false, error: 'forældet forslag: montøren er ikke længere aktiv' }
+  // Employee integrity 2026-11-09: samme regel som manuel planlægning (timepris, entydigt login)
+  {
+    const { assignableEmployeeError } = await import('@/lib/employees/setup-integrity')
+    const assignErr = await assignableEmployeeError(admin, p.assigned_employee_id, today)
+    if (assignErr) return { ok: false, error: `forældet forslag: ${assignErr}` }
+  }
   const { count: sameDay } = await admin.from('work_orders').select('id', { count: 'exact', head: true })
     .eq('assigned_employee_id', p.assigned_employee_id).eq('scheduled_date', p.scheduled_date).in('status', ACTIVE_WO_STATUSES)
   if ((sameDay ?? 0) >= PLANNING_DEFAULTS.maxPerDay) {

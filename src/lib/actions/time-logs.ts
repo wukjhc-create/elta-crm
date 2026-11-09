@@ -32,6 +32,7 @@ import {
   formatError,
 } from '@/lib/actions/action-helpers'
 import { getWorkOrderScope, getWorkOrderEmployeeScope } from '@/lib/auth/case-scope'
+import { EMPLOYEE_SETUP_TEXT, loadEmployeeSetup } from '@/lib/employees/setup-integrity'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
@@ -196,6 +197,20 @@ export interface CreateTimeLogInput {
   employee_rate_id?: string | null
 }
 
+/**
+ * Employee integrity 2026-11-09: en bruger der kun må registrere EGEN tid skal have præcis én aktiv medarbejder.
+ * Mangler/inaktiv/tvetydig → klar tekst (før "Arbejdsordren er ikke tildelt dig", og ved dubletter stille den ældste
+ * række). En læsefejl er ikke "ikke koblet".
+ */
+async function ownEmployeeSetupError(supabase: Parameters<typeof loadEmployeeSetup>[0], userId: string): Promise<string | null> {
+  try {
+    const setup = await loadEmployeeSetup(supabase, userId)
+    return setup.state === 'linked' ? null : EMPLOYEE_SETUP_TEXT[setup.state]
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Kunne ikke kontrollere din medarbejderkobling'
+  }
+}
+
 async function employeeSaleRateError(employeeId: string): Promise<string | null> {
   const { data, error } = await createAdminClient().from('employees').select('hourly_rate').eq('id', employeeId).maybeSingle()
   if (error) return 'Kunne ikke kontrollere medarbejderens timepris — prøv igen'
@@ -267,7 +282,8 @@ async function createTimeLogImpl(
     // PF-8 (performance-review 2026-10-16): scope, arbejdsordre, medarbejder og timepris-tjek hentes samtidig (før ~5
     // kald efter hinanden); montørens scope er kun medarbejder-id'et (Q-5) og tjekkes mod arbejdsordrens tildeling
     const restricted = !hasPermission('time_logs.edit.all')
-    const [woScope, woRes, empRes, rateErr] = await Promise.all([
+    const [setupErr, woScope, woRes, empRes, rateErr] = await Promise.all([
+      restricted ? ownEmployeeSetupError(supabase, userId) : Promise.resolve(null),
       restricted ? getWorkOrderEmployeeScope({ role, userId, supabase }) : Promise.resolve(null),
       supabase
         .from('work_orders')
@@ -284,6 +300,7 @@ async function createTimeLogImpl(
       employeeSaleRateError(input.employee_id),
     ])
     const { data: wo, error: woErr } = woRes
+    if (setupErr) return { success: false, error: setupErr }
 
     // Sprint 7E — montor maa kun create paa egne work orders + med eget
     // employee_id. Admin/serviceleder kan create paa enhver kombination.
@@ -454,6 +471,8 @@ export async function updateTimeLog(
 
     // Sprint 7E — for montor: skal eje work_order + employee_id matcher.
     if (!hasPermission('time_logs.edit.all')) {
+      const setupErr = await ownEmployeeSetupError(supabase, userId)
+      if (setupErr) return { success: false, error: setupErr }
       // PF3-2: arbejdsordrens tildeling slås op direkte
       const woScope = await getWorkOrderEmployeeScope({ role, userId, supabase })
       if (woScope.type === 'employee') {

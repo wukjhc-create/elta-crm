@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U263', 'U262', 'U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
-  montor: ['U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U265', 'U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U266', 'U264', 'U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -6181,6 +6181,154 @@ ${m.text()}`) })
           }
         }
         out.push({ id: 'U266 finans batch 2: kreditorrest ende-til-ende (mock), ukendt aldrig 0, personaer og per-bruger-revoke, kun GET', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
+      }
+
+      // U265 EMPLOYEE SETUP INTEGRITY (2026-11-09): montør uden/med/kun-inaktiv/tvetydig medarbejder, rolleskift til/fra
+      // montør, invitation, kobling/genaktivering, planlægning uden timepris, klar tidsfejl, historik bevaret. Rigtige
+      // server-actions som admin og montør; alt ryddes op.
+      if (want('U265') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tag = `U265-${stamp}`
+        let diag = ''
+        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
+        const empIds: string[] = []
+        const woIds: string[] = []
+        const tlIds: string[] = []
+        let caseId: string | null = null
+        const SETTINGS = 'src/lib/actions/settings.ts'
+        const ELOGIN = 'src/lib/actions/employee-login.ts'
+        const EMPS = 'src/lib/actions/employees.ts'
+        const WOS = 'src/lib/actions/work-orders.ts'
+        const TLS = 'src/lib/actions/time-logs.ts'
+        const mkEmp = async (row: Record<string, unknown>) => {
+          const n = empIds.length
+          const res = await c.admin.from('employees').insert([{ name: `U265 ${n} ${stamp}`, email: `u265-${n}-${stamp}@harness.test`, role: 'montør', active: true, ...row }]).select('id')
+          if (res.error) throw new Error(`employee ${n}: ${res.error.message}`)
+          const id = (res.data?.[0] as { id: string }).id
+          empIds.push(id)
+          return id
+        }
+        const roleOf = async (id: string) => ((await c.admin.from('profiles').select('role').eq('id', id).single()).data as { role: string }).role
+        try {
+          const mNo = await mkUser('montør')           // montør uden medarbejder
+          const mOk = await mkUser('montør')           // gyldig
+          const mDup = await mkUser('montør')          // to aktive medarbejdere
+          const mInact = await mkUser('montør')        // kun inaktiv
+          const mAway = await mkUser('montør')         // skifter væk fra montør; har historik
+          const sNo = await mkUser('salg')             // → montør uden medarbejder: afvises
+          const sEmp = await mkUser('salg')            // → montør med medarbejder: tilladt
+          const eOk = await mkEmp({ profile_id: mOk.id, hourly_rate: 495, cost_rate: 300 })
+          const eDup1 = await mkEmp({ profile_id: mDup.id, hourly_rate: 495, cost_rate: 300 })
+          await mkEmp({ profile_id: mDup.id, hourly_rate: 495, cost_rate: 300 })
+          await mkEmp({ profile_id: mInact.id, hourly_rate: 495, cost_rate: 300, active: false })
+          const eAway = await mkEmp({ profile_id: mAway.id, hourly_rate: 495, cost_rate: 300 })
+          await mkEmp({ profile_id: sEmp.id, hourly_rate: 495, cost_rate: 300 })
+          const eNoRate = await mkEmp({ hourly_rate: null, cost_rate: null })
+          const eSpare = await mkEmp({ hourly_rate: 495, cost_rate: 300 })                       // aktiv, uden login
+          const eOldOk = await mkEmp({ profile_id: mOk.id, hourly_rate: 495, cost_rate: 300, active: false }) // historik på mOk
+          const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId }]).select('id')
+          caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+          const mkWo = async (empId: string) => {
+            const w = await c.admin.from('work_orders').insert([{ case_id: caseId, title: `${tag} ${woIds.length}`, scheduled_date: today, assigned_employee_id: empId, status: 'planned' }]).select('id')
+            const id = (w.data?.[0] as { id: string }).id
+            woIds.push(id)
+            return id
+          }
+          const woOk = await mkWo(eOk)
+          const woDup = await mkWo(eDup1)
+          const woAway = await mkWo(eAway)
+          // historik for mAway: én afsluttet time (00230-triggeren fryser satserne)
+          const tl = await c.admin.from('time_logs').insert([{ work_order_id: woAway, employee_id: eAway, start_time: `${today}T06:00:00Z`, end_time: `${today}T08:00:00Z`, billable: true, approval_status: 'approved', description: tag }]).select('id, cost_amount, sale_amount')
+          if (tl.error) diag += ` tl:${tl.error.message}`
+          const tlRow = tl.data?.[0] as { id: string; cost_amount: number; sale_amount: number } | undefined
+          if (tlRow) tlIds.push(tlRow.id)
+          r.seed = !!caseId && !!tlRow
+
+          // ---------- admin ----------
+          const a = await login(adminUser)
+          try {
+            const teamUrl = `${base}/dashboard/settings/team`
+            await gotoSafe(a.page, teamUrl, { waitUntil: 'networkidle', timeout: 180_000 })
+            const inv = await callServerAction(a.page, teamUrl, SETTINGS, 'inviteTeamMember', [`u265-invite-${stamp}@harness.test`, 'montør'])
+            r.invitation_montor_afvist = inv.includes('Montører inviteres fra medarbejderkortet')
+            const toM = await callServerAction(a.page, teamUrl, SETTINGS, 'updateTeamMember', [sNo.id, { role: 'montør' }])
+            r.rolle_til_montor_uden_medarbejder_afvist = toM.includes('En montør skal have en medarbejder') && (await roleOf(sNo.id)) === 'salg'
+            const toMok = await callServerAction(a.page, teamUrl, SETTINGS, 'updateTeamMember', [sEmp.id, { role: 'montør' }])
+            r.rolle_til_montor_med_medarbejder_tilladt = toMok.includes('"success":true') && (await roleOf(sEmp.id)) === 'montør'
+            const toMinact = await callServerAction(a.page, teamUrl, SETTINGS, 'updateTeamMember', [mInact.id, { role: 'serviceleder' }])
+            const backInact = await callServerAction(a.page, teamUrl, SETTINGS, 'updateTeamMember', [mInact.id, { role: 'montør' }])
+            r.rolle_til_montor_kun_inaktiv_afvist = toMinact.includes('"success":true') && backInact.includes('inaktiv medarbejder') && (await roleOf(mInact.id)) === 'serviceleder'
+            // væk fra montør: medarbejder, AO og time bevaret uændret
+            const away = await callServerAction(a.page, teamUrl, SETTINGS, 'updateTeamMember', [mAway.id, { role: 'serviceleder' }])
+            const empAfter = (await c.admin.from('employees').select('active, profile_id').eq('id', eAway).single()).data as { active: boolean; profile_id: string }
+            const tlAfter = (await c.admin.from('time_logs').select('id, employee_id, cost_amount, sale_amount').eq('id', tlRow?.id ?? '').maybeSingle()).data as { employee_id: string; cost_amount: number; sale_amount: number } | null
+            const woAfter = (await c.admin.from('work_orders').select('assigned_employee_id').eq('id', woAway).single()).data as { assigned_employee_id: string }
+            r.rolle_vaek_fra_montor_tilladt = away.includes('"success":true') && (await roleOf(mAway.id)) === 'serviceleder'
+            r.historik_bevaret = empAfter.active === true && empAfter.profile_id === mAway.id && !!tlAfter && tlAfter.employee_id === eAway
+              && Number(tlAfter.cost_amount) === Number(tlRow?.cost_amount) && Number(tlAfter.sale_amount) === Number(tlRow?.sale_amount) && woAfter.assigned_employee_id === eAway
+            r.rolle_vaek_advarer_om_aabne_job = away.includes('omplanlæg')
+            // planlægning
+            const caseUrl = `${base}/dashboard/orders/${caseId}`
+            const pNoRate = await callServerAction(a.page, caseUrl, WOS, 'createWorkOrderForCase', [{ case_id: caseId, title: `${tag} norate`, scheduled_date: today, assigned_employee_id: eNoRate }])
+            r.planlaegning_uden_timepris_afvist = pNoRate.includes('mangler timepris')
+            const pDup = await callServerAction(a.page, caseUrl, WOS, 'createWorkOrderForCase', [{ case_id: caseId, title: `${tag} dup`, scheduled_date: today, assigned_employee_id: eDup1 }])
+            r.planlaegning_tvetydigt_login_afvist = pDup.includes('flere aktive medarbejdere')
+            const pOk = await callServerAction(a.page, caseUrl, WOS, 'createWorkOrderForCase', [{ case_id: caseId, title: `${tag} ok`, scheduled_date: today, assigned_employee_id: eSpare }])
+            r.planlaegning_gyldig_tilladt = pOk.includes('"success":true')
+            const madeIds = (((await c.admin.from('work_orders').select('id').eq('case_id', caseId ?? '').like('title', `${tag} %`)).data ?? []) as Array<{ id: string }>).map((w) => w.id)
+            for (const id of madeIds) if (!woIds.includes(id)) woIds.push(id)
+            // kobling og genaktivering må ikke give et login to aktive medarbejdere
+            const empUrl = `${base}/dashboard/employees/${eSpare}`
+            const link = await callServerAction(a.page, empUrl, ELOGIN, 'linkExistingProfile', [eSpare, mOk.id])
+            r.kobling_til_login_med_aktiv_afvist = link.includes('allerede koblet til en anden aktiv medarbejder')
+              && ((await c.admin.from('employees').select('profile_id').eq('id', eSpare).single()).data as { profile_id: string | null }).profile_id === null
+            const react = await callServerAction(a.page, empUrl, EMPS, 'setEmployeeActiveAction', [eOldOk, true])
+            r.genaktivering_til_dublet_afvist = react.includes('allerede koblet til en anden aktiv medarbejder')
+              && ((await c.admin.from('employees').select('active').eq('id', eOldOk).single()).data as { active: boolean }).active === false
+          } finally { await a.ctx.close().catch(() => {}) }
+
+          // ---------- montør uden medarbejder ----------
+          const mn = await login(mNo)
+          try {
+            await gotoSafe(mn.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const note = await mn.page.getByTestId('my-jobs-setup-incomplete').innerText({ timeout: 30_000 }).catch(() => '')
+            r.mine_job_viser_ikke_koblet = note.includes('ikke koblet til en medarbejder')
+            r.mine_job_ikke_misvisende_tom = !(await mn.page.locator('body').innerText()).includes('Ingen planlagte job de næste 7 dage')
+            const t1 = await callServerAction(mn.page, `${base}/dashboard/tasks`, TLS, 'createTimeLog', [{ work_order_id: woOk, employee_id: eOk, date: today, start_clock: '09:00', hours: 1 }])
+            r.tid_uden_medarbejder_klar_fejl = t1.includes('ikke koblet til en medarbejder')
+          } finally { await mn.ctx.close().catch(() => {}) }
+
+          // ---------- montør med to aktive medarbejdere ----------
+          const md = await login(mDup)
+          try {
+            await gotoSafe(md.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const note = await md.page.getByTestId('my-jobs-setup-incomplete').innerText({ timeout: 30_000 }).catch(() => '')
+            r.mine_job_viser_tvetydig = note.includes('flere aktive medarbejdere')
+            const t2 = await callServerAction(md.page, `${base}/dashboard/tasks`, TLS, 'createTimeLog', [{ work_order_id: woDup, employee_id: eDup1, date: today, start_clock: '09:00', hours: 1 }])
+            r.tid_tvetydig_afvist_ikke_aeldste = t2.includes('flere aktive medarbejdere')
+          } finally { await md.ctx.close().catch(() => {}) }
+
+          // ---------- gyldig montør: normal adfærd ----------
+          const mo = await login(mOk)
+          try {
+            await gotoSafe(mo.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+            r.gyldig_montor_ingen_opsaetningsbesked = (await mo.page.getByTestId('my-jobs-setup-incomplete').count()) === 0
+            const t3 = await callServerAction(mo.page, `${base}/dashboard/tasks`, TLS, 'createTimeLog', [{ work_order_id: woOk, employee_id: eOk, date: today, start_clock: '10:00', hours: 1 }])
+            r.gyldig_montor_kan_registrere_tid = t3.includes('"success":true')
+            if (!r.gyldig_montor_kan_registrere_tid) diag += ` t3:${t3.slice(0, 160)}`
+            const made = (((await c.admin.from('time_logs').select('id').eq('work_order_id', woOk)).data ?? []) as Array<{ id: string }>).map((x) => x.id)
+            tlIds.push(...made)
+          } finally { await mo.ctx.close().catch(() => {}) }
+        } catch (e) {
+          diag += ` ${e instanceof Error ? e.message : String(e)}`
+          r.intet_kast = false
+        } finally {
+          if (tlIds.length) await c.admin.from('time_logs').delete().in('id', tlIds)
+          if (woIds.length) { await c.admin.from('work_order_profit').delete().in('work_order_id', woIds); await c.admin.from('work_orders').delete().in('id', woIds) }
+          if (caseId) await c.admin.from('service_cases').delete().eq('id', caseId)
+          if (empIds.length) { await c.admin.from('employee_events').delete().in('employee_id', empIds); await c.admin.from('employees').delete().in('id', empIds) }
+        }
+        out.push({ id: 'U265 employee setup integrity: montør uden/tvetydig/inaktiv medarbejder, rolleskift, planlægning, tid, historik', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
       }
 
       // U263 FINANS BATCH 1 (Claude-review): Likviditet viser bogført saldo som regnskabstal, Ikke konfigureret/Ukendt er aldrig 0,
