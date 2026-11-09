@@ -88,12 +88,13 @@ async function main() {
   const realConsoleError = console.error
   try {
     // ---------- allowlist
-    for (const ok of ['/accounting-years', '/accounts/5820']) t(`tilladt: ${ok}`, economicReadPathAllowed(ok))
+    for (const ok of ['/accounting-years', '/accounts/5820', '/accounting-years/2024/entries']) t(`tilladt: ${ok}`, economicReadPathAllowed(ok))
     const bypass = [
       '/accounts/5820?x=1', '/accounts/5820#x', '/accounts/5820/', '/accounts/5820/../invoices/drafts', '/accounts/../invoices/drafts', '/accounts/%2e%2e/invoices',
       '/accounts/5820%2F..%2Finvoices', '/accounts/%35', '//evil.example/accounts/1', '//accounts/1', '/accounts//1', 'https://evil.example/accounts/1', 'http://restapi.e-conomic.com/accounts/1',
       '/ACCOUNTS/5820', '/Accounts/5820', '/accounting-Years', '/accounts/-1', '/accounts/1.5', '/accounts/1e3', '/accounts/٥', '/accounts/5820\n', '\n/accounts/5820', '/accounts/5820\r\n/invoices', ' /accounts/5820',
       '/accounts\\5820', '/accounts/5820;x', '/accounts/1234567890123456789', 'accounts/5820', '', '/', '/self', '/accounts', '/customers', '/customers/1', '/suppliers', '/invoices/booked', '/invoices/drafts', '/journals',
+      '/accounting-years/2024/2025/entries', '/accounting-years/24/entries', '/accounting-years/20241/entries', '/accounting-years/2024/entries/1', '/accounting-years/2024/totals', '/accounting-years/2024/entries?filter=1', '/accounting-years/2024/periods', '/accounting-years/2024/vouchers', '/accounting-years/2024/entries/', '/booked-entries',
     ]
     for (const p of bypass) t(`afvist: ${JSON.stringify(p)}`, !economicReadPathAllowed(p))
     t('afvist: ikke-tekst', !economicReadPathAllowed(undefined as unknown as string) && !economicReadPathAllowed(['/accounts/1'] as unknown as string))
@@ -115,7 +116,7 @@ async function main() {
     const getSrc = clientSrc.slice(clientSrc.indexOf('export async function economicGetWithSettings'), clientSrc.indexOf('// Phase 15'))
     t('læseklienten kan kun GET', getSrc.includes("method: 'GET'") && !/method:\s*'(POST|PUT|PATCH|DELETE)'/.test(getSrc) && !getSrc.includes('body:'))
     t('læseklienten skriver hverken log eller last_sync_at', !getSrc.includes('logAttempt') && !getSrc.includes('last_sync_at') && !getSrc.includes(".from('"))
-    t('ingen fil økonomi-koden kalder en skrivefunktion', !/createInvoiceInEconomic|createCustomerInEconomic|markInvoicePaid|pushSupplierInvoice|method:\s*'POST'/.test(['src/lib/finance/finance-desk.ts', 'src/lib/finance/cash-position.ts', 'src/lib/finance/position.ts', 'src/lib/economic/read.ts', 'src/lib/actions/finance-position.ts', 'src/app/dashboard/finance/page.tsx'].map((f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')).join('\n')))
+    t('ingen fil økonomi-koden kalder en skrivefunktion', !/createInvoiceInEconomic|createCustomerInEconomic|markInvoicePaid|pushSupplierInvoice|method:\s*'POST'/.test(['src/lib/finance/finance-desk.ts', 'src/lib/finance/cash-position.ts', 'src/lib/finance/position.ts', 'src/lib/economic/read.ts', 'src/lib/economic/read-model.ts', 'src/lib/economic/supplier-remainder.ts', 'src/lib/actions/finance-position.ts', 'src/app/dashboard/finance/page.tsx'].map((f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')).join('\n')))
 
     // ---------- saldo: nul, fejl, timeout, forkert svar
     delete process.env.ECONOMIC_PUSH_ENABLED

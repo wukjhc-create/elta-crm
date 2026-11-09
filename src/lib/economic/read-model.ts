@@ -9,7 +9,11 @@
  */
 export function economicReadPathAllowed(path: string): boolean {
   if (typeof path !== 'string') return false
-  return [/^\/accounting-years$/, /^\/accounts\/[0-9]{1,18}$/].some((rule) => rule.test(path))
+  return [
+    /^\/accounting-years$/,
+    /^\/accounting-years\/[0-9]{4}\/entries$/,
+    /^\/accounts\/[0-9]{1,18}$/,
+  ].some((rule) => rule.test(path))
 }
 
 export type LedgerAccountRead =

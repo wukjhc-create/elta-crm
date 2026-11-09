@@ -1,18 +1,20 @@
 /**
  * Canonical cash position. Amounts come from the existing invoice open-amount
- * rule and one configured e-conomic ledger account. A missing figure has no amount.
- * Supplier invoice totals are not open liabilities: CRM stores no remainder.
+ * rule, one configured e-conomic ledger account, and a completed creditor-remainder read.
+ * Supplier invoice totals are not open liabilities. Only a verified remainder is.
  *
  * No "stale" source: nothing stores a read timestamp, so every shown balance was read in this request. A read that
  * did not succeed is error. If a later change caches or stores a balance, it must return its age and add stale here.
  */
 import { buildFinancePosition, type FinancePosition, type ForecastId, type Money, type PayableInput, type ReceivableInput } from '@/lib/finance/position'
+import type { CreditorEntry, CreditorRead } from '@/lib/economic/supplier-remainder'
 import type { Permission } from '@/lib/auth/permissions'
 import { roundMoney } from '@/lib/utils/money-round'
 import { formatCurrency } from '@/lib/utils/format'
 
 export type FinanceSource =
   | 'economic_ledger'
+  | 'economic_open_items'
   | 'crm_open_items'
   | 'unavailable'
   | 'error'
@@ -41,14 +43,25 @@ export interface FinanceQueueItem {
   label: string
   party: string
   partyHref: string | null
-  documentHref: string
+  /** Null when the row is not a CRM document. The label is still shown. */
+  documentHref: string | null
   dueDate: string | null
   amount: number | null
-  amountLabel: 'Åbent' | 'Fakturabeløb'
+  /** Currency of this row. Omitted rows are DKK. A foreign row is not converted. */
+  currency?: string
+  amountLabel: 'Åbent' | 'Fakturabeløb' | 'Rest'
+}
+
+export interface CreditorCurrencyTotal {
+  currency: string
+  /** Signed remainder. Negative means the company still owes this currency. */
+  remainder: number
+  /** -remainder. Positive means still to pay in this currency. */
+  toPay: number
 }
 
 export interface FinanceAlert {
-  code: 'economic_read_failed' | 'finance_read_failed' | 'bank_configuration_required' | 'projected_cash_below_minimum' | 'overdue_receivables_above_threshold'
+  code: 'economic_read_failed' | 'creditor_read_failed' | 'finance_read_failed' | 'bank_configuration_required' | 'projected_cash_below_minimum' | 'overdue_receivables_above_threshold'
   text: string
 }
 
@@ -71,6 +84,11 @@ export interface FinanceCashPosition {
   upcomingCustomerInvoices: FinanceQueueItem[]
   overdueSupplierInvoices: FinanceQueueItem[]
   upcomingSupplierInvoices: FinanceQueueItem[]
+  /** Open e-conomic creditor rows, capped for display. Totals use every row. */
+  openCreditorEntries: FinanceQueueItem[]
+  creditorEntriesTruncated: boolean
+  /** Empty unless the creditor read finished. Foreign currencies stay in their own code. */
+  creditorCurrencies: CreditorCurrencyTotal[]
   alerts: FinanceAlert[]
   ledger: FinancePosition
 }
@@ -83,14 +101,14 @@ const ACTUAL_BANK: QualifiedAmount = {
 
 const HIDDEN: QualifiedAmount = { source: 'unavailable', amount: null, detail: 'Skjult for denne adgang.' }
 
-const SOURCE_RANK: FinanceSource[] = ['error', 'configuration_required', 'unavailable', 'crm_open_items', 'economic_ledger']
+const SOURCE_RANK: FinanceSource[] = ['error', 'configuration_required', 'unavailable', 'crm_open_items', 'economic_open_items', 'economic_ledger']
 
 export function worstSource(sources: FinanceSource[]): FinanceSource {
   return sources.reduce((worst, source) => (SOURCE_RANK.indexOf(source) < SOURCE_RANK.indexOf(worst) ? source : worst))
 }
 
 function usable(source: FinanceSource): boolean {
-  return source === 'economic_ledger' || source === 'crm_open_items'
+  return source === 'economic_ledger' || source === 'crm_open_items' || source === 'economic_open_items'
 }
 
 /** Renders a real zero. Error and missing values stay Ukendt, and missing setup says so, even if a caller left 0 on them. */
@@ -186,11 +204,32 @@ function sumInflows(position: FinancePosition, ids: ForecastId[], loaded: boolea
 }
 
 const PAYABLE_GAP = 'CRM gemmer ikke restbeløb på leverandørfakturaer, og e-conomic-kreditorposter læses ikke. Fakturatotalen bruges ikke som gæld og ikke som 0.'
+const CREDITOR_FAILED = 'Kreditorresterne kunne ikke læses i e-conomic. Gælden er ikke 0, og fakturatotalen bruges ikke i stedet.'
+const CREDITOR_UNKNOWN = 'Kreditorresterne kunne ikke bekræftes som komplette. Summen er ukendt, og fakturatotalen bruges ikke i stedet.'
+const CREDITOR_FOREIGN = 'Der er åbne kreditorrester i anden valuta. De omregnes ikke til kroner, så den danske sum og likviditeten er ukendt.'
 
 function payableGap(visible: boolean, loaded: boolean): QualifiedAmount {
   if (!visible) return HIDDEN
   if (!loaded) return { source: 'error', amount: null, detail: 'Leverandørfakturaerne kunne ikke læses. Gælden er ikke 0.' }
   return { source: 'unavailable', amount: null, detail: PAYABLE_GAP }
+}
+
+/** A creditor read replaces the gap. It never falls back to an invoice total, and a foreign remainder is not a DKK figure. */
+function qualifyCreditors(
+  creditors: CreditorRead | undefined,
+  visible: boolean,
+  payablesLoaded: boolean,
+  pick: (known: Extract<CreditorRead, { state: 'known' }>) => number | null,
+  detail: string,
+): QualifiedAmount {
+  if (!visible) return HIDDEN
+  if (!creditors || creditors.state === 'not_read') return payableGap(true, payablesLoaded)
+  if (creditors.state === 'error') return { source: 'error', amount: null, detail: CREDITOR_FAILED }
+  if (creditors.state === 'unknown') return { source: 'unavailable', amount: null, detail: CREDITOR_UNKNOWN }
+  if (!creditors.dkkOnly) return { source: 'unavailable', amount: null, detail: CREDITOR_FOREIGN }
+  const amount = pick(creditors)
+  if (amount == null || !Number.isFinite(amount)) return { source: 'unavailable', amount: null, detail: CREDITOR_UNKNOWN }
+  return { source: 'economic_open_items', amount, detail }
 }
 
 export function evaluateFinanceAlerts(input: {
@@ -247,6 +286,38 @@ function supplierQueue(rows: FinancePosition['payables']): FinanceQueueItem[] {
   }))
 }
 
+const CREDITOR_QUEUE_CAP = 40
+
+export type CreditorParty = (item: CreditorEntry) => { party: string; partyHref: string | null; documentHref: string | null }
+
+function creditorQueue(creditors: CreditorRead | undefined, visible: boolean, party?: CreditorParty): { rows: FinanceQueueItem[]; truncated: boolean } {
+  if (!visible || creditors?.state !== 'known') return { rows: [], truncated: false }
+  const sorted = [...creditors.items].sort((a, b) => {
+    if (a.dueDate == null && b.dueDate == null) return a.entryNumber - b.entryNumber
+    if (a.dueDate == null) return 1
+    if (b.dueDate == null) return -1
+    if (a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1
+    return a.entryNumber - b.entryNumber
+  })
+  return {
+    truncated: sorted.length > CREDITOR_QUEUE_CAP,
+    rows: sorted.slice(0, CREDITOR_QUEUE_CAP).map((item) => {
+      const link = party?.(item)
+      return {
+        id: `${item.year}:${item.entryNumber}`,
+        label: item.supplierInvoiceNumber ?? `Post ${item.entryNumber}`,
+        party: link?.party ?? `Leverandør ${item.supplierNumber}`,
+        partyHref: link?.partyHref ?? null,
+        documentHref: link?.documentHref ?? null,
+        dueDate: item.dueDate,
+        amount: roundMoney(-item.remainder),
+        currency: item.currency,
+        amountLabel: 'Rest' as const,
+      }
+    }),
+  }
+}
+
 export function buildCashPosition(input: {
   today: string
   calculatedAt: string
@@ -258,6 +329,9 @@ export function buildCashPosition(input: {
   invoices: ReceivableInput[]
   payables: PayableInput[]
   bank: BookedBankInput
+  /** Omitted or not_read keeps the invoice-total gap. A supplied read never falls back to that total. */
+  creditors?: CreditorRead
+  creditorParty?: CreditorParty
   minimumCashDkk?: number | null
   overdueThresholdDkk?: number | null
 }): FinanceCashPosition {
@@ -274,18 +348,24 @@ export function buildCashPosition(input: {
   const bookedBankBalance = qualifyBookedBank(input.bank)
   const openReceivables = shownReceivable(fromMoney(ledger.receivables, input.receivablesLoaded, 'Åbne udstedte fakturaer i DKK efter den eksisterende åbne-saldo-regel.'))
   const overdueReceivables = shownReceivable(fromMoney(ledger.overdueAmount, input.receivablesLoaded, 'Forfald før i dag og mindst 0,50 kr. Forfald i dag tæller ikke med.'))
-  const openPayables = payableGap(payablesVisible, input.payablesLoaded)
-  const overduePayables = payableGap(payablesVisible, input.payablesLoaded)
+  const openPayables = qualifyCreditors(input.creditors, payablesVisible, input.payablesLoaded, (known) => known.dkkToPay, 'Åben rest på alle bogførte kreditorposter i DKK, også uden forfaldsdato. Ikke fakturatotalen. En uudlignet leverandørbetaling sænker tallet og er ikke en ny indbetaling.')
+  const overduePayables = qualifyCreditors(input.creditors, payablesVisible, input.payablesLoaded, (known) => known.overdueToPay, 'Åben rest i DKK med forfald før i dag.')
   const unscheduledReceivables = shownReceivable(sumInflows(ledger, ['undated'], input.receivablesLoaded, 'Åbne fakturaer uden forfaldsdato. De ligger ikke i 30, 60 eller 90 dage.'))
-  const unscheduledPayables = payableGap(payablesVisible, input.payablesLoaded)
-  const outgoing = payableGap(payablesVisible, input.payablesLoaded)
+  const unscheduledPayables = qualifyCreditors(input.creditors, payablesVisible, input.payablesLoaded, (known) => known.unscheduledToPay, 'Åben rest i DKK uden forfaldsdato. Den ligger ikke i 30, 60 eller 90 dage.')
+  const outgoingFor = (days: 30 | 60 | 90, pick: (known: Extract<CreditorRead, { state: 'known' }>) => number | null) => qualifyCreditors(
+    input.creditors,
+    payablesVisible,
+    input.payablesLoaded,
+    pick,
+    `Åben rest i DKK med forfald senest om ${days} dage, inklusive allerede forfaldne. Uden forfaldsdato er ikke med.`,
+  )
   const incoming = (days: 30 | 60 | 90, ids: ForecastId[]) => shownReceivable(sumInflows(
     ledger,
     ids,
     input.receivablesLoaded,
     `Åbne fakturaer med forfald inden for ${days} dage, inklusive allerede forfaldne. Uden forfaldsdato er ikke med.`,
   ))
-  const horizon = (days: 30 | 60 | 90, ids: ForecastId[]): CashHorizon => {
+  const horizon = (days: 30 | 60 | 90, ids: ForecastId[], outgoing: QualifiedAmount): CashHorizon => {
     const expectedIncoming = incoming(days, ids)
     const projected = projectCash(bookedBankBalance, expectedIncoming, outgoing)
     return {
@@ -299,9 +379,9 @@ export function buildCashPosition(input: {
       quality: worstSource([bookedBankBalance.source, expectedIncoming.source, outgoing.source, unscheduledReceivables.source, unscheduledPayables.source]),
     }
   }
-  const forecast30 = horizon(30, ['overdue', 'd30'])
-  const forecast60 = horizon(60, ['overdue', 'd30', 'd60'])
-  const forecast90 = horizon(90, ['overdue', 'd30', 'd60', 'd90'])
+  const forecast30 = horizon(30, ['overdue', 'd30'], outgoingFor(30, (known) => known.horizon30ToPay))
+  const forecast60 = horizon(60, ['overdue', 'd30', 'd60'], outgoingFor(60, (known) => known.horizon60ToPay))
+  const forecast90 = horizon(90, ['overdue', 'd30', 'd60', 'd90'], outgoingFor(90, (known) => known.horizon90ToPay))
   const alerts = evaluateFinanceAlerts({
     booked: bookedBankBalance,
     projected30: forecast30.projectedCash,
@@ -310,9 +390,20 @@ export function buildCashPosition(input: {
     overdueThresholdDkk: input.overdueThresholdDkk ?? null,
     crmReadFailed: (receivablesVisible && !input.receivablesLoaded) || (payablesVisible && !input.payablesLoaded),
   })
+  if (payablesVisible && input.creditors?.state === 'error') {
+    alerts.push({ code: 'creditor_read_failed', text: 'Kreditorresterne kunne ikke læses. De vises ikke som 0.' })
+  }
+  const creditors = creditorQueue(input.creditors, payablesVisible, input.creditorParty)
+  const creditorCurrencies = payablesVisible && input.creditors?.state === 'known'
+    ? input.creditors.currencies.map((row) => ({ currency: row.currency, remainder: row.remainder, toPay: roundMoney(-row.remainder) }))
+    : []
   return {
     calculatedAt: input.calculatedAt,
-    economicReadAt: input.bank.balance.outcome === 'known' ? input.bank.readAt : null,
+    economicReadAt: input.bank.balance.outcome === 'known'
+      ? input.bank.readAt
+      : payablesVisible && input.creditors?.state === 'known'
+        ? input.calculatedAt
+        : null,
     bookedBankBalance,
     actualBankBalance: ACTUAL_BANK,
     openReceivables,
@@ -327,6 +418,9 @@ export function buildCashPosition(input: {
     upcomingCustomerInvoices: customerQueue(ledger.upcomingInvoices),
     overdueSupplierInvoices: supplierQueue(ledger.overduePayables),
     upcomingSupplierInvoices: supplierQueue(ledger.upcomingPayables),
+    openCreditorEntries: creditors.rows,
+    creditorEntriesTruncated: creditors.truncated,
+    creditorCurrencies,
     alerts,
     ledger,
   }

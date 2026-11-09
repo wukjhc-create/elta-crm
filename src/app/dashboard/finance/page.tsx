@@ -22,6 +22,7 @@ function moneyText(value: Money): string {
 function sourceLabel(source: QualifiedAmount['source']): string {
   switch (source) {
     case 'economic_ledger': return 'e-conomic, bogført konto'
+    case 'economic_open_items': return 'e-conomic, åbne kreditorposter'
     case 'crm_open_items': return 'CRM, åbne fakturaer'
     case 'configuration_required': return 'Ikke konfigureret'
     case 'error': return 'Fejl'
@@ -30,7 +31,7 @@ function sourceLabel(source: QualifiedAmount['source']): string {
 }
 
 function figureQuality(value: QualifiedAmount): string {
-  if (value.source === 'crm_open_items' && value.amount != null) return 'OK'
+  if ((value.source === 'crm_open_items' || value.source === 'economic_open_items' || value.source === 'economic_ledger') && value.amount != null) return 'OK'
   return sourceLabel(value.source)
 }
 
@@ -54,10 +55,10 @@ function QueueTable({ rows, empty }: { rows: FinanceQueueItem[]; empty: string }
         <tbody>
           {rows.map((row) => (
             <tr key={row.id} className="border-t border-gray-100">
-              <td className="py-1 pr-3"><Link href={row.documentHref} className="text-blue-700 hover:underline">{row.label}</Link></td>
+              <td className="py-1 pr-3">{row.documentHref ? <Link href={row.documentHref} className="text-blue-700 hover:underline">{row.label}</Link> : row.label}</td>
               <td className="py-1 pr-3">{row.partyHref ? <Link href={row.partyHref} className="text-blue-700 hover:underline">{row.party}</Link> : row.party}</td>
               <td className="py-1 pr-3">{row.dueDate ?? 'Ukendt'}</td>
-              <td className="py-1">{row.amount == null ? 'Ukendt' : `${formatCurrency(row.amount, 'DKK', 2)} (${row.amountLabel})`}</td>
+              <td className="py-1">{row.amount == null ? 'Ukendt' : `${formatCurrency(row.amount, row.currency ?? 'DKK', 2)} (${row.amountLabel})`}</td>
             </tr>
           ))}
         </tbody>
@@ -168,7 +169,7 @@ export default async function FinancePage() {
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-gray-800">30 / 60 / 90 dage</h2>
         <p className="text-xs text-gray-500">
-          Hver horisont er åbningskassen plus åbne kundefakturaer med forfald senest den dag, inklusive allerede forfaldne, minus åbne kreditorrester. Uden forfaldsdato ligger for sig og trækkes ikke ind i horisonten. Et manglende tal bliver ikke 0.
+          Hver horisont er åbningskassen plus åbne kundefakturaer med forfald senest den dag, inklusive allerede forfaldne, minus åbne kreditorrester. Uden forfaldsdato ligger for sig og trækkes ikke ind i horisonten. Et manglende tal bliver ikke 0. Horisonten bliver først et beløb, når kreditorresten er læst komplet og kun i kroner.
         </p>
         <div className="grid gap-3 lg:grid-cols-3">
           <HorizonBlock horizon={cash.forecast30} hideIncoming={hideIncoming} hideOutgoing={hideOutgoing} />
@@ -236,6 +237,41 @@ export default async function FinancePage() {
         </section>
       )}
 
+      {desk.seesPayables && desk.seesEconomic && (
+        <section>
+          <h2 className="text-sm font-medium text-gray-800">Åbne kreditorposter i e-conomic</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Rest på bogførte poster, i postens valuta. En anden valuta omregnes ikke. Fakturatotalen længere nede er et andet tal og trækkes ikke fra likviditeten.
+          </p>
+          {cash.creditorCurrencies.length > 0 && (
+            <ul className="mt-2 text-sm text-gray-700 space-y-1">
+              {cash.creditorCurrencies.map((row) => (
+                <li key={row.currency}>
+                  {row.currency}: rest {formatCurrency(row.remainder, row.currency, 2)}. At betale {formatCurrency(row.toPay, row.currency, 2)}.
+                </li>
+              ))}
+            </ul>
+          )}
+          {!desk.creditorSuppliersKnown && (
+            <p className="mt-1 text-xs text-gray-600">Leverandørlisten kunne ikke læses. Restbeløbet er uændret, og ingen leverandør er koblet.</p>
+          )}
+          {!desk.creditorInvoicesKnown && (
+            <p className="mt-1 text-xs text-gray-600">Indgående fakturaer kunne ikke kobles. Restbeløbet er uændret.</p>
+          )}
+          <QueueTable
+            rows={cash.openCreditorEntries}
+            empty={
+              cash.openPayables.source === 'economic_open_items'
+                ? 'Ingen åbne kreditorrester.'
+                : cash.openPayables.source === 'error'
+                  ? 'Kreditorresterne kunne ikke læses. De vises ikke som 0.'
+                  : 'Kreditorresterne er ikke bekræftet. Summen vises ikke som 0.'
+            }
+          />
+          {cash.creditorEntriesTruncated && <p className="mt-1 text-xs text-gray-500">Viser 40. Der kan være flere. Summen bruger alle poster.</p>}
+        </section>
+      )}
+
       {desk.seesPayables && (
         <section>
           <h2 className="text-sm font-medium text-gray-800">Forfaldne leverandørfakturaer</h2>
@@ -263,7 +299,7 @@ export default async function FinancePage() {
       <section>
         <h2 className="text-sm font-medium text-gray-800">Opdeling, ikke en kasseprognose</h2>
         <p className="mt-1 text-xs text-gray-500">
-          Indbetalingen er kendt rest i DKK. Leverandørkolonnen er fakturabeløb uden betalingsstatus. De trækkes ikke fra hinanden og indgår ikke i forventet likviditet.
+          Indbetalingen er kendt rest i DKK. Leverandørkolonnen er fakturabeløb uden betalingsstatus. De trækkes ikke fra hinanden og indgår ikke i forventet likviditet. Forventet likviditet bruger kun den læste kreditorrest, når den læsning er komplet og kun i kroner.
         </p>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full text-sm">

@@ -4,10 +4,11 @@
  * A failed read is never passed on as an empty list.
  */
 import { BOOKKEEPING_FOUNDATION, buildFinancePosition, type PayableInput, type ReceivableInput } from '@/lib/finance/position'
-import { buildCashPosition, configuredAmount, financeSections, type BookedBankInput, type FinanceCashPosition } from '@/lib/finance/cash-position'
+import { buildCashPosition, configuredAmount, financeSections, type BookedBankInput, type CreditorParty, type FinanceCashPosition } from '@/lib/finance/cash-position'
 import type { Permission } from '@/lib/auth/permissions'
 import { permissionDeniedText } from '@/lib/auth/permission-text'
-import { readAccountingYears, readBankAccountBalance, type BankBalanceRead, type EconomicProbe } from '@/lib/economic/read'
+import { readAccountingYears, readBankAccountBalance, readOpenSupplierRemainders, type BankBalanceRead, type EconomicProbe } from '@/lib/economic/read'
+import { matchIncomingInvoice, matchSupplier, type CreditorRead, type InvoiceLink, type SupplierLink } from '@/lib/economic/supplier-remainder'
 import { isEconomicReady, readEconomicSettings, type EconomicSettingsRead, type ReadyEconomicSettings } from '@/lib/services/economic-client'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
@@ -23,12 +24,15 @@ export interface FinanceDeps {
   readSettings: () => Promise<EconomicSettingsRead>
   readBalance: (settings: ReadyEconomicSettings, account: number) => Promise<BankBalanceRead>
   readYears: (settings: ReadyEconomicSettings) => Promise<EconomicProbe>
+  /** Optional so a caller that only reads the booked balance does not have to supply it. The page does. */
+  readCreditors?: (settings: ReadyEconomicSettings, today: string) => Promise<CreditorRead>
 }
 
 export const ECONOMIC_DEPS: FinanceDeps = {
   readSettings: readEconomicSettings,
   readBalance: readBankAccountBalance,
   readYears: readAccountingYears,
+  readCreditors: readOpenSupplierRemainders,
 }
 
 export interface FinanceDesk {
@@ -40,6 +44,10 @@ export interface FinanceDesk {
   position: FinanceCashPosition['ledger']
   cash: FinanceCashPosition
   customerNamesKnown: boolean
+  /** False only when a finished creditor read could not load the supplier list. Amounts are unchanged. */
+  creditorSuppliersKnown: boolean
+  /** False only when a finished creditor read could not load incoming-invoice links. Amounts are unchanged. */
+  creditorInvoicesKnown: boolean
   bank: { visible: false } | { visible: true; unmatched: number | null }
   bookkeeping: typeof BOOKKEEPING_FOUNDATION
 }
@@ -126,6 +134,7 @@ export async function buildFinanceDesk(ctx: FinanceCtx, deps: FinanceDeps, now: 
 
   let payables: PayableInput[] = []
   let payablesLoaded = false
+  let loadedInvoiceLinks: InvoiceLink[] | null = null
   if (seesPayables) {
     try {
       const rows = await fetchAllRows<{
@@ -138,9 +147,11 @@ export async function buildFinanceDesk(ctx: FinanceCtx, deps: FinanceDeps, now: 
         due_date: string | null
         duplicate_of_id: string | null
         supplier_id: string | null
+        external_invoice_id: string | null
+        external_provider: string | null
       }>((from, to) => ctx.supabase
         .from('incoming_invoices')
-        .select('id, invoice_number, supplier_name_extracted, status, currency, amount_incl_vat, due_date, duplicate_of_id, supplier_id')
+        .select('id, invoice_number, supplier_name_extracted, status, currency, amount_incl_vat, due_date, duplicate_of_id, supplier_id, external_invoice_id, external_provider')
         .order('id')
         .range(from, to))
       payables = rows.map((row) => ({
@@ -154,9 +165,16 @@ export async function buildFinanceDesk(ctx: FinanceCtx, deps: FinanceDeps, now: 
         dueDate: row.due_date,
         duplicateOfId: row.duplicate_of_id,
       }))
+      loadedInvoiceLinks = rows.map((row) => ({
+        id: row.id,
+        supplierId: row.supplier_id,
+        externalInvoiceId: row.external_invoice_id,
+        externalProvider: row.external_provider,
+      }))
       payablesLoaded = true
     } catch {
       payablesLoaded = false
+      loadedInvoiceLinks = null
     }
   }
 
@@ -174,6 +192,8 @@ export async function buildFinanceDesk(ctx: FinanceCtx, deps: FinanceDeps, now: 
   }
 
   const bankRead = await loadBookedBank(sections.economic, now, deps)
+  const creditorRead = await loadCreditors(seesPayables && sections.economic, bankRead, today, deps)
+  const links = await creditorLinks(ctx, creditorRead.creditors, payablesLoaded, loadedInvoiceLinks)
   const cash = buildCashPosition({
     today,
     calculatedAt: now.toISOString(),
@@ -184,6 +204,8 @@ export async function buildFinanceDesk(ctx: FinanceCtx, deps: FinanceDeps, now: 
     invoices,
     payables,
     bank: bankRead.bank,
+    creditors: creditorRead.creditors,
+    creditorParty: links.party,
     minimumCashDkk: bankRead.minimumCashDkk,
     // A company threshold compared with one user's scoped invoices would say nothing
     overdueThresholdDkk: scopeAll ? bankRead.overdueThresholdDkk : null,
@@ -198,12 +220,71 @@ export async function buildFinanceDesk(ctx: FinanceCtx, deps: FinanceDeps, now: 
     position: cash.ledger,
     cash,
     customerNamesKnown,
+    creditorSuppliersKnown: links.suppliersKnown,
+    creditorInvoicesKnown: links.invoicesKnown,
     bank,
     bookkeeping: BOOKKEEPING_FOUNDATION,
   }
 }
 
-async function loadBookedBank(permitted: boolean, now: Date, deps: FinanceDeps): Promise<{ bank: BookedBankInput; minimumCashDkk: number | null; overdueThresholdDkk: number | null }> {
+const SUPPLIER_MATCH_CAP = 200_000
+
+async function loadCreditors(
+  permitted: boolean,
+  bankRead: { settingsFailed: boolean; readySettings: ReadyEconomicSettings | null },
+  today: string,
+  deps: FinanceDeps,
+): Promise<{ creditors: CreditorRead }> {
+  if (!permitted || !deps.readCreditors) return { creditors: { state: 'not_read' } }
+  if (bankRead.settingsFailed) return { creditors: { state: 'error' } }
+  if (!bankRead.readySettings) return { creditors: { state: 'not_read' } }
+  try {
+    return { creditors: await deps.readCreditors(bankRead.readySettings, today) }
+  } catch {
+    return { creditors: { state: 'error' } }
+  }
+}
+
+async function creditorLinks(
+  ctx: FinanceCtx,
+  creditors: CreditorRead,
+  payablesLoaded: boolean,
+  loadedInvoiceLinks: InvoiceLink[] | null,
+): Promise<{ party?: CreditorParty; suppliersKnown: boolean; invoicesKnown: boolean }> {
+  if (creditors.state !== 'known' || creditors.items.length === 0) {
+    return { suppliersKnown: true, invoicesKnown: true }
+  }
+  let suppliers: SupplierLink[] | null = null
+  let suppliersKnown = true
+  try {
+    const rows = await fetchAllRows<{ id: string; name: string | null; external_supplier_id: string | null; external_provider: string | null }>((from, to) => ctx.supabase
+      .from('suppliers')
+      .select('id, name, external_supplier_id, external_provider')
+      .order('id')
+      .range(from, to))
+    if (rows.length >= SUPPLIER_MATCH_CAP) suppliersKnown = false
+    else suppliers = rows.map((row) => ({ id: row.id, name: row.name, externalSupplierId: row.external_supplier_id, externalProvider: row.external_provider }))
+  } catch {
+    suppliersKnown = false
+  }
+  const invoicesKnown = payablesLoaded && loadedInvoiceLinks != null
+  const invoices = invoicesKnown ? loadedInvoiceLinks : null
+  const party: CreditorParty = (item) => {
+    const supplier = matchSupplier(item.supplierNumber, suppliersKnown ? suppliers : null)
+    const invoiceId = matchIncomingInvoice(item, supplier, invoices)
+    if (supplier.state !== 'matched') {
+      return { party: `Leverandør ${item.supplierNumber}`, partyHref: null, documentHref: null }
+    }
+    return {
+      party: supplier.name,
+      partyHref: `/dashboard/settings/suppliers/${supplier.supplierId}`,
+      documentHref: invoiceId ? `/dashboard/incoming-invoices/${invoiceId}` : null,
+    }
+  }
+  return { party, suppliersKnown, invoicesKnown }
+}
+
+async function loadBookedBank(permitted: boolean, now: Date, deps: FinanceDeps): Promise<{ bank: BookedBankInput; minimumCashDkk: number | null; overdueThresholdDkk: number | null; settingsFailed: boolean; readySettings: ReadyEconomicSettings | null }> {
   const bank: BookedBankInput = {
     permitted,
     credentialsReady: false,
@@ -212,22 +293,22 @@ async function loadBookedBank(permitted: boolean, now: Date, deps: FinanceDeps):
     balance: { outcome: 'not_read' },
     readAt: null,
   }
-  const none = { minimumCashDkk: null, overdueThresholdDkk: null }
+  const none = { minimumCashDkk: null, overdueThresholdDkk: null, settingsFailed: false, readySettings: null as ReadyEconomicSettings | null }
   // Without settings.economic the encrypted settings row is not touched at all
   if (!permitted) return { bank, ...none }
   const read = await deps.readSettings()
-  if (read.state === 'error') return { bank: { ...bank, settingsFailed: true }, ...none }
+  if (read.state === 'error') return { bank: { ...bank, settingsFailed: true }, ...none, settingsFailed: true }
   if (read.state === 'missing') return { bank, ...none }
   const settings = read.settings
   const thresholds = thresholdsFrom(settings.config)
-  if (!isEconomicReady(settings)) return { bank, ...thresholds }
+  if (!isEconomicReady(settings)) return { bank, ...thresholds, settingsFailed: false, readySettings: null }
   bank.credentialsReady = true
   try {
     const account = settings.config?.bankContraAccountNumber
     if (typeof account !== 'number' || !Number.isSafeInteger(account) || account <= 0) {
       const probe = await deps.readYears(settings)
       bank.probe = probe.ok ? 'ok' : probe.reason
-      return { bank, ...thresholds }
+      return { bank, ...thresholds, settingsFailed: false, readySettings: settings }
     }
     bank.accountNumber = account
     const balance = await deps.readBalance(settings, account)
@@ -242,7 +323,7 @@ async function loadBookedBank(permitted: boolean, now: Date, deps: FinanceDeps):
     bank.balance = { outcome: 'failed' }
     if (bank.accountNumber == null) bank.probe = 'failed'
   }
-  return { bank, ...thresholds }
+  return { bank, ...thresholds, settingsFailed: false, readySettings: settings }
 }
 
 export type FinanceAlertTile =
@@ -253,8 +334,8 @@ export type FinanceAlertTile =
 const TILE_HREF = '/dashboard/finance'
 
 /**
- * Dashboard tile. Runs on every dashboard load, so it never calls e-conomic, and it reads invoices only when a
- * threshold is set. The minimum-cash check cannot run while supplier remainders are unknown. With nothing to
+ * Dashboard tile. Runs on every dashboard load, so it never calls e-conomic and never reads creditor remainders.
+ * It reads invoices only when a threshold is set. The minimum-cash check cannot run here. With nothing to
  * evaluate the tile is hidden: "0 alerts" would claim a check that did not happen.
  */
 export async function buildFinanceAlertTile(ctx: FinanceCtx, readSettings: FinanceDeps['readSettings'], now: Date = new Date()): Promise<FinanceAlertTile> {
