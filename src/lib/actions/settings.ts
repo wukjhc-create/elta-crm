@@ -25,6 +25,7 @@ import { resetPasswordRedirect } from '@/lib/auth/set-password-link'
 import { validateUUID } from '@/lib/validations/common'
 import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { setProfileLoginActive } from '@/lib/auth/login-access'
+import { loadEmployeeSetup, montorRoleChangeError, roleRequiresEmployee, EMPLOYEE_SETUP_ISSUE } from '@/lib/employees/setup-integrity'
 import { isValidRole, lastAdminBlock } from '@/lib/auth/role-guard'
 import { isOwnAvatarPath } from '@/lib/auth/avatar-path'
 
@@ -1138,6 +1139,23 @@ export async function updateTeamMember(
     const { data: before } = await adminForAudit.from('profiles').select('role, is_active, full_name').eq('id', memberId).maybeSingle()
     const prev = before as { role?: string | null; is_active?: boolean | null; full_name?: string | null } | null
 
+    // Employee integrity 2026-11-09: et skift TIL montør kræver præcis én aktiv medarbejder på login'et — ellers en halvt
+    // opsat montør (ingen job, ingen tid). Afvises FØR noget ændres. Skift VÆK fra montør rører aldrig medarbejder/timer.
+    let employeeSetup: Awaited<ReturnType<typeof loadEmployeeSetup>> | null = null
+    const becomesMontor = input.role !== undefined && roleRequiresEmployee(input.role) && !roleRequiresEmployee(prev?.role)
+    const reactivatesMontor = input.is_active === true && prev?.is_active === false && roleRequiresEmployee(input.role ?? prev?.role)
+    if (becomesMontor || reactivatesMontor || (input.role !== undefined && roleRequiresEmployee(prev?.role) && !roleRequiresEmployee(input.role)) || input.is_active === false) {
+      try {
+        employeeSetup = await loadEmployeeSetup(adminForAudit, memberId)
+      } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : 'Kunne ikke kontrollere medarbejderopsætningen' }
+      }
+    }
+    if (becomesMontor && employeeSetup) {
+      const err = montorRoleChangeError(employeeSetup)
+      if (err) return { success: false, error: err }
+    }
+
     // Sprint Ø2.2: is_active håndhæves via central helper (sætter flag OG
     // auth-ban) — ikke som et løst profil-felt. Resten (role/department)
     // opdateres normalt.
@@ -1202,19 +1220,28 @@ export async function updateTeamMember(
       })
       // TM-3 (team-review 2026-10-17): deaktiveret login → medarbejderkortet deaktiveres også (kunne før stadig
       // planlægges), og åbne job, der stadig er tildelt, meldes
-      if (input.is_active === false) {
-        const { data: emp } = await adminForAudit.from('employees').select('id, active').eq('profile_id', memberId).maybeSingle()
-        const e = emp as { id: string; active: boolean | null } | null
-        if (e) {
-          if (e.active) {
-            const { copenhagenParts } = await import('@/lib/utils/copenhagen-time')
-            await adminForAudit.from('employees').update({ active: false, termination_date: copenhagenParts(new Date()).date }).eq('id', e.id).eq('active', true)
-          }
+      // Employee integrity 2026-11-09: ALLE aktive rækker på login'et (før maybeSingle → ved to rækker blev ingen
+      // deaktiveret, tavst). Historik (timer, AO'er) røres ikke.
+      if (input.is_active === false && employeeSetup) {
+        const ids = employeeSetup.activeEmployeeIds
+        if (ids.length) {
+          const { copenhagenParts } = await import('@/lib/utils/copenhagen-time')
+          const { error: deErr } = await adminForAudit.from('employees').update({ active: false, termination_date: copenhagenParts(new Date()).date }).in('id', ids).eq('active', true)
+          if (deErr) warning = 'Login er deaktiveret, men medarbejderkortet kunne ikke deaktiveres — gør det under Medarbejdere'
           const { count: openJobs } = await adminForAudit.from('work_orders').select('id', { count: 'exact', head: true })
-            .eq('assigned_employee_id', e.id).in('status', ['planned', 'in_progress'])
-          if ((openJobs ?? 0) > 0) warning = `${openJobs} planlagte/igangværende job er stadig tildelt medarbejderen — omplanlæg dem i kalenderen`
+            .in('assigned_employee_id', ids).in('status', ['planned', 'in_progress'])
+          if ((openJobs ?? 0) > 0) warning = [warning, `${openJobs} planlagte/igangværende job er stadig tildelt medarbejderen — omplanlæg dem i kalenderen`].filter(Boolean).join('. ')
         }
       }
+      if (reactivatesMontor && employeeSetup && employeeSetup.state !== 'linked') {
+        warning = `Login aktiveret, men opsætningen er ufuldstændig (${EMPLOYEE_SETUP_ISSUE[employeeSetup.state]}) — montøren får ingen job, før medarbejderen er koblet/aktiv`
+      }
+    }
+    // Skift VÆK fra montør: medarbejder, timer og AO'er bevares (historik). Åbne job meldes, så de kan omplanlægges.
+    if (input.role !== undefined && roleRequiresEmployee(prev?.role) && !roleRequiresEmployee(input.role) && employeeSetup?.activeEmployeeIds.length) {
+      const { count: openJobs } = await adminForAudit.from('work_orders').select('id', { count: 'exact', head: true })
+        .in('assigned_employee_id', employeeSetup.activeEmployeeIds).in('status', ['planned', 'in_progress'])
+      if ((openJobs ?? 0) > 0) warning = [warning, `Rollen er ændret; medarbejder og timer er bevaret. ${openJobs} planlagte/igangværende job er stadig tildelt — omplanlæg dem hvis personen ikke længere skal udføre dem`].filter(Boolean).join('. ')
     }
 
     revalidatePath('/dashboard/settings/team')
@@ -1274,6 +1301,17 @@ export async function inviteTeamMember(
       return { success: false, error: 'Manglende tilladelse: users.create' }
     }
     if (!isValidRole(role)) return { success: false, error: 'Ukendt rolle' }
+    // Employee integrity 2026-11-09: en montør skal have en medarbejder. Herfra oprettes kun et login (handle_new_user),
+    // aldrig en medarbejderrække → montøren ville se "ingen job" og ikke kunne registrere tid. Medarbejderkortet opretter
+    // login og kobling i samme trin.
+    if (roleRequiresEmployee(role)) {
+      return { success: false, error: 'Montører inviteres fra medarbejderkortet (Medarbejdere → vælg medarbejder → Login), så login og medarbejder kobles fra start.' }
+    }
+    // handle_new_user opretter altid profilen som montør. Kan rollen ikke sættes (mangler users.edit), ville brugeren
+    // ende som montør uden medarbejder — afvis før noget oprettes.
+    if (!hasPermission('users.edit')) {
+      return { success: false, error: 'Rollen kan kun sættes med rettigheden users.edit — bed en administrator sende invitationen.' }
+    }
 
     // Findes brugeren allerede (også en afventende invitation har en profil) → afvis
     const { data: existing } = await supabase
@@ -1321,13 +1359,17 @@ export async function inviteTeamMember(
       await noteSupabaseFallback('team_invite')
     }
 
-    // handle_new_user opretter profilen som montør; den valgte rolle sættes her (kræver users.edit som rolleskift i øvrigt)
+    // handle_new_user opretter profilen som montør; den valgte rolle sættes her (users.edit er tjekket ovenfor)
     let roleWarning: string | null = null
-    if (newId && role !== 'montør' && hasPermission('users.edit')) {
+    if (newId) {
       const { error: roleErr } = await admin.from('profiles').update({ role, updated_at: new Date().toISOString() }).eq('id', newId)
       if (roleErr) {
         logger.error('Invitation oprettet, men rollen kunne ikke sættes', { error: roleErr, entityId: newId })
-        roleWarning = 'rollen kunne ikke sættes — ret den under brugerlisten'
+        // Employee integrity: ellers en aktiv montør uden medarbejder. Login spærres, til rollen er rettet.
+        const blocked = await setProfileLoginActive(newId, false)
+        roleWarning = blocked.ok
+          ? 'rollen kunne ikke sættes, så login\'et er spærret — ret rollen og aktivér brugeren under brugerlisten'
+          : 'rollen kunne ikke sættes — ret den under brugerlisten (brugeren står som montør uden medarbejder)'
       }
     }
 

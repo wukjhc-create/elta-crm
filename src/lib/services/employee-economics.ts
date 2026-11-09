@@ -83,17 +83,17 @@ export async function calculateEmployeeProjectImpact(args: {
 
   const { data: emp } = await supabase
     .from('employees')
-    .select('id, first_name, last_name, name, hourly_rate, cost_rate')
+    .select('id, first_name, last_name, name')
     .eq('id', args.employeeId)
     .maybeSingle()
   if (!emp) return []
 
   // Profit-review 2026-10-07: side for side — uden periode (hele historikken) passerer én medarbejder let 1.000
   // timerækker, og PostgREST afkortede så stille → for lave timer/kost/dækningsbidrag pr. projekt
-  const logs = await fetchAllRows<{ id: string; work_order_id: string; hours: number | string | null; cost_amount: number | string | null; billable: boolean | null }>((from, to) => {
+  const logs = await fetchAllRows<{ id: string; work_order_id: string; hours: number | string | null; cost_amount: number | string | null; sale_amount: number | string | null; billable: boolean | null }>((from, to) => {
     let q = supabase
       .from('time_logs')
-      .select('id, work_order_id, hours, cost_amount, billable, end_time, start_time')
+      .select('id, work_order_id, hours, cost_amount, sale_amount, billable, end_time, start_time')
       .eq('employee_id', args.employeeId)
       .not('end_time', 'is', null)
       .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
@@ -104,16 +104,25 @@ export async function calculateEmployeeProjectImpact(args: {
   })
   if (logs.length === 0) return []
 
-  // Group by work_order_id
-  const byWo = new Map<string, { hours: number; billableHours: number; cost: number }>()
+  // Group by work_order_id. Employee integrity 2026-11-09: omsætning fra timens FROSNE sale_amount (før: medarbejderens
+  // nuværende timepris || 0 → manglende sats = omsætning 0 og et falsk DB; og gamle timer omprissat til dagens sats).
+  // Manglende kost/salg på en time = ukendt, aldrig 0.
+  const knownAmount = (v: unknown): number | null => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
+  const byWo = new Map<string, { hours: number; billableHours: number; cost: number; revenue: number; unknownCost: number; unknownSale: number }>()
   for (const l of logs) {
     const woId = l.work_order_id
-    const slot = byWo.get(woId) ?? { hours: 0, billableHours: 0, cost: 0 }
+    const slot = byWo.get(woId) ?? { hours: 0, billableHours: 0, cost: 0, revenue: 0, unknownCost: 0, unknownSale: 0 }
     const h = Number(l.hours) || 0
-    const c = Number(l.cost_amount) || 0
+    const c = knownAmount(l.cost_amount)
     slot.hours += h
-    slot.cost += c
-    if (l.billable) slot.billableHours += h
+    if (c === null) slot.unknownCost += 1
+    else slot.cost += c
+    if (l.billable) {
+      slot.billableHours += h
+      const s = knownAmount(l.sale_amount)
+      if (s === null) slot.unknownSale += 1
+      else slot.revenue += s
+    }
     byWo.set(woId, slot)
   }
 
@@ -127,13 +136,12 @@ export async function calculateEmployeeProjectImpact(args: {
     for (const w of workOrders ?? []) woMap.set(w.id, w.title as string)
   }
 
-  const salesRate = Number(emp.hourly_rate) || 0
   const empName =
     [emp.first_name, emp.last_name].filter(Boolean).join(' ') || (emp as { name?: string }).name || 'Ukendt'
 
   return Array.from(byWo.entries()).map(([woId, slot]) => {
-    const revenue = Math.round(slot.billableHours * salesRate * 100) / 100
-    const cost = Math.round(slot.cost * 100) / 100
+    const revenue = slot.unknownSale > 0 ? null : round2(slot.revenue)
+    const cost = slot.unknownCost > 0 ? null : round2(slot.cost)
     return {
       employeeId: emp.id,
       employeeName: empName,
@@ -143,7 +151,9 @@ export async function calculateEmployeeProjectImpact(args: {
       billableHours: round2(slot.billableHours),
       laborCost: cost,
       laborRevenue: revenue,
-      contributionMargin: round2(revenue - cost),
+      contributionMargin: revenue === null || cost === null ? null : round2(revenue - cost),
+      unknownCostLines: slot.unknownCost,
+      unknownSaleLines: slot.unknownSale,
     }
   })
 }

@@ -18,6 +18,7 @@ import {
   getAuthenticatedClientWithRole,
 } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
+import { activeLinkConflict, loadEmployeeSetup } from '@/lib/employees/setup-integrity'
 import { mapDatabaseError } from '@/lib/actions/action-helpers'
 import {
   EmployeeCompensationSchema,
@@ -135,7 +136,11 @@ export async function listCalendarEmployeesAction(): Promise<EmployeeRow[]> {
   const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (hasPermission('employees.view')) return listEmployeesAction({ active: 'active', limit: 200 })
   if (!hasPermission('calendar.view.own')) return []
-  const { data } = await supabase.from('employees').select('*').eq('profile_id', userId).eq('active', true).limit(1)
+  // Employee integrity 2026-11-09: før limit(1) uden rækkefølge → vilkårlig række ved dubletter. Nu kun den entydige
+  // aktive række; mangler/tvetydig → tom liste (kalenderen viser "ikke koblet"), aldrig et gæt.
+  const setup = await loadEmployeeSetup(supabase, userId)
+  if (setup.state !== 'linked' || !setup.employeeId) return []
+  const { data } = await supabase.from('employees').select('*').eq('id', setup.employeeId)
   return (data ?? []).map(normaliseEmployee).map((r) => ({ ...r, hourly_rate: null, cost_rate: null }))
 }
 
@@ -209,6 +214,17 @@ export async function getCompensationHistoryAction(
 // Writes — identity
 // =====================================================
 
+/** Employee integrity 2026-11-09: et login må kun have ÉN aktiv medarbejder (admin-klient: alle rækker, uanset RLS). */
+async function profileLinkConflict(profileId: string | null | undefined, employeeId?: string): Promise<string | null> {
+  if (!profileId) return null
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  try {
+    return await activeLinkConflict(createAdminClient(), profileId, employeeId)
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Kunne ikke kontrollere login-koblingen'
+  }
+}
+
 export async function createEmployeeAction(
   raw: unknown
 ): Promise<ActionOutcome<EmployeeWithCompensation>> {
@@ -246,6 +262,10 @@ export async function createEmployeeAction(
   }
 
   const insertPayload = buildEmployeePayload(input)
+  if (insertPayload.profile_id && insertPayload.active !== false) {
+    const conflict = await profileLinkConflict(insertPayload.profile_id as string)
+    if (conflict) return { ok: false, message: conflict }
+  }
   const { data: ins, error } = await ctx.supabase
     .from('employees')
     .insert(insertPayload)
@@ -292,6 +312,11 @@ export async function updateEmployeeAction(
   // fratrædelse (aktiv → inaktiv) uden dato → i dag (som setEmployeeActiveAction)
   if (prevRow?.active !== false && parsed.data.active === false && !updatePayload.termination_date) {
     updatePayload.termination_date = copenhagenParts(new Date()).date
+  }
+  // Employee integrity: genaktivering (inaktiv → aktiv) må ikke give login'et en ekstra aktiv medarbejder
+  if (prevRow?.profile_id && prevRow.active === false && parsed.data.active !== false) {
+    const conflict = await profileLinkConflict(prevRow.profile_id, id)
+    if (conflict) return { ok: false, message: conflict }
   }
   if (deactivatingLogin) {
     const res = await setLoginWithEmployee(prevRow!.profile_id as string, false, ctx.userId)
@@ -380,6 +405,12 @@ export async function setEmployeeActiveAction(
   if (!emp) return { ok: false, message: 'Medarbejder ikke fundet' }
   const profileId = (emp as { profile_id: string | null }).profile_id
   const touchLogin = !!profileId && (active ? opts?.reactivateLogin === true : opts?.deactivateLogin !== false)
+  // Employee integrity 2026-11-09: genaktivering må ikke give login'et to aktive medarbejdere (montøren ville ellers
+  // kun se den ældste rækkes job, og tid på den anden afvises)
+  if (active) {
+    const conflict = await profileLinkConflict(profileId, id)
+    if (conflict) return { ok: false, message: conflict }
+  }
 
   // Login først: afvises det (fx sidste administrator), ændres medarbejderen heller ikke
   if (touchLogin) {

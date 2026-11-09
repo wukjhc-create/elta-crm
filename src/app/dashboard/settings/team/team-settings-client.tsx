@@ -353,7 +353,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
-            <Button type="submit" disabled={isInviting || !inviteEmail.trim()}>
+            <Button type="submit" disabled={isInviting || !inviteEmail.trim() || inviteRole === 'montør'}>
               {isInviting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -369,7 +369,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
           </form>
           {inviteRole === 'montør' && (
             <p className="mt-2 text-xs text-amber-800" data-testid="invite-montor-hint">
-              En montør skal også kobles til en medarbejder (Medarbejdere → Login) — ellers ser han ingen job.
+              Montører inviteres fra medarbejderkortet (Medarbejdere → vælg medarbejder → Login), så login og medarbejder kobles fra start.
             </p>
           )}
         </div>

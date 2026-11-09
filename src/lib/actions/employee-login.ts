@@ -26,6 +26,7 @@ import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type { UserRole } from '@/types/auth.types'
 import { isValidRole, lastAdminBlock } from '@/lib/auth/role-guard'
+import { activeLinkConflict, loadEmployeeSetup, montorRoleChangeError, roleRequiresEmployee } from '@/lib/employees/setup-integrity'
 
 export interface EmployeeLoginStatus {
   has_login: boolean
@@ -141,11 +142,15 @@ export async function inviteEmployeeLogin(
     const admin = createAdminClient()
     const { data: emp } = await admin
       .from('employees')
-      .select('id, email, name, first_name, last_name, profile_id')
+      .select('id, email, name, first_name, last_name, profile_id, active')
       .eq('id', employeeId)
       .maybeSingle()
     if (!emp) return { success: false, error: 'Medarbejder ikke fundet' }
     if (emp.profile_id) return { success: false, error: 'Medarbejderen har allerede et login' }
+    // Employee integrity 2026-11-09: et montør-login på en inaktiv medarbejder ville være en montør uden aktiv medarbejder
+    if (roleRequiresEmployee(role) && (emp as { active?: boolean | null }).active !== true) {
+      return { success: false, error: 'Medarbejderen er inaktiv. Genaktivér medarbejderen før der oprettes et montør-login.' }
+    }
     if (!emp.email) return { success: false, error: 'Medarbejderen mangler e-mail' }
 
     const fullName =
@@ -233,16 +238,19 @@ export async function linkExistingProfile(
     const admin = createAdminClient()
     const { data: prof } = await admin.from('profiles').select('id').eq('id', profileId).maybeSingle()
     if (!prof) return { success: false, error: 'Bruger ikke fundet' }
-    // Sikr at profilen ikke allerede er knyttet til en anden medarbejder.
-    const { data: clash } = await admin
-      .from('employees')
-      .select('id')
-      .eq('profile_id', profileId)
-      .neq('id', employeeId)
-      .maybeSingle()
-    if (clash) return { success: false, error: 'Brugeren er allerede knyttet til en anden medarbejder' }
+    const { data: before, error: beforeErr } = await admin.from('employees').select('profile_id, name, active').eq('id', employeeId).maybeSingle()
+    if (beforeErr) return { success: false, error: 'Kunne ikke læse medarbejderen — prøv igen' }
+    if (!before) return { success: false, error: 'Medarbejder ikke fundet' }
+    // Employee integrity 2026-11-09: et login må kun have ÉN aktiv medarbejder. Før: maybeSingle på andre rækker — ved
+    // 2+ rækker fejlede opslaget, data blev null og tjekket bestod tavst. Nu tælles aktive rækker; en læsefejl afviser.
+    if ((before as { active?: boolean | null }).active) {
+      let conflict: string | null
+      try { conflict = await activeLinkConflict(admin, profileId, employeeId) } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : 'Kunne ikke kontrollere koblingen' }
+      }
+      if (conflict) return { success: false, error: conflict }
+    }
 
-    const { data: before } = await admin.from('employees').select('profile_id, name').eq('id', employeeId).maybeSingle()
     const { error } = await admin
       .from('employees')
       .update({ profile_id: profileId, updated_at: new Date().toISOString() })
@@ -339,6 +347,15 @@ export async function setEmployeeAuthRole(
     if (emp.profile_id === ctx.userId) return { success: false, error: 'Du kan ikke ændre din egen rolle' }
     const { data: prevProf } = await admin.from('profiles').select('role, full_name').eq('id', emp.profile_id as string).maybeSingle()
     const prevRole = (prevProf as { role?: string } | null)?.role ?? null
+    // Employee integrity 2026-11-09: skift TIL montør kræver at netop denne medarbejder er login'ets eneste aktive række.
+    // Skift VÆK fra montør rører ikke medarbejder, timer eller AO'er (historik bevares).
+    if (roleRequiresEmployee(role) && !roleRequiresEmployee(prevRole)) {
+      let err: string | null
+      try { err = montorRoleChangeError(await loadEmployeeSetup(admin, emp.profile_id as string), employeeId) } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : 'Kunne ikke kontrollere medarbejderopsætningen' }
+      }
+      if (err) return { success: false, error: err }
+    }
 
     const { error } = await admin
       .from('profiles')

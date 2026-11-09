@@ -8,6 +8,7 @@ import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { listWorkOrdersByDateRange } from '@/lib/actions/work-orders'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { generateWorkOrdersICS } from '@/lib/utils/ics'
+import { EMPLOYEE_SETUP_TEXT, loadEmployeeSetup } from '@/lib/employees/setup-integrity'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,10 +31,16 @@ export async function GET() {
   } catch {
     return errorPage('Du er ikke logget ind — log ind og prøv igen', 401)
   }
-  // FW-15: kun den aktive medarbejderrække (to rækker → maybeSingle fejlede → 404)
-  const { data: emp } = await ctx.supabase.from('employees').select('id').eq('profile_id', ctx.userId).eq('active', true).limit(1).maybeSingle()
-  const employeeId = (emp as { id?: string } | null)?.id
-  if (!employeeId) return errorPage('Dit login er ikke koblet til en medarbejder — bed kontoret om at koble dig under Medarbejdere', 404)
+  // FW-15 + employee integrity 2026-11-09: kun den ENTYDIGE aktive medarbejderrække (før limit(1) uden rækkefølge →
+  // vilkårlig række ved dubletter). Mangler/inaktiv/tvetydig → klar besked, aldrig et gæt; læsefejl ≠ "ikke koblet".
+  let setup: Awaited<ReturnType<typeof loadEmployeeSetup>>
+  try {
+    setup = await loadEmployeeSetup(ctx.supabase, ctx.userId)
+  } catch (e) {
+    return errorPage(e instanceof Error ? e.message : 'Kunne ikke kontrollere din medarbejderkobling', 503)
+  }
+  if (setup.state !== 'linked' || !setup.employeeId) return errorPage(EMPLOYEE_SETUP_TEXT[setup.state === 'linked' ? 'missing' : setup.state], 404)
+  const employeeId = setup.employeeId
 
   const today = copenhagenParts(new Date()).date
   const res = await listWorkOrdersByDateRange(shift(today, -14), shift(today, 60), { includeOpenOutsideRange: true })

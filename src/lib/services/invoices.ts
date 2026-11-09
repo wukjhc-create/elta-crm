@@ -1671,6 +1671,16 @@ export async function createInvoiceFromWorkOrder(
   if ((pending ?? 0) > 0) {
     throw new Error(`createInvoiceFromWorkOrder: ${pending} timer afventer godkendelse — godkend dem før fakturering`)
   }
+  // Employee integrity 2026-11-09: SQL-funktionen (00202) prissætter timer med medarbejderens NUVÆRENDE timepris og falder
+  // tilbage til p_default_hourly_rate (indstilling/495), når den mangler — en manglende sats blev et fakturabeløb, og
+  // en ændret sats omprissatte gamle timer. Indtil funktionen bruger de frosne beløb (migrationsforslag), faktureres kun
+  // når HVER fakturerbar time har et frosset salg, og medarbejderens timepris stadig er den frosne — så giver SQL'en
+  // præcis det frosne beløb, og standardsatsen bruges aldrig.
+  {
+    const { workOrderTimePricingBlock } = await import('@/lib/employees/invoice-rate-guard')
+    const block = await workOrderTimePricingBlock(supabase, workOrderId)
+    if (block) throw new Error(`createInvoiceFromWorkOrder: ${block}`)
+  }
   // PR-10: SQL-funktionen fakturerer med 25 % — sager hvis tilbud har en anden momssats blokeres
   {
     const { data: woCase } = await supabase.from('work_orders').select('case_id').eq('id', workOrderId).maybeSingle()

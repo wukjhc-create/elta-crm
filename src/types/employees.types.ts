@@ -206,9 +206,15 @@ export interface EmployeeProjectImpact {
   projectName: string | null
   totalHours: number
   billableHours: number
-  laborCost: number          // billable hours × internal_cost_rate
-  laborRevenue: number       // billable hours × sales_rate
-  contributionMargin: number // revenue - cost (DB)
+  /** Sum af de frosne cost_amount. null = mindst én afsluttet time mangler kost (ukendt, aldrig 0) */
+  laborCost: number | null
+  /** Sum af de frosne sale_amount på fakturerbare timer. null = mindst én mangler (ukendt, aldrig 0) */
+  laborRevenue: number | null
+  /** revenue − cost (DB). null, når en af dem er ukendt */
+  contributionMargin: number | null
+  /** Antal timer uden frossen kost/salg (employee integrity 2026-11-09) */
+  unknownCostLines: number
+  unknownSaleLines: number
 }
 
 export interface EmployeeCompensationHistoryRow {

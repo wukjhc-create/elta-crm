@@ -10,6 +10,7 @@ import { CalendarCheck, ChevronRight, AlertTriangle, Navigation } from 'lucide-r
 import { listWorkOrdersByDateRange, type WorkOrderForCalendar } from '@/lib/actions/work-orders'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getWorkOrdersWithoutTimeAction } from '@/lib/actions/planning-backlog'
+import { getMyEmployeeSetupAction } from '@/lib/actions/employee-setup'
 
 function shiftDay(day: string, n: number): string {
   const d = new Date(`${day}T12:00:00Z`)
@@ -24,7 +25,13 @@ const STATUS: Record<string, string> = { planned: 'Planlagt', in_progress: 'I ga
 
 export async function MyJobsCard() {
   const today = copenhagenParts(new Date()).date
-  const res = await listWorkOrdersByDateRange(shiftDay(today, -14), shiftDay(today, 7), { includeOpenOutsideRange: true })
+  const [res, setupRes] = await Promise.all([
+    listWorkOrdersByDateRange(shiftDay(today, -14), shiftDay(today, 7), { includeOpenOutsideRange: true }),
+    // Employee integrity 2026-11-09: en montør uden entydig medarbejder ser ellers "Ingen planlagte job" (misvisende)
+    getMyEmployeeSetupAction(),
+  ])
+  const setupIncomplete = setupRes.success && setupRes.data?.incomplete ? setupRes.data.message : null
+  const setupCheckFailed = !setupRes.success
   // M-6 (pilot-review 2026-10-15): før forsvandt kortet tavst ved fejl — lignede "intet arbejde i dag"
   if (!res.success) {
     return (
@@ -68,13 +75,23 @@ export async function MyJobsCard() {
           {noTimeRes?.error ?? 'Kunne ikke tjekke timer'}. Det tælles ikke som at tiden er registreret.
         </p>
       )}
+      {setupIncomplete && (
+        <p className="mb-3 text-sm text-amber-800 flex gap-1.5" data-testid="my-jobs-setup-incomplete" role="status">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />{setupIncomplete}
+        </p>
+      )}
+      {setupCheckFailed && (
+        <p className="mb-3 text-sm text-amber-800" data-testid="my-jobs-setup-check-error">
+          Kunne ikke kontrollere din medarbejderkobling. Det betyder ikke, at den mangler.
+        </p>
+      )}
       {doneWithoutTime.length > 0 && (
         <div className="mb-4" data-testid="my-jobs-no-time">
           <JobGroup title="Afsluttet uden timer — registrér din tid" jobs={doneWithoutTime} warn />
         </div>
       )}
       {open.length === 0 ? (
-        <p className="text-sm text-gray-500">Ingen planlagte job de næste 7 dage. Kontoret planlægger opgaverne.</p>
+        setupIncomplete ? null : <p className="text-sm text-gray-500">Ingen planlagte job de næste 7 dage. Kontoret planlægger opgaverne.</p>
       ) : (
         <div className="space-y-4">
           <JobGroup title="Ikke afsluttet" jobs={overdue} warn />

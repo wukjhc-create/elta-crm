@@ -11,6 +11,7 @@ import { leadSourceEmailIds } from '@/lib/leads/source-email'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { classifyEmployeeLink, EMPLOYEE_SETUP_ISSUE, type EmployeeLinkRow } from '@/lib/employees/setup-integrity'
 
 export interface PilotSetupItem {
   key: string
@@ -33,7 +34,8 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
     admin.from('company_settings').select('company_name, company_vat_number, bank_reg_no, bank_account').limit(1).maybeSingle(),
     // Pilot-review 2026-10-14 (P-4): kun aktive logins (en deaktiveret montør gav falsk alarm)
     admin.from('profiles').select('id').eq('role', 'montør').eq('is_active', true),
-    admin.from('employees').select('profile_id').not('profile_id', 'is', null),
+    // Employee integrity 2026-11-09: aktiv-flag med, så en kun-inaktiv række ikke tæller som koblet
+    admin.from('employees').select('id, profile_id, active, created_at').not('profile_id', 'is', null),
     // side for side (før .limit(5000) → højst 1.000 fakturaer)
     fetchAllRows<{ id: string; customer_id: string }>((from, to) => admin.from('invoices').select('id, customer_id').in('status', ['sent', 'paid'])
       .is('external_invoice_id', null).not('customer_id', 'is', null).order('id').range(from, to)).then((data) => ({ data })),
@@ -47,9 +49,18 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
   const bank = invoiceBankInfo(cs)
 
   const montorLookupFailed = Boolean(montorRes.error || employeeRes.error)
-  const linked = new Set(((employees ?? []) as Array<{ profile_id: string }>).map((e) => e.profile_id))
+  const byProfile = new Map<string, EmployeeLinkRow[]>()
+  for (const e of (employees ?? []) as Array<EmployeeLinkRow & { profile_id: string }>) {
+    byProfile.set(e.profile_id, [...(byProfile.get(e.profile_id) ?? []), e])
+  }
   const montorIds = ((montorProfiles ?? []) as Array<{ id: string }>).map((p) => p.id)
-  const unlinkedMontors = montorIds.filter((id) => !linked.has(id)).length
+  const montorStates = montorIds.map((id) => classifyEmployeeLink(byProfile.get(id) ?? []).state)
+  const unlinkedMontors = montorStates.filter((st) => st !== 'linked').length
+  const stateCounts = (['missing', 'inactive_only', 'ambiguous'] as const)
+    .map((st) => [st, montorStates.filter((x) => x === st).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([st, n]) => `${n} ${EMPLOYEE_SETUP_ISSUE[st]}`)
+    .join(', ')
 
   const billedIds = [...new Set(((billed ?? []) as Array<{ customer_id: string }>).map((b) => b.customer_id))]
   let unlinkedCustomers = 0
@@ -106,7 +117,7 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
         ? 'Kunne ikke tælle montør-logins. Det tælles ikke som 0.'
         : unlinkedMontors === 0
         ? `${montorIds.length} montør-login(s), alle koblet`
-        : `${unlinkedMontors} af ${montorIds.length} montør-login(s) er ikke koblet — de ser ingen job og kan ikke registrere tid`,
+        : `${unlinkedMontors} af ${montorIds.length} montør-login(s) er ikke entydigt koblet (${stateCounts}) — de ser ingen job og kan ikke registrere tid`,
       fixHint: 'Medarbejdere → Rediger → Login → "Knyt eksisterende bruger"',
       href: '/dashboard/employees',
     },
